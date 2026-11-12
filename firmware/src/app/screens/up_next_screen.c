@@ -88,12 +88,22 @@ static int count_queue_rows(const Player *player)
     return rows;
 }
 
+typedef struct UpNextRows {
+    const UpNextScreen *owner;
+    int first;
+    int count;
+    char labels[UP_NEXT_ROWS][UP_NEXT_LABEL_CAPACITY];
+    char details[UP_NEXT_ROWS][UP_NEXT_DETAIL_CAPACITY];
+} UpNextRows;
+
+static UpNextRows cache;
+
 static void count_rows(UpNextScreen *up_next)
 {
     const Player *player = up_next->config.player;
     up_next->added = player->up_next.count;
     up_next->count = player->has_track ? 1 + up_next->added + count_queue_rows(player) : 0;
-    up_next->rows_first = -1;
+    cache.owner = NULL;
 }
 
 static bool track_at(const UpNextScreen *up_next, int index, QueueWalk *walk, uint16_t *track)
@@ -121,8 +131,8 @@ static const char *state_text(const Player *player)
 static void load_row(UpNextScreen *up_next, int row, int index, QueueWalk *walk)
 {
     const Library *library = up_next->config.library;
-    char *label = up_next->labels[row];
-    char *detail = up_next->details[row];
+    char *label = cache.labels[row];
+    char *detail = cache.details[row];
     label[0] = '\0';
     detail[0] = '\0';
     uint16_t track_index = 0;
@@ -145,7 +155,7 @@ static void load_row(UpNextScreen *up_next, int row, int index, QueueWalk *walk)
 
 static void refresh_rows(UpNextScreen *up_next)
 {
-    if (up_next->rows_first == up_next->list.top) {
+    if (cache.owner == up_next && cache.first == up_next->list.top) {
         return;
     }
     int top = up_next->list.top;
@@ -154,17 +164,18 @@ static void refresh_rows(UpNextScreen *up_next)
     for (int row = 0; row < count; row++) {
         load_row(up_next, row, top + row, &walk);
     }
-    up_next->rows_first = top;
-    up_next->rows_count = count;
+    cache.owner = up_next;
+    cache.first = top;
+    cache.count = count;
 }
 
 static const char *cached_text(const UpNextScreen *up_next, int index, bool detail)
 {
-    int row = index - up_next->rows_first;
-    if (up_next->rows_first < 0 || row < 0 || row >= up_next->rows_count) {
+    int row = index - cache.first;
+    if (cache.owner != up_next || row < 0 || row >= cache.count) {
         return "";
     }
-    return detail ? up_next->details[row] : up_next->labels[row];
+    return detail ? cache.details[row] : cache.labels[row];
 }
 
 static int row_count(const void *context)
@@ -386,8 +397,7 @@ Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
     up_next->config = config;
     up_next->count = 0;
     up_next->added = 0;
-    up_next->rows_first = -1;
-    up_next->rows_count = 0;
+    cache.owner = NULL;
     up_next->now_ms = 0;
     up_next->returning = false;
     observe_player(up_next);

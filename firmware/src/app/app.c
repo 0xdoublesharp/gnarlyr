@@ -40,6 +40,7 @@
 #include "language.h"
 #include "library_rescan.h"
 #include "library_store.h"
+#include "listening_effects.h"
 #include "modules/modules.h"
 #include "music_check.h"
 #include "player.h"
@@ -117,6 +118,7 @@ typedef struct AppState {
     HeadphoneStore headphones;
     uint8_t headphones_chosen;
     Theme theme;
+    ThemeRuntime themes;
     Orientation shown_orientation;
     bool rocker_swapped[KEY_COUNT];
     FavoritesStore favorites;
@@ -610,8 +612,23 @@ static ScreenAction now_playing_action(void)
                : screen_action_push(&app.screens.now_playing.screen);
 }
 
+static bool now_playing_ready(void)
+{
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING);
+    if (entry != NULL) {
+        entry->now_playing_attach(&app.screens.now_playing);
+    } else {
+        now_playing_fallback_attach(&app.screens.now_playing);
+    }
+    return true;
+}
+
 static bool screen_ready(const Screen *screen)
 {
+    if (screen == &app.screens.now_playing.screen) {
+        return now_playing_ready();
+    }
     if (screen == &app.screens.home.screen) {
         screen_modules_prepare_home(&app.screens);
     }
@@ -695,6 +712,9 @@ static Screen *next_top(ScreenAction action)
 static bool apply_action(ScreenAction action, uint32_t now_ms)
 {
     Screen *next = next_top(action);
+    if (app.themes.previewing && action.type != SCREEN_ACTION_NONE) {
+        screen_modules_cancel_previews(&app.screens);
+    }
     EqualizerUi *equalizer = &app.screens.modules.equalizer;
     bool eq_screen = top_screen() == &equalizer->browser.choice.screen ||
                      top_screen() == &equalizer->graphic.screen ||
@@ -1084,6 +1104,7 @@ static bool draw_running_fade(Canvas *canvas)
         return true;
     }
     if (!fade_finished(&app.splash, app.now_ms)) {
+        theme_art_draw(board_theme(), canvas, THEME_ART_SPLASH, whole_screen());
         draw_fade(canvas, &app.splash, board_splash_text(board_theme()));
         return true;
     }
@@ -1310,6 +1331,13 @@ static void mask_motion(const void *owner)
 
 static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_t now_ms)
 {
+    NowPlayingScreen *playing = &app.screens.now_playing;
+    if (owner == &playing->screen &&
+        settings_now_playing_style(&app.settings.settings) != NOW_PLAYING_COVER &&
+        playing->config.cassette_animate != NULL) {
+        app.render_wanted |= playing->config.cassette_animate(playing, &app.frame_diff, visible);
+        return;
+    }
     bool due = visible && app.motion.owner == owner && wire_motion_due(&app.motion, now_ms);
     if (due) {
         wire_motion_tick(&app.motion, now_ms);
@@ -1376,8 +1404,12 @@ static void follow_appearance(void)
     if (shown->orientation != app.shown_orientation) {
         apply_orientation(shown->orientation);
     }
-    default_theme_set_appearance(&app.theme, shown->appearance);
+    AppearanceTheme appearance = app.themes.stored || app.themes.previewing
+                                     ? (AppearanceTheme)app.themes.shown_base
+                                     : shown->appearance;
+    default_theme_set_appearance(&app.theme, appearance);
     default_theme_set_accent(&app.theme, shown->accent);
+    theme_runtime_apply(&app.themes, &app.theme);
     notice_theme.colors = app.theme.colors;
     notice_theme.horizon = app.theme.horizon;
     notice_theme.header_rule = app.theme.header_rule;
@@ -1408,6 +1440,7 @@ static void build_screens(uint32_t now_ms)
         .options = &app.options,
         .theme = board_theme(),
         .styled_theme = &app.theme,
+        .themes = &app.themes,
         .compact_theme = &compact_theme,
         .store = &app.library,
         .player = &app.player,
@@ -1517,6 +1550,15 @@ static void start_app(bool power_on)
     language_load(app.settings.settings.language);
     headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
+    theme_runtime_close(&app.themes);
+    app.themes = (ThemeRuntime){.file = {.handle = -1}};
+    uint8_t selection;
+    if (hal_internal_file_read(THEME_SELECTION_PATH, &selection, 1)) {
+        const ViewsModuleEntry *themes = hal_system_load_module(SCREEN_MODULE_VIEWS);
+        if (themes != NULL) {
+            themes->theme_boot(&app.themes);
+        }
+    }
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
     follow_appearance();
@@ -1590,8 +1632,8 @@ static void explain_refusals(uint32_t now_ms)
 
 static MusicFingerprint walk_music(bool progress)
 {
-    const LibraryModuleEntry *module =
-        (const LibraryModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_LIBRARY);
+    const ViewsModuleEntry *module =
+        (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
     return module != NULL ? module->music_fingerprint(progress)
                           : (MusicFingerprint){.complete = false};
 }
@@ -2041,8 +2083,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
-    stamp = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
-    return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
+    return stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
 }
 
 static bool view_changed(uint32_t now_ms)
@@ -2173,6 +2214,8 @@ CORE_SEAM void app_step(void)
         follow_listeners();
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
         spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
+        hal_audio_set_effects(listening_effects_choose(
+            &app.settings.settings, &app.headphones.profiles, app.player.spoken));
         explain_refusals(now_ms);
         debug_loop_follow(now_ms, &app.player);
         update_power(now_ms);

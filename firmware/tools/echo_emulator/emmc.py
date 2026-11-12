@@ -28,6 +28,8 @@ WRITE_BLOCK_US = 70
 STATUS_COMMAND_US = 15
 POLL_JUMP_CYCLES = 240
 STATUS_CARD_BUSY = 1 << 9
+MMC_CLKENA = 0x10
+CLKENA_CARD_CLOCK = 0x1
 
 CTRL_RESET_BITS = 0x7
 CTRL_FIFO_RESET = 0x2
@@ -127,7 +129,17 @@ class DwMmc(RegisterFile):
         self.write_words = []
         self.write_target = None
         self.busy_until = 0
+        self.resets = []
         self.regs[MMC_FIFOTH] = FIFOTH_RESET_VALUE
+
+    def hard_reset(self):
+        commands = len(self.card.commands) if self.card is not None else 0
+        self.resets.append((self.machine.milliseconds(), commands))
+        self.regs = {MMC_FIFOTH: FIFOTH_RESET_VALUE}
+        self.read_queue.clear()
+        self.write_words = []
+        self.write_target = None
+        self.busy_until = 0
 
     def busy(self):
         remaining = self.busy_until - self.machine.cycles()
@@ -178,7 +190,7 @@ class DwMmc(RegisterFile):
             return
         index = value & 0x3F
         argument = self.regs.get(MMC_CMDARG, 0)
-        if self.card is None:
+        if self.card is None or not self.regs.get(MMC_CLKENA, 0) & CLKENA_CARD_CLOCK:
             self.raise_status(INT_COMMAND_DONE | INT_RESPONSE_TIMEOUT)
             return
         response = self.card.command(index, argument)

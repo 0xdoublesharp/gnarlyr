@@ -146,6 +146,13 @@ void hal_system_stall_test(void);
 void hal_system_watchdog_test(void);
 void hal_system_keep_alive(void);
 uint32_t hal_system_idle_microseconds(void);
+
+typedef struct HalCore1Load {
+    uint32_t elapsed_cycles;
+    uint32_t idle_cycles;
+} HalCore1Load;
+
+HalCore1Load hal_system_core1_load(void);
 typedef enum HalHighRamStatus {
     HAL_HIGH_RAM_OK,
     HAL_HIGH_RAM_UNAVAILABLE,
@@ -164,6 +171,7 @@ HalHighRamTest hal_system_high_ram_test(void);
 bool hal_system_restart_pending(void);
 const void *hal_system_load_rescan_code(void);
 const void *hal_system_load_module(uint32_t module);
+const void *hal_system_loaded_module(void);
 const void *hal_system_load_debug_code(void);
 const void *hal_system_extension_code(void);
 void *hal_system_borrow_scratch(uint32_t *size);
@@ -179,6 +187,7 @@ typedef enum HalStartStep {
     HAL_START_STEP_CORE1_STOP,
     HAL_START_STEP_CARD_WRITE,
     HAL_START_STEP_WATCHDOG_TEST,
+    HAL_START_STEP_LOADER,
     HAL_START_STEP_COUNT
 } HalStartStep;
 

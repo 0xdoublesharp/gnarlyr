@@ -76,9 +76,17 @@ const void *hal_system_load_rescan_code(void)
     return &RESCAN_MODULE_ENTRY;
 }
 
+static uint32_t loaded_module;
+
 const void *hal_system_load_module(uint32_t module)
 {
+    loaded_module = module;
     return app_linked_module(module);
+}
+
+const void *hal_system_loaded_module(void)
+{
+    return app_linked_module(loaded_module);
 }
 
 const void *hal_system_load_debug_code(void)
@@ -120,6 +128,11 @@ void hal_system_keep_alive(void)
 uint32_t hal_system_idle_microseconds(void)
 {
     return 0;
+}
+
+HalCore1Load hal_system_core1_load(void)
+{
+    return (HalCore1Load){0};
 }
 
 HalLoopCycles hal_system_loop_cycles(void)

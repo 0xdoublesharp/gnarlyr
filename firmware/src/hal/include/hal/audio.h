@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/audio_visual.h"
 #include "core/dac_identity.h"
 #include "core/headphone_audio.h"
 #include "core/parametric.h"
@@ -10,7 +11,8 @@
 enum {
     HAL_AUDIO_VOLUME_MAX = 60,
     HAL_AUDIO_EQUALIZER_BANDS = 10,
-    HAL_AUDIO_UNITY_PRE_GAIN = 32768
+    HAL_AUDIO_UNITY_PRE_GAIN = 32768,
+    HAL_AUDIO_CROSSFEED_LEVELS = 4
 };
 
 typedef enum HalAudioState {
@@ -49,7 +51,9 @@ typedef enum HalAudioProblem {
     HAL_AUDIO_PROBLEM_UNREADABLE,
     HAL_AUDIO_PROBLEM_FORMAT,
     HAL_AUDIO_PROBLEM_RATE,
-    HAL_AUDIO_PROBLEM_AAC_ONLY
+    HAL_AUDIO_PROBLEM_AAC_ONLY,
+    HAL_AUDIO_PROBLEM_APE,
+    HAL_AUDIO_PROBLEM_WMA
 } HalAudioProblem;
 
 typedef struct HalAudioRefusal {
@@ -67,7 +71,9 @@ typedef enum HalAudioCodec {
     HAL_AUDIO_CODEC_VORBIS,
     HAL_AUDIO_CODEC_OPUS,
     HAL_AUDIO_CODEC_DSD,
-    HAL_AUDIO_CODEC_AIFF
+    HAL_AUDIO_CODEC_AIFF,
+    HAL_AUDIO_CODEC_APE,
+    HAL_AUDIO_CODEC_WMA
 } HalAudioCodec;
 
 typedef struct HalAudioFormat {
@@ -151,6 +157,12 @@ typedef struct HalAudioEqualizer {
     ParametricEq parametric;
 } HalAudioEqualizer;
 
+typedef struct HalAudioEffects {
+    uint8_t crossfeed;
+    bool skip_silence;
+    bool speech_boost;
+} HalAudioEffects;
+
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);
 void hal_audio_queue_next(const HalAudioTrack *track);
 void hal_audio_pause(void);
@@ -165,6 +177,7 @@ void hal_audio_set_gain(HalAudioGain gain);
 void hal_audio_set_filter(HalAudioFilter filter);
 void hal_audio_set_output(HalAudioOutput output);
 void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);
+void hal_audio_set_effects(HalAudioEffects effects);
 HalAudioStatus hal_audio_status(void);
 HalAudioStats hal_audio_stats(void);
 void hal_audio_reset_stats(void);
@@ -181,6 +194,8 @@ HalAudioRefusal hal_audio_refusal(void);
 
 void hal_audio_set_replay_gain(uint32_t token, uint32_t gain);
 void hal_audio_set_speed(uint16_t speed);
+
+AudioVisualBuffer hal_audio_visual_buffer(void);
 
 void hal_audio_set_sleep_remaining(uint32_t remaining_ms);
 

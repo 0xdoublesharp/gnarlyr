@@ -262,7 +262,8 @@ static const char *step_name(HalStartStep step, bool finished)
                                                                  "core 1 start",
                                                                  "core 1 stop",
                                                                  "card write",
-                                                                 "watchdog test"};
+                                                                 "watchdog test",
+                                                                 "loader reboot"};
     static const char *const DONE_NAMES[HAL_START_STEP_COUNT] = {"",
                                                                  "Backlight on",
                                                                  "Backlight off",
@@ -270,7 +271,8 @@ static const char *step_name(HalStartStep step, bool finished)
                                                                  "Core 1 start",
                                                                  "Core 1 stop",
                                                                  "Card write",
-                                                                 "Watchdog test"};
+                                                                 "Watchdog test",
+                                                                 "Loader reboot"};
     return finished ? DONE_NAMES[step] : OPEN_NAMES[step];
 }
 

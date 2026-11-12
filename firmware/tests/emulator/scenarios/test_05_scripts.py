@@ -23,6 +23,7 @@ from echo_image_harness import (
     RECONNECT_OFF_MS,
     RECONNECT_WAIT_MS,
     RESTART_ANSWER,
+    USB_SCREEN_CAPTURES,
     RESTART_PATH,
     RESTART_REQUEST,
     RUN_PATH,
@@ -81,6 +82,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreater(measure["buffered_ms"], 0)
         self.assertGreater(measure["handoff_avg_us"], 0)
         self.assertTrue(0 <= measure["core0_busy_percent"] <= 100)
+        self.assertIn("core1_busy_permille", measure)
         self.assertEqual(ran["screenshots"], [{"slot": 0, "name": "home"}])
         details = [event["kind"] + " " + event["detail"] for event in report["events"]]
         self.assertIn("script finished", details)
@@ -245,7 +247,11 @@ class EchoImageTest(EchoImageHarness):
         writes_before = len(session.card.writes)
         machine.vbus = True
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
-        report_sectors = session.file_sectors(self.report_path(session))
+        report_sectors = set(session.file_sectors(self.report_path(session)))
+        for slot in range(USB_SCREEN_CAPTURES):
+            path = "/%s/usbshot%d.565" % (DEBUG_FOLDER, slot)
+            if session.fat().exists(path):
+                report_sectors.update(session.file_sectors(path))
         for _, lba, count in session.card.writes[writes_before:]:
             self.assertIn(lba, report_sectors)
         report = self.read_report(session)
@@ -254,7 +260,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(report["script"],
                          {"lines": [], "measures": [], "screenshots": [], "probes": [], "soaks": [],
                           "rtc": []})
-        self.assertEqual(session.fat().list("/" + DEBUG_FOLDER), ["report0.txt"])
+        self.assertEqual([name for name in session.fat().list("/" + DEBUG_FOLDER)
+                          if not name.startswith("usbshot")], ["report0.txt"])
         self.assertEqual(machine.reached["debug_script_take"], 2)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)

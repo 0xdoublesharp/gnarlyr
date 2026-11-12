@@ -52,9 +52,9 @@ def script_report(script, state="finished", build=IMAGE_BUILD, screenshots=("hom
     return report_text(lines)
 
 
-def screenshot(name, width=4, height=2, pixels=None, magic=b"DSSH"):
+def screenshot(name, width=4, height=2, pixels=None, magic=b"DSSH", uptime_ms=12345):
     pixels = pixels or [RED, GREEN, BLUE, WHITE] * 2
-    header = echo_debug.SCREENSHOT_HEADER.pack(magic, 1, 1, width, height, 32, 12345, name.encode("ascii"))
+    header = echo_debug.SCREENSHOT_HEADER.pack(magic, 1, 1, width, height, 32, uptime_ms, name.encode("ascii"))
     return header + struct.pack("<%dH" % len(pixels), *pixels)
 
 
@@ -525,6 +525,38 @@ class Screenshots(LoopCase):
         self.assert_refused("write_refused", lambda: tool.screenshots(self.root / "png"))
         self.assert_refused("write_refused", lambda: tool.screenshots(self.debug))
         self.assertEqual(self.files(self.root), [DEBUG + "/report0.txt", DEBUG + "/shot0.565"])
+
+
+class UsbScreens(LoopCase):
+    def setUp(self):
+        super().setUp()
+        self.out = Path(self.directory.name) / "png"
+        for slot, name, uptime in ((0, "storage0", 90000), (1, "storage1", 90060), (2, "storage2", 20000),
+                                   (3, "dac0", 40000), (4, "dac1", 40050)):
+            (self.debug / ("usbshot%d.565" % slot)).write_bytes(screenshot(name, uptime_ms=uptime))
+
+    def test_each_saved_page_becomes_a_png_named_after_its_screen_and_page(self):
+        result = self.tool(PlayerHost(self)).usb_screens(self.out)
+        names = [shot["name"] for shot in result["screenshots"]]
+        self.assertEqual(names, ["storage0", "storage1", "dac0", "dac1"])
+        width, height, pixels = png_pixels((self.out / "dac1.png").read_bytes())
+        self.assertEqual((width, height, pixels[0]), (4, 2, (255, 0, 0)))
+
+    def test_a_page_left_from_an_earlier_session_is_skipped(self):
+        result = self.tool(PlayerHost(self)).usb_screens(self.out)
+        self.assertEqual(result["skipped"], [{"slot": 2, "source": str(self.debug / "usbshot2.565"),
+                                              "error": "stale_screenshot"}])
+        self.assertFalse((self.out / "storage2.png").exists())
+
+    def test_an_unfinished_page_is_skipped_not_fatal(self):
+        (self.debug / "usbshot1.565").write_bytes(bytes(64))
+        result = self.tool(PlayerHost(self)).usb_screens(self.out)
+        self.assertEqual([shot["error"] for shot in result["skipped"]], ["bad_screenshot", "stale_screenshot"])
+        self.assertTrue((self.out / "storage0.png").exists())
+
+    def test_usb_pngs_never_go_onto_the_player(self):
+        tool = self.tool(PlayerHost(self))
+        self.assert_refused("write_refused", lambda: tool.usb_screens(self.debug))
 
 
 class CommandLine(LoopCase):

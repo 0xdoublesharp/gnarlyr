@@ -34,6 +34,7 @@
 #include "settings/settings.h"
 #include "settings_screens.h"
 #include "settings_store.h"
+#include "theme_picker.h"
 #include "ui/menu_screen.h"
 #include "ui/message_screen.h"
 #include "ui/toast.h"
@@ -97,9 +98,10 @@ typedef struct AppScreensContext {
     const Theme *theme;
     Theme *styled_theme;
     const Theme *compact_theme;
-    const LibraryStore *store;
+    LibraryStore *store;
     Player *player;
     SettingsStore *settings;
+    ThemeRuntime *themes;
     HeadphoneStore *headphones;
     FavoritesStore *favorites;
     PowerPolicy *power;
@@ -117,7 +119,6 @@ typedef struct PlayingModuleScreens {
     CoverFlowScreen cover_flow;
     CoverFlowScreen artist_albums;
     UpNextScreen up_next;
-    QuickSettingsScreen quick_settings;
 } PlayingModuleScreens;
 
 typedef struct ViewsModuleScreens {
@@ -129,6 +130,7 @@ typedef struct ViewsModuleScreens {
     ClockOption diagnostic_clock;
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
     LyricsScreen lyrics;
+    ThemePicker themes;
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {

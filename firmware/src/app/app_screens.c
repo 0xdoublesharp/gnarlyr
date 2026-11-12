@@ -157,12 +157,12 @@ ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
-static Screen *track_tape(void *context, uint16_t track)
+static Screen *track_manage(void *context, uint16_t track, SongManage manage)
 {
     AppScreens *screens = context;
     const ViewsModuleEntry *entry =
         (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
-    return entry != NULL ? entry->add(&screens->modules.views.mixtapes, track) : NULL;
+    return entry != NULL ? entry->manage(screens, track, manage) : NULL;
 }
 
 static int browse_section(const BrowseScreen *browse, int index)
@@ -261,7 +261,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .options = browse_options,
         .info = track_info,
         .tags = track_tags,
-        .tape = track_tape,
+        .manage = track_manage,
         .play_group = browse_play_group,
         .section = browse_section,
         .sections = browse_sections,
@@ -383,6 +383,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                                  .context = &screens->home_art}};
     menu_screen_init(&screens->home, home);
     screen_modules_prepare_home(screens);
+    screens->home.list.background = THEME_ART_HOME;
 }
 
 Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
@@ -398,13 +399,13 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
                                     .quick_settings =
-                                        &screens->modules.playing.quick_settings.screen,
+                                        &screens->modules.equalizer.quick_settings.screen,
                                     .lyrics = &screens->modules.views.lyrics.screen,
                                     .flip = &screens->modules.views.cassette_flip.screen};
     screens->context = context;
     screens->bound_modules = 0;
     message_screen_init(&screens->no_library, no_library);
-    now_playing_screen_init(&screens->now_playing, now_playing);
+    now_playing_screen_setup(&screens->now_playing, now_playing);
     build_music(screens, context);
     build_home(screens, context);
     return &screens->home.screen;

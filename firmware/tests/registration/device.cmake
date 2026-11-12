@@ -14,6 +14,12 @@ echo_add_unit_test(NAME test_storage_mount
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_storage_mount PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_board_libc
+    SOURCES device/test_board_libc.c ${PROJECT_SOURCE_DIR}/platform/device/board/libc.c
+)
+target_compile_definitions(test_board_libc PRIVATE
+    memcpy=board_memcpy memmove=board_memmove memset=board_memset memcmp=board_memcmp)
+target_compile_options(test_board_libc PRIVATE -fno-builtin)
 
 echo_add_unit_test(NAME test_wide_divide
     SOURCES device/test_wide_divide.c

@@ -23,6 +23,7 @@ set(ECHO_OPUS_SOURCES
     ${ECHO_OPUS_DIR}/celt/laplace.c
     ${ECHO_OPUS_DIR}/celt/mathops.c
     ${ECHO_OPUS_DIR}/celt/mdct.c
+    ${ECHO_OPUS_DIR}/celt/pfa.c
     ${ECHO_OPUS_DIR}/celt/modes.c
     ${ECHO_OPUS_DIR}/celt/pitch.c
     ${ECHO_OPUS_DIR}/celt/celt_lpc.c
@@ -143,7 +144,11 @@ target_compile_definitions(echo_opus PRIVATE
     FIXED_POINT
     DISABLE_FLOAT_API
     ENABLE_HARDENING
+    OPUS_PFA
     PACKAGE_VERSION="1.6.1"
 )
+if(CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_opus PRIVATE OPUS_ARM_INLINE_ASM)
+endif()
 target_compile_options(echo_opus PRIVATE -w -fno-strict-aliasing -include ${ECHO_OPUS_DIR}/port/opus_support.h)
 target_link_libraries(echo_opus PRIVATE echo_options)

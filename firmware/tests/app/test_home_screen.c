@@ -344,7 +344,7 @@ static void open_editor_row(int row)
     taps(KEY_VOLUME_UP, HOME_SETTINGS_ROW);
     tap(KEY_PLAY);
     CHECK(title_is(STR_SETTINGS));
-    taps(KEY_VOLUME_DOWN, 4);
+    taps(KEY_VOLUME_DOWN, 5);
     tap(KEY_PLAY);
     CHECK(title_is(STR_HOME_SCREEN));
     if (row == EDITOR_RESET_ROW) {

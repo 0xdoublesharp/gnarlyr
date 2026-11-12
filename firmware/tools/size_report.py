@@ -14,6 +14,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+import lang_pack
+
 CODE_REGION = "CODE_RAM"
 DATA_REGION = "DATA_RAM"
 OVERLAY_REGION = "HIGH_RAM"
@@ -22,7 +24,7 @@ WORKSPACE_SECTION = ".high_ram"
 MODULE_REGION = "MODULE_RAM"
 MODULE_WINDOWS = {"dsp": "DSP_RAM", "ogg": "DSP_RAM", "process": "PROCESS_RAM",
                   "extension": "EXTENSION_RAM", "source": "DSP_RAM", "effects": "EFFECTS_RAM",
-                  "dsd": "DSP_RAM"}
+                  "dsd": "DSP_RAM", "ape_wma": "DSP_RAM"}
 USB_IMAGE_REGION = "USB_IMAGE"
 LANGUAGE_REGION = "LANGUAGE_RAM"
 STATE_SECTIONS = (".data", ".bss", ".noinit")
@@ -294,7 +296,7 @@ def module_problems(device_map, modules):
             problems.append(f"module {name} is not linked for the main program's module slot")
             continue
         code, zeroed = module_extent(module_map)
-        if name in ("dsp", "ogg", "source", "dsd") and zeroed:
+        if name in ("dsp", "ogg", "source", "dsd", "ape_wma") and zeroed:
             problems.append("the audio module must keep all state in its caller")
         if name == "extension" and zeroed:
             problems.append("the extension module must keep all state in the main program")
@@ -314,8 +316,13 @@ def workspace_line(device_map, regions):
     return limit_line("decoder workspace", used, region_length(regions, WORKSPACE_REGION))
 
 
+def pack_memory(path):
+    """The language window bytes a built pack needs: its resident block and largest module segment."""
+    return lang_pack.pack_info(Path(path).read_bytes())["memory"]
+
+
 def language_line(regions, packs):
-    """The largest language pack against the memory the player loads one pack into."""
+    """The language pack needing most memory against the window the player loads packs into."""
     name, size = max(packs, key=lambda pack: pack[1])
     return limit_line(f"language pack ({name})", size, region_length(regions, LANGUAGE_REGION))
 
@@ -357,9 +364,10 @@ BUDGET_PRESETS = ("release", "device")
 RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
 BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension",
                   "playing", "effects", "source", "dsd",
-                  "equalizer", "trial"}
+                  "equalizer", "ape_wma", "trial"}
 BUDGET_MAPS = {"echo_usb_overlay.map", "echo_rescan_overlay.map", "echo_core1.map", "echo_core1_mp3.map",
-               "echo_core1_dsd.map", "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map"}
+               "echo_core1_dsd.map", "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map",
+               "echo_core1_ape.map", "echo_core1_wma.map"}
 CORE1_SCRIPTS = Path(__file__).resolve().parents[1] / "platform/device/core1"
 BUDGET_HEADERS = ("Preset", "Region / slot", "Used", "Limit", "Free", "Floor", "Result")
 
@@ -398,9 +406,13 @@ def core1_rows(path, text, preset):
     static_limit = int(match[1], 16) - memory_regions(text)["CORE1_DATA"][0]
     code_limit = {"core1_vorbis": make_image.CORE1_VORBIS_CAPACITY,
                   "core1_m4a": make_image.CORE1_M4A_CAPACITY}.get(name, make_image.CORE1_MODULE_CAPACITY)
-    return [Budget(preset, f"{name} image bank", sections[".text"], code_limit),
+    rows = [Budget(preset, f"{name} image bank", sections[".text"], code_limit),
             Budget(preset, f"{name} static RAM", sections.get(".bss", 0) + sections.get(".data", 0),
                    static_limit)]
+    if name == "core1_wma":
+        rows.append(Budget(preset, "core1_wma workspace", sections.get(".workspace", 0),
+                           memory_regions(text)["CORE1_WORK"][1]))
+    return rows
 
 
 def check_budget_inputs(directory, device, modules):
@@ -435,7 +447,7 @@ def budget_rows(build, preset):
     if not packs:
         raise ValueError(f"Missing language packs in {build}")
     language = memory_regions(device)[LANGUAGE_REGION][1]
-    return rows + [Budget(preset, f"language {path.stem}", path.stat().st_size, language) for path in packs]
+    return rows + [Budget(preset, f"language {path.stem}", pack_memory(path), language) for path in packs]
 
 
 def budget_table(rows):
@@ -581,7 +593,7 @@ def main(argv=None):
         print("error: the main program and the USB overlay each have their own variables of "
               + ", ".join(split), file=sys.stderr)
         return 1
-    packs = [(path.stem, path.stat().st_size) for path in arguments.language_pack]
+    packs = [(path.stem, pack_memory(path)) for path in arguments.language_pack]
     modules = read_modules(arguments.module_map)
     problems = module_problems(device_map, modules)
     if arguments.summary and arguments.preset is not None:

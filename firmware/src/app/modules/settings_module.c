@@ -54,6 +54,7 @@ static void bind(AppScreens *screens)
         .toast = context->toast,
         .rescan_requested = context->rescan_requested,
         .language_requested = context->language_requested,
+        .library = context->store,
         .bluetooth = &own->bluetooth,
         .theme = context->styled_theme,
     };
@@ -61,6 +62,12 @@ static void bind(AppScreens *screens)
     settings_screens_init(&own->settings, settings, context->theme);
     own->settings.items[SETTINGS_ABOUT_ITEM] =
         app_screens_open_item(STR_ABOUT, &screens->modules.views.diagnostics.screen);
+    for (int at = 0; at < SETTINGS_ITEM_COUNT; at++) {
+        if (own->settings.items[at].label == i18n_text(STR_THEME)) {
+            own->settings.items[at] =
+                app_screens_open_item(STR_THEME, &screens->modules.views.themes.screen);
+        }
+    }
     bind_home_editor(screens);
 }
 
@@ -100,7 +107,7 @@ static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
         return settings_screens_sleep(settings);
     }
     Screen *screen = action == 2 ? &screens->modules.playing.up_next.screen
-                                 : &screens->modules.playing.quick_settings.screen;
+                                 : &screens->modules.equalizer.quick_settings.screen;
     return screen_action_push(screen);
 }
 

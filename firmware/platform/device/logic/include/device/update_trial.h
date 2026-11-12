@@ -12,6 +12,7 @@ enum {
 };
 
 #define UPDATE_TRIAL_PATH "/" FIRMWARE_DATA_DIRECTORY "/trial.bin"
+#define UPDATE_TRIAL_DIAG_PATH "/" FIRMWARE_DATA_DIRECTORY "/trial_diag.bin"
 #define UPDATE_BOTH_SLOTS_PATH "/BOTHSLOT.REQ"
 #define UPDATE_TRIAL_STARTED {'D', 'S', 'U', 'T', 1, 0, 0x5B, 1}
 

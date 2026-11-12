@@ -52,6 +52,7 @@ uint32_t fake_hal_wall_reads(void);
 int fake_hal_rtc_read_count(void);
 uint32_t fake_hal_rtc_written(void);
 void fake_hal_set_idle_microseconds(uint32_t idle_us);
+void fake_hal_set_core1_load(uint32_t elapsed_cycles, uint32_t idle_cycles);
 void fake_hal_set_power_levels(uint8_t levels);
 void fake_hal_set_power_samples(uint32_t samples);
 bool fake_hal_supply_held_off(void);
@@ -154,6 +155,7 @@ uint8_t fake_hal_volume_at_gain(void);
 uint8_t fake_hal_dac_volume_at_gain(void);
 int fake_hal_audio_output(void);
 HalAudioEqualizer fake_hal_audio_equalizer(void);
+HalAudioEffects fake_hal_audio_effects(void);
 int fake_hal_usb_mode(void);
 HalUsbAnswer fake_hal_usb_answer(void);
 int fake_hal_usb_mode_requests(void);
@@ -178,6 +180,9 @@ int fake_hal_card_formats(void);
 void fake_hal_fail_internal_writes(const char *path);
 
 void fake_hal_set_charging_host(bool host);
+
+void fake_hal_set_visual_buffer(AudioVisualBuffer buffer);
+int fake_hal_visual_reads(void);
 
 uint32_t fake_hal_audio_sleep_remaining(void);
 

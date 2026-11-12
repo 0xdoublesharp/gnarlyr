@@ -514,6 +514,7 @@ static void walk_parametric(void)
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     show_titled("Parametric EQ", STR_PEQ);
     tap(KEY_PLAY);
@@ -595,7 +596,7 @@ static void walk_card_format(void)
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    for (int row = 0; row < 5; row++) {
+    for (int row = 0; row < 6; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -610,6 +611,7 @@ static void walk_card_format(void)
 static void open_home_editor(void)
 {
     open_settings_row(0);
+    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
@@ -751,9 +753,9 @@ static void walk_listening(void)
 static void walk_headphones(void)
 {
     static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
-                                      STR_HEADPHONE_CEILING};
+                                      STR_HEADPHONE_CEILING, STR_CROSSFEED};
     open_settings_row(0);
-    for (int row = 0; row < 6; row++) {
+    for (int row = 0; row < 7; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -766,7 +768,7 @@ static void walk_headphones(void)
     down(1);
     tap(KEY_PLAY);
     show("a headphone profile");
-    for (int field = 0; field < 4; field++) {
+    for (int field = 0; field < 5; field++) {
         down(1);
         tap(KEY_PLAY);
         show_titled("a headphone value", FIELDS[field]);
@@ -776,10 +778,26 @@ static void walk_headphones(void)
     }
 }
 
+static void walk_listening_effects(void)
+{
+    static const StringId TITLES[] = {STR_CROSSFEED, STR_SPEECH_BOOST, STR_SKIP_SILENCE};
+    for (int row = 0; row < 3; row++) {
+        open_settings_row(0);
+        for (int step = 0; step < 8 + row; step++) {
+            tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+        }
+        tap(KEY_PLAY);
+        show_titled("a listening effect", TITLES[row]);
+        down(1);
+        show("another listening effect option");
+        back(1);
+    }
+}
+
 static void walk_standby_settings(void)
 {
     open_settings_row(0);
-    for (int row = 0; row < 2; row++) {
+    for (int row = 0; row < 3; row++) {
         tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -817,6 +835,7 @@ static void walk_everything(void)
     walk_bluetooth();
     walk_home_editor();
     walk_headphones();
+    walk_listening_effects();
     walk_about();
     walk_song_actions();
     walk_now_playing();

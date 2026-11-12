@@ -7,11 +7,14 @@
 #include "language_source.h"
 
 enum {
-    PATH_CAPACITY = 48
+    PATH_CAPACITY = 48,
+    MODULE_ALIGN = 4
 };
 
 const char LANGUAGE_FOLDER[] = "/" FIRMWARE_DATA_DIRECTORY "/lang";
 static const char SUFFIX[] = ".pack";
+
+LanguageState language_state;
 
 static bool same_text(const char *first, const char *second)
 {
@@ -31,9 +34,8 @@ static bool source_read(const LanguageSource *source, uint32_t offset, void *buf
 
 bool language_source_info(const LanguageSource *source, I18nPackInfo *info)
 {
-    uint8_t header[I18N_HEADER_BYTES];
-    return source_read(source, 0, header, sizeof header) &&
-           i18n_pack_info(header, sizeof header, info);
+    uint8_t index[I18N_INDEX_BYTES];
+    return source_read(source, 0, index, sizeof index) && i18n_pack_info(index, sizeof index, info);
 }
 
 static bool source_attach(const LanguageSource *source, const char *code)
@@ -41,12 +43,18 @@ static bool source_attach(const LanguageSource *source, const char *code)
     I18nPackInfo info;
     uint32_t capacity = 0;
     uint8_t *memory = hal_language_memory(&capacity);
-    if (!language_source_info(source, &info) || info.size > capacity ||
-        (code != NULL && !same_text(info.code, code))) {
+    uint32_t start = 0;
+    if (!language_source_info(source, &info) ||
+        (start = (info.resident + MODULE_ALIGN - 1) & ~(uint32_t)(MODULE_ALIGN - 1)) > capacity ||
+        (code != NULL && !same_text(info.code, code)) ||
+        (source->from_file && source->file.size != info.size)) {
         return false;
     }
     i18n_detach();
-    return source_read(source, 0, memory, info.size) && i18n_attach(memory, info.size);
+    language_state.current = *source;
+    language_state.module_area = memory + start;
+    language_state.module_room = capacity - start;
+    return source_read(source, 0, memory, info.resident) && i18n_attach(memory, info.resident);
 }
 
 static bool file_path(const char *code, char *path)

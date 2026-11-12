@@ -8,6 +8,12 @@
 #include "hal/clock.h"
 #include "hal/system.h"
 
+enum {
+    BOARD_SCRATCH_WORDS = 1024
+};
+
+extern uint32_t board_scratch[BOARD_SCRATCH_WORDS];
+
 void board_clock_start(void);
 void board_clock_sleep(bool sleep);
 void board_clock_record_boot(void);
@@ -75,7 +81,9 @@ typedef enum Core1Program {
     CORE1_PROGRAM_M4A,
     CORE1_PROGRAM_VORBIS,
     CORE1_PROGRAM_OPUS,
-    CORE1_PROGRAM_DSD
+    CORE1_PROGRAM_DSD,
+    CORE1_PROGRAM_APE,
+    CORE1_PROGRAM_WMA
 } Core1Program;
 
 bool board_core1_start_stream(Core1Program program);
@@ -111,6 +119,7 @@ void board_power_hold(void);
 void board_power_usb_supply_follow(bool cable);
 void board_loader_reboot(void);
 void board_restart(void);
+void board_restart_clean(void);
 void board_loader_flag_clear(void);
 void board_power_cut(void);
 bool board_power_key_down(void);
@@ -123,6 +132,7 @@ bool board_bluetooth_settling(void);
 bool board_bluetooth_pin(bool mute_pin, bool level);
 void board_start_record_boot(void);
 void board_start_record_tick(uint32_t uptime_ms);
+bool board_start_after_loader(void);
 void board_start_record_power_off(void);
 void board_start_record_step(HalStartStep step);
 void board_start_record_step_done(void);

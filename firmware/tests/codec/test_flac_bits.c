@@ -196,6 +196,22 @@ static void the_checksums_cover_exactly_the_bytes_read(void)
     CHECK_EQUAL(0x1234u, flac_bits_read(&bits, 16));
 }
 
+static void the_header_checksum_keeps_its_value_once_read(void)
+{
+    start_writing();
+    put_bits(0xFFF8, 16);
+    put_bits(0xABCD, 16);
+    start_reading();
+    flac_bits_reset_crc(&bits);
+    CHECK_EQUAL(0xFFF8u, flac_bits_read(&bits, 16));
+    uint8_t header = flac_bits_crc8(&bits);
+    CHECK_EQUAL(0xABCDu, flac_bits_read(&bits, 16));
+    CHECK_EQUAL(header, flac_bits_crc8(&bits));
+    CHECK_EQUAL(reference_crc16(writer.bytes, 4), flac_bits_crc16(&bits));
+    flac_bits_reset_crc(&bits);
+    CHECK_EQUAL(0, flac_bits_crc8(&bits));
+}
+
 static void a_reset_starts_the_checksums_at_the_current_byte(void)
 {
     start_writing();
@@ -253,6 +269,7 @@ int main(void)
         TEST_CASE(reads_carry_on_after_a_rice_run),
         TEST_CASE(the_checksums_cover_exactly_the_bytes_read),
         TEST_CASE(a_reset_starts_the_checksums_at_the_current_byte),
+        TEST_CASE(the_header_checksum_keeps_its_value_once_read),
         TEST_CASE(running_out_of_input_fails),
         TEST_CASE(signed_and_wide_reads_preserve_bit_boundaries),
         TEST_CASE(a_storage_failure_propagates_for_fast_and_wide_rice_parameters),

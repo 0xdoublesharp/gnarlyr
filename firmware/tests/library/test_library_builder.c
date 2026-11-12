@@ -503,6 +503,29 @@ static void the_builder_stays_inside_its_memory(void)
     random_library_free(&library);
 }
 
+static void the_path_index_is_built_at_the_first_playlist_in_scan_order(void)
+{
+    enum {
+        TRACKS = 3000
+    };
+    RandomLibrary library;
+    random_library_make(&library, TRACKS, 0, 9);
+    LibraryBuilder builder;
+    Scratch *scratch = start(&builder);
+    CHECK_EQUAL(BUILDER_OK, add_library(&builder, &library));
+    CHECK_EQUAL(BUILDER_OK, library_builder_prepare(&builder));
+    int prepared = scratch->reads;
+    CHECK_EQUAL(BUILDER_OK, library_builder_begin_playlist(&builder, "Mix", ""));
+    int indexed = scratch->reads - prepared;
+    CHECK(indexed > 0);
+    CHECK(indexed < TRACKS / 2);
+    Built built;
+    finish(&builder, &built);
+    CHECK_EQUAL(BUILDER_OK, built.result);
+    free(built.output.bytes);
+    random_library_free(&library);
+}
+
 static void a_scratch_file_too_small_says_there_is_no_room(void)
 {
     RandomLibrary library;
@@ -1049,6 +1072,7 @@ int main(void)
         TEST_CASE(random_libraries_match_the_reference_builder),
         TEST_CASE(a_20000_track_library_builds_in_the_players_memory),
         TEST_CASE(the_builder_stays_inside_its_memory),
+        TEST_CASE(the_path_index_is_built_at_the_first_playlist_in_scan_order),
         TEST_CASE(a_scratch_file_too_small_says_there_is_no_room),
         TEST_CASE(too_little_memory_says_so),
         TEST_CASE(intermediate_memory_limits_are_bounded_and_never_publish_partial_databases),

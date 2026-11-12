@@ -5,6 +5,11 @@
 
 #include "core/dac_identity.h"
 
+enum {
+    DAC_GAIN_HIGH_VALUE = 0x31,
+    DAC_GAIN_LOW_VALUE = 0x20
+};
+
 typedef enum DacPin {
     DAC_PIN_MUTE,
     DAC_PIN_ENABLE_A,

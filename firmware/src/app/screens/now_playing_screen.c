@@ -54,6 +54,10 @@ const char *now_playing_codec_name(HalAudioCodec codec)
         return i18n_text(STR_CODEC_AIFF);
     case HAL_AUDIO_CODEC_DSD:
         return i18n_text(STR_CODEC_DSD);
+    case HAL_AUDIO_CODEC_WMA:
+        return i18n_text(STR_CODEC_WMA);
+    case HAL_AUDIO_CODEC_APE:
+        return i18n_text(STR_CODEC_APE);
     case HAL_AUDIO_CODEC_OPUS:
         return i18n_text(STR_CODEC_OPUS);
     case HAL_AUDIO_CODEC_UNKNOWN:
@@ -94,133 +98,6 @@ void now_playing_detail_text(const PlayerStatus *status, char *buffer, size_t ca
         string_builder_append(&builder, SEPARATOR);
     }
     i18n_format_counts(&builder, STR_PLACE, status->place.number, status->place.total);
-}
-
-static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
-                                    NowPlayingCommand hold)
-{
-    switch (gesture) {
-    case KEY_GESTURE_PRESS:
-        return press;
-    case KEY_GESTURE_LONG_PRESS:
-        return hold;
-    case KEY_GESTURE_REPEAT:
-    case KEY_GESTURE_DOUBLE_PRESS:
-    case KEY_GESTURE_TRIPLE_PRESS:
-        return NOW_PLAYING_NONE;
-    }
-    return NOW_PLAYING_NONE;
-}
-
-static NowPlayingCommand volume_command_for(KeyEvent event, NowPlayingCommand volume,
-                                            NowPlayingCommand skip)
-{
-    switch (event.gesture) {
-    case KEY_GESTURE_PRESS:
-        return volume;
-    case KEY_GESTURE_LONG_PRESS:
-    case KEY_GESTURE_DOUBLE_PRESS:
-        return skip;
-    case KEY_GESTURE_REPEAT:
-    case KEY_GESTURE_TRIPLE_PRESS:
-        return NOW_PLAYING_NONE;
-    }
-    return NOW_PLAYING_NONE;
-}
-
-static NowPlayingCommand play_command_for(KeyEvent event, SkipGesture skip)
-{
-    if (skip == SKIP_GESTURE_PLAY_CLICKS) {
-        if (event.gesture == KEY_GESTURE_DOUBLE_PRESS) {
-            return NOW_PLAYING_NEXT;
-        }
-        if (event.gesture == KEY_GESTURE_TRIPLE_PRESS) {
-            return NOW_PLAYING_PREVIOUS;
-        }
-    }
-    return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_SCRUB_START);
-}
-
-uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms)
-{
-    int64_t target = (int64_t)position_ms + delta_ms;
-    if (target < 0) {
-        return 0;
-    }
-    return target > duration_ms ? duration_ms : (uint32_t)target;
-}
-
-static NowPlayingCommand seek_command_for(KeyEvent event)
-{
-    bool fast = event.repeats >= NOW_PLAYING_SEEK_FAST_AFTER_REPEATS;
-    if (event.key == KEY_VOLUME_UP) {
-        return fast ? NOW_PLAYING_SEEK_FORWARD_FAST : NOW_PLAYING_SEEK_FORWARD;
-    }
-    return fast ? NOW_PLAYING_SEEK_BACK_FAST : NOW_PLAYING_SEEK_BACK;
-}
-
-static bool holds_volume(KeyEvent event)
-{
-    bool volume = event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN;
-    return volume &&
-           (event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT);
-}
-
-static NowPlayingCommand scrub_command_for(KeyEvent event)
-{
-    bool held = event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT;
-    switch (event.key) {
-    case KEY_VOLUME_UP:
-        return held ? NOW_PLAYING_SCRUB_FORWARD_FAST : NOW_PLAYING_SCRUB_FORWARD;
-    case KEY_VOLUME_DOWN:
-        return held ? NOW_PLAYING_SCRUB_BACK_FAST : NOW_PLAYING_SCRUB_BACK;
-    case KEY_PLAY:
-        return by_gesture(event.gesture, NOW_PLAYING_SCRUB_COMMIT, NOW_PLAYING_NONE);
-    case KEY_BACK:
-        return by_gesture(event.gesture, NOW_PLAYING_SCRUB_CANCEL, NOW_PLAYING_HOME);
-    case KEY_MENU:
-        return by_gesture(event.gesture, NOW_PLAYING_REPEAT_MARK, NOW_PLAYING_NONE);
-    case KEY_POWER:
-        return NOW_PLAYING_NONE;
-    }
-    return NOW_PLAYING_NONE;
-}
-
-NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
-{
-    if (keys.scrubbing) {
-        return scrub_command_for(event);
-    }
-    if (keys.adjusting_volume && holds_volume(event)) {
-        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
-    }
-    if (keys.skip == SKIP_GESTURE_DOUBLE_VOLUME && holds_volume(event)) {
-        return seek_command_for(event);
-    }
-    if (event.gesture == KEY_GESTURE_REPEAT && keys.skip != SKIP_GESTURE_HOLD &&
-        (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN)) {
-        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
-    }
-    switch (event.key) {
-    case KEY_VOLUME_UP:
-        return volume_command_for(event, NOW_PLAYING_VOLUME_UP, NOW_PLAYING_NEXT);
-    case KEY_VOLUME_DOWN:
-        return volume_command_for(event, NOW_PLAYING_VOLUME_DOWN, NOW_PLAYING_PREVIOUS);
-    case KEY_PLAY:
-        return play_command_for(event, keys.skip);
-    case KEY_BACK:
-        return by_gesture(event.gesture, NOW_PLAYING_LEAVE, NOW_PLAYING_HOME);
-    case KEY_MENU:
-        return by_gesture(event.gesture, NOW_PLAYING_QUICK_SETTINGS, NOW_PLAYING_LYRICS);
-    case KEY_POWER:
-        return NOW_PLAYING_NONE;
-    }
-    return NOW_PLAYING_NONE;
-}
-
-bool now_playing_adjusting_volume(uint32_t volume_changed_ms, uint32_t now_ms)
-{
-    return now_ms - volume_changed_ms < NOW_PLAYING_VOLUME_HOLD_MS;
 }
 
 int now_playing_progress_width(uint32_t position_ms, uint32_t duration_ms, int width)
@@ -265,15 +142,6 @@ int now_playing_volume_width(uint8_t volume, int width)
 {
     uint8_t level = volume < SETTINGS_VOLUME_MAX ? volume : SETTINGS_VOLUME_MAX;
     return level * width / SETTINGS_VOLUME_MAX;
-}
-
-void now_playing_seek_by(Player *player, int32_t delta_ms)
-{
-    PlayerStatus status = player_status(player);
-    if (!status.has_track) {
-        return;
-    }
-    player_seek(player, now_playing_scrub_target(status.position_ms, status.duration_ms, delta_ms));
 }
 
 static void move_scrub(NowPlayingScreen *now_playing, int32_t delta_ms)
@@ -786,7 +654,7 @@ static void draw(void *context, Canvas *canvas)
 {
     const NowPlayingScreen *now_playing = context;
     const Theme *theme = now_playing->config.theme;
-    canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
+    theme_background_draw(theme, canvas, THEME_ART_NOW_PLAYING, theme_content_area(theme));
     Rect header = theme_header_area(theme);
     canvas_fill_rect(canvas, header, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
@@ -798,35 +666,35 @@ static void draw(void *context, Canvas *canvas)
         draw_nothing_playing(theme, canvas);
         return;
     }
-    draw_cover(now_playing, canvas);
+    bool cassette = now_playing->config.settings != NULL &&
+                    settings_now_playing_style(now_playing->config.settings) != NOW_PLAYING_COVER &&
+                    now_playing->config.cassette_draw != NULL;
+    if (cassette) {
+        now_playing->config.cassette_draw(now_playing, canvas);
+    } else {
+        draw_cover(now_playing, canvas);
+        draw_track_text(now_playing, canvas);
+    }
     draw_badge(now_playing, canvas);
-    draw_track_text(now_playing, canvas);
     draw_progress(now_playing, canvas);
-    draw_format(now_playing, canvas);
-    draw_details(now_playing, canvas);
+    if (!cassette || theme_is_portrait(theme)) {
+        draw_format(now_playing, canvas);
+        draw_details(now_playing, canvas);
+    }
     draw_times(now_playing, canvas);
+}
+
+void now_playing_screen_attach(NowPlayingScreen *now_playing)
+{
+    now_playing->screen.enter = enter;
+    now_playing->screen.handle_key = handle_key;
+    now_playing->screen.update = update;
+    now_playing->screen.draw = draw;
 }
 
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config)
 {
-    now_playing->config = config;
-    now_playing->destination = NULL;
-    now_playing->flip_prompted = false;
-    now_playing->has_text = false;
-    now_playing->scrubbing = false;
-    now_playing->scrub_position_ms = 0;
-    now_playing->repeat_feedback_ms = 0;
-    now_playing->feedback = NOW_PLAYING_FEEDBACK_NONE;
-    now_playing->feedback_started_ms = 0;
-    now_playing->status = (PlayerStatus){.state = PLAYER_IDLE};
-    now_playing->screen = (Screen){
-        .title = i18n_text(STR_NOW_PLAYING),
-        .context = now_playing,
-        .hold_volume_keys = true,
-        .enter = enter,
-        .handle_key = handle_key,
-        .update = update,
-        .draw = draw,
-    };
+    now_playing_screen_setup(now_playing, config);
+    now_playing_screen_attach(now_playing);
     return &now_playing->screen;
 }

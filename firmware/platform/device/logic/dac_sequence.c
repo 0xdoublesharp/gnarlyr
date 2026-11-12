@@ -30,9 +30,7 @@ enum {
     BALANCED_ATTENUATION_VALUE = 10,
     BLUETOOTH_TOP_VALUE = 10,
     VOLUME_UNITS_PER_STEP = 2,
-    RAMP_STEP = 6,
-    GAIN_HIGH_VALUE = 0x31,
-    GAIN_LOW_VALUE = 0x20
+    RAMP_STEP = 6
 };
 
 static const uint8_t CHIPS[CHIP_COUNT] = {DAC_LEFT_ADDRESS, DAC_RIGHT_ADDRESS};
@@ -217,7 +215,7 @@ static uint8_t filter_value(uint8_t filter)
 
 static uint8_t gain_value(bool high)
 {
-    return high ? GAIN_HIGH_VALUE : GAIN_LOW_VALUE;
+    return high ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE;
 }
 
 static bool set_up_blocks(const DacBus *bus, DacAnalog analog)

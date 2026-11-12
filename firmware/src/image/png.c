@@ -182,26 +182,61 @@ static uint8_t paeth(uint8_t left, uint8_t up, uint8_t up_left)
     return to_up <= to_up_left ? up : up_left;
 }
 
-static bool unfilter(PngRows *rows)
+static void unfilter_sub(uint8_t *row, const uint8_t *source, uint32_t step, uint32_t count)
+{
+    for (uint32_t index = 0; index < count; index++) {
+        row[index] = (uint8_t)(source[index] + (index >= step ? row[index - step] : 0));
+    }
+}
+
+static void unfilter_up(uint8_t *row, const uint8_t *source, const uint8_t *up, uint32_t count)
+{
+    for (uint32_t index = 0; index < count; index++) {
+        row[index] = (uint8_t)(source[index] + up[index]);
+    }
+}
+
+static void unfilter_average(uint8_t *row, const uint8_t *source, const uint8_t *up, uint32_t step,
+                             uint32_t count)
+{
+    for (uint32_t index = 0; index < count; index++) {
+        uint32_t left = index >= step ? row[index - step] : 0;
+        row[index] = (uint8_t)(source[index] + (left + up[index]) / 2);
+    }
+}
+
+static void unfilter_paeth(uint8_t *row, const uint8_t *source, const uint8_t *up, uint32_t step,
+                           uint32_t count)
+{
+    for (uint32_t index = 0; index < count && index < step; index++) {
+        row[index] = (uint8_t)(source[index] + paeth(0, up[index], 0));
+    }
+    for (uint32_t index = step; index < count; index++) {
+        uint8_t predicted = paeth(row[index - step], up[index], up[index - step]);
+        row[index] = (uint8_t)(source[index] + predicted);
+    }
+}
+
+static bool unfilter_from(PngRows *rows, uint32_t filter, const uint8_t *source)
 {
     uint8_t *row = rows->current + 1;
     const uint8_t *up = rows->previous + 1;
     uint32_t step = rows->pixel_bytes;
-    uint32_t filter = rows->current[0];
-    for (uint32_t index = 0; index < rows->row_bytes; index++) {
-        uint8_t left = index >= step ? row[index - step] : 0;
-        uint8_t up_left = index >= step ? up[index - step] : 0;
-        if (filter == FILTER_SUB) {
-            row[index] = (uint8_t)(row[index] + left);
-        } else if (filter == FILTER_UP) {
-            row[index] = (uint8_t)(row[index] + up[index]);
-        } else if (filter == FILTER_AVERAGE) {
-            row[index] = (uint8_t)(row[index] + ((uint32_t)left + up[index]) / 2);
-        } else if (filter == FILTER_PAETH) {
-            row[index] = (uint8_t)(row[index] + paeth(left, up[index], up_left));
-        } else if (filter != FILTER_NONE) {
-            return false;
+    uint32_t count = rows->row_bytes;
+    if (filter == FILTER_NONE) {
+        for (uint32_t index = 0; index < count && source != row; index++) {
+            row[index] = source[index];
         }
+    } else if (filter == FILTER_SUB) {
+        unfilter_sub(row, source, step, count);
+    } else if (filter == FILTER_UP) {
+        unfilter_up(row, source, up, count);
+    } else if (filter == FILTER_AVERAGE) {
+        unfilter_average(row, source, up, step, count);
+    } else if (filter == FILTER_PAETH) {
+        unfilter_paeth(row, source, up, step, count);
+    } else {
+        return count == 0;
     }
     return true;
 }
@@ -282,12 +317,8 @@ static bool rows_past_crop(const PngRows *rows)
     return !rows->header.interlaced && rows->row >= grid->start_y + grid->span;
 }
 
-static bool finish_row(PngRows *rows)
+static bool next_row(PngRows *rows)
 {
-    if (!unfilter(rows)) {
-        rows->corrupt = true;
-        return false;
-    }
     emit_row(rows);
     uint8_t *swap = rows->previous;
     rows->previous = rows->current;
@@ -305,6 +336,16 @@ static bool finish_row(PngRows *rows)
     return !rows->done;
 }
 
+static bool finish_row(PngRows *rows, const uint8_t *row)
+{
+    rows->current[0] = row[0];
+    if (!unfilter_from(rows, row[0], row + 1)) {
+        rows->corrupt = true;
+        return false;
+    }
+    return next_row(rows);
+}
+
 static bool write_rows(void *context, const uint8_t *bytes, uint32_t length)
 {
     PngRows *rows = context;
@@ -313,6 +354,14 @@ static bool write_rows(void *context, const uint8_t *bytes, uint32_t length)
         if (rows->done) {
             return false;
         }
+        uint32_t whole = rows->row_bytes + 1;
+        if (rows->filled == 0 && length - index >= whole) {
+            if (!finish_row(rows, bytes + index)) {
+                return false;
+            }
+            index += whole;
+            continue;
+        }
         uint32_t wanted = rows->row_bytes + 1 - rows->filled;
         uint32_t step = length - index < wanted ? length - index : wanted;
         for (uint32_t byte = 0; byte < step; byte++) {
@@ -320,7 +369,7 @@ static bool write_rows(void *context, const uint8_t *bytes, uint32_t length)
         }
         rows->filled += step;
         index += step;
-        if (rows->filled == rows->row_bytes + 1 && !finish_row(rows)) {
+        if (rows->filled == rows->row_bytes + 1 && !finish_row(rows, rows->current)) {
             return false;
         }
     }

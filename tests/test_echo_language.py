@@ -23,14 +23,16 @@ SPEC.loader.exec_module(PACK)
 BUILD = subprocess.check_output(["git", "rev-parse", "--short=7", "HEAD"], cwd=ROOT, text=True).strip()
 CATALOGUE = PACK.read_catalogue_text(subprocess.check_output(
     ["git", "show", "HEAD:firmware/assets/lang/en.txt"], cwd=ROOT, text=True))
+SEGMENTS = PACK.segments_from_header(subprocess.check_output(
+    ["git", "show", "HEAD:firmware/src/core/include/core/strings.h"], cwd=ROOT, text=True), CATALOGUE)
 
 
 def pack(code="fr", name="Francais", **texts):
-    return PACK.build_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name, **texts})
+    return PACK.build_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name, **texts}, SEGMENTS)
 
 
-def extended_pack():
-    return pack(STR_BACK_CANCELS="x" * (16384 + 512 - len(pack())))
+def legacy_pack(code="fr", name="Francais", **texts):
+    return PACK.build_legacy_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name, **texts})
 
 
 F_BLOCK = bytes([0x09, 0x02]) + bytes(14)
@@ -77,33 +79,56 @@ class LanguageCommands(VolumeCase):
         self.assertEqual(result["pack"]["code"], "fr")
         self.assertEqual(result["firmware_build"], BUILD)
 
-    def with_pack_capacity(self, capacity):
+    def with_i18n(self, name, value):
         original = echo_language.Snapshot.show
         def show(snapshot, path):
             source = original(snapshot, path)
-            return (re.sub(r"I18N_PACK_CAPACITY\s*=\s*\d+", f"I18N_PACK_CAPACITY = {capacity}", source)
+            return (re.sub(name + r"\s*=\s*\d+", f"{name} = {value}", source)
                     if path == "firmware/src/core/include/core/i18n.h" else source)
         return mock.patch.object(echo_language.Snapshot, "show", show)
 
-    def test_an_extended_pack_is_refused_before_writing_to_a_sixteen_kibibyte_build(self):
-        self.pack.write_bytes(extended_pack())
-        self.assertGreater(self.pack.stat().st_size, 16384)
-        with self.with_pack_capacity(16384):
+    def test_a_pack_over_the_installed_memory_is_refused_before_writing(self):
+        need = PACK.pack_info(pack())["memory"]
+        with self.with_i18n("I18N_PACK_CAPACITY", need - 1):
             status, result = self.run_cli("language-install", str(self.pack), host=self.host())
         self.assertEqual(status, 1)
         self.assertEqual(result["error"]["code"], "language_pack_invalid")
         self.assertEqual(list(self.lang.iterdir()), [])
 
-    def test_an_extended_version_one_pack_installs_on_an_eighteen_kibibyte_build(self):
-        data = extended_pack()
+    def test_a_segmented_pack_larger_than_the_window_installs_when_its_memory_need_fits(self):
+        data = pack(**PACK.pseudo_translations(CATALOGUE) | {"STR_LANGUAGE_NAME": "Francais"})
         self.pack.write_bytes(data)
-        self.assertEqual(1, PACK.HEADER.unpack_from(data)[1])
+        self.assertGreater(len(data), 18432)
         tool, _ = self.live_tool()
-        with self.with_pack_capacity(18432):
-            result = tool.language_install(self.pack)
+        result = tool.language_install(self.pack)
         self.assertTrue(result["ok"])
-        self.assertEqual(18432, result["pack_capacity"])
+        self.assertEqual((18432, 2), (result["pack_capacity"], result["pack_version"]))
         self.assertEqual(data, (self.lang / "fr.pack").read_bytes())
+
+    def test_a_version_one_build_gets_version_one_packs_and_refuses_version_two(self):
+        with self.with_i18n("I18N_VERSION", 1):
+            tool, _ = self.live_tool()
+            with self.assertRaises(echo_debug.DebugError) as raised:
+                tool.language_install(self.pack)
+            self.assertEqual(raised.exception.code, "language_pack_invalid")
+            self.assertEqual(list(self.lang.iterdir()), [])
+            self.pack.write_bytes(legacy_pack())
+            self.assertEqual(1, tool.language_install(self.pack)["pack_version"])
+        self.assertEqual(legacy_pack(), (self.lang / "fr.pack").read_bytes())
+
+    def test_a_version_one_file_is_listed_as_incompatible_with_a_version_two_build(self):
+        (self.lang / "fr.pack").write_bytes(legacy_pack())
+        tool, _ = self.live_tool()
+        listed = tool.language_list()
+        self.assertEqual([item["code"] for item in listed["languages"]], ["en"])
+        self.assertEqual([(item["code"], item["reason"]) for item in listed["incompatible_files"]],
+                         [("fr", "format_mismatch")])
+
+    def test_an_unknown_installed_pack_format_is_refused(self):
+        with self.with_i18n("I18N_VERSION", 3):
+            status, result = self.run_cli("language-install", str(self.pack), host=self.host())
+        self.assertEqual(status, 1)
+        self.assertEqual(result["error"]["code"], "language_build_unknown")
 
     def test_list_prefers_the_card_from_the_same_player(self):
         (self.lang / "fr.pack").write_bytes(pack())
@@ -480,6 +505,26 @@ class LanguageCommands(VolumeCase):
                 tool, _ = self.live_tool()
                 self.assertEqual(tool.language_list()["selected"], "en")
 
+    def test_cassette_style_and_other_e13_bits_allow_language_reads(self):
+        extension = bytearray(self.home_extension(list(range(10))))
+        extension[13] = 0xB5
+        with self.current_snapshot():
+            (self.root / echo_debug.DATA_DIRECTORY / "settings.bin").write_bytes(
+                settings("en", 16, 0, extension))
+            tool, _ = self.live_tool()
+            self.assertEqual(tool.language_list()["selected"], "en")
+
+    def test_spectrum_style_allows_language_reads_and_preserves_its_bits(self):
+        extension = bytearray(self.home_extension(list(range(10))))
+        extension[13] = 0xB5
+        extension[14] = 0x80
+        with self.current_snapshot():
+            path = self.root / echo_debug.DATA_DIRECTORY / "settings.bin"
+            path.write_bytes(settings("en", 16, 0, extension))
+            tool, _ = self.live_tool()
+            self.assertEqual(tool.language_list()["selected"], "en")
+            self.assertEqual(path.read_bytes()[51:53], bytes([0xB5, 0x80]))
+
     def home_extension(self, order, hidden=0):
         nibbles = bytearray(5)
         for index, item in enumerate(order):
@@ -528,7 +573,7 @@ class LanguageCommands(VolumeCase):
     def test_version15_settings_with_an_invalid_extension_cannot_be_verified(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
         for offset, value in ((0, 0x18), (1, 61), (2, 4), (3, 7), (3, 0xFD), (4, 0x00), (8, 0x18),
-                              (9, 0x08), (10, 0x02), (15, 1)):
+                              (9, 0x08), (10, 0x02), (14, 0x05), (14, 0x18), (15, 1)):
             extension = bytearray(valid)
             extension[offset] = value
             with self.subTest(offset=offset, value=value), self.current_snapshot():
@@ -611,9 +656,9 @@ class LanguageCommands(VolumeCase):
                 tool, host = self.live_tool("en", version=15)
                 self.assertIn("languages", tool.language_list())
 
-    def test_version15_settings_with_a_dac_filter_and_battery_care_verify(self):
+    def test_version15_settings_with_a_dac_filter_crossfeed_battery_care_and_style_verify(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for value in (0x01, 0x04, 0x08, 0x14):
+        for value in (0x01, 0x04, 0x08, 0x14, 0x60, 0x74, 0x80, 0xF4):
             extension = bytearray(valid)
             extension[14] = value
             with self.subTest(value=value), self.current_snapshot():
@@ -673,9 +718,10 @@ class LanguageCommands(VolumeCase):
 
     def damaged_body(self, code, checksum=True):
         data = bytearray(pack(code, "Ancien"))
-        struct.pack_into("<H", data, PACK.HEADER.size, len(data))
+        end = PACK.index_size(len(SEGMENTS))
+        struct.pack_into("<I", data, end - 4, 0)
         if checksum:
-            checksum = PACK.fnv(data[PACK.CHECKSUM_END:], PACK.fnv(data[:PACK.CHECKSUM_OFFSET]))
+            checksum = PACK.fnv(data[PACK.CHECKSUM_END:end], PACK.fnv(data[:PACK.CHECKSUM_OFFSET]))
             struct.pack_into("<I", data, PACK.CHECKSUM_OFFSET, checksum)
         return bytes(data)
 
@@ -708,7 +754,7 @@ class LanguageCommands(VolumeCase):
         with self.assertRaises(echo_debug.DebugError) as raised:
             tool.language_install(self.pack)
         self.assertEqual(raised.exception.code, "language_code_mismatch")
-        (self.lang / "fr.pack").write_bytes(b"x" * (echo_language.PACK_LIMIT + 1))
+        (self.lang / "fr.pack").write_bytes(b"x" * (echo_language.FILE_LIMIT + 1))
         with self.assertRaises(OSError):
             tool.language_install(self.pack)
         self.assertEqual(host.ejected, [])

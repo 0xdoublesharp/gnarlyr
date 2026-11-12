@@ -14,7 +14,6 @@ from echo_image_harness import (
     KEY_MENU,
     KEY_NEXT,
     KEY_PLAY,
-    LANGUAGE_RAM,
     MODULE_LOAD_LIMIT_MS,
     MODULE_REUSE_LIMIT_US,
     MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW,
@@ -200,12 +199,13 @@ class EchoImageTest(EchoImageHarness):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
-    def test_now_playing_and_up_next_cross_the_module_seam_without_stalling(self):
+    def test_now_playing_and_quick_settings_cross_the_module_seam_without_stalling(self):
         from echo_emulator.modules import ModuleWatch
         rig = self.cold_playing_rig()
         machine = rig.machine
         watch = ModuleWatch(rig.session)
         number, playing = self.module(machine, "playing")
+        equalizer_number, _ = self.module(machine, "equalizer")
         rig.open_songs()
         started = rig.play_song(1)
         self.assertIsNotNone(rig.first_audio_after(started))
@@ -213,12 +213,13 @@ class EchoImageTest(EchoImageHarness):
                      for key in (KEY_MENU, KEY_BACK, KEY_MENU, KEY_BACK)]
         self.assertLessEqual(max(latencies), MODULE_LOAD_LIMIT_MS)
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(number, True)])
+                         [(number, True), (equalizer_number, True), (number, True),
+                          (equalizer_number, True), (number, True)])
         self.assertTrue(playing.loaded(machine))
         self.assertEqual([], rig.audio.underruns(started))
         self.assert_module_code_never_written(watch)
         self.assert_healthy(rig.session)
-        print("\n[Now Playing / Up Next] release to first pixels: %s ms" % latencies)
+        print("\n[Now Playing / Quick Settings] release to first pixels: %s ms" % latencies)
         print("[first list load] " + watch.describe(watch.loads()[0]))
 
     def test_modules_change_places_and_a_setting_is_saved_while_a_track_keeps_playing(self):
@@ -258,7 +259,8 @@ class EchoImageTest(EchoImageHarness):
                          [(settings_number, True), (views_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_module_code_never_written(watch)
-        self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
+        self.assertTrue(self.loaded_language_pack(session, pack))
+        self.assertTrue(self.loaded_language_segment(session, pack, settings_number))
         self.assertEqual(rig.audio.underruns(audible), [])
         self.assertLess(rig.longest_gap(opened), STEP_GAP_WITH_A_MODULE_MS)
         self.assertEqual(machine.watchdog_resets, 0)
@@ -282,7 +284,7 @@ class EchoImageTest(EchoImageHarness):
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")
         playing_number, _ = self.module(machine, "playing")
-        library_number, _ = self.module(machine, "library")
+        views_number, _ = self.module(machine, "views")
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertTrue(settings.loaded(machine))
@@ -295,8 +297,8 @@ class EchoImageTest(EchoImageHarness):
                                               {"slot": 1, "name": "settings"}])
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(library_number, True), (playing_number, True), (playing_number, True),
-                          (library_number, True), (playing_number, True),
+                         [(views_number, True), (playing_number, True), (playing_number, True),
+                          (views_number, True), (playing_number, True),
                           (settings_number, True), (playing_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         screens = [event["detail"] for event in report["events"] if event["kind"] == "screen"]
@@ -351,7 +353,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(max(reuses), MODULE_REUSE_LIMIT_US)
         self.assertTrue(playing.loaded(machine))
         self.assert_module_code_never_written(watch)
-        self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
+        self.assertTrue(self.loaded_language_pack(session, pack))
+        self.assertTrue(self.loaded_language_segment(session, pack, number))
         self.assertEqual(rig.audio.underruns(audible), [])
         self.assertLess(rig.longest_gap(opened), STEP_GAP_WITH_A_MODULE_MS)
         self.assertEqual(machine.watchdog_resets, 0)

@@ -85,6 +85,7 @@ REPORT_SLOTS = 3
 COLD_REPORT_MS = 10000
 POWER_HOLD_MS = 2600
 DEBUG_FOLDER = IDENTITY.data_directory + "/debug"
+USB_SCREEN_CAPTURES = 6
 RUN_PATH = "/" + DEBUG_FOLDER + "/run.txt"
 TIME_PATH = "/" + IDENTITY.data_directory + "/time.bin"
 NOVEMBER_2026 = 1794482460
@@ -730,9 +731,19 @@ class EchoImageHarness(unittest.TestCase):
             until=lambda: reached.get("usb_session_storage_changed", 0) >= count,
             until_ms=session.machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
 
-    def loaded_language_pack(self, session):
-        pack = make_image.language_packs_in(self.image)[0]
-        return session.machine.read_memory(LANGUAGE_RAM, len(pack)) == pack
+    def loaded_language_pack(self, session, pack=None):
+        pack = pack if pack is not None else make_image.language_packs_in(self.image)[0]
+        resident = lang_pack.pack_info(pack)["segments"][0]
+        end = resident["offset"] + resident["size"]
+        return session.machine.read_memory(LANGUAGE_RAM, end) == pack[:end]
+
+    def loaded_language_segment(self, session, pack, module):
+        segments = lang_pack.pack_info(pack)["segments"]
+        resident = segments[0]["offset"] + segments[0]["size"]
+        segment = next(item for item in segments if item["module"] == module)
+        start = segment["offset"]
+        stored = pack[start:start + segment["size"]]
+        return session.machine.read_memory(LANGUAGE_RAM + lang_pack.aligned(resident), len(stored)) == stored
 
     def extension_loaded(self, session):
         offset, size = make_image.modules_in(self.image)[make_image.EXTENSION_MODULE_NUMBER - 1]

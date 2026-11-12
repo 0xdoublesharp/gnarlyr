@@ -25,6 +25,7 @@ static HeadphoneProfiles named_profiles(void)
         profiles.slots[index].trim_half_db = (uint8_t)(index * 4);
         profiles.slots[index].volume_ceiling = (uint8_t)(60 - index * 5);
         profiles.slots[index].balance = (int8_t)(index * 20 - 30);
+        profiles.slots[index].crossfeed = (uint8_t)index;
     }
     memcpy(profiles.slots[2].name, "Écoute 🎧", sizeof "Écoute 🎧");
     return profiles;
@@ -67,10 +68,11 @@ static void four_utf8_profiles_round_trip_to_exact_bytes(void)
     memset(bytes, 0xA5, sizeof bytes);
     CHECK(headphone_profiles_encode(&profiles, bytes, sizeof bytes));
     CHECK_EQUAL(0xA5, bytes[HEADPHONE_PROFILES_FILE_SIZE]);
-    CHECK(memcmp(bytes, "DSHP\1\0\4\2", 8) == 0);
+    CHECK(memcmp(bytes, "DSHP\2\0\4\2", 8) == 0);
     CHECK_EQUAL(8, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 24]);
     CHECK_EQUAL(50, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 25]);
     CHECK_EQUAL(10, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 26]);
+    CHECK_EQUAL(2, bytes[HEADER_BYTES + 2 * RECORD_BYTES + 27]);
     CHECK_EQUAL(hash_update(HASH_START, bytes, CHECKSUM_FIELD), hash_load(bytes + CHECKSUM_FIELD));
     HeadphoneProfiles decoded = headphone_profiles_defaults();
     CHECK(headphone_profiles_decode(bytes, HEADPHONE_PROFILES_FILE_SIZE, &decoded));
@@ -81,6 +83,7 @@ static void four_utf8_profiles_round_trip_to_exact_bytes(void)
         CHECK_EQUAL(profiles.slots[index].trim_half_db, decoded.slots[index].trim_half_db);
         CHECK_EQUAL(profiles.slots[index].volume_ceiling, decoded.slots[index].volume_ceiling);
         CHECK_EQUAL(profiles.slots[index].balance, decoded.slots[index].balance);
+        CHECK_EQUAL(profiles.slots[index].crossfeed, decoded.slots[index].crossfeed);
     }
     uint8_t again[HEADPHONE_PROFILES_FILE_SIZE];
     CHECK(headphone_profiles_encode(&decoded, again, sizeof again));
@@ -112,7 +115,8 @@ static void semantic_errors_are_rejected_even_with_a_valid_checksum(void)
         uint8_t offset;
         uint8_t value;
     } changes[] = {{0, 'X'},
-                   {4, 2},
+                   {4, 0},
+                   {4, 3},
                    {5, 1},
                    {6, 5},
                    {7, 5},
@@ -123,7 +127,8 @@ static void semantic_errors_are_rejected_even_with_a_valid_checksum(void)
                    {HEADER_BYTES + 25, 61},
                    {HEADER_BYTES + 26, 101},
                    {HEADER_BYTES + 26, 155},
-                   {HEADER_BYTES + 27, 1},
+                   {HEADER_BYTES + 27, 4},
+                   {HEADER_BYTES + 28, 1},
                    {HEADER_BYTES + 31, 1}};
     for (size_t index = 0; index < sizeof changes / sizeof changes[0]; index++) {
         uint8_t bytes[HEADPHONE_PROFILES_FILE_SIZE];
@@ -132,6 +137,27 @@ static void semantic_errors_are_rejected_even_with_a_valid_checksum(void)
         checksum(bytes);
         rejects_unchanged(bytes, sizeof bytes);
     }
+}
+
+static void a_version_one_file_loads_with_crossfeed_off(void)
+{
+    HeadphoneProfiles profiles = named_profiles();
+    uint8_t bytes[HEADPHONE_PROFILES_FILE_SIZE];
+    CHECK(headphone_profiles_encode(&profiles, bytes, sizeof bytes));
+    bytes[4] = 1;
+    for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
+        bytes[HEADER_BYTES + slot * RECORD_BYTES + 27] = 0;
+    }
+    checksum(bytes);
+    HeadphoneProfiles decoded = headphone_profiles_defaults();
+    CHECK(headphone_profiles_decode(bytes, sizeof bytes, &decoded));
+    for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
+        CHECK_EQUAL(0, decoded.slots[slot].crossfeed);
+        CHECK_EQUAL(profiles.slots[slot].trim_half_db, decoded.slots[slot].trim_half_db);
+    }
+    bytes[HEADER_BYTES + 27] = 1;
+    checksum(bytes);
+    rejects_unchanged(bytes, sizeof bytes);
 }
 
 static void trimmed_and_balanced_gains_compose_with_replay_gain(void)
@@ -427,6 +453,7 @@ int main(void)
         TEST_CASE(four_utf8_profiles_round_trip_to_exact_bytes),
         TEST_CASE(every_truncation_and_corruption_preserves_old_state),
         TEST_CASE(semantic_errors_are_rejected_even_with_a_valid_checksum),
+        TEST_CASE(a_version_one_file_loads_with_crossfeed_off),
         TEST_CASE(trimmed_and_balanced_gains_compose_with_replay_gain),
         TEST_CASE(volume_ceiling_is_independent_of_requested_mode_volume),
         TEST_CASE(pcm_unity_preserves_bits_and_rounding_matches_existing_engine),

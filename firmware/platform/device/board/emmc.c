@@ -111,6 +111,7 @@ static bool identify(void)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     uint32_t none[4] = {0, 0, 0, 0};
+    mmc_wait_not_busy(&EMMC_HOST);
     mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, true}, none);
     board_delay_us(IDLE_SETTLE_US);
     if (!wait_for_ocr() || !command(CMD_ALL_SEND_CID, 0, SD_RESPONSE_LONG, words)) {
@@ -136,11 +137,10 @@ static bool wait_for_transfer_state(void)
 
 static bool read_sector_count(void)
 {
-    static uint32_t ext_csd[BLOCK_LENGTH / 4];
-    if (!mmc_read_block(&EMMC_HOST, CMD_SEND_EXT_CSD, 0, ext_csd)) {
+    if (!mmc_read_block(&EMMC_HOST, CMD_SEND_EXT_CSD, 0, board_scratch)) {
         return false;
     }
-    emmc.sector_count = ext_csd[EXT_CSD_SECTOR_COUNT / 4];
+    emmc.sector_count = board_scratch[EXT_CSD_SECTOR_COUNT / 4];
     return emmc.sector_count != 0;
 }
 
@@ -244,7 +244,8 @@ static uint32_t start_once(void)
     }
     started = true;
     BlockDevice device = emmc_device();
-    started = emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count, EMMC_SLOT_2_SEARCH);
+    started = emmc_layout_read_with(&emmc.layout, &device, emmc.sector_count,
+                                    (EmmcLayoutRead){EMMC_SLOT_2_SEARCH, board_scratch});
     return started ? 0u : 3u;
 }
 
@@ -278,6 +279,19 @@ bool emmc_start(EmmcInfo *info)
     }
     *info = emmc;
     return started;
+}
+
+void emmc_reset_controller(void)
+{
+    cru_reset(RESET_EMMC, true);
+    board_delay_us(MUX_SETTLE_US);
+    cru_reset(RESET_EMMC, false);
+}
+
+void emmc_quiesce(void)
+{
+    uint32_t none[4] = {0, 0, 0, 0};
+    mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, false}, none);
 }
 
 bool emmc_volume_start(BlockDevice *device)

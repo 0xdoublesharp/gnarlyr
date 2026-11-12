@@ -28,6 +28,9 @@ typedef struct ResolveScratch {
     char folded[PATH_CAPACITY];
     char track[PATH_CAPACITY];
     char name[BUILDER_TEXT_CAPACITY];
+    char prefix[PATH_CAPACITY];
+    uint32_t prefix_length;
+    uint32_t prefix_folder;
     Parts raw;
     Parts wanted;
     Parts candidate;
@@ -56,38 +59,52 @@ static uint32_t append_folded(char *out, uint32_t used, const char *text, uint32
     return used + (uint32_t)case_fold_make(text, length, out + used, PATH_CAPACITY - used);
 }
 
-uint32_t builder_folded_path(BuilderState *state, Prepared *prepared, uint32_t position, char *out)
+static bool fold_prefix(BuilderState *state, Prepared *prepared, uint32_t folder_index)
 {
-    char *name = scratch_of(prepared)->name;
-    TrackRow row;
-    out[0] = '\0';
-    if (!builder_read_row(&prepared->rows, state, prepared->positions[position], &row)) {
-        return 0;
-    }
+    ResolveScratch *scratch = scratch_of(prepared);
     FolderRow chain[BUILDER_MAX_DEPTH];
     uint32_t depth = 0;
-    for (uint32_t node = row.folder; node != 0 && depth < BUILDER_MAX_DEPTH;) {
+    scratch->prefix_folder = UINT32_MAX;
+    for (uint32_t node = folder_index; node != 0 && depth < BUILDER_MAX_DEPTH;) {
         if (!builder_read_folder(&prepared->folders, state, node, &chain[depth])) {
-            return 0;
+            return false;
         }
         node = chain[depth++].parent;
     }
     uint32_t used = 0;
     while (depth > 0) {
         const FolderRow *folder = &chain[--depth];
-        if (!builder_read_text(&prepared->heap, folder->name, folder->length, name)) {
-            return 0;
+        if (!builder_read_text(&prepared->heap, folder->name, folder->length, scratch->name)) {
+            return false;
         }
-        used = append_folded(out, used, name, folder->length);
+        used = append_folded(scratch->prefix, used, scratch->name, folder->length);
         used = used < PATH_CAPACITY - 1 ? used + 1 : used;
-        out[used - 1] = '/';
-        out[used] = '\0';
+        scratch->prefix[used - 1] = '/';
     }
-    uint32_t length = row.length[BUILDER_FILE];
-    if (!builder_read_text(&prepared->heap, row.text[BUILDER_FILE], length, name)) {
+    scratch->prefix_length = used;
+    scratch->prefix_folder = folder_index;
+    return true;
+}
+
+uint32_t builder_folded_path(BuilderState *state, Prepared *prepared, uint32_t position, char *out)
+{
+    ResolveScratch *scratch = scratch_of(prepared);
+    TrackRow row;
+    out[0] = '\0';
+    if (!builder_read_row(&prepared->rows, state, prepared->positions[position], &row) ||
+        (row.folder != scratch->prefix_folder && !fold_prefix(state, prepared, row.folder))) {
         return 0;
     }
-    return append_folded(out, used, name, length);
+    uint32_t used = scratch->prefix_length;
+    for (uint32_t index = 0; index < used; index++) {
+        out[index] = scratch->prefix[index];
+    }
+    out[used] = '\0';
+    uint32_t length = row.length[BUILDER_FILE];
+    if (!builder_read_text(&prepared->heap, row.text[BUILDER_FILE], length, scratch->name)) {
+        return 0;
+    }
+    return append_folded(out, used, scratch->name, length);
 }
 
 static uint32_t folded_name_hash(BuilderState *state, Prepared *prepared, uint32_t position,
@@ -121,51 +138,95 @@ static bool same_folded_path(BuilderState *state, Prepared *prepared, uint32_t p
     return true;
 }
 
-static void index_exact(BuilderState *state, Prepared *prepared, uint32_t position)
+static uint8_t path_check(uint32_t hash)
 {
-    char *folded = scratch_of(prepared)->folded;
-    uint32_t length = builder_folded_path(state, prepared, position, folded);
+    return (uint8_t)(hash >> 24);
+}
+
+static void index_exact(BuilderState *state, Prepared *prepared, uint32_t position,
+                        const char *folded, uint32_t length)
+{
     uint32_t hash = hash_update(HASH_START, folded, length);
     for (uint32_t probe = 0;; probe++) {
-        uint16_t *slot = &prepared->exact[(hash + probe) & prepared->exact_mask];
-        if (*slot == EMPTY_SLOT || same_folded_path(state, prepared, *slot - 1u, folded, length)) {
+        uint32_t index = (hash + probe) & prepared->exact_mask;
+        uint16_t *slot = &prepared->exact[index];
+        if (*slot == EMPTY_SLOT) {
             *slot = (uint16_t)(position + 1);
+            prepared->exact_check[index] = path_check(hash);
+            return;
+        }
+        if (prepared->exact_check[index] == path_check(hash) &&
+            same_folded_path(state, prepared, *slot - 1u, folded, length)) {
+            *slot = *slot > position + 1 ? *slot : (uint16_t)(position + 1);
             return;
         }
     }
 }
 
-static void index_name(BuilderState *state, Prepared *prepared, uint32_t position)
+static uint32_t path_name_hash(BuilderState *state, Prepared *prepared, uint32_t position,
+                               const char *folded, uint32_t length)
 {
-    uint32_t hash = folded_name_hash(state, prepared, position, scratch_of(prepared)->folded);
+    if (length + 1 >= PATH_CAPACITY) {
+        return folded_name_hash(state, prepared, position, scratch_of(prepared)->joined);
+    }
+    uint32_t start = length;
+    while (start > 0 && folded[start - 1] != '/') {
+        start--;
+    }
+    return hash_update(HASH_START, folded + start, length - start);
+}
+
+static void index_track(BuilderState *state, Prepared *prepared, uint32_t position)
+{
+    char *folded = scratch_of(prepared)->folded;
+    uint32_t length = builder_folded_path(state, prepared, position, folded);
+    index_exact(state, prepared, position, folded, length);
+    uint32_t hash = path_name_hash(state, prepared, position, folded, length);
     uint16_t *head = &prepared->by_name[hash & prepared->by_name_mask];
     prepared->next_same_name[position] = *head;
     *head = (uint16_t)(position + 1);
+}
+
+static bool take_index(BuilderState *state, Prepared *prepared, uint32_t count, uint32_t slots)
+{
+    prepared->index_mark = state->arena.used;
+    prepared->positions = builder_load_column(state, prepared->final_tracks, count);
+    prepared->exact = arena_take(&state->arena, slots * 2);
+    prepared->exact_check = arena_take(&state->arena, slots);
+    prepared->by_name = arena_take(&state->arena, slots * 2);
+    prepared->next_same_name = arena_take(&state->arena, count * 2 + 2);
+    prepared->resolve = arena_take(&state->arena, (uint32_t)sizeof(ResolveScratch));
+    if (prepared->resolve != NULL) {
+        scratch_of(prepared)->prefix_folder = UINT32_MAX;
+    }
+    prepared->exact_mask = slots - 1;
+    prepared->by_name_mask = slots - 1;
+    return !state->arena.failed && prepared->positions != NULL;
 }
 
 bool builder_index_paths(BuilderState *state, Prepared *prepared)
 {
     uint32_t count = state->track_count;
     uint32_t slots = slots_for(count);
-    prepared->index_mark = state->arena.used;
-    prepared->positions = builder_load_column(state, prepared->final_tracks, count);
-    prepared->exact = arena_take(&state->arena, slots * 2);
-    prepared->by_name = arena_take(&state->arena, slots * 2);
-    prepared->next_same_name = arena_take(&state->arena, count * 2 + 2);
-    prepared->resolve = arena_take(&state->arena, (uint32_t)sizeof(ResolveScratch));
-    if (state->arena.failed || prepared->positions == NULL) {
+    if (!take_index(state, prepared, count, slots)) {
         return false;
     }
-    prepared->exact_mask = slots - 1;
-    prepared->by_name_mask = slots - 1;
     for (uint32_t slot = 0; slot < slots; slot++) {
         prepared->exact[slot] = EMPTY_SLOT;
         prepared->by_name[slot] = EMPTY_SLOT;
     }
-    for (uint32_t position = 0; position < count; position++) {
-        index_exact(state, prepared, position);
-        index_name(state, prepared, position);
+    uint32_t mark = state->arena.used;
+    uint16_t *final_of = arena_take(&state->arena, count * 2 + 2);
+    if (final_of == NULL) {
+        return false;
     }
+    for (uint32_t position = 0; position < count; position++) {
+        final_of[prepared->positions[position]] = (uint16_t)position;
+    }
+    for (uint32_t row = 0; row < count; row++) {
+        index_track(state, prepared, final_of[row]);
+    }
+    state->arena.used = mark;
     return !state->store.io_failed;
 }
 
@@ -275,11 +336,13 @@ static uint32_t find_exact(BuilderState *state, Prepared *prepared, const char *
         (uint32_t)case_fold_make(scratch->normal, normal_length, folded, PATH_CAPACITY);
     uint32_t hash = hash_update(HASH_START, folded, folded_length);
     for (uint32_t probe = 0; probe <= prepared->exact_mask; probe++) {
-        uint16_t slot = prepared->exact[(hash + probe) & prepared->exact_mask];
+        uint32_t index = (hash + probe) & prepared->exact_mask;
+        uint16_t slot = prepared->exact[index];
         if (slot == EMPTY_SLOT) {
             return BUILDER_UNSET;
         }
-        if (same_folded_path(state, prepared, slot - 1u, folded, folded_length)) {
+        if (prepared->exact_check[index] == path_check(hash) &&
+            same_folded_path(state, prepared, slot - 1u, folded, folded_length)) {
             return slot - 1u;
         }
     }
@@ -398,14 +461,16 @@ static uint32_t pick_part(BuilderState *state, Prepared *prepared, uint32_t posi
     ResolveScratch *scratch = scratch_of(prepared);
     uint32_t length = builder_folded_path(state, prepared, position, scratch->normal);
     uint32_t hash = folded_name_hash(state, prepared, position, scratch->folded);
+    uint32_t found = BUILDER_UNSET;
     for (uint16_t link = prepared->by_name[hash & prepared->by_name_mask]; link != EMPTY_SLOT;
          link = prepared->next_same_name[link - 1]) {
-        if (row_start(state, prepared, link - 1u) == start_ms &&
+        if ((found == BUILDER_UNSET || link - 1u > found) &&
+            row_start(state, prepared, link - 1u) == start_ms &&
             same_folded_path(state, prepared, link - 1u, scratch->normal, length)) {
-            return link - 1u;
+            found = link - 1u;
         }
     }
-    return position;
+    return found != BUILDER_UNSET ? found : position;
 }
 
 static uint32_t resolve_path(BuilderState *state, Prepared *prepared, const char *folder,

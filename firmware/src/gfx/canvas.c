@@ -70,9 +70,13 @@ void canvas_fill_rect(Canvas *canvas, Rect area, Color color)
 
 void canvas_fill_gradient(Canvas *canvas, Rect area, Color top, Color bottom)
 {
-    for (int row = 0; row < area.height; row++) {
-        Color color = color_between(top, bottom, row, area.height - 1);
-        canvas_fill_rect(canvas, (Rect){area.x, area.y + row, area.width, 1}, color);
+    Rect visible = rect_intersection(canvas->clip, area);
+    if (rect_is_empty(visible)) {
+        return;
+    }
+    for (int y = visible.y; y < visible.y + visible.height; y++) {
+        Color color = color_between(top, bottom, y - area.y, area.height - 1);
+        fill_span(pixel_address(canvas, visible.x, y), visible.width, color);
     }
 }
 

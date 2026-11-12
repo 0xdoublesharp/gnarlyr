@@ -10,6 +10,7 @@
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
 #include "device/usb_plug.h"
+#include "emmc.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/power.h"
@@ -18,6 +19,7 @@
 #include "sd.h"
 #include "storage_reset.h"
 #include "trial.h"
+#include "trial_module.h"
 #include "update.h"
 #include "usb.h"
 #include "usb_report.h"
@@ -84,6 +86,7 @@ static void run_usb_session(void)
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
+    board_trial_snapshot(1);
     if (usb != NULL) {
         board_trial_session_ended();
     }
@@ -227,6 +230,7 @@ static void explain_missing_text(void)
     if (i18n_attached()) {
         return;
     }
+    board_trial_fail();
     app_show_notice(FIRMWARE_SHORT_NAME, "Text is missing: reinstall the update");
     board_wait_for_key();
 }
@@ -319,16 +323,17 @@ void board_main(void)
     board_debug_battery_reading(boot_reading);
     uint32_t boot_millivolts = battery_millivolts(boot_reading);
     board_input_start();
-    board_trial_escape_check();
     board_display_start();
     debug_loop_boot(DEBUG_BOOT_DISPLAY);
     boot_step("display");
-    board_glyphs_start();
-    debug_loop_boot(DEBUG_BOOT_GLYPHS);
-    boot_step("glyphs");
+    emmc_reset_controller();
+    sd_reset_controller();
     update_check_loader_request();
     board_trial_boot();
     boot_step("loader request");
+    board_glyphs_start();
+    debug_loop_boot(DEBUG_BOOT_GLYPHS);
+    boot_step("glyphs");
     board_jack_poll();
     boot_step("jack");
     switch_off_when_empty(boot_millivolts);
@@ -342,6 +347,9 @@ void board_main(void)
     app_draw_start();
     board_display_service();
     board_extension_start();
+    if (board_trial_calls() == NULL) {
+        board_trial_fail();
+    }
     debug_loop_boot(DEBUG_BOOT_EXTENSION);
     board_wall_time_forget_file();
     board_core1_park();

@@ -62,6 +62,8 @@ typedef enum SourceKind {
     SOURCE_VORBIS = CORE1_PROGRAM_VORBIS,
     SOURCE_OPUS = CORE1_PROGRAM_OPUS,
     SOURCE_DSD = CORE1_PROGRAM_DSD,
+    SOURCE_APE = CORE1_PROGRAM_APE,
+    SOURCE_WMA = CORE1_PROGRAM_WMA,
     SOURCE_WAV,
     SOURCE_UNKNOWN
 } SourceKind;
@@ -70,7 +72,9 @@ _Static_assert((int)CORE1_FORMAT_FLAC == (int)SOURCE_FLAC &&
                    (int)CORE1_FORMAT_M4A == (int)SOURCE_M4A &&
                    (int)CORE1_FORMAT_VORBIS == (int)SOURCE_VORBIS &&
                    (int)CORE1_FORMAT_OPUS == (int)SOURCE_OPUS &&
-                   (int)CORE1_FORMAT_DSD == (int)SOURCE_DSD,
+                   (int)CORE1_FORMAT_DSD == (int)SOURCE_DSD &&
+                   (int)CORE1_FORMAT_APE == (int)SOURCE_APE &&
+                   (int)CORE1_FORMAT_WMA == (int)SOURCE_WMA,
                "each core 1 source kind names its program and its opener");
 
 static union {
@@ -78,6 +82,8 @@ static union {
     WavBuffers wav;
     M4aStream m4a;
     OggStream ogg;
+    ApeStream ape;
+    AsfStream asf;
     CardFormat format;
 } decoding __attribute__((section(".high_ram")));
 _Static_assert(sizeof(OggStream) <= sizeof(FlacDecoder),
@@ -216,6 +222,12 @@ static SourceKind kind_of(const char *path)
     if (tag_is(magic, "OggS")) {
         return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
     }
+    if (magic[0] == 0x30 && magic[1] == 0x26 && magic[2] == 0xB2 && magic[3] == 0x75) {
+        return SOURCE_WMA;
+    }
+    if (tag_is(magic, "MAC ")) {
+        return SOURCE_APE;
+    }
     if (mp4_signature(magic)) {
         return SOURCE_M4A;
     }
@@ -278,6 +290,7 @@ static bool open_chosen(void *context, const char *path, uint32_t start_ms, Audi
     }
     if (source_kind != SOURCE_WAV) {
         using_core1 = board_core1_start_stream((Core1Program)source_kind);
+        core1_source.clock_mhz = hal_system_clock_mhz();
         if (!using_core1) {
             return false;
         }
@@ -321,6 +334,8 @@ static void ensure_engine(void)
     core1_source_init(&core1_source, core1_region(), files, &decoding.flac, FILL_BUDGET_BYTES);
     core1_source.m4a = &decoding.m4a;
     core1_source.ogg = &decoding.ogg;
+    core1_source.ape = &decoding.ape;
+    core1_source.asf = &decoding.asf;
     core1_source.wait_vorbis = board_audio_vorbis_wait;
     core1_source.dsd = &dsd_stream;
     wav_source_init(&wav_source, files, &decoding.wav);
@@ -711,6 +726,11 @@ void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
     audio_engine_set_equalizer(&engine, curve);
 }
 
+void hal_audio_set_effects(HalAudioEffects effects)
+{
+    audio_engine_set_effects(&engine, effects);
+}
+
 static HalAudioState state_of(AudioEngineState state)
 {
     switch (state) {
@@ -741,6 +761,10 @@ static HalAudioCodec codec_of(AudioCodec codec)
         return HAL_AUDIO_CODEC_AIFF;
     case AUDIO_CODEC_DSD:
         return HAL_AUDIO_CODEC_DSD;
+    case AUDIO_CODEC_WMA:
+        return HAL_AUDIO_CODEC_WMA;
+    case AUDIO_CODEC_APE:
+        return HAL_AUDIO_CODEC_APE;
     case AUDIO_CODEC_OPUS:
         return HAL_AUDIO_CODEC_OPUS;
     case AUDIO_CODEC_FLAC:
@@ -753,6 +777,12 @@ static HalAudioProblem unreadable_problem(void)
 {
     if (unknown_format) {
         return HAL_AUDIO_PROBLEM_FORMAT;
+    }
+    if (source_kind == SOURCE_WMA) {
+        return HAL_AUDIO_PROBLEM_WMA;
+    }
+    if (source_kind == SOURCE_APE) {
+        return HAL_AUDIO_PROBLEM_APE;
     }
     return source_kind == SOURCE_M4A ? HAL_AUDIO_PROBLEM_AAC_ONLY : HAL_AUDIO_PROBLEM_UNREADABLE;
 }
@@ -1125,6 +1155,15 @@ void board_audio_output_changed(void)
         audio_engine_set_headphones(&engine, engine_headphones());
     }
     apply_volume();
+}
+
+AudioVisualBuffer hal_audio_visual_buffer(void)
+{
+    if (!engine_ready || !transferring || tone_active || engine.state != AUDIO_ENGINE_PLAYING) {
+        return (AudioVisualBuffer){0};
+    }
+    return (AudioVisualBuffer){music_ring, RING_FRAMES, engine.consumed % RING_FRAMES,
+                               engine.produced - engine.consumed, audio_engine_rate(&engine)};
 }
 
 CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)

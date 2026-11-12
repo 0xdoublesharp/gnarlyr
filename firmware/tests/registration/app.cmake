@@ -31,7 +31,7 @@ echo_add_unit_test(NAME test_home_screen
 )
 echo_add_unit_test(NAME test_screen_modules
     SOURCES app/test_screen_modules.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_fixtures
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
@@ -60,6 +60,11 @@ echo_add_unit_test(NAME test_usb_screen
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+echo_add_unit_test(NAME test_usb_meter
+    SOURCES app/test_usb_meter.c
+    LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_usb_dac_menu
     SOURCES app/test_usb_dac_menu.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
@@ -78,9 +83,9 @@ echo_add_unit_test(NAME test_english_layout
 )
 
 echo_add_unit_test(NAME test_app
-    SOURCES app/test_app.c app/fake_hal.c
+    SOURCES app/test_app.c app/fake_hal.c support/text_spy.c
     LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
 echo_add_unit_test(NAME test_release_diagnostics
     SOURCES app/test_release_diagnostics.c ${PROJECT_SOURCE_DIR}/src/app/diagnostics_menu_release.c
@@ -91,6 +96,11 @@ echo_add_unit_test(NAME test_release_diagnostics
 echo_add_unit_test(NAME test_draw_profile
     SOURCES app/test_draw_profile.c
     LIBRARIES echo_app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+echo_add_unit_test(NAME test_track_removal
+    SOURCES app/test_track_removal.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 echo_add_unit_test(NAME test_player
@@ -226,4 +236,16 @@ echo_add_unit_test(NAME test_music_walk_progress
     SOURCES app/test_music_walk_progress.c ${PROJECT_SOURCE_DIR}/src/app/music_walk.c
     LIBRARIES echo_core echo_library_scan echo_hal echo_gfx
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/app/include
+)
+
+echo_add_unit_test(NAME test_cassette_now_playing
+    SOURCES app/test_cassette_now_playing.c app/fake_hal.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+)
+
+echo_add_unit_test(NAME test_meter_now_playing
+    SOURCES app/test_meter_now_playing.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )

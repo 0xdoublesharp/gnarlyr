@@ -20,6 +20,9 @@ add_library(echo_app STATIC
     player_queue.c
     queue_edits.c
     queue_actions.c
+    track_removal.c
+    hidden_tracks.c
+    hidden_choice.c
     mixtape_store.c
     mixtape_ui.c
     cassette_ui.c
@@ -27,6 +30,16 @@ add_library(echo_app STATIC
     button_settings.c
     home_editor.c
     theme_palette.c
+    theme_pack.c
+    theme_runtime.c
+    theme_render.c
+    theme_art.c
+    theme_catalog.c
+    theme_picker.c
+    theme_signature.c
+    theme_crypto_curve.c
+    theme_crypto_sha512.c
+    listening_effects.c
     listening_store.c
     listening_store_view.c
     listening_clear.c
@@ -59,6 +72,7 @@ add_library(echo_app STATIC
     home_art_backdrop.c
     language.c
     language_list.c
+    language_module.c
     library_rescan.c
     music_check.c
     music_walk.c
@@ -105,7 +119,13 @@ add_library(echo_app STATIC
     screens/sound_shaping_screen.c
     screens/equalizer_browser.c
     screens/equalizer_plot.c
+    screens/neon_art.c
+    screens/playing_work.c
+    screens/meter_now_playing.c
+    screens/cassette_now_playing.c
     screens/now_playing_screen.c
+    screens/now_playing_keys.c
+    screens/now_playing_fallback.c
     screens/plug_chooser.c
     screens/plug_art.c
     screens/up_next_screen.c
@@ -120,12 +140,16 @@ if(ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE extension_calls.c)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
-    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c scan_guard.c
-        screens/usb_dac_menu.c screens/usb_screen.c
-        screens/usb_screen_dac.c)
+    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c hidden_scan.c scan_guard.c
+        screens/usb_dac_menu.c screens/usb_meter.c screens/usb_screen.c
+        screens/usb_screen_dac.c screens/usb_screen_stats.c screens/usb_screen_traffic.c)
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app
     PUBLIC echo_core echo_gfx echo_ui echo_fonts echo_library echo_playback echo_settings echo_hal
     PRIVATE echo_options echo_compact echo_lto
 )
+
+target_include_directories(echo_app PRIVATE ${PROJECT_SOURCE_DIR}/third_party/monocypher)
+
+set_source_files_properties(theme_crypto_curve.c theme_crypto_sha512.c PROPERTIES COMPILE_OPTIONS -w)

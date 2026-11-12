@@ -6,6 +6,7 @@
 
 #include "core/key_tracker.h"
 #include "cover_cache.h"
+#include "gfx/frame_diff.h"
 #include "library/library.h"
 #include "player.h"
 #include "settings/settings.h"
@@ -65,6 +66,8 @@ typedef struct NowPlayingKeys {
     SkipGesture skip;
 } NowPlayingKeys;
 
+struct NowPlayingScreen;
+
 typedef struct NowPlayingConfig {
     Player *player;
     const Settings *settings;
@@ -73,6 +76,8 @@ typedef struct NowPlayingConfig {
     CoverCache *covers;
     Screen *quick_settings;
     Screen *lyrics;
+    void (*cassette_draw)(const struct NowPlayingScreen *screen, Canvas *canvas);
+    bool (*cassette_animate)(struct NowPlayingScreen *screen, FrameDiff *diff, bool visible);
     Screen *flip;
 } NowPlayingConfig;
 
@@ -90,6 +95,9 @@ typedef struct NowPlayingScreen {
     uint16_t album_index;
     uint32_t text_changed_ms;
     uint32_t now_ms;
+    uint32_t reel_frame;
+    uint32_t reel_position_ms;
+    uint8_t tape_side;
     NowPlayingFeedback feedback;
     uint32_t feedback_started_ms;
     char title[NOW_PLAYING_TEXT_CAPACITY];
@@ -110,3 +118,6 @@ bool now_playing_feedback_visible(NowPlayingFeedback feedback, uint32_t started_
                                   uint32_t now_ms);
 int now_playing_volume_width(uint8_t volume, int width);
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config);
+void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig config);
+void now_playing_screen_attach(NowPlayingScreen *now_playing);
+void now_playing_fallback_attach(NowPlayingScreen *now_playing);

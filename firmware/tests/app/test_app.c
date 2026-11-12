@@ -39,6 +39,8 @@
 #include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
+#include "text_spy.h"
+#include "theme_runtime.h"
 #include "ui/header.h"
 #include "ui/slide.h"
 #include "ui/status_bar.h"
@@ -800,7 +802,7 @@ static void playback_speed_cycles_in_quick_settings_and_is_saved(void)
     int depth = app_screen_depth();
     tap(KEY_MENU);
     CHECK(title_is("Quick Settings"));
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
     move_down(4);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
@@ -964,6 +966,43 @@ static void selecting_a_track_plays_it_and_shows_now_playing(void)
     play_first_album_track();
     CHECK(title_is("Now Playing"));
     CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
+static bool text_shown(const char *text)
+{
+    for (int index = 0; index < text_spy_count(); index++) {
+        if (strcmp(text_spy_entry(index)->shown, text) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void now_playing_without_its_module_shows_the_track_pauses_and_goes_back(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_BACK);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    fake_hal_evict_module();
+    step();
+    text_spy_reset();
+    tap(KEY_MENU);
+    wait_ms(500);
+    CHECK(title_is("Now Playing"));
+    CHECK(text_shown("Hells Bells"));
+    CHECK(text_shown("AC/DC"));
+    CHECK(text_shown("Playing"));
+    tap(KEY_PLAY);
+    wait_ms(500);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK(text_shown("Paused"));
+    tap(KEY_BACK);
+    CHECK(!title_is("Now Playing"));
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
+    tap(KEY_MENU);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
 }
 
 static void now_playing_keys_control_the_player(void)
@@ -1759,15 +1798,25 @@ static void back_from_a_theme_preview_restores_the_saved_palette(void)
     check_theme_header(APPEARANCE_GRAPHITE);
 }
 
+static void check_saved_theme_selection(AppearanceTheme appearance)
+{
+    static const uint8_t NO_PACK[16] = {0};
+    static ThemeRuntime saved;
+    theme_runtime_boot(&saved);
+    CHECK(saved.stored);
+    CHECK_EQUAL(appearance, saved.saved_base);
+    CHECK(memcmp(NO_PACK, saved.saved_id, sizeof NO_PACK) == 0);
+    CHECK(!saved.active);
+    theme_runtime_close(&saved);
+}
+
 static void choosing_a_preview_saves_it_and_keeps_it_after_restart(void)
 {
     open_theme_with_a_saved_graphite_palette();
     move_down(APPEARANCE_SUNSET);
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
-    Settings settings;
-    CHECK(saved_settings(&settings));
-    CHECK_EQUAL(APPEARANCE_SUNSET, settings.appearance);
+    check_saved_theme_selection(APPEARANCE_SUNSET);
     check_theme_header(APPEARANCE_SUNSET);
     restart_app();
     wait_ms(SPLASH_MS);
@@ -2885,7 +2934,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     hold_back();
     move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
-    move_up(5);
+    move_up(6);
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
     tap(KEY_PLAY);
@@ -3660,6 +3709,7 @@ static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_res
     settings_store_load(&store);
     store.settings.power_on_flags = 0xA3;
     store.settings.status_items = 0xA3;
+    store.settings.speech_boost = true;
     CHECK(settings_store_save(&store));
     restart_app();
     open_setting(SETTINGS_USB_ANSWER_INDEX + 1);
@@ -4986,6 +5036,19 @@ static void measure_resets_the_counters_and_records_the_window(void)
     CHECK(measure->clock_us > 0);
 }
 
+static void measure_records_the_core_1_cycles_of_its_window(void)
+{
+    start_app();
+    fake_hal_set_core1_load(4000000000u, 3900000000u);
+    load_script("build any\nmeasure 400\n");
+    run_script_for(4 * SCRIPT_STEP_MS);
+    fake_hal_set_core1_load(40000000u, 15000000u);
+    run_script_for(420);
+    const DebugMeasure *measure = &debug_runner_script()->measures[0];
+    CHECK_EQUAL(40000000u - 4000000000u, measure->core1_cycles);
+    CHECK_EQUAL(15000000u - 3900000000u, measure->core1_idle_cycles);
+}
+
 static void a_fifth_measure_is_reported_as_failed(void)
 {
     start_app();
@@ -6195,6 +6258,7 @@ int main(void)
         TEST_CASE(now_playing_shows_the_album_cover),
         TEST_CASE(now_playing_without_a_cover_shows_the_cassette),
         TEST_CASE(now_playing_keys_control_the_player),
+        TEST_CASE(now_playing_without_its_module_shows_the_track_pauses_and_goes_back),
         TEST_CASE(lists_still_move_as_soon_as_a_volume_key_goes_down),
         TEST_CASE(the_home_menu_shows_now_playing_first_once_a_track_is_loaded),
         TEST_CASE(the_home_menu_hides_now_playing_with_nothing_loaded),
@@ -6441,6 +6505,7 @@ int main(void)
         TEST_CASE(an_unknown_line_is_reported_and_the_script_goes_on),
         TEST_CASE(wait_holds_the_script_for_its_time),
         TEST_CASE(measure_resets_the_counters_and_records_the_window),
+        TEST_CASE(measure_records_the_core_1_cycles_of_its_window),
         TEST_CASE(a_fifth_measure_is_reported_as_failed),
         TEST_CASE(profile_commands_switch_and_clear_the_profiler),
         TEST_CASE(usb_sense_commands_switch_the_experiment_without_hands),

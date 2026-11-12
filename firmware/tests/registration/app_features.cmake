@@ -4,6 +4,12 @@ echo_add_unit_test(NAME test_theme_palette
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_theme_pack
+    SOURCES app/test_theme_pack.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 foreach(feature_test cassette_ui moments_screen player_cassette mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
     echo_add_unit_test(NAME test_${feature_test}
         SOURCES app/test_${feature_test}.c app/fake_hal.c
@@ -115,3 +121,16 @@ echo_add_unit_test(NAME test_status_bar_items
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+
+add_test(NAME theme_pack_tool
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/tests/test_theme_pack_tool.py --validator $<TARGET_FILE:theme_pack_tool>)
+
+echo_add_unit_test(NAME test_theme_runtime
+    SOURCES app/test_theme_runtime.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
+add_executable(theme_pack_tool app/theme_pack_tool.c app/fake_hal.c)
+target_link_libraries(theme_pack_tool PRIVATE echo_app echo_library_fixtures echo_options)
+target_include_directories(theme_pack_tool PRIVATE ${PROJECT_SOURCE_DIR}/src/app)

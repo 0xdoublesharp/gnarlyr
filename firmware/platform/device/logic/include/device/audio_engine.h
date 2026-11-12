@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "codec/flac.h"
+#include "device/audio_effects.h"
 #include "device/audio_fade.h"
 #include "device/audio_resample.h"
 #include "device/audio_tempo.h"
@@ -46,7 +47,9 @@ typedef enum AudioCodec {
     AUDIO_CODEC_VORBIS,
     AUDIO_CODEC_OPUS,
     AUDIO_CODEC_DSD,
-    AUDIO_CODEC_AIFF
+    AUDIO_CODEC_AIFF,
+    AUDIO_CODEC_APE,
+    AUDIO_CODEC_WMA
 } AudioCodec;
 
 typedef struct AudioTrackInfo {
@@ -101,6 +104,7 @@ typedef struct AudioSegment {
     uint32_t end_ms;
     uint32_t rate;
     uint32_t replay_gain;
+    uint32_t skipped;
     AudioTrackInfo track;
     char path[AUDIO_ENGINE_PATH_CAPACITY];
     uint16_t speed;
@@ -171,6 +175,7 @@ typedef struct AudioEngine {
     HeadphoneAudio headphones;
     uint32_t left_gain;
     uint32_t right_gain;
+    AudioEffects effects;
     uint32_t ring_capacity;
     uint16_t speed;
     bool stretching;
@@ -181,6 +186,7 @@ void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
 void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
 void audio_engine_set_headphones(AudioEngine *engine, HeadphoneAudio profile);
 void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
+void audio_engine_set_effects(AudioEngine *engine, HalAudioEffects effects);
 bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);
 bool audio_engine_queue_needs_restart(const AudioEngine *engine, const AudioEngineTrack *track);

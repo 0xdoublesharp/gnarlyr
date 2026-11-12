@@ -114,6 +114,9 @@ static void begin_measure(uint32_t now_ms, uint32_t duration_ms)
     debug_runner.underruns_before = hal_audio_stats().underruns;
     measure->clock_us = hal_clock_microseconds();
     measure->idle_us = hal_system_idle_microseconds();
+    HalCore1Load core1 = hal_system_core1_load();
+    measure->core1_cycles = core1.elapsed_cycles;
+    measure->core1_idle_cycles = core1.idle_cycles;
     debug_runner.until_ms = now_ms + duration_ms;
     debug_runner.phase = DEBUG_PHASE_MEASURING;
 }
@@ -142,6 +145,9 @@ static void end_measure(void)
     take_audio(measure);
     measure->clock_us = hal_clock_microseconds() - measure->clock_us;
     measure->idle_us = hal_system_idle_microseconds() - measure->idle_us;
+    HalCore1Load core1 = hal_system_core1_load();
+    measure->core1_cycles = core1.elapsed_cycles - measure->core1_cycles;
+    measure->core1_idle_cycles = core1.idle_cycles - measure->core1_idle_cycles;
     debug_runner.run.measure_count++;
     debug_runner_set_status(DEBUG_LINE_OK);
 }

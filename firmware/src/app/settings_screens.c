@@ -44,6 +44,8 @@ static const char *const BRIGHTNESS_OPTIONS[BRIGHTNESS_LEVEL_COUNT] = {"1", "2",
 static const StringId ACCENT_OPTIONS[ACCENT_COLOR_COUNT] = {
     STR_COLOR_BLUE, STR_COLOR_RED,    STR_COLOR_ORANGE, STR_COLOR_GREEN,
     STR_COLOR_TEAL, STR_COLOR_PURPLE, STR_COLOR_PINK,   STR_COLOR_GRAPHITE};
+static const StringId NOW_PLAYING_OPTIONS[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
+                                               STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
 static const StringId THEME_OPTIONS[APPEARANCE_THEME_COUNT] = {
     STR_THEME_GRAPHITE,  STR_THEME_NEON_NOIR, STR_THEME_SUNSET,
     STR_THEME_SEA_GLASS, STR_THEME_CLASSIC,
@@ -229,6 +231,10 @@ static int current_language(const void *context)
 static void choose_language(void *context, int index)
 {
     SettingsContext *settings = context;
+    if (!language_file_sound(settings->languages->codes[index])) {
+        toast_show(settings->toast, i18n_text(STR_LANGUAGE_FAILED), hal_clock_milliseconds());
+        return;
+    }
     StringBuilder code =
         string_builder_make(editable_settings(context)->language, SETTINGS_LANGUAGE_CAPACITY);
     string_builder_append(&code, settings->languages->codes[index]);
@@ -598,6 +604,42 @@ static void choose_status_style(void *context, int index)
     settings_action_save(context);
 }
 
+static const StringId CROSSFEED_OPTIONS[] = {STR_OFF, STR_CROSSFEED_LOW, STR_CROSSFEED_MEDIUM,
+                                             STR_CROSSFEED_HIGH};
+
+static int current_skip_silence(const void *context)
+{
+    return settings_of(context)->skip_silence ? 1 : 0;
+}
+
+static void choose_skip_silence(void *context, int index)
+{
+    editable_settings(context)->skip_silence = index != 0;
+    settings_action_save(context);
+}
+
+static int current_speech_boost(const void *context)
+{
+    return settings_of(context)->speech_boost ? 1 : 0;
+}
+
+static void choose_speech_boost(void *context, int index)
+{
+    editable_settings(context)->speech_boost = index != 0;
+    settings_action_save(context);
+}
+
+static int current_crossfeed(const void *context)
+{
+    return settings_of(context)->crossfeed;
+}
+
+static void choose_crossfeed(void *context, int index)
+{
+    editable_settings(context)->crossfeed = (uint8_t)index;
+    settings_action_save(context);
+}
+
 static int current_standby(const void *context)
 {
     return settings_of(context)->standby_enabled;
@@ -622,6 +664,17 @@ static void choose_standby_timeout(void *context, int index)
 
 static const StringId STANDBY_OPTIONS[] = {STR_MINUTES_30, STR_STANDBY_HOURS_2,
                                            STR_STANDBY_HOURS_8};
+
+static int current_now_playing(const void *context)
+{
+    return (int)settings_now_playing_style(settings_of(context));
+}
+
+static void choose_now_playing(void *context, int index)
+{
+    settings_set_now_playing_style(editable_settings(context), (NowPlayingStyle)index);
+    settings_action_save(context);
+}
 
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
@@ -674,6 +727,10 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_USB_ANSWER, USB_ANSWER_OPTIONS, PLUG_MODE_COUNT, current_usb_answer, choose_usb_answer,
      NULL, NULL},
     {STR_POWER_ON, POWER_ON_OPTIONS, 2, current_power_on, choose_power_on, NULL, NULL},
+    {STR_SKIP_SILENCE, OFF_ON_OPTIONS, 2, current_skip_silence, choose_skip_silence, NULL, NULL},
+    {STR_SPEECH_BOOST, OFF_ON_OPTIONS, 2, current_speech_boost, choose_speech_boost, NULL, NULL},
+    {STR_CROSSFEED, CROSSFEED_OPTIONS, HAL_AUDIO_CROSSFEED_LEVELS, current_crossfeed,
+     choose_crossfeed, NULL, NULL},
     {STR_STATUS_VOLUME, OFF_ON_OPTIONS, 2, current_status_volume, choose_status_volume, NULL, NULL},
     {STR_STATUS_REPEAT, OFF_ON_OPTIONS, 2, current_status_repeat, choose_status_repeat, NULL, NULL},
     {STR_STATUS_POSITION, OFF_ON_OPTIONS, 2, current_status_position, choose_status_position, NULL,
@@ -685,6 +742,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_STANDBY_ENABLED, OFF_ON_OPTIONS, 2, current_standby, choose_standby, NULL, NULL},
     {STR_STANDBY_TIMEOUT, STANDBY_OPTIONS, 3, current_standby_timeout, choose_standby_timeout, NULL,
      NULL},
+    [SETTINGS_NOW_PLAYING_CHOICE] = {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 4,
+                                     current_now_playing, choose_now_playing, NULL, NULL},
 };
 
 static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)
@@ -939,7 +998,7 @@ static void bind_status_bar(SettingsScreens *screens)
                          .theme = screens->theme,
                          .detail_below = true};
     menu_screen_init(&screens->status_menu, config);
-    screens->items[SETTINGS_STATUS_CHOICE + 5] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
+    screens->items[SETTINGS_STATUS_CHOICE + 6] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
                                                             .select = open_status_bar,
                                                             .context = screens,
                                                             .opens = true};
@@ -993,6 +1052,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
                                                       .select = request_rescan,
                                                       .context = &screens->context};
+    screens->items[SETTINGS_HIDDEN_ITEM] = hidden_choice_item(screens);
     screens->items[SETTINGS_BLUETOOTH_ITEM] = (MenuItem){.label = i18n_text(STR_BLUETOOTH),
                                                          .select = bluetooth_screen_open,
                                                          .context = context.bluetooth,
@@ -1016,6 +1076,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
         item = item < SETTINGS_DATE_TIME_ITEM ? item : item + 1;
         item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
         item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
+        item = item < SETTINGS_HIDDEN_ITEM ? item : item + 1;
         screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[index].title),
                                           .select = open_choice,
                                           .context = &screens->entries[index],
@@ -1027,6 +1088,12 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                      .context = screens,
                                                      .opens = true};
     bind_status_bar(screens);
+    screens->items[SETTINGS_NOW_PLAYING_ITEM] =
+        (MenuItem){.label = i18n_text(STR_NOW_PLAYING_STYLE),
+                   .select = open_choice,
+                   .context = &screens->entries[SETTINGS_NOW_PLAYING_CHOICE],
+                   .value = choice_value,
+                   .opens = true};
     screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
     screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
     screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;

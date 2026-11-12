@@ -103,6 +103,10 @@ void jpeg_skip_entropy(ImageReader *reader);
 void jpeg_restart(JpegBits *bits);
 
 void jpeg_prepare_kernel(JpegDecoder *decoder);
+void jpeg_inverse_block(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
+                        int32_t *samples);
+void jpeg_inverse_general(const JpegDecoder *decoder, const int32_t *values, const bool *rows_used,
+                          int32_t *samples);
 bool jpeg_coefficient_used(const JpegDecoder *decoder, uint32_t natural);
 void jpeg_output_block(JpegDecoder *decoder, uint32_t component, uint32_t block_x, uint32_t block_y,
                        JpegBlockKind kind);

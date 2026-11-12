@@ -9,6 +9,13 @@
 #include "core/strings.h"
 #include "playback/play_queue.h"
 
+typedef enum NowPlayingStyle {
+    NOW_PLAYING_COVER,
+    NOW_PLAYING_CASSETTE,
+    NOW_PLAYING_VU,
+    NOW_PLAYING_SPECTRUM
+} NowPlayingStyle;
+
 typedef enum GainLevel {
     GAIN_LOW,
     GAIN_HIGH
@@ -231,7 +238,11 @@ typedef struct Settings {
     bool standby_enabled;
     uint8_t standby_power_off_option;
     uint8_t long_press_action;
+    uint8_t crossfeed;
+    bool skip_silence;
+    bool speech_boost;
     uint8_t playback_speed;
+    uint8_t style_flags;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {
@@ -265,3 +276,6 @@ ButtonAction settings_default_button_action(PlaybackButton button);
 ButtonAction settings_button_action(const Settings *settings, PlaybackButton button);
 void settings_buttons_encode(const Settings *settings, uint8_t *bytes);
 bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
+
+NowPlayingStyle settings_now_playing_style(const Settings *settings);
+void settings_set_now_playing_style(Settings *settings, NowPlayingStyle style);

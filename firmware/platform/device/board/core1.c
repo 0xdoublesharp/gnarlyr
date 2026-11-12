@@ -13,7 +13,6 @@
 enum {
     LOWEST_PLL_MHZ = 96,
     CORE1_RAM_BYTES = 0x60000,
-    STAGING_WORDS = 1024,
     WORD_BYTES = 4,
     DECODE_TIMEOUT_MS = 10000,
     REPLY_TIMEOUT_MS = 200,
@@ -24,11 +23,12 @@ enum {
     VORBIS_PROGRAM_OFFSET = 0x260200,
     OPUS_PROGRAM_OFFSET = 0x2C0200,
     DSD_PROGRAM_OFFSET = 0x2E0400,
+    APE_PROGRAM_OFFSET = 0x300600,
+    WMA_PROGRAM_OFFSET = 0x320800,
     PROGRAM_MAGIC = 0x4D314345,
-    STAGING_SECTORS = STAGING_WORDS * WORD_BYTES / SECTOR_BYTES
+    STAGING_SECTORS = BOARD_SCRATCH_WORDS * WORD_BYTES / SECTOR_BYTES
 };
 
-static uint32_t staging[STAGING_WORDS];
 static bool streaming;
 static bool accel_known;
 static uint32_t accel_classes;
@@ -90,15 +90,16 @@ static uint32_t le32(const uint8_t *bytes)
 static bool copy_program_sectors(uint32_t first_sector, uint32_t size, uint32_t expected_crc)
 {
     uint32_t crc = 0;
-    for (uint32_t done = 0; done < size; done += sizeof staging) {
-        uint32_t chunk = size - done < sizeof staging ? size - done : (uint32_t)sizeof staging;
+    for (uint32_t done = 0; done < size; done += sizeof board_scratch) {
+        uint32_t chunk =
+            size - done < sizeof board_scratch ? size - done : (uint32_t)sizeof board_scratch;
         uint32_t sectors = (chunk + SECTOR_BYTES - 1) / SECTOR_BYTES;
-        if (!emmc_read(NULL, first_sector + done / SECTOR_BYTES, sectors, staging)) {
+        if (!emmc_read(NULL, first_sector + done / SECTOR_BYTES, sectors, board_scratch)) {
             return false;
         }
-        crc = image_crc_update(crc, (const uint8_t *)staging, chunk);
+        crc = image_crc_update(crc, (const uint8_t *)board_scratch, chunk);
         for (uint32_t word = 0; word * WORD_BYTES < chunk; word++) {
-            register_write(CORE1_CODE_BASE + done + word * WORD_BYTES, staging[word]);
+            register_write(CORE1_CODE_BASE + done + word * WORD_BYTES, board_scratch[word]);
         }
     }
     return crc == expected_crc;
@@ -110,16 +111,17 @@ static uint32_t program_offset(Core1Program program)
         [CORE1_PROGRAM_FLAC] = FLAC_PROGRAM_OFFSET, [CORE1_PROGRAM_MP3] = MP3_PROGRAM_OFFSET,
         [CORE1_PROGRAM_M4A] = M4A_PROGRAM_OFFSET,   [CORE1_PROGRAM_VORBIS] = VORBIS_PROGRAM_OFFSET,
         [CORE1_PROGRAM_OPUS] = OPUS_PROGRAM_OFFSET, [CORE1_PROGRAM_DSD] = DSD_PROGRAM_OFFSET,
+        [CORE1_PROGRAM_APE] = APE_PROGRAM_OFFSET,   [CORE1_PROGRAM_WMA] = WMA_PROGRAM_OFFSET,
     };
     return OFFSETS[program];
 }
 
 static Core1Result place_program_copy(uint32_t header_sector)
 {
-    if (!emmc_read(NULL, header_sector, 1, staging)) {
+    if (!emmc_read(NULL, header_sector, 1, board_scratch)) {
         return CORE1_NO_REPLY;
     }
-    const uint8_t *header = (const uint8_t *)staging;
+    const uint8_t *header = (const uint8_t *)board_scratch;
     uint32_t size = le32(header + 4);
     uint32_t crc = le32(header + 8);
     if (le32(header) != PROGRAM_MAGIC || size == 0 || size > CORE1_CODE_BYTES) {
@@ -203,6 +205,15 @@ uint32_t board_core1_program(void)
 CORE_SEAM bool board_core1_streaming(void)
 {
     return streaming;
+}
+
+HalCore1Load hal_system_core1_load(void)
+{
+    if (!streaming) {
+        return (HalCore1Load){0};
+    }
+    return (HalCore1Load){.elapsed_cycles = register_read(CORE1_SHARED_CYCLES),
+                          .idle_cycles = register_read(CORE1_SHARED_IDLE_CYCLES)};
 }
 
 HalCore1Test hal_system_core1_test(void)

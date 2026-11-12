@@ -1,5 +1,4 @@
 #include "modules/modules.h"
-#include "music_walk.h"
 
 #include "core/i18n.h"
 #include "core/string_builder.h"
@@ -177,7 +176,6 @@ static void cancel(AppScreens *screens)
 
 const LibraryModuleEntry LIBRARY_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_LIBRARY, bind),
-    .music_fingerprint = music_walk_fingerprint,
     .open = open,
     .options = options,
     .info = info,

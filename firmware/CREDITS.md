@@ -9,9 +9,10 @@ Gnarlyr is made by doublesharp and licensed under GPL-3.0-or-later (`LICENSE`). 
 - **[libmad](https://codeberg.org/tenacityteam/libmad)** 0.16.4, by Underbit Technologies and the Tenacity team (GPL-2.0-or-later): the MP3 decoder on the player (`third_party/libmad`).
 - **[FAAD2](https://github.com/knik0/faad2)** 2.11.4, by M. Bakker and Nero AG (GPL-2.0-or-later): the AAC-LC decoder on the player (`third_party/faad2`, fixed point, no SBR). "Code from FAAD2 is copyright (c) Nero AG, www.nero.com."
 - **[Tremor](https://gitlab.xiph.org/xiph/tremor)** low-memory integer Vorbis decoder, by the Xiph.Org Foundation (BSD-style license): pinned source and notices in `third_party/tremor`. Gnarlyr adapts bounded workspace storage, header validation and planar PCM output.
-- **[libopus](https://opus-codec.org)** 1.6.1, by the Xiph.Org Foundation, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding and Erik de Castro Lopo (BSD-style license): the fixed-point Opus decoder on the player, pinned unchanged in `third_party/opus` with its `COPYING` and `AUTHORS`. Gnarlyr adds bounded caller-owned scratch storage (`third_party/opus/port`) and the checked decoder wrapper.
+- **[libopus](https://opus-codec.org)** 1.6.1, by the Xiph.Org Foundation, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding and Erik de Castro Lopo (BSD-style license): the fixed-point Opus decoder on the player, pinned in `third_party/opus` with its `COPYING` and `AUTHORS`. Gnarlyr adds bounded caller-owned scratch storage (`third_party/opus/port`) and the checked decoder wrapper, and takes [Rockbox](https://www.rockbox.org)'s prime factor FFT for the CELT backward MDCT (`celt/pfa.c`, `pfa.h`, `pfa_tables.h` and its glue in `kiss_fft.c` and `mdct.c`, by Michael Giacomelli under kiss_fft's BSD terms), ported to 1.6.1's stage-by-stage scaling.
 - **[Sonic](https://github.com/waywardgeek/sonic)**, by Bill Cox: pitch-period insertion/removal and period-search reference for `platform/device/logic/audio_tempo.c`. Gnarlyr's kernel uses integer speed ratios, signed 24-bit PCM and caller-provided fixed storage.
 - **[dr_libs](https://github.com/mackron/dr_libs)** by David Reid (public domain or MIT-0): FLAC, MP3 and WAV decoding in the simulator (`third_party/dr_libs`).
+- **[Monocypher](https://monocypher.org/)** 4.0.2, by Loup Vaillant and contributors (BSD-2-Clause OR CC0-1.0): optional Ed25519ph theme-signature verification in the cold listening module. Source and notices are preserved in `third_party/monocypher`; no private keys ship in the firmware.
 - **[Inter](https://github.com/rsms/inter)** by Rasmus Andersson and the Inter project authors (SIL Open Font License 1.1): the UI font, pre-rendered into `src/fonts` (`assets/fonts/inter/OFL.txt`).
 - **[Noto Sans CJK](https://github.com/notofonts/noto-cjk)** by Adobe and the Noto project authors (SIL Open Font License 1.1): catalog-sized Simplified Chinese and Japanese fallback faces (`assets/fonts/noto-cjk/OFL.txt`).
 - **[rkdeveloptool](https://github.com/rockchip-linux/rkdeveloptool)** by Rockchip (GPL-2.0): used for maskrom installs and recovery. It isn't included; `tools/patch_rkdeveloptool.py` patches a checkout for the Echo.
@@ -21,3 +22,11 @@ Gnarlyr is made by doublesharp and licensed under GPL-3.0-or-later (`LICENSE`). 
 - Built with **[Claude Code](https://claude.com/claude-code)** by Anthropic.
 
 Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
+
+## Monkey's Audio
+
+The core-1 APE decoder uses Dave Chapman's Rockbox libdemac, including Michael Schindler's range decoder, under GPL-2.0-or-later. Pinned source, local changes and complete terms are in `third_party/demac`.
+
+## WMA Standard
+
+The WMA v1/v2 decoder and fixed-point transforms come from Rockbox's FFmpeg-derived libraries, with work by the FFmpeg Project, Michael Niedermayer, Michael Giacomelli, Dave Hooper, Mohamed Tarek and Xiph.Org. GPL-2.0-or-later, LGPL-2.0-or-later, LGPL-2.1-or-later and BSD terms are preserved in `third_party/rockbox_wma`, together with the pinned revision and local changes.

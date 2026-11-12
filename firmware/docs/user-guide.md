@@ -36,6 +36,7 @@ Audiobooks, Podcasts and Up Next are hidden on Home by default. Audiobooks and P
 
 - Put music on a microSD card formatted FAT32 or exFAT, in any folder layout. With no card in the player (or one it can't read), it uses internal storage instead. Settings → About → Music shows which one is in use. Settings are kept on internal storage either way, so they stay the same when you insert or remove the card.
 - Gnarlyr supports FLAC, MP3, WAV and 16/24-bit AIFF, up to 192 kHz, and `.m4a` and `.m4b` files with AAC-LC or Apple Lossless audio. Speech recordings at 8, 11.025, 12, 16, 22.05 and 24 kHz are converted to 32, 44.1 or 48 kHz for playback; 32 kHz plays at its original rate. Speed and pitch stay the same. DSF/DFF convert to 88.2 kHz PCM: DSD64 and DSD128 accept mono/stereo, and DSD256 accepts mono; stereo DSD256 is refused. It lists the other formats FiiO lists, and says when it can't play one.
+- APE accepts 16/24-bit mono or stereo: Fast through 192 kHz, Normal through 192 kHz mono or 96 kHz stereo, and High through 96 kHz mono or 48 kHz stereo. WMA Standard v1/v2 accepts mono or stereo through 48 kHz; Pro, Lossless, Voice and encrypted WMA are refused. Tags and embedded covers appear in the library.
 - Ogg Vorbis (`.ogg`) accepts mono or stereo at 8–192 kHz within the decoder limits; Ogg Opus (`.opus`) accepts mono or stereo with channel mapping family 0. Chained Vorbis files play the first stream only. Large picture comments and separate interleaved streams are skipped during decoding. Both formats play in the desktop simulator; player listening and high-rate playback still need checking. See [format limits](ogg-vorbis.md).
 - Music → Folders shows the card as it is: folders, then each audio file by its full name with its extension (`01 Intro.mp3`). The other lists show titles from the tags. Hold ▶ on a folder there to play everything under it, subfolders included, in the order Folders shows it (a CUE album plays once, as its songs); the queue follows the shuffle setting and has no length limit beyond the library's 65,535 tracks.
 - A `.cue` file next to a single FLAC, WAV or MP3 album image splits it into one track per CUE track (see "CUE sheets" below). Album covers come from art inside each album's first track (any of the formats above, including Ogg and Opus), or from a `cover`, `folder`, `front` or `albumart` JPEG or PNG next to the tracks when there is no usable art inside. JPEG (baseline or progressive, colour, greyscale or CMYK, upright as its EXIF orientation says) and PNG covers of any size are shown; lossless, arithmetic-coded or 12-bit JPEGs and other image formats are not.
@@ -56,6 +57,14 @@ Back up everything you want to keep on the microSD card. Formatting erases its m
 Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named GnarlySD. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
 
 An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music. Physical card formatting still needs the owner checks listed in [known issues](known-issues.md).
+
+## Hide or delete a song
+
+Hold Play on a song in a Music list or a smart list for its actions.
+
+- **Hide track** takes the song out of every list, Play all, shuffle and the smart lists at once, and keeps it out after rescans. Settings → Hidden tracks (shown while something is hidden) lists hidden songs by file name; press Play on one to show it again. A song hidden before the last rescan comes back at the next rescan. Up to 16 songs can be hidden.
+- **Delete file** asks first, naming the file; Cancel is selected. Deleting removes the file from the card, skips to the next song if it was playing, and takes it out of the lists, the queue and Up Next without a rescan. Mixtapes skip it when they load. A song that is one part of a CUE sheet or an audiobook's chapter can't be deleted on its own.
+- Up to 12 songs can be hidden or deleted between rescans; after that the player asks for a rescan first.
 
 ## Search, sorting and personal tags
 
@@ -87,7 +96,7 @@ Depeche Mode/Violator/
   Violator.cue            hidden as a track, its tracks take its place
 ```
 
-- The sheet must name one file. The player looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. Sheets that name an APE, M4A or another format the player can't play, sheets that list several files (one per track) and sheets whose file is missing are ignored; their audio files list as before.
+- The sheet must name one file. The player looks for that name in the sheet's folder (capitals don't matter), and when there is none, for an audio file with the same name as the sheet (`Violator.cue` and `Violator.flac`), which is what many rips need. CUE images use FLAC, WAV or MP3. Sheets with another audio extension, several files (one per track) or a missing file are ignored; their audio files list as before.
 - Track titles come from `TITLE`, artists from `PERFORMER` (the track's, otherwise the one at the top of the sheet, which is also the album artist), the album from the top `TITLE`, the genre from `REM GENRE` and the year from `REM DATE`. What the sheet doesn't say comes from the audio file's tags, then from its folder name. A track without a title is called "Track 3".
 - A track starts at its `INDEX 01` and ends where the next one starts, so silence marked `INDEX 00` before a track belongs to the track before it. Tracks play without a gap.
 - The sheet is read as UTF-8 (a byte order mark is fine) or, when it isn't valid UTF-8, as Windows-1252.
@@ -108,7 +117,7 @@ If you unplug the cable before either, recent changes may be lost, and the playe
 
 After a disconnect from the player, the computer sees the drives disappear rather than being ejected. A Mac may then show its "Disk Not Ejected Properly" notice; when the player had waited for the computer to finish writing, your files are already on the player.
 
-**The Connect to computer screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected, Reading..., Copying..., Still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
+**The USB screen** opens on an overview: the current transfer rate in MB/s with an arrow (down while the computer mostly copies to the player, up while it mostly reads), a graph of the last 10 seconds, how much was read and written, and a gauge for each drive (internal storage and microSD card) with its free space, a light and a ↓ write and ↑ read arrow that glow while that drive is used and fade over about a third of a second, and "Ejected" or "No card" where that applies. Activity is shown only by these lights, the number and the graph, so no words flash while files copy; the arrow's direction and "Idle", shown when nothing has moved for two seconds and with a dimmed graph, each stay for at least a second. Tap Back for the details: per drive, the data read and written, the read and write commands, the average size of a command and the free space when the computer connected; then the peak and average rate, how busy the drives were, errors with the last SCSI sense code, the link (480 Mbit/s high speed or 12 Mbit/s full speed, with the packet size) and the session time. Each tap moves on a page and the last returns to the overview; the player keeps the page you chose for the next connection until it restarts. Free space is read once, when the computer connects, and isn't updated while the computer has the drives. While the player waits for writes to finish or disconnects, the screen shows the turning cassette instead. It works in both orientations and every text size.
 
 ## When you plug in
 
@@ -151,7 +160,7 @@ While the player runs from USB power, the battery in the status bar and on the c
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), tap Vol± to change it on release, and the player remembers it for next time. Start low. Press ▶ to send play/pause to the computer. Hold Vol+ for 400 ms to send next track, or Vol− for previous; each hold sends one command. The computer’s media app decides how to handle these keys.
 5. Hold Back for a second and let go to open USB mode, then choose another mode. The player keeps charging.
 
-Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose Connect to computer or Charge & play. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format, buffer delay, clock drift, underruns and stereo levels after headphone trim.
+Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose Connect to computer or Charge & play. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format in a frame, the stereo levels after headphone trim, the output jack, the computer's volume, the DAC volume and a bar for the buffer. Tap Back for the details: the exact sample rate and bits, the USB interface and channels, the buffer (average with its low and high), the clock correction in ppm and the feedback value, underruns and overruns, the output, the gain with its DAC register value, the computer's volume in tenths of a dB, the data rate and the session time. Tap Back again to return; holding Back still leaves.
 
 The computer picks the format (macOS: Audio MIDI Setup; Windows: Sound settings → Gnarlyr → Properties → Advanced).
 
@@ -245,6 +254,18 @@ Folders stay before files. Files keep disc and track-number order, with letter j
 
 Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums**. Play all starts with the earliest album, then follows year and album title, with each album's tracks in disc and track order. Shuffle albums changes the album sequence and keeps each album's tracks together in order. Both include whole albums, including guest artists and CUE tracks or chapters, and replace Up Next. Back cancels preparation. The exact queue and your position are kept across restarts; the queue can contain up to 65,535 tracks.
 
+## Now Playing style
+
+Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and **Spectrum**. Cover is the default, and your choice stays after a restart.
+
+Cassette puts the title, artist and album inside a neon wireframe shell above the theme's perspective floor. The left reel empties and the right reel fills as the track advances; the spokes turn during playback and stop when paused.
+
+VU meters shows separate left and right neon dials. The bright needles follow the music with a gentle lag and a trailing echo; a small peak light marks a loud signal. Spectrum shows sixteen coloured frequency bars rising from the floor, with caps that briefly hold each peak. Both keep the title, artist, time and progress visible. Long labels end with an ellipsis.
+
+The artwork uses your theme's colours in either orientation and at every text size. Pausing lets the needles and bars settle. Turning the screen off stops their updates.
+
+Both styles use the same time, progress bar and playback buttons. Hold Play to seek, use the volume buttons to move the target, then press Play to keep it or Back to cancel. Menu opens Quick Settings and holding Menu opens Lyrics, with the default button assignments.
+
 ## Charging
 
 The player normally charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on (or tap it with Power on set to Press), or unplug it to switch it off completely. Press Menu to open USB mode from the charge screen. A plug instead of the bolt means the player is playing on USB power and not charging. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).
@@ -279,10 +300,17 @@ Settings → Headphones keeps four profiles. **Active profile** chooses one, or 
 - **Trim:** reduce the level from 0 to −12 dB in 0.5 dB steps.
 - **Balance:** move left or right in 1% steps. Balance reduces the opposite channel and never boosts either one.
 - **Volume ceiling:** limit the volume to a step from 0 to 60; 0 mutes it.
+- **Crossfeed:** Off, Low, Medium or High (see Crossfeed below). A new profile starts with the Settings → Crossfeed choice.
 
 Press ▶ to save a value; Back cancels the choice. The selected profile, names and values are kept on internal storage across restarts and card changes. Trim, balance and the ceiling apply to music and USB DAC output. Music and USB DAC keep their separate volume levels.
 
 Switching to a louder profile, including Off, lowers those volume levels first so neither channel rises unexpectedly. Restoring a channel that was completely muted can lower the volume to 0. Turn it up again as needed, within the chosen ceiling. Music already buffered finishes before new trim and balance values reach it.
+
+## Crossfeed
+
+On headphones each ear normally hears only its own channel, which can make stereo recordings sound as if they sit inside your head. Crossfeed blends a little of each channel into the other ear, softened and slightly delayed as it would be from speakers, so the sound moves out in front of you.
+
+Settings → Crossfeed chooses Off, Low, Medium or High for when no headphone profile is active. Each headphone profile has its own Crossfeed setting, which applies while that profile is active. Low blends the least, High the most. Crossfeed lowers the level by about 2 dB so loud passages never clip. It acts on music and spoken word in stereo. Mono recordings play unchanged, and it doesn't apply in USB DAC mode.
 
 ## Safe start volume
 
@@ -459,6 +487,8 @@ Podcasts/
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
 - An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
+- **Skip silence** (Settings → Skip silence) shortens long pauses in books and episodes. A pause that lasts more than a quarter of a second is cut to a quarter of a second, with a short fade, so speech carries on sooner. Pauses shorter than that play as recorded. Music isn't affected. Positions, bookmarks, chapters and the time shown on Now Playing stay in the recording's own time, so a book resumes exactly where it was even after skipped pauses.
+- **Speech boost** (Settings → Speech boost) evens out the volume of books and episodes: quiet voices are raised by up to 12 dB and loud passages are brought down, so you don't have to keep changing the volume. Room noise below the voices isn't raised, and the output never goes above full scale. Music isn't affected.
 - Change the speed for spoken word on Now Playing: tap Menu, then press Play on Playback speed in Quick Settings (see Playback speed). Positions, bookmarks and chapters still refer to the original recording.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
@@ -472,7 +502,7 @@ An install through the updater has only run in the emulator so far ([`known-issu
 4. Hold Power to start the new version.
 5. Connect the player to the computer once more and eject both drives. The player shows "Saving this version as the backup" while it copies; from then on it keeps the new version.
 
-The new version starts on trial: the previous version stays on the player as a backup until step 5. If the new version doesn't start properly three times in a row (a start counts unless the player then runs for 20 seconds), or its USB connection fails, the player puts the previous version back and says "Update rolled back". If the player hangs while it is connected, hold Power for 10 seconds to restart it.
+The new version starts on trial: the previous version stays on the player as a backup until step 5. If the new version starts without its text, or doesn't start properly three times in a row (a start counts unless the player then runs for 20 seconds), or its USB connection fails, the player puts the previous version back and says "Update rolled back". If the player hangs while it is connected, hold Power for 10 seconds to restart it.
 
 The updater deletes the file after a successful install, when it is not a valid image, and when that version is already installed.
 
@@ -498,12 +528,20 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 - **"Update failed":** copy the file again and retry before turning the player off.
 - **"USB missing: reinstall update" or "Restart to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
 - **"Update rolled back":** the new version didn't start properly, and the player went back to the version it had before. Report it with the Firmware line from Settings → About.
-- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or plug in the cable while holding Power and vol+ for 2 seconds (same document).
+- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or, with the cable plugged into the computer, hold Power and vol+ together for 5 seconds (same document).
 - **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
 
 ## Themes and controls
 
-Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic. Theme changes keep the text size and orientation you selected. Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
+Settings → Theme offers Neon Noir, Graphite, Sunset, Sea Glass and Classic, followed by installed theme packs. Move with the volume buttons to preview a theme's colours and background. Press Play to keep it; Back restores the saved theme. Theme changes keep your text size, orientation and navigation.
+
+To install a pack, create `.gnarlyr/themes` on the SD card, copy its `.gtheme` file there and eject normally. Without a card, use the same folder on internal storage. The list shows the pack's name and author. Damaged packs stay visible but cannot be applied. A low-contrast warning means the palette may make text hard to read. Verified, when present, identifies a signature from a trusted gallery key; unsigned packs work normally too.
+
+Theme selection survives a restart and firmware updates that support the same pack format. An absent or damaged active pack uses the built-in default, so you can always choose another theme. To update a pack, replace its file with the newer version using the same pack ID. You can return to a built-in at any time, then remove unwanted pack files on a computer.
+
+To make your own, start with the original designs in [`examples/themes`](../../examples/themes), edit the manifest and PNGs, and build with `python3 tools/theme_pack.py FOLDER --output FILE.gtheme`. Check a download with `python3 tools/theme_pack.py --check FILE.gtheme`. The [community format guide](../../docs/theme-format.md) explains dimensions, palette roles, licences and optional signing. Packs contain only data and never require a firmware reflash.
+
+ Settings → Controls assigns tap and hold actions independently for Volume+, Volume−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays consistent.
 
 ## Waiting
 
@@ -612,6 +650,14 @@ Computer means the existing USB connection code saw a host response; Charger mea
 is present without one. This does not initiate USB enumeration. The app continues sampling
 with the display dark; switching away from the charging module can restart measurement.
 No mA value is shown because the gauge does not measure current.
+
+### Monkey's Audio files
+
+APE files accept 16/24-bit mono or stereo. Fast accepts up to 192 kHz. Normal accepts up to 192 kHz mono or 96 kHz stereo. High accepts up to 96 kHz mono or 48 kHz stereo. Extra High and Insane compression are refused. APEv2 tags and embedded covers appear in the library.
+
+### WMA files
+
+Use WMA Standard v1/v2, mono or stereo, at 8–48 kHz. ASF tags and `WM/Picture` covers are read with the library. WMA Pro, Lossless, Voice and encrypted files are refused. WMA recordings without encoder padding information can retain a gap between songs.
 
 ## Sleep timer
 

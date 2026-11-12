@@ -486,9 +486,76 @@ static void a_folder_tree_plays_a_cue_album_once_as_its_sheet_songs(void)
     expect_tree(library, CUE_SHEET_FOLDER, SHEET, 3);
 }
 
+static uint16_t title_place(Library *library, uint16_t track)
+{
+    for (uint32_t position = 0; position < library_count(library, LIBRARY_TITLE_ORDER);
+         position++) {
+        uint16_t value = 0;
+        CHECK(library_read_index(library, LIBRARY_TITLE_ORDER, position, &value));
+        if (value == track) {
+            return (uint16_t)position;
+        }
+    }
+    return 0xFFFF;
+}
+
+static void hide(Library *library, LibraryHidden *hidden, uint16_t track, uint16_t folder)
+{
+    *hidden = (LibraryHidden){.count = 1, .tracks = {track}, .folders = {folder}};
+    hidden->titles[0] = title_place(library, track);
+    library->hidden = hidden;
+}
+
+static void a_hidden_track_leaves_songs_folders_playlists_and_trees(void)
+{
+    static const uint16_t ROOT[] = {0, 1, 4, 7, 5, 2, 3};
+    static const uint16_t BJORK_TREE[] = {HUNTER};
+    static LibraryHidden hidden;
+    Library *library = open_fixture();
+    hide(library, &hidden, JOGA, HOMOGENIC_FOLDER);
+    BrowseQuery songs = browse_root_query(BROWSE_ALL_SONGS);
+    CHECK_EQUAL(7, browse_count(library, songs));
+    for (uint32_t position = 0; position < 7; position++) {
+        CHECK(item_at(library, songs, position).index != JOGA);
+    }
+    BrowseQuery playlists = browse_root_query(BROWSE_PLAYLISTS);
+    BrowseQuery road_trip = child_of(playlists, item_at(library, playlists, 0));
+    CHECK_EQUAL(2, browse_count(library, road_trip));
+    CHECK_EQUAL(7, item_at(library, road_trip, 0).index);
+    CHECK_EQUAL(HELLS_BELLS, item_at(library, road_trip, 1).index);
+    BrowseItem item;
+    CHECK(!browse_item(library, road_trip, 2, &item));
+    BrowseQuery folder = folder_query(HOMOGENIC_FOLDER);
+    CHECK_EQUAL(1, browse_count(library, folder));
+    CHECK_EQUAL(HUNTER, item_at(library, folder, 0).index);
+    expect_tree(library, 0, ROOT, 7);
+    expect_tree(library, BJORK_FOLDER, BJORK_TREE, 1);
+    library->hidden = NULL;
+}
+
+static void a_hidden_cue_song_leaves_its_sheet_and_the_file_row(void)
+{
+    static const uint16_t ROOT[] = {3, 4, 0, 1, 5, 6, 7, 8};
+    static const uint16_t SHEET[] = {3, 4};
+    static LibraryHidden hidden;
+    Library *library = fixture_cue_library_open(&cue_fixture);
+    hide(library, &hidden, CUE_OPENING, CUE_SHEET_FOLDER);
+    expect_tree(library, 0, ROOT, 8);
+    expect_tree(library, CUE_ALBUM_FOLDER, SHEET, 2);
+    expect_tree(library, CUE_SHEET_FOLDER, SHEET, 2);
+    BrowseQuery holder = folder_query(CUE_ALBUM_FOLDER);
+    for (uint32_t position = 0; position < browse_count(library, holder); position++) {
+        CHECK(item_at(library, holder, position).index != CUE_OPENING ||
+              item_at(library, holder, position).kind != BROWSE_ITEM_TRACK);
+    }
+    library->hidden = NULL;
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_hidden_track_leaves_songs_folders_playlists_and_trees),
+        TEST_CASE(a_hidden_cue_song_leaves_its_sheet_and_the_file_row),
         TEST_CASE(top_level_views_count_their_tables),
         TEST_CASE(failed_record_and_text_reads_are_reported_and_can_be_retried),
         TEST_CASE(positions_and_subjects_outside_each_view_are_refused),

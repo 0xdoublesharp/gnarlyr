@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer trial)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
@@ -16,6 +16,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_process
 set(ECHO_SCREEN_MODULE_SOURCES_effects
     platform/device/logic/audio_effects_entry.c
     platform/device/logic/audio_fade.c
+    platform/device/logic/audio_boost.c
+    platform/device/logic/audio_crossfeed.c
+    platform/device/logic/audio_effects.c
+    platform/device/logic/audio_skip.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_source
     platform/device/logic/audio_source_entry.c
@@ -82,7 +86,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_playing
+    src/app/screens/now_playing_screen.c
+    src/app/cassette_art.c
     src/app/modules/playing_module.c
+    src/app/screens/cassette_now_playing.c
+    src/app/screens/meter_now_playing.c
+    src/app/screens/neon_art.c
+    src/app/screens/playing_work.c
+    src/core/audio_visual.c
     src/app/screens/cover_flow_screen.c
     src/app/board_cover_layout.c
     src/app/cover_cache_half.c
@@ -94,31 +105,16 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/ui/cover_flow.c
     src/ui/placeholder_art.c
     src/gfx/image_quad.c
-    src/app/screens/quick_settings_screen.c
-    src/app/settings_actions.c
-    src/app/settings_actions_equalizer.c
-    src/app/equalizer_presets.c
-    src/settings/equalizer_slots.c
-    src/settings/equalizer_fit_text.c
-    src/app/headphone_store_edit.c
-    src/app/headphone_parameters.c
-    src/settings/headphone_profile.c
-    src/settings/headphone_profile_edit.c
-    src/settings/headphone_file_save.c
-    src/core/headphone_audio_switch.c
     src/library/sort_initial.c
     src/library/sort_key.c
     src/library/sort_fold_table.c
-    src/app/parametric_store.c
-    src/app/parametric_store_save.c
-    src/settings/parametric_import.c
-    src/settings/parametric_file.c
-    src/settings/parametric_file_save.c
-    src/core/parametric.c
-    src/settings/sound_shaping.c
     src/app/browse_sections.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     src/settings/sound_shaping.c
     src/app/parametric_store.c
     src/settings/parametric_file.c
@@ -140,8 +136,32 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/settings/equalizer_slots.c
     src/settings/equalizer_fit_text.c
     src/app/modules/equalizer_module.c
+    src/app/screens/quick_settings_screen.c
+    src/app/settings_actions.c
+    src/app/settings_actions_equalizer.c
+    src/app/headphone_store_edit.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_profile.c
+    src/settings/headphone_profile_edit.c
+    src/settings/headphone_file_save.c
+    src/core/headphone_audio_switch.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
+    src/app/cassette_art.c
+    src/app/theme_pack.c
+    src/app/theme_runtime.c
+    src/app/theme_catalog.c
+    src/app/theme_picker.c
+    src/app/theme_palette.c
+    src/app/theme_signature.c
+    src/app/theme_crypto_curve.c
+    src/app/theme_crypto_sha512.c
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
+    src/app/music_walk.c
+    src/library/music_fingerprint.c
     src/app/modules/views_module.c
     platform/device/board/headset_reading.c
     platform/device/logic/headset_dips_view.c
@@ -171,11 +191,18 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/library/sort_key.c
     src/library/sort_initial.c
     src/library/sort_fold_table.c
+    src/app/hidden_tracks.c
+    src/app/track_removal.c
 )
-set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c)
+set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
+    src/app/theme_art.c src/app/language_module.c)
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
+    platform/device/board/storage_list.c
+    platform/device/logic/fat_list.c
+    platform/device/logic/exfat_list.c
+    platform/device/logic/fat_utf8.c
     platform/device/board/card_eject.c
     platform/device/board/sd_allocation.c
     src/app/app_screens_home.c
@@ -193,6 +220,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/hidden_choice.c
+    src/app/hidden_tracks.c
     src/app/plug_modes.c
     src/app/screens/plug_chooser.c
     src/app/screens/plug_art.c
@@ -212,7 +241,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c
     src/library/album_order.c
     src/library/sort_initial.c
-    src/app/music_walk.c
     src/app/discovery_screen.c
     src/app/discovery_text.c
     src/app/discovery_preferences.c
@@ -220,7 +248,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/order_publish.c
     src/app/order_adopt.c
     src/app/personal_tags.c
-    src/library/music_fingerprint.c
     src/library/library_view.c
     src/library/sort_key.c
     src/library/sort_fold_table.c
@@ -255,6 +282,7 @@ else()
         src/app/modules/debug_module.c
         src/app/debug_steps.c
         src/app/debug_screenshot.c
+        platform/device/board/debug_battery_trace.c
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc.c
         platform/device/logic/rtc_time.c
@@ -300,3 +328,14 @@ function(echo_take_module_sources)
         endforeach()
     endforeach()
 endfunction()
+
+set(ECHO_SCREEN_MODULE_SOURCES_ape_wma
+    platform/device/logic/audio_interpolate.c
+    platform/device/logic/audio_ape_wma_entry.c
+    platform/device/logic/core1_ape_source.c
+    platform/device/logic/ape_track.c
+    platform/device/logic/ape_stream.c
+    platform/device/logic/core1_wma_source.c
+    platform/device/logic/asf_track.c
+    platform/device/logic/asf_stream.c
+)

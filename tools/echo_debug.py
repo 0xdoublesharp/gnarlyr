@@ -56,6 +56,9 @@ IMAGE_BYTES = range(0x1000, (64 << 20) + 1)
 SCRIPT_BYTES = 640
 SCRIPT_LINES = 40
 SCREENSHOT_FILE = "shot%d.565"
+USB_SCREENSHOT_FILE = "usbshot%d.565"
+USB_SCREENSHOT_SLOTS = 6
+USB_SCREENSHOT_SPAN_MS = 5000
 SCREENSHOT_HEADER = struct.Struct("<4sBBHHHI12s4x")
 SCREENSHOT_MAGIC = b"DSSH"
 SCREENSHOT_SIDE = 480
@@ -859,6 +862,42 @@ class Tool:
         return {"ok": True, "screenshots": converted}
 
 
+    def usb_screens(self, out):
+        """PNG files of the USB storage and DAC screens the player saved as its last sessions ended.
+
+        Each page of a screen is saved within moments of the others, so a page older than its
+        screen's newest by more than USB_SCREENSHOT_SPAN_MS is left from an earlier session."""
+        root = self.root()
+        out = Path(out).resolve()
+        if out == root.resolve() or root.resolve() in out.parents:
+            raise DebugError("write_refused", "the PNG files do not go onto the player's drive")
+        found, skipped = [], []
+        for slot in range(USB_SCREENSHOT_SLOTS):
+            source = root / DATA_DIRECTORY / DEBUG_DIRECTORY / (USB_SCREENSHOT_FILE % slot)
+            if not source.is_file():
+                continue
+            try:
+                fields, png = read_screenshot(source.read_bytes())
+            except DebugError as error:
+                skipped.append({"slot": slot, "source": str(source), "error": error.code})
+                continue
+            found.append((slot, source, fields, png))
+        newest = {}
+        for _, _, fields, _ in found:
+            screen = fields["name"].rstrip("0123456789")
+            newest[screen] = max(newest.get(screen, 0), fields["uptime_ms"])
+        out.mkdir(parents=True, exist_ok=True)
+        converted = []
+        for slot, source, fields, png in found:
+            if fields["uptime_ms"] + USB_SCREENSHOT_SPAN_MS < newest[fields["name"].rstrip("0123456789")]:
+                skipped.append({"slot": slot, "source": str(source), "error": "stale_screenshot"})
+                continue
+            target = out / (fields["name"] + ".png")
+            target.write_bytes(png)
+            converted.append({**fields, "slot": slot, "source": str(source), "png": str(target)})
+        return {"ok": True, "screenshots": converted, "skipped": skipped}
+
+
 class JsonParser(argparse.ArgumentParser):
     def error(self, message):
         print(json.dumps(DebugError("usage", message).as_json()))
@@ -895,6 +934,9 @@ def build_parser():
                       help="seconds to wait (default %(default)s)")
     shots = commands.add_parser("screenshots", help="convert the last run's screenshots to PNG")
     shots.add_argument("--out", type=Path, required=True, help="a folder for the PNG files, not on the player")
+    usb_shots = commands.add_parser("usb-screens",
+                                    help="convert the USB storage and DAC screens saved as sessions ended")
+    usb_shots.add_argument("--out", type=Path, required=True, help="a folder for the PNG files, not on the player")
     inspect_language = commands.add_parser("language-inspect", help="validate a language pack against a clean firmware build")
     inspect_language.add_argument("pack", type=Path)
     inspect_language.add_argument("--build", help="clean firmware commit, otherwise the installed build")
@@ -947,6 +989,8 @@ def dispatch(tool, arguments):
         return tool.wait(arguments.timeout)
     if arguments.command == "screenshots":
         return tool.screenshots(arguments.out)
+    if arguments.command == "usb-screens":
+        return tool.usb_screens(arguments.out)
     return tool.profile(arguments.elf, arguments.nm, arguments.top)
 
 

@@ -1,8 +1,14 @@
 include(tremor.cmake)
 include(opus.cmake)
+include(demac.cmake)
+include(rockbox_wma.cmake)
 
 set(ECHO_LIBMAD_DIR ${PROJECT_SOURCE_DIR}/third_party/libmad)
-set(FPM_64BIT ON)
+if(CMAKE_CROSSCOMPILING)
+    set(FPM_ARM ON)
+else()
+    set(FPM_64BIT ON)
+endif()
 set(SIZEOF_INT 4)
 configure_file(${ECHO_LIBMAD_DIR}/mad.h.in ${CMAKE_CURRENT_BINARY_DIR}/libmad/mad.h @ONLY)
 add_library(echo_libmad STATIC
@@ -50,8 +56,11 @@ add_library(echo_faad STATIC
 )
 target_include_directories(echo_faad SYSTEM PUBLIC ${ECHO_FAAD_DIR})
 target_compile_definitions(echo_faad PRIVATE
-    FIXED_POINT LC_ONLY_DECODER DISABLE_SBR FAAD_NO_ARM_ASM NDEBUG HAVE_STDINT_H HAVE_STRING_H
+    FIXED_POINT LC_ONLY_DECODER DISABLE_SBR NDEBUG HAVE_STDINT_H HAVE_STRING_H
     PACKAGE_VERSION="2.11.4")
+if(NOT CMAKE_CROSSCOMPILING)
+    target_compile_definitions(echo_faad PRIVATE FAAD_NO_ARM_ASM)
+endif()
 target_compile_options(echo_faad PRIVATE -w)
 
 add_library(echo_device_logic STATIC
@@ -60,7 +69,19 @@ add_library(echo_device_logic STATIC
     dsd_stream.c
     core1_dsd_source.c
     aiff_format.c
+    core1_ape_source.c
+    ape_stream.c
+    core1_ape.c
+    audio_ape_wma_entry.c
+    core1_wma_source.c
+    core1_wma.c
+    asf_stream.c
+    asf_track.c
+    ape_track.c
     aac_decoder.c
+    audio_boost.c
+    audio_crossfeed.c
+    audio_effects.c
     audio_engine.c
     audio_engine_stage.c
     audio_shape.c
@@ -75,6 +96,7 @@ add_library(echo_device_logic STATIC
     audio_process_entry.c
     audio_effects_entry.c
     audio_source_entry.c
+    audio_skip.c
     audio_ogg_entry.c
     audio_dsd_entry.c
     backlight.c
@@ -108,13 +130,16 @@ add_library(echo_device_logic STATIC
     equalizer.c
     equalizer_design.c
     exfat.c
+    exfat_list.c
     exfat_create.c
     fat.c
+    fat_list.c
     fat_create.c
     fat_delete.c
     fat_extents.c
     fat_layout.c
     fat_names.c
+    fat_utf8.c
     fat_reserve.c
     flac_accel.c
     image_crc.c
@@ -169,6 +194,7 @@ add_library(echo_device_logic STATIC
     usb_leave.c
     usb_level.c
     usb_plug.c
+    volume_space.c
     vorbis_decoder.c
     vorbis_memory.c
     vorbis_track.c
@@ -229,11 +255,17 @@ if(CMAKE_CROSSCOMPILING)
         usb_leave.c
         usb_level.c
         wide_divide.c
+        volume_space.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic
-    PUBLIC echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
+    PUBLIC echo_wma echo_demac echo_core echo_hal echo_codec echo_libmad echo_faad echo_tremor echo_opus
     PRIVATE echo_options
 )
+if(CMAKE_CROSSCOMPILING)
+    target_compile_options(echo_libmad PRIVATE -O3)
+    target_compile_options(echo_faad PRIVATE -O3 -flto -ffat-lto-objects)
+    target_compile_options(echo_opus PRIVATE -flto -ffat-lto-objects)
+endif()

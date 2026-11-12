@@ -250,8 +250,10 @@ static void write_firmware_header(FakeDisk *disk, uint32_t lba, uint32_t fw_size
 
 static bool read_searching(FakeDisk *disk, EmmcLayout *layout)
 {
+    static uint32_t scratch[EMMC_LAYOUT_SCRATCH_WORDS];
     BlockDevice device = fake_disk_device(disk);
-    return emmc_layout_read_with(layout, &device, TOTAL_SECTORS, EMMC_SLOT_2_SEARCH);
+    return emmc_layout_read_with(layout, &device, TOTAL_SECTORS,
+                                 (EmmcLayoutRead){EMMC_SLOT_2_SEARCH, scratch});
 }
 
 static void prepare_echo(FakeDisk *disk, uint32_t slot_1_fw_size)

@@ -1040,6 +1040,7 @@ static void check_extension_defaults(const Settings *settings)
     CHECK_EQUAL(0, settings->status_items);
     CHECK_EQUAL(DAC_FILTER_FAST_LOW_LATENCY, settings->dac_filter);
     CHECK_EQUAL(SETTINGS_SPEED_NORMAL, settings->playback_speed);
+    CHECK_EQUAL(NOW_PLAYING_COVER, settings_now_playing_style(settings));
 }
 
 static void the_extension_defaults_keep_todays_behaviour(void)
@@ -1222,7 +1223,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
         {0, 0x20},  {0, 0x40}, {0, 0x80}, {0, 0x18},  {1, 61},    {2, 4},     {2, 61},
         {2, 0},     {3, 7},    {3, 0xFD}, {3, 0x80},  {4, 0x00},  {4, 0x11},  {6, 0x55},
         {8, 0x18},  {8, 0x09}, {9, 0x08}, {9, 0xFF},  {10, 0x04}, {10, 0x80}, {12, 0x04},
-        {12, 0xFC}, {14, 5},   {14, 7},   {14, 0x18}, {14, 0x80}, {15, 0x80}};
+        {12, 0xFC}, {14, 5},   {14, 7},   {14, 0x18}, {15, 0x80}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1248,6 +1249,46 @@ static void power_on_preserves_every_other_bit_in_extension_thirteen(void)
         settings_encode(&settings, bytes);
         CHECK_EQUAL(flags, bytes[EXTENSION_FIELD + 13]);
     }
+}
+
+static void the_listening_effects_use_their_extension_bits(void)
+{
+    Settings original = settings_defaults();
+    CHECK(!original.skip_silence);
+    CHECK(!original.speech_boost);
+    CHECK_EQUAL(0, original.crossfeed);
+    for (int choice = 0; choice < 8; choice++) {
+        original.skip_silence = (choice & 1) != 0;
+        original.speech_boost = (choice & 2) != 0;
+        original.crossfeed = (uint8_t)(choice % 4);
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        CHECK_EQUAL((choice & 1) << 6 | (choice & 2) << 6, bytes[EXTENSION_FIELD + 13]);
+        CHECK_EQUAL((choice % 4) << 5, bytes[EXTENSION_FIELD + 14]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(original.skip_silence, decoded.skip_silence);
+        CHECK_EQUAL(original.speech_boost, decoded.speech_boost);
+        CHECK_EQUAL(original.crossfeed, decoded.crossfeed);
+    }
+}
+
+static void turning_the_listening_effects_off_clears_their_bits_after_a_reload(void)
+{
+    Settings settings = settings_defaults();
+    settings.skip_silence = true;
+    settings.speech_boost = true;
+    settings.status_items = 0x23;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    settings.skip_silence = false;
+    settings.speech_boost = false;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0x23, bytes[EXTENSION_FIELD + 13]);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK(!settings.skip_silence);
+    CHECK(!settings.speech_boost);
 }
 
 static void playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte(void)
@@ -1620,6 +1661,45 @@ static void an_older_file_gets_the_default_bluetooth_level(void)
     CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, decoded.bluetooth_volume);
 }
 
+static void cassette_style_and_other_e13_flags_survive_saving(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    bytes[EXTENSION_FIELD + 13] = 0xB5;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, sizeof bytes, &settings));
+    CHECK_EQUAL(NOW_PLAYING_CASSETTE, settings_now_playing_style(&settings));
+    settings_set_now_playing_style(&settings, NOW_PLAYING_COVER);
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0x95, bytes[EXTENSION_FIELD + 13]);
+    settings_set_now_playing_style(&settings, NOW_PLAYING_CASSETTE);
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0xB5, bytes[EXTENSION_FIELD + 13]);
+}
+
+static void all_four_styles_use_only_their_two_allocated_bits(void)
+{
+    for (int style = 0; style < 4; style++) {
+        Settings settings = settings_defaults();
+        settings.status_items = 0x95;
+        settings.power_on_flags = 0x10;
+        settings.speech_boost = true;
+        settings_set_now_playing_style(&settings, (NowPlayingStyle)style);
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&settings, bytes);
+        CHECK_EQUAL(0x95 | ((style & 1) << 5), bytes[EXTENSION_FIELD + 13]);
+        CHECK_EQUAL((style >> 1) << 7, bytes[EXTENSION_FIELD + 14]);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(style, settings_now_playing_style(&decoded));
+        settings_set_now_playing_style(&decoded, NOW_PLAYING_COVER);
+        settings_encode(&decoded, bytes);
+        CHECK_EQUAL(0x95, bytes[EXTENSION_FIELD + 13]);
+        CHECK_EQUAL(0, bytes[EXTENSION_FIELD + 14]);
+    }
+}
+
 static void battery_care_owns_only_e14_bits_three_and_four(void)
 {
     for (int filter = 0; filter < DAC_FILTER_COUNT; filter++) {
@@ -1643,6 +1723,8 @@ static void battery_care_owns_only_e14_bits_three_and_four(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(all_four_styles_use_only_their_two_allocated_bits),
+        TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),
         TEST_CASE(all_status_choices_and_legacy_percent_files_keep_their_values),
         TEST_CASE(status_bar_choices_round_trip_in_e13_without_using_other_extensions),
@@ -1660,6 +1742,8 @@ int main(void)
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(power_on_preserves_every_other_bit_in_extension_thirteen),
+        TEST_CASE(the_listening_effects_use_their_extension_bits),
+        TEST_CASE(turning_the_listening_effects_off_clears_their_bits_after_a_reload),
         TEST_CASE(playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),

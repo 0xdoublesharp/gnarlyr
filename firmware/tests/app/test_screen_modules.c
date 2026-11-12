@@ -5,7 +5,9 @@
 #include "default_theme.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "language.h"
 #include "screen_modules.h"
+#include "test_pack.h"
 
 static AppScreens screens;
 static LibraryStore store;
@@ -51,7 +53,6 @@ static void screens_outside_every_module_belong_to_none(void)
     reset();
     Screen elsewhere = {0};
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.home.screen));
-    CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.now_playing.screen));
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.no_library.screen));
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &elsewhere));
 }
@@ -62,7 +63,7 @@ static void a_screen_belongs_to_the_module_whose_memory_holds_it(void)
     const PlayingModuleScreens *views = &screens.modules.playing;
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->cover_flow.screen));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->up_next.screen));
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->quick_settings.screen));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
 }
 
 static void screens_a_module_builds_for_itself_belong_to_it_too(void)
@@ -154,6 +155,34 @@ static void a_module_builds_its_screens_once_until_the_screens_are_built_again(v
     CHECK_EQUAL(1, fake_hal_module_loads());
 }
 
+static void a_module_builds_its_screens_again_when_its_text_comes_from_another_pack(void)
+{
+    static uint8_t english[TEST_PACK_CAPACITY];
+    static uint8_t upper[TEST_PACK_CAPACITY];
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/lang/up.pack";
+    reset();
+    i18n_detach();
+    uint32_t english_size = test_pack_build(english, (TestPackLanguage){"en", "English", NULL});
+    uint32_t upper_size =
+        test_pack_build(upper, (TestPackLanguage){"up", "UPPER", test_pack_upper_case});
+    fake_hal_add_language_pack(0, english, english_size);
+    fake_hal_add_language_file("up.pack", upper, upper_size);
+    CHECK(language_load("up"));
+    screen_modules_use(&screens, SCREEN_MODULE_PLAYING);
+    screens.modules.playing.cover_flow.target = 3;
+    screen_modules_use(&screens, SCREEN_MODULE_VIEWS);
+    screen_modules_use(&screens, SCREEN_MODULE_PLAYING);
+    CHECK_EQUAL(3, screens.modules.playing.cover_flow.target);
+    fake_hal_fail_file_opens(path);
+    screen_modules_use(&screens, SCREEN_MODULE_VIEWS);
+    screens.modules.playing.cover_flow.target = 3;
+    screen_modules_use(&screens, SCREEN_MODULE_PLAYING);
+    CHECK_EQUAL(0, screens.modules.playing.cover_flow.target);
+    CHECK(language_is("up"));
+    fake_hal_fail_file_opens(NULL);
+    i18n_detach();
+}
+
 static void a_module_that_cannot_load_is_not_used_and_builds_nothing(void)
 {
     reset();
@@ -178,9 +207,39 @@ static void the_eleventh_module_loads_independently_of_views(void)
     CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
 }
 
+static void cassette_now_playing_requires_playing_and_rebinds_after_other_modules(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    settings_set_now_playing_style(&settings.settings, NOW_PLAYING_CASSETTE);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
+    CHECK(screens.now_playing.config.cassette_draw != NULL);
+    CHECK(screens.now_playing.config.cassette_animate != NULL);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
+    CHECK(screen_modules_use(&screens, screen_modules_of(&screens, &screens.now_playing.screen)) !=
+          NULL);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    settings_set_now_playing_style(&settings.settings, NOW_PLAYING_COVER);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
+}
+
+static void every_alternate_now_playing_style_requires_its_drawing_module(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    for (int style = 1; style <= 3; style++) {
+        settings_set_now_playing_style(&settings.settings, (NowPlayingStyle)style);
+        CHECK_EQUAL(SCREEN_MODULE_PLAYING,
+                    screen_modules_of(&screens, &screens.now_playing.screen));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(every_alternate_now_playing_style_requires_its_drawing_module),
+        TEST_CASE(cassette_now_playing_requires_playing_and_rebinds_after_other_modules),
         TEST_CASE(screens_outside_every_module_belong_to_none),
         TEST_CASE(a_screen_belongs_to_the_module_whose_memory_holds_it),
         TEST_CASE(screens_a_module_builds_for_itself_belong_to_it_too),
@@ -190,6 +249,7 @@ int main(void)
         TEST_CASE(the_first_and_the_last_byte_of_a_modules_memory_are_inside_it),
         TEST_CASE(using_a_module_loads_it_and_builds_its_screens),
         TEST_CASE(a_module_builds_its_screens_once_until_the_screens_are_built_again),
+        TEST_CASE(a_module_builds_its_screens_again_when_its_text_comes_from_another_pack),
         TEST_CASE(a_module_that_cannot_load_is_not_used_and_builds_nothing),
         TEST_CASE(the_eleventh_module_loads_independently_of_views),
     };

@@ -526,7 +526,7 @@ static void the_music_check_walks_the_card_from_its_module(void)
     step();
     CHECK(fake_hal_dir_open_count() > walks);
     CHECK_EQUAL(loads + 1, fake_hal_module_loads());
-    CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
 }
 
@@ -548,12 +548,12 @@ static void a_music_check_that_cannot_walk_the_card_rescans_instead(void)
     start_on_a_fresh_card();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_LIBRARY, true);
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
     int walks = fake_hal_dir_open_count();
     app_request_rescan_if_music_changed();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
-    fake_hal_break_module(SCREEN_MODULE_LIBRARY, false);
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
     walks = fake_hal_dir_open_count();
     app_request_rescan_if_music_changed();
     step();

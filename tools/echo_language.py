@@ -12,6 +12,8 @@ from pathlib import Path
 BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 18432
+FILE_LIMIT = 65535
+PACK_VERSIONS = (1, 2)
 FLAG_MASKS = (0xF8, 0xF0, 0xC8, 0xC0)
 USB_ANSWER_BITS = 0x30
 DIRECTORY_LIMIT = 256
@@ -80,11 +82,18 @@ class Snapshot:
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
-            self.pack_limit = constant(self.show("firmware/src/core/include/core/i18n.h"),
-                                       "I18N_PACK_CAPACITY")
+            i18n = self.show("firmware/src/core/include/core/i18n.h")
+            self.pack_limit = constant(i18n, "I18N_PACK_CAPACITY")
+            self.pack_version = constant(i18n, "I18N_VERSION")
             if not 0 < self.pack_limit <= PACK_LIMIT:
                 raise ValueError("the installed language capacity is unsupported")
+            if self.pack_version not in PACK_VERSIONS:
+                raise ValueError("the installed language pack format is unsupported")
             self.catalogue = self.format.read_catalogue_text(self.show("firmware/assets/lang/en.txt"))
+            self.segments = None
+            if self.pack_version == self.format.VERSION:
+                self.segments = self.format.segments_from_header(
+                    self.show("firmware/src/core/include/core/strings.h"), self.catalogue)
             self.drawable = self.format.drawable_from_config(
                 json.loads(self.show("firmware/assets/fonts/fonts.json")),
                 json.loads(self.show("firmware/assets/fonts/glyph_pack.json")))
@@ -231,7 +240,7 @@ class Snapshot:
         reserved = list(block[11:15])
         if self.clock_offset_byte:
             reserved[0:2] = [0, 0]
-        if self.status_items_supported:
+        if self.status_items_supported or self.display_flags_byte == 13:
             reserved[2] = 0
         reserved[3] &= ~self.e14_bits[0] & 0xFF
         if self.battery_care_supported:
@@ -256,26 +265,35 @@ class Snapshot:
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
 
+    def catalogue_hash(self):
+        if self.segments is None:
+            return self.format.catalogue_hash(self.catalogue)
+        return self.format.layout_hash(self.segments)
+
+    def make_pack(self, code, translations):
+        if self.segments is None:
+            return self.format.build_legacy_pack(code, self.catalogue, translations)
+        return self.format.build_pack(code, self.catalogue, translations, self.segments)
+
     def validate(self, data):
         try:
-            if len(data) > self.pack_limit:
-                raise self.format.PackError(
-                    f"the installed firmware accepts at most {self.pack_limit:,} language bytes")
-            return self.format.validate_pack(data, self.catalogue, self.drawable)
+            return self.format.validate_pack(data, self.catalogue, self.drawable, self.segments,
+                                             self.pack_version, self.pack_limit)
         except self.format.PackError as error:
             raise self.api.DebugError("language_pack_invalid", str(error)) from error
 
     def file_info(self, data, repairing=False):
         try:
-            if len(data) > self.pack_limit:
+            info = self.format.pack_info(data)
+            if info["memory"] > self.pack_limit:
                 raise self.format.PackError("the pack exceeds the installed language capacity")
-            return self.format.pack_info(data)
+            return info
         except self.format.PackError as error:
             if repairing and len(data) >= self.format.HEADER.size:
                 fields = self.format.HEADER.unpack(data[:self.format.HEADER.size])
                 magic, version, count, size, catalogue, _, code, name = fields
-                if (magic == self.format.MAGIC and version == self.format.VERSION and count > 0 and
-                        size == len(data) and size <= self.pack_limit and
+                if (magic == self.format.MAGIC and version == self.pack_version and count > 0 and
+                        size == len(data) and size <= FILE_LIMIT and
                         size > self.format.HEADER.size + 2 * count):
                     try:
                         code = self.format.metadata_text(code, "language code")
@@ -283,7 +301,7 @@ class Snapshot:
                         if not CODE.fullmatch(code):
                             raise self.format.PackError("the replacement target has an invalid code")
                         self.format.check_native_name(name)
-                        return {"code": code, "name": name, "count": count,
+                        return {"code": code, "name": name, "version": version, "count": count,
                                 "size": size, "catalogue_hash": catalogue}
                     except self.format.PackError as metadata_error:
                         error = metadata_error
@@ -302,11 +320,11 @@ class Snapshot:
         return names
 
     def english(self):
-        return self.validate(self.format.build_pack("en", self.catalogue, {}))
+        return self.validate(self.make_pack("en", {}))
 
     def metadata(self):
         return {"firmware_build": self.build, "firmware_commit": self.commit,
-                "catalogue_hash": self.format.catalogue_hash(self.catalogue),
+                "catalogue_hash": self.catalogue_hash(), "pack_version": self.pack_version,
                 "catalogue_count": len(self.catalogue), "pack_capacity": self.pack_limit}
 
 
@@ -373,7 +391,7 @@ def write_stage(descriptor, name, data):
     finally:
         os.close(file)
     try:
-        if read_at(descriptor, name, PACK_LIMIT) != data:
+        if read_at(descriptor, name, FILE_LIMIT) != data:
             raise OSError("language stage failed readback")
     except BaseException:
         os.unlink(name, dir_fd=descriptor)
@@ -386,13 +404,13 @@ def publish(root, data_directory, code, data, snapshot):
         stage = name + ".part"
         old = None
         try:
-            old = read_at(descriptor, name, PACK_LIMIT)
+            old = read_at(descriptor, name, FILE_LIMIT)
         except FileNotFoundError:
             pass
         write_stage(descriptor, stage, data)
         backup_stage_owned = False
         try:
-            snapshot.validate(read_at(descriptor, stage, PACK_LIMIT))
+            snapshot.validate(read_at(descriptor, stage, FILE_LIMIT))
             if old is not None:
                 backup = name + ".bak"
                 backup_stage = backup + ".part"
@@ -406,7 +424,7 @@ def publish(root, data_directory, code, data, snapshot):
                 backup_stage_owned = True
                 os.replace(backup_stage, backup, src_dir_fd=descriptor, dst_dir_fd=descriptor)
             os.replace(stage, name, src_dir_fd=descriptor, dst_dir_fd=descriptor)
-            if read_at(descriptor, name, PACK_LIMIT) != data:
+            if read_at(descriptor, name, FILE_LIMIT) != data:
                 raise OSError("published language pack failed readback; backup retained")
             os.fsync(descriptor)
         finally:
@@ -489,7 +507,7 @@ class Manager:
 
     def local_pack(self, path, snapshot):
         path = self.path_argument(path)
-        return read_file(path.parent, (path.name,), PACK_LIMIT)
+        return read_file(path.parent, (path.name,), FILE_LIMIT)
 
     def inspect(self, path, build=None):
         snapshot = Snapshot(self.api, build) if build is not None else self.context()["snapshot"]
@@ -535,13 +553,17 @@ class Manager:
                             (repair_code is not None and code.lower() == repair_code.lower() and code != repair_code)):
                         self.error("language_code_mismatch", "the language code conflicts with an existing FAT filename")
                     seen.add(code.lower())
-                    data = read_at(descriptor, name, PACK_LIMIT)
+                    data = read_at(descriptor, name, FILE_LIMIT)
                     metadata = snapshot.file_info(data, repairing=code == repair_code)
                     if metadata["code"] != code:
                         self.error("language_code_mismatch", "the pack filename differs from its language code")
                     path = str(context["music"] / self.api.DATA_DIRECTORY / "lang" / name)
+                    if metadata.get("version", snapshot.pack_version) != snapshot.pack_version:
+                        if incompatible_files is not None:
+                            incompatible_files.append({**metadata, "path": path, "reason": "format_mismatch"})
+                        continue
                     if (metadata["count"] != len(snapshot.catalogue) or
-                            metadata["catalogue_hash"] != snapshot.format.catalogue_hash(snapshot.catalogue)):
+                            metadata["catalogue_hash"] != snapshot.catalogue_hash()):
                         if incompatible_files is not None:
                             incompatible_files.append({**metadata, "path": path, "reason": "catalogue_mismatch"})
                         continue

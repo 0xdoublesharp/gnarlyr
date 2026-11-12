@@ -165,6 +165,11 @@ void mmc_set_clock(const MmcHost *host, SdClock clock)
     update_clock(host);
 }
 
+bool mmc_wait_not_busy(const MmcHost *host)
+{
+    return wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS);
+}
+
 void mmc_power_cycle(const MmcHost *host)
 {
     write_register(host, MMC_PWREN, 0);

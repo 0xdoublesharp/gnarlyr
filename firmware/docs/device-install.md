@@ -100,11 +100,15 @@ What the updater does:
 
 The new build is on trial until a USB session with it ends with every drive ejected. Then it copies itself into slot 2 and the trial ends. The record is `/.gnarlyr/trial.bin` on internal storage; leave it alone.
 
-- Every start of the trial build counts one attempt, and every USB session counts one more as it starts. A start after which the player runs for 20 s is not counted.
+- Every start of the trial build counts one attempt, and every USB session counts one more as it starts. A start after which the player runs for 20 s with its text loaded is not counted.
+- A trial build that starts without its text (no language pack could be read) or without its extension module counts as failed at once: it restarts by itself, with no message and no key press, and the next start rolls back. If its storage stops working after the start was counted, it restarts by itself until the fourth start rolls back.
+- A trial build that faults is restarted by the watchdog, and that start counts.
 - At 3 attempts the next start copies slot 2 back into slot 1 before anything is drawn (the screen stays dark for some seconds), restarts, and the previous build says "Update rolled back".
 - While the trial build is stuck, for example in a USB session that never connects, holding Power for 10 s restarts the player. Three such tries roll the update back with no paperclip.
-- The rollback is done by the firmware copying slot 2; it doesn't depend on how the boot ROM chooses a slot. A build that crashes before its start-up code reaches the trial check can't count its starts; that still needs maskrom.
+- The rollback is done by the firmware copying slot 2; it doesn't depend on how the boot ROM chooses a slot. A build that crashes before its start-up code reaches the trial check, or that can't read or write internal storage at the trial check, can't count its starts; that still needs maskrom.
 - A new update installed during a trial replaces the trial build in slot 1; slot 2 is untouched.
+
+After a rollback, `/.gnarlyr/trial_diag.bin` on internal storage holds the failed build's last trial record with its USB and eMMC diagnostics; read it with `xxd` (layout: `docs/architecture.md`, Trial diagnostics). To keep the snapshot of a session that broke storage, restart the stuck build by holding Power for 10 s rather than letting the battery or a power cut end it: the snapshot survives a warm restart, not a power cut.
 
 `docs/architecture.md` (Firmware slots and the boot ROM, Trial updates) has the details and the evidence about the boot ROM.
 

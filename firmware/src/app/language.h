@@ -18,6 +18,8 @@ typedef struct LanguageList {
 extern const char LANGUAGE_FOLDER[];
 
 bool language_load(const char *code);
+bool language_use_module(uint32_t module);
 bool language_is(const char *code);
 void language_list(LanguageList *list);
+bool language_file_sound(const char *code);
 int language_list_find(const LanguageList *list, const char *code);

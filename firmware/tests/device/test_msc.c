@@ -1034,6 +1034,66 @@ static void insertion_announces_change_then_removal_reports_no_medium(void)
     CHECK_EQUAL(0, reply->data[13]);
 }
 
+static void finished_commands_count_their_sectors_per_lun(void)
+{
+    uint8_t block[10];
+    uint8_t bytes[1024] = {0};
+    Msc *msc = started_with_buffer();
+    msc->luns[1].writable = true;
+    read_10_block(block, 0x2A, 2, 2);
+    send_command(msc, sizeof bytes, false, 1, block, 10);
+    send_data(msc, bytes, sizeof bytes);
+    CHECK_EQUAL(0, msc_stats(msc).traffic[1].writes);
+    collect(msc);
+    read_10_block(block, 0x28, 0, 3);
+    send_command(msc, 3 * 512, true, 0, block, 10);
+    collect(msc);
+    read_10_block(block, 0x28, 4, 1);
+    send_command(msc, 512, true, 0, block, 10);
+    collect(msc);
+    MscStats stats = msc_stats(msc);
+    CHECK_EQUAL(2, stats.traffic[0].reads);
+    CHECK_EQUAL(4, stats.traffic[0].sectors_read);
+    CHECK_EQUAL(0, stats.traffic[0].writes);
+    CHECK_EQUAL(1, stats.traffic[1].writes);
+    CHECK_EQUAL(2, stats.traffic[1].sectors_written);
+    CHECK_EQUAL(0, stats.failed_commands);
+    CHECK_EQUAL(4, msc_sectors_moved(msc, false));
+    CHECK_EQUAL(2, msc_sectors_moved(msc, true));
+    CHECK_EQUAL(2, msc_lun_commands(msc, 0, false));
+    CHECK_EQUAL(1, msc_lun_commands(msc, 1, true));
+    CHECK_EQUAL(0, msc_lun_commands(msc, 2, true));
+}
+
+static void a_failed_command_keeps_its_sense_and_moves_no_sectors(void)
+{
+    uint8_t block[10];
+    Msc *msc = started_with_buffer();
+    failing_read_lba = 6;
+    read_10_block(block, 0x28, 0, 8);
+    send_command(msc, 8 * 512, true, 0, block, 10);
+    collect(msc);
+    MscStats stats = msc_stats(msc);
+    CHECK_EQUAL(0, stats.traffic[0].reads);
+    CHECK_EQUAL(0, stats.traffic[0].sectors_read);
+    CHECK_EQUAL(1, stats.failed_commands);
+    CHECK_EQUAL(0x03, stats.last_sense_key);
+    CHECK_EQUAL(0x11, stats.last_sense_code);
+}
+
+static void not_ready_answers_after_an_eject_are_not_errors(void)
+{
+    static const uint8_t eject[6] = {0x1B, 0, 0, 0, 0x02, 0};
+    static const uint8_t ready[6] = {0};
+    Msc *msc = started();
+    send_command(msc, 0, false, 0, eject, 6);
+    collect(msc);
+    send_command(msc, 0, false, 0, ready, 6);
+    Exchange *exchange = collect(msc);
+    CHECK_EQUAL(1, exchange->csw[12]);
+    CHECK_EQUAL(0, msc_stats(msc).failed_commands);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1091,6 +1151,9 @@ int main(void)
         TEST_CASE(removing_the_media_is_not_a_host_eject),
         TEST_CASE(a_write_under_way_when_the_media_is_removed_completes),
         TEST_CASE(synchronize_cache_is_counted_as_a_flush),
+        TEST_CASE(finished_commands_count_their_sectors_per_lun),
+        TEST_CASE(a_failed_command_keeps_its_sense_and_moves_no_sectors),
+        TEST_CASE(not_ready_answers_after_an_eject_are_not_errors),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -2,6 +2,7 @@
 
 #include "core/deadline.h"
 #include "core/seam.h"
+#include "core/string_builder.h"
 #include "ui/label.h"
 
 enum {
@@ -11,7 +12,10 @@ enum {
 
 CORE_SEAM void toast_show(Toast *toast, const char *text, uint32_t now_ms)
 {
-    *toast = (Toast){.text = text, .until_ms = now_ms + TOAST_DURATION_MS, .visible = true};
+    StringBuilder copy = string_builder_make(toast->text, sizeof toast->text);
+    string_builder_append(&copy, text);
+    toast->until_ms = now_ms + TOAST_DURATION_MS;
+    toast->visible = true;
 }
 
 void toast_update(Toast *toast, uint32_t now_ms)

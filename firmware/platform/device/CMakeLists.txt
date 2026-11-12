@@ -28,6 +28,7 @@ add_executable(echo_device
     board/overlay.c
     board/panic.c
     board/power.c
+    board/scratch.c
     board/sd.c
     board/start_info.c
     board/watchdog.c
@@ -106,7 +107,7 @@ set_target_properties(echo_core1_m4a PROPERTIES
 target_include_directories(echo_core1_m4a PRIVATE board)
 target_link_libraries(echo_core1_m4a PRIVATE echo_device_logic echo_faad echo_codec echo_options gcc)
 target_link_options(echo_core1_m4a PRIVATE
-    -fno-lto
+    -flto -O2
     -T${ECHO_CORE1_M4A_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_m4a.map
 )
@@ -156,7 +157,7 @@ set_target_properties(echo_core1_opus PROPERTIES
 target_include_directories(echo_core1_opus PRIVATE board)
 target_link_libraries(echo_core1_opus PRIVATE echo_device_logic echo_opus echo_options gcc)
 target_link_options(echo_core1_opus PRIVATE
-    -fno-lto
+    -flto -O2
     -T${ECHO_CORE1_OPUS_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_opus.map
 )
@@ -190,6 +191,56 @@ add_custom_command(
     OUTPUT ${ECHO_CORE1_DSD_BINARY}
     COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_dsd> core1_dsd.bin
     DEPENDS echo_core1_dsd
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
+add_executable(echo_core1_ape
+    core1/ape_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_APE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_ape.ld)
+set_target_properties(echo_core1_ape PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_APE_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_ape PRIVATE board)
+target_link_libraries(echo_core1_ape PRIVATE echo_device_logic echo_demac echo_options gcc)
+target_link_options(echo_core1_ape PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_APE_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_ape.map
+)
+set(ECHO_CORE1_APE_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_ape.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_APE_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_ape> core1_ape.bin
+    DEPENDS echo_core1_ape
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    VERBATIM
+)
+add_executable(echo_core1_wma
+    core1/wma_main.c
+    core1/startup.c
+    board/libc.c
+)
+set(ECHO_CORE1_WMA_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1_wma.ld)
+set_target_properties(echo_core1_wma PROPERTIES
+    SUFFIX .elf
+    LINK_DEPENDS ${ECHO_CORE1_WMA_LINKER_SCRIPT}
+)
+target_include_directories(echo_core1_wma PRIVATE board)
+target_link_libraries(echo_core1_wma PRIVATE echo_device_logic echo_wma echo_options gcc)
+target_link_options(echo_core1_wma PRIVATE
+    -fno-lto
+    -T${ECHO_CORE1_WMA_LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_core1_wma.map
+)
+set(ECHO_CORE1_WMA_BINARY ${CMAKE_CURRENT_BINARY_DIR}/core1_wma.bin)
+add_custom_command(
+    OUTPUT ${ECHO_CORE1_WMA_BINARY}
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:echo_core1_wma> core1_wma.bin
+    DEPENDS echo_core1_wma
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     VERBATIM
 )
@@ -263,8 +314,18 @@ set(ECHO_OVERLAY_IMPORTS
     hal_clock_milliseconds
     hal_clock_microseconds
     hal_dir_close
-    hal_dir_next
     hal_dir_open
+    storage_listing_begin
+    fat_collect_long_name
+    fat_entry_file
+    fat_long_name_applies
+    fat_next_utf16
+    fat_read_entry
+    fat_short_name_text
+    fat_trimmed_length
+    exfat_file_from_set
+    exfat_read_names
+    exfat_read_set
     hal_file_close
     hal_file_open
     hal_file_read
@@ -349,7 +410,10 @@ if(NOT ECHO_RELEASE)
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
+        hal_internal_file_write_at
+        strip_renderer_render
         hal_system_clock_mhz
+        hal_system_core1_load
         hal_system_idle_microseconds
         hal_system_restart_pending
         hal_system_start_info
@@ -369,6 +433,7 @@ if(CMAKE_CROSSCOMPILING)
         board/bluetooth.c
         board/core1.c
         board/dac.c
+        board/debug_battery_trace.c
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_rtc.c
@@ -397,6 +462,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_report.c
         board/usb_session.c
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+        ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
         ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
@@ -419,10 +485,18 @@ set(ECHO_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/rescan_overla
 add_executable(echo_rescan_overlay
     overlay/rescan_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
+    ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
     ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
+    board/storage_list.c
+    logic/fat_list.c
+    logic/exfat_list.c
+    logic/fat_utf8.c
 )
 target_include_directories(echo_rescan_overlay PRIVATE
+    board
+    logic
     ${PROJECT_SOURCE_DIR}/src/app
+    $<TARGET_PROPERTY:echo_device_logic,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:echo_app,INTERFACE_INCLUDE_DIRECTORIES>
 )
 set_target_properties(echo_rescan_overlay PROPERTIES
@@ -443,9 +517,12 @@ set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overl
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
     ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
     ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
@@ -459,7 +536,8 @@ add_executable(echo_usb_overlay
     board/usb_session.c
 )
 if(NOT ECHO_RELEASE)
-    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c)
+    target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
+        board/usb_screen_capture.c)
 endif()
 set_target_properties(echo_usb_overlay PROPERTIES
     SUFFIX .elf
@@ -510,7 +588,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_process.ld)
     elseif(module STREQUAL "effects")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_effects.ld)
-    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "source" OR module STREQUAL "dsd")
+    elseif(module STREQUAL "dsp" OR module STREQUAL "ogg" OR module STREQUAL "source" OR module STREQUAL "dsd" OR module STREQUAL "ape_wma")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/audio_dsp.ld)
     elseif(module STREQUAL "extension")
         set(ECHO_MODULE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/extension_module.ld)
@@ -534,6 +612,9 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         list(REMOVE_DUPLICATES module_sources)
     endif()
     list(REMOVE_DUPLICATES module_includes)
+    foreach(crypto_source theme_crypto_curve.c theme_crypto_sha512.c)
+        set_source_files_properties(${PROJECT_SOURCE_DIR}/src/app/${crypto_source} PROPERTIES COMPILE_OPTIONS -w)
+    endforeach()
     add_library(${module_target}_objects OBJECT ${module_sources})
     target_compile_definitions(${module_target}_objects PRIVATE ECHO_DEVICE_MODULE)
     if(module STREQUAL "dsp")
@@ -589,12 +670,24 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             wire_motion_tick=extension_wire_motion_tick
         )
     endif()
+    if(module STREQUAL "ape_wma")
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            core1_open_ape=audio_files_open_ape
+            core1_open_wma=audio_files_open_wma
+            ape_stream_read=audio_files_read_ape
+            asf_stream_read=audio_files_read_wma
+        )
+    endif()
     if(module STREQUAL "effects")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board)
         target_compile_definitions(${module_target}_objects PRIVATE
             audio_fade_in=audio_effects_fade_in
             audio_fade_out=audio_effects_fade_out
+            audio_effects_design=audio_effects_module_design
+            audio_effects_run=audio_effects_module_run
+            audio_effects_settle=audio_effects_module_settle
             hal_system_rtc_read=audio_effects_rtc_read
             hal_system_rtc_set=audio_effects_rtc_set
             hal_clock_set_wall=audio_effects_clock_set_wall
@@ -686,6 +779,8 @@ add_custom_target(echo_device_image ALL
         --elf $<TARGET_FILE:echo_core1_vorbis>
         --elf $<TARGET_FILE:echo_core1_opus>
         --elf $<TARGET_FILE:echo_core1_dsd>
+        --elf $<TARGET_FILE:echo_core1_ape>
+        --elf $<TARGET_FILE:echo_core1_wma>
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/make_image.py
         --elf $<TARGET_FILE:echo_device>
@@ -697,6 +792,8 @@ add_custom_target(echo_device_image ALL
         --core1-vorbis ${ECHO_CORE1_VORBIS_BINARY}
         --core1-opus ${ECHO_CORE1_OPUS_BINARY}
         --core1-dsd ${ECHO_CORE1_DSD_BINARY}
+        --core1-ape ${ECHO_CORE1_APE_BINARY}
+        --core1-wma ${ECHO_CORE1_WMA_BINARY}
         ${ECHO_GLYPH_FACE_ARGUMENTS}
         ${ECHO_LANGUAGE_PACK_ARGUMENTS}
         ${ECHO_MODULE_IMAGE_ARGUMENTS}
@@ -715,6 +812,8 @@ add_custom_target(echo_device_image ALL
         ${ECHO_CORE1_VORBIS_BINARY}
         ${ECHO_CORE1_OPUS_BINARY}
         ${ECHO_CORE1_DSD_BINARY}
+        ${ECHO_CORE1_APE_BINARY}
+        ${ECHO_CORE1_WMA_BINARY}
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py

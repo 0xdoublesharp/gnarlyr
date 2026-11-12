@@ -15,15 +15,8 @@ enum {
     DB_STEPS = 256,
     HZ_PER_KHZ = 1000,
     HZ_TENTH = 100,
-    SECONDS_PER_MINUTE = 60,
-    SECONDS_PER_HOUR = 3600,
-    GRID_COLUMNS = 2
+    BAR_HALF = 2
 };
-
-typedef struct DacCell {
-    StringId name;
-    char value[USB_SCREEN_TEXT_CAPACITY];
-} DacCell;
 
 static Color segment_color(const Theme *theme, int index, int count)
 {
@@ -82,24 +75,11 @@ static void draw_meter(const UsbPainter *painter)
     }
 }
 
-static void number_text(char *text, uint32_t value)
-{
-    StringBuilder builder = string_builder_make(text, USB_SCREEN_NUMBER_CAPACITY);
-    string_builder_append_unsigned(&builder, value);
-}
-
 static void signed_text(char *text, int32_t value)
 {
     StringBuilder builder = string_builder_make(text, USB_SCREEN_NUMBER_CAPACITY);
     string_builder_append_char(&builder, value < 0 ? '-' : '+');
     string_builder_append_unsigned(&builder, (uint32_t)(value < 0 ? -value : value));
-}
-
-static void format_one(char *text, StringId id, const char *argument)
-{
-    StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
-    const char *arguments[] = {argument};
-    i18n_format(&builder, id, arguments, 1);
 }
 
 static void rate_text(char *text, const UsbSceneDac *dac)
@@ -109,9 +89,9 @@ static void rate_text(char *text, const UsbSceneDac *dac)
     StringBuilder digits = string_builder_make(rate, sizeof rate);
     usb_screen_append_tenths(&digits, dac->rate / HZ_TENTH);
     if (dac->rate % HZ_PER_KHZ == 0) {
-        number_text(rate, dac->rate / HZ_PER_KHZ);
+        usb_screen_number_text(rate, dac->rate / HZ_PER_KHZ);
     }
-    number_text(bits, dac->bits);
+    usb_screen_number_text(bits, dac->bits);
     StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
     const char *arguments[] = {rate, bits};
     i18n_format(&builder, STR_USB_DAC_RATE, arguments, 2);
@@ -120,34 +100,16 @@ static void rate_text(char *text, const UsbSceneDac *dac)
 static void host_volume_text(char *text, const UsbSceneDac *dac)
 {
     if (dac->host_muted) {
-        format_one(text, STR_USB_DAC_MUTED_VALUE, "");
+        usb_screen_format_one(text, STR_USB_DAC_MUTED_VALUE, "");
         return;
     }
     char number[USB_SCREEN_NUMBER_CAPACITY];
     int32_t db = dac->host_volume / DB_STEPS;
     signed_text(number, db);
     if (db == 0) {
-        number_text(number, 0);
+        usb_screen_number_text(number, 0);
     }
-    format_one(text, STR_EQ_GAIN, number);
-}
-
-static void time_text(char *text, uint32_t seconds)
-{
-    StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
-    uint32_t hours = seconds / SECONDS_PER_HOUR;
-    uint32_t minutes = seconds / SECONDS_PER_MINUTE % SECONDS_PER_MINUTE;
-    if (hours > 0) {
-        string_builder_append_unsigned(&builder, hours);
-        string_builder_append_char(&builder, ':');
-        string_builder_append_char(&builder, (char)('0' + minutes / 10));
-        string_builder_append_char(&builder, (char)('0' + minutes % 10));
-    } else {
-        string_builder_append_unsigned(&builder, minutes);
-    }
-    string_builder_append_char(&builder, ':');
-    string_builder_append_char(&builder, (char)('0' + seconds % SECONDS_PER_MINUTE / 10));
-    string_builder_append_char(&builder, (char)('0' + seconds % 10));
+    usb_screen_format_one(text, STR_EQ_GAIN, number);
 }
 
 static StringId jack_text(uint8_t jack)
@@ -156,60 +118,6 @@ static StringId jack_text(uint8_t jack)
         return STR_JACK_44;
     }
     return jack == HAL_AUDIO_JACK_SINGLE_ENDED ? STR_JACK_35 : STR_ABOUT_NONE;
-}
-
-static void fill_cells(const UsbPainter *painter, DacCell *cells)
-{
-    const UsbSceneDac *dac = &painter->scene->dac;
-    bool high_speed = painter->scene->high_speed;
-    char number[USB_SCREEN_NUMBER_CAPACITY];
-    usb_screen_service(painter->scene);
-    cells[0].name = STR_VOLUME;
-    number_text(cells[0].value, dac->volume);
-    usb_screen_service(painter->scene);
-    cells[1].name = STR_USB_DAC_HOST;
-    host_volume_text(cells[1].value, dac);
-    usb_screen_service(painter->scene);
-    cells[2].name = STR_OUTPUT;
-    format_one(cells[2].value, jack_text(dac->jack), "");
-    usb_screen_service(painter->scene);
-    cells[3].name = STR_USB_DAC_BUFFER;
-    number_text(number, dac->buffer_ms);
-    format_one(cells[3].value, STR_USB_DAC_MS, number);
-    usb_screen_service(painter->scene);
-    cells[4].name = STR_USB_DAC_CLOCK;
-    signed_text(number, dac->drift_ppm);
-    format_one(cells[4].value, STR_USB_DAC_PPM, number);
-    usb_screen_service(painter->scene);
-    cells[5].name = STR_USB_DAC_UNDERRUNS;
-    number_text(cells[5].value, dac->underruns);
-    usb_screen_service(painter->scene);
-    cells[6].name = STR_USB_DAC_TIME;
-    time_text(cells[6].value, dac->seconds);
-    usb_screen_service(painter->scene);
-    cells[7].name = STR_USB;
-    format_one(cells[7].value, high_speed ? STR_USB_HIGH_SPEED : STR_USB_FULL_SPEED, "");
-}
-
-static int grid_columns(const UsbPainter *painter)
-{
-    return theme_is_portrait(painter->theme) ? 1 : GRID_COLUMNS;
-}
-
-static void draw_cells(const UsbPainter *painter, Rect area, const DacCell *cells, int count)
-{
-    int columns = grid_columns(painter);
-    int gap = painter->theme->metrics.padding;
-    int line = font_line_height(painter->theme->fonts.small);
-    int width = (area.width - (columns - 1) * gap) / columns;
-    for (int index = 0; index < count; index++) {
-        Rect cell = {area.x + index % columns * (width + gap), area.y + index / columns * line,
-                     width, line};
-        if (cell.y + line > area.y + area.height) {
-            return;
-        }
-        usb_screen_row(painter, cell, i18n_text(cells[index].name), cells[index].value);
-    }
 }
 
 static StringId dac_state_text(const UsbScene *scene)
@@ -227,18 +135,111 @@ static StringId dac_state_text(const UsbScene *scene)
     return STR_USB_DAC_PICK;
 }
 
-static void draw_format(const UsbPainter *painter, Rect row)
+static int draw_badge(const UsbPainter *painter, Rect area)
 {
     const Theme *theme = painter->theme;
+    const ThemeColors *colors = &theme->colors;
     char text[USB_SCREEN_TEXT_CAPACITY];
-    if (painter->scene->dac.bits == 0) {
+    rate_text(text, &painter->scene->dac);
+    const Font *font = theme->fonts.title;
+    int inset = theme->metrics.padding / 2;
+    if (text_width(font, text) + 2 * inset + 4 > area.width) {
+        font = theme->fonts.small;
+    }
+    int width = text_width(font, text) + 2 * inset;
+    Rect frame = {area.x, area.y, width < area.width ? width : area.width,
+                  font_line_height(font) + inset};
+    if (!usb_screen_touches(painter, frame)) {
+        return frame.y + frame.height;
+    }
+    canvas_fill_rect(painter->canvas, frame, colors->accent);
+    Rect glow = {frame.x + 1, frame.y + 1, frame.width - 2, frame.height - 2};
+    canvas_fill_rect(painter->canvas, glow, usb_screen_tint(colors->accent, colors->backdrop_top));
+    Rect inside = {glow.x + 1, glow.y + 1, glow.width - 2, glow.height - 2};
+    canvas_fill_rect(painter->canvas, inside, colors->backdrop_top);
+    Rect words = {inside.x + inset - 2, inside.y, inside.width - 2 * inset + 4, inside.height};
+    usb_screen_text(painter, label_centered_area(font, words, text),
+                    (TextStyle){font, usb_screen_tint(colors->accent, colors->text)}, text);
+    return frame.y + frame.height;
+}
+
+static void draw_plug(const UsbPainter *painter, Rect box)
+{
+    Color ink = painter->theme->colors.text_secondary;
+    int middle = box.x + box.width / 2;
+    int body = box.height / 2;
+    canvas_fill_rect(painter->canvas, (Rect){middle - 3, box.y + box.height - body, 7, body}, ink);
+    canvas_fill_rect(painter->canvas, (Rect){middle - 1, box.y + 2, 3, box.height - body - 2}, ink);
+    canvas_fill_rect(painter->canvas, (Rect){middle - 1, box.y + box.height - body - 3, 3, 1},
+                     painter->theme->colors.backdrop_top);
+}
+
+static void draw_output_row(const UsbPainter *painter, Rect row)
+{
+    const Theme *theme = painter->theme;
+    char host[USB_SCREEN_TEXT_CAPACITY];
+    host_volume_text(host, &painter->scene->dac);
+    int icon = row.height * 3 / 4;
+    draw_plug(painter, (Rect){row.x, row.y + (row.height - icon) / 2, icon, icon});
+    int gap = theme->metrics.padding / 2;
+    Rect rest = {row.x + icon + gap, row.y, row.width - icon - gap, row.height};
+    const char *jack = i18n_text(jack_text(painter->scene->dac.jack));
+    int jack_width = text_width(theme->fonts.small, jack);
+    usb_screen_text(painter, (Rect){rest.x, rest.y, jack_width, rest.height},
+                    (TextStyle){theme->fonts.small, theme->colors.text}, jack);
+    rest.x += jack_width + theme->metrics.padding;
+    rest.width -= jack_width + theme->metrics.padding;
+    usb_screen_row(painter, rest, i18n_text(STR_USB_DAC_HOST), host);
+}
+
+static void draw_breath(const UsbPainter *painter, Rect row)
+{
+    const Theme *theme = painter->theme;
+    const UsbSceneDac *dac = &painter->scene->dac;
+    char value[USB_SCREEN_TEXT_CAPACITY];
+    char number[USB_SCREEN_NUMBER_CAPACITY];
+    usb_screen_number_text(number, dac->buffer_ms);
+    usb_screen_format_one(value, STR_USB_DAC_MS, number);
+    const Font *font = theme->fonts.small;
+    int name = text_width(font, i18n_text(STR_USB_DAC_BUFFER));
+    int note = text_width(font, value);
+    int gap = theme->metrics.padding / 2;
+    usb_screen_row(painter, row, i18n_text(STR_USB_DAC_BUFFER), value);
+    Rect bar = {row.x + name + gap, row.y + row.height / 2 - BAR_HALF, 0, 2 * BAR_HALF};
+    bar.width = row.x + row.width - note - gap - bar.x;
+    if (bar.width <= 0) {
         return;
     }
-    rate_text(text, &painter->scene->dac);
-    usb_screen_text(
-        painter, row,
-        (TextStyle){theme->fonts.small, usb_screen_tint(theme->colors.accent, theme->colors.text)},
-        text);
+    canvas_fill_rect(
+        painter->canvas, bar,
+        color_between(theme->colors.backdrop_top, theme->colors.text_tertiary, 1, DIM_STEPS));
+    uint32_t full = 2u * (dac->buffer_average_ms > 0 ? dac->buffer_average_ms : 1u);
+    uint32_t level = dac->buffer_ms < full ? dac->buffer_ms : full;
+    bar.width = (int)(level * (uint32_t)bar.width / full);
+    bool live = painter->scene->state == USB_SCENE_DAC_PLAYING;
+    canvas_fill_rect(painter->canvas, bar,
+                     live ? theme->colors.success : theme->colors.text_tertiary);
+}
+
+static void draw_rows(const UsbPainter *painter, Rect lines)
+{
+    int line = font_line_height(painter->theme->fonts.small);
+    int bottom = lines.y + lines.height;
+    Rect row = {lines.x, lines.y, lines.width, line};
+    if (row.y + line <= bottom && usb_screen_touches(painter, row)) {
+        draw_output_row(painter, row);
+    }
+    row.y += line;
+    if (row.y + line <= bottom && usb_screen_touches(painter, row)) {
+        char volume[USB_SCREEN_NUMBER_CAPACITY];
+        usb_screen_number_text(volume, painter->scene->dac.volume);
+        usb_screen_row(painter, row, i18n_text(STR_VOLUME), volume);
+    }
+    row.y += line;
+    if (row.y + line <= bottom && painter->scene->dac.bits != 0 &&
+        usb_screen_touches(painter, row)) {
+        draw_breath(painter, row);
+    }
 }
 
 static void draw_menu(const UsbPainter *painter)
@@ -259,6 +260,10 @@ void usb_screen_draw_dac(const UsbPainter *painter)
         draw_menu(painter);
         return;
     }
+    if (painter->details) {
+        usb_screen_draw_stats(painter);
+        return;
+    }
     if (usb_screen_touches(painter, painter->layout.meter)) {
         draw_meter(painter);
     }
@@ -269,15 +274,14 @@ void usb_screen_draw_dac(const UsbPainter *painter)
     const char *state = i18n_text(dac_state_text(painter->scene));
     char named[USB_SCREEN_TEXT_CAPACITY];
     if (painter->scene->state == USB_SCENE_DAC_CHOOSE) {
-        format_one(named, STR_USB_DAC_PICK, FIRMWARE_SHORT_NAME);
+        usb_screen_format_one(named, STR_USB_DAC_PICK, FIRMWARE_SHORT_NAME);
         state = named;
     }
     Rect lines = usb_screen_lines_below(painter, usb_screen_draw_state(painter, state));
-    int line = font_line_height(painter->theme->fonts.small);
-    draw_format(painter, (Rect){lines.x, lines.y, lines.width, line});
-    lines.y += line;
-    lines.height -= line;
-    DacCell cells[8];
-    fill_cells(painter, cells);
-    draw_cells(painter, lines, cells, (int)(sizeof cells / sizeof cells[0]));
+    if (painter->scene->dac.bits != 0) {
+        int below = draw_badge(painter, lines);
+        lines = usb_screen_lines_below(painter, below);
+    }
+    usb_screen_service(painter->scene);
+    draw_rows(painter, lines);
 }

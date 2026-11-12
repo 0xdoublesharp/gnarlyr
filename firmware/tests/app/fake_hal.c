@@ -59,6 +59,7 @@ typedef struct FakeAudio {
     uint8_t dac_volume_at_gain;
     HalAudioOutput output;
     HalAudioEqualizer equalizer;
+    HalAudioEffects effects;
     HeadphoneAudio headphones;
     int refused_plays;
     HalAudioJack jack;
@@ -98,6 +99,8 @@ typedef struct LargeStore {
 static LargeStore large_stores[2];
 
 typedef struct FakeHal {
+    AudioVisualBuffer visual_buffer;
+    int visual_reads;
     uint8_t battery_care_mode;
     uint8_t battery_care_saved;
     const char *version;
@@ -139,6 +142,7 @@ typedef struct FakeHal {
     int listing_borrows;
     int keep_alive_count;
     uint32_t idle_us;
+    HalCore1Load core1_load;
     int audio_stats_resets;
     int usb_reconnects;
     HalProbe probe_answer;
@@ -863,6 +867,16 @@ void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer)
     fake.audio.equalizer = *equalizer;
 }
 
+void hal_audio_set_effects(HalAudioEffects effects)
+{
+    fake.audio.effects = effects;
+}
+
+HalAudioEffects fake_hal_audio_effects(void)
+{
+    return fake.audio.effects;
+}
+
 HalAudioEqualizer fake_hal_audio_equalizer(void)
 {
     return fake.audio.equalizer;
@@ -1288,6 +1302,16 @@ void fake_hal_set_idle_microseconds(uint32_t idle_us)
     fake.idle_us = idle_us;
 }
 
+HalCore1Load hal_system_core1_load(void)
+{
+    return fake.core1_load;
+}
+
+void fake_hal_set_core1_load(uint32_t elapsed_cycles, uint32_t idle_cycles)
+{
+    fake.core1_load = (HalCore1Load){.elapsed_cycles = elapsed_cycles, .idle_cycles = idle_cycles};
+}
+
 HalProfileState hal_system_profile_state(void)
 {
     return fake.profile_state;
@@ -1530,11 +1554,19 @@ bool hal_language_read(HalLanguagePack pack, uint32_t offset, void *buffer, uint
     return true;
 }
 
+static int theme_next;
+static const char THEME_FOLDER[] = "/" FIRMWARE_DATA_DIRECTORY "/themes";
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     if (path == NULL) {
         dir->handle = -1;
         return false;
+    }
+    if (strcmp(path, THEME_FOLDER) == 0) {
+        dir->handle = 901;
+        theme_next = 0;
+        return true;
     }
     if (strcmp(path, "/EQ") == 0) {
         dir->handle = EQ_LISTING_HANDLE;
@@ -1579,6 +1611,18 @@ int fake_hal_library_writes(void)
 
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
 {
+    if (dir->handle == 901) {
+        while (theme_next < fake.file_count) {
+            const FakeFile *file = &fake.files[theme_next++];
+            size_t prefix = sizeof THEME_FOLDER - 1;
+            if (strncmp(file->path, THEME_FOLDER, prefix) == 0 && file->path[prefix] == '/') {
+                *entry = (HalDirEntry){.size = file->size};
+                snprintf(entry->name, sizeof entry->name, "%s", file->path + prefix + 1);
+                return true;
+            }
+        }
+        return false;
+    }
     if (dir->handle == LANGUAGE_LISTING_HANDLE && language_next < language_file_count) {
         *entry = (HalDirEntry){.directory = false, .hidden = false};
         snprintf(entry->name, sizeof entry->name, "%s", language_names[language_next++]);
@@ -1824,6 +1868,11 @@ const void *hal_system_load_module(uint32_t module)
     return app_linked_module(module);
 }
 
+const void *hal_system_loaded_module(void)
+{
+    return app_linked_module(fake.loaded_module);
+}
+
 const void *hal_system_load_debug_code(void)
 {
     if ((fake.broken_modules & 1u << EXTENSION_MODULE_NUMBER) != 0) {
@@ -2058,6 +2107,22 @@ uint32_t fake_hal_audio_queued_fade_ms(void)
 uint32_t fake_hal_audio_play_fade_ms(void)
 {
     return fake.audio.play_fade_ms;
+}
+
+void fake_hal_set_visual_buffer(AudioVisualBuffer buffer)
+{
+    fake.visual_buffer = buffer;
+}
+
+int fake_hal_visual_reads(void)
+{
+    return fake.visual_reads;
+}
+
+AudioVisualBuffer hal_audio_visual_buffer(void)
+{
+    fake.visual_reads++;
+    return fake.visual_buffer;
 }
 
 bool hal_clock_set_wall(HalWallTime time)

@@ -442,7 +442,7 @@ static Settings saved_settings(void)
 
 static void the_rewind_row_turns_rewinding_off(void)
 {
-    open_settings_row(10, "Rewind on resume");
+    open_settings_row(14, "Rewind on resume");
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
@@ -459,7 +459,7 @@ static void the_rewind_row_turns_rewinding_off(void)
 
 static void the_safe_volume_row_turns_the_cap_off(void)
 {
-    open_settings_row(9, "Safe start volume");
+    open_settings_row(13, "Safe start volume");
     for (int option = 0; option < 3; option++) {
         tap(KEY_VOLUME_DOWN);
     }
@@ -471,7 +471,7 @@ static void the_safe_volume_row_turns_the_cap_off(void)
 
 static void the_safe_volume_row_picks_a_level(void)
 {
-    open_settings_row(9, "Safe start volume");
+    open_settings_row(13, "Safe start volume");
     tap(KEY_VOLUME_UP);
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
@@ -482,7 +482,7 @@ static void the_safe_volume_row_picks_a_level(void)
 
 static void the_speed_row_saves_and_applies_a_faster_speed(void)
 {
-    open_settings_row(11, "Playback speed");
+    open_settings_row(15, "Playback speed");
     for (int option = 0; option < 2; option++) {
         tap(KEY_VOLUME_UP);
     }

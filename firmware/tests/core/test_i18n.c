@@ -23,122 +23,213 @@ static bool attaches_after(uint32_t offset, uint8_t value, bool sealed)
     return i18n_attach(pack, pack_size);
 }
 
-static void a_sound_pack_is_attached_and_gives_its_text(void)
+static StringId first_of(uint32_t segment)
+{
+    for (uint32_t id = 0; id < STRING_COUNT; id++) {
+        if (test_pack_segment_of((StringId)id) == segment) {
+            return (StringId)id;
+        }
+    }
+    return STRING_COUNT;
+}
+
+static StringId last_of(uint32_t segment)
+{
+    StringId last = STRING_COUNT;
+    for (uint32_t id = 0; id < STRING_COUNT; id++) {
+        last = test_pack_segment_of((StringId)id) == segment ? (StringId)id : last;
+    }
+    return last;
+}
+
+static bool bracketed(const char *text)
+{
+    return text[0] == '[' && text[strlen(text) - 1] == ']';
+}
+
+static void a_sound_pack_is_attached_and_gives_its_resident_text(void)
 {
     build_bracketed();
-    CHECK(i18n_attach(pack, pack_size));
+    CHECK(i18n_attach(pack, test_pack_resident_end(pack)));
     CHECK(i18n_attached());
     CHECK(strcmp("[Settings]", i18n_text(STR_SETTINGS)) == 0);
     CHECK(strcmp("[Update not installed]", i18n_text(STR_UPDATE_NOT_INSTALLED)) == 0);
     i18n_detach();
 }
 
-static void the_last_string_of_the_catalogue_is_reachable(void)
+static void a_module_string_reads_its_segment_only_while_that_segment_is_attached(void)
+{
+    build_bracketed();
+    StringId views = first_of(1);
+    StringId settings = first_of(2);
+    CHECK(i18n_attach(pack, pack_size));
+    CHECK(!bracketed(i18n_text(views)));
+    CHECK(test_pack_attach_segment(pack, 1));
+    CHECK_EQUAL(1, i18n_segment_loaded());
+    CHECK(bracketed(i18n_text(views)));
+    CHECK(!bracketed(i18n_text(settings)));
+    CHECK(test_pack_attach_segment(pack, 2));
+    CHECK(bracketed(i18n_text(settings)));
+    CHECK(!bracketed(i18n_text(views)));
+    CHECK(bracketed(i18n_text(STR_SETTINGS)));
+    i18n_detach();
+    CHECK_EQUAL(0, i18n_segment_loaded());
+}
+
+static void the_last_string_of_every_segment_is_reachable(void)
 {
     build_bracketed();
     CHECK(i18n_attach(pack, pack_size));
-    const char *last = i18n_text((StringId)(STRING_COUNT - 1));
-    CHECK_EQUAL('[', last[0]);
-    CHECK_EQUAL(']', last[strlen(last) - 1]);
-    CHECK(last + strlen(last) + 1 == (const char *)pack + pack_size);
+    for (uint32_t segment = 0; segment < STRING_SEGMENT_COUNT; segment++) {
+        I18nSegment row = test_pack_segment(pack, segment);
+        CHECK(segment == 0 || test_pack_attach_segment(pack, segment));
+        const char *last = i18n_text(last_of(segment));
+        CHECK(bracketed(last));
+        CHECK(last + strlen(last) + 1 == (const char *)pack + row.offset + row.size);
+    }
     i18n_detach();
 }
 
-static void a_version_one_pack_can_use_more_than_sixteen_kibibytes(void)
+static void a_version_one_pack_is_refused(void)
 {
     build_bracketed();
-    uint32_t end = 17 * 1024;
-    memset(pack + pack_size - 1, 'X', end - pack_size);
-    pack_size = end;
-    pack[pack_size - 1] = 0;
-    hash_store(pack + TEST_PACK_SIZE_FIELD, pack_size);
+    pack[TEST_PACK_VERSION_FIELD] = 1;
     test_pack_seal(pack, pack_size);
-    CHECK_EQUAL(1, pack[TEST_PACK_VERSION_FIELD]);
-    CHECK(i18n_attach(pack, pack_size));
-    const char *last = i18n_text((StringId)(STRING_COUNT - 1));
-    CHECK(last + strlen(last) + 1 == (const char *)pack + pack_size);
-    i18n_detach();
+    I18nPackInfo info;
+    CHECK(!i18n_pack_info(pack, I18N_INDEX_BYTES, &info));
+    CHECK(!i18n_attach(pack, pack_size));
 }
 
 static void a_pack_names_its_language_and_code(void)
 {
     build_bracketed();
     I18nPackInfo info;
-    CHECK(i18n_pack_info(pack, I18N_HEADER_BYTES, &info));
+    CHECK(i18n_pack_info(pack, I18N_INDEX_BYTES, &info));
     CHECK_EQUAL(pack_size, info.size);
+    CHECK_EQUAL(test_pack_resident_end(pack), info.resident);
     CHECK(strcmp("qps", info.code) == 0);
     CHECK(strcmp("[Pseudo]", info.name) == 0);
     CHECK(i18n_attach(pack, pack_size));
     CHECK(strcmp("qps", i18n_code()) == 0);
-    CHECK(strcmp("[Pseudo]", i18n_text(STR_LANGUAGE_NAME)) == 0);
+    CHECK(strcmp("[Pseudo]", test_pack_text(pack, STR_LANGUAGE_NAME)) == 0);
     i18n_detach();
     CHECK(strcmp("", i18n_code()) == 0);
 }
 
-static void a_header_shorter_than_the_format_is_refused(void)
+static void a_header_shorter_than_the_index_is_refused(void)
 {
     build_bracketed();
     I18nPackInfo info;
-    CHECK(!i18n_pack_info(pack, I18N_HEADER_BYTES - 1, &info));
-    CHECK(!i18n_pack_info(NULL, I18N_HEADER_BYTES, &info));
+    CHECK(!i18n_pack_info(pack, I18N_INDEX_BYTES - 1, &info));
+    CHECK(!i18n_pack_info(NULL, I18N_INDEX_BYTES, &info));
     CHECK(!i18n_attach(NULL, pack_size));
-    CHECK(!i18n_attach(pack, I18N_HEADER_BYTES - 1));
+    CHECK(!i18n_attach(pack, I18N_INDEX_BYTES - 1));
 }
 
-static void another_magic_version_or_count_is_refused(void)
+static void another_magic_version_count_or_segment_count_is_refused(void)
 {
     CHECK(!attaches_after(0, 'E', true));
     CHECK(!attaches_after(TEST_PACK_VERSION_FIELD, I18N_VERSION + 1, true));
     CHECK(!attaches_after(TEST_PACK_COUNT_FIELD, (uint8_t)(STRING_COUNT + 1), true));
+    CHECK(!attaches_after(TEST_PACK_SEGMENTS_FIELD, STRING_SEGMENT_COUNT + 1, true));
     CHECK(attaches_after(TEST_PACK_VERSION_FIELD, I18N_VERSION, true));
     i18n_detach();
 }
 
-static void a_pack_built_for_another_catalogue_is_refused(void)
+static void a_pack_built_for_another_catalogue_or_segmentation_is_refused(void)
 {
     build_bracketed();
     hash_store(pack + TEST_PACK_CATALOGUE_FIELD, STRINGS_HASH ^ 1u);
     test_pack_seal(pack, pack_size);
     CHECK(!i18n_attach(pack, pack_size));
+    CHECK(!attaches_after(TEST_PACK_ROWS_FIELD + 2, 1, true));
+    I18nSegment row;
+    CHECK(attaches_after(TEST_PACK_ROWS_FIELD + I18N_SEGMENT_BYTES + 2, 0, true));
+    CHECK(!i18n_pack_segment(pack, 1, &row));
+    CHECK(i18n_pack_segment(pack, 2, &row));
+    i18n_detach();
 }
 
-static void a_pack_longer_than_its_bytes_is_refused(void)
+static void a_resident_block_longer_than_its_bytes_is_refused(void)
 {
     build_bracketed();
-    CHECK(!i18n_attach(pack, pack_size - 1));
+    CHECK(!i18n_attach(pack, test_pack_resident_end(pack) - 1));
     CHECK(i18n_attach(pack, pack_size + 100));
     i18n_detach();
 }
 
-static void a_pack_too_short_to_hold_any_text_is_refused(void)
+static void a_segment_size_that_cannot_hold_its_strings_is_refused(void)
 {
-    build_bracketed();
-    hash_store(pack + TEST_PACK_SIZE_FIELD, TEST_PACK_TEXT_BASE);
-    test_pack_seal(pack, TEST_PACK_TEXT_BASE);
-    CHECK(!i18n_attach(pack, pack_size));
+    static const uint32_t SIZES[] = {0, 1, 0xFFFFFFFFu, I18N_FILE_CAPACITY * 2u};
+    I18nSegment row;
+    for (uint32_t index = 0; index < sizeof SIZES / sizeof SIZES[0]; index++) {
+        build_bracketed();
+        hash_store(pack + TEST_PACK_ROWS_FIELD + I18N_SEGMENT_BYTES + 8, SIZES[index]);
+        test_pack_seal(pack, pack_size);
+        CHECK(i18n_attach(pack, pack_size));
+        CHECK(!i18n_pack_segment(pack, 1, &row));
+        build_bracketed();
+        hash_store(pack + TEST_PACK_ROWS_FIELD + 8, SIZES[index]);
+        test_pack_seal(pack, pack_size);
+        CHECK(!i18n_attach(pack, pack_size));
+    }
+    i18n_detach();
 }
 
 static void a_changed_byte_fails_the_checksum(void)
 {
-    uint8_t changed = (uint8_t)(pack[TEST_PACK_TEXT_BASE + 3] ^ 0x20u);
-    CHECK(!attaches_after(TEST_PACK_TEXT_BASE + 3, changed, false));
+    build_bracketed();
+    uint32_t text = I18N_INDEX_BYTES + 2 * (uint32_t)first_of(1) + 3;
+    uint8_t changed = (uint8_t)(pack[text] ^ 0x20u);
+    CHECK(!attaches_after(text, changed, false));
     CHECK(!attaches_after(TEST_PACK_NAME_FIELD, 'X', false));
-    CHECK(!attaches_after(I18N_HEADER_BYTES + 4, 9, false));
+    CHECK(!attaches_after(TEST_PACK_ROWS_FIELD + 4, 9, false));
 }
 
-static void an_offset_outside_the_pack_is_refused(void)
+static void a_damaged_module_segment_is_refused_and_its_strings_fall_back(void)
 {
     build_bracketed();
-    uint32_t beyond = pack_size - TEST_PACK_TEXT_BASE;
-    pack[I18N_HEADER_BYTES + 2 * STR_SETTINGS] = (uint8_t)beyond;
-    pack[I18N_HEADER_BYTES + 2 * STR_SETTINGS + 1] = (uint8_t)(beyond >> 8);
+    StringId views = first_of(1);
+    I18nSegment row = test_pack_segment(pack, 1);
+    pack[row.offset + row.size - 2] ^= 0x20u;
+    CHECK(i18n_attach(pack, pack_size));
+    CHECK(test_pack_attach_segment(pack, 2));
+    CHECK(!test_pack_attach_segment(pack, 1));
+    CHECK_EQUAL(0, i18n_segment_loaded());
+    CHECK(!bracketed(i18n_text(views)));
+    CHECK(!bracketed(i18n_text(first_of(2))));
+    CHECK(bracketed(i18n_text(STR_SETTINGS)));
+    i18n_detach();
+}
+
+static void a_module_segment_is_attached_only_under_its_own_number(void)
+{
+    build_bracketed();
+    I18nSegment row = test_pack_segment(pack, 1);
+    CHECK(i18n_attach(pack, pack_size));
+    CHECK(!i18n_attach_segment(0, pack + row.offset, &row));
+    CHECK(!i18n_attach_segment(STRING_SEGMENT_COUNT, pack + row.offset, &row));
+    CHECK(!i18n_attach_segment(2, pack + row.offset, &row));
+    CHECK(i18n_attach_segment(1, pack + row.offset, &row));
+    CHECK_EQUAL(1, i18n_segment_loaded());
+    i18n_detach();
+}
+
+static void an_offset_outside_the_segment_is_refused(void)
+{
+    build_bracketed();
+    I18nSegment row = test_pack_segment(pack, 0);
+    uint32_t beyond = row.size - 2 * (uint32_t)first_of(1);
+    pack[I18N_INDEX_BYTES + 2 * STR_SETTINGS] = (uint8_t)beyond;
+    pack[I18N_INDEX_BYTES + 2 * STR_SETTINGS + 1] = (uint8_t)(beyond >> 8);
     test_pack_seal(pack, pack_size);
     CHECK(!i18n_attach(pack, pack_size));
 }
 
 static void a_last_string_without_its_end_is_refused(void)
 {
-    CHECK(!attaches_after(pack_size - 1, '!', true));
+    build_bracketed();
+    CHECK(!attaches_after(test_pack_resident_end(pack) - 1, '!', true));
 }
 
 static void a_code_or_name_without_its_end_is_refused(void)
@@ -151,9 +242,11 @@ static void a_refused_pack_leaves_nothing_attached(void)
 {
     build_bracketed();
     CHECK(i18n_attach(pack, pack_size));
+    CHECK(test_pack_attach_segment(pack, 1));
     pack[0] = 'X';
     CHECK(!i18n_attach(pack, pack_size));
     CHECK(!i18n_attached());
+    CHECK_EQUAL(0, i18n_segment_loaded());
 }
 
 static void without_a_pack_a_host_build_shows_the_built_in_english(void)
@@ -198,6 +291,7 @@ static void a_translation_may_reorder_its_placeholders(void)
     const char *arguments[] = {"3", "12"};
     pack_size = test_pack_build(pack, (TestPackLanguage){"xx", "Swapped", swap_places});
     CHECK(i18n_attach(pack, pack_size));
+    test_pack_text(pack, STR_CHAPTER_OF);
     CHECK(strcmp("12 in all, now 3", formatted(STR_CHAPTER_OF, arguments, 2)) == 0);
     i18n_detach();
 }
@@ -221,6 +315,7 @@ static void braces_that_are_not_placeholders_stay_as_text(void)
 {
     pack_size = test_pack_build(pack, (TestPackLanguage){"xx", "Braces", odd_braces});
     CHECK(i18n_attach(pack, pack_size));
+    test_pack_text(pack, STR_TIME_LEFT);
     CHECK(strcmp("{x} {12} {0 } { 4:05", formatted(STR_TIME_LEFT, &(const char *){"4:05"}, 1)) ==
           0);
     i18n_detach();
@@ -251,17 +346,20 @@ static void counts_are_written_as_decimal_numbers(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(a_sound_pack_is_attached_and_gives_its_text),
-        TEST_CASE(the_last_string_of_the_catalogue_is_reachable),
-        TEST_CASE(a_version_one_pack_can_use_more_than_sixteen_kibibytes),
+        TEST_CASE(a_sound_pack_is_attached_and_gives_its_resident_text),
+        TEST_CASE(a_module_string_reads_its_segment_only_while_that_segment_is_attached),
+        TEST_CASE(the_last_string_of_every_segment_is_reachable),
+        TEST_CASE(a_version_one_pack_is_refused),
         TEST_CASE(a_pack_names_its_language_and_code),
-        TEST_CASE(a_header_shorter_than_the_format_is_refused),
-        TEST_CASE(another_magic_version_or_count_is_refused),
-        TEST_CASE(a_pack_built_for_another_catalogue_is_refused),
-        TEST_CASE(a_pack_longer_than_its_bytes_is_refused),
-        TEST_CASE(a_pack_too_short_to_hold_any_text_is_refused),
+        TEST_CASE(a_header_shorter_than_the_index_is_refused),
+        TEST_CASE(another_magic_version_count_or_segment_count_is_refused),
+        TEST_CASE(a_pack_built_for_another_catalogue_or_segmentation_is_refused),
+        TEST_CASE(a_resident_block_longer_than_its_bytes_is_refused),
+        TEST_CASE(a_segment_size_that_cannot_hold_its_strings_is_refused),
         TEST_CASE(a_changed_byte_fails_the_checksum),
-        TEST_CASE(an_offset_outside_the_pack_is_refused),
+        TEST_CASE(a_damaged_module_segment_is_refused_and_its_strings_fall_back),
+        TEST_CASE(a_module_segment_is_attached_only_under_its_own_number),
+        TEST_CASE(an_offset_outside_the_segment_is_refused),
         TEST_CASE(a_last_string_without_its_end_is_refused),
         TEST_CASE(a_code_or_name_without_its_end_is_refused),
         TEST_CASE(a_refused_pack_leaves_nothing_attached),

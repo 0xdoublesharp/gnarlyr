@@ -6,13 +6,14 @@
 #include "headphone_format.h"
 
 enum {
-    VERSION = 1,
+    VERSION = 2,
     HEADER_BYTES = 16,
     RECORD_BYTES = 32,
     CHECKSUM_FIELD = HEADPHONE_PROFILES_FILE_SIZE - 4,
     TRIM_FIELD = HEADPHONE_PROFILE_NAME_BYTES,
     CEILING_FIELD = TRIM_FIELD + 1,
     BALANCE_FIELD = CEILING_FIELD + 1,
+    CROSSFEED_FIELD = BALANCE_FIELD + 1,
     PERCENT = 100
 };
 
@@ -67,6 +68,7 @@ bool headphone_profiles_encode(const HeadphoneProfiles *profiles, uint8_t *bytes
         record[TRIM_FIELD] = profile->trim_half_db;
         record[CEILING_FIELD] = profile->volume_ceiling;
         record[BALANCE_FIELD] = (uint8_t)profile->balance;
+        record[CROSSFEED_FIELD] = profile->crossfeed;
     }
     hash_store(bytes + CHECKSUM_FIELD, hash_update(HASH_START, bytes, CHECKSUM_FIELD));
     return true;

@@ -90,7 +90,8 @@ static bool track_audio(const Player *player, uint16_t track, TrackAudio *audio)
 {
     LibraryTrack record;
     char relative[PLAYER_PATH_CAPACITY];
-    if (!library_read_track(player->library, track, &record) ||
+    if (library_hidden(player->library, track) ||
+        !library_read_track(player->library, track, &record) ||
         !library_read_string(player->library, record.path, relative, sizeof relative)) {
         return false;
     }
@@ -1018,6 +1019,12 @@ void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity)
     }
     case HAL_AUDIO_PROBLEM_FORMAT:
         string_builder_append(&builder, i18n_text(STR_TYPE_UNSUPPORTED));
+        return;
+    case HAL_AUDIO_PROBLEM_WMA:
+        string_builder_append(&builder, i18n_text(STR_WMA_UNSUPPORTED));
+        return;
+    case HAL_AUDIO_PROBLEM_APE:
+        string_builder_append(&builder, i18n_text(STR_APE_UNSUPPORTED));
         return;
     case HAL_AUDIO_PROBLEM_AAC_ONLY:
         string_builder_append(&builder, i18n_text(STR_M4A_UNSUPPORTED));
