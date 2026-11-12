@@ -16,6 +16,22 @@ FLAG_MASKS = (0xF8, 0xF0, 0xC8, 0xC0)
 USB_ANSWER_BITS = 0x30
 DIRECTORY_LIMIT = 256
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+F_VERSION = 16
+F_MARKER_FIELD = 53
+F_FIELD = 58
+F_SIZE = 16
+F_CHECKSUM_FIELD = 74
+F_FILE_SIZE = 78
+F_LAYOUT = (
+    "bytes[53]=16;hash_store(bytes+EXTENSION_CHECKSUM_FIELD,checksum_of(bytes,EXTENSION_CHECKSUM_FIELD));",
+    "bytes[58]=(uint8_t)(settings->status_bar_compact|settings->standby_enabled<<1|"
+    "settings->standby_power_off_option<<2);bytes[59]=settings->long_press_action&7u;"
+    "hash_store(bytes+74,hash_update(HASH_START,bytes+58,16));",
+    "extension[15]==(bytes[VERSION_FIELD]>=16?16:0);",
+    "bytes[VERSION_FIELD]>=16&&length>=SETTINGS_FILE_SIZE&&"
+    "hash_load(bytes+74)==hash_update(HASH_START,bytes+58,16)&&"
+    "(bytes[58]&0xF0u)==0&&(bytes[58]>>2)<3&&(bytes[59]&0xF8u)==0",
+)
 
 
 @lru_cache(maxsize=1)
@@ -69,7 +85,7 @@ class Snapshot:
                 raise ValueError("the installed firmware identity differs from this tool")
             source = self.show("firmware/src/settings/settings.c")
             self.settings_version = constant(source, "VERSION")
-            if (self.settings_version not in (12, 13, 14, 15) or
+            if (self.settings_version not in (12, 13, 14, 15, F_VERSION) or
                     (constant(source, "LANGUAGE_VERSION"), constant(source, "LANGUAGE_FIELD"),
                      constant(source, "HALF_DB_CHECKSUM_FIELD")) != (12, 19, 38)):
                 raise ValueError("the installed settings layout is unsupported")
@@ -79,6 +95,8 @@ class Snapshot:
                     constant(source, "EXTENSION_VERSION"), constant(source, "EXTENSION_FIELD"),
                     constant(source, "EXTENSION_CHECKSUM_FIELD")) != (15, 38, 54):
                 raise ValueError("the installed settings extension layout is unsupported")
+            if self.settings_version >= F_VERSION:
+                self.check_f_layout(source)
             self.clock_offset_byte = (constant(source, "CLOCK_OFFSET_BYTE")
                                       if re.search(r"\bCLOCK_OFFSET_BYTE\s*=", source) else None)
             if self.clock_offset_byte not in (None, 11):
@@ -103,6 +121,14 @@ class Snapshot:
                           "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
+
+    def check_f_layout(self, source):
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        compact = re.sub(r"\s+", "", source)
+        if (constant(header, "SETTINGS_FILE_SIZE") != F_FILE_SIZE or
+                (constant(source, "EXTENSION_SIZE"), constant(source, "CHECKSUM_SIZE")) != (F_SIZE, 4) or
+                not all(fragment in compact for fragment in F_LAYOUT)):
+            raise ValueError("the installed version 16 settings layout is unsupported")
 
     def check_home_layout(self):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -141,13 +167,24 @@ class Snapshot:
             return True
         block = data[38:54]
         offset = int.from_bytes(block[11:13], "little", signed=True) if self.clock_offset_byte else 0
-        reserved = list(block[11:])
+        reserved = list(block[11:15])
         if self.clock_offset_byte:
             reserved[0:2] = [0, 0]
         if self.status_items_supported:
             reserved[2] = 0
+        marker = F_VERSION if data[4] >= F_VERSION else 0
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
-                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved))
+                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and
+                data[F_MARKER_FIELD] == marker and self.f_valid(data))
+
+    def f_valid(self, data):
+        if data[4] < F_VERSION:
+            return True
+        block = data[F_FIELD:F_FIELD + F_SIZE]
+        stored = int.from_bytes(data[F_CHECKSUM_FIELD:F_CHECKSUM_FIELD + 4], "little")
+        return (self.settings_version >= F_VERSION and len(data) >= F_FILE_SIZE and
+                self.format.fnv(block) == stored and block[0] & 0xF0 == 0 and block[0] >> 2 < 3 and
+                block[1] & 0xF8 == 0 and not any(block[2:]))
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
