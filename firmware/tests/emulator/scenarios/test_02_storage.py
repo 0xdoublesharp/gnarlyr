@@ -59,7 +59,7 @@ class EchoImageTest(EchoImageHarness):
         notices = rig.machine.collect_notices()
         rig.press("previous")
         rig.press("play")
-        rig.press_many("previous", 6)
+        rig.press_many("previous", 7)
         rig.press("play")
         rig.press("play")
         self.assertIn(("Eject card", "Safe to remove card"), notices)

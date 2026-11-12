@@ -85,6 +85,7 @@ REPORT_SLOTS = 3
 COLD_REPORT_MS = 10000
 POWER_HOLD_MS = 2600
 DEBUG_FOLDER = IDENTITY.data_directory + "/debug"
+USB_SCREEN_CAPTURES = 6
 RUN_PATH = "/" + DEBUG_FOLDER + "/run.txt"
 TIME_PATH = "/" + IDENTITY.data_directory + "/time.bin"
 NOVEMBER_2026 = 1794482460
