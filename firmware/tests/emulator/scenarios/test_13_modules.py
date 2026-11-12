@@ -35,7 +35,7 @@ class EchoImageTest(EchoImageHarness):
         rig = self.playback_rig()
         self.open_settings(rig.machine)
         rig.press("back")
-        rig.press("previous")
+        rig.press("next")
         _, settings = self.module(rig.machine, "settings")
         self.assertTrue(settings.loaded(rig.machine))
         return rig
