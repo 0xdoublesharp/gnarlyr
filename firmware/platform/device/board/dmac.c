@@ -23,6 +23,22 @@
 #define DMAC_CHANNEL_ENABLE (DMAC_BASE + 0x3A0u)
 #define DMAC_COMP_TYPE (DMAC_BASE + 0x3F8u)
 
+#define PUSH_BASE (DMAC_BASE + 0x58u * 0u)
+#define PUSH_SAR (PUSH_BASE + 0x00u)
+#define PUSH_DAR (PUSH_BASE + 0x08u)
+#define PUSH_LLP (PUSH_BASE + 0x10u)
+#define PUSH_CTL_LOW (PUSH_BASE + 0x18u)
+#define PUSH_CTL_HIGH (PUSH_BASE + 0x1Cu)
+#define PUSH_CFG_LOW (PUSH_BASE + 0x40u)
+#define PUSH_CFG_HIGH (PUSH_BASE + 0x44u)
+#define PUSH_BIT 0x01u
+#define PUSH_WRITE_ENABLE 0x0100u
+#define CFG_LOW_PUSH 0x00000800u
+#define CFG_HIGH_VOP_REQUEST 0x00007007u
+#define CONTROL_LOW_PUSH 0x0210D925u
+#define SCB_SCR 0xE000ED10u
+#define SCR_SEVONPEND 0x10u
+#define DMAC_IRQ_BIT (1u << 6)
 #define DW_AHB_DMAC_TYPE 0x44571110u
 #define CHANNEL_BIT 0x20u
 #define CHANNEL_WRITE_ENABLE 0x2000u
@@ -132,4 +148,40 @@ CORE_SEAM void dmac_resume(void)
     if (suspend_depth == 0) {
         register_write(CHANNEL_CFG_LOW, register_read(CHANNEL_CFG_LOW) & ~CFG_SUSPEND);
     }
+}
+
+void dmac_push_start(uint32_t source, uint32_t destination, uint32_t words)
+{
+    register_write(DMAC_CHANNEL_ENABLE, PUSH_WRITE_ENABLE);
+    register_write(DMAC_CLEAR_TFR, PUSH_BIT);
+    register_write(DMAC_CLEAR_ERR, PUSH_BIT);
+    register_write(DMAC_MASK_TFR, PUSH_WRITE_ENABLE | PUSH_BIT);
+    register_write(DMAC_MASK_BLOCK, PUSH_WRITE_ENABLE);
+    register_write(DMAC_MASK_ERR, PUSH_WRITE_ENABLE);
+    register_write(NVIC_ICPR0, DMAC_IRQ_BIT);
+    register_write(SCB_SCR, register_read(SCB_SCR) | SCR_SEVONPEND);
+    register_write(PUSH_SAR, source);
+    register_write(PUSH_DAR, destination);
+    register_write(PUSH_LLP, 0);
+    register_write(PUSH_CFG_LOW, CFG_LOW_PUSH);
+    register_write(PUSH_CFG_HIGH, CFG_HIGH_VOP_REQUEST);
+    register_write(PUSH_CTL_LOW, CONTROL_LOW_PUSH);
+    register_write(PUSH_CTL_HIGH, words);
+    register_write(DMAC_CONFIG, 1);
+    register_write(DMAC_CHANNEL_ENABLE, PUSH_WRITE_ENABLE | PUSH_BIT);
+}
+
+void dmac_push_wait_event(void)
+{
+    __asm__ volatile("wfe" ::: "memory");
+}
+
+bool dmac_push_busy(void)
+{
+    return (register_read(DMAC_CHANNEL_ENABLE) & PUSH_BIT) != 0;
+}
+
+void dmac_push_cancel(void)
+{
+    register_write(DMAC_CHANNEL_ENABLE, PUSH_WRITE_ENABLE);
 }

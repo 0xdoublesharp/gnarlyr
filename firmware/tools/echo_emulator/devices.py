@@ -375,8 +375,11 @@ class Dmac(RegisterFile):
 
     def push(self):
         item = super().read_word(0x10)
+        blocks = [] if item else [(super().read_word(0x00), super().read_word(0x1C))]
         while item:
             source, _, item, _, words = struct.unpack("<5I", self.machine.read_memory(item, 20))
+            blocks.append((source, words))
+        for source, words in blocks:
             for pixel in struct.unpack("<%dH" % (2 * words), self.machine.read_memory(source, 4 * words)):
                 self.machine.panel.pixel(pixel)
             self.pushed_pixels += 2 * words

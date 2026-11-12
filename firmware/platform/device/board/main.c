@@ -257,6 +257,11 @@ uint32_t hal_system_idle_microseconds(void)
     return idle_us;
 }
 
+void board_note_idle_us(uint32_t microseconds)
+{
+    idle_us += microseconds;
+}
+
 static void sleep_until_interrupt(void)
 {
     uint32_t started_us = hal_clock_microseconds();

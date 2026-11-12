@@ -56,6 +56,33 @@ void vop_data(volatile uint32_t *registers, uint8_t value)
     registers[VOP_DATA] = value;
 }
 
+uint32_t vop_fifo_size(uint32_t width, uint32_t height)
+{
+    bool odd = (width & 1u) != 0;
+    uint32_t line = odd ? height : width;
+    uint32_t lines = odd ? width : height;
+    return (lines - 1u) << VOP_SIZE_HEIGHT_SHIFT | (line - 1u);
+}
+
+bool vop_begin_fifo(volatile uint32_t *registers, uint32_t width, uint32_t height)
+{
+    if (width == 0 || height == 0 || ((width * height) & 1u) != 0) {
+        return false;
+    }
+    registers[VOP_INTERRUPT_CLEAR] = VOP_INTERRUPTS_ALL;
+    registers[VOP_FIFO_LEVELS] = VOP_FIFO_WATERMARKS;
+    registers[VOP_LCD_SIZE] = vop_fifo_size(width, height);
+    vop_wait_idle(registers);
+    registers[VOP_CONTROL] = VOP_CONTROL_FIFO;
+    return true;
+}
+
+void vop_end_fifo(volatile uint32_t *registers)
+{
+    vop_wait_idle(registers);
+    registers[VOP_CONTROL] = VOP_CONTROL_COMMANDS;
+}
+
 void vop_pixels(volatile uint32_t *registers, const uint16_t *pixels, uint32_t count)
 {
     set_control(registers, VOP_CONTROL_PIXELS);
