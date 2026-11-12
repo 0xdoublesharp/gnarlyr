@@ -7,6 +7,7 @@ CORE1_OPUS = 4
 RING_BYTES = {CORE1_FLAC: 0x20000, CORE1_VORBIS: 0x10000, CORE1_OPUS: 40960}
 SAMPLE_BYTES = RING - SAMPLES
 DECODER_OWNED = ((44, 48), (96, 24))
+SLICES_PER_FILL = 32
 
 
 class Core1Bridge:
@@ -18,6 +19,7 @@ class Core1Bridge:
         self.core = None
         self.starts = 0
         self.started = []
+        self.slices = SLICES_PER_FILL
         audio.core1 = self
         self.machine.hook_symbol("core1_source_fill", self.step)
 
@@ -40,7 +42,7 @@ class Core1Bridge:
         machine, core = self.machine, self.core
         core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
         core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
-        for _ in range(32):
+        for _ in range(self.slices):
             core.run_slice()
         machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
         for offset, count in DECODER_OWNED:

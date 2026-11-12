@@ -17,6 +17,7 @@ FULL_RING_WORDS = 7 * 4000
 STRETCH_RING_WORDS = 5 * 4000
 SPEED_SETTLE_MS = 1000
 SPEED_MEASURE_MS = 2000
+CORE1_KEEPUP_SLICES = 128
 
 
 class EchoImageTest(EchoImageHarness):
@@ -37,6 +38,7 @@ class EchoImageTest(EchoImageHarness):
         for percent, step in SPEED_STEPS:
             rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                       volume=self.speed_volume(files, step), module_elfs=self.module_elfs)
+            rig.audio.core1.slices = CORE1_KEEPUP_SLICES
             idle = self.idle_counter(rig.machine)
             rig.open_songs()
             started = rig.play_song(1)

@@ -28,11 +28,11 @@ The simulator runs the same kernel between its decoder and the SDL stream; posit
 
 Native kernel checks cover exact unity, every integer speed from 50 to 300 with its rounded duration, signed extremes, opposite-phase stereo, chunk invariance, short and empty streams, invalid configuration, two-span boundaries, pitch changes, mixed-tone spectral peaks and backpressure; a 224-case steady-tone matrix (8–48 kHz, 20 Hz–1 kHz, 0.5× to 3×) measured at most 0.16 % frequency error. Stage checks compare block push/pull with the frame kernel at every rate and speed and check `pending`. Engine checks compare stretched native and converted output with an independent kernel-plus-interpolator rendering, durations, source-time positions, seeks, queued boundaries, input-rate changes, the reserved ring tail and rates above 48 kHz. The ARM probe drives the stage in the checked module image and compares every output byte with the native kernel.
 
-Emulator scenarios measure core 0 with the image's own pump while playing (one cycle per emulated instruction, no output underruns at any listed speed):
+Emulator scenarios measure core 0 with the image's own pump while playing (one cycle per emulated instruction, no output underruns at any listed speed). FLAC frames are decoded by the core-1 program; the cooperative bridge runs it for 128 slices of 1,000 instructions per fill in these scenarios so that core 1, whose throughput the emulator does not model, never limits the measurement of core 0:
 
 | Source | 1× | 1.5× | 2× | 3× |
 |---|---|---|---|---|
-| 44.1 kHz stereo FLAC | 27.8 % | 32.3 % | 43.8 % | 65.6 % |
-| 16 kHz mono speech, 32 kHz output | 28.2 % | 25.6 % | 35.6 % | 44.5 % |
+| 44.1 kHz stereo FLAC | 20.3 % | 27.3 % | 37.6 % | 56.3 % |
+| 16 kHz mono speech, 32 kHz output | 27.9 % | 26.7 % | 37.0 % | 46.2 % |
 
 Speech at 1× coasts at half clock, which is why its share is higher than at 1.5×. The emulator does not reproduce the player's cycles per instruction; core load, listening quality and both outputs need checks on the player.
