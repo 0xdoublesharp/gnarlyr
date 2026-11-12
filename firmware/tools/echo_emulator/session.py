@@ -143,6 +143,18 @@ class Session:
         self.disk.write(lba, bytes(sector))
         self.before = self.disk.snapshot()
 
+    def damage_language_segment(self, slot, segment):
+        entry = make_image.LANGUAGE_TABLE_OFFSET + 8
+        offset, size = struct.unpack_from("<II", self.image, entry)
+        row = offset + 60 + 16 * segment
+        start, length = struct.unpack_from("<II", self.image, row + 4)
+        position = offset + start + length - 2
+        lba = self.layout[slot] + position // 512
+        sector = bytearray(self.disk.read(lba, 1))
+        sector[position % 512] ^= 0x01
+        self.disk.write(lba, bytes(sector))
+        self.before = self.disk.snapshot()
+
     def language_pack_reads(self, slot):
         first, count = self.language_pack_span(slot)
         return [(lba, sectors) for _, lba, sectors in self.card.reads

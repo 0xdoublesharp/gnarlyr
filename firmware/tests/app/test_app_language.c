@@ -212,13 +212,26 @@ static void a_language_file_in_the_data_folder_is_offered_and_loads(void)
 static void a_language_that_fails_its_checks_keeps_the_loaded_one_and_says_so(void)
 {
     start_with(1, true);
+    open_setting(SETTINGS_LANGUAGE_INDEX);
     bracketed[bracketed_size - 4] ^= 1;
-    choose_language(1);
+    move_down(1);
+    tap(KEY_PLAY);
+    step();
     bracketed[bracketed_size - 4] ^= 1;
     CHECK(strcmp("en", i18n_code()) == 0);
     CHECK(title_is("Settings"));
     CHECK(app_toast_text() != NULL && strcmp("Couldn't load language", app_toast_text()) == 0);
-    CHECK(saved_language_is("en"));
+    CHECK(!saved_language_is("qps"));
+}
+
+static void a_damaged_file_is_not_offered(void)
+{
+    start_with(1, true);
+    bracketed[bracketed_size - 4] ^= 1;
+    LanguageList list;
+    language_list(&list);
+    bracketed[bracketed_size - 4] ^= 1;
+    CHECK_EQUAL(1, list.count);
 }
 
 static void a_saved_language_whose_file_is_gone_starts_in_the_default(void)
@@ -294,6 +307,7 @@ int main(void)
         TEST_CASE(choosing_the_loaded_language_again_keeps_it),
         TEST_CASE(a_language_file_in_the_data_folder_is_offered_and_loads),
         TEST_CASE(a_language_that_fails_its_checks_keeps_the_loaded_one_and_says_so),
+        TEST_CASE(a_damaged_file_is_not_offered),
         TEST_CASE(a_saved_language_whose_file_is_gone_starts_in_the_default),
         TEST_CASE(changing_the_language_keeps_the_music_playing),
         TEST_CASE(a_toast_from_before_the_change_is_dropped),

@@ -2075,8 +2075,7 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
-    stamp = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
-    return stamp_add(stamp, (uint32_t)(uintptr_t)app.toast.text);
+    return stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
 }
 
 static bool view_changed(uint32_t now_ms)

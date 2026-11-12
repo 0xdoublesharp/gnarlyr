@@ -14,7 +14,6 @@ from echo_image_harness import (
     KEY_MENU,
     KEY_NEXT,
     KEY_PLAY,
-    LANGUAGE_RAM,
     MODULE_LOAD_LIMIT_MS,
     MODULE_REUSE_LIMIT_US,
     MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW,
@@ -260,7 +259,8 @@ class EchoImageTest(EchoImageHarness):
                          [(settings_number, True), (views_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_module_code_never_written(watch)
-        self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
+        self.assertTrue(self.loaded_language_pack(session, pack))
+        self.assertTrue(self.loaded_language_segment(session, pack, settings_number))
         self.assertEqual(rig.audio.underruns(audible), [])
         self.assertLess(rig.longest_gap(opened), STEP_GAP_WITH_A_MODULE_MS)
         self.assertEqual(machine.watchdog_resets, 0)
@@ -353,7 +353,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(max(reuses), MODULE_REUSE_LIMIT_US)
         self.assertTrue(playing.loaded(machine))
         self.assert_module_code_never_written(watch)
-        self.assertEqual(machine.read_memory(LANGUAGE_RAM, len(pack)), pack)
+        self.assertTrue(self.loaded_language_pack(session, pack))
+        self.assertTrue(self.loaded_language_segment(session, pack, number))
         self.assertEqual(rig.audio.underruns(audible), [])
         self.assertLess(rig.longest_gap(opened), STEP_GAP_WITH_A_MODULE_MS)
         self.assertEqual(machine.watchdog_resets, 0)

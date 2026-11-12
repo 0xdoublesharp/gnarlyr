@@ -8,11 +8,12 @@
 
 enum {
     TOAST_DURATION_MS = 1500,
-    TOAST_MAX_LINES = 3
+    TOAST_MAX_LINES = 3,
+    TOAST_TEXT_BYTES = 160
 };
 
 typedef struct Toast {
-    const char *text;
+    char text[TOAST_TEXT_BYTES];
     uint32_t until_ms;
     bool visible;
 } Toast;

@@ -2,6 +2,13 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
+## Unreleased: segmented language packs
+
+- Language packs use format version 2: text used by one screen group loads with that group, so a pack needs only its shared text and its largest group in the player's 18 KiB of language memory. English needs about 8.5 KB instead of 12.7 KB, which leaves room for longer translations.
+- Version 1 packs in the data folder are no longer offered and must be rebuilt from their translation files; the browser builder and the USB helper make version 2 packs for this firmware and version 1 packs for older installed builds.
+- A pack file with a damaged part is not offered in Settings → Language. If the card holding the chosen pack is removed, screens opened afterwards show English until the card is back.
+- Checked in host tests, the tool and browser tests and the emulator; not yet seen on a player.
+
 ## Status bar
 
 - Settings → Status bar adds live player volume, repeat mode, queue position and percentage switches, and an optional five-bar battery. Existing files keep the solid battery and clock defaults. Controls stays last in Settings.

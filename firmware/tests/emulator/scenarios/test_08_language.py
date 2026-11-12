@@ -11,21 +11,20 @@ from echo_image_harness import (
     MISSING_TEXT,
     STEPS_AFTER_NOTICE,
     LANGUAGE_RAM,
+    KEY_PLAY,
+    KEY_PREVIOUS,
     lang_pack,
+    make_image,
 )
+
+LANGUAGE_WINDOW = 18432
+SETTINGS_MODULE = 2
+SETTINGS_SEGMENT = 2
 
 
 class EchoImageTest(EchoImageHarness):
-    def test_a_version_one_card_pack_over_sixteen_kibibytes_loads_with_64_glyph_slots(self):
+    def card_volume(self, pack):
         from echo_emulator.fat_volume import Fat32Volume
-        catalogue = lang_pack.read_catalogue()
-        base = lang_pack.build_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais",
-                                                      "STR_BACK_CANCELS": "x"})
-        padding = 16384 + 512 - len(base)
-        pack = lang_pack.build_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais",
-                                                      "STR_BACK_CANCELS": "x" * (1 + padding)})
-        self.assertGreater(len(pack), 16384)
-        self.assertEqual(1, lang_pack.HEADER.unpack_from(pack)[1])
         volume = Fat32Volume()
         folder = IDENTITY.data_directory
         volume.add_directory(folder)
@@ -35,14 +34,48 @@ class EchoImageTest(EchoImageHarness):
         settings[19:24] = b"fr\0\0\0"
         struct.pack_into("<I", settings, 54, lang_pack.fnv(settings[:54]))
         volume.add_file("settings.bin", settings, directory=folder)
-        session = self.session(volume=volume)
-        machine = session.machine
-        self.assertEqual(session.run_to_home_screen(), "condition met")
-        self.assertEqual(pack, machine.read_memory(LANGUAGE_RAM, len(pack)))
+        return volume
+
+    def enter_settings(self, machine):
+        _, settings = self.module(machine, "settings")
+        self.press(machine, KEY_PREVIOUS)
+        self.release_to_first_draw_ms(machine, KEY_PLAY)
+        self.assertTrue(settings.loaded(machine))
+
+    def test_a_card_pack_larger_than_the_window_loads_its_resident_text_and_each_module_segment(self):
+        catalogue = lang_pack.read_catalogue()
+        translations = {**lang_pack.pseudo_translations(catalogue), "STR_LANGUAGE_NAME": "Francais"}
+        pack = lang_pack.build_pack("fr", catalogue, translations, lang_pack.read_segments(catalogue))
+        self.assertGreater(len(pack), LANGUAGE_WINDOW)
+        self.assertLessEqual(lang_pack.pack_info(pack)["memory"], LANGUAGE_WINDOW)
+        session, machine = self.started_session(volume=self.card_volume(pack))
+        self.assertTrue(self.loaded_language_pack(session, pack))
         slots = int.from_bytes(machine.read_memory(machine.symbols["slot_count"], 4), "little")
         self.assertEqual(64, slots)
-        self.open_settings(machine)
-        self.assertEqual(pack, machine.read_memory(LANGUAGE_RAM, len(pack)))
+        self.enter_settings(machine)
+        self.assertTrue(self.loaded_language_pack(session, pack))
+        self.assertTrue(self.loaded_language_segment(session, pack, SETTINGS_MODULE))
+        self.assert_healthy(session)
+
+    def test_a_version_one_card_pack_is_skipped_for_the_language_of_the_image(self):
+        catalogue = lang_pack.read_catalogue()
+        pack = lang_pack.build_legacy_pack("fr", catalogue, {"STR_LANGUAGE_NAME": "Francais"})
+        session = self.session(volume=self.card_volume(pack))
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        self.assertTrue(self.loaded_language_pack(session))
+        self.assertNotEqual(pack[:64], session.machine.read_memory(LANGUAGE_RAM, 64))
+        self.assert_healthy(session)
+
+    def test_a_damaged_module_segment_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
+        session, machine = self.started_session(
+            prepare=lambda session: session.damage_language_segment("slot_1", SETTINGS_SEGMENT))
+        self.assertTrue(self.loaded_language_pack(session))
+        self.assertEqual(session.language_pack_reads("slot_2"), [])
+        self.enter_settings(machine)
+        self.assertTrue(session.language_pack_reads("slot_2"))
+        pack = make_image.language_packs_in(self.image)[0]
+        self.assertTrue(self.loaded_language_segment(session, pack, SETTINGS_MODULE))
+        self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
     def test_the_text_is_read_from_the_language_pack_in_slot_1(self):

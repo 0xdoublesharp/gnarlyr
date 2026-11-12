@@ -120,7 +120,7 @@ class CompanionSettings(VolumeCase):
 
     def test_a_localized_pack_supplies_the_actual_menu_and_option_text(self):
         snapshot = echo_language.Snapshot(echo_debug, self.build)
-        data = snapshot.format.build_pack("fr", snapshot.catalogue,
+        data = snapshot.make_pack("fr",
                                          {"STR_LANGUAGE_NAME": "Français", "STR_TEXT_SIZE": "Taille du texte",
                                           "STR_SIZE_LARGE": "Grand"})
         folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
@@ -242,7 +242,7 @@ class CompanionSettings(VolumeCase):
         translations = {"STR_LANGUAGE_NAME": "Français", "STR_TEXT_SIZE": "Gain"}
         folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
-        (folder / "fr.pack").write_bytes(snapshot.format.build_pack("fr", snapshot.catalogue, translations))
+        (folder / "fr.pack").write_bytes(snapshot.make_pack("fr", translations))
         self.install_fixture(language="fr")
         tool, host = self.tool()
         with self.assertRaises(echo_debug.DebugError) as refused:
@@ -255,7 +255,7 @@ class CompanionSettings(VolumeCase):
         translations = {"STR_LANGUAGE_NAME": "Français", "STR_SIZE_SMALL": "Même", "STR_SIZE_LARGE": "Même"}
         folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
-        (folder / "fr.pack").write_bytes(snapshot.format.build_pack("fr", snapshot.catalogue, translations))
+        (folder / "fr.pack").write_bytes(snapshot.make_pack("fr", translations))
         self.install_fixture(language="fr")
         tool, host = self.tool()
         with self.assertRaises(echo_debug.DebugError) as refused:
@@ -620,7 +620,7 @@ class CompanionSettings(VolumeCase):
         translations = {"STR_LANGUAGE_NAME": "Français", "STR_TEXT_SIZE": "T" * 700}
         folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
-        (folder / "fr.pack").write_bytes(snapshot.format.build_pack("fr", snapshot.catalogue, translations))
+        (folder / "fr.pack").write_bytes(snapshot.make_pack("fr", translations))
         self.install_fixture(language="fr")
         tool, host = self.tool()
         with self.assertRaises(echo_debug.DebugError) as refused:

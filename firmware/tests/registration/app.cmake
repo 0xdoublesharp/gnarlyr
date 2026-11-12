@@ -31,7 +31,7 @@ echo_add_unit_test(NAME test_home_screen
 )
 echo_add_unit_test(NAME test_screen_modules
     SOURCES app/test_screen_modules.c app/fake_hal.c
-    LIBRARIES echo_app echo_library_fixtures
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
