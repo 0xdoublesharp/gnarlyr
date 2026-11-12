@@ -50,6 +50,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
     src/codec/ogg_packet.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
+    src/app/standby.c
     src/app/modules/extension_module.c
     src/app/menu_hold.c
     src/app/headphone_store.c

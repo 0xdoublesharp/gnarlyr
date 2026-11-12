@@ -267,9 +267,41 @@ static void maximum_sleep_timer_does_not_expire_immediately(void)
     CHECK(power_policy_update(&policy, START_MS + UINT32_C(0x7fffffff)));
 }
 
+static void standby_ignores_media_keys_and_only_power_wakes(void)
+{
+    PowerPolicy policy = fresh_policy();
+    policy.standby_enabled = true;
+    policy.standby_duration_ms = 7200000;
+    send(&policy, KEY_POWER, KEY_GESTURE_PRESS, START_MS);
+    CHECK(policy.standby_active);
+    PowerKeyOutcome media = send(&policy, KEY_PLAY, KEY_GESTURE_PRESS, START_MS + 100);
+    CHECK(media.consumed);
+    CHECK(!media.background);
+    CHECK(policy.standby_active);
+    send(&policy, KEY_POWER, KEY_GESTURE_PRESS, START_MS + 200);
+    CHECK(!policy.standby_active);
+    CHECK(policy.display_on);
+}
+
+static void standby_auto_off_is_bounded_and_wrap_safe(void)
+{
+    PowerPolicy policy = fresh_policy();
+    policy.standby_enabled = true;
+    policy.standby_duration_ms = 1800000;
+    uint32_t start = UINT32_MAX - 100;
+    power_policy_set_auto_off(&policy, 50, start);
+    CHECK(!power_policy_update(&policy, start + 50));
+    CHECK(policy.standby_active);
+    power_policy_stay_awake(&policy, start + 500);
+    CHECK(!power_policy_update(&policy, start + 1800049));
+    CHECK(power_policy_update(&policy, start + 1800050));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(standby_ignores_media_keys_and_only_power_wakes),
+        TEST_CASE(standby_auto_off_is_bounded_and_wrap_safe),
         TEST_CASE(the_display_starts_on_and_unlocked),
         TEST_CASE(the_display_turns_off_after_the_timeout),
         TEST_CASE(activity_restarts_the_timeout),

@@ -1261,11 +1261,31 @@ static void bluetooth_timeline_is_reported_in_milliseconds(void)
     CHECK(strstr(text, "bluetooth.first_audio_ms: 1906\n") != NULL);
 }
 
+static void standby_reports_the_drain_window_and_wake_latency(void)
+{
+    DebugReportInput input = plain_input();
+    input.standby = (Standby){.entries = 3,
+                              .wakes = 2,
+                              .entry_ms = 1000,
+                              .wake_ms = 3601000,
+                              .entry_mv = 4000,
+                              .wake_mv = 3990,
+                              .latency_ms = 125};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "standby.entries: 3\n") != NULL);
+    CHECK(strstr(text, "standby.wakes: 2\n") != NULL);
+    CHECK(strstr(text, "standby.wake_latency_ms: 125\n") != NULL);
+    CHECK(strstr(text, "standby.entry_mv: 4000\n") != NULL);
+    CHECK(strstr(text, "standby.wake_mv: 3990\n") != NULL);
+    CHECK(strstr(text, "standby.wake_ms: 3601000\n") != NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(bluetooth_timeline_is_reported_in_milliseconds),
         TEST_CASE(dac_diagnostics_report_cached_reads_and_sequence_durations),
+        TEST_CASE(standby_reports_the_drain_window_and_wake_latency),
         TEST_CASE(the_schema_version_is_the_first_line),
         TEST_CASE(missing_boot_markers_are_reported_as_unknown),
         TEST_CASE(boot_markers_keep_zero_and_completed_phases_separate_from_unknown),

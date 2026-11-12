@@ -6,7 +6,7 @@ Public firmware and desktop installers are distributed as assets in [Gnarlyr Git
 
 Every successful CI run uploads `GNARLYR.IMG`, `gnarlyr-source.tar.gz`, `firmware.json`, and `SHA256SUMS` as an Actions artifact. The image is a release-preset build for the full-size ECHO. CI does not write to a player or publish a release.
 
-After the release checks in `AGENTS.md` pass on the player and the owner approves that exact release, tag its commit `vMAJOR.MINOR.PATCH`, matching `firmware/identity.json`. Dispatch **Firmware release** using that tag as the workflow ref, supply the same tag input, and confirm owner approval. The workflow validates the ref and version, runs both CI jobs, and publishes the checked bytes with matching source and hashes.
+After the release checks in `AGENTS.md` pass on the player and the owner approves that exact release, tag its commit `vMAJOR.MINOR.PATCH`, matching `firmware/identity.json`. Dispatch **Firmware release** using that tag as the workflow ref, supply the same tag and the successful CI run ID whose image was tested, and confirm owner approval. The workflow checks the trusted ref, version, and successful CI result, then publishes that run's exact image with matching source and hashes. It does not rebuild the approved image. CI artifacts expire after seven days, so complete device checks and publication within that window.
 
 The first published firmware release makes these URLs available:
 

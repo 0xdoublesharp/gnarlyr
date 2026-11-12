@@ -815,6 +815,11 @@ STR_CHARGE_FULL_MINUTES = Full in ~{0} m
 STR_CHARGE_COMPUTER = Computer
 STR_CHARGE_CHARGER = Charger
 STR_CHARGE_SUMMARY = {0} {1}
+STR_STANDBY_POWER = Power
+STR_STANDBY_ENABLED = Standby when switched off
+STR_STANDBY_TIMEOUT = Power off after
+STR_STANDBY_HOURS_2 = 2 h
+STR_STANDBY_HOURS_8 = 8 h
 
 # Listening effects. Crossfeed blends a little of each channel into the other for headphones;
 # Skip silence and Speech boost act on audiobooks and podcasts.

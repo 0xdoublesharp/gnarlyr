@@ -84,7 +84,7 @@ Prerequisites:
 
 Bug reports, focused fixes, translations, and clearer guides are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, commit conventions, and pull requests. For translation help, include the English string and your proposed wording; preserve placeholders and check text fit on the player.
 
-CI runs portable firmware, host-tool, and emulator checks with Clang on Linux, plus native FAT/exFAT mount/read/write checks on macOS. Documentation-only changes skip expensive builds. Feature workers run focused tests; the integration owner runs one complete suite on the combined candidate. Build outputs, caches, and test captures stay on Scratch.
+CI uses free standard GitHub-hosted runners: portable firmware, host-tool, and emulator checks with Clang on Linux, plus native FAT/exFAT mount/read/write checks on macOS for trusted main/release refs. A fast preflight checks tools and generated files, then six Linux shards cover the full test registry with their CTest fixtures. Pull requests run the Linux checks. Documentation-only changes skip expensive builds. Feature workers run focused tests; the integration owner runs one complete suite on the combined candidate. Build outputs, caches, and test captures stay on Scratch.
 
 Report vulnerabilities with [private security reporting](https://github.com/0xdoublesharp/gnarlyr/security/advisories/new). Community expectations are in the [code of conduct](CODE_OF_CONDUCT.md).
 
