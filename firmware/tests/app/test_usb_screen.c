@@ -287,7 +287,10 @@ static void layout_holds_together(const Theme *theme, AppUsbStatus status)
 
 static void check_texts(const Variant *variant, AppUsbStatus status)
 {
-    CHECK(saw(charge_screen_usb_title(variant->status.view)));
+    bool connected =
+        variant->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(&variant->scene);
+    CHECK(saw(connected ? i18n_text(STR_USB_STATE_CONNECTED)
+                        : charge_screen_usb_title(variant->status.view)));
     CHECK(saw_start(status.detail));
     bool overview = variant->scene.page == USB_SCENE_OVERVIEW;
     bool storage = variant->status.view == APP_USB_STORAGE;
@@ -899,16 +902,20 @@ static void the_header_tags_the_link_speed_and_a_fallback(void)
             speed_shot(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene,
                        orientation * 10 + kind);
             CHECK(saw(TAGS[kind]));
+            CHECK(saw(i18n_text(STR_USB_STATE_CONNECTED)));
+            CHECK(!saw(charge_screen_usb_title(APP_USB_STORAGE)));
             scene = dac_scene(USB_SCENE_DAC_PLAYING);
             scene.high_speed = kind == 0;
             scene.fell_back = kind == 2;
             AppUsbStatus dac = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
             speed_shot(&theme, dac, &scene, orientation * 10 + kind + 5);
             CHECK(saw(TAGS[kind]));
+            CHECK(saw(charge_screen_usb_title(APP_USB_DAC)));
         }
         UsbScene waiting = storage_scene(USB_SCENE_WAITING);
         speed_shot(&theme, storage_status(STR_USB_KEEP_HOLDING), &waiting, orientation * 10 + 9);
         CHECK(!saw("HS"));
+        CHECK(saw(charge_screen_usb_title(APP_USB_STORAGE)));
     }
 }
 
