@@ -712,7 +712,7 @@ static void draw_shares(Pane pane, const uint64_t *parts, const StringId *labels
 
 static void draw_sound_card(Pane pane)
 {
-    static const StringId OUTPUTS[SHARES] = {STR_RECAP_WIRED, STR_BLUETOOTH, STR_USB_DAC_TITLE};
+    static const StringId OUTPUTS[SHARES] = {STR_RECAP_WIRED, STR_BLUETOOTH, STR_PLUG_DAC_SHORT};
     static const StringId FORMATS[SHARES] = {STR_RECAP_LOSSY, STR_RECAP_LOSSLESS, STR_RECAP_HIRES};
     const ListeningRecap *found = recap();
     uint64_t outputs[SHARES] = {found->output_ms[LISTENING_OUTPUT_SINGLE_ENDED] +

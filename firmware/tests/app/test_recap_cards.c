@@ -373,7 +373,7 @@ static void check_card(int card)
         CHECK(saw_whole(STR_RECAP_STREAK) && saw_whole(STR_RECAP_NEW_ARTISTS));
     } else if (card == 6) {
         CHECK(saw_whole(STR_RECAP_WIRED) && saw_whole(STR_BLUETOOTH));
-        CHECK(saw_whole(STR_USB_DAC_TITLE) && saw_whole(STR_RECAP_HIRES));
+        CHECK(saw_whole(STR_PLUG_DAC_SHORT) && saw_whole(STR_RECAP_HIRES));
     } else if (card == FULL_DECK - 1) {
         CHECK(saw_whole(STR_RECAP_TOP_ARTIST) && saw_whole(STR_RECAP_TOP_SONG));
     }

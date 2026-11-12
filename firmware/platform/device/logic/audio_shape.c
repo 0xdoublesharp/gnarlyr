@@ -1,14 +1,8 @@
-#include "device/audio_engine.h"
+#include "device/audio_engine_stage.h"
 
 enum {
-    MILLISECONDS_PER_SECOND = 1000,
     SLEEP_FADE_MS = 60000
 };
-
-static uint32_t frame_limit(uint32_t ms, uint32_t rate)
-{
-    return (uint32_t)((uint64_t)ms * rate / MILLISECONDS_PER_SECOND);
-}
 
 void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms)
 {
@@ -16,9 +10,9 @@ void audio_engine_set_sleep_remaining(AudioEngine *engine, uint32_t remaining_ms
         engine->sleep_fade_ms = remaining_ms != 0 ? remaining_ms : 1;
     }
     engine->sleep_fading = remaining_ms <= SLEEP_FADE_MS;
-    engine->sleep_end_at =
-        engine->consumed +
-        frame_limit(remaining_ms <= SLEEP_FADE_MS ? remaining_ms : 0, engine->output_rate);
+    engine->sleep_end_at = engine->consumed + audio_engine_frame_limit(
+                                                  remaining_ms <= SLEEP_FADE_MS ? remaining_ms : 0,
+                                                  engine->output_rate);
 }
 
 uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear)
@@ -43,7 +37,7 @@ uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear)
         engine->has_next = false;
     }
     uint32_t ms =
-        (uint32_t)((uint64_t)sample * MILLISECONDS_PER_SECOND / status.track.stream.sample_rate);
+        (uint32_t)((uint64_t)sample * AUDIO_ENGINE_MILLISECONDS_PER_SECOND / status.track.stream.sample_rate);
     if (!audio_engine_seek(engine, ms)) {
         engine->repeat_state = 0;
         return 0;

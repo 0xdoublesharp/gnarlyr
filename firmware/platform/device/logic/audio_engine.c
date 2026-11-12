@@ -194,7 +194,7 @@ static CORE_COLD void push_segment(AudioEngine *engine, const char *path, uint32
     segment->token = token;
     segment->start = start;
     segment->base_ms = base_ms;
-    segment->base_sample = frame_limit(base_ms, engine->decode_rate);
+    segment->base_sample = audio_engine_frame_limit(base_ms, engine->decode_rate);
     segment->end_ms = engine->decode_end_ms;
     segment->rate = audio_resample_rate(engine->decode_rate);
     segment->replay_gain = engine->track_gain;
@@ -309,7 +309,7 @@ CORE_COLD bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms)
                               .end_ms = playing.end_ms,
                               .token = playing.token,
                               .replay_gain = playing.replay_gain};
-    uint32_t sample = frame_limit(position_ms, playing.track.stream.sample_rate);
+    uint32_t sample = audio_engine_frame_limit(position_ms, playing.track.stream.sample_rate);
     if (engine->repeat_state == 2 && (sample < engine->repeat_a || sample >= engine->repeat_b)) {
         sample = engine->repeat_a;
         position_ms = (uint32_t)((uint64_t)sample * 1000 / playing.track.stream.sample_rate);
@@ -526,7 +526,7 @@ static void interpolate_pending(AudioEngine *engine)
             return;
         }
         int32_t stage[WORDS_PER_FRAME * STAGE_FRAMES];
-        audio_convert_pending(engine, (uint32_t *)stage, frames, 0);
+        convert_pending(engine, (uint32_t *)stage, frames, 0);
         consume_input(engine, audio_resample_push(&engine->resample, stage, frames));
         audio_engine_render_resampled(engine);
     }
