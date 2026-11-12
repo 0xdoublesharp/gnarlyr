@@ -18,10 +18,7 @@ enum {
     MONO_ITEMS = 6
 };
 
-typedef struct Write {
-    uint32_t map;
-    uint8_t value;
-} Write;
+#define WRITE(map, value) ((uint32_t)(map) << 8 | (value))
 
 #define PCM_VOLUME_B 0x090001u
 #define PCM_VOLUME_A 0x090002u
@@ -40,18 +37,19 @@ static const uint32_t IDENTITY_MAPS[DAC_IDENTITY_BYTES] = {0x010000, 0x010001, 0
                                                            0x010005};
 static const uint8_t CHANNEL_VALUES[CHIP_COUNT] = {0x07, 0x0F};
 
-static const Write AFTER_STATUS[] = {
-    {0x0F0010, 0xE7}, {0x020000, 0xF6}, {0x01000C, 0x04}, {0x040010, 0x01}, {0x040011, 0x00},
-    {0x040012, 0x08}, {0x040013, 0x00}, {0x040014, 0x1F}, {0x040015, 0x00}, {0x040016, 0x3F},
-    {0x040017, 0x00}, {0x040018, 0x0C}, {0x040019, 0x0A}, {0x050000, 0x00}, {0x050001, 0x00},
+static const uint32_t AFTER_STATUS[] = {
+    WRITE(0x0F0010, 0xE7), WRITE(0x020000, 0xF6), WRITE(0x01000C, 0x04), WRITE(0x040010, 0x01),
+    WRITE(0x040011, 0x00), WRITE(0x040012, 0x08), WRITE(0x040013, 0x00), WRITE(0x040014, 0x1F),
+    WRITE(0x040015, 0x00), WRITE(0x040016, 0x3F), WRITE(0x040017, 0x00), WRITE(0x040018, 0x0C),
+    WRITE(0x040019, 0x0A), WRITE(0x050000, 0x00), WRITE(0x050001, 0x00),
 };
 
-static const Write BEFORE_MONO[] = {
-    {0x090000, 0x02},
-    {PCM_VOLUME_B, DAC_VOLUME_MUTED},
-    {PCM_VOLUME_A, DAC_VOLUME_MUTED},
-    {0x090003, 0xEC},
-    {0x090004, 0x00},
+static const uint32_t BEFORE_MONO[] = {
+    WRITE(0x090000, 0x02),
+    WRITE(PCM_VOLUME_B, DAC_VOLUME_MUTED),
+    WRITE(PCM_VOLUME_A, DAC_VOLUME_MUTED),
+    WRITE(0x090003, 0xEC),
+    WRITE(0x090004, 0x00),
 };
 
 static const uint8_t MONO_OFFSETS[MONO_ITEMS] = {0x09, 0x0A, 0x0B, 0x0C, 0x0F, 0x10};
@@ -62,9 +60,10 @@ static const uint8_t MONO_VALUES[MONO_GROUPS][MONO_ITEMS] = {
     {0x2F, 0xB4, 0x25, 0x80, 0x52, 0xFE},
 };
 
-static const Write AFTER_MONO[] = {
-    {0x080000, 0x20}, {0x0D0000, 0x04}, {0x0D0001, 0x00}, {0x0F0010, 0x87}, {0x0F0011, 0x07},
-    {0x010006, 0x04}, {0x01000D, 0x02}, {0x010010, 0x99}, {0x180000, 0x45}, {0x010010, 0x00},
+static const uint32_t AFTER_MONO[] = {
+    WRITE(0x080000, 0x20), WRITE(0x0D0000, 0x04), WRITE(0x0D0001, 0x00), WRITE(0x0F0010, 0x87),
+    WRITE(0x0F0011, 0x07), WRITE(0x010006, 0x04), WRITE(0x01000D, 0x02), WRITE(0x010010, 0x99),
+    WRITE(0x180000, 0x45), WRITE(0x010010, 0x00),
 };
 
 static void wait_ms(const DacBus *bus, uint32_t milliseconds)
@@ -87,10 +86,10 @@ static bool write_both(const DacBus *bus, uint32_t map, uint8_t value)
     return true;
 }
 
-static bool write_all(const DacBus *bus, const Write *writes, size_t count)
+static bool write_all(const DacBus *bus, const uint32_t *writes, size_t count)
 {
     for (size_t index = 0; index < count; index++) {
-        if (!write_both(bus, writes[index].map, writes[index].value)) {
+        if (!write_both(bus, writes[index] >> 8, (uint8_t)writes[index])) {
             return false;
         }
     }

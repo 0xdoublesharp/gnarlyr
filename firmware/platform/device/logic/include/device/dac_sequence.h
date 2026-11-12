@@ -54,3 +54,12 @@ uint8_t dac_ramp_next(uint8_t current, uint8_t target);
 bool dac_sequence_power_down(const DacBus *bus);
 bool dac_sequence_power_up(const DacBus *bus);
 bool dac_sequence_gain(const DacBus *bus, bool high);
+
+typedef struct DacDiagnostics {
+    uint32_t start_us;
+    uint32_t stop_us;
+    uint32_t gain_us;
+    uint8_t power[2];
+    uint8_t valid;
+    bool up;
+} DacDiagnostics;

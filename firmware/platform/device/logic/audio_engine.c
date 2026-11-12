@@ -199,6 +199,9 @@ static CORE_COLD void push_segment(AudioEngine *engine, const char *path, uint32
 
 static void reset_positions(AudioEngine *engine)
 {
+    for (uint32_t index = 0; index < engine->config.ring_words; index++) {
+        engine->config.ring[index] = 0;
+    }
     engine->produced = 0;
     engine->consumed = 0;
     engine->segment_count = 0;

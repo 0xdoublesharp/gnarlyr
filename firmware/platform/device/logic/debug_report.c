@@ -937,6 +937,12 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);
     put_audio(&writer, &input->audio);
+    put_unsigned(&writer, "dac.up", input->dac.up);
+    put_known(&writer, "dac.power_left", (input->dac.valid & 1) != 0, input->dac.power[0]);
+    put_known(&writer, "dac.power_right", (input->dac.valid & 2) != 0, input->dac.power[1]);
+    put_unsigned(&writer, "dac.start_us", input->dac.start_us);
+    put_unsigned(&writer, "dac.stop_us", input->dac.stop_us);
+    put_unsigned(&writer, "dac.gain_us", input->dac.gain_us);
     put_frames(&writer, &input->frames);
     put_script(&writer, input);
     put_events(&writer, input->log);

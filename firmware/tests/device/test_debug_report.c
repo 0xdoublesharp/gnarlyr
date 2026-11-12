@@ -57,6 +57,24 @@ static bool has_line(const char *line)
     return strstr(text, wanted) != NULL;
 }
 
+static void dac_diagnostics_report_cached_reads_and_sequence_durations(void)
+{
+    DebugReportInput input = plain_input();
+    input.dac = (DacDiagnostics){.up = false,
+                                 .valid = 1,
+                                 .power = {0xB6, 0},
+                                 .start_us = 12345,
+                                 .stop_us = 150123,
+                                 .gain_us = 162123};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("dac.up: 0"));
+    CHECK(has_line("dac.power_left: 182"));
+    CHECK(has_line("dac.power_right: unknown"));
+    CHECK(has_line("dac.start_us: 12345"));
+    CHECK(has_line("dac.stop_us: 150123"));
+    CHECK(has_line("dac.gain_us: 162123"));
+}
+
 static void record(DebugEventKind kind, uint32_t value, const char *label)
 {
     DebugEvent event = debug_event_make(1000 + events.recorded, kind, value, label);
@@ -1192,6 +1210,7 @@ static void a_buffer_too_small_for_the_end_lines_gets_nothing(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(dac_diagnostics_report_cached_reads_and_sequence_durations),
         TEST_CASE(the_schema_version_is_the_first_line),
         TEST_CASE(the_report_says_which_one_it_is_and_what_wrote_it),
         TEST_CASE(a_report_in_the_first_seconds_of_a_cold_start_says_so),

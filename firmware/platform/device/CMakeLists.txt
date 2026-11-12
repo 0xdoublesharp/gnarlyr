@@ -290,6 +290,7 @@ if(NOT ECHO_RELEASE)
         app_debug_frames
         board_battery_gauge
         board_debug_audio
+        dac_path_diagnostics
         board_debug_battery_raw
         board_debug_grf_start
         board_debug_read_grf

@@ -566,7 +566,7 @@ static void seek_to(uint32_t position_ms, bool paused)
     }
 }
 
-void hal_audio_seek(uint32_t position_ms)
+CORE_SEAM void hal_audio_seek(uint32_t position_ms)
 {
     ensure_engine();
     seek_to(position_ms, audio_engine_status(&engine).state == AUDIO_ENGINE_PAUSED);
@@ -623,10 +623,17 @@ void hal_audio_set_gain(HalAudioGain gain)
     dac_path_set_gain(gain == HAL_AUDIO_GAIN_HIGH);
 }
 
-void hal_audio_set_output(HalAudioOutput output)
+CORE_SEAM void hal_audio_set_output(HalAudioOutput output)
 {
+    bool restore = path_up && !dac_path_is_muted();
+    if (restore) {
+        dac_path_set_muted(true);
+    }
     output_setting = output;
     apply_volume();
+    if (restore) {
+        dac_path_set_muted(false);
+    }
 }
 
 void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
@@ -769,6 +776,9 @@ static void poll_jack(void)
     last_jack_poll_ms = now_ms;
     if (board_jack_poll() && output_setting == HAL_AUDIO_OUTPUT_AUTO) {
         apply_volume();
+    }
+    if (!board_jack_settling() && hal_audio_jack() != HAL_AUDIO_JACK_NONE) {
+        dac_path_guard(false);
     }
 }
 

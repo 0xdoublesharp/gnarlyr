@@ -121,6 +121,8 @@ static bool volume_known;
 static bool gain_high;
 static bool dac_up;
 static bool muted;
+static bool guarded;
+static DacDiagnostics diagnostics;
 static uint8_t applied_volume;
 static void (*fade_service)(void);
 
@@ -238,7 +240,14 @@ static bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *valu
     register_write(I2C_MRXCNT, 1);
     bool received = wait_pending(I2C_RX_DONE, I2C_STAGE_RECEIVE);
     *value = (uint8_t)register_read(I2C_RXDATA);
-    return i2c_stop() && received;
+    bool ok = i2c_stop() && received;
+    if (map == 0x020000) {
+        uint32_t chip = address == DAC_LEFT_ADDRESS ? 0 : 1;
+        diagnostics.power[chip] = *value;
+        diagnostics.valid =
+            (uint8_t)((diagnostics.valid & ~(1u << chip)) | ((ok ? 1u : 0u) << chip));
+    }
+    return ok;
 }
 
 static void dac_set_pin(void *context, DacPin pin, bool level)
@@ -430,6 +439,7 @@ static void identify_once(void)
 static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, uint32_t format,
                                       uint32_t interrupts, bool transfer)
 {
+    uint32_t started = hal_clock_microseconds();
     detail = (HalToneDetail){.stage = I2C_STAGE_NONE, .pending = 0};
     cru_gate(GATE_GPIO1, true);
     use_dac_pins_as_gpio();
@@ -452,6 +462,7 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
     if (gain_high) {
         dac_set_gain(&BUS, true);
     }
+    diagnostics.start_us = hal_clock_microseconds() - started;
     dac_up = true;
     muted = true;
     applied_volume = DAC_VOLUME_MUTED;
@@ -460,8 +471,10 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
 
 static void stop_audio_path(void)
 {
+    uint32_t started = hal_clock_microseconds();
     dac_up = false;
     dac_output_off(&BUS);
+    diagnostics.stop_us = hal_clock_microseconds() - started;
     applied_volume = DAC_VOLUME_MUTED;
     stop_i2s();
 }
@@ -534,6 +547,9 @@ void dac_path_set_muted(bool mute)
         dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
         return;
     }
+    if (guarded) {
+        return;
+    }
     uint8_t target = current_volume();
     if (applied_volume == DAC_VOLUME_MUTED && target < DAC_VOLUME_MUTED - FADE_IN_FLOOR) {
         applied_volume = (uint8_t)(target + FADE_IN_FLOOR);
@@ -566,7 +582,10 @@ void dac_path_set_gain(bool high)
     if (dac_up) {
         bool restore = !muted;
         dac_path_set_muted(true);
-        if (dac_sequence_gain(&BUS, high) && restore) {
+        uint32_t started = hal_clock_microseconds();
+        bool changed = dac_sequence_gain(&BUS, high);
+        diagnostics.gain_us = hal_clock_microseconds() - started;
+        if (changed && restore) {
             dac_path_set_muted(false);
         }
     }
@@ -596,4 +615,25 @@ CORE_SEAM void dac_path_stop_transfer(void)
 {
     register_write(I2S_XFER, 0);
     register_write(I2S_DMACR, 0);
+}
+
+CORE_SEAM void dac_path_guard(bool held)
+{
+    if (guarded == held) {
+        return;
+    }
+    guarded = held;
+    if (dac_up && held) {
+        dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
+        applied_volume = DAC_VOLUME_MUTED;
+    } else if (dac_up && !muted) {
+        dac_path_set_muted(false);
+    }
+}
+
+DacDiagnostics dac_path_diagnostics(void)
+{
+    DacDiagnostics result = diagnostics;
+    result.up = dac_up;
+    return result;
 }
