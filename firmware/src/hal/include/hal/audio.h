@@ -11,8 +11,7 @@
 enum {
     HAL_AUDIO_VOLUME_MAX = 60,
     HAL_AUDIO_EQUALIZER_BANDS = 10,
-    HAL_AUDIO_UNITY_PRE_GAIN = 32768,
-    HAL_AUDIO_CROSSFEED_LEVELS = 4
+    HAL_AUDIO_UNITY_PRE_GAIN = 32768
 };
 
 typedef enum HalAudioState {
@@ -157,12 +156,6 @@ typedef struct HalAudioEqualizer {
     ParametricEq parametric;
 } HalAudioEqualizer;
 
-typedef struct HalAudioEffects {
-    uint8_t crossfeed;
-    bool skip_silence;
-    bool speech_boost;
-} HalAudioEffects;
-
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);
 void hal_audio_queue_next(const HalAudioTrack *track);
 void hal_audio_pause(void);
@@ -177,7 +170,6 @@ void hal_audio_set_gain(HalAudioGain gain);
 void hal_audio_set_filter(HalAudioFilter filter);
 void hal_audio_set_output(HalAudioOutput output);
 void hal_audio_set_equalizer(const HalAudioEqualizer *equalizer);
-void hal_audio_set_effects(HalAudioEffects effects);
 HalAudioStatus hal_audio_status(void);
 HalAudioStats hal_audio_stats(void);
 void hal_audio_reset_stats(void);

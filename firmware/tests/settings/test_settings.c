@@ -1251,46 +1251,6 @@ static void power_on_preserves_every_other_bit_in_extension_thirteen(void)
     }
 }
 
-static void the_listening_effects_use_their_extension_bits(void)
-{
-    Settings original = settings_defaults();
-    CHECK(!original.skip_silence);
-    CHECK(!original.speech_boost);
-    CHECK_EQUAL(0, original.crossfeed);
-    for (int choice = 0; choice < 8; choice++) {
-        original.skip_silence = (choice & 1) != 0;
-        original.speech_boost = (choice & 2) != 0;
-        original.crossfeed = (uint8_t)(choice % 4);
-        uint8_t bytes[SETTINGS_FILE_SIZE];
-        settings_encode(&original, bytes);
-        CHECK_EQUAL((choice & 1) << 6 | (choice & 2) << 6, bytes[EXTENSION_FIELD + 13]);
-        CHECK_EQUAL((choice % 4) << 5, bytes[EXTENSION_FIELD + 14]);
-        Settings decoded;
-        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
-        CHECK_EQUAL(original.skip_silence, decoded.skip_silence);
-        CHECK_EQUAL(original.speech_boost, decoded.speech_boost);
-        CHECK_EQUAL(original.crossfeed, decoded.crossfeed);
-    }
-}
-
-static void turning_the_listening_effects_off_clears_their_bits_after_a_reload(void)
-{
-    Settings settings = settings_defaults();
-    settings.skip_silence = true;
-    settings.speech_boost = true;
-    settings.status_items = 0x23;
-    uint8_t bytes[SETTINGS_FILE_SIZE];
-    settings_encode(&settings, bytes);
-    CHECK(settings_decode(bytes, sizeof bytes, &settings));
-    settings.skip_silence = false;
-    settings.speech_boost = false;
-    settings_encode(&settings, bytes);
-    CHECK_EQUAL(0x23, bytes[EXTENSION_FIELD + 13]);
-    CHECK(settings_decode(bytes, sizeof bytes, &settings));
-    CHECK(!settings.skip_silence);
-    CHECK(!settings.speech_boost);
-}
-
 static void playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte(void)
 {
     static const uint16_t PERCENT[SETTINGS_SPEED_COUNT] = {50,  75,  100, 125, 150,
@@ -1684,7 +1644,6 @@ static void all_four_styles_use_only_their_two_allocated_bits(void)
         Settings settings = settings_defaults();
         settings.status_items = 0x95;
         settings.power_on_flags = 0x10;
-        settings.speech_boost = true;
         settings_set_now_playing_style(&settings, (NowPlayingStyle)style);
         uint8_t bytes[SETTINGS_FILE_SIZE];
         settings_encode(&settings, bytes);
@@ -1742,8 +1701,6 @@ int main(void)
         TEST_CASE(the_checksum_covers_the_extension_block),
         TEST_CASE(each_invalid_extension_value_is_rejected_without_mutating_the_settings),
         TEST_CASE(power_on_preserves_every_other_bit_in_extension_thirteen),
-        TEST_CASE(the_listening_effects_use_their_extension_bits),
-        TEST_CASE(turning_the_listening_effects_off_clears_their_bits_after_a_reload),
         TEST_CASE(playback_speed_is_a_signed_step_from_normal_in_the_fourth_extension_byte),
         TEST_CASE(every_item_but_settings_may_be_hidden),
         TEST_CASE(the_old_untouched_home_defaults_adopt_the_new_defaults),

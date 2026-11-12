@@ -129,13 +129,6 @@ echo_add_unit_test(NAME test_dsd_source
 add_executable(dsd_stream_tool device/dsd_stream_tool.c)
 target_link_libraries(dsd_stream_tool PRIVATE echo_device_logic echo_options)
 
-echo_add_unit_test(NAME test_audio_effects
-    SOURCES device/test_audio_effects.c
-    LIBRARIES echo_device_logic
-)
-if(UNIX)
-    target_link_libraries(test_audio_effects PRIVATE m)
-endif()
 echo_add_unit_test(NAME test_ape_track
     SOURCES device/test_ape_track.c
     LIBRARIES echo_device_logic

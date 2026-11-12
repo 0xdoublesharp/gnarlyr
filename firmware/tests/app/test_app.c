@@ -3660,7 +3660,6 @@ static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_res
     settings_store_load(&store);
     store.settings.power_on_flags = 0xA3;
     store.settings.status_items = 0xA3;
-    store.settings.speech_boost = true;
     CHECK(settings_store_save(&store));
     restart_app();
     open_setting(SETTINGS_USB_ANSWER_INDEX + 1);

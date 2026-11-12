@@ -72,9 +72,6 @@ add_library(echo_device_logic STATIC
     asf_track.c
     ape_track.c
     aac_decoder.c
-    audio_boost.c
-    audio_crossfeed.c
-    audio_effects.c
     audio_engine.c
     audio_engine_stage.c
     audio_shape.c
@@ -89,7 +86,6 @@ add_library(echo_device_logic STATIC
     audio_process_entry.c
     audio_effects_entry.c
     audio_source_entry.c
-    audio_skip.c
     audio_ogg_entry.c
     audio_dsd_entry.c
     backlight.c

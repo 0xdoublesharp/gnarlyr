@@ -19,4 +19,4 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
                             Player *player, SettingsStore *settings);
 void headphone_store_choose_for_dac(HeadphoneStore *store, uint8_t chosen, Player *player,
                                     SettingsStore *settings);
-void headphone_store_fill_slots(HeadphoneProfiles *profiles, uint8_t crossfeed);
+void headphone_store_fill_slots(HeadphoneProfiles *profiles);

@@ -51,12 +51,11 @@ void headphone_store_choose_for_dac(HeadphoneStore *store, uint8_t chosen, Playe
     settings_store_save(settings);
 }
 
-void headphone_store_fill_slots(HeadphoneProfiles *profiles, uint8_t crossfeed)
+void headphone_store_fill_slots(HeadphoneProfiles *profiles)
 {
     for (int slot = profiles->count; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
         HeadphoneProfile *profile = &profiles->slots[slot];
         *profile = headphone_profile_defaults();
-        profile->crossfeed = crossfeed;
         StringBuilder name = string_builder_make(profile->name, sizeof profile->name);
         i18n_format_counts(&name, STR_HEADPHONE_SLOT, (uint32_t)slot + 1, 0);
     }

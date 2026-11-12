@@ -1,6 +1,5 @@
 #pragma once
 
-#include "device/audio_effects.h"
 #include "device/audio_fade.h"
 
 #define AUDIO_EFFECTS_BASE 0x03092000u
@@ -12,10 +11,6 @@ typedef struct AudioEffectsEntry {
     uint32_t magic;
     void (*fade_in)(AudioFadeBlock block, AudioFadeRamp *ramp);
     void (*fade_out)(AudioFadeBlock block, AudioFadeRamp *ramp, int64_t remaining);
-    void (*effects_design)(AudioEffects *effects, uint32_t rate);
-    uint32_t (*effects_run)(AudioEffects *effects, const AudioEffectsBlock *block);
-    void (*effects_settle)(AudioEffects *effects, AudioSegment *segments, int count,
-                           uint32_t consumed);
 #ifdef ECHO_DEBUG_LOOP
     const void *debug;
 #endif

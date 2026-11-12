@@ -27,7 +27,6 @@ add_library(echo_app STATIC
     button_settings.c
     home_editor.c
     theme_palette.c
-    listening_effects.c
     listening_store.c
     listening_store_view.c
     listening_clear.c

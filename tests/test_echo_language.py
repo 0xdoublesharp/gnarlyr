@@ -631,9 +631,9 @@ class LanguageCommands(VolumeCase):
                 tool, host = self.live_tool("en", version=15)
                 self.assertIn("languages", tool.language_list())
 
-    def test_version15_settings_with_a_dac_filter_crossfeed_and_style_verify(self):
+    def test_version15_settings_with_a_dac_filter_and_style_verify(self):
         valid = bytes([0x07, 24, 15, 0, 0x10, 0x32, 0x54, 0x76, 0x08]) + bytes(7)
-        for value in (0x01, 0x04, 0x60, 0x80, 0xE3):
+        for value in (0x01, 0x04, 0x80, 0x83):
             extension = bytearray(valid)
             extension[14] = value
             with self.subTest(value=value), self.current_snapshot():
