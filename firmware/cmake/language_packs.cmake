@@ -2,6 +2,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 set(ECHO_LANGUAGE_TOOL ${PROJECT_SOURCE_DIR}/tools/lang_pack.py)
 set(ECHO_LANGUAGE_SOURCES ${PROJECT_SOURCE_DIR}/assets/lang)
+set(ECHO_LANGUAGE_LAYOUT ${PROJECT_SOURCE_DIR}/src/core/include/core/strings.h)
 set(ECHO_TEST_LANGUAGE qps)
 
 function(echo_add_language_pack code output_variable)
@@ -13,8 +14,9 @@ function(echo_add_language_pack code output_variable)
     add_custom_command(
         OUTPUT ${pack}
         COMMAND ${Python3_EXECUTABLE} ${ECHO_LANGUAGE_TOOL}
-            --languages ${ECHO_LANGUAGE_SOURCES} --pack ${code} --output ${pack}
-        DEPENDS ${sources} ${ECHO_LANGUAGE_TOOL}
+            --languages ${ECHO_LANGUAGE_SOURCES} --layout ${ECHO_LANGUAGE_LAYOUT}
+            --pack ${code} --output ${pack}
+        DEPENDS ${sources} ${ECHO_LANGUAGE_TOOL} ${ECHO_LANGUAGE_LAYOUT}
             ${PROJECT_SOURCE_DIR}/assets/fonts/fonts.json
             ${PROJECT_SOURCE_DIR}/assets/fonts/glyph_pack.json
         VERBATIM

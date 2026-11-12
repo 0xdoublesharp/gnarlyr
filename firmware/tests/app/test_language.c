@@ -11,12 +11,15 @@ enum {
     PACKS = 10
 };
 
+static const uint8_t MODULES[STRING_SEGMENT_COUNT] = STRING_SEGMENT_MODULES;
+static const char QPS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/lang/qps.pack";
+
 static uint8_t packs[PACKS][TEST_PACK_CAPACITY];
 static uint32_t sizes[PACKS];
 
 static void very_long(const char *english, char *text, size_t capacity)
 {
-    snprintf(text, capacity, "%s %0200d", english, 0);
+    snprintf(text, capacity, "%s %060d", english, 0);
 }
 
 static const uint8_t *make(int slot, const char *code, const char *name, TestPackText translate)
@@ -50,6 +53,44 @@ static void standard_image(void)
 static bool shows(const char *expected)
 {
     return strcmp(expected, i18n_text(STR_SETTINGS)) == 0;
+}
+
+static StringId first_of(uint32_t segment)
+{
+    for (uint32_t id = 0; id < STRING_COUNT; id++) {
+        if (test_pack_segment_of((StringId)id) == segment) {
+            return (StringId)id;
+        }
+    }
+    return STRING_COUNT;
+}
+
+static const char *module_text(StringId id)
+{
+    language_use_module(MODULES[test_pack_segment_of(id)]);
+    return i18n_text(id);
+}
+
+static bool bracketed(const char *text)
+{
+    return text[0] == '[' && text[strlen(text) - 1] == ']';
+}
+
+static bool english(StringId id)
+{
+    static char kept[TEST_PACK_TEXT_CAPACITY];
+    snprintf(kept, sizeof kept, "%s", i18n_text(id));
+    i18n_detach_segment();
+    bool same = strcmp(kept, i18n_text(id)) == 0;
+    return same;
+}
+
+static void pseudo_from_a_file(void)
+{
+    standard_image();
+    make(2, "qps", "[Pseudo]", test_pack_bracketed);
+    fake_hal_add_language_file("qps.pack", packs[2], sizes[2]);
+    CHECK(language_load("qps"));
 }
 
 static void with_no_language_chosen_the_first_pack_of_the_image_is_loaded(void)
@@ -102,7 +143,7 @@ static void a_file_in_the_data_folder_overrides_a_language_of_the_image(void)
     fake_hal_add_language_file("en.pack", packs[2], sizes[2]);
     CHECK(language_load("en"));
     CHECK(shows("[Settings]"));
-    CHECK(strcmp("English (mine)", i18n_text(STR_LANGUAGE_NAME)) == 0);
+    CHECK(strcmp("English (mine)", module_text(STR_LANGUAGE_NAME)) == 0);
 }
 
 static void a_file_is_only_used_for_the_chosen_language(void)
@@ -118,7 +159,7 @@ static void a_file_with_a_changed_byte_falls_back_to_the_image(void)
 {
     standard_image();
     make(2, "up", "UPPER (mine)", test_pack_bracketed);
-    packs[2][sizes[2] - 5] ^= 1;
+    packs[2][I18N_INDEX_BYTES + 2 * (uint32_t)first_of(1) + 1] ^= 1;
     fake_hal_add_language_file("up.pack", packs[2], sizes[2]);
     CHECK(language_load("up"));
     CHECK(language_is("up") && shows("SETTINGS"));
@@ -154,7 +195,7 @@ static void a_file_cut_short_is_ignored(void)
     CHECK(language_is("en") && shows("Settings"));
     start();
     built_in(0, 0);
-    fake_hal_add_language_file("qps.pack", packs[2], I18N_HEADER_BYTES - 1);
+    fake_hal_add_language_file("qps.pack", packs[2], I18N_INDEX_BYTES - 1);
     CHECK(language_load("qps"));
     CHECK(language_is("en"));
 }
@@ -329,6 +370,27 @@ static void files_that_are_not_packs_of_this_catalogue_are_not_listed(void)
     CHECK_EQUAL(2, list.count);
 }
 
+static void a_file_with_a_damaged_or_oversized_module_segment_is_not_listed_or_chosen(void)
+{
+    LanguageList list;
+    standard_image();
+    make(2, "qps", "[Pseudo]", test_pack_bracketed);
+    make(3, "zz", "Zed", test_pack_bracketed);
+    I18nSegment row = test_pack_segment(packs[2], STRING_SEGMENT_COUNT - 1);
+    packs[2][row.offset + row.size - 2] ^= 0x01;
+    hash_store(packs[3] + TEST_PACK_ROWS_FIELD + I18N_SEGMENT_BYTES + 8, I18N_PACK_CAPACITY);
+    test_pack_seal(packs[3], sizes[3]);
+    fake_hal_add_language_file("qps.pack", packs[2], sizes[2]);
+    fake_hal_add_language_file("zz.pack", packs[3], sizes[3]);
+    language_list(&list);
+    CHECK_EQUAL(2, list.count);
+    CHECK(!language_file_sound("qps"));
+    CHECK(!language_file_sound("zz"));
+    CHECK(language_file_sound("up"));
+    packs[2][row.offset + row.size - 2] ^= 0x01;
+    CHECK(language_file_sound("qps"));
+}
+
 static void the_list_holds_at_most_eight_languages(void)
 {
     static const char *const CODES[] = {"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9"};
@@ -368,6 +430,144 @@ static void with_nothing_to_list_the_list_is_empty(void)
     CHECK_EQUAL(0, list.count);
 }
 
+static void each_module_shows_its_own_segment_of_the_chosen_language(void)
+{
+    pseudo_from_a_file();
+    for (uint32_t segment = 1; segment < STRING_SEGMENT_COUNT; segment++) {
+        CHECK(language_use_module(MODULES[segment]));
+        CHECK_EQUAL(segment, i18n_segment_loaded());
+        CHECK(bracketed(i18n_text(first_of(segment))));
+        CHECK(bracketed(i18n_text(STR_SETTINGS)));
+        uint32_t other = segment == 1 ? 2 : 1;
+        CHECK(!bracketed(i18n_text(first_of(other))));
+    }
+}
+
+static void switching_modules_reloads_the_right_segment_and_staying_reads_nothing(void)
+{
+    standard_image();
+    CHECK(language_load("up"));
+    CHECK(language_use_module(MODULES[1]));
+    int reads = fake_hal_language_read_count();
+    CHECK(!language_use_module(MODULES[1]));
+    CHECK_EQUAL(reads, fake_hal_language_read_count());
+    CHECK(language_use_module(MODULES[2]));
+    CHECK(fake_hal_language_read_count() > reads);
+    CHECK_EQUAL(2, i18n_segment_loaded());
+    CHECK(!language_use_module(MODULES[1]));
+    CHECK_EQUAL(1, i18n_segment_loaded());
+    CHECK(!language_use_module(0));
+    CHECK_EQUAL(1, i18n_segment_loaded());
+}
+
+static void a_module_whose_pack_file_is_gone_shows_english_until_the_file_returns(void)
+{
+    pseudo_from_a_file();
+    CHECK(language_use_module(MODULES[1]));
+    CHECK(bracketed(i18n_text(first_of(1))));
+    fake_hal_fail_file_opens(QPS_PATH);
+    CHECK(language_use_module(MODULES[2]));
+    CHECK_EQUAL(2, i18n_segment_loaded());
+    CHECK(!bracketed(i18n_text(first_of(2))));
+    CHECK(english(first_of(2)));
+    CHECK(bracketed(i18n_text(STR_SETTINGS)));
+    CHECK(language_is("qps"));
+    fake_hal_fail_file_opens(NULL);
+    CHECK(!language_use_module(MODULES[1]));
+    CHECK(bracketed(i18n_text(first_of(1))));
+    CHECK(language_use_module(MODULES[2]));
+    CHECK(bracketed(i18n_text(first_of(2))));
+}
+
+static void a_module_segment_damaged_after_loading_falls_back_to_the_default_pack(void)
+{
+    standard_image();
+    CHECK(language_load("up"));
+    I18nSegment row = test_pack_segment(packs[1], 2);
+    packs[1][row.offset + row.size - 2] ^= 0x01;
+    CHECK(language_use_module(MODULES[2]));
+    CHECK_EQUAL(2, i18n_segment_loaded());
+    CHECK(english(first_of(2)));
+    CHECK(shows("SETTINGS"));
+}
+
+static void with_no_readable_segment_a_module_falls_back_to_built_in_text(void)
+{
+    standard_image();
+    CHECK(language_load("up"));
+    CHECK(language_use_module(MODULES[2]));
+    CHECK(language_use_module(MODULES[1]));
+    for (int slot = 0; slot < 2; slot++) {
+        I18nSegment row = test_pack_segment(packs[slot], 2);
+        packs[slot][row.offset + 1] ^= 0x01;
+    }
+    CHECK(language_use_module(MODULES[2]));
+    CHECK_EQUAL(0, i18n_segment_loaded());
+    CHECK(english(first_of(2)));
+    CHECK(!language_use_module(MODULES[2]));
+}
+
+static void a_file_with_a_damaged_module_segment_shows_that_module_in_english(void)
+{
+    standard_image();
+    make(2, "qps", "[Pseudo]", test_pack_bracketed);
+    I18nSegment row = test_pack_segment(packs[2], STRING_SEGMENT_COUNT - 1);
+    packs[2][row.offset + row.size - 2] ^= 0x01;
+    fake_hal_add_language_file("qps.pack", packs[2], sizes[2]);
+    CHECK(language_load("qps"));
+    CHECK(language_is("qps") && shows("[Settings]"));
+    CHECK(language_use_module(MODULES[1]));
+    CHECK(bracketed(i18n_text(first_of(1))));
+    CHECK(language_use_module(MODULES[STRING_SEGMENT_COUNT - 1]));
+    CHECK_EQUAL(STRING_SEGMENT_COUNT - 1, i18n_segment_loaded());
+    CHECK(english(first_of(STRING_SEGMENT_COUNT - 1)));
+}
+
+static void a_module_segment_too_large_for_the_window_shows_that_module_in_english(void)
+{
+    standard_image();
+    make(2, "qps", "[Pseudo]", test_pack_bracketed);
+    I18nSegment resident = test_pack_segment(packs[2], 0);
+    uint32_t room = I18N_PACK_CAPACITY - (resident.offset + resident.size + 3) / 4 * 4;
+    hash_store(packs[2] + TEST_PACK_ROWS_FIELD + I18N_SEGMENT_BYTES + 8, room + 1);
+    test_pack_seal(packs[2], sizes[2]);
+    fake_hal_add_language_file("qps.pack", packs[2], sizes[2]);
+    CHECK(language_load("qps"));
+    language_use_module(MODULES[1]);
+    CHECK_EQUAL(1, i18n_segment_loaded());
+    CHECK(english(first_of(1)));
+}
+
+static void a_module_number_without_a_segment_reads_nothing(void)
+{
+    standard_image();
+    CHECK(language_load("up"));
+    int reads = fake_hal_language_read_count();
+    CHECK(!language_use_module(0));
+    CHECK(!language_use_module(200));
+    CHECK_EQUAL(reads, fake_hal_language_read_count());
+    CHECK_EQUAL(0, i18n_segment_loaded());
+}
+
+static void while_an_update_waits_for_a_restart_module_text_from_the_image_falls_back(void)
+{
+    standard_image();
+    CHECK(language_load("up"));
+    fake_hal_set_restart_pending(true);
+    language_use_module(MODULES[1]);
+    CHECK_EQUAL(0, i18n_segment_loaded());
+    CHECK(english(first_of(1)));
+    CHECK(shows("SETTINGS"));
+    fake_hal_set_restart_pending(false);
+}
+
+static void without_a_pack_no_module_text_is_read(void)
+{
+    start();
+    CHECK(!language_use_module(MODULES[1]));
+    CHECK_EQUAL(0, fake_hal_language_read_count());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -396,8 +596,19 @@ int main(void)
         TEST_CASE(files_are_listed_after_the_packs_of_the_image),
         TEST_CASE(a_file_that_overrides_a_language_of_the_image_is_listed_once_under_its_own_name),
         TEST_CASE(files_that_are_not_packs_of_this_catalogue_are_not_listed),
+        TEST_CASE(a_file_with_a_damaged_or_oversized_module_segment_is_not_listed_or_chosen),
         TEST_CASE(the_list_holds_at_most_eight_languages),
         TEST_CASE(with_the_first_copy_unreadable_the_list_comes_from_the_second),
+        TEST_CASE(each_module_shows_its_own_segment_of_the_chosen_language),
+        TEST_CASE(switching_modules_reloads_the_right_segment_and_staying_reads_nothing),
+        TEST_CASE(a_module_whose_pack_file_is_gone_shows_english_until_the_file_returns),
+        TEST_CASE(a_module_segment_damaged_after_loading_falls_back_to_the_default_pack),
+        TEST_CASE(with_no_readable_segment_a_module_falls_back_to_built_in_text),
+        TEST_CASE(a_file_with_a_damaged_module_segment_shows_that_module_in_english),
+        TEST_CASE(a_module_segment_too_large_for_the_window_shows_that_module_in_english),
+        TEST_CASE(a_module_number_without_a_segment_reads_nothing),
+        TEST_CASE(while_an_update_waits_for_a_restart_module_text_from_the_image_falls_back),
+        TEST_CASE(without_a_pack_no_module_text_is_read),
         TEST_CASE(with_nothing_to_list_the_list_is_empty),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

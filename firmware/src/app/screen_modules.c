@@ -98,6 +98,9 @@ const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule mo
         return NULL;
     }
     uint32_t bound = 1u << module;
+    if (entry->use_language((uint32_t)module)) {
+        screens->bound_modules &= ~bound;
+    }
     if ((screens->bound_modules & bound) == 0) {
         screens->bound_modules |= bound;
         entry->bind(screens);

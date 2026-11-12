@@ -14,6 +14,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+import lang_pack
+
 CODE_REGION = "CODE_RAM"
 DATA_REGION = "DATA_RAM"
 OVERLAY_REGION = "HIGH_RAM"
@@ -314,8 +316,13 @@ def workspace_line(device_map, regions):
     return limit_line("decoder workspace", used, region_length(regions, WORKSPACE_REGION))
 
 
+def pack_memory(path):
+    """The language window bytes a built pack needs: its resident block and largest module segment."""
+    return lang_pack.pack_info(Path(path).read_bytes())["memory"]
+
+
 def language_line(regions, packs):
-    """The largest language pack against the memory the player loads one pack into."""
+    """The language pack needing most memory against the window the player loads packs into."""
     name, size = max(packs, key=lambda pack: pack[1])
     return limit_line(f"language pack ({name})", size, region_length(regions, LANGUAGE_REGION))
 
@@ -435,7 +442,7 @@ def budget_rows(build, preset):
     if not packs:
         raise ValueError(f"Missing language packs in {build}")
     language = memory_regions(device)[LANGUAGE_REGION][1]
-    return rows + [Budget(preset, f"language {path.stem}", path.stat().st_size, language) for path in packs]
+    return rows + [Budget(preset, f"language {path.stem}", pack_memory(path), language) for path in packs]
 
 
 def budget_table(rows):
@@ -581,7 +588,7 @@ def main(argv=None):
         print("error: the main program and the USB overlay each have their own variables of "
               + ", ".join(split), file=sys.stderr)
         return 1
-    packs = [(path.stem, path.stat().st_size) for path in arguments.language_pack]
+    packs = [(path.stem, pack_memory(path)) for path in arguments.language_pack]
     modules = read_modules(arguments.module_map)
     problems = module_problems(device_map, modules)
     if arguments.summary and arguments.preset is not None:

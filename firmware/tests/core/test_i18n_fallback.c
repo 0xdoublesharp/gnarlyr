@@ -29,7 +29,10 @@ static void a_pack_replaces_the_mark(void)
         test_pack_build(pack, (TestPackLanguage){"qps", "[Pseudo]", test_pack_bracketed});
     CHECK(i18n_attach(pack, size));
     CHECK(strcmp("[?]", i18n_text(STR_SETTINGS)) == 0);
-    CHECK(strcmp("[Pseudo]", i18n_text(STR_LANGUAGE_NAME)) == 0);
+    CHECK(strcmp("?", i18n_text(STR_LANGUAGE_NAME)) == 0);
+    CHECK(strcmp("[Pseudo]", test_pack_text(pack, STR_LANGUAGE_NAME)) == 0);
+    i18n_detach_segment();
+    CHECK(strcmp("?", i18n_text(STR_LANGUAGE_NAME)) == 0);
     i18n_detach();
     CHECK(strcmp("?", i18n_text(STR_SETTINGS)) == 0);
 }

@@ -29,8 +29,8 @@ static uint32_t placeholder_mask(const char *text)
 static void the_english_pack_is_attached_and_fits_the_players_memory(void)
 {
     uint32_t size = test_pack_load(ECHO_ENGLISH_PACK, pack, sizeof pack);
-    CHECK(size > I18N_HEADER_BYTES);
-    CHECK(size <= I18N_PACK_CAPACITY);
+    CHECK(size > I18N_INDEX_BYTES);
+    CHECK(test_pack_memory_need(pack) <= I18N_PACK_CAPACITY);
     CHECK(i18n_attach(pack, size));
     CHECK(strcmp("en", i18n_code()) == 0);
     i18n_detach();
@@ -41,7 +41,7 @@ static void the_english_pack_holds_the_built_in_english_text(void)
     uint32_t size = test_pack_load(ECHO_ENGLISH_PACK, pack, sizeof pack);
     CHECK(i18n_attach(pack, size));
     for (uint32_t id = 0; id < STRING_COUNT; id++) {
-        CHECK(strcmp(english[id], i18n_text((StringId)id)) == 0);
+        CHECK(strcmp(english[id], test_pack_text(pack, (StringId)id)) == 0);
     }
     i18n_detach();
 }
@@ -58,10 +58,10 @@ static void the_test_pack_builder_writes_the_same_bytes_as_the_tool(void)
 static void the_test_language_is_attached_and_fits_the_players_memory(void)
 {
     uint32_t size = test_pack_load(ECHO_PSEUDO_PACK, pack, sizeof pack);
-    CHECK(size <= I18N_PACK_CAPACITY);
+    CHECK(test_pack_memory_need(pack) <= I18N_PACK_CAPACITY);
     CHECK(i18n_attach(pack, size));
     CHECK(strcmp("qps", i18n_code()) == 0);
-    CHECK(strcmp("[Pseudo]", i18n_text(STR_LANGUAGE_NAME)) == 0);
+    CHECK(strcmp("[Pseudo]", test_pack_text(pack, STR_LANGUAGE_NAME)) == 0);
     i18n_detach();
 }
 
@@ -70,7 +70,7 @@ static void the_test_language_changes_every_string_and_brackets_it(void)
     uint32_t size = test_pack_load(ECHO_PSEUDO_PACK, pack, sizeof pack);
     CHECK(i18n_attach(pack, size));
     for (uint32_t id = 0; id < STRING_COUNT; id++) {
-        const char *text = i18n_text((StringId)id);
+        const char *text = test_pack_text(pack, (StringId)id);
         CHECK(strcmp(english[id], text) != 0);
         CHECK_EQUAL('[', text[0]);
         CHECK_EQUAL(']', text[strlen(text) - 1]);
@@ -84,7 +84,8 @@ static void the_test_language_keeps_every_placeholder(void)
     uint32_t size = test_pack_load(ECHO_PSEUDO_PACK, pack, sizeof pack);
     CHECK(i18n_attach(pack, size));
     for (uint32_t id = 0; id < STRING_COUNT; id++) {
-        CHECK_EQUAL(placeholder_mask(english[id]), placeholder_mask(i18n_text((StringId)id)));
+        CHECK_EQUAL(placeholder_mask(english[id]),
+                    placeholder_mask(test_pack_text(pack, (StringId)id)));
     }
     i18n_detach();
 }

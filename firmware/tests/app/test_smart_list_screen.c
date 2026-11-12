@@ -341,7 +341,7 @@ static void a_failed_queue_write_keeps_the_list_and_says_so(void)
     ScreenAction action = key(KEY_PLAY, KEY_GESTURE_PRESS);
     fake_hal_fail_file_writes(NULL);
     CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
-    CHECK(toast.text != NULL && strcmp(toast.text, i18n_text(STR_QUEUE_SAVE_FAILED)) == 0);
+    CHECK(strcmp(toast.text, i18n_text(STR_QUEUE_SAVE_FAILED)) == 0);
     CHECK(!player_status(&player).has_track);
     CHECK_EQUAL(1, rows());
 }

@@ -219,7 +219,7 @@ static void a_new_cover_flow_explains_holding_volume_once(void)
 {
     start_flow(fixture_library_open(&fixture));
     CHECK(toast.visible);
-    CHECK(toast.text != NULL && strcmp(toast.text, "Hold volume: A-Z") == 0);
+    CHECK(strcmp(toast.text, "Hold volume: A-Z") == 0);
     toast.visible = false;
     screen->enter(screen->context, 2000);
     CHECK(!toast.visible);
@@ -349,7 +349,7 @@ static void an_artist_strip_explains_holding_play_once(void)
 {
     start_strip(STRIP_BJORK);
     CHECK(toast.visible);
-    CHECK(toast.text != NULL && strcmp(toast.text, "Hold Play: play all") == 0);
+    CHECK(strcmp(toast.text, "Hold Play: play all") == 0);
     toast.visible = false;
     open_artist(&fixture.library, STRIP_ACDC, 2000);
     CHECK(!toast.visible);

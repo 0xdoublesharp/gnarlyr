@@ -229,6 +229,10 @@ static int current_language(const void *context)
 static void choose_language(void *context, int index)
 {
     SettingsContext *settings = context;
+    if (!language_file_sound(settings->languages->codes[index])) {
+        toast_show(settings->toast, i18n_text(STR_LANGUAGE_FAILED), hal_clock_milliseconds());
+        return;
+    }
     StringBuilder code =
         string_builder_make(editable_settings(context)->language, SETTINGS_LANGUAGE_CAPACITY);
     string_builder_append(&code, settings->languages->codes[index]);
