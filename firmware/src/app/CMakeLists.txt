@@ -29,6 +29,7 @@ add_library(echo_app STATIC
     theme_palette.c
     listening_effects.c
     listening_store.c
+    listening_store_view.c
     listening_clear.c
     card_files.c
     app_screens.c
