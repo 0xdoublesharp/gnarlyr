@@ -170,6 +170,8 @@ static void replay_gain_and_transitions_reuse_saved_settings(void)
     tap(KEY_PLAY);
     CHECK_EQUAL(REPLAY_GAIN_ALBUM, saved().replay_gain_mode);
     tap(KEY_PLAY);
+    CHECK_EQUAL(REPLAY_GAIN_AUTO, saved().replay_gain_mode);
+    tap(KEY_PLAY);
     CHECK_EQUAL(REPLAY_GAIN_OFF, saved().replay_gain_mode);
 }
 

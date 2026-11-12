@@ -97,36 +97,49 @@ Depeche Mode/Violator/
 
 ## Copying music over USB
 
-1. Connect the player and choose **File transfer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
+1. Connect the player and choose **Connect to computer** when it asks (see [When you plug in](#when-you-plug-in)). Two drives appear: internal storage and the SD card.
 2. Copy music to the SD card, or to internal storage when no card is in the player.
-3. Leave File transfer in one of two ways:
-   - **Eject on the computer.** Eject both drives (Finder's eject button, or `diskutil eject`). The player shows the mode selector.
-   - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then the mode selector, just as after an eject. If the computer is still writing, the player shows "Still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
+3. Disconnect in one of two ways:
+   - **Eject on the computer.** Eject both drives (Finder's eject button, or `diskutil eject`). The player shows **USB mode**.
+   - **Hold Back on the player** for a second. If the computer hasn't written anything for 3 seconds, the player tells it the drives are gone, shows "Disconnecting..." for 2 seconds and then **USB mode**, just as after an eject. If the computer is still writing, the player shows "Still writing..." and disconnects as soon as it stops. To disconnect at once anyway, keep holding Back for 3 more seconds; recent changes may be lost, and the player says so ("Disconnected too soon").
 4. When music changed, the player rebuilds its library by itself, then finds the new covers while it is idle. Copying other files doesn't trigger a rebuild. Settings → Rescan library checks the card and rebuilds the library when something changed, or after a firmware update; otherwise it says "Library is up to date". If the player restarts during a rebuild, it tries again at the next start and leaves out the file it stopped on; after three stops in a row it builds the library without covers.
 
 If you unplug the cable before either, recent changes may be lost, and the player warns you ("Unplugged too soon").
 
 After a disconnect from the player, the computer sees the drives disappear rather than being ejected. A Mac may then show its "Disk Not Ejected Properly" notice; when the player had waited for the computer to finish writing, your files are already on the player.
 
-**The USB screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected, Reading..., Copying..., Still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
+**The Connect to computer screen** shows a cassette in your theme's colours whose reels turn while the computer reads or writes, a light beside the state (Connected, Reading..., Copying..., Still writing..., Disconnecting...), how much has been copied, each drive's size or "Ejected", the USB speed, the battery and how to leave. It works in both orientations and every text size.
 
 ## When you plug in
 
-The player charges whenever a cable is in. Plugged into a computer, it doesn't connect by itself: it shows **USB connected** with **Charge only**, **File transfer** and **USB DAC**, and nothing appears on the computer until you choose. Charge only is highlighted, and its row counts down from 15 seconds; pressing any button starts the count again. Back, the end of the count, or the screen going dark all mean Charge only: music and menus carry on, and the player stays charging. The player asks once per plug-in; unplug and plug in again to be asked again, or open **USB mode** from Home to connect later without unplugging. A wall charger never brings up the question.
+Plugged into a computer, the player doesn't connect by itself. It shows **Computer found** and these choices, each with a picture and a line that says what happens to your music:
+
+| Choice | Picture | What it does |
+|---|---|---|
+| **Connect to computer** | laptop | The computer sees the player's drives: copy music, install an update or use the Gnarlyr app on your computer. Music stops until you disconnect. The player charges. |
+| **Charge** | battery with a bolt | Keep listening while the battery charges. Nothing appears on the computer. |
+| **Play on USB power** | plug | Keep listening without charging: the cable powers the player and the battery rests. When the battery is low, the line says "Battery low: charges first" and the player charges until it is safe (see [Play on USB power](#play-on-usb-power)). |
+| **USB DAC** | speaker | Hear your computer through the player's headphone outputs (see [Using the player as a USB DAC](#using-the-player-as-a-usb-dac)). Music on the player stops. The player charges. |
+
+**Connect to computer** is the first row and is highlighted, so one press of Play connects. Doing nothing means **Charge**: the screen counts down "Charging in 15 s", and any button starts the count again. Back, the end of the count or the screen going dark all mean Charge, and music and menus carry on. To answer the same way every time, hold Play on a choice: the player confirms with "Always: …" and saves it as Settings → When plugged in.
+
+The player asks once per plug-in. Unplug and plug in again to be asked again, or use **USB mode** to change without unplugging (below). A wall charger never asks: the player charges, or plays on USB power when that is your saved choice and then says "Play on USB power".
+
+On the charge screen (the player switched off on a cable) a computer wakes the screen with the same question. Charge, Back or the countdown return to the dark charge screen; Connect to computer and USB DAC connect, and the charge screen comes back when you're done.
 
 **Settings → Power on** chooses how to leave the charge screen: Hold (the default) requires Power for two seconds; Press starts the player with a tap. Press is convenient when the player is switched off on a cable, but a pocket press can start it and use battery. Connecting USB still opens the charge screen and keeps the same computer-connection choices.
 
 From completely off, keep Power held until the player starts. Firmware latches power immediately when it gains control. This setting cannot shorten any hold required by the boot ROM or power circuitry before that point.
 
-On the charge screen (the player switched off on a cable) a computer wakes the screen with the same question. Charge only, Back or the countdown return to the dark charge screen; File transfer and USB DAC connect, and the charge screen comes back when you're done.
-
-Settings → When plugged in changes this: **Ask** (the default), **File transfer** (connect at once, as earlier builds did) or **Charge only** (never connect; the player only charges).
+**Settings → When plugged in** answers for every plug-in: **Ask** (the default), **Connect to computer**, **Charge**, **Play on USB power** or **USB DAC**, with the same pictures and lines. Play on USB power also applies on a wall charger; with any other choice a wall charger charges.
 
 ## Switching USB modes
 
-Open **USB mode** from Home or Settings, or press Menu on the charging screen. Choose **Charge only**, **File transfer** or **USB DAC**. The player keeps charging while you use it, and you can change modes with the cable connected. Charge only ends a connection and leaves the player to charge; from the charging screen, leaving the selector in any way returns to the charging screen.
+The same chooser, titled **USB mode**, opens from Home → USB mode, Settings → USB mode, Menu on the charge screen, and after you leave Connect to computer or USB DAC. It lists Connect to computer, Charge, Play on USB power (while a cable is in) and USB DAC; the mode in use has a check mark. A choice made here lasts until you unplug; hold Play to keep it for every plug-in. From the charge screen, leaving the chooser in any way returns to the charge screen.
 
-To leave File transfer, eject both drives on the computer or hold Back on the player (see [Copying music over USB](#copying-music-over-usb)), then wait for the mode selector. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to the selector, or use the DAC menu.
+To leave Connect to computer, eject both drives on the computer or hold Back on the player (see [Copying music over USB](#copying-music-over-usb)), then wait for USB mode. The player keeps the track, position and queue for your return. From USB DAC, hold Back for a second and release it to return to USB mode, or use the DAC menu.
+
+While the player plays on USB power, the battery in the status bar and on the charge screen shows a plug instead of the bolt, and the charge screen says "Charging off".
 
 ## Using the player as a USB DAC
 
@@ -136,9 +149,9 @@ To leave File transfer, eject both drives on the computer or hold Back on the pl
 2. The player shows "USB DAC". It offers USB Audio Class 2.0 over a high-speed connection and Class 1.0 over full speed. Select Gnarlyr in the host’s audio settings; phones need an adapter that passes USB data. Host compatibility still needs the checks listed in known issues.
 3. On the computer, choose Gnarlyr as the sound output (Windows: the speaker icon in the taskbar; macOS: System Settings → Sound → Output). The player shows the format and its volume, for example "48 kHz 24-bit · Volume 35".
 4. Use the computer's volume, the player's volume keys, or both. DAC mode has its own volume, separate from music: it starts at 35 of 60, the screen shows it ("48 kHz 24-bit · Volume 35"), tap Vol± to change it on release, and the player remembers it for next time. Start low. Press ▶ to send play/pause to the computer. Hold Vol+ for 400 ms to send next track, or Vol− for previous; each hold sends one command. The computer’s media app decides how to handle these keys.
-5. Hold Back for a second and let go to open the mode selector, then choose Charge only or File transfer. The player keeps charging.
+5. Hold Back for a second and let go to open USB mode, then choose another mode. The player keeps charging.
 
-Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose File transfer or Charge only. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format, buffer delay, clock drift, underruns and stereo levels after headphone trim.
+Press Menu in DAC mode to adjust Volume, Gain, Output jack and Headphones, or choose Connect to computer or Charge. Volume and headphone changes apply to the live stream. The DAC screen shows the negotiated format, buffer delay, clock drift, underruns and stereo levels after headphone trim.
 
 The computer picks the format (macOS: Audio MIDI Setup; Windows: Sound settings → Gnarlyr → Properties → Advanced).
 
@@ -147,7 +160,9 @@ The computer picks the format (macOS: Audio MIDI Setup; Windows: Sound settings 
 | High speed, UAC2 | 16, 24 or 32-bit | 44.1, 48, 88.2, 96, 176.4, 192 |
 | Full speed, UAC1 | 16 or 24-bit | 44.1, 48 |
 
-High-speed mode uses asynchronous feedback to follow the player’s audio clock, with a 5 ms device buffer target. Full-speed mode retains a 20 ms target and sample correction. Host buffering adds delay. To preserve PCM sample words, turn headphone profiles Off and use an exclusive/direct host output at the file’s own format with host processing disabled. Player and host volume still affect the analog result. Music on the player stops while it's a DAC. Choose File transfer from the mode selector to copy music without removing the cable. A charger works the same in both modes.
+High-speed mode uses asynchronous feedback to follow the player’s audio clock, with a 5 ms device buffer target. Full-speed mode retains a 20 ms target and sample correction. Host buffering adds delay. To preserve PCM sample words, turn headphone profiles Off and use an exclusive/direct host output at the file’s own format with host processing disabled. Player and host volume still affect the analog result. Music on the player stops while it's a DAC. Choose Connect to computer in USB mode to copy music without removing the cable. A charger works the same in both modes.
+
+**The DAC menu** (press Menu) changes, without leaving DAC mode: **Volume** (press Play, then Vol±), **Gain**, **Output** (which jack's volume levels to use), **Headphones** (Off or one of your profiles) and switches to **Connect to computer** or **Charge**. Vol± moves, Play changes the highlighted row, Back or Menu closes the menu. Your choices are kept for next time. The equalizer and ReplayGain don't apply in DAC mode; the sound reaches the DAC as the computer sends it, with only volume, gain and the headphone profile's trim, balance and ceiling.
 
 ## Build the library on a computer
 
@@ -230,7 +245,7 @@ Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums*
 
 ## Charging
 
-The player charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on (or tap it with Power on set to Press), or unplug it to switch it off completely. Press Menu to open the USB mode selector from the charge screen. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).
+The player normally charges whenever it's plugged in, on or off. Turning it off while it's plugged in (or plugging a charger into a switched-off player) shows the charge screen: a large battery in your theme's colours with the percentage beneath or beside it. While the player charges, the empty part of the battery gently pulses. "Charging" means the charger is active; "Charged" means a known full battery. "USB power" means the cable supplies power while charging is inactive. Before a battery reading is available, the screen shows "Reading battery". The screen goes dark after 5 seconds; press any button to see it again. Hold Power for 2 seconds to turn the player on (or tap it with Power on set to Press), or unplug it to switch it off completely. Press Menu to open USB mode from the charge screen. A plug instead of the bolt means the player is playing on USB power and not charging. Plugging into a computer wakes the screen and asks what the connection is for (see [When you plug in](#when-you-plug-in)).
 
 ## Button lock
 
@@ -279,7 +294,7 @@ In portrait, Home shows the Gnarlyr title below the status row and Now Playing k
 
 ## Charging display
 
-The charging screen shows a large battery graphic and percentage. Its energy animation runs while the battery is charging and stops when the screen goes dark. An unknown reading keeps the battery graphic hollow. Press Menu to choose Player, USB storage or USB DAC; hold Power to return to the player.
+The charging screen shows a large battery graphic and percentage. Its energy animation runs while the battery is charging and stops when the screen goes dark. An unknown reading keeps the battery graphic hollow. Press Menu to open USB mode; hold Power to turn the player on.
 
 ## Languages
 
@@ -377,7 +392,7 @@ If more than ten ON filters are supplied, the ten largest absolute gains are kep
 
 ## ReplayGain
 
-Settings → ReplayGain offers Off, Track and Album. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Opus files also use their R128 track or album gain tags, converted to the ReplayGain reference; standard ReplayGain gain tags take precedence when both are present. Off is the default.
+Settings → ReplayGain offers Off, Track, Album and Auto. Auto uses album gain for consecutive songs in album order, including album shuffle, and track gain for song shuffle or isolated songs. Track uses each song's prepared gain; Album uses the album gain to keep the level relationships within an album. If one kind of gain is missing, the player uses the other. Songs without gain tags keep their normal level. Opus files also use their R128 track or album gain tags, converted to the ReplayGain reference; standard ReplayGain gain tags take precedence when both are present. Off is the default.
 
 Leave Settings → Prevent clipping on to limit normalization using the file's peak tags. Without peak tags, it retains attenuation and limits boosts to unity. Turning it off allows the full tagged gain. Changes apply to newly buffered audio while the current and next songs keep playing.
 
@@ -441,7 +456,7 @@ Podcasts/
 
 An install through the updater has only run in the emulator so far ([`known-issues.md`](known-issues.md)). Charge the battery first.
 
-1. Connect the player and copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder.
+1. Plug the player into the computer and choose **Connect to computer** (or Home → USB mode → Connect to computer). Copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder.
 2. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
 3. At "Update installed", unplug USB and hold Power. The player turns off.
 4. Hold Power to start the new version.
@@ -581,3 +596,19 @@ Computer means the existing USB connection code saw a host response; Charger mea
 is present without one. This does not initiate USB enumeration. The app continues sampling
 with the display dark; switching away from the charging module can restart measurement.
 No mA value is shown because the gauge does not measure current.
+
+## Sleep timer
+
+Settings → Sleep timer turns the player off after 15–120 minutes, at End of track, or at End of chapter/episode. Chapter/episode uses the current audiobook chapter, podcast episode or CUE track; on ordinary music it ends at the current song. The final minute fades smoothly to silence. If an end timer is armed with less time remaining, its fade starts at the current level and uses that shorter interval. A paused end timer waits for playback to finish; a timed timer continues while paused. Off cancels the timer and restores the normal listening level. A new start leaves the timer off.
+
+## A–B repeat
+
+On Now Playing, hold Play to open seeking, then press Menu to mark A at the sound currently playing. Repeat those two presses later to mark B: the player repeats A through the sample before B. Do it a third time to clear the loop. “A set, B next”, “A-B repeat” and “A-B off” show the result. The seek cursor also shows the Menu hint. Moving the seek cursor does not move an A/B mark; marks use the playing position when Menu is released.
+
+Marks use source samples, including inside CUE tracks and audiobook chapters. A B mark must follow A. A pause keeps the loop and its output ready; seeking outside a loop returns to A. Changing tracks, handing audio to USB or restarting clears it. End-of-track/chapter sleep clears a loop so the track can finish. Timed sleep still fades and switches off during a loop. MP3 seeks retain the decoder’s existing approximate positioning.
+
+## Play on USB power
+
+Choose **Play on USB power** when you plug in, in USB mode, or as Settings → When plugged in. The cable keeps the player running while battery charging is off, so a player that lives on a cable doesn't sit at full charge. It lasts until you unplug, unless it is your saved choice. Unknown readings or a voltage below 3.6 V turn charging back on, and it stays on until the reading reaches 3.8 V; meanwhile the chooser says "Battery low: charges first" and the charge screen says "Charging". While charging is off, the status bar and the charge screen show a plug and the charge screen says "Charging off". Unplugging turns both USB supply controls off.
+
+There is no 80% limit: on USB power the ADC measures the supply rail rather than the cell alone, so that reading cannot reliably enforce a cell percentage. The percentage shown on USB power can therefore differ from the battery level. Play on USB power needs a charger capable of powering the player; verify it with the intended charger before relying on it for long listening sessions.

@@ -179,3 +179,7 @@ HalAudioJack hal_audio_jack(void);
 HalAudioRefusal hal_audio_refusal(void);
 
 void hal_audio_set_replay_gain(uint32_t token, uint32_t gain);
+
+void hal_audio_set_sleep_remaining(uint32_t remaining_ms);
+
+uint8_t hal_audio_repeat_mark(bool clear);

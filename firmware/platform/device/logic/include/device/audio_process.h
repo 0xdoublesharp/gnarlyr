@@ -1,5 +1,6 @@
 #pragma once
 
+#include "device/audio_engine.h"
 #include "device/equalizer.h"
 
 #define AUDIO_PROCESS_BASE 0x0308F000u
@@ -12,4 +13,9 @@ typedef struct AudioProcessEntry {
     bool (*design)(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate);
     bool (*retune)(Equalizer *equalizer, EqualizerChange change, uint32_t rate);
     void (*run)(Equalizer *equalizer, uint32_t *words, uint32_t frames);
+    void (*set_equalizer)(AudioEngine *engine, const HalAudioEqualizer *curve);
+    void (*convert)(const AudioEngine *engine, uint32_t *words, uint32_t frames, int shift);
+    void (*shape)(AudioEngine *engine, uint32_t first, bool tail);
+    void (*sleep)(AudioEngine *engine, uint32_t remaining_ms);
+    uint8_t (*repeat_mark)(AudioEngine *engine, bool clear);
 } AudioProcessEntry;

@@ -4,6 +4,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
     src/core/parametric_curve.c
     src/core/parametric_bound.c
+    platform/device/logic/audio_shape.c
     platform/device/logic/audio_process_entry.c
     platform/device/logic/audio_trig.c
     platform/device/logic/equalizer_design.c
@@ -160,6 +161,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/language_list.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
+    src/app/plug_modes.c
+    src/app/screens/plug_chooser.c
+    src/app/screens/plug_art.c
+    src/gfx/wireframe.c
     src/app/screens/set_clock_screen.c
     src/app/settings_actions.c
     src/app/settings_preview.c

@@ -281,6 +281,11 @@ static void draw_wire_grid(const ChargeArt *art, const BatteryShape *shape)
     }
 }
 
+static IconId sign_of(HalBattery battery)
+{
+    return battery.usb_power && battery.charge_disabled ? ICON_PLUG : ICON_BOLT;
+}
+
 static void draw_battery(const ChargeArt *art)
 {
     BatteryShape shape = battery_shape(art);
@@ -339,14 +344,15 @@ static void draw_state(const ChargeArt *art)
         font = art->theme->fonts.small;
     }
     draw_label(art, art->layout.status, (TextStyle){font, state_color(art)}, text);
-    if (flowing(art->battery)) {
+    IconId sign = sign_of(art->battery);
+    if (flowing(art->battery) || sign == ICON_PLUG) {
         Rect area = art->layout.status;
         int height = font_line_height(art->theme->fonts.small);
         area.x += (area.width + text_width(font, text)) / 2 + art->theme->metrics.padding / 2;
         area.y += (area.height - height) / 2;
-        area.width = icon_width(ICON_BOLT, height);
+        area.width = icon_width(sign, height);
         area.height = height;
-        icon_draw(art->canvas, ICON_BOLT, area,
+        icon_draw(art->canvas, sign, area,
                   (IconInk){art->theme->colors.accent, art->theme->colors.accent});
     }
 }

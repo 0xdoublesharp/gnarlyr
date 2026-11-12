@@ -5,6 +5,7 @@
 
 #include "core/string_builder.h"
 #include "gfx/canvas.h"
+#include "ui/icons.h"
 #include "ui/theme.h"
 
 typedef enum StatusPlayback {
@@ -44,6 +45,7 @@ typedef struct StatusBarState {
     uint8_t battery_percent;
     bool usb_power;
     bool charging;
+    bool charging_off;
     bool locked;
     uint8_t shuffle;
     const char *percent;
@@ -71,6 +73,7 @@ typedef struct StatusBatteryLook {
     Color fill;
     Color bolt;
     bool bolt_halo;
+    IconId sign;
 } StatusBatteryLook;
 
 Rect status_bar_playback_area(const Theme *theme);

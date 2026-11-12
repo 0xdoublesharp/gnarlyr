@@ -58,6 +58,7 @@ PowerKeyOutcome power_policy_key(PowerPolicy *policy, KeyEvent event, uint32_t n
 void power_policy_start_sleep_timer(PowerPolicy *policy, uint32_t duration_ms, uint32_t now_ms)
 {
     policy->sleep_duration_ms = supported_delay(duration_ms);
+    policy->sleep_track_end = false;
     policy->sleep_timer_active = true;
     policy->sleep_deadline_ms = now_ms + supported_delay(duration_ms);
 }
@@ -115,7 +116,8 @@ bool power_policy_update(PowerPolicy *policy, uint32_t now_ms)
     if (auto_off_due(policy, now_ms)) {
         return true;
     }
-    if (!policy->sleep_timer_active || !deadline_reached(now_ms, policy->sleep_deadline_ms)) {
+    if (!policy->sleep_timer_active || policy->sleep_track_end ||
+        !deadline_reached(now_ms, policy->sleep_deadline_ms)) {
         return false;
     }
     policy->sleep_timer_active = false;

@@ -10,7 +10,9 @@ enum {
 };
 
 static const StringId LABELS[USB_DAC_ROW_COUNT] = {
-    STR_VOLUME, STR_GAIN, STR_OUTPUT, STR_HEADPHONES, STR_FILE_TRANSFER, STR_CHARGE_ONLY};
+    STR_VOLUME, STR_GAIN, STR_OUTPUT, STR_HEADPHONES, STR_PLUG_COMPUTER, STR_PLUG_CHARGE};
+static const uint8_t ICONS[USB_DAC_ROW_COUNT] = {ICON_SPEAKER, ICON_GAIN,     ICON_JACK,
+                                                 ICON_AUDIO,   ICON_COMPUTER, ICON_BOLT};
 static const StringId GAINS[GAIN_CHOICES] = {STR_GAIN_LOW, STR_GAIN_HIGH};
 static const StringId OUTPUTS[OUTPUT_CHOICES] = {STR_OUTPUT_AUTO, STR_JACK_35, STR_JACK_44};
 
@@ -24,6 +26,12 @@ static const char *row_label(const void *context, int index)
 {
     (void)context;
     return i18n_text(LABELS[index]);
+}
+
+static IconId row_icon(const void *context, int index)
+{
+    (void)context;
+    return (IconId)ICONS[index];
 }
 
 static const char *row_detail(const void *context, int index)
@@ -87,8 +95,11 @@ int usb_dac_menu_rows(const Theme *theme)
 void usb_dac_menu_open(UsbDacMenu *menu, UsbDacMenuConfig config, uint32_t now_ms)
 {
     *menu = (UsbDacMenu){.settings = config.settings, .profiles = config.profiles};
-    menu->model =
-        (ListModel){.context = menu, .count = row_count, .label = row_label, .detail = row_detail};
+    menu->model = (ListModel){.context = menu,
+                              .count = row_count,
+                              .label = row_label,
+                              .detail = row_detail,
+                              .icon = row_icon};
     write_volume(menu);
     write_profile(menu);
     list_view_init(&menu->view, &menu->model, config.theme, now_ms);
@@ -142,12 +153,12 @@ static UsbDacAction choose(UsbDacMenu *menu)
         return USB_DAC_ACTION_OUTPUT;
     case USB_DAC_ROW_HEADPHONES:
         return next_profile(menu);
-    case USB_DAC_ROW_FILE_TRANSFER:
-        return USB_DAC_ACTION_FILE_TRANSFER;
+    case USB_DAC_ROW_COMPUTER:
+        return USB_DAC_ACTION_COMPUTER;
     default:
         break;
     }
-    return USB_DAC_ACTION_CHARGE_ONLY;
+    return USB_DAC_ACTION_CHARGE;
 }
 
 UsbDacAction usb_dac_menu_key(UsbDacMenu *menu, Key key, uint32_t now_ms)

@@ -541,6 +541,11 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             equalizer_design=audio_process_equalizer_design
             equalizer_retune=audio_process_equalizer_retune
             equalizer_run=audio_process_equalizer_run
+            audio_engine_set_equalizer=audio_process_set_equalizer
+            audio_convert_pending=audio_process_convert_pending
+            audio_shape_block=audio_process_shape_block
+            audio_engine_set_sleep_remaining=audio_process_set_sleep_remaining
+            audio_engine_repeat_mark=audio_process_repeat_mark
         )
     endif()
     if(module STREQUAL "extension")

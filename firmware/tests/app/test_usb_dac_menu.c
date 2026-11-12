@@ -33,10 +33,8 @@ static void the_menu_lists_volume_gain_output_and_both_other_modes(void)
     CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_VOLUME), "35") == 0);
     CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_GAIN), i18n_text(STR_GAIN_HIGH)) == 0);
     CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_OUTPUT), i18n_text(STR_JACK_44)) == 0);
-    CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_FILE_TRANSFER),
-                 i18n_text(STR_FILE_TRANSFER)) == 0);
-    CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_CHARGE_ONLY), i18n_text(STR_CHARGE_ONLY)) ==
-          0);
+    CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_COMPUTER), i18n_text(STR_PLUG_COMPUTER)) == 0);
+    CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_CHARGE), i18n_text(STR_PLUG_CHARGE)) == 0);
     CHECK(strcmp(menu.model.label(&menu, USB_DAC_ROW_HEADPHONES), i18n_text(STR_HEADPHONES)) == 0);
 }
 
@@ -112,17 +110,17 @@ static void without_profiles_the_headphones_row_stays_off(void)
 static void the_mode_rows_ask_to_switch(void)
 {
     open_menu((AppDacSettings){35, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE});
-    select_row(USB_DAC_ROW_FILE_TRANSFER);
-    CHECK_EQUAL(USB_DAC_ACTION_FILE_TRANSFER, usb_dac_menu_key(&menu, KEY_PLAY, 0));
+    select_row(USB_DAC_ROW_COMPUTER);
+    CHECK_EQUAL(USB_DAC_ACTION_COMPUTER, usb_dac_menu_key(&menu, KEY_PLAY, 0));
     select_row(1);
-    CHECK_EQUAL(USB_DAC_ACTION_CHARGE_ONLY, usb_dac_menu_key(&menu, KEY_PLAY, 0));
+    CHECK_EQUAL(USB_DAC_ACTION_CHARGE, usb_dac_menu_key(&menu, KEY_PLAY, 0));
 }
 
 static void back_or_menu_closes_and_moving_wraps(void)
 {
     open_menu((AppDacSettings){35, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE});
     usb_dac_menu_key(&menu, KEY_VOLUME_DOWN, 0);
-    CHECK_EQUAL(USB_DAC_ROW_CHARGE_ONLY, menu.view.selected);
+    CHECK_EQUAL(USB_DAC_ROW_CHARGE, menu.view.selected);
     CHECK_EQUAL(USB_DAC_ACTION_CLOSE, usb_dac_menu_key(&menu, KEY_BACK, 0));
     CHECK_EQUAL(USB_DAC_ACTION_CLOSE, usb_dac_menu_key(&menu, KEY_MENU, 0));
 }

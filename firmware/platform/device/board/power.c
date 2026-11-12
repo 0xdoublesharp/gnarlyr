@@ -39,27 +39,63 @@ void board_power_hold(void)
 }
 
 static bool usb_supply_known;
-static bool usb_supply_on;
+static uint8_t usb_supply_on;
+static bool usb_supply_requested;
+static uint8_t battery_care;
+static uint8_t battery_care_saved;
+static bool battery_care_cable;
+static ChargeTracker charge;
 
-static void usb_supply_pins_set(bool on)
+static void usb_supply_pins_set(uint8_t flags)
 {
     PinRef pins[BOARD_POWER_PAIR_PINS];
     uint32_t count = board_power_pair(pins);
     for (uint32_t index = 0; index < count; index++) {
         GpioPin pin = {pins[index].port, pins[index].pin};
         gpio_mux(pin, GPIO_FUNCTION_GPIO);
-        gpio_output(pin, on);
+        gpio_output(pin, (flags & (1u << index)) != 0);
     }
 }
 
 void board_power_usb_supply_follow(bool cable)
 {
-    if (usb_supply_known && usb_supply_on == cable) {
+    if (cable != battery_care_cable) {
+        battery_care_cable = cable;
+        battery_care = battery_care_saved;
+    }
+    usb_supply_requested = cable;
+    BatteryGauge gauge = board_battery_gauge();
+    bool was_charging = (usb_supply_on & 2u) == 0 || (usb_supply_on & 1u) != 0;
+    bool charging = battery_care_charge(
+        was_charging,
+        (BatteryCareReading){.usb_power = cable,
+                             .mode = battery_care,
+                             .known = gauge.count >= BATTERY_RECENT_READINGS,
+                             .millivolts = (uint16_t)battery_gauge_recent_millivolts(&gauge)});
+    uint8_t flags = cable ? (uint8_t)(2u | (charging ? 1u : 0u)) : 0;
+    if (usb_supply_known && usb_supply_on == flags) {
         return;
     }
+    charge_tracker_init(&charge);
     usb_supply_known = true;
-    usb_supply_on = cable;
-    usb_supply_pins_set(cable);
+    usb_supply_on = flags;
+    usb_supply_pins_set(flags);
+}
+
+void hal_power_set_battery_care(uint8_t mode)
+{
+    battery_care_saved = mode;
+    battery_care = mode;
+}
+
+void hal_power_use_battery_care(uint8_t mode)
+{
+    battery_care = mode;
+}
+
+uint8_t hal_power_battery_care(void)
+{
+    return battery_care;
 }
 
 HalPowerHold hal_power_boot_hold(void)
@@ -82,8 +118,6 @@ static BatteryDisplay display;
 static bool usb_seen;
 static bool usb_before;
 
-static ChargeTracker charge;
-
 static bool charge_status_high(void)
 {
     if (!charge_status_ready) {
@@ -103,18 +137,20 @@ HalBattery hal_power_battery(void)
     usb_seen = true;
     usb_before = usb_power;
     BatteryGauge gauge = board_battery_gauge();
+    board_power_usb_supply_follow(usb_supply_requested);
+    bool disabled = usb_power && usb_supply_known && (usb_supply_on & 1u) == 0;
     bool status_high = charge_status_high();
     ChargeState state = charge_tracker_update(
         &charge, (ChargeReading){.usb_power = usb_power,
                                  .status_high = status_high,
                                  .millivolts = battery_gauge_recent_millivolts(&gauge),
                                  .now_ms = hal_clock_milliseconds()});
-    bool charging = state == CHARGE_CHARGING;
+    bool charging = !disabled && state == CHARGE_CHARGING;
     if (!battery_gauge_known(&gauge)) {
         return (HalBattery){.known = false, .usb_power = usb_power, .charging = charging};
     }
     uint8_t percent = BATTERY_FULL_PERCENT;
-    if (state == CHARGE_FULL) {
+    if (state == CHARGE_FULL && !disabled) {
         battery_display_show_full(&display);
     } else {
         bool current_flowing = charging && !status_high;
@@ -123,6 +159,7 @@ HalBattery hal_power_battery(void)
     }
     return (HalBattery){.known = true,
                         .percent = percent,
+                        .charge_disabled = disabled,
                         .charging = charging,
                         .usb_power = usb_power,
                         .millivolts = (uint16_t)battery_gauge_recent_millivolts(&gauge)};

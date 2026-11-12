@@ -66,3 +66,12 @@ typedef struct ChargeTracker {
 
 void charge_tracker_init(ChargeTracker *tracker);
 ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading);
+
+typedef struct BatteryCareReading {
+    bool usb_power;
+    bool known;
+    uint16_t millivolts;
+    uint8_t mode;
+} BatteryCareReading;
+
+bool battery_care_charge(bool charging, BatteryCareReading reading);

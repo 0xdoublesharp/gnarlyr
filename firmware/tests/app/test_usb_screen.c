@@ -121,10 +121,10 @@ static int variants(Variant *list)
         {USB_SCENE_STOPPED, STR_USB_STOPPED_HINT, "storage-stopped"},
     };
     int count = 0;
-    list[count++] =
-        (Variant){.status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)},
-                  .scene = {.state = USB_SCENE_STARTING},
-                  .name = "connecting"};
+    list[count++] = (Variant){
+        .status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER_LINE)},
+        .scene = {.state = USB_SCENE_STARTING},
+        .name = "connecting"};
     for (size_t index = 0; index < sizeof STORAGE / sizeof STORAGE[0]; index++) {
         list[count++] = (Variant){storage_status(STORAGE[index].detail),
                                   storage_scene(STORAGE[index].state), STORAGE[index].name};
@@ -251,7 +251,7 @@ static void connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fall
     app_start();
     registered_draws = 0;
     app_set_usb_renderer(registered_usb_draw);
-    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_USB_STARTING)};
+    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER_LINE)};
     int loads = fake_hal_module_loads();
     app_show_usb_status(status);
     CHECK_EQUAL(1, registered_draws > 0);
@@ -312,7 +312,7 @@ static void storage_motion_redraws_only_the_cassette_square(void)
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = medium(orientation);
         UsbScene scene = storage_scene(USB_SCENE_WRITING);
-        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVE);
         draw_twice(&theme, status, &scene, turn_reels);
         CHECK(changed(&theme));
         CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).figure));
@@ -348,7 +348,7 @@ static void a_still_scene_does_not_follow_the_clock(void)
     UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
     fake_hal_set_milliseconds(0);
     Canvas canvas = canvas_for(&theme);
-    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVE);
     status.scene = &scene;
     usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 50}, status);
     memcpy(before, pixels, sizeof pixels);
@@ -362,7 +362,7 @@ static void drive_sizes_copies_and_ejected_drives_are_shown(void)
     Theme theme = medium(ORIENTATION_LANDSCAPE);
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
     scene.drives[1].state = USB_SCENE_DRIVE_EJECTED;
-    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVE);
     status.scene = &scene;
     Canvas canvas = canvas_for(&theme);
     text_spy_reset();

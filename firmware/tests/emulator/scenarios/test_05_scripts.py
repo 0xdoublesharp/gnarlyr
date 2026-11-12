@@ -10,7 +10,7 @@ from echo_image_harness import (
     BOOT_FLAG_CLEAR,
     COLD_REPORT_MS,
     DEBUG_FOLDER,
-    FILE_TRANSFER_KEYS,
+    CONNECT_KEYS,
     GPIO_DATA,
     HEIGHT,
     IDENTITY,
@@ -107,7 +107,7 @@ class EchoImageTest(EchoImageHarness):
     def test_a_script_for_another_build_is_removed_unrun_and_the_player_still_reconnects(self):
         volume = self.debug_volume(run_txt=b"build 0000000\nplay\nreconnect\n")
         session, machine = self.ejecting_session(volume, usb_answer=None)
-        machine.answer_usb_prompt(FILE_TRANSFER_KEYS, times=2)
+        machine.answer_usb_prompt(CONNECT_KEYS, times=2)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.reached["app_ask_usb_mode"], 1)
         self.assertFalse(session.fat().exists(RUN_PATH))
@@ -339,7 +339,7 @@ class EchoImageTest(EchoImageHarness):
         self.print_usb_log("after the restart", restarted)
 
     def test_a_user_mode_request_reconnects_after_the_cable_bit_dies(self):
-        script = ("build %s\nset USB mode=File transfer\nwait 10000\n"
+        script = ("build %s\nset USB mode=Connect to computer\nwait 10000\n"
                   % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script),
                                                  notes=("hal_system_request_usb_mode",))

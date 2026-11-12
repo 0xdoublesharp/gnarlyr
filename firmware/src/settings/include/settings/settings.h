@@ -45,7 +45,8 @@ typedef enum UsbMode {
 typedef enum UsbConnect {
     USB_CONNECT_ASK,
     USB_CONNECT_STORAGE,
-    USB_CONNECT_CHARGE
+    USB_CONNECT_CHARGE,
+    USB_CONNECT_DAC
 } UsbConnect;
 
 typedef enum AccentColor {
@@ -137,7 +138,7 @@ enum {
     OUTPUT_JACK_COUNT = OUTPUT_BALANCED + 1,
     START_SCREEN_COUNT = START_COVER_FLOW + 1,
     USB_MODE_COUNT = USB_MODE_DAC + 1,
-    USB_CONNECT_COUNT = USB_CONNECT_CHARGE + 1,
+    USB_CONNECT_COUNT = USB_CONNECT_DAC + 1,
     ACCENT_COLOR_COUNT = ACCENT_GRAPHITE + 1,
     EQUALIZER_PRESET_COUNT = EQUALIZER_PARAMETRIC + 1,
     TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
@@ -152,7 +153,9 @@ enum {
     SETTINGS_VOLUME_MAX = 60,
     SETTINGS_DEFAULT_DAC_VOLUME = 35,
     SCREEN_TIMEOUT_OPTION_COUNT = 7,
-    SLEEP_TIMER_OPTION_COUNT = 7,
+    SLEEP_END_TRACK = 7,
+    SLEEP_END_CHAPTER = 8,
+    SLEEP_TIMER_OPTION_COUNT = 9,
     AUTO_OFF_OPTION_COUNT = 4,
     SETTINGS_DEFAULT_SAFE_START_VOLUME = 24,
     SETTINGS_TRANSITION_TENTHS_MIN = 5,
@@ -206,6 +209,7 @@ typedef struct Settings {
     bool prevent_clipping;
     bool battery_percent;
     uint8_t status_items;
+    uint8_t battery_care;
     bool rewind_on_resume;
     bool safe_start_volume;
     uint8_t safe_start_volume_level;

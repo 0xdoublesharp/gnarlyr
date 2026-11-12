@@ -317,6 +317,31 @@ static void compact_status_does_not_compress_the_charge_header(void)
     }
 }
 
+static void disabled_charging_is_shown_even_when_the_usb_rail_reads_full(void)
+{
+    char text[64];
+    HalBattery battery = {
+        .known = true, .usb_power = true, .percent = 100, .charge_disabled = true};
+    charge_screen_text(battery, text, sizeof text);
+    CHECK(strcmp(text, i18n_text(STR_CHARGE_DISABLED)) == 0);
+    HalBattery before = battery;
+    before.charge_disabled = false;
+    CHECK(app_usb_battery_changed(before, battery));
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = BOARD_THEME;
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            ChargeScreenLayout layout = charge_screen_art_layout(&theme);
+            CHECK(text_width(theme.fonts.title, text) <= layout.status.width);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            charge_screen_draw_at(&canvas, &theme, battery, 0);
+            screen_snapshot_write(&canvas, "battery-care", orientation * TEXT_SIZE_COUNT + size);
+        }
+    }
+}
+
 static void the_fill_edge_matches_the_percentage_at_every_pulse_phase(void)
 {
     static const int levels[] = {1, 40, 64, 80, 100};
@@ -477,6 +502,39 @@ static void rate_contact_sheets_cover_warmup_normal_near_full_and_full(void)
     fake_hal_set_charging_host(false);
 }
 
+static int text_pixels_in(const Canvas *canvas, Rect area, Color color)
+{
+    int count = 0;
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            count += canvas_pixel_at(canvas, x, y) == color ? 1 : 0;
+        }
+    }
+    return count;
+}
+
+static int sign_pixels(HalBattery battery)
+{
+    Theme theme = BOARD_THEME;
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    charge_screen_draw_at(&canvas, &theme, battery, 0);
+    return text_pixels_in(&canvas, charge_screen_art_layout(&theme).status, theme.colors.accent);
+}
+
+static void play_on_usb_power_shows_a_plug_where_charging_shows_a_bolt(void)
+{
+    HalBattery resting = {.known = true, .usb_power = true, .percent = 70};
+    HalBattery held_off = resting;
+    held_off.charge_disabled = true;
+    HalBattery charging = resting;
+    charging.charging = true;
+    int plain = sign_pixels(resting);
+    CHECK(sign_pixels(held_off) > plain);
+    CHECK(sign_pixels(charging) > plain);
+    CHECK(sign_pixels(held_off) != sign_pixels(charging));
+}
+
 int main(void)
 {
     fake_hal_reset();
@@ -489,6 +547,8 @@ int main(void)
         TEST_CASE(the_fill_edge_matches_the_percentage_at_every_pulse_phase),
         TEST_CASE(compact_status_does_not_compress_the_charge_header),
         TEST_CASE(wireframe_pulse_is_limited_to_one_frame_per_second),
+        TEST_CASE(disabled_charging_is_shown_even_when_the_usb_rail_reads_full),
+        TEST_CASE(play_on_usb_power_shows_a_plug_where_charging_shows_a_bolt),
         TEST_CASE(an_unknown_battery_has_no_invented_percent_or_voltage),
         TEST_CASE(usb_power_does_not_mean_the_battery_is_full),
         TEST_CASE(an_unknown_battery_is_never_reported_full),

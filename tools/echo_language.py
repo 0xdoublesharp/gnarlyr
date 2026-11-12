@@ -69,6 +69,8 @@ class Snapshot:
         self.format = pack_tools(api.ROOT)
         self.flags_reserved = 0xF8
         self.status_items_supported = False
+        self.battery_care_supported = False
+        self.usb_answers = 3
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -106,6 +108,11 @@ class Snapshot:
                 self.status_items_supported = "STATUS_ITEMS_BYTE" in source
                 if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
                     raise ValueError("the installed status bar settings layout is unsupported")
+                if "BATTERY_CARE_BYTE" in source:
+                    if tuple(constant(source, key) for key in
+                             ("BATTERY_CARE_BYTE", "BATTERY_CARE_SHIFT", "BATTERY_CARE_MASK")) != (14, 3, 24):
+                        raise ValueError("the installed battery care layout is unsupported")
+                    self.battery_care_supported = True
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
@@ -117,10 +124,15 @@ class Snapshot:
         masks = [mask for mask in FLAG_MASKS
                  if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
         if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
-                names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                          "REPLAY_GAIN_MODE_COUNT"] or len(masks) != 1):
+                names not in (["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_MODE_COUNT"],
+                              ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
+                               "REPLAY_GAIN_AUTO", "REPLAY_GAIN_MODE_COUNT"]) or len(masks) != 1):
             raise ValueError("the installed ReplayGain settings layout is unsupported")
         self.reserved_flags = masks[0]
+        self.replay_gain_modes = len(names) - 1
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        self.usb_answers = 4 if re.search(r"\bUSB_CONNECT_DAC\b", header) else 3
 
     def check_f_layout(self, source):
         header = self.show("firmware/src/settings/include/settings/settings.h")
@@ -151,8 +163,8 @@ class Snapshot:
         if version < 14:
             return flags == 0
         answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
-        return (flags & self.reserved_flags == 0 and flags & 3 < 3 and
-                (not answer_open or flags >> 4 & 3 < 3))
+        return (flags & self.reserved_flags == 0 and flags & 3 < self.replay_gain_modes and
+                (not answer_open or flags >> 4 & 3 < self.usb_answers))
 
     def settings_checksum_field(self, version):
         return 38 if version < 15 else 54
@@ -172,9 +184,12 @@ class Snapshot:
             reserved[0:2] = [0, 0]
         if self.status_items_supported:
             reserved[2] = 0
+        if self.battery_care_supported:
+            reserved[3] &= 0xE7
         marker = F_VERSION if data[4] >= F_VERSION else 0
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and block[3] == 0 and
                 -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and
+                block[14] >> 3 & 3 < 3 and
                 data[F_MARKER_FIELD] == marker and self.f_valid(data))
 
     def f_valid(self, data):
