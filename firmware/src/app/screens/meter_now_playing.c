@@ -8,6 +8,7 @@
 #include "hal/display.h"
 #include "home_art.h"
 #include "neon_art.h"
+#include "playing_work.h"
 #include "ui/label.h"
 
 MeterNowPlayingLayout meter_now_playing_layout(const Theme *theme)
@@ -32,27 +33,9 @@ MeterNowPlayingLayout meter_now_playing_layout(const Theme *theme)
                  {padding + 294, 56 + title, width - 294, artist}}};
 }
 
-typedef struct MeterState {
-    AudioVisualNeedle needles[2];
-    uint8_t shown[2];
-    uint8_t echo[2];
-    uint32_t peak_until[2];
-    uint8_t bars[AUDIO_VISUAL_BANDS];
-    uint8_t caps[AUDIO_VISUAL_BANDS];
-    uint32_t cap_until[AUDIO_VISUAL_BANDS];
-    uint32_t frame;
-    uint32_t updated_ms;
-    uint32_t text_changed_ms;
-    uint16_t track;
-    NowPlayingStyle style;
-    bool active;
-} MeterState;
-
-static MeterState state;
-
 void meter_now_playing_reset(void)
 {
-    state = (MeterState){.frame = UINT32_MAX};
+    playing_work_styles()->meter = (MeterState){.frame = UINT32_MAX};
 }
 
 static Point pivot(Rect area)
@@ -102,15 +85,17 @@ static void dial(const NowPlayingScreen *screen, Canvas *canvas, int channel)
         neon_art_line(&clipped, outer, inner, scale);
     }
     Color echo = color_between(theme->colors.backdrop_top, theme->colors.accent, 1, 3);
-    neon_art_line(&clipped, center, tip(area, state.echo[channel]), neon_art_ink(theme, echo));
-    neon_art_line(&clipped, center, tip(area, state.shown[channel]),
+    neon_art_line(&clipped, center, tip(area, playing_module_work.as.styles.meter.echo[channel]),
+                  neon_art_ink(theme, echo));
+    neon_art_line(&clipped, center, tip(area, playing_module_work.as.styles.meter.shown[channel]),
                   neon_art_ink(theme, theme->colors.accent));
     canvas_fill_rect(&clipped, (Rect){center.x - 2, center.y - 2, 5, 5}, theme->colors.text);
     Rect dot = peak_dot(area);
-    Color led =
-        state.peak_until[channel] != 0 && (int32_t)(state.peak_until[channel] - screen->now_ms) > 0
-            ? theme->colors.danger
-            : theme->colors.divider;
+    Color led = playing_module_work.as.styles.meter.peak_until[channel] != 0 &&
+                        (int32_t)(playing_module_work.as.styles.meter.peak_until[channel] -
+                                  screen->now_ms) > 0
+                    ? theme->colors.danger
+                    : theme->colors.divider;
     canvas_fill_rect(&clipped, dot, color_between(theme->colors.backdrop_top, led, 1, 3));
     canvas_fill_rect(&clipped, (Rect){dot.x + 1, dot.y + 1, 4, 4}, led);
     TextStyle label = {theme->fonts.small, theme->colors.text_secondary};
@@ -147,7 +132,7 @@ static void spectrum(const NowPlayingScreen *screen, Canvas *canvas)
         if (rect_is_empty(rect_intersection(clipped.clip, glow))) {
             continue;
         }
-        int top = band_top(area, state.bars[band]);
+        int top = band_top(area, playing_module_work.as.styles.meter.bars[band]);
         Color ink = color_between(theme->colors.accent, theme->colors.accent_alt, band,
                                   AUDIO_VISUAL_BANDS - 1);
         Rect bar = {column.x, top, column.width, bottom - top};
@@ -168,7 +153,7 @@ static void spectrum(const NowPlayingScreen *screen, Canvas *canvas)
                                  theme->colors.backdrop_top);
             }
         }
-        int cap = band_top(area, state.caps[band]);
+        int cap = band_top(area, playing_module_work.as.styles.meter.caps[band]);
         canvas_fill_rect(&clipped, (Rect){column.x, cap - 2, column.width, 2}, theme->colors.text);
     }
 }
@@ -194,6 +179,7 @@ void meter_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
 {
     const Theme *theme = screen->config.theme;
     MeterNowPlayingLayout layout = meter_now_playing_layout(theme);
+    playing_work_styles();
     drawing(screen, canvas);
     label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text},
                (Label){layout.text[0], screen->title});
@@ -226,7 +212,7 @@ static void render_spectrum(NowPlayingScreen *screen, const uint8_t *bars, const
     for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
         Rect column = band_area(area, band);
         int previous = band_top(area, bars[band]);
-        int current = band_top(area, state.bars[band]);
+        int current = band_top(area, playing_module_work.as.styles.meter.bars[band]);
         if (previous != current) {
             int top = previous < current ? previous : current;
             int bottom = previous > current ? previous : current;
@@ -234,7 +220,7 @@ static void render_spectrum(NowPlayingScreen *screen, const uint8_t *bars, const
                                                           bottom - top + 4}));
         }
         previous = band_top(area, caps[band]);
-        current = band_top(area, state.caps[band]);
+        current = band_top(area, playing_module_work.as.styles.meter.caps[band]);
         if (previous != current) {
             render(screen, rect_intersection(
                                area, (Rect){column.x - 1, previous - 3, column.width + 2, 4}));
@@ -253,18 +239,20 @@ static bool update_bars(const AudioVisualLevels *levels, uint32_t elapsed, uint3
 {
     bool changed = false;
     for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
-        uint8_t previous_bar = state.bars[band];
-        uint8_t previous_cap = state.caps[band];
+        uint8_t previous_bar = playing_module_work.as.styles.meter.bars[band];
+        uint8_t previous_cap = playing_module_work.as.styles.meter.caps[band];
         uint8_t next = levels->band[band];
-        uint8_t lower = falling(state.bars[band], elapsed / 4);
-        state.bars[band] = next > lower ? next : lower;
-        if (next >= state.caps[band] && next > 0) {
-            state.caps[band] = next;
-            state.cap_until[band] = now + 400;
-        } else if ((int32_t)(now - state.cap_until[band]) >= 0) {
-            state.caps[band] = falling(state.caps[band], elapsed / 12);
+        uint8_t lower = falling(playing_module_work.as.styles.meter.bars[band], elapsed / 4);
+        playing_module_work.as.styles.meter.bars[band] = next > lower ? next : lower;
+        if (next >= playing_module_work.as.styles.meter.caps[band] && next > 0) {
+            playing_module_work.as.styles.meter.caps[band] = next;
+            playing_module_work.as.styles.meter.cap_until[band] = now + 400;
+        } else if ((int32_t)(now - playing_module_work.as.styles.meter.cap_until[band]) >= 0) {
+            playing_module_work.as.styles.meter.caps[band] =
+                falling(playing_module_work.as.styles.meter.caps[band], elapsed / 12);
         }
-        changed |= previous_bar != state.bars[band] || previous_cap != state.caps[band];
+        changed |= previous_bar != playing_module_work.as.styles.meter.bars[band] ||
+                   previous_cap != playing_module_work.as.styles.meter.caps[band];
     }
     return changed;
 }
@@ -298,23 +286,32 @@ static void update_needles(NowPlayingScreen *screen, const AudioVisualLevels *le
 {
     MeterNowPlayingLayout layout = meter_now_playing_layout(screen->config.theme);
     for (int channel = 0; channel < 2; channel++) {
-        uint8_t previous_echo = state.echo[channel];
-        state.echo[channel] = state.shown[channel];
-        audio_visual_needle(&state.needles[channel], levels->mean[channel], elapsed);
-        state.shown[channel] = audio_visual_db((uint32_t)state.needles[channel].position / 256);
-        if (previous_echo != state.echo[channel] || state.shown[channel] != state.echo[channel]) {
-            Rect area = joined(
-                needle_area(layout.dials[channel], previous_echo, state.echo[channel]),
-                needle_area(layout.dials[channel], state.echo[channel], state.shown[channel]));
+        uint8_t previous_echo = playing_module_work.as.styles.meter.echo[channel];
+        playing_module_work.as.styles.meter.echo[channel] =
+            playing_module_work.as.styles.meter.shown[channel];
+        audio_visual_needle(&playing_module_work.as.styles.meter.needles[channel],
+                            levels->mean[channel], elapsed);
+        playing_module_work.as.styles.meter.shown[channel] = audio_visual_db(
+            (uint32_t)playing_module_work.as.styles.meter.needles[channel].position / 256);
+        if (previous_echo != playing_module_work.as.styles.meter.echo[channel] ||
+            playing_module_work.as.styles.meter.shown[channel] !=
+                playing_module_work.as.styles.meter.echo[channel]) {
+            Rect area = joined(needle_area(layout.dials[channel], previous_echo,
+                                           playing_module_work.as.styles.meter.echo[channel]),
+                               needle_area(layout.dials[channel],
+                                           playing_module_work.as.styles.meter.echo[channel],
+                                           playing_module_work.as.styles.meter.shown[channel]));
             render(screen, area);
         }
-        bool was_lit = state.peak_until[channel] != 0 &&
-                       (int32_t)(state.peak_until[channel] - state.updated_ms) > 0;
+        bool was_lit = playing_module_work.as.styles.meter.peak_until[channel] != 0 &&
+                       (int32_t)(playing_module_work.as.styles.meter.peak_until[channel] -
+                                 playing_module_work.as.styles.meter.updated_ms) > 0;
         if (levels->peak[channel] >= 30000) {
-            state.peak_until[channel] = screen->now_ms + 500;
+            playing_module_work.as.styles.meter.peak_until[channel] = screen->now_ms + 500;
         }
-        bool lit = state.peak_until[channel] != 0 &&
-                   (int32_t)(state.peak_until[channel] - screen->now_ms) > 0;
+        bool lit =
+            playing_module_work.as.styles.meter.peak_until[channel] != 0 &&
+            (int32_t)(playing_module_work.as.styles.meter.peak_until[channel] - screen->now_ms) > 0;
         if (lit != was_lit) {
             render(screen, peak_dot(layout.dials[channel]));
         }
@@ -323,11 +320,12 @@ static void update_needles(NowPlayingScreen *screen, const AudioVisualLevels *le
 
 CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *diff, bool visible)
 {
+    playing_work_styles();
     bool active = visible && screen->status.has_track && !screen->scrubbing &&
                   !now_playing_feedback_visible(screen->feedback, screen->feedback_started_ms,
                                                 screen->now_ms);
     if (!active) {
-        state.active = false;
+        playing_module_work.as.styles.meter.active = false;
         bool changed = !rect_is_empty(diff->masked);
         if (changed) {
             frame_diff_mask(diff, (Rect){0});
@@ -335,12 +333,13 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
         return changed;
     }
     NowPlayingStyle style = settings_now_playing_style(screen->config.settings);
-    if (state.style != style || state.track != screen->status.track ||
-        state.text_changed_ms != screen->text_changed_ms) {
+    if (playing_module_work.as.styles.meter.style != style ||
+        playing_module_work.as.styles.meter.track != screen->status.track ||
+        playing_module_work.as.styles.meter.text_changed_ms != screen->text_changed_ms) {
         meter_now_playing_reset();
-        state.style = style;
-        state.track = screen->status.track;
-        state.text_changed_ms = screen->text_changed_ms;
+        playing_module_work.as.styles.meter.style = style;
+        playing_module_work.as.styles.meter.track = screen->status.track;
+        playing_module_work.as.styles.meter.text_changed_ms = screen->text_changed_ms;
     }
     Rect mask = meter_now_playing_layout(screen->config.theme).stage;
     bool changed = diff->masked.x != mask.x || diff->masked.y != mask.y ||
@@ -349,13 +348,16 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
         frame_diff_mask(diff, mask);
     }
     uint32_t frame = screen->now_ms / AUDIO_VISUAL_FRAME_MS;
-    if (state.active && state.frame == frame) {
+    if (playing_module_work.as.styles.meter.active &&
+        playing_module_work.as.styles.meter.frame == frame) {
         return changed;
     }
-    uint32_t elapsed = state.active ? screen->now_ms - state.updated_ms : AUDIO_VISUAL_FRAME_MS;
+    uint32_t elapsed = playing_module_work.as.styles.meter.active
+                           ? screen->now_ms - playing_module_work.as.styles.meter.updated_ms
+                           : AUDIO_VISUAL_FRAME_MS;
     elapsed = elapsed > 240 ? 240 : elapsed;
-    state.active = true;
-    state.frame = frame;
+    playing_module_work.as.styles.meter.active = true;
+    playing_module_work.as.styles.meter.frame = frame;
     AudioVisualLevels levels = {0};
     if (screen->status.state == PLAYER_PLAYING) {
         levels = audio_visual_measure(neon_art_audio_work(), hal_audio_visual_buffer(),
@@ -367,14 +369,14 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
         uint8_t bars[AUDIO_VISUAL_BANDS];
         uint8_t caps[AUDIO_VISUAL_BANDS];
         for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
-            bars[band] = state.bars[band];
-            caps[band] = state.caps[band];
+            bars[band] = playing_module_work.as.styles.meter.bars[band];
+            caps[band] = playing_module_work.as.styles.meter.caps[band];
         }
         if (update_bars(&levels, elapsed, screen->now_ms)) {
             render_spectrum(screen, bars, caps);
         }
     }
-    state.updated_ms = screen->now_ms;
+    playing_module_work.as.styles.meter.updated_ms = screen->now_ms;
     hal_display_present();
     return changed;
 }

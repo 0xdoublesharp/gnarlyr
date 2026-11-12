@@ -99,6 +99,7 @@ add_library(echo_app STATIC
     screens/equalizer_browser.c
     screens/equalizer_plot.c
     screens/neon_art.c
+    screens/playing_work.c
     screens/meter_now_playing.c
     screens/cassette_now_playing.c
     screens/now_playing_screen.c

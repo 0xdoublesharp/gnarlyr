@@ -5,6 +5,7 @@
 #include "fake_hal.h"
 #include "hal/display.h"
 #include "screens/meter_now_playing.h"
+#include "screens/playing_work.h"
 
 static Theme theme;
 static Settings settings;
@@ -182,9 +183,25 @@ static void unlit_peak_dots_stay_dark_after_long_uptime(void)
                 canvas_pixel_at(&canvas, dial.x + dial.width - 9, dial.y + 5));
 }
 
+static void cover_flow_and_the_styles_take_turns_with_the_playing_work_area(void)
+{
+    playing_module_work.owner = PLAYING_WORK_NONE;
+    CHECK(playing_work_claim_shuffle());
+    CHECK(!playing_work_claim_shuffle());
+    playing_module_work.as.shuffle[0] = COLOR_RGB(255, 255, 255);
+    PlayingStyleWork *styles = playing_work_styles();
+    CHECK_EQUAL(UINT32_MAX, styles->meter.frame);
+    CHECK(!styles->meter.active);
+    styles->meter.frame = 7;
+    CHECK_EQUAL(7, playing_work_styles()->meter.frame);
+    CHECK(playing_work_claim_shuffle());
+    CHECK_EQUAL(UINT32_MAX, playing_work_styles()->meter.frame);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(cover_flow_and_the_styles_take_turns_with_the_playing_work_area),
         TEST_CASE(unlit_peak_dots_stay_dark_after_long_uptime),
         TEST_CASE(peak_dots_hold_for_half_a_second_then_go_out),
         TEST_CASE(art_and_text_fit_every_theme_orientation_and_size),
