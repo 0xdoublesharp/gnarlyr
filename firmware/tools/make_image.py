@@ -674,7 +674,6 @@ def parse_arguments(argv):
                         help="major.minor.patch written to the header")
     parser.add_argument("--elf", type=Path, required=True,
                         help="device ELF with .code at 0x03050000 and .data at 0x03004000")
-    parser.add_argument("--brand", default=IDENTITY.id)
     parser.add_argument("--build-tag", help="defaults to the short git commit, + when dirty")
     parser.add_argument("--date", type=parse_date, help="YYYY-MM-DD; defaults to today")
     parser.add_argument("--overlay", type=Path, help="rescan overlay ELF linked at 0x0307A000")
@@ -728,7 +727,7 @@ def main(argv=None):
         if not language_packs:
             raise ImageError("an image needs at least one language pack (--language-pack)")
         modules = modules_from_elfs(main_elf, arguments.module)
-        image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
+        image = build_image(firmware, IDENTITY.id, build_tag, date, overlay, core1_mp3,
                             core1_flac, arguments.version, glyph_faces, core1_m4a, usb_overlay,
                             language_packs, modules, core1_vorbis, core1_opus, core1_dsd,
                             core1_ape, core1_wma)

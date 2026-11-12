@@ -39,7 +39,7 @@ These steps need the owner's approval for the session (`../AGENTS.md`). `<tag>` 
 
 1. Install a `device` build that contains this kit (`device-install.md`).
 2. **First scan.** Copy the library's folders onto the card, then eject. The scan starts once the USB session ends; leave the player alone until the covers are done. At 4,000 tracks the emulator took about 2.5 minutes. Plug the cable back in and copy the reports:
-   `mkdir -p /Volumes/Scratch/SnowskyEcho/reports/device-timing/scan && cp /Volumes/ECHO/.gnarlyr/debug/report*.txt "$_"`
+   `mkdir -p /Volumes/Scratch/SnowskyEcho/reports/device-timing/scan && cp /Volumes/Gnarlyr/.gnarlyr/debug/report*.txt "$_"`
 3. **Rescan with nothing changed.**
    `firmware/.venv/bin/python firmware/tools/scan_timing.py script rescan --build <tag> > /Volumes/Scratch/SnowskyEcho/tmp/rescan.txt`
    `python3 tools/echo_debug.py run /Volumes/Scratch/SnowskyEcho/tmp/rescan.txt`

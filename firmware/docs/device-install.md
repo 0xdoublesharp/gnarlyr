@@ -122,10 +122,6 @@ Installing FiiO's image this way is the file-copy way back to FiiO's firmware ("
 
 The updater that runs is the one already installed. A build without trial updates writes the new build into both slots, so the install of the first build with trial updates is not protected by it. Prove it in the emulator first (`firmware/tools/prove_upgrade.py --old <installed> --new <candidate>`), and have maskrom ready.
 
-## Moving an installed developer build to the canonical identity
-
-An installed updater accepts the filename and image brand of its own identity. A canonical `GNARLYR.IMG` therefore needs a prepared transition when the installed build uses different identifiers. The transition preserves the existing data before the first canonical boot and uses a matching transport bridge, followed by the ordinary canonical image. Follow [`identity-transition.md`](identity-transition.md); do not substitute a bridge built for another installed identity.
-
 ## What to check after an install
 
 - **Start-up:** the splash and the Home title say "Gnarlyr", with Music and Settings (and Now Playing once a track is loaded). Without a library, Music says "No library".

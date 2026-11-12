@@ -322,7 +322,7 @@ def section(data, index):
 
 def album_sources_from_library(data):
     if data[:4] != library_index.MAGIC:
-        raise ValueError("not an Echo Mini library")
+        raise ValueError("not a library for the player")
     tracks_offset, track_count = section(data, 0)
     albums_offset, album_count = section(data, 1)
     album_artists_offset, _ = section(data, 3)
@@ -430,7 +430,7 @@ def collect_images(root, sources, convert=unchanged):
 
 
 def parse_arguments(argv):
-    parser = argparse.ArgumentParser(description="Export album covers for the Echo Mini")
+    parser = argparse.ArgumentParser(description="Export album covers for the player")
     parser.add_argument("--music", type=Path, required=True, help="music root (read only)")
     parser.add_argument("--library", type=Path,
                         help="an existing library.db for this music root, to skip the tag scan")
