@@ -72,9 +72,9 @@ class EchoImageTest(EchoImageHarness):
         data = pack()
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume(data), module_elfs=self.module_elfs)
-        rig.press("next")
+        rig.press("previous")
         rig.press("play")
-        rig.press_many("next", 22)
+        rig.press_many("next", 24)
         rig.press("play")
         rig.press_many("next", 4)
         rig.press("play")
