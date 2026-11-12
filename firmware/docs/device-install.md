@@ -86,7 +86,7 @@ File-copy updates have run on the owner's player with earlier developer identiti
 2. Copy the new image to the top level of internal storage and check it. On macOS: `cp -X firmware/build/release/GNARLYR.IMG /Volumes/<internal drive>/`, then `rm -f /Volumes/<internal drive>/._GNARLYR.IMG` and `shasum -a 256` on both copies.
 3. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage, then "Update installed".
 4. Unplug and hold Power: the player turns off. Hold Power again to start the new build.
-5. Connect again and eject both drives. The player shows "Saving this version as the backup" and copies the new build into slot 2. With `tools/echo_debug.py install --restart`, the next command that ejects (`set-time`, `run`) does this.
+5. Connect again, write a file to internal storage (any small file; macOS often writes on its own, but not always), and eject both drives. The player shows "Saving this version as the backup" and copies the new build into slot 2. With `tools/echo_debug.py install --restart`, the next command that ejects (`set-time`, `run`) does this, since it writes the time file or the script first.
 
 What the updater does:
 
@@ -98,7 +98,7 @@ What the updater does:
 
 ### The trial
 
-The new build is on trial until a USB session with it ends with every drive ejected. Then it copies itself into slot 2 and the trial ends. The record is `/.gnarlyr/trial.bin` on internal storage; leave it alone.
+The new build is on trial until a USB session with it ends with every drive ejected after the computer wrote to internal storage: at least one write finished with its sectors stored, and no write in the session failed or was refused, on either drive. Then it copies itself into slot 2 and the trial ends. A session in which macOS could only mount the drives read-only, or that wrote nothing, leaves the trial running and counts as one attempt. The record is `/.gnarlyr/trial.bin` on internal storage; leave it alone.
 
 - Every start of the trial build counts one attempt, and every USB session counts one more as it starts. A start after which the player runs for 20 s with its text loaded is not counted.
 - A trial build that starts without its text (no language pack could be read) or without its extension module counts as failed at once: it restarts by itself, with no message and no key press, and the next start rolls back. If its storage stops working after the start was counted, it restarts by itself until the fourth start rolls back.

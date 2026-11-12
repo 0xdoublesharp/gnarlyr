@@ -343,6 +343,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertNotIn("trial_module_install", restarted.reached)
         self.assertNotIn("board_restart", restarted.reached)
         self.assertNotIn("app_ask_usb_mode", restarted.reached)
+        self.assertEqual(self.trial_record(second), (TRIAL_RUNNING, 2))
+        self.assertEqual(second.slot_image("slot_2"), self.image[:self.session_module.SLOT_BYTES])
         self.assert_healthy(second)
         self.print_usb_log("restart after install", machine)
         self.print_usb_log("after the restart", restarted)

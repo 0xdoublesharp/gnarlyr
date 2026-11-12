@@ -129,8 +129,9 @@ static void report_backup(void *context, uint32_t done, uint32_t total)
 static bool promotion_due(const TrialDisk *disk, const UsbShared *shared, uint32_t *buffer)
 {
     UpdateTrial trial = record_read(disk->volume);
-    bool confirmed =
-        trial.state == UPDATE_TRIAL_RUNNING && shared->last_session.end == HAL_USB_END_EJECTED;
+    bool confirmed = trial.state == UPDATE_TRIAL_RUNNING &&
+                     shared->last_session.end == HAL_USB_END_EJECTED &&
+                     shared->last_session.internal_write_ok;
     return (confirmed || trial.state == UPDATE_TRIAL_PROMOTING) &&
            running_from_slot_1(&disk->storage, buffer);
 }

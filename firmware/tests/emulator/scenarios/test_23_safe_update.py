@@ -31,6 +31,7 @@ SETTLE_MS = 20000
 RESET_HOLD_MS = 10000
 SCAN_MS = 5
 LIMIT_MS = 40000
+USB_END_EJECTED = 1
 TRIAL_LIMIT = 3
 ESCAPE_HOLD_MS = 3000
 ESCAPE_KEYS_MS = 5000
@@ -85,6 +86,7 @@ class EchoImageTest(EchoImageHarness):
         trial = self.start(self.install_on_trial(newer), newer, vbus=True)
         machine = trial.machine
         machine.host_ejects()
+        self.host_writes(machine)
         notices = machine.collect_notices()
         machine.note("usb_storage_session")
         self.assertEqual(trial.run_to_first_frame(), "condition met")
@@ -102,6 +104,40 @@ class EchoImageTest(EchoImageHarness):
         self.assertNotIn("trial_boot_module_start", again.machine.reached)
         self.assertEqual(again.written_ranges(), [])
         summary("trial confirmed", trial)
+
+    def host_writes(self, machine):
+        machine.stub_symbol("msc_write_proven", lambda machine: 1)
+
+    def test_a_trial_confirms_only_at_an_ejected_session_in_which_the_host_wrote(self):
+        newer = self.newer_image()
+        trial = self.start(self.install_on_trial(newer), newer, vbus=True)
+        machine = trial.machine
+        machine.host_ejects()
+        notices = machine.collect_notices()
+        machine.note("trial_boot_module_session_end")
+        self.assertEqual(trial.run_to_first_frame(), "condition met")
+        self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
+        machine.continue_past_stop()
+        machine.run(until_ms=machine.milliseconds() + 3000)
+        self.assert_healthy(trial)
+        self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 2))
+        self.assertNotIn("trial_boot_module_session_end", machine.reached)
+        self.assertNotIn(english("STR_UPDATE_BACKUP"), [title for title, _ in notices])
+        self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(self.image))
+        listen, ended = self.diagnostics(trial.fat().read(self.trial_path()))
+        self.assertEqual(listen[6] & 0x100, 0x100)
+        self.assertEqual(ended[11], USB_END_EJECTED)
+        self.assertEqual(ended[12], 0)
+        machine.vbus = False
+        machine.run(until_ms=machine.milliseconds() + 500)
+        self.host_writes(machine)
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(trial, 2), "reached usb_session_storage_changed")
+        self.assertEqual(machine.reached["usb_session_storage_changed"], 2)
+        self.assertTrue(prove_upgrade.run_until_promoted(trial))
+        self.assert_healthy(trial)
+        self.assertEqual(machine.reached["trial_boot_module_session_end"], 1)
+        self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(newer))
 
     def test_a_trial_session_offers_the_drives_without_loading_a_module_behind_the_app(self):
         from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
@@ -137,6 +173,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreater(listen[0], 0)
         self.assertGreaterEqual(listen[1] & 0xFFFF, 24)
         self.assertEqual(listen[2] & 0xFF, 1)
+        self.assertEqual(listen[6] & 0x100, 0x100)
 
     def diagnostics(self, record):
         words = struct.unpack_from("<%dI" % (2 + 1 + 2 * DIAG_SNAPSHOT_WORDS), record)

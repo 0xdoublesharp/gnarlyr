@@ -962,6 +962,81 @@ static void a_write_after_the_media_is_removed_is_refused_and_counted(void)
     CHECK_EQUAL(0, write_call_count);
 }
 
+static void write_sectors(Msc *msc, uint8_t lun, uint32_t lba, uint8_t status)
+{
+    uint8_t block[10];
+    uint8_t bytes[512] = {0};
+    read_10_block(block, 0x2A, lba, 1);
+    send_command(msc, sizeof bytes, false, lun, block, 10);
+    send_data(msc, bytes, sizeof bytes);
+    check_csw(collect(msc), status, status == 0 ? 0 : sizeof bytes);
+}
+
+static bool write_proven(const Msc *msc, uint8_t lun)
+{
+    MscStats stats = msc_stats(msc);
+    return msc_write_proven(&stats, lun);
+}
+
+static void a_session_without_a_finished_write_proves_no_write_path(void)
+{
+    Msc *msc = started();
+    uint8_t block[10];
+    read_10_block(block, 0x28, 0, 1);
+    send_command(msc, 512, true, 0, block, 10);
+    collect(msc);
+    CHECK(!write_proven(msc, 0));
+}
+
+static void a_finished_write_proves_the_write_path_of_its_lun_only(void)
+{
+    Msc *msc = started();
+    write_sectors(msc, 0, 3, 0);
+    CHECK(write_proven(msc, 0));
+    CHECK(!write_proven(msc, 1));
+    CHECK(!write_proven(msc, 2));
+}
+
+static void a_failed_write_disproves_the_write_path(void)
+{
+    Msc *msc = started();
+    write_sectors(msc, 0, 3, 0);
+    failing_write_lba = 4;
+    write_sectors(msc, 0, 4, 1);
+    CHECK_EQUAL(1, msc_stats(msc).failed_writes);
+    CHECK(!write_proven(msc, 0));
+}
+
+static void a_refused_write_on_any_lun_disproves_the_write_path(void)
+{
+    Msc *msc = started();
+    write_sectors(msc, 0, 3, 0);
+    write_sectors(msc, 1, 3, 1);
+    CHECK_EQUAL(1, msc_stats(msc).failed_writes);
+    CHECK(!write_proven(msc, 0));
+}
+
+static void a_write_after_an_eject_disproves_the_write_path(void)
+{
+    Msc *msc = started();
+    write_sectors(msc, 0, 3, 0);
+    eject(msc, 0);
+    write_sectors(msc, 0, 4, 1);
+    CHECK_EQUAL(0, msc_stats(msc).failed_writes);
+    CHECK(!write_proven(msc, 0));
+}
+
+static void a_failed_command_other_than_a_write_leaves_the_proof(void)
+{
+    static const uint8_t capacity_16[16] = {0x9E};
+    Msc *msc = started();
+    write_sectors(msc, 0, 3, 0);
+    send_command(msc, 32, true, 0, capacity_16, 16);
+    collect(msc);
+    CHECK_EQUAL(1, msc_stats(msc).failed_commands);
+    CHECK(write_proven(msc, 0));
+}
+
 static void removing_the_media_is_not_a_host_eject(void)
 {
     Msc *msc = started();
@@ -1154,6 +1229,12 @@ int main(void)
         TEST_CASE(finished_commands_count_their_sectors_per_lun),
         TEST_CASE(a_failed_command_keeps_its_sense_and_moves_no_sectors),
         TEST_CASE(not_ready_answers_after_an_eject_are_not_errors),
+        TEST_CASE(a_session_without_a_finished_write_proves_no_write_path),
+        TEST_CASE(a_finished_write_proves_the_write_path_of_its_lun_only),
+        TEST_CASE(a_failed_write_disproves_the_write_path),
+        TEST_CASE(a_refused_write_on_any_lun_disproves_the_write_path),
+        TEST_CASE(a_write_after_an_eject_disproves_the_write_path),
+        TEST_CASE(a_failed_command_other_than_a_write_leaves_the_proof),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -638,6 +638,7 @@ static void remember_session(UsbSessionEnd end)
     MscStats stats = msc_stats(&msc);
     shared->last_session = (HalUsbLast){.end = hal_end(end),
                                         .left_mounted = msc_left_mounted(&msc),
+                                        .internal_write_ok = msc_write_proven(&stats, INTERNAL_LUN),
                                         .internal_written = stats.lun_sectors_written[INTERNAL_LUN],
                                         .card_written = stats.lun_sectors_written[CARD_LUN],
                                         .writes_after_eject = stats.writes_after_eject};
