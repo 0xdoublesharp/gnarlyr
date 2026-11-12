@@ -549,6 +549,9 @@ set_source_files_properties(
     ${PROJECT_SOURCE_DIR}/src/core/parametric.c
     ${PROJECT_SOURCE_DIR}/src/core/parametric_curve.c
     ${PROJECT_SOURCE_DIR}/src/core/parametric_bound.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/logic/audio_shape.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/logic/audio_trig.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/logic/equalizer_design.c
     ${PROJECT_SOURCE_DIR}/src/app/debug_steps.c
     ${PROJECT_SOURCE_DIR}/src/app/debug_screenshot.c
     PROPERTIES COMPILE_OPTIONS -Os
