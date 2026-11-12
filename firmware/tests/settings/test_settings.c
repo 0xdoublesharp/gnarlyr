@@ -21,7 +21,7 @@ enum {
     HALF_DB_GAINS_FIELD = 28,
     HALF_DB_CHECKSUM_FIELD = 38,
     HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 15,
+    CURRENT_VERSION = 16,
     EXTENSION_VERSION = 15,
     EXTENSION_FIELD = 38,
     EXTENSION_CHECKSUM_FIELD = 54,
@@ -969,8 +969,8 @@ static void battery_percentage_defaults_off_and_round_trips_in_a_spare_flag_bit(
     chosen.prevent_clipping = false;
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&chosen, bytes);
-    CHECK_EQUAL(15, bytes[4]);
-    CHECK_EQUAL(58, sizeof bytes);
+    CHECK_EQUAL(16, bytes[4]);
+    CHECK_EQUAL(78, sizeof bytes);
     Settings restored;
     CHECK(settings_decode(bytes, sizeof bytes, &restored));
     CHECK(restored.battery_percent);
@@ -1036,12 +1036,13 @@ static void the_extension_defaults_keep_todays_behaviour(void)
 
 static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 {
-    static const uint8_t EXPECTED[16] = {0x07, 24, 15, 0, 0x60, 0x97, 0x18, 0x52, 0x43, 0x26};
+    static const uint8_t EXPECTED[16] = {0x07, 24,   15, 0, 0x60, 0x97, 0x18, 0x52,
+                                         0x43, 0x26, 0,  0, 0,    0,    0,    16};
     Settings settings = settings_defaults();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    CHECK_EQUAL(58, sizeof bytes);
-    CHECK_EQUAL(15, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(78, sizeof bytes);
+    CHECK_EQUAL(16, bytes[VERSION_FIELD]);
     CHECK(memcmp(bytes + EXTENSION_FIELD, EXPECTED, sizeof EXPECTED) == 0);
     CHECK_EQUAL(hash_update(HASH_START, bytes, EXTENSION_CHECKSUM_FIELD),
                 hash_load(bytes + EXTENSION_CHECKSUM_FIELD));
@@ -1049,7 +1050,8 @@ static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 
 static void every_extension_field_survives_a_round_trip(void)
 {
-    static const uint8_t EXPECTED[16] = {0x10, 60, 60, 0, 0x89, 0x67, 0x45, 0x23, 0x01, 0xF7, 0x03};
+    static const uint8_t EXPECTED[16] = {0x10, 60,   60,   0, 0x89, 0x67, 0x45, 0x23,
+                                         0x01, 0xF7, 0x03, 0, 0,    0,    0,    16};
     Settings original = extension_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&original, bytes);
@@ -1106,7 +1108,7 @@ static void a_version_fourteen_file_loads_with_the_extension_defaults_and_saves_
     CHECK_EQUAL(original.volume, decoded.volume);
     CHECK_EQUAL(original.orientation, decoded.orientation);
     settings_encode(&decoded, bytes);
-    CHECK_EQUAL(15, bytes[VERSION_FIELD]);
+    CHECK_EQUAL(16, bytes[VERSION_FIELD]);
     CHECK(settings_decode(bytes, sizeof bytes, &decoded));
     check_extension_defaults(&decoded);
 }
@@ -1156,7 +1158,7 @@ static void a_version_fifteen_file_needs_all_fifty_eight_bytes(void)
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
     CHECK(!settings_decode(bytes, SETTINGS_V14_FILE_SIZE, &settings));
-    CHECK(!settings_decode(bytes, SETTINGS_FILE_SIZE - 1, &settings));
+    CHECK(settings_decode(bytes, SETTINGS_FILE_SIZE - 1, &settings));
 }
 
 static void the_checksum_covers_the_extension_block(void)
@@ -1402,7 +1404,7 @@ static void status_bar_choices_round_trip_in_e13_without_using_other_extensions(
     CHECK_EQUAL(0, bytes[49]);
     CHECK_EQUAL(0, bytes[50]);
     CHECK_EQUAL(0, bytes[52]);
-    CHECK_EQUAL(0, bytes[53]);
+    CHECK_EQUAL(16, bytes[53]);
 }
 
 static void all_status_choices_and_legacy_percent_files_keep_their_values(void)
@@ -1424,12 +1426,56 @@ static void all_status_choices_and_legacy_percent_files_keep_their_values(void)
         uint8_t bytes[SETTINGS_FILE_SIZE];
         settings_encode(&settings, bytes);
         bytes[4] = (uint8_t)version;
+        bytes[53] = 0;
         bytes[5] |= 8;
         rewrite_checksum(bytes);
         CHECK(settings_decode(bytes, sizeof bytes, &settings));
         CHECK_EQUAL(0, settings.status_items);
         CHECK(settings.battery_percent);
     }
+}
+
+static void second_extension_round_trip_and_recovery(void)
+{
+    Settings original = custom_settings();
+    original.status_bar_compact = true;
+    original.standby_enabled = true;
+    original.standby_power_off_option = 2;
+    original.long_press_action = 7;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&original, bytes);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(decoded.status_bar_compact);
+    CHECK(decoded.standby_enabled);
+    CHECK_EQUAL(2, decoded.standby_power_off_option);
+    CHECK_EQUAL(7, decoded.long_press_action);
+    bytes[74] ^= 1;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK(!decoded.status_bar_compact);
+    CHECK(!decoded.standby_enabled);
+    CHECK_EQUAL(1, decoded.standby_power_off_option);
+    CHECK_EQUAL(0, decoded.long_press_action);
+    bytes[4] = 15;
+    bytes[53] = 0;
+    rewrite_checksum(bytes);
+    CHECK(settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &decoded));
+    CHECK_EQUAL(original.volume, decoded.volume);
+    CHECK_EQUAL(1, decoded.standby_power_off_option);
+}
+
+static void downgrade_rejects_the_v16_prefix(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK(bytes[4] > 15);
+    CHECK(bytes[53] != 0);
+    CHECK_EQUAL(hash_update(HASH_START, bytes, 54), hash_load(bytes + 54));
+    bytes[4] = 15;
+    rewrite_checksum(bytes);
+    CHECK(!settings_decode(bytes, SETTINGS_V15_FILE_SIZE, &settings));
 }
 
 int main(void)
@@ -1467,6 +1513,8 @@ int main(void)
         TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),
         TEST_CASE(a_previous_version_uses_the_default_theme),
         TEST_CASE(button_maps_survive_a_separate_bounded_record),
+        TEST_CASE(downgrade_rejects_the_v16_prefix),
+        TEST_CASE(second_extension_round_trip_and_recovery),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),
         TEST_CASE(settings_survive_a_round_trip),
