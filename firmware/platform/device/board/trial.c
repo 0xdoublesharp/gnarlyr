@@ -16,7 +16,6 @@
 #include "internal_volume.h"
 #include "mmc.h"
 #include "overlay.h"
-#include "registers.h"
 #include "trial_module.h"
 #include "usb.h"
 #include "usb_session.h"
@@ -31,10 +30,6 @@ enum {
     DIAG_REPORT_WORDS = 4,
     DIAG_WORDS = 2 * DIAG_SNAPSHOT_WORDS,
     DIAG_AT = 2,
-    DIAG_CRU_MMC = 0x30,
-    DIAG_CRU_GATES = 0x80,
-    DIAG_CRU_SETTLE = 0xA0,
-    DIAG_GRF_SPEED = 0xC4,
     KEEP_ATTEMPTS = 0xFF
 };
 
@@ -180,8 +175,6 @@ static uint32_t *diag_copy(uint32_t *to, const void *from, uint32_t words)
 
 void board_trial_snapshot(uint32_t kind)
 {
-    static const uint32_t REGISTERS[] = {CRU_BASE + DIAG_CRU_MMC, CRU_BASE + DIAG_CRU_GATES,
-                                         CRU_BASE + DIAG_CRU_SETTLE, GRF_BASE + DIAG_GRF_SPEED};
     UsbShared *shared = usb_session_shared();
     uint32_t *words = diag.words + kind * DIAG_SNAPSHOT_WORDS;
     if (!shared->trial.running) {
@@ -193,10 +186,7 @@ void board_trial_snapshot(uint32_t kind)
     words = diag_copy(words + 2, &shared->report, DIAG_REPORT_WORDS);
     words = diag_copy(words, &shared->link, sizeof shared->link / 4);
     words = diag_copy(words, &failure, sizeof failure / 4);
-    *words++ = (uint32_t)shared->last_session.end;
-    for (uint32_t index = 0; index < sizeof REGISTERS / sizeof REGISTERS[0]; index++) {
-        words[index] = register_read(REGISTERS[index]);
-    }
+    *words = (uint32_t)shared->last_session.end;
     diag.magic = DIAG_MAGIC;
     write_record(&shared->trial, KEEP_ATTEMPTS);
 }

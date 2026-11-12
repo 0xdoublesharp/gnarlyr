@@ -5,6 +5,7 @@
 
 #include "device/block_device.h"
 
+void sd_reset_controller(void);
 bool sd_start(BlockDevice *device);
 uint32_t sd_sector_count(void);
 bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer);

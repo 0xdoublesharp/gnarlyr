@@ -328,6 +328,7 @@ void board_main(void)
     debug_loop_boot(DEBUG_BOOT_GLYPHS);
     boot_step("glyphs");
     update_check_loader_request();
+    sd_reset_controller();
     board_trial_boot();
     boot_step("loader request");
     board_jack_poll();

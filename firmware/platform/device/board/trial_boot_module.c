@@ -68,7 +68,7 @@ static void roll_back(const TrialDisk *disk, uint32_t *buffer)
     if (trial_record_copy(disk, storage->slot_2, storage->slot_1, buffer,
                           (UpdateProgress){NULL, NULL}) &&
         record_write(disk->volume, (UpdateTrial){UPDATE_TRIAL_ROLLED_BACK, 0})) {
-        board_restart();
+        board_restart_clean();
     }
 }
 

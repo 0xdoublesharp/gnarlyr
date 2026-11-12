@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 #include "board.h"
+#include "emmc.h"
 #include "registers.h"
 
 #define PMU_BASE 0x50020000u
@@ -83,6 +84,12 @@ __attribute__((noinline, noreturn)) static void reset_with(uint32_t flag, bool l
 void board_loader_reboot(void)
 {
     reset_with(PMU_BOOT_LOADER, true);
+}
+
+void board_restart_clean(void)
+{
+    emmc_quiesce();
+    board_restart();
 }
 
 void board_restart(void)

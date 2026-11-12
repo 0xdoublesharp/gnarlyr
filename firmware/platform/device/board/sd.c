@@ -36,6 +36,7 @@ enum {
     STATUS_TRIES = 1000,
     TRANSFER_READY_TIMEOUT_MS = 1000,
     POWER_SETTLE_MS = 1,
+    RESET_PULSE_US = 10,
     DETECT_SETTLE_MS = 1
 };
 
@@ -106,6 +107,13 @@ static void start_card_detect(void)
     presence.candidate = host_card_present(NULL);
     presence.since_ms = hal_clock_milliseconds();
     board_delay_ms(CARD_PRESENCE_STEADY_MS);
+}
+
+void sd_reset_controller(void)
+{
+    cru_reset(RESET_SD, true);
+    board_delay_us(RESET_PULSE_US);
+    cru_reset(RESET_SD, false);
 }
 
 static void power_controller(void)

@@ -13,6 +13,7 @@ typedef struct EmmcInfo {
 } EmmcInfo;
 
 bool emmc_start(EmmcInfo *info);
+void emmc_quiesce(void);
 bool emmc_read(void *context, uint32_t lba, uint32_t count, void *buffer);
 bool emmc_write(void *context, uint32_t lba, uint32_t count, const void *buffer);
 BlockDevice emmc_device(void);

@@ -70,5 +70,5 @@ CORE_SEAM void debug_restart_after_install(FatVolume *volume, const UsbShared *s
     debug_report_write(shared, DEBUG_REPORT_RESTART);
     app_show_notice(i18n_text(STR_UPDATE_INSTALLED), i18n_text(STR_UPDATE_RESTARTING));
     board_display_service();
-    board_restart();
+    board_restart_clean();
 }
