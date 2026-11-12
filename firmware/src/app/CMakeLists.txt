@@ -115,6 +115,8 @@ add_library(echo_app STATIC
     screens/equalizer_browser.c
     screens/equalizer_plot.c
     screens/now_playing_screen.c
+    screens/now_playing_keys.c
+    screens/now_playing_fallback.c
     screens/plug_chooser.c
     screens/plug_art.c
     screens/up_next_screen.c

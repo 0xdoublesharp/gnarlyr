@@ -78,9 +78,9 @@ echo_add_unit_test(NAME test_english_layout
 )
 
 echo_add_unit_test(NAME test_app
-    SOURCES app/test_app.c app/fake_hal.c
+    SOURCES app/test_app.c app/fake_hal.c support/text_spy.c
     LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
 echo_add_unit_test(NAME test_release_diagnostics
     SOURCES app/test_release_diagnostics.c ${PROJECT_SOURCE_DIR}/src/app/diagnostics_menu_release.c

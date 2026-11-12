@@ -82,6 +82,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/ui/wire_motion.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_playing
+    src/app/screens/now_playing_screen.c
+    src/app/cassette_art.c
     platform/device/board/storage_list.c
     platform/device/logic/fat_list.c
     platform/device/logic/exfat_list.c
@@ -150,6 +152,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/modules/equalizer_module.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_views
+    src/app/cassette_art.c
     src/app/theme_pack.c
     src/app/theme_runtime.c
     src/app/theme_catalog.c

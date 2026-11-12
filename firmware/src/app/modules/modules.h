@@ -13,6 +13,7 @@ typedef struct PlayingModuleEntry {
     ScreenModuleEntry module;
     int (*section)(const BrowseScreen *browse, int index);
     ListSections (*sections)(const BrowseScreen *browse, int index);
+    void (*now_playing_attach)(NowPlayingScreen *now_playing);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {

@@ -110,3 +110,6 @@ bool now_playing_feedback_visible(NowPlayingFeedback feedback, uint32_t started_
                                   uint32_t now_ms);
 int now_playing_volume_width(uint8_t volume, int width);
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config);
+void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig config);
+void now_playing_screen_attach(NowPlayingScreen *now_playing);
+void now_playing_fallback_attach(NowPlayingScreen *now_playing);

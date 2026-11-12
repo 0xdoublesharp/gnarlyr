@@ -51,7 +51,6 @@ static void screens_outside_every_module_belong_to_none(void)
     reset();
     Screen elsewhere = {0};
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.home.screen));
-    CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.now_playing.screen));
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &screens.no_library.screen));
     CHECK_EQUAL(SCREEN_MODULE_NONE, screen_modules_of(&screens, &elsewhere));
 }
@@ -63,6 +62,7 @@ static void a_screen_belongs_to_the_module_whose_memory_holds_it(void)
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->cover_flow.screen));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->up_next.screen));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->quick_settings.screen));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
 }
 
 static void screens_a_module_builds_for_itself_belong_to_it_too(void)
