@@ -6,8 +6,8 @@
 #include "app/extension.h"
 #include "hal/clock.h"
 #include "headphone_store.h"
-#include "ui/screen.h"
 #include "standby.h"
+#include "ui/screen.h"
 #include "ui/wire_motion.h"
 
 struct AppScreens;

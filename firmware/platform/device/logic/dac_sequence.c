@@ -70,9 +70,9 @@ static const uint8_t MONO_VALUES[MONO_GROUPS][MONO_ITEMS] = {
 };
 
 static const uint32_t AFTER_MONO[] = {
-    WRITE(0x0D0000, 0x04), WRITE(0x0D0001, 0x00), WRITE(0x0F0010, 0x87), WRITE(0x0F0011, 0x07),
-    WRITE(0x010006, 0x04), WRITE(0x01000D, 0x02), WRITE(0x010010, 0x99), WRITE(0x180000, 0x45),
-    WRITE(0x010010, 0x00),
+    WRITE(0x0D0000, 0x04), WRITE(0x0D0001, 0x00), WRITE(0x0F0010, 0x87),
+    WRITE(0x0F0011, 0x07), WRITE(0x010006, 0x04), WRITE(0x01000D, 0x02),
+    WRITE(0x010010, 0x99), WRITE(0x180000, 0x45), WRITE(0x010010, 0x00),
 };
 
 static void wait_ms(const DacBus *bus, uint32_t milliseconds)
@@ -308,7 +308,8 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
         return DAC_VOLUME_MUTED;
     }
     uint32_t capped = level < DAC_VOLUME_LEVELS ? level : DAC_VOLUME_LEVELS;
-    return (uint8_t)(CURVE_TOP_VALUES[curve] + VOLUME_UNITS_PER_STEP * (DAC_VOLUME_LEVELS - capped));
+    return (uint8_t)(CURVE_TOP_VALUES[curve] +
+                     VOLUME_UNITS_PER_STEP * (DAC_VOLUME_LEVELS - capped));
 }
 
 void dac_output_on(const DacBus *bus, uint8_t volume)

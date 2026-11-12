@@ -378,9 +378,10 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
     bytes[58] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
                           settings->standby_power_off_option << 2);
     bytes[59] = settings->long_press_action & 7u;
-    bytes[60] = (uint8_t)((settings->bluetooth_volume < SETTINGS_VOLUME_MAX ? settings->bluetooth_volume
-                                                                          : SETTINGS_VOLUME_MAX) +
-                          1u);
+    bytes[60] =
+        (uint8_t)((settings->bluetooth_volume < SETTINGS_VOLUME_MAX ? settings->bluetooth_volume
+                                                                    : SETTINGS_VOLUME_MAX) +
+                  1u);
     hash_store(bytes + 74, hash_update(HASH_START, bytes + 58, 16));
 }
 

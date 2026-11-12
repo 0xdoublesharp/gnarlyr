@@ -24,7 +24,6 @@ enum {
     MILLISECONDS_PER_SECOND = 1000
 };
 
-
 static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFLE_SONGS,
                                                              STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
@@ -686,11 +685,12 @@ static ScreenAction open_power(void *context)
 {
     SettingsScreens *screens = context;
     for (int index = 0; index < 2; index++) {
-        screens->power_items[index] = (MenuItem){.label = i18n_text(CHOICES[SETTINGS_STANDBY_CHOICE + index].title),
-                                                 .select = open_choice,
-                                                 .context = &screens->entries[SETTINGS_STANDBY_CHOICE + index],
-                                                 .value = choice_value,
-                                                 .opens = true};
+        screens->power_items[index] =
+            (MenuItem){.label = i18n_text(CHOICES[SETTINGS_STANDBY_CHOICE + index].title),
+                       .select = open_choice,
+                       .context = &screens->entries[SETTINGS_STANDBY_CHOICE + index],
+                       .value = choice_value,
+                       .opens = true};
     }
     MenuConfig config = {.title = i18n_text(STR_STANDBY_POWER),
                          .items = screens->power_items,
