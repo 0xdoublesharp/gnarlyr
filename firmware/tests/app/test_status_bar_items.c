@@ -3,9 +3,14 @@
 #include "check.h"
 #include "default_theme.h"
 #include "gfx/text.h"
+#include "hal/display.h"
 #include "screen_snapshot.h"
 #include "ui/header.h"
 #include "ui/status_bar.h"
+
+enum {
+    HEADER_CAPTURE_PIXELS = HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE
+};
 
 static StatusBarState all_items(void)
 {
@@ -160,12 +165,35 @@ static void compact_reclaims_space_and_keeps_the_combined_battery(void)
     }
 }
 
+static Color header_pixels[HEADER_CAPTURE_PIXELS];
+
+static void a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_centred(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = BOARD_THEME;
+        default_theme_set_orientation(&theme, (Orientation)orientation);
+        const Font *font = theme.fonts.header;
+        Rect bounds = header_title_bounds(&theme);
+        Rect area = header_title_area(&theme, font, "Settings");
+        int width = text_width(font, "Settings");
+        int centred = bounds.x + (bounds.width - width) / 2;
+        CHECK_EQUAL(orientation == ORIENTATION_PORTRAIT ? bounds.x : centred, area.x);
+        Canvas canvas = canvas_make(
+            header_pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+        canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
+        header_draw(&canvas, &theme, "Settings");
+        status_bar_draw(&canvas, &theme, all_items());
+        screen_snapshot_write(&canvas, "header", orientation);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
         TEST_CASE(portrait_centres_the_position_and_landscape_protects_the_title),
+        TEST_CASE(a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_centred),
         TEST_CASE(queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

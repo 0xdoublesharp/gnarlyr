@@ -313,8 +313,9 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
     SpeedTag tag = speed_tag(painter);
     if (theme_is_portrait(theme)) {
         usb_screen_text(painter, (Rect){row.x, row.y, room, row.height}, name, FIRMWARE_SHORT_NAME);
-        usb_screen_text(painter, second, mode, title);
-        draw_tag(painter, second, second.x + title_width, tag);
+        Rect status = {second.x, second.y, second.width - tag.width, second.height};
+        usb_screen_text(painter, status, mode, title);
+        draw_tag(painter, second, second.x + second.width - tag.width, tag);
         return;
     }
     int gap = theme->metrics.padding;
