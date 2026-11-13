@@ -834,11 +834,27 @@ static bool emit_folder_links(BuilderState *state, Prepared *prepared, const uin
             return false;
         }
     }
-    for (uint32_t position = 0; position < state->track_count; position++) {
-        uint32_t track = final_tracks[position];
+    uint32_t count = state->track_count;
+    uint16_t *position_of = arena_take(&state->arena, count * 2 + 2);
+    uint8_t *rows = arena_take(&state->arena, STREAM_BUFFER);
+    if (state->arena.failed) {
+        return false;
+    }
+    for (uint32_t position = 0; position < count; position++) {
+        position_of[final_tracks[position]] = (uint16_t)position;
+    }
+    In in;
+    in_open(&in, &state->store, state->rows.offset, state->rows.offset + count * BUILDER_ROW_SIZE,
+            rows, STREAM_BUFFER);
+    for (uint32_t track = 0; track < count; track++) {
+        uint8_t bytes[BUILDER_ROW_SIZE];
         TrackRow row;
-        if (!builder_read_row(&prepared->rows, state, track, &row) ||
-            !put_track_links(&tail, phase, &row, (FolderLink){files[track], track, position})) {
+        if (!in_get(&in, bytes, sizeof bytes)) {
+            return false;
+        }
+        builder_row_decode(bytes, &row);
+        FolderLink link = {files[track], track, position_of[track]};
+        if (!put_track_links(&tail, phase, &row, link)) {
             return false;
         }
     }

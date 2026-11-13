@@ -188,6 +188,8 @@ class ScanRun:
         self.machine.hook_symbol("hal_system_return_scratch", self.left)
         self.machine.hook_symbol("show_rescan_progress", self.counted, optional=True)
         self.machine.hook_symbol("toast_show", self.toasted)
+        self.after_save = []
+        self.machine.hook_symbol("app_show_notice", self.noticed)
 
     def entered(self):
         if self.armed and self.profiler.active and self.started is None:
@@ -218,6 +220,18 @@ class ScanRun:
 
     def counted(self):
         self.progress = [self.machine.reg(UC_ARM_REG_R0), self.machine.reg(UC_ARM_REG_R1)]
+
+    def noticed(self):
+        if self.ended is not None and not any(moment >= self.ended["us"] for moment in self.toast_us):
+            message = self.machine.read_cstring(self.machine.reg(UC_ARM_REG_R1))
+            self.after_save.append((self.machine.microseconds(), message.decode("utf-8", "replace")))
+
+    def hand_over(self):
+        end = self.browsable_us()
+        moments = [self.ended["us"]] + [moment for moment, _ in self.after_save] + [end]
+        return {"ms": round((end - self.ended["us"]) / 1000, 1), "notices": len(self.after_save),
+                "last": self.after_save[-1][1] if self.after_save else None,
+                "longest_gap_ms": round(max(b - a for a, b in zip(moments, moments[1:])) / 1000, 1)}
 
     def phased(self):
         if self.started is not None and self.ended is None:
@@ -294,6 +308,7 @@ class ScanRun:
             "wall_seconds": round(last["wall"] - self.started["wall"], 1),
             "toasts": self.toasts,
             "build_progress": self.build_progress(),
+            "hand_over": self.hand_over(),
             "counts": library_counts(self.session),
             "firmware_times": firmware_times(self.session),
             "decoded_covers": calls,

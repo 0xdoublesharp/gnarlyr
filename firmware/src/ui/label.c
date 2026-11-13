@@ -114,8 +114,12 @@ int label_wrap_count(const Font *font, const char *text, int max_width)
 static int width_until(const Font *font, const char *text, const char *end)
 {
     int width = 0;
-    while (text != end) {
-        width += advance_of(font, utf8_next(&text));
+    while (text < end) {
+        uint32_t codepoint = utf8_next(&text);
+        if (codepoint == 0) {
+            break;
+        }
+        width += advance_of(font, codepoint);
     }
     return width;
 }

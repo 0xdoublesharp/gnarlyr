@@ -257,6 +257,7 @@ bool in_done(const In *in);
 
 bool cache_init(Cache *cache, Store *store, Arena *arena, uint32_t block_size, uint32_t count);
 bool cache_read(Cache *cache, uint32_t offset, void *bytes, uint32_t length);
+void cache_forget(Cache *cache);
 
 bool sort_records(const SortJob *job, Region *output);
 

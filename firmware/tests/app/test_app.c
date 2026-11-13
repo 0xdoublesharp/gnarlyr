@@ -3266,6 +3266,46 @@ static void a_requested_rescan_after_a_cut_short_scan_rebuilds_the_library(void)
     CHECK(toast_is("Library: 0 tracks"));
 }
 
+static bool scan_text_is_known(const char *text)
+{
+    static const char *const KNOWN[] = {
+        "Changes found, scanning library...",
+        "Starting...",
+        "Sorting... 0%",
+        "Saving library... 0%",
+        "Saving library... 99%",
+        "Sorting... 99%",
+    };
+    for (size_t index = 0; index < sizeof KNOWN / sizeof KNOWN[0]; index++) {
+        if (strcmp(text, KNOWN[index]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void a_scan_notice_redraws_the_text_it_was_given(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    mark_scan_stopped(2);
+    app_request_rescan();
+    text_spy_reset();
+    step();
+    CHECK(text_shown("Sorting... 0%"));
+    CHECK(text_shown("Saving library... 0%"));
+    int scan_texts = 0;
+    for (int index = 0; index < text_spy_count(); index++) {
+        const char *shown = text_spy_entry(index)->shown;
+        bool scan = strstr(shown, "...") != NULL || strstr(shown, "%") != NULL;
+        if (scan) {
+            CHECK(scan_text_is_known(shown));
+            scan_texts++;
+        }
+    }
+    CHECK(scan_texts >= 2);
+}
+
 static void a_requested_rescan_after_a_firmware_update_rebuilds_the_library(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
@@ -6547,6 +6587,7 @@ int main(void)
         TEST_CASE(a_new_firmware_checks_the_music_once_without_rescanning),
         TEST_CASE(the_music_check_after_usb_says_so_before_walking_the_card),
         TEST_CASE(a_new_firmware_rescans_music_that_changed),
+        TEST_CASE(a_scan_notice_redraws_the_text_it_was_given),
         TEST_CASE(a_new_firmware_rebuilds_a_library_it_cannot_read),
         TEST_CASE(a_card_that_cannot_be_walked_is_rescanned_after_usb),
         TEST_CASE(a_scan_cut_short_runs_again_at_the_next_start),

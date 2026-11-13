@@ -5,6 +5,7 @@
 
 enum {
     STREAM_BUFFER = 4096,
+    RUN_BUFFER = 1024,
     RECORD_HEADER = 12,
     FOLDER_HEADER = 6,
     DISPLAY_SIZE = 8
@@ -133,30 +134,43 @@ static void open_rows(BuilderState *state, RunReader *reader, uint8_t *buffer)
             state->rows.offset + state->track_count * BUILDER_ROW_SIZE, buffer, STREAM_BUFFER);
 }
 
-static bool collect_runs(BuilderState *state, Prepared *prepared, int field, Region *input,
-                         uint32_t *runs)
+typedef struct Collected {
+    Region input;
+    uint32_t runs;
+    Region run_column;
+} Collected;
+
+static bool collect_runs(BuilderState *state, Prepared *prepared, int field, Collected *collected)
 {
     Arena *arena = &state->arena;
     uint8_t *row_buffer = arena_take(arena, STREAM_BUFFER);
     uint8_t *tail_buffer = arena_take(arena, STREAM_BUFFER);
+    uint8_t *run_buffer = arena_take(arena, RUN_BUFFER);
     char *text = arena_take(arena, BUILDER_TEXT_CAPACITY);
     char *key = arena_take(arena, SORT_KEY_CAPACITY);
     Tail tail;
     if (arena->failed || !open_tail(state, &tail, tail_buffer)) {
         return false;
     }
+    Out run_out;
+    out_open(&run_out, &state->store, collected->run_column, run_buffer, RUN_BUFFER);
     RunReader reader;
     open_rows(state, &reader, row_buffer);
     for (uint32_t track = 0; track < state->track_count; track++) {
         TrackRow row;
         bool new_run = false;
+        uint8_t run[2];
         if (!next_row(&reader, field, &row, &new_run) ||
             (new_run && !emit_run(prepared, &tail, reader.run, &row, field, text, key))) {
             return false;
         }
+        builder_put16(run, reader.run);
+        if (!out_put(&run_out, run, sizeof run)) {
+            return false;
+        }
     }
-    *runs = reader.started ? reader.run + 1 : 0;
-    return close_tail(state, &tail, input);
+    collected->runs = reader.started ? reader.run + 1 : 0;
+    return out_close(&run_out) && close_tail(state, &tail, &collected->input);
 }
 
 typedef struct RankTarget {
@@ -237,25 +251,17 @@ static bool assign_ranks(BuilderState *state, Region sorted, RankTarget *target)
     return out_close(&out);
 }
 
-static bool write_rank_column(BuilderState *state, int field, const uint16_t *rank_of_run,
+static bool write_rank_column(BuilderState *state, Region run_column, const uint16_t *rank_of_run,
                               Region column)
 {
     Arena *arena = &state->arena;
     uint32_t mark = arena->used;
-    uint8_t *buffer = arena_take(arena, STREAM_BUFFER);
-    uint16_t *ranks = arena_take(arena, state->track_count * 2 + 2);
-    if (arena->failed) {
+    uint16_t *ranks = builder_load_column(state, run_column, state->track_count);
+    if (ranks == NULL) {
         return false;
     }
-    RunReader reader;
-    open_rows(state, &reader, buffer);
     for (uint32_t track = 0; track < state->track_count; track++) {
-        TrackRow row;
-        bool new_run = false;
-        if (!next_row(&reader, field, &row, &new_run)) {
-            return false;
-        }
-        ranks[track] = rank_of_run[reader.run];
+        ranks[track] = rank_of_run[ranks[track]];
     }
     bool written = builder_write_column(state, column, ranks, state->track_count);
     arena->used = mark;
@@ -294,16 +300,16 @@ static bool rank_field(BuilderState *state, Prepared *prepared, int field)
     }
     uint32_t arena_mark = state->arena.used;
     uint32_t store_mark = state->store.end;
-    Region input;
-    uint32_t runs = 0;
+    Collected collected = {.runs = 0, .run_column = store_take(&state->store, count * 2 + 2)};
     Region sorted;
-    if (!collect_runs(state, prepared, field, &input, &runs)) {
+    if (state->store.failed || !collect_runs(state, prepared, field, &collected)) {
         return false;
     }
+    uint32_t runs = collected.runs;
     state->arena.used = arena_mark;
     SortJob job = {.store = &state->store,
                    .arena = &state->arena,
-                   .input = input,
+                   .input = collected.input,
                    .compare = compare_field_keys,
                    .context = NULL};
     if (!sort_records(&job, &sorted)) {
@@ -313,9 +319,11 @@ static bool rank_field(BuilderState *state, Prepared *prepared, int field)
     target.spelling_of_run =
         field == BUILDER_GENRE ? arena_take(&state->arena, runs * 2 + 2) : NULL;
     if (state->arena.failed || !assign_ranks(state, sorted, &target) ||
-        !write_rank_column(state, field, target.rank_of_run, prepared->columns[field]) ||
+        !write_rank_column(state, collected.run_column, target.rank_of_run,
+                           prepared->columns[field]) ||
         (field == BUILDER_GENRE &&
-         !write_rank_column(state, field, target.spelling_of_run, prepared->genre_spelling))) {
+         !write_rank_column(state, collected.run_column, target.spelling_of_run,
+                            prepared->genre_spelling))) {
         return false;
     }
     prepared->rank_count[field] = target.ranks;

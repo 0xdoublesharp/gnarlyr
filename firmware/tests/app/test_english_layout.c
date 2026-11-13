@@ -57,6 +57,7 @@ static const Pattern NOTICE_PATTERNS[] = {
     {STR_SCAN_SORTING, {"99"}},
     {STR_SCAN_PLAYLISTS, {"99"}},
     {STR_SCAN_SAVING, {"99"}},
+    {STR_SCAN_FINISHING, {"99"}},
     {STR_COVERS_DONE, {"2673", "2673"}},
     {STR_PREPARING_FILE, {"13", "13"}},
 };

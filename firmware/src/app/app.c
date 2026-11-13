@@ -72,6 +72,7 @@ enum {
     COVERS_IDLE_MS = 3000,
     COVERS_PAUSED_MS = 60000,
     NOTICE_TEXT_CAPACITY = 64,
+    NOTICE_MESSAGE_CAPACITY = 160,
     TOAST_TEXT_CAPACITY = 64,
     BATTERY_CHECK_MS = 250,
     CHARGE_LIT_MS = 5000
@@ -154,6 +155,7 @@ typedef struct AppState {
     AppUsbRenderer usb_renderer;
     AppScreens screens;
     MessageScreen notice;
+    char notice_message[NOTICE_MESSAGE_CAPACITY];
     WireMotion motion;
     FrameDiff frame_diff;
     FramePacer pacer;
@@ -1672,11 +1674,11 @@ static void explain_refusals(uint32_t now_ms)
     }
 }
 
-static MusicFingerprint walk_music(bool progress)
+static MusicFingerprint walk_music(uint32_t expected)
 {
     const ViewsModuleEntry *module =
         (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
-    return module != NULL ? module->music_fingerprint(progress)
+    return module != NULL ? module->music_fingerprint(expected)
                           : (MusicFingerprint){.complete = false};
 }
 
@@ -1724,7 +1726,9 @@ static void run_rescan(void)
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
-        music_check_remember(walk_music(false));
+        uint32_t expected = music_check_entries();
+        expected = expected > 0 ? expected : outcome.stats.files + outcome.stats.files / 4u + 1u;
+        music_check_remember(walk_music(expected));
         start_app(false);
         app.covers_pending = true;
         app.covers_album = 0;
@@ -2168,8 +2172,8 @@ CORE_SEAM void app_step(void)
                 (app.rescan_manual && (music_check_firmware_is_new() || !music_check_settled()));
             if (!changed) {
                 show_working_notice(STR_MUSIC, i18n_text(STR_CHECKING_MUSIC), WIRE_SHAPE_DISC);
-                changed =
-                    !music_check_unchanged(walk_music(true)) || !library_store_open(&app.library);
+                changed = !music_check_unchanged(walk_music(MUSIC_WALK_CHECK)) ||
+                          !library_store_open(&app.library);
             }
             if (!changed) {
                 music_check_note_firmware();
@@ -2384,8 +2388,10 @@ CORE_SEAM void app_show_notice(const char *title, const char *message)
     if (working) {
         wire_motion_tick(&app.motion, hal_clock_milliseconds());
     }
+    StringBuilder copy = string_builder_make(app.notice_message, sizeof app.notice_message);
+    string_builder_append(&copy, message != NULL ? message : "");
     MessageConfig config = {.title = title,
-                            .message = message,
+                            .message = app.notice_message,
                             .theme = &notice_theme,
                             .motion = working ? &app.motion : NULL};
     Screen *screen = message_screen_init(&app.notice, config);

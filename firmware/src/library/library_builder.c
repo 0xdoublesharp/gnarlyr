@@ -188,7 +188,7 @@ void library_builder_expect_playlists(LibraryBuilder *builder, uint32_t count)
 
 static uint32_t sort_units(uint32_t tracks)
 {
-    uint32_t per_track = tracks < 4096 ? 60 : tracks < 8192 ? 65 : tracks < 16384 ? 70 : 74;
+    uint32_t per_track = tracks < 4096 ? 57 : tracks < 8192 ? 61 : tracks < 16384 ? 66 : 70;
     return tracks * per_track;
 }
 

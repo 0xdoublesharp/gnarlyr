@@ -237,6 +237,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_SCAN_SORTING] = "Sorting... {0}%",
     [STR_SCAN_PLAYLISTS] = "Reading playlists... {0}%",
     [STR_SCAN_SAVING] = "Saving library... {0}%",
+    [STR_SCAN_FINISHING] = "Finishing... {0}%",
     [STR_FINDING_COVERS] = "Finding covers",
     [STR_COVERS_DONE] = "{0} of {1} albums",
     [STR_LIBRARY_ONE_TRACK] = "Library: {0} track",

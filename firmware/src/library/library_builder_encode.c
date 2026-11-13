@@ -16,12 +16,15 @@ enum {
     FOLDER_RECORD = 16,
     INDEX_RECORD = 2,
     BUFFER_SIZE = 512,
+    WRITE_BUFFER = 8192,
+    BULK_BUFFER = 32768,
     STREAM_BUFFER = 4096,
     ALBUM_FINAL = 20,
     GROUP_ENTRY = 8,
     DISPLAY_SIZE = 8,
     FOLDER_FINAL = 16,
-    NAME_HEADER = 6
+    NAME_HEADER = 6,
+    TRACK_STRINGS = BUILDER_GENRE
 };
 
 typedef enum Section {
@@ -43,7 +46,8 @@ typedef struct Writer {
     uint32_t used;
     uint32_t hash;
     bool failed;
-    uint8_t buffer[BUFFER_SIZE];
+    uint8_t *buffer;
+    uint32_t capacity;
 } Writer;
 
 typedef struct Layout {
@@ -67,6 +71,8 @@ typedef struct Encode {
     uint16_t *folder_path;
     uint16_t *playlist_order;
     uint8_t *stream;
+    uint8_t *bulk;
+    uint32_t bulk_size;
     char *text;
     char *folder_text;
     uint32_t folder_text_node;
@@ -88,7 +94,7 @@ static void put_byte(Writer *writer, uint8_t value)
     writer->buffer[writer->used++] = value;
     writer->offset++;
     writer->hash = (writer->hash ^ value) * HASH_PRIME;
-    if (writer->used == BUFFER_SIZE) {
+    if (writer->used == writer->capacity) {
         flush(writer);
     }
 }
@@ -135,6 +141,13 @@ static bool read_region(Encode *encode, Region region, uint32_t offset, void *by
                         uint32_t length)
 {
     return store_read(&encode->state->store, region.offset + offset, bytes, length);
+}
+
+static void open_records(Encode *encode, In *in, Region region, uint32_t half)
+{
+    uint32_t size = STREAM_BUFFER / 2;
+    in_open(in, &encode->state->store, region.offset, region.offset + region.size,
+            encode->stream + half * size, size);
 }
 
 static uint32_t folder_name_length(const uint8_t *record)
@@ -248,9 +261,11 @@ static uint32_t string_total(Encode *encode)
     BuilderState *state = encode->state;
     Prepared *prepared = encode->prepared;
     uint32_t total = 1 + state->text_bytes;
+    In in;
+    open_records(encode, &in, prepared->albums, 0);
     for (uint32_t album = 0; album < prepared->album_count; album++) {
         uint8_t record[ALBUM_FINAL];
-        if (!read_region(encode, prepared->albums, album * ALBUM_FINAL, record, sizeof record)) {
+        if (!in_get(&in, record, sizeof record)) {
             return 0;
         }
         uint32_t length = builder_get16(record + 4);
@@ -258,20 +273,20 @@ static uint32_t string_total(Encode *encode)
     }
     const GroupTable *tables[3] = {&prepared->artists, &prepared->album_artists, &prepared->genres};
     for (int table = 0; table < 3; table++) {
+        open_records(encode, &in, tables[table]->display, 0);
         for (uint32_t group = 0; group < tables[table]->count; group++) {
             uint8_t entry[DISPLAY_SIZE];
-            if (!read_region(encode, tables[table]->display, group * DISPLAY_SIZE, entry,
-                             sizeof entry)) {
+            if (!in_get(&in, entry, sizeof entry)) {
                 return 0;
             }
             uint32_t length = builder_get16(entry + 4);
             total += length > 0 ? length + 1 : 0;
         }
     }
+    open_records(encode, &in, prepared->folders_final, 0);
     for (uint32_t folder = 0; folder < state->folder_count; folder++) {
         uint8_t record[FOLDER_FINAL];
-        if (!read_region(encode, prepared->folders_final, folder * FOLDER_FINAL, record,
-                         sizeof record)) {
+        if (!in_get(&in, record, sizeof record)) {
             return 0;
         }
         uint32_t length = folder_name_length(record);
@@ -342,6 +357,35 @@ static void write_header(Writer *writer, const Layout *layout)
     pad_to(writer, HEADER_SIZE);
 }
 
+static bool place_track_strings(Encode *encode)
+{
+    BuilderState *state = encode->state;
+    uint32_t half = encode->bulk_size / 2;
+    Region rows = {.offset = state->rows.offset, .size = state->track_count * BUILDER_ROW_SIZE};
+    In in;
+    Out out;
+    in_open(&in, &state->store, rows.offset, rows.offset + rows.size, encode->bulk, half);
+    out_open(&out, &state->store, rows, encode->bulk + half, half);
+    for (uint32_t track = 0; track < state->track_count; track++) {
+        uint8_t bytes[BUILDER_ROW_SIZE];
+        TrackRow row;
+        if (!in_get(&in, bytes, sizeof bytes)) {
+            return false;
+        }
+        builder_row_decode(bytes, &row);
+        uint32_t title = row.length[BUILDER_TITLE];
+        row.text[TRACK_STRINGS] = encode->strings;
+        encode->strings += (title > 0 ? title + 1 : 0) + encode->folder_path[row.folder] +
+                           row.length[BUILDER_FILE] + 1;
+        builder_row_encode(&row, bytes);
+        if (!out_put(&out, bytes, sizeof bytes)) {
+            return false;
+        }
+    }
+    cache_forget(&encode->prepared->rows);
+    return out_close(&out);
+}
+
 static bool write_tracks(Encode *encode)
 {
     BuilderState *state = encode->state;
@@ -351,10 +395,9 @@ static bool write_tracks(Encode *encode)
         if (!builder_read_row(&encode->prepared->rows, state, track, &row)) {
             return false;
         }
-        uint32_t title = take_string(encode, row.length[BUILDER_TITLE]);
-        uint32_t path_length = encode->folder_path[row.folder] + row.length[BUILDER_FILE];
-        uint32_t path = encode->strings;
-        encode->strings += path_length + 1;
+        uint32_t title_length = row.length[BUILDER_TITLE];
+        uint32_t title = title_length > 0 ? row.text[TRACK_STRINGS] : 0;
+        uint32_t path = row.text[TRACK_STRINGS] + (title_length > 0 ? title_length + 1 : 0);
         Writer *writer = encode->writer;
         put_u32(writer, title);
         put_u32(writer, path);
@@ -375,9 +418,11 @@ static bool write_tracks(Encode *encode)
 static bool write_albums(Encode *encode)
 {
     Prepared *prepared = encode->prepared;
+    In in;
+    open_records(encode, &in, prepared->albums, 0);
     for (uint32_t album = 0; album < prepared->album_count; album++) {
         uint8_t record[ALBUM_FINAL];
-        if (!read_region(encode, prepared->albums, album * ALBUM_FINAL, record, sizeof record)) {
+        if (!in_get(&in, record, sizeof record)) {
             return false;
         }
         Writer *writer = encode->writer;
@@ -394,11 +439,14 @@ static bool write_albums(Encode *encode)
 
 static bool write_groups(Encode *encode, const GroupTable *table, uint32_t first_link)
 {
+    In displays;
+    In entries;
+    open_records(encode, &displays, table->display, 0);
+    open_records(encode, &entries, table->groups, 1);
     for (uint32_t group = 0; group < table->count; group++) {
         uint8_t display[DISPLAY_SIZE];
         uint8_t entry[GROUP_ENTRY];
-        if (!read_region(encode, table->display, group * DISPLAY_SIZE, display, sizeof display) ||
-            !read_region(encode, table->groups, group * GROUP_ENTRY, entry, sizeof entry)) {
+        if (!in_get(&displays, display, sizeof display) || !in_get(&entries, entry, sizeof entry)) {
             return false;
         }
         Writer *writer = encode->writer;
@@ -412,10 +460,11 @@ static bool write_groups(Encode *encode, const GroupTable *table, uint32_t first
 
 static bool write_folders(Encode *encode, uint32_t first_link)
 {
+    In in;
+    open_records(encode, &in, encode->prepared->folders_final, 0);
     for (uint32_t folder = 0; folder < encode->state->folder_count; folder++) {
         uint8_t record[FOLDER_FINAL];
-        if (!read_region(encode, encode->prepared->folders_final, folder * FOLDER_FINAL, record,
-                         sizeof record)) {
+        if (!in_get(&in, record, sizeof record)) {
             return false;
         }
         Writer *writer = encode->writer;
@@ -489,7 +538,7 @@ static bool write_records(Encode *encode, const Layout *layout)
     Writer *writer = encode->writer;
     encode->strings = 1;
     write_header(writer, layout);
-    if (!write_tracks(encode)) {
+    if (!place_track_strings(encode) || !write_tracks(encode)) {
         return false;
     }
     pad_to(writer, layout->offset[SECTION_ALBUMS]);
@@ -572,9 +621,18 @@ static bool emit_track_strings(Encode *encode)
 {
     BuilderState *state = encode->state;
     Prepared *prepared = encode->prepared;
-    for (uint32_t position = 0; position < state->track_count; position++) {
+    In in;
+    in_open(&in, &state->store, state->rows.offset,
+            state->rows.offset + state->track_count * BUILDER_ROW_SIZE, encode->bulk,
+            encode->bulk_size);
+    for (uint32_t track = 0; track < state->track_count; track++) {
+        uint8_t bytes[BUILDER_ROW_SIZE];
         TrackRow row;
-        if (!builder_read_row(&prepared->rows, state, encode->final_tracks[position], &row) ||
+        bool read = in_get(&in, bytes, sizeof bytes);
+        if (read) {
+            builder_row_decode(bytes, &row);
+        }
+        if (!read ||
             !emit_text(encode, &prepared->heap, row.text[BUILDER_TITLE],
                        row.length[BUILDER_TITLE]) ||
             !folder_text_for(encode, row.folder) ||
@@ -592,9 +650,11 @@ static bool emit_track_strings(Encode *encode)
 static bool emit_names(Encode *encode)
 {
     Prepared *prepared = encode->prepared;
+    In in;
+    open_records(encode, &in, prepared->albums, 0);
     for (uint32_t album = 0; album < prepared->album_count; album++) {
         uint8_t record[ALBUM_FINAL];
-        if (!read_region(encode, prepared->albums, album * ALBUM_FINAL, record, sizeof record) ||
+        if (!in_get(&in, record, sizeof record) ||
             !emit_text(encode, &prepared->heap, builder_get32(record),
                        folder_name_length(record))) {
             return false;
@@ -602,20 +662,20 @@ static bool emit_names(Encode *encode)
     }
     const GroupTable *tables[3] = {&prepared->artists, &prepared->album_artists, &prepared->genres};
     for (int table = 0; table < 3; table++) {
+        open_records(encode, &in, tables[table]->display, 0);
         for (uint32_t group = 0; group < tables[table]->count; group++) {
             uint8_t entry[DISPLAY_SIZE];
-            if (!read_region(encode, tables[table]->display, group * DISPLAY_SIZE, entry,
-                             sizeof entry) ||
+            if (!in_get(&in, entry, sizeof entry) ||
                 !emit_text(encode, &prepared->heap, builder_get32(entry),
                            builder_get16(entry + 4))) {
                 return false;
             }
         }
     }
+    open_records(encode, &in, prepared->folders_final, 0);
     for (uint32_t folder = 0; folder < encode->state->folder_count; folder++) {
         uint8_t record[FOLDER_FINAL];
-        if (!read_region(encode, prepared->folders_final, folder * FOLDER_FINAL, record,
-                         sizeof record) ||
+        if (!in_get(&in, record, sizeof record) ||
             !emit_text(encode, &prepared->heap, builder_get32(record),
                        folder_name_length(record))) {
             return false;
@@ -695,6 +755,26 @@ static bool write_counted(void *context, uint32_t offset, const void *bytes, uin
     return encode->sink.write(encode->sink.context, offset, bytes, length);
 }
 
+static bool open_writer(Encode *encode)
+{
+    Arena *arena = &encode->state->arena;
+    uint32_t spare = (arena_left(arena) / 2) & ~7u;
+    uint32_t capacity = spare < WRITE_BUFFER ? spare : WRITE_BUFFER;
+    capacity = capacity > BUFFER_SIZE ? capacity : BUFFER_SIZE;
+    uint8_t *buffer = arena_take(arena, capacity);
+    *encode->writer = (Writer){.sink = {write_counted, encode},
+                               .offset = 0,
+                               .used = 0,
+                               .failed = false,
+                               .buffer = buffer,
+                               .capacity = capacity};
+    uint32_t left = (arena_left(arena) / 2) & ~7u;
+    uint32_t bulk = left < BULK_BUFFER ? left : BULK_BUFFER;
+    encode->bulk = bulk > STREAM_BUFFER ? arena_take(arena, bulk) : encode->stream;
+    encode->bulk_size = bulk > STREAM_BUFFER ? bulk : STREAM_BUFFER;
+    return buffer != NULL;
+}
+
 BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink sink,
                              uint32_t capacity, uint32_t *length)
 {
@@ -723,8 +803,10 @@ BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink s
     }
     uint32_t tracks = state->track_count;
     store_progress_begin(&state->store, BUILDER_PHASE_SAVING,
-                         tracks * (tracks < 8192 ? 17u : 18u) / 10u);
-    *writer = (Writer){.sink = {write_counted, &encode}, .offset = 0, .used = 0, .failed = false};
+                         tracks * (tracks < 8192 ? 40u : 44u) / 100u);
+    if (!open_writer(&encode)) {
+        return BUILDER_OUT_OF_MEMORY;
+    }
     if (!write_records(&encode, &layout)) {
         return BUILDER_WRITE_FAILED;
     }

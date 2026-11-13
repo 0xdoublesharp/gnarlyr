@@ -112,6 +112,9 @@ int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
     const char *end = span.start + span.byte_count;
     while (cursor < end) {
         uint32_t codepoint = utf8_next(&cursor);
+        if (codepoint == 0) {
+            break;
+        }
         const Glyph *glyph = font_find_glyph(style.font, codepoint);
         if (glyph == NULL) {
             continue;

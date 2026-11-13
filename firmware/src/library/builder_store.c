@@ -268,6 +268,13 @@ bool cache_init(Cache *cache, Store *store, Arena *arena, uint32_t block_size, u
     return true;
 }
 
+void cache_forget(Cache *cache)
+{
+    for (uint32_t index = 0; index < cache->count; index++) {
+        cache->tags[index] = BUILDER_UNSET;
+    }
+}
+
 static uint8_t *cache_block(Cache *cache, uint32_t tag)
 {
     uint32_t victim = 0;

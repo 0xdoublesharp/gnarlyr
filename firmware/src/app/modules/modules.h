@@ -27,7 +27,7 @@ typedef struct ViewsModuleEntry {
     void (*charge_draw)(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms);
     void (*theme_boot)(ThemeRuntime *runtime);
     void (*theme_restore)(ThemeRuntime *runtime);
-    MusicFingerprint (*music_fingerprint)(bool progress);
+    MusicFingerprint (*music_fingerprint)(uint32_t expected);
     Screen *(*manage)(AppScreens *screens, uint16_t track, SongManage manage);
 } ViewsModuleEntry;
 
