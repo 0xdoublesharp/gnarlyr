@@ -3952,6 +3952,24 @@ static void a_cable_start_opens_the_charge_screen(void)
     CHECK(!fake_hal_bluetooth_powered());
 }
 
+static void a_scan_after_a_cable_start_keeps_the_player_charging(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_set_usb_start(true);
+    app_start();
+    CHECK(app_charging());
+    fake_hal_set_empty_card(true);
+    app_request_rescan();
+    step();
+    CHECK(fake_hal_library_writes() > 0);
+    CHECK(app_charging());
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    CHECK(!app_charging());
+    fake_hal_set_empty_card(false);
+}
+
 static void an_empty_battery_saves_and_turns_the_player_off(void)
 {
     start_app_with_library();
@@ -6625,6 +6643,7 @@ int main(void)
         TEST_CASE(pressing_power_leaves_charge_mode_only_when_selected),
         TEST_CASE(unplugging_on_the_charge_screen_turns_the_player_off),
         TEST_CASE(a_cable_start_opens_the_charge_screen),
+        TEST_CASE(a_scan_after_a_cable_start_keeps_the_player_charging),
         TEST_CASE(holding_play_on_a_folder_plays_everything_under_it_in_order),
         TEST_CASE(shuffled_folder_play_starts_from_a_random_song),
         TEST_CASE(the_home_now_playing_row_keeps_up_next_reachable),

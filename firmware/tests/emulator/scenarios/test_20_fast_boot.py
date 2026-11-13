@@ -10,6 +10,10 @@ STATUS_PIXELS = 480 * 30
 HOME_SETTLED_MS = 2200
 WIREFRAME_FRAMES_MINIMUM = 10
 PLAIN_SPLASH_MS = 1100
+SCAN_SETTLE_MS = 2000
+TAP_DELAY_MS = 100
+TAP_MS = 150
+TAP_SETTLE_MS = 350
 
 
 def power_settings(press):
@@ -39,17 +43,31 @@ class EchoImageTest(EchoImageHarness):
         for press in (False, True):
             volume = Fat32Volume()
             volume.add_directory(IDENTITY.data_directory)
-            volume.add_file('settings.bin', power_settings(press), 4096, IDENTITY.data_directory)
+            volume.add_file('settings.bin', power_settings(press), directory=IDENTITY.data_directory)
             session = self.session(volume=volume, vbus_at_start=True)
             machine = session.machine
+            machine.host_absent = True
             machine.power_key_released_at_ms = 0
+            machine.note('hal_system_return_scratch')
             stops = machine.trace('app_show_splash')
+            charge_frames = machine.trace('charge_art_draw')
             self.assertEqual('condition met', session.run_to_first_frame())
-            machine.run(until_ms=machine.milliseconds() + 2000)
+            self.assertEqual('condition met',
+                             machine.run(until=lambda: 'hal_system_return_scratch' in machine.reached,
+                                         until_ms=self.session_module.FRAME_LIMIT_MS))
+            scanned = len(charge_frames)
+            self.assertEqual('condition met',
+                             machine.run(until=lambda: len(charge_frames) > scanned,
+                                         until_ms=machine.milliseconds() + SCAN_SETTLE_MS))
             before = len(stops)
-            machine.power_key_released_at_ms = machine.milliseconds() + 150
-            machine.run(until_ms=machine.milliseconds() + 500)
+            frames = len(charge_frames)
+            tap = machine.milliseconds() + TAP_DELAY_MS
+            machine.power_key_pressed_at_ms = tap
+            machine.power_key_released_at_ms = tap + TAP_MS
+            machine.run(until_ms=tap + TAP_MS + TAP_SETTLE_MS)
             self.assertEqual(before + int(press), len(stops))
+            if not press:
+                self.assertGreater(len(charge_frames), frames)
             self.assert_healthy(session)
 
     def test_the_wireframe_start_shows_home_sooner_than_the_plain_splash(self):
