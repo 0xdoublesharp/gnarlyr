@@ -297,6 +297,13 @@ static void put_be(uint32_t value, uint32_t bytes)
     }
 }
 
+static void write_be(uint8_t *destination, uint32_t value, uint32_t bytes)
+{
+    for (uint32_t index = 0; index < bytes; index++) {
+        destination[index] = (uint8_t)(value >> ((bytes - index - 1) * 8));
+    }
+}
+
 static void build_aiff(int channels, int bits, const char *compression, uint32_t frames)
 {
     file.size = 0;
@@ -411,11 +418,82 @@ static void malformed_aiff_is_refused(void)
     CHECK(!audio.open(audio.context, "a.aiff", 0, &track));
 }
 
+static bool probe_aiff(WavFormat *format)
+{
+    FlacInput input = {.read = read_file, .context = NULL, .size = file.size};
+    return aiff_probe(input, format);
+}
+
+static void aiff_rejects_invalid_headers_chunks_and_common_fields(void)
+{
+    WavFormat format;
+    build_aiff(2, 16, NULL, 10);
+    file.size = 11;
+    CHECK(!probe_aiff(&format));
+
+    build_aiff(2, 16, NULL, 10);
+    memcpy(file.bytes, "FAIL", 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 4, 3, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 4, file.size, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    memcpy(file.bytes + 8, "FAIL", 4);
+    CHECK(!probe_aiff(&format));
+
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 26, 17, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 38, 16394, 2);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 38, 16401, 2);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    file.bytes[40] &= 0x7f;
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    file.bytes[47] = 1;
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    file.bytes[43] |= 1;
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 38, 16395, 2);
+    write_be(file.bytes + 40, 0x80000000u, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 38, 16400, 2);
+    write_be(file.bytes + 40, 0xffffffffu, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(0, 16, NULL, 10);
+    CHECK(!probe_aiff(&format));
+    build_aiff(3, 16, NULL, 10);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 8, NULL, 10);
+    CHECK(!probe_aiff(&format));
+
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 16, file.size, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 4, 13, 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 32, 1000, 4);
+    CHECK(!probe_aiff(&format));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(aiff_pcm_and_aifc_play_and_seek),
         TEST_CASE(malformed_aiff_is_refused),
+        TEST_CASE(aiff_rejects_invalid_headers_chunks_and_common_fields),
         TEST_CASE(aiff_accepts_the_standard_rates_and_sound_before_common),
         TEST_CASE(sixteen_bit_stereo_plays_every_frame),
         TEST_CASE(blocks_are_as_long_as_the_buffers_allow),
