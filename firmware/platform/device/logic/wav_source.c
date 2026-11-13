@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/bytes.h"
+#include "core/seam.h"
 
 enum {
     RIFF_HEADER_BYTES = 12,
@@ -29,7 +30,8 @@ static bool supported_bits(uint32_t bits)
     return bits == 8 || bits == 16 || bits == 24 || bits == 32;
 }
 
-static bool read_format(FlacInput input, uint32_t offset, uint32_t size, WavFormat *format)
+CORE_COLD static bool read_format(FlacInput input, uint32_t offset, uint32_t size,
+                                  WavFormat *format)
 {
     uint8_t bytes[FORMAT_BYTES] = {0};
     uint32_t length = size < FORMAT_BYTES ? size : FORMAT_BYTES;
@@ -59,7 +61,7 @@ static bool read_format(FlacInput input, uint32_t offset, uint32_t size, WavForm
     return true;
 }
 
-static bool parse(FlacInput input, WavFormat *format)
+CORE_COLD static bool parse(FlacInput input, WavFormat *format)
 {
     uint8_t header[RIFF_HEADER_BYTES];
     if (input.size < RIFF_HEADER_BYTES || !input.read(input.context, 0, header, sizeof header) ||
@@ -109,7 +111,8 @@ static void close_source(void *context)
     }
 }
 
-static bool open_source(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
+CORE_COLD static bool open_source(void *context, const char *path, uint32_t start_ms,
+                                  AudioTrackInfo *track)
 {
     WavSource *source = context;
     close_source(source);

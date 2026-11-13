@@ -147,7 +147,7 @@ static void size_fifos(UsbLink *link)
     }
 }
 
-bool usb_flush_fifos(void)
+CORE_COLD bool usb_flush_fifos(void)
 {
     write_register(GRSTCTL, GRSTCTL_FLUSH_ALL_TX);
     bool ok = wait_clear(GRSTCTL, GRSTCTL_TX_FLUSH, RESET_TIMEOUT_MS);

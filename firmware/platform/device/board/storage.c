@@ -100,20 +100,21 @@ __attribute__((noinline)) static bool write_open_file(FatVolume *target, FatFile
     return written;
 }
 
-static bool write_in(FatVolume *target, const char *path, uint32_t offset, const void *bytes,
-                     uint32_t length)
+CORE_COLD static bool write_in(FatVolume *target, const char *path, uint32_t offset,
+                               const void *bytes, uint32_t length)
 {
     FatFile file;
     return target != NULL && fat_open(target, path, &file) &&
            write_open_file(target, &file, offset, bytes, length);
 }
 
-bool hal_file_write(const char *path, const void *bytes, uint32_t length)
+CORE_COLD bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 {
     return write_in(mounted() ? &volume : NULL, path, 0, bytes, length);
 }
 
-bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uint32_t length)
+CORE_COLD bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes,
+                                 uint32_t length)
 {
     return write_in(mounted() ? &volume : NULL, path, offset, bytes, length);
 }
@@ -174,7 +175,7 @@ static FatVolume *player_volume(void)
     return internal_volume_mount();
 }
 
-bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
+CORE_COLD bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
 {
     FatVolume *target = player_volume();
     FatFile file;

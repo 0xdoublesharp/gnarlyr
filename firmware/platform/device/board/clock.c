@@ -120,7 +120,7 @@ void hal_system_keep_alive(void)
     board_stall_beat();
 }
 
-void board_stall_pause(bool paused)
+CORE_COLD void board_stall_pause(bool paused)
 {
     uint32_t primask = irq_save();
     stall_watch_pause(&stall_watch, paused, tick_clock_milliseconds(&clock, read_counter()));

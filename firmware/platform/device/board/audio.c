@@ -323,11 +323,8 @@ static uint32_t *ring(void)
     return music_ring;
 }
 
-static void ensure_engine(void)
+CORE_COLD static void start_engine(void)
 {
-    if (engine_ready) {
-        return;
-    }
     FlacFileOpener files = {.open = open_file, .close = close_file, .context = NULL};
     core1_source_init(&core1_source, core1_region(), files, &decoding.flac, FILL_BUDGET_BYTES);
     core1_source.m4a = &decoding.m4a;
@@ -346,6 +343,13 @@ static void ensure_engine(void)
                                                    .prepare_resample = board_audio_dsp_prepare,
                                                    .resample_render = board_audio_dsp_render});
     engine_ready = true;
+}
+
+static void ensure_engine(void)
+{
+    if (!engine_ready) {
+        start_engine();
+    }
 }
 
 void *hal_system_borrow_listing(uint32_t *size)
@@ -446,7 +450,7 @@ CORE_COLD static bool ensure_path(uint32_t rate)
     return true;
 }
 
-static bool start_transfer(uint32_t words, bool audible)
+CORE_COLD static bool start_transfer(uint32_t words, bool audible)
 {
     ring_words = words;
     consumed = 0;
@@ -468,7 +472,7 @@ static bool start_transfer(uint32_t words, bool audible)
     return true;
 }
 
-static bool start_output(bool audible)
+CORE_COLD static bool start_output(bool audible)
 {
     if (!ensure_path(audio_engine_rate(&engine))) {
         return false;
