@@ -9,6 +9,22 @@ from usb_audio_host import UsbAudioHost
 from echo_emulator.audio import AudioPath
 
 
+SCENE_BYTES = 96
+SCENE_SEARCH_BYTES = 64
+DAC_BITS = (16, 24, 32)
+
+
+def dac_fields(data, rate):
+    for offset in range(0, SCENE_SEARCH_BYTES, 4):
+        if struct.unpack_from("<I", data, offset)[0] != rate or data[offset + 20] not in DAC_BITS:
+            continue
+        seconds, underruns, ppm = struct.unpack_from("<IIi", data, offset + 4)
+        buffered = struct.unpack_from("<H", data, offset + 18)[0]
+        return (rate, data[offset + 20], buffered, ppm, underruns,
+                tuple(data[offset + 25:offset + 27]), seconds)
+    return None
+
+
 class EchoImageTest(EchoImageHarness):
     def dac_session(self, rate, width=4, high=True):
         session, machine, asked = self.asked_session()
@@ -24,10 +40,9 @@ class EchoImageTest(EchoImageHarness):
         def scene_updated():
             pointer = machine.reg(UC_ARM_REG_R3)
             if machine.reg(UC_ARM_REG_R0) == 2 and pointer:
-                data = machine.read_memory(pointer, 60)
-                rate, seconds, underruns, ppm = struct.unpack_from("<IIIi", data, 28)
-                buffered = struct.unpack_from("<H", data, 46)[0]
-                self.scene_updates.append((rate, data[48], buffered, ppm, underruns, tuple(data[53:55]), seconds))
+                fields = dac_fields(machine.read_memory(pointer, SCENE_BYTES), rate)
+                if fields is not None:
+                    self.scene_updates.append(fields)
         machine.hook_symbol("app_show_usb_area", scene_updated)
         completed = set()
         self.write_complete = True
