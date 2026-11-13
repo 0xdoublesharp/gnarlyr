@@ -170,6 +170,28 @@ void library_builder_init(LibraryBuilder *builder, void *memory, uint32_t size,
     write_folder_row(state, 0, 0, BUILDER_NONE);
 }
 
+void library_builder_watch(LibraryBuilder *builder, BuilderProgress progress)
+{
+    BuilderState *state = state_of(builder);
+    if (state != NULL) {
+        state->store.progress.watcher = progress;
+    }
+}
+
+void library_builder_expect_playlists(LibraryBuilder *builder, uint32_t count)
+{
+    BuilderState *state = state_of(builder);
+    if (state != NULL && count > 0) {
+        store_progress_begin(&state->store, BUILDER_PHASE_PLAYLISTS, count + 1);
+    }
+}
+
+static uint32_t sort_units(uint32_t tracks)
+{
+    uint32_t per_track = tracks < 4096 ? 60 : tracks < 8192 ? 65 : tracks < 16384 ? 70 : 74;
+    return tracks * per_track;
+}
+
 static bool same_text(const char *left, const char *right, uint32_t length)
 {
     for (uint32_t index = 0; index < length; index++) {
@@ -426,6 +448,7 @@ BuilderResult library_builder_prepare(LibraryBuilder *builder)
     }
     uint32_t scan_mark = (uint32_t)((uint8_t *)state->scan - state->arena.base);
     bool ready = finish_scan(state, scan_mark);
+    store_progress_begin(&state->store, BUILDER_PHASE_SORTING, sort_units(state->track_count));
     Prepared *prepared = arena_take(&state->arena, (uint32_t)sizeof(Prepared));
     state->prepared = prepared;
     ready = ready && prepared != NULL && open_caches(state, prepared) &&
@@ -457,6 +480,7 @@ BuilderResult library_builder_begin_playlist(LibraryBuilder *builder, const char
             return outcome(state) != BUILDER_OK ? outcome(state) : BUILDER_OUT_OF_MEMORY;
         }
     }
+    store_progress_add(&state->store, 1);
     if (prepared->playlist_count >= BUILDER_MAX_PLAYLISTS) {
         return BUILDER_TOO_MANY;
     }

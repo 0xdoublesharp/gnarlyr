@@ -15,6 +15,7 @@ typedef struct RescanOutcome {
 
 typedef struct RescanProgress {
     void (*tracks)(uint32_t files, uint32_t tracks);
+    void (*phase)(uint32_t phase, uint32_t percent);
 } RescanProgress;
 
 #define RESCAN_MODULE_MAGIC 0x4E414353u

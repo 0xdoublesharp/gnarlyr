@@ -1604,20 +1604,31 @@ void app_reset_for_test(void)
     app = (AppState){0};
 }
 
-static void show_rescan_progress(uint32_t files, uint32_t tracks)
+static void show_rescan_count(bool first, StringId pattern, uint32_t count)
 {
     static uint32_t shown_ms;
     uint32_t now_ms = hal_clock_milliseconds();
     hal_bluetooth_service();
-    if (files > 1 && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
+    if (!first && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
         animate_notice();
         return;
     }
     shown_ms = now_ms;
     char text[NOTICE_TEXT_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
-    i18n_format_counts(&builder, STR_SCAN_TRACKS, tracks, 0);
+    i18n_format_counts(&builder, pattern, count, 0);
     app_show_notice(i18n_text(STR_SCANNING), text);
+}
+
+static void show_rescan_progress(uint32_t files, uint32_t tracks)
+{
+    show_rescan_count(files <= 1, STR_SCAN_TRACKS, tracks);
+}
+
+static void show_build_progress(uint32_t phase, uint32_t percent)
+{
+    static const StringId PHASE_TEXT[] = {STR_SCAN_SORTING, STR_SCAN_PLAYLISTS, STR_SCAN_SAVING};
+    show_rescan_count(percent == 0, PHASE_TEXT[phase % 3u], percent);
 }
 
 static void explain_refusals(uint32_t now_ms)
@@ -1677,7 +1688,7 @@ static void run_rescan(void)
     cancel_edits();
     flush_listening();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
-    RescanProgress progress = {show_rescan_progress};
+    RescanProgress progress = {show_rescan_progress, show_build_progress};
     debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_START, 0));
     RescanOutcome outcome = library_rescan_run(progress, app.rescan_stops);
     app.rescan_stops = 0;

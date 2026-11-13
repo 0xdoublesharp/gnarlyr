@@ -56,6 +56,7 @@ typedef struct Layout {
 
 typedef struct Encode {
     BuilderState *state;
+    ByteSink sink;
     Prepared *prepared;
     Writer *writer;
     uint16_t *final_tracks;
@@ -686,12 +687,20 @@ static bool write_gain_extension(Encode *encode)
     return !writer->failed;
 }
 
+static bool write_counted(void *context, uint32_t offset, const void *bytes, uint32_t length)
+{
+    Encode *encode = context;
+    (void)length;
+    store_progress_add(&encode->state->store, 1);
+    return encode->sink.write(encode->sink.context, offset, bytes, length);
+}
+
 BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink sink,
                              uint32_t capacity, uint32_t *length)
 {
     state->arena.used = prepared->index_mark;
     Writer *writer = arena_take(&state->arena, (uint32_t)sizeof(Writer));
-    Encode encode = {.state = state, .prepared = prepared, .writer = writer};
+    Encode encode = {.state = state, .sink = sink, .prepared = prepared, .writer = writer};
     encode.text = arena_take(&state->arena, BUILDER_TEXT_CAPACITY);
     if (writer == NULL || encode.text == NULL || !order_playlists(&encode) ||
         !load_columns(&encode)) {
@@ -712,7 +721,10 @@ BuilderResult builder_encode(BuilderState *state, Prepared *prepared, ByteSink s
     if (end > UINT32_MAX || (capacity != 0 && end > capacity)) {
         return BUILDER_NO_ROOM;
     }
-    *writer = (Writer){.sink = sink, .offset = 0, .used = 0, .failed = false};
+    uint32_t tracks = state->track_count;
+    store_progress_begin(&state->store, BUILDER_PHASE_SAVING,
+                         tracks * (tracks < 8192 ? 17u : 18u) / 10u);
+    *writer = (Writer){.sink = {write_counted, &encode}, .offset = 0, .used = 0, .failed = false};
     if (!write_records(&encode, &layout)) {
         return BUILDER_WRITE_FAILED;
     }

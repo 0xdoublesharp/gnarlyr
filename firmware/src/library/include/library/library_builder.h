@@ -46,12 +46,25 @@ typedef enum BuilderResult {
 
 #define BUILDER_ANY_START UINT32_MAX
 
+typedef enum BuilderPhase {
+    BUILDER_PHASE_SORTING,
+    BUILDER_PHASE_PLAYLISTS,
+    BUILDER_PHASE_SAVING
+} BuilderPhase;
+
+typedef struct BuilderProgress {
+    void (*report)(void *context, uint32_t phase, uint32_t percent);
+    void *context;
+} BuilderProgress;
+
 typedef struct LibraryBuilder {
     void *state;
 } LibraryBuilder;
 
 void library_builder_init(LibraryBuilder *builder, void *memory, uint32_t size,
                           BuilderScratch scratch);
+void library_builder_watch(LibraryBuilder *builder, BuilderProgress progress);
+void library_builder_expect_playlists(LibraryBuilder *builder, uint32_t count);
 BuilderResult library_builder_add_track(LibraryBuilder *builder, const BuilderTrack *track);
 BuilderResult library_builder_prepare(LibraryBuilder *builder);
 BuilderResult library_builder_begin_playlist(LibraryBuilder *builder, const char *name,

@@ -81,6 +81,9 @@ def scan_table(title, run):
             run["browsable_ms"] / 1000, run["scan_pass_ms"] / 1000,
             "%.1f s, in the background" % (run["cover_pass_ms"] / 1000)
             if run.get("cover_pass_ms") is not None else "inside the scan pass"))
+    for step in run.get("build_progress") or []:
+        lines.append("  shown \"%s\" for %.1f ms: %d updates, last %d%%, longest gap %.1f ms" % (
+            step["phase"], step["ms"], step["updates"], step["last_percent"], step["longest_gap_ms"]))
     lines.append("  %-30s %9s %8s %8s %8s %9s %8s %8s" % (
         "phase", "ms", "M instr", "wait ms", "rd cmds", "rd sect", "wr cmds", "wr sect"))
     hz = max(run["core_hz"]) if run["core_hz"] else 1
@@ -174,6 +177,8 @@ def parse_arguments(argv):
     parser.add_argument("--steps", default=",".join(STEPS),
                         help="comma-separated subset of " + ",".join(STEPS))
     parser.add_argument("--build-library-only", action="store_true")
+    parser.add_argument("--scan-pass-only", action="store_true",
+                        help="end the first scan when the library is written, before the cover pass")
     return parser.parse_args(argv)
 
 
@@ -197,7 +202,7 @@ def run(arguments):
     report["build"] = artifacts.tag()
     log("first scan of %d tracks on %s" % (arguments.tracks, artifacts.tag()))
     moment = time.time()
-    session, first = bench.first_scan(artifacts, volume, log)
+    session, first = bench.first_scan(artifacts, volume, log, not arguments.scan_pass_only)
     report["first_scan"] = first.result()
     report["wall_seconds"]["first_scan"] = round(time.time() - moment, 1)
     report["assumptions"] = bench.assumptions(volume, report["first_scan"])

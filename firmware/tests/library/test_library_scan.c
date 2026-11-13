@@ -128,6 +128,21 @@ static void report(void *context, uint32_t files, uint32_t tracks)
     progress->last_tracks = tracks;
 }
 
+typedef struct PhaseLog {
+    uint32_t count;
+    uint32_t phase[512];
+    uint32_t percent[512];
+} PhaseLog;
+
+static void log_phase(void *context, uint32_t phase, uint32_t percent)
+{
+    PhaseLog *log = context;
+    if (log->count < 512) {
+        log->phase[log->count] = phase;
+        log->percent[log->count++] = percent;
+    }
+}
+
 static uint8_t *read_fixture(const char *name, uint32_t *size)
 {
     char path[512];
@@ -156,7 +171,7 @@ static ScanResult scan_folder(const char *folder, Output *output, Progress *prog
         .size = sizeof memory,
         .scratch = SCRATCH,
         .sink = {write_output, output},
-        .progress = {report, progress},
+        .progress = {report, progress, NULL},
     };
     return library_scan(&job, stats);
 }
@@ -188,6 +203,50 @@ static void scanning_folders_and_playlists_matches_the_pc_indexer(void)
     uint8_t *expected = read_fixture("scan_music.db", &expected_size);
     CHECK(library_compare(expected, expected_size, output.bytes, stats.length));
     free(expected);
+}
+
+static bool phases_rise_in_order(const PhaseLog *log)
+{
+    for (uint32_t index = 1; index < log->count; index++) {
+        bool same = log->phase[index] == log->phase[index - 1];
+        bool next = log->phase[index] > log->phase[index - 1] && log->percent[index] == 0;
+        if ((same && log->percent[index] <= log->percent[index - 1]) || (!same && !next)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void each_build_phase_after_the_walk_reports_its_progress(void)
+{
+    static uint8_t memory[MEMORY_SIZE];
+    static HostFiles files;
+    static Output output;
+    static PhaseLog log;
+    log.count = 0;
+    sim_storage_configure(ECHO_FIXTURE_DIR "/scan_music", NULL);
+    output.length = 0;
+    ScanJob job = {
+        .files = {open_dir, next_entry, close_dir, open_file, close_file, &files},
+        .memory = memory,
+        .size = sizeof memory,
+        .scratch = SCRATCH,
+        .sink = {write_output, &output},
+        .progress = {NULL, &log, log_phase},
+    };
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, library_scan(&job, &stats));
+    CHECK(log.count > 3);
+    CHECK_EQUAL(BUILDER_PHASE_SORTING, log.phase[0]);
+    CHECK_EQUAL(0u, log.percent[0]);
+    CHECK_EQUAL(BUILDER_PHASE_SAVING, log.phase[log.count - 1]);
+    CHECK(log.percent[log.count - 1] > 50 && log.percent[log.count - 1] <= 99);
+    CHECK(phases_rise_in_order(&log));
+    bool playlists = false;
+    for (uint32_t index = 0; index < log.count; index++) {
+        playlists = playlists || log.phase[index] == BUILDER_PHASE_PLAYLISTS;
+    }
+    CHECK(playlists);
 }
 
 static void a_separate_listing_leaves_the_memory_to_the_builder(void)
@@ -938,6 +997,7 @@ int main(int argc, char **argv)
         TEST_CASE(real_ffmpeg_chapters_are_read_from_either_style),
         TEST_CASE(a_chaptered_book_is_a_folder_of_its_chapters_and_not_a_file_row),
         TEST_CASE(a_missing_music_root_says_so),
+        TEST_CASE(each_build_phase_after_the_walk_reports_its_progress),
         TEST_CASE(a_separate_listing_leaves_the_memory_to_the_builder),
         TEST_CASE(a_folder_bigger_than_the_listing_is_read_in_batches),
         TEST_CASE(many_sibling_folders_fit_a_small_listing),
