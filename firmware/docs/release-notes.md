@@ -18,7 +18,7 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The
 - Settings → Status bar → Status bar offers Compact: smaller icons, the percentage inside the battery and more list rows.
 - Holding Power and pressing Vol+ or Vol− skips tracks, also while the buttons are locked. Settings → Controls → Hold Menu chooses what holding Menu does.
 - Holding Play on a song offers Hide track and Delete file.
-- Stats → Recap shows a month, a year or all time as a short run of cards.
+- Recap → Highlights shows a month, a year or all time as a short run of cards.
 - Bluetooth has its own volume, separate from the wired one, starting at 50 of 60.
 - The charge screen estimates the charging rate and time to full and says whether the power comes from a computer or a charger.
 - "Checking for changes" shows its progress with a turning disc.
@@ -82,7 +82,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Library and navigation
 
-- Home defaults to Music, Mixtapes, Stats, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept. The settings v15 layout is unchanged.
+- Home defaults to Music, Mixtapes, Recap, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept. The settings v15 layout is unchanged.
 - The library opens as soon as its tracks are sorted; album covers fill in afterwards while the player is idle and not playing, pause for a key press, playback or a USB cable, and resume where they stopped, also after a restart. In the emulator, a generated 4,003-track card is browsable after 29.6 s and has all 303 covers after 135.8 s; the same card took 160.9 s, all of it before the library opened, at the start of this work. Not yet timed on a player.
 - Settings → Rescan library says "Library is up to date" instead of rebuilding when the music, the firmware and the last scan are unchanged (1.5 s on 4,003 tracks in the emulator; it rebuilt for 34.7 s before).
 - Album art: Ogg and Opus pictures, CMYK and YCCK JPEGs and JPEG EXIF orientation are shown; ID3 tags with unsynchronisation are read correctly; embedded art that can't be decoded gives way to the folder image. echo-sync picks the same picture as the player for every case of a 55-album test corpus.

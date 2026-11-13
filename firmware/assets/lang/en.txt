@@ -863,7 +863,7 @@ STR_STATUS_PLACE = {0}/{1}
 STR_QUICK_SETTINGS = Quick Settings
 STR_QUICK_SETTINGS_HINT = Play: change · Back: close
 STR_PLAYBACK_SPEED = Playback speed
-STR_LISTENING_STATS = Stats
+STR_LISTENING_STATS = Recap
 
 STR_CLEAR_HISTORY = Clear history
 STR_EXPORT_FIRST = Export plays first
@@ -952,7 +952,7 @@ STR_SPEED_200 = 2×
 STR_SPEED_250 = 2.5×
 STR_SPEED_300 = 3×
 # Recap in Stats: full-screen cards for one period. {0} in STR_RECAP_DAYS is a number of days, in STR_RECAP_PERCENT a percentage and in STR_RECAP_HOUR_24 an hour from 0 to 23.
-STR_RECAP = Recap
+STR_RECAP = Highlights
 STR_RECAP_THIS_MONTH = This month
 STR_RECAP_LAST_MONTH = Last month
 STR_RECAP_THIS_YEAR = This year

@@ -124,7 +124,7 @@ The updater that runs is the one already installed. A build without trial update
 
 ## What to check after an install
 
-- **Start-up:** the splash and the Home title say "Gnarlyr", with Music, Mixtapes, Stats, Clock, USB Mode and Settings (and Now playing above them once a track is loaded). Without a library, Music says "No library".
+- **Start-up:** the splash and the Home title say "Gnarlyr", with Music, Mixtapes, Recap, Clock, USB Mode and Settings (and Now playing above them once a track is loaded). Without a library, Music says "No library".
 - **Settings → About → Firmware:** the version and the commit you built.
 - **Keys:** each button does what the Buttons table in [`user-guide.md`](user-guide.md) says.
 - **Power:** a tap turns the screen off and on. Holding it for 2 s switches the player off; with a cable in, it shows the charge screen instead, and holding Power again turns the player back on.
