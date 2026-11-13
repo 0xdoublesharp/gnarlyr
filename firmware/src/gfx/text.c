@@ -89,23 +89,6 @@ int text_digit_width(const Font *font)
     return widest;
 }
 
-int text_cell_width(TextStyle style, uint32_t codepoint, int advance)
-{
-    bool digit = codepoint >= '0' && codepoint <= '9';
-    return style.tabular && digit ? text_digit_width(style.font) : advance;
-}
-
-int text_style_width(TextStyle style, const char *text)
-{
-    int width = 0;
-    const char *cursor = text;
-    for (uint32_t codepoint = utf8_next(&cursor); codepoint != 0; codepoint = utf8_next(&cursor)) {
-        const Glyph *glyph = font_find_glyph(style.font, codepoint);
-        width += glyph != NULL ? text_cell_width(style, codepoint, glyph->advance) : 0;
-    }
-    return width;
-}
-
 int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
 {
     const char *cursor = span.start;

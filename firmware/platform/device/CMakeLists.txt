@@ -282,8 +282,7 @@ set(ECHO_OVERLAY_IMPORTS
     label_centered_area
     label_wrap_count
     text_width
-    text_style_width
-    text_cell_width
+    text_digit_width
     status_bar_draw
     text_draw_glyph_scaled
     utf8_next
@@ -535,6 +534,7 @@ add_executable(echo_usb_overlay
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
+    ${PROJECT_SOURCE_DIR}/src/gfx/text_style.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
     ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c

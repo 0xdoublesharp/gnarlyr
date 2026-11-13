@@ -9,6 +9,7 @@ add_library(echo_gfx STATIC
     rect.c
     strip_renderer.c
     text.c
+    text_style.c
     wireframe.c
 )
 target_include_directories(echo_gfx PUBLIC include)
