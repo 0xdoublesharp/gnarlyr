@@ -129,6 +129,7 @@ add_library(echo_app STATIC
     screens/plug_chooser.c
     screens/plug_art.c
     screens/up_next_screen.c
+    screens/wire_boot.c
 )
 if(ECHO_RELEASE)
     target_sources(echo_app PRIVATE diagnostics_menu_release.c)

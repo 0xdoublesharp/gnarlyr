@@ -50,7 +50,7 @@ The extension block:
 | E14 | bits 0–2 DAC filter (0–4), bits 3–4 battery care (0–2), bits 5–6 crossfeed, bit 7 Now Playing style high bit |
 | E15 | reserved, zero |
 
-The second block: F0 bit 0 compact status bar, bit 1 standby, bits 2–3 standby power-off option (0–2), bits 4–7 zero; F1 long-press action in bits 0–2, bits 3–7 zero; F2 Bluetooth volume, 0–60; F3–F15 zero.
+The second block: F0 bit 0 compact status bar, bit 1 standby, bits 2–3 standby power-off option (0–2), bit 4 start and stop animation off, bits 5–7 zero; F1 long-press action in bits 0–2, bits 3–7 zero; F2 Bluetooth volume, 0–60; F3–F15 zero.
 
 A file is refused when it is shorter than 78 bytes, has another magic or version, fails either checksum or has any value outside these ranges. Design notes: [architecture.md](../firmware/docs/architecture.md), Settings.
 

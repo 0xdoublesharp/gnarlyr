@@ -57,7 +57,9 @@ enum {
     SECOND_FIELD = 58,
     SECOND_CHECKSUM_FIELD = 74,
     PANEL_BYTE = 0,
-    PANEL_RESERVED = 0xF0,
+    PANEL_PLAIN_START = 0x10,
+    PANEL_STANDBY_OPTION_MASK = 3,
+    PANEL_RESERVED = 0xE0,
     LONG_PRESS_BYTE = 1,
     LONG_PRESS_MASK = 7,
     BLUETOOTH_VOLUME_BYTE = 2,
@@ -204,6 +206,7 @@ Settings settings_defaults(void)
         .prevent_clipping = true,
     };
     settings.standby_power_off_option = 1;
+    settings.startup_animation = true;
     read_extension(DEFAULT_EXTENSION, &settings);
     return settings;
 }
@@ -330,7 +333,8 @@ static void encode_extension(const Settings *settings, uint8_t *extension)
 static void encode_second(const Settings *settings, uint8_t *second)
 {
     second[PANEL_BYTE] = (uint8_t)(settings->status_bar_compact | settings->standby_enabled << 1 |
-                                   settings->standby_power_off_option << 2);
+                                   settings->standby_power_off_option << 2 |
+                                   (settings->startup_animation ? 0 : PANEL_PLAIN_START));
     second[LONG_PRESS_BYTE] = settings->long_press_action & LONG_PRESS_MASK;
     second[BLUETOOTH_VOLUME_BYTE] = settings->bluetooth_volume < SETTINGS_VOLUME_MAX
                                         ? settings->bluetooth_volume
@@ -469,7 +473,8 @@ static bool second_valid(const uint8_t *second)
         reserved |= second[index];
     }
     return reserved == 0 && (second[PANEL_BYTE] & PANEL_RESERVED) == 0 &&
-           (second[PANEL_BYTE] >> 2) < 3 && (second[LONG_PRESS_BYTE] & ~LONG_PRESS_MASK) == 0 &&
+           (second[PANEL_BYTE] >> 2 & PANEL_STANDBY_OPTION_MASK) < 3 &&
+           (second[LONG_PRESS_BYTE] & ~LONG_PRESS_MASK) == 0 &&
            second[BLUETOOTH_VOLUME_BYTE] <= SETTINGS_VOLUME_MAX;
 }
 
@@ -524,7 +529,8 @@ static void read_second(const uint8_t *second, Settings *settings)
 {
     settings->status_bar_compact = (second[PANEL_BYTE] & 1u) != 0;
     settings->standby_enabled = (second[PANEL_BYTE] & 2u) != 0;
-    settings->standby_power_off_option = second[PANEL_BYTE] >> 2;
+    settings->standby_power_off_option = second[PANEL_BYTE] >> 2 & PANEL_STANDBY_OPTION_MASK;
+    settings->startup_animation = (second[PANEL_BYTE] & PANEL_PLAIN_START) == 0;
     settings->long_press_action = second[LONG_PRESS_BYTE];
     settings->bluetooth_volume = second[BLUETOOTH_VOLUME_BYTE];
 }

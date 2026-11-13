@@ -168,6 +168,7 @@ typedef struct AppState {
     Slide slide;
     Screen *leaving;
     bool saying_goodbye;
+    bool wire_fade;
     uint32_t now_ms;
     AppOptions options;
     bool display_on;
@@ -190,10 +191,12 @@ typedef struct AppState {
 
 static AppState app;
 
-static const FadeTiming SPLASH_TIMING = {.fade_ms = 600, .hold_ms = 500, .rising = true};
+static const FadeTiming SPLASH_TIMINGS[] = {{.fade_ms = 600, .hold_ms = 500, .rising = true},
+                                            {.fade_ms = WIRE_BOOT_OPEN_MS, .rising = true}};
 static const uint32_t SCREEN_ON_CLOCK_MHZ = 200;
 static const uint32_t IDLE_CLOCK_MHZ = 24;
-static const FadeTiming GOODBYE_TIMING = {.fade_ms = 600, .hold_ms = 400, .rising = false};
+static const FadeTiming GOODBYE_TIMINGS[] = {{.fade_ms = 600, .hold_ms = 400, .rising = false},
+                                             {.fade_ms = WIRE_BOOT_CLOSE_MS, .rising = false}};
 static Color strip_pixels[HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT];
 static uint32_t row_hashes[HAL_DISPLAY_LONG_SIDE];
 static Theme notice_theme;
@@ -508,7 +511,6 @@ static void explain_lowered_volume(uint32_t now_ms)
 
 static void stop_charging(uint32_t now_ms)
 {
-    app.charging = false;
     lower_start_volume(PLAYER_OUTPUT_WIRED);
     bluetooth_link_start(&app.bluetooth, &app.toast, now_ms);
     power_policy_wake(&app.power, now_ms);
@@ -516,6 +518,7 @@ static void stop_charging(uint32_t now_ms)
         set_display(true);
     }
     app_show_splash();
+    app.charging = false;
 }
 
 static void finish_shut_down(void)
@@ -528,6 +531,12 @@ static void finish_shut_down(void)
     power_off_now();
 }
 
+static void start_fade(Fade *fade, const FadeTiming *timings, bool wire)
+{
+    app.wire_fade = wire && app.settings.settings.startup_animation;
+    fade_start(fade, app.now_ms, timings[app.wire_fade]);
+}
+
 static void shut_down(StringId text)
 {
     app.goodbye_text = text;
@@ -536,7 +545,9 @@ static void shut_down(StringId text)
         finish_shut_down();
         return;
     }
-    fade_start(&app.goodbye, app.now_ms, GOODBYE_TIMING);
+    ScreenModule module = screen_modules_of(&app.screens, top_screen());
+    bool shared = module == SCREEN_MODULE_NONE || module == SCREEN_MODULE_PLAYING;
+    start_fade(&app.goodbye, GOODBYE_TIMINGS, text == STR_GOODBYE && shared);
     app.saying_goodbye = true;
 }
 
@@ -1086,10 +1097,29 @@ const Theme *app_theme(void)
     return board_theme();
 }
 
-static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
+static bool draw_wire_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
+    const PlayingModuleEntry *entry =
+        app.wire_fade
+            ? (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING)
+            : NULL;
+    if (entry == NULL) {
+        return false;
+    }
+    entry->wire_boot(canvas, board_theme(), fade, text);
+    return true;
+}
+
+static void draw_fade(Canvas *canvas, const Fade *fade, const char *text, bool art)
+{
+    if (draw_wire_fade(canvas, fade, text)) {
+        return;
+    }
     const Theme *theme = board_theme();
     Rect screen = whole_screen();
+    if (art) {
+        theme_art_draw(theme, canvas, THEME_ART_SPLASH, screen);
+    }
     Color color =
         color_blend(theme->colors.background, theme->colors.text, fade_alpha(fade, app.now_ms));
     TextStyle style = {.font = theme->fonts.title, .color = color};
@@ -1100,12 +1130,11 @@ static void draw_fade(Canvas *canvas, const Fade *fade, const char *text)
 static bool draw_running_fade(Canvas *canvas)
 {
     if (app.saying_goodbye) {
-        draw_fade(canvas, &app.goodbye, i18n_text(app.goodbye_text));
+        draw_fade(canvas, &app.goodbye, i18n_text(app.goodbye_text), false);
         return true;
     }
     if (!fade_finished(&app.splash, app.now_ms)) {
-        theme_art_draw(board_theme(), canvas, THEME_ART_SPLASH, whole_screen());
-        draw_fade(canvas, &app.splash, board_splash_text(board_theme()));
+        draw_fade(canvas, &app.splash, board_splash_text(board_theme()), true);
         return true;
     }
     return false;
@@ -2357,7 +2386,7 @@ CORE_SEAM void app_show_notice(const char *title, const char *message)
 CORE_SEAM void app_show_splash(void)
 {
     app.now_ms = hal_clock_milliseconds();
-    fade_start(&app.splash, app.now_ms, SPLASH_TIMING);
+    start_fade(&app.splash, SPLASH_TIMINGS, app.light_after_frame && !app.charging);
 }
 
 void app_draw_start(void)
