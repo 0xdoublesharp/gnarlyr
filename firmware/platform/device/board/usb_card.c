@@ -64,6 +64,7 @@ typedef struct UsbCard {
     bool sd;
     bool stalled;
     bool fast;
+    bool reading;
 } UsbCard;
 
 static UsbCard cards[USB_CARD_COUNT];
@@ -128,23 +129,34 @@ static bool begin(void *context, uint8_t index, uint32_t address, uint32_t count
 {
     UsbCard *card = context;
     card->stalled = false;
-    return start_data(card, CMD_WRITE | index, address, BLOCK_BYTES * count);
+    uint32_t direction = card->reading ? 0u : CMD_WRITE;
+    return start_data(card, direction | index, address, BLOCK_BYTES * count);
 }
 
-static bool feed(void *context, const uint32_t *words, uint32_t count, uint32_t *accepted)
+static uint32_t move_words(const UsbCard *card, uint32_t *words, uint32_t count)
+{
+    uint32_t level =
+        (read_mmc(card, MMC_STATUS) >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
+    uint32_t depth = *card->host->fifo_depth;
+    uint32_t ready = card->reading ? level : (level < depth ? depth - level : 0);
+    uint32_t moved = 0;
+    for (; moved < ready && moved < count; moved++) {
+        if (card->reading) {
+            words[moved] = read_mmc(card, MMC_FIFO);
+        } else {
+            write_mmc(card, MMC_FIFO, words[moved]);
+        }
+    }
+    return moved;
+}
+
+static bool feed(void *context, uint32_t *words, uint32_t count, uint32_t *accepted)
 {
     UsbCard *card = context;
     if ((read_mmc(card, MMC_RINTSTS) & INT_WRITE_ERRORS) != 0) {
         return false;
     }
-    uint32_t level =
-        (read_mmc(card, MMC_STATUS) >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
-    uint32_t depth = *card->host->fifo_depth;
-    uint32_t space = level < depth ? depth - level : 0;
-    uint32_t sent = 0;
-    for (; sent < space && sent < count; sent++) {
-        write_mmc(card, MMC_FIFO, words[sent]);
-    }
+    uint32_t sent = move_words(card, words, count);
     *accepted = sent;
     if (sent > 0) {
         card->stalled = false;
@@ -214,6 +226,7 @@ static bool wait_ready(void *context)
 static bool fetch(UsbCard *card, uint32_t command, uint32_t argument, uint32_t bytes,
                   uint32_t *words)
 {
+    card->reading = true;
     if (!start_data(card, command, argument, bytes)) {
         return false;
     }
@@ -223,11 +236,7 @@ static bool fetch(UsbCard *card, uint32_t command, uint32_t argument, uint32_t b
             hal_clock_milliseconds() - start > DATA_TIMEOUT_MS) {
             return false;
         }
-        uint32_t level =
-            (read_mmc(card, MMC_STATUS) >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
-        for (; level > 0 && taken < bytes / 4; level--) {
-            words[taken++] = read_mmc(card, MMC_FIFO);
-        }
+        taken += move_words(card, words + taken, bytes / 4 - taken);
     }
     return end(card);
 }
@@ -250,24 +259,25 @@ static bool locate_sd(UsbCard *card, uint32_t lba, uint32_t count, uint32_t *add
     return true;
 }
 
-static bool locate_internal(uint32_t lba, uint32_t count, uint32_t *address)
+static bool locate_internal(const UsbCard *card, uint32_t lba, uint32_t count, uint32_t *address)
 {
     *address = layout->volume_start + lba;
     return emmc_layout_in_volume(layout, lba, count) &&
-           emmc_layout_allows_write(layout, *address, count);
+           (card->reading || emmc_layout_allows_write(layout, *address, count));
 }
 
-static bool open_stream(void *context, uint32_t lba, uint32_t count)
+static bool open_stream(void *context, uint32_t lba, uint32_t count, bool read)
 {
     UsbCard *card = &cards[(uintptr_t)context];
-    uint32_t address = 0;
-    bool found =
-        card->sd ? locate_sd(card, lba, count, &address) : locate_internal(lba, count, &address);
+    CardStreamStart start = {0, count, read};
+    card->reading = read;
+    bool found = card->sd ? locate_sd(card, lba, count, &start.address)
+                          : locate_internal(card, lba, count, &start.address);
     card->stream.ops = NULL;
-    return found && card_stream_open(&card->stream, card->sd ? &SD_OPS : &EMMC_OPS, address, count);
+    return found && card_stream_open(&card->stream, card->sd ? &SD_OPS : &EMMC_OPS, start);
 }
 
-static bool feed_stream(void *context, const uint32_t *words, uint32_t count, uint32_t *accepted)
+static bool feed_stream(void *context, uint32_t *words, uint32_t count, uint32_t *accepted)
 {
     UsbCard *card = &cards[(uintptr_t)context];
     return card_stream_feed(&card->stream, words, count, accepted);

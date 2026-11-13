@@ -13,8 +13,8 @@ enum {
 };
 
 typedef struct MscStream {
-    bool (*open)(void *context, uint32_t lba, uint32_t count);
-    bool (*feed)(void *context, const uint32_t *words, uint32_t count, uint32_t *accepted);
+    bool (*open)(void *context, uint32_t lba, uint32_t count, bool read);
+    bool (*feed)(void *context, uint32_t *words, uint32_t count, uint32_t *accepted);
     bool (*close)(void *context, bool complete);
 } MscStream;
 
@@ -138,6 +138,10 @@ void msc_pump(Msc *msc);
 bool msc_out_blocked(const Msc *msc, uint32_t length);
 uint8_t *msc_out_slot(Msc *msc, uint32_t length);
 MscWait msc_write_wait(const Msc *msc, uint32_t packet);
+bool msc_in_streaming(const Msc *msc);
+uint32_t msc_in_ready(const Msc *msc, uint32_t packet, uint32_t packets);
+const uint32_t *msc_in_data(Msc *msc);
+void msc_in_sent(Msc *msc, uint32_t bytes);
 bool msc_ejected(const Msc *msc, uint8_t lun);
 void msc_remove_media(Msc *msc);
 bool msc_finished(const Msc *msc);

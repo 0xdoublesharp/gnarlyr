@@ -14,6 +14,7 @@ FIRST_LBA = 8192
 SETTLE_MS = 300
 CONFIGURE_LIMIT_MS = 2000
 INT_DATA_CRC = 1 << 7
+MMC_FIFO = 0x200
 FAILING_WORD = 3000
 CRU_MMC_DIVIDERS = 0x30
 SD_FIELD = 0x00FF
@@ -78,6 +79,7 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(scsi.write(CARD_LUN, lba, data), (0, 0))
         write_us = machine.microseconds() - start
         card_writes = card.writes[writes_before:]
+        reads_before = len(card.reads)
         start = machine.microseconds()
         for index, data in enumerate(written):
             lba = FIRST_LBA + index * COMMAND_SECTORS
@@ -85,6 +87,7 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(status, (0, 0))
             self.assertEqual(read, data)
         read_us = machine.microseconds() - start
+        card_reads = [count for _, _, count in card.reads[reads_before:]]
         total = COMMANDS * COMMAND_SECTORS * SECTOR
         for index, data in enumerate(written):
             lba = FIRST_LBA + index * COMMAND_SECTORS
@@ -94,6 +97,7 @@ class EchoImageTest(EchoImageHarness):
               % (" at 50 MHz" if fast else "", total / write_us, total / read_us, total // 1024,
                  len(card_writes), COMMANDS, sorted(set(host.armed_packets))))
         self.assertEqual([count for _, _, count in card_writes], [COMMAND_SECTORS] * COMMANDS)
+        self.assertEqual(card_reads, [COMMAND_SECTORS] * COMMANDS)
         self.assert_healthy(session)
         return session, machine, card
 
@@ -140,6 +144,33 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.clock_fields(machine), (SD_CRYSTAL, EMMC_PLL_QUARTER))
         self.assertEqual(scsi.write(CARD_LUN, FIRST_LBA, self.pattern(1)), (0, 0))
         self.assertEqual(disk.read(FIRST_LBA, COMMAND_SECTORS), self.pattern(1))
+        self.assert_healthy(session)
+
+    def test_a_card_read_error_at_speed_fails_that_read_and_the_repeat_reads_at_the_crystal(self):
+        session, machine, card, disk, host, scsi = self.storage_host(fast=True)
+        data = self.pattern(2)
+        self.assertEqual(scsi.write(CARD_LUN, FIRST_LBA, data), (0, 0))
+        controller = machine.sd_controller
+        read = controller.read
+        state = {"words": 0}
+
+        def failing_read(offset, size):
+            value = read(offset, size)
+            if offset == MMC_FIFO:
+                state["words"] += 1
+                if state["words"] == FAILING_WORD:
+                    controller.raise_status(INT_DATA_CRC)
+            return value
+
+        controller.read = failing_read
+        _, status = scsi.read(CARD_LUN, FIRST_LBA, COMMAND_SECTORS)
+        controller.read = read
+        self.assertEqual(status, (1, COMMAND_SECTORS * SECTOR))
+        sense, _ = scsi.request_sense(CARD_LUN)
+        self.assertEqual((sense[2], sense[12]), (0x03, 0x11))
+        self.assertEqual(self.clock_fields(machine)[0], SD_CRYSTAL)
+        read, status = scsi.read(CARD_LUN, FIRST_LBA, COMMAND_SECTORS)
+        self.assertEqual((read, status), (data, (0, 0)))
         self.assert_healthy(session)
 
 

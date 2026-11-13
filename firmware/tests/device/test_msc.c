@@ -1181,21 +1181,23 @@ typedef struct FakeStream {
     bool open_fails;
     bool close_fails;
     bool held;
+    bool read;
 } FakeStream;
 
 static FakeStream fake_stream;
 
-static bool stream_open(void *context, uint32_t lba, uint32_t count)
+static bool stream_open(void *context, uint32_t lba, uint32_t count, bool read)
 {
     (void)context;
     fake_stream.opens++;
+    fake_stream.read = read;
     fake_stream.lba = lba;
     fake_stream.count = count;
     fake_stream.fed_words = 0;
     return !fake_stream.open_fails;
 }
 
-static bool stream_feed(void *context, const uint32_t *words, uint32_t count, uint32_t *accepted)
+static bool stream_feed(void *context, uint32_t *words, uint32_t count, uint32_t *accepted)
 {
     RamDisk *disk = context;
     uint32_t take = fake_stream.held ? 0 : count;
@@ -1204,7 +1206,12 @@ static bool stream_feed(void *context, const uint32_t *words, uint32_t count, ui
         *accepted = 0;
         return false;
     }
-    memcpy(disk->bytes + fake_stream.lba * 512 + fake_stream.fed_words * 4, words, take * 4);
+    uint8_t *at = disk->bytes + fake_stream.lba * 512 + fake_stream.fed_words * 4;
+    if (fake_stream.read) {
+        memcpy(words, at, take * 4);
+    } else {
+        memcpy(at, words, take * 4);
+    }
     fake_stream.fed_words += take;
     *accepted = take;
     return true;
@@ -1365,6 +1372,60 @@ static void a_reset_during_a_streamed_write_abandons_it(void)
     CHECK_EQUAL(MSC_PHASE_COMMAND, msc->phase);
 }
 
+static uint32_t take_streamed_read(Msc *msc, uint8_t *bytes, uint32_t capacity)
+{
+    uint32_t length = 0;
+    for (int turn = 0; turn < 10000 && msc->phase == MSC_PHASE_DATA_IN; turn++) {
+        msc_pump(msc);
+        uint32_t ready = msc_in_ready(msc, 512, 3);
+        CHECK(ready % 512 == 0);
+        if (ready > 0 && length + ready <= capacity) {
+            memcpy(bytes + length, msc_in_data(msc), ready);
+            msc_in_sent(msc, ready);
+            length += ready;
+        }
+    }
+    finish_stream(msc);
+    return length;
+}
+
+static void a_read_streams_from_the_card_through_the_ring(void)
+{
+    static uint8_t bytes[10 * 512];
+    Msc *msc = streaming();
+    fill_pattern(writable_disk.bytes, sizeof writable_disk.bytes, 17);
+    uint8_t block[10];
+    read_10_block(block, 0x28, 6, 10);
+    send_command(msc, sizeof bytes, true, 0, block, 10);
+    CHECK(msc_in_streaming(msc));
+    CHECK(fake_stream.read);
+    CHECK_EQUAL(10, fake_stream.count);
+    CHECK_EQUAL(sizeof bytes, take_streamed_read(msc, bytes, sizeof bytes));
+    CHECK(memcmp(bytes, writable_disk.bytes + 6 * 512, sizeof bytes) == 0);
+    CHECK_EQUAL(1, fake_stream.closes);
+    CHECK(fake_stream.complete);
+    check_csw(collect(msc), 0, 0);
+    CHECK_EQUAL(10, msc_stats(msc).sectors_read);
+    CHECK_EQUAL(1, msc_stats(msc).traffic[0].reads);
+}
+
+static void a_failed_card_read_still_ends_the_data_and_answers_a_read_error(void)
+{
+    static uint8_t bytes[4 * 512];
+    Msc *msc = streaming();
+    fake_stream.fail_after_words = 200;
+    uint8_t block[10];
+    read_10_block(block, 0x28, 0, 4);
+    send_command(msc, sizeof bytes, true, 0, block, 10);
+    CHECK_EQUAL(sizeof bytes, take_streamed_read(msc, bytes, sizeof bytes));
+    CHECK(!fake_stream.complete);
+    check_csw(collect(msc), 1, sizeof bytes);
+    Exchange *answer = sense(msc, 0);
+    CHECK_EQUAL(0x03, answer->data[2]);
+    CHECK_EQUAL(0x11, answer->data[12]);
+    CHECK_EQUAL(1, msc_stats(msc).read_failures);
+}
+
 static void the_time_after_a_write_counts_as_host_idle(void)
 {
     static uint8_t bytes[512];
@@ -1388,6 +1449,8 @@ int main(void)
         TEST_CASE(a_packet_read_into_the_ring_slot_is_stored_without_a_copy),
         TEST_CASE(a_reset_during_a_streamed_write_abandons_it),
         TEST_CASE(the_time_after_a_write_counts_as_host_idle),
+        TEST_CASE(a_read_streams_from_the_card_through_the_ring),
+        TEST_CASE(a_failed_card_read_still_ends_the_data_and_answers_a_read_error),
         TEST_CASE(insertion_announces_change_then_removal_reports_no_medium),
         TEST_CASE(inquiry_names_the_vendor_and_the_lun),
         TEST_CASE(inquiry_gives_the_major_and_minor_version_as_the_revision),

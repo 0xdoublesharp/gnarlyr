@@ -52,6 +52,7 @@ typedef struct UsbPort {
     bool configured;
     bool enumerated;
     bool in_busy;
+    uint16_t in_left;
     bool setup_pending;
     bool setup_ready;
     HalUsbSetupTrace setups;

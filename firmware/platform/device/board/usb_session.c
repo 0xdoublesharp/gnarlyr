@@ -214,6 +214,7 @@ static void fall_back_to_full_speed(void)
     port->link.high_speed_allowed = false;
     port->configured = false;
     port->in_busy = false;
+    port->in_left = 0;
     usb_device_allow_high_speed(&port->device, false);
     msc_reset(&msc);
     usb_port_connect(port);

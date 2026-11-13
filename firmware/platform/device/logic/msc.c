@@ -339,21 +339,29 @@ static bool start_transfer(Msc *msc, const MscLun *lun, const uint8_t *block)
     return true;
 }
 
-static void read_10(Msc *msc, const MscLun *lun, const uint8_t *block)
-{
-    if (start_transfer(msc, lun, block)) {
-        msc->source = MSC_SOURCE_SECTORS;
-    }
-}
-
-static void begin_stream(Msc *msc, const MscLun *lun)
+static void begin_stream(Msc *msc, const MscLun *lun, bool read)
 {
     uint32_t sectors = msc->valid_bytes / MSC_SECTOR_SIZE;
     msc->ring_in = 0;
     msc->ring_out = 0;
     msc->stream_bytes = sectors * MSC_SECTOR_SIZE;
     msc->streaming = sectors > 0;
-    msc->stream_failed = sectors > 0 && !lun->stream->open(lun->context, msc->lba, sectors);
+    msc->stream_failed = sectors > 0 && !lun->stream->open(lun->context, msc->lba, sectors, read);
+}
+
+static bool streams(const Msc *msc, const MscLun *lun)
+{
+    return lun->stream != NULL && msc->write_buffer != NULL;
+}
+
+static void read_10(Msc *msc, const MscLun *lun, const uint8_t *block)
+{
+    if (start_transfer(msc, lun, block)) {
+        msc->source = MSC_SOURCE_SECTORS;
+        if (streams(msc, lun)) {
+            begin_stream(msc, lun, true);
+        }
+    }
 }
 
 static void write_10(Msc *msc, const MscLun *lun, const uint8_t *block)
@@ -365,8 +373,8 @@ static void write_10(Msc *msc, const MscLun *lun, const uint8_t *block)
     if (start_transfer(msc, lun, block)) {
         msc->source = MSC_SOURCE_SECTORS;
         msc->data_out = true;
-        if (lun->stream != NULL && msc->write_buffer != NULL) {
-            begin_stream(msc, lun);
+        if (streams(msc, lun)) {
+            begin_stream(msc, lun, false);
         }
     }
 }
@@ -610,18 +618,53 @@ static void feed_card(Msc *msc)
     }
     const MscLun *lun = &msc->luns[msc->lun];
     uint32_t accepted = 0;
-    const uint32_t *words = (const uint32_t *)(const void *)(batch_area(msc) + position);
+    uint32_t *words = (uint32_t *)(void *)(batch_area(msc) + position);
     msc->stream_failed = !lun->stream->feed(lun->context, words, count / 4, &accepted);
     msc->ring_out += accepted * 4;
+}
+
+static void fetch_card(Msc *msc)
+{
+    uint32_t position = msc->ring_in % ring_capacity(msc);
+    uint32_t count =
+        smallest(ring_room(msc), ring_capacity(msc) - position, msc->stream_bytes - msc->ring_in);
+    if (count == 0 || msc->stream_failed) {
+        return;
+    }
+    const MscLun *lun = &msc->luns[msc->lun];
+    uint32_t taken = 0;
+    uint32_t *words = (uint32_t *)(void *)(batch_area(msc) + position);
+    msc->stream_failed = !lun->stream->feed(lun->context, words, count / 4, &taken);
+    msc->ring_in += taken * 4;
+}
+
+static void record_read(Msc *msc, uint32_t sectors, bool read)
+{
+    if (read) {
+        msc->stats.sectors_read += sectors;
+        msc->lba += sectors;
+        msc->read_count = 0;
+        return;
+    }
+    set_sense(msc, SENSE_MEDIUM_ERROR, CODE_UNRECOVERED_READ);
+    msc->source = MSC_SOURCE_NONE;
+    msc->stats.read_failures++;
+    msc->stats.last_failed_lba = msc->lba;
 }
 
 static void finish_stream(Msc *msc)
 {
     const MscLun *lun = &msc->luns[msc->lun];
     msc->streaming = false;
-    bool closed = lun->stream->close(lun->context, !msc->stream_failed);
-    record_written(msc, msc->stream_bytes / MSC_SECTOR_SIZE, closed && !msc->stream_failed);
-    msc->phase = MSC_PHASE_STATUS;
+    bool done = lun->stream->close(lun->context, !msc->stream_failed) && !msc->stream_failed;
+    uint32_t sectors = msc->stream_bytes / MSC_SECTOR_SIZE;
+    if (msc->data_out) {
+        record_written(msc, sectors, done);
+    } else {
+        record_read(msc, sectors, done);
+    }
+    bool more = msc->transferred < msc->expected;
+    msc->phase = more ? MSC_PHASE_DATA_IN : MSC_PHASE_STATUS;
 }
 
 void msc_pump(Msc *msc)
@@ -629,7 +672,11 @@ void msc_pump(Msc *msc)
     if (!msc->streaming) {
         return;
     }
-    feed_card(msc);
+    if (msc->data_out) {
+        feed_card(msc);
+    } else {
+        fetch_card(msc);
+    }
     bool drained = msc->ring_out == msc->stream_bytes || msc->stream_failed;
     if (msc->phase == MSC_PHASE_FINISH && drained) {
         finish_stream(msc);
@@ -657,12 +704,43 @@ uint8_t *msc_out_slot(Msc *msc, uint32_t length)
     return whole && fits ? batch_area(msc) + position : NULL;
 }
 
+bool msc_in_streaming(const Msc *msc)
+{
+    return msc->streaming && !msc->data_out;
+}
+
+uint32_t msc_in_ready(const Msc *msc, uint32_t packet, uint32_t packets)
+{
+    if (!msc_in_streaming(msc) || msc->phase != MSC_PHASE_DATA_IN) {
+        return 0;
+    }
+    uint32_t filled = msc->stream_failed ? msc->stream_bytes : msc->ring_in;
+    uint32_t contiguous = ring_capacity(msc) - msc->ring_out % ring_capacity(msc);
+    uint32_t count = smallest(filled - msc->ring_out, contiguous, packet * packets);
+    bool last = count == msc->stream_bytes - msc->ring_out;
+    return last ? count : count - count % packet;
+}
+
+const uint32_t *msc_in_data(Msc *msc)
+{
+    return (const uint32_t *)(const void *)(batch_area(msc) + msc->ring_out % ring_capacity(msc));
+}
+
+void msc_in_sent(Msc *msc, uint32_t bytes)
+{
+    msc->ring_out += bytes;
+    msc->transferred += bytes;
+    if (msc->ring_out == msc->stream_bytes) {
+        msc->phase = MSC_PHASE_FINISH;
+    }
+}
+
 MscWait msc_write_wait(const Msc *msc, uint32_t packet)
 {
-    if (msc->phase == MSC_PHASE_FINISH || msc_out_blocked(msc, packet)) {
+    if ((msc->phase == MSC_PHASE_FINISH && msc->data_out) || msc_out_blocked(msc, packet)) {
         return MSC_WAIT_CARD;
     }
-    if (msc->streaming) {
+    if (msc->streaming && msc->data_out) {
         return MSC_WAIT_RECEIVE;
     }
     bool after_write = msc->phase == MSC_PHASE_COMMAND && msc->opcode == SCSI_WRITE_10;
@@ -761,7 +839,7 @@ static uint32_t fill_in_data(Msc *msc, uint8_t *buffer, uint32_t capacity)
 
 void msc_prefetch(Msc *msc)
 {
-    if (msc->phase == MSC_PHASE_DATA_IN && sector_data_pending(msc)) {
+    if (msc->phase == MSC_PHASE_DATA_IN && sector_data_pending(msc) && !msc->streaming) {
         ensure_sector(msc);
     }
 }

@@ -126,6 +126,7 @@ static void handle_reset(UsbPort *port)
     usb_flush_fifos();
     port->configured = false;
     port->in_busy = false;
+    port->in_left = 0;
     port->control_out_pending = false;
     port->control_data_pending = false;
     port->setup_pending = false;
@@ -237,6 +238,7 @@ static void apply_action(UsbPort *port, UsbReply reply)
     case USB_ACTION_MSC_RESET:
         msc_reset(port->msc);
         port->in_busy = false;
+        port->in_left = 0;
         break;
     case USB_ACTION_NONE:
         break;
@@ -447,11 +449,47 @@ static bool send_bulk(const UsbPort *port, const uint32_t *words, uint32_t lengt
     return true;
 }
 
+static void arm_stream_in(UsbPort *port)
+{
+    uint32_t packet = port->bulk_packet;
+    uint32_t length = msc_in_ready(port->msc, packet, OUT_TRANSFER_LIMIT / packet);
+    if (length == 0) {
+        return;
+    }
+    uint32_t packets = (length + packet - 1) / packet;
+    write_register(in_control(BULK_ENDPOINT) + 0x10u, packets << PACKET_COUNT_SHIFT | length);
+    set_bits(in_control(BULK_ENDPOINT), EP_ENABLE | EP_CLEAR_NAK);
+    port->in_busy = true;
+    port->in_left = (uint16_t)length;
+}
+
+static void stream_in(UsbPort *port)
+{
+    if (port->in_left == 0 && !port->in_busy) {
+        arm_stream_in(port);
+    }
+    uint32_t length = port->in_left < port->bulk_packet ? port->in_left : port->bulk_packet;
+    uint32_t words = (length + 3) / 4;
+    if (length == 0 || tx_space(port, BULK_ENDPOINT) < words) {
+        return;
+    }
+    const uint32_t *data = msc_in_data(port->msc);
+    for (uint32_t index = 0; index < words; index++) {
+        write_register(fifo(BULK_ENDPOINT), data[index]);
+    }
+    msc_in_sent(port->msc, length);
+    port->in_left = (uint16_t)(port->in_left - length);
+}
+
 static void pump_bulk_in(UsbPort *port)
 {
     uint32_t *chunk = port->out_packet;
     uint32_t length = 0;
     if (!port->configured || port->msc == NULL) {
+        return;
+    }
+    if (msc_in_streaming(port->msc) || port->in_left != 0) {
+        stream_in(port);
         return;
     }
     if (port->in_busy) {
@@ -523,16 +561,16 @@ static void follow_timing(const UsbPort *port)
     }
 }
 
-static bool streaming_out(const UsbPort *port)
+static bool storage_streaming(const UsbPort *port)
 {
     return port->msc != NULL && port->audio == NULL && port->msc->streaming && !port->setup_pending;
 }
 
-static void stream_out(UsbPort *port)
+static void stream_burst(UsbPort *port)
 {
     uint32_t start = hal_clock_milliseconds();
-    uint32_t others = GINT_USB_RESET | GINT_ENUMERATION_DONE | GINT_IN_ENDPOINT;
-    for (uint32_t turn = 1; streaming_out(port); turn++) {
+    uint32_t others = GINT_USB_RESET | GINT_ENUMERATION_DONE;
+    for (uint32_t turn = 1; storage_streaming(port); turn++) {
         if ((turn & STREAM_CLOCK_TURNS) == 0 &&
             hal_clock_milliseconds() - start >= STREAM_BURST_MS) {
             return;
@@ -547,7 +585,13 @@ static void stream_out(UsbPort *port)
         if ((events & GINT_OUT_ENDPOINT) != 0) {
             handle_out_endpoints(port);
         }
+        if ((events & GINT_IN_ENDPOINT) != 0) {
+            handle_in_endpoints(port);
+        }
         msc_pump(port->msc);
+        if (msc_in_streaming(port->msc)) {
+            stream_in(port);
+        }
         follow_timing(port);
     }
 }
@@ -611,7 +655,7 @@ CORE_SEAM void usb_poll(UsbPort *port)
     pump_audio_in(port);
     if (port->msc != NULL && port->audio == NULL) {
         follow_timing(port);
-        stream_out(port);
+        stream_burst(port);
     }
 }
 
