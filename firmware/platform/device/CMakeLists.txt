@@ -446,6 +446,7 @@ if(CMAKE_CROSSCOMPILING)
         board/debug_poke.c
         board/debug_report_file.c
         board/debug_rtc.c
+        board/debug_rtc_calls.c
         board/debug_script_file.c
         board/debug_session.c
         board/extension.c
@@ -702,8 +703,6 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             audio_effects_settle=audio_effects_module_settle
             hal_system_rtc_read=audio_effects_rtc_read
             hal_system_rtc_set=audio_effects_rtc_set
-            hal_clock_set_wall=audio_effects_clock_set_wall
-            hal_clock_restore_wall=audio_effects_clock_restore_wall
         )
     endif()
     if(module STREQUAL "source")

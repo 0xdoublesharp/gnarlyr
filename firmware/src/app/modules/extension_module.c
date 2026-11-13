@@ -2,6 +2,7 @@
 #include "extension_entry.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
+#include "hal/system.h"
 #include "screen_modules.h"
 
 #ifdef ECHO_DEVICE_MODULE
@@ -30,5 +31,9 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
 #ifdef ECHO_DEVICE_MODULE
     .forget_time_file = board_wall_time_delete_file,
     .trial = &TRIAL_CALLS,
+#endif
+#ifdef ECHO_DEBUG_LOOP
+    .rtc_read = hal_system_rtc_read,
+    .rtc_set = hal_system_rtc_set,
 #endif
 };
