@@ -135,9 +135,9 @@ static void draw_reels(const NowPlayingScreen *screen, Canvas *canvas)
     }
 }
 
-static void label_line(Canvas *canvas, const Theme *theme, Label label, const Font *font)
+static void label_line(Canvas *canvas, Label label, TextStyle style)
 {
-    label_draw(canvas, (TextStyle){font, theme->colors.text, false}, label);
+    label_draw(canvas, style, label);
 }
 
 static void draw_shell(Canvas *canvas, CassetteNowPlayingLayout layout, const Theme *theme)
@@ -174,9 +174,12 @@ void cassette_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
         return;
     }
     draw_shell(canvas, layout, theme);
-    label_line(canvas, theme, (Label){layout.label[0], screen->title}, theme->fonts.title);
-    label_line(canvas, theme, (Label){layout.label[1], screen->artist}, theme->fonts.body);
-    label_line(canvas, theme, (Label){layout.label[2], screen->album}, theme->fonts.small);
+    label_line(canvas, (Label){layout.label[0], screen->title},
+               (TextStyle){theme->fonts.title, theme->colors.text, false});
+    label_line(canvas, (Label){layout.label[1], screen->artist},
+               (TextStyle){theme->fonts.body, theme->colors.accent, false});
+    label_line(canvas, (Label){layout.label[2], screen->album},
+               (TextStyle){theme->fonts.small, theme->colors.text_secondary, false});
     int y = layout.body.y + layout.body.height - 20;
     TextStyle footer = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     label_draw(canvas, footer,
@@ -188,7 +191,8 @@ void cassette_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
     }
     if (screen->scrubbing) {
         Rect head = {layout.body.x + layout.body.width / 4, y, layout.body.width / 2, 18};
-        label_line(canvas, theme, (Label){head, i18n_text(STR_SEEKING)}, theme->fonts.small);
+        label_line(canvas, (Label){head, i18n_text(STR_SEEKING)},
+                   (TextStyle){theme->fonts.small, theme->colors.text, false});
     }
     draw_reels(screen, canvas);
 }

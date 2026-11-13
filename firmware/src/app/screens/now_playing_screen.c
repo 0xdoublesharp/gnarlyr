@@ -8,6 +8,8 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
+#include "home_art.h"
+#include "neon_art.h"
 #include "settings/settings.h"
 #include "ui/header.h"
 #include "ui/icons.h"
@@ -385,13 +387,24 @@ static uint32_t shown_position(const NowPlayingScreen *now_playing)
                : status->position_ms;
 }
 
-static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas, bool artwork)
 {
     Image cover;
     const Theme *theme = now_playing->config.theme;
     int left = cover_left(now_playing);
     int top = layout(now_playing)->cover_top;
     int size = layout(now_playing)->cover_size;
+    if (theme->horizon) {
+        Rect stage = {0, theme->metrics.header_height,
+                      theme_is_portrait(theme) ? theme->metrics.screen_width
+                                               : left + size + theme->metrics.padding,
+                      top + size + 10 - theme->metrics.header_height};
+        if (!artwork) {
+            home_art_draw_backdrop(canvas, stage, theme);
+        }
+        neon_art_frame(canvas, (Rect){left - 4, top - 4, size + 8, size + 8},
+                       neon_art_ink(theme, theme->colors.accent));
+    }
     canvas_fill_rect(canvas, (Rect){left + ART_SHADOW, top + ART_SHADOW, size, size},
                      theme->colors.backdrop_bottom);
     canvas_fill_rect(canvas, (Rect){left - ART_SPINE, top, ART_SPINE, size},
@@ -448,7 +461,7 @@ static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
     TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
-    TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.text_secondary};
+    TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.accent};
     TextStyle album = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
     draw_title(now_playing, canvas, title);
     draw_text_line(now_playing, canvas,
@@ -472,10 +485,12 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
                                                      now_playing->status.duration_ms, bar.width);
-    Color fill = now_playing->scrubbing || volume ? theme->colors.selection_background
-                                                  : theme->colors.accent;
+    Color fill = now_playing->scrubbing || volume ? theme->colors.accent_alt : theme->colors.accent;
     canvas_fill_rect(canvas, bar, theme->colors.divider);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
+    int cursor = filled > 1 ? filled - 2 : 0;
+    canvas_fill_rect(canvas, (Rect){bar.x + cursor, bar.y - 1, 2, bar.height + 2},
+                     theme->colors.text);
 }
 
 static void draw_right_aligned(Canvas *canvas, TextStyle style, Rect area, const char *text)
@@ -654,7 +669,11 @@ static void draw(void *context, Canvas *canvas)
 {
     const NowPlayingScreen *now_playing = context;
     const Theme *theme = now_playing->config.theme;
-    theme_background_draw(theme, canvas, THEME_ART_NOW_PLAYING, theme_content_area(theme));
+    Rect content = theme_content_area(theme);
+    bool artwork = theme_art_draw(theme, canvas, THEME_ART_NOW_PLAYING, content);
+    if (!artwork) {
+        canvas_fill_rect(canvas, content, theme->colors.background);
+    }
     Rect header = theme_header_area(theme);
     canvas_fill_rect(canvas, header, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
@@ -672,7 +691,7 @@ static void draw(void *context, Canvas *canvas)
     if (cassette) {
         now_playing->config.cassette_draw(now_playing, canvas);
     } else {
-        draw_cover(now_playing, canvas);
+        draw_cover(now_playing, canvas, artwork);
         draw_track_text(now_playing, canvas);
     }
     draw_badge(now_playing, canvas);
