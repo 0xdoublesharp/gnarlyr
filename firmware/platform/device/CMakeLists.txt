@@ -435,6 +435,8 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         board/bluetooth.c
+        board/clock_switch.c
+        board/cru.c
         board/core1.c
         board/dac.c
         board/debug_battery_trace.c
