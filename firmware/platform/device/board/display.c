@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "debug_probe.h"
 #include "device/backlight.h"
@@ -159,7 +160,7 @@ void board_display_after_clock_change(void)
     }
 }
 
-void board_display_start(void)
+CORE_COLD void board_display_start(void)
 {
     brightness = HAL_DISPLAY_BRIGHTNESS_MAX;
     backlight_on = false;
@@ -168,7 +169,7 @@ void board_display_start(void)
     board_display_clear();
 }
 
-void hal_display_set_rotation(HalDisplayRotation turned)
+CORE_COLD void hal_display_set_rotation(HalDisplayRotation turned)
 {
     if ((PanelRotation)turned == rotation) {
         return;
@@ -193,7 +194,7 @@ uint32_t hal_display_push_fallbacks(void)
     return board_panel_push_fallbacks();
 }
 
-void hal_display_set_power(bool on)
+CORE_COLD void hal_display_set_power(bool on)
 {
     board_start_record_step(on ? HAL_START_STEP_BACKLIGHT_ON : HAL_START_STEP_BACKLIGHT_OFF);
     bool was_on = backlight_on;

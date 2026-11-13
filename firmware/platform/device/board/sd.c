@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "device/card_presence.h"
 #include "device/card_write.h"
@@ -166,7 +167,7 @@ static void power_up_card(void)
     board_delay_ms(POWER_SETTLE_MS);
 }
 
-void sd_quiesce(void)
+CORE_COLD void sd_quiesce(void)
 {
     if (!controller_on) {
         return;
@@ -206,7 +207,7 @@ static bool start_card(void)
     return start_log.ready;
 }
 
-bool sd_start(BlockDevice *device)
+CORE_COLD bool sd_start(BlockDevice *device)
 {
     *device = (BlockDevice){sd_read, NULL, sd_write};
     sd_present();

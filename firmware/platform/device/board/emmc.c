@@ -4,6 +4,7 @@
 
 #include "app/debug_loop.h"
 #include "board.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "device/block_read.h"
 #include "device/card_write.h"
@@ -264,7 +265,7 @@ static void start_with_retries(void)
     note(started ? DEBUG_SCAN_EMMC_OK : DEBUG_SCAN_EMMC_FAILED, started ? spent : spent | why);
 }
 
-bool emmc_start(EmmcInfo *info)
+CORE_COLD bool emmc_start(EmmcInfo *info)
 {
     if (!started && started_magic == STARTED_MAGIC) {
         note(DEBUG_SCAN_EMMC_FLAG_LOST, board_core1_program() << 8 | (dmac_running() ? 1u : 0u));

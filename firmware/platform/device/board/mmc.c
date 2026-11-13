@@ -1,6 +1,7 @@
 #include "mmc.h"
 
 #include "board.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "hal/clock.h"
 #include "registers.h"
@@ -139,7 +140,7 @@ static uint32_t fifo_depth(const MmcHost *host)
     return depth < MINIMUM_FIFO_DEPTH || depth > MAXIMUM_FIFO_DEPTH ? FALLBACK_FIFO_DEPTH : depth;
 }
 
-void mmc_reset_controller(const MmcHost *host)
+CORE_COLD void mmc_reset_controller(const MmcHost *host)
 {
     write_register(host, MMC_CTRL, CTRL_RESET_ALL);
     wait_clear(host, MMC_CTRL, CTRL_RESET_ALL, COMMAND_TIMEOUT_MS);
@@ -153,7 +154,7 @@ void mmc_reset_controller(const MmcHost *host)
     write_register(host, MMC_PWREN, 1);
 }
 
-void mmc_set_clock(const MmcHost *host, SdClock clock)
+CORE_COLD void mmc_set_clock(const MmcHost *host, SdClock clock)
 {
     bool identify = clock == SD_CLOCK_IDENTIFY;
     write_register(host, MMC_CLKENA, 0);
