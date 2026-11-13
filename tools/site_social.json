@@ -1,13 +1,13 @@
 {
   "cards": [
     {"page":"index.html","name":"home","label":"Custom firmware · Snowsky ECHO","title":["A new side","to your ECHO."],"description":["Your music. Your player.","Built for listening, offline."]},
-    {"page":"firmware.html","name":"features","label":"Features & improvements","title":["More music.","More your way."],"description":["Search. Mixtapes. Gapless albums.","Themes, sound controls and more."]},
-    {"page":"docs.html","name":"docs","label":"The player guide","title":["Get to know","{firmware_name}."],"description":["Screens, settings and shortcuts.","A visual guide to your player."]},
-    {"page":"install.html","name":"install","label":"Install & update","title":["Get ready.","Press play."],"description":["Install, set up and update.","Clear steps for your ECHO."]},
-    {"page":"hardware.html","name":"hardware","label":"Inside the ECHO","title":["Meet the","hardware."],"description":["ECHO specs, chips and connections.","Explained from the inside out."]},
+    {"page":"firmware.html","name":"features","label":"Features & improvements","title":["More music.","More your way."],"description":["Search. Mixtapes. Gapless albums.","Themes, sound controls, and more."]},
+    {"page":"docs.html","name":"docs","label":"The player guide","title":["Get to know","{firmware_name}."],"description":["Screens, settings, and shortcuts.","A visual guide to your player."]},
+    {"page":"install.html","name":"install","label":"Install & update","title":["Get ready.","Press play."],"description":["Install, set up, and update.","Clear steps for your ECHO."]},
+    {"page":"hardware.html","name":"hardware","label":"Inside the ECHO","title":["Meet the","hardware."],"description":["ECHO specs, chips, and connections.","Explained from the inside out."]},
     {"page":"recovery.html","name":"recovery","label":"Recovery","title":["Back to","the music."],"description":["When the player won’t start.","A guide for the full-size ECHO."]},
     {"page":"build.html","name":"developers","label":"Developer tools","title":["Build it.","Make it yours."],"description":["Source builds and developer tools.","USB workflows and audio internals."]},
-    {"page":"languages.html","name":"languages","label":"Language packs","title":["Your player.","Your language."],"description":["Build, check and edit language packs.","Translate right in your browser."]},
+    {"page":"languages.html","name":"languages","label":"Language packs","title":["Your player.","Your language."],"description":["Build, check, and edit language packs.","Translate right in your browser."]},
     {"page":"companion.html","name":"companion","label":"{firmware_name} Companion · desktop beta","title":["Your music.","A bigger view."],"description":["Local music. Player care.","Meet the desktop companion."]}
   ]
 }

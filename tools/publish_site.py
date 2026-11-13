@@ -16,7 +16,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 PUBLIC_FILES = (
-    "index.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
+    "index.html", "companion.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
     "styles.css", "site.js", "favicon.svg", "robots.txt", "sitemap.xml",
     "languages.html", "language-catalog.js", "language-packs.js",
 )
@@ -37,8 +37,6 @@ def public_files():
             if path.suffix.lower() not in IMAGE_SUFFIXES:
                 raise SystemExit(f"Only public images belong under site/assets: {path}")
             relative = path.relative_to(SITE).as_posix()
-            if relative.startswith(("assets/companion/", "assets/social/companion-")):
-                continue
             paths.append(path)
     files = {}
     total = 0

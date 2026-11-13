@@ -34,7 +34,7 @@
 
   function checkCode(code, info) {
     if (!code || /[^A-Za-z0-9-]/.test(code) || code.length > info.code_limit) {
-      fail(`Use a language code of 1–${info.code_limit} letters, digits or hyphens, such as es or pt-BR.`);
+      fail(`Use a language code of 1–${info.code_limit} letters, digits, or hyphens, such as es or pt-BR.`);
     }
   }
 

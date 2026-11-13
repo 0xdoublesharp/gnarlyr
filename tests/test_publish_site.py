@@ -82,5 +82,24 @@ class StylesheetPublicationTests(unittest.TestCase):
             self.assertEqual((site / "docs.html").read_bytes(), source)
 
 
+    def test_companion_page_and_its_images_are_public(self):
+        scratch = Path("/Volumes/Scratch/SnowskyEcho/tmp")
+        with tempfile.TemporaryDirectory(prefix="site-companion-test-", dir=scratch) as folder:
+            site = Path(folder)
+            for name in publisher.PUBLIC_FILES:
+                (site / name).write_bytes(b"public file")
+            (site / "README.md").write_bytes(b"private deployment notes")
+            for name in ("assets/companion/library-dark.png", "assets/social/companion-123456789abc.png"):
+                path = site / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"public image")
+            with mock.patch.object(publisher, "SITE", site):
+                files = publisher.public_files()
+            self.assertIn("companion.html", files)
+            self.assertIn("assets/companion/library-dark.png", files)
+            self.assertIn("assets/social/companion-123456789abc.png", files)
+            self.assertNotIn("README.md", files)
+
+
 if __name__ == "__main__":
     unittest.main()

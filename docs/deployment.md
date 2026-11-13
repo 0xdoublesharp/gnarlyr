@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `22d8bd18d38669d322e30107c12adc3a2fa01f0abaa3f6bb120e312e848297a1` |
-| Rollback content release | `1c4071b48f3b12e694ccaf0d32503f5f7715d4c7e7171a89fbbe7970df96d68a` |
+| Current content release | `6b01347dd47dc83ce5536c3d0f9a69b681b5b1effce88f3213290b4467e0ba7a` |
+| Rollback content release | `22d8bd18d38669d322e30107c12adc3a2fa01f0abaa3f6bb120e312e848297a1` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
@@ -50,7 +50,7 @@ operator’s sudo credential in memory and sends it over SSH stdin. Credential
 values are never stored here or printed. The connected `double-paas` MCP owns
 normal service configuration/start operations. Website publication is manual, with no automatic push deployment. Firmware and companion release workflows are separate.
 
-The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
+The publisher includes only `index.html`, `companion.html`, `firmware.html`, `hardware.html`,
 `docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
 `sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
@@ -84,11 +84,11 @@ Do not restart the shared proxy for an ordinary site release.
 
 Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
-`/languages.html`, `/language-catalog.js`, `/language-packs.js` and
-`/healthz`; compare all fifteen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
+`/languages.html`, `/companion.html`, `/language-catalog.js`, `/language-packs.js`, and
+`/healthz`; compare all sixteen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
-`/README.md`, `/deploy/compose.yaml`, `/companion.html`, its image assets and an unknown path. Companion source remains in the checkout but is excluded from publication. Verify origin TLS
+`/README.md`, `/deploy/compose.yaml`, and an unknown path. Companion HTML, screenshots, and social artwork are included in the public release. Verify origin TLS
 separately with `curl --resolve HOST:443:159.89.222.183 https://HOST/`;
 Cloudflare edge HTTPS alone does not verify the origin certificate.
 
