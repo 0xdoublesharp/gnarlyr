@@ -1,5 +1,6 @@
 #include "hal/clock.h"
 #include "board.h"
+#include "core/seam.h"
 #include "debug_probe.h"
 #include "device/stall_watch.h"
 #include "device/tick_clock.h"
@@ -46,7 +47,7 @@ static TickReading read_counter(void)
     return (TickReading){.counter = counter, .reload_pending = pending};
 }
 
-void board_clock_start(void)
+CORE_COLD void board_clock_start(void)
 {
     uint32_t ticks_per_microsecond = board_boot_ticks_per_microsecond();
     uint32_t period = period_of(ticks_per_microsecond);
@@ -119,7 +120,7 @@ void hal_system_keep_alive(void)
     board_stall_beat();
 }
 
-void board_stall_pause(bool paused)
+CORE_COLD void board_stall_pause(bool paused)
 {
     uint32_t primask = irq_save();
     stall_watch_pause(&stall_watch, paused, tick_clock_milliseconds(&clock, read_counter()));

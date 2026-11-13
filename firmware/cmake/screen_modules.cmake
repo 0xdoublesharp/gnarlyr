@@ -136,6 +136,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/screens/equalizer_plot.c
     src/settings/equalizer_response.c
     src/settings/equalizer_slots.c
+    src/settings/equalizer_fit.c
     src/settings/equalizer_fit_text.c
     src/app/modules/equalizer_module.c
     src/app/screens/quick_settings_screen.c
@@ -286,10 +287,7 @@ else()
         src/app/debug_screenshot.c
         platform/device/board/debug_battery_trace.c
         platform/device/board/debug_poke.c
-        platform/device/board/debug_rtc.c
-        platform/device/logic/rtc_time.c
-        platform/device/logic/rtc_registers.c
-        src/core/calendar.c
+        platform/device/board/debug_rtc_calls.c
     )
 endif()
 

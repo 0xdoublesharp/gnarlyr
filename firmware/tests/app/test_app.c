@@ -2069,7 +2069,7 @@ static void now_playing_centres_the_cover_under_the_status_row_in_portrait(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Now Playing"));
-    const NowPlayingLayout *layout = &BOARD_LAYOUT.now_playing_portrait[TEXT_SIZE_MEDIUM];
+    const NowPlayingLayout *layout = &BOARD_COVER_LAYOUT.now_playing_portrait[TEXT_SIZE_MEDIUM];
     CHECK_EQUAL(0xF800, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2,
                                        layout->cover_top + COVER_FULL_SIZE / 2));
     CHECK(fake_hal_pixel(2, layout->cover_top + COVER_FULL_SIZE / 2) != RED_COVER);
@@ -4633,7 +4633,7 @@ static void diagnostics_shows_the_firmware_version_from_the_hal(void)
 static uint16_t cover_probe(void)
 {
     return fake_hal_pixel(expected_theme()->metrics.padding + 56,
-                          BOARD_LAYOUT.now_playing[TEXT_SIZE_MEDIUM].cover_top + 78);
+                          BOARD_COVER_LAYOUT.now_playing[TEXT_SIZE_MEDIUM].cover_top + 78);
 }
 
 static void now_playing_shows_the_album_cover(void)

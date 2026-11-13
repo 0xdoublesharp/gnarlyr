@@ -48,7 +48,7 @@ bool usb_vbus_present(void)
     return (register_read(GRF_BASE + GRF_VBUS) & GRF_VBUS_PRESENT) != 0;
 }
 
-void usb_silence_audio(void)
+CORE_COLD void usb_silence_audio(void)
 {
     PinRef mute_pin = board_dac_pin(DAC_PIN_MUTE);
     GpioPin audio_mute = {mute_pin.port, mute_pin.pin};
@@ -61,7 +61,7 @@ void usb_silence_audio(void)
     gpio_output(DAC_POWER, false);
 }
 
-CORE_SEAM void usb_power_up(void)
+CORE_SEAM CORE_COLD void usb_power_up(void)
 {
     core_powered = true;
     board_debug_usb_powered(true);
@@ -76,7 +76,7 @@ CORE_SEAM void usb_power_up(void)
     write_grf(PHY_ON_SECOND, sizeof PHY_ON_SECOND / sizeof PHY_ON_SECOND[0]);
 }
 
-CORE_SEAM void usb_power_down(void)
+CORE_SEAM CORE_COLD void usb_power_down(void)
 {
     set_bits(DCTL, DCTL_SOFT_DISCONNECT);
     board_delay_ms(DISCONNECT_HOLD_MS);
@@ -147,7 +147,7 @@ static void size_fifos(UsbLink *link)
     }
 }
 
-bool usb_flush_fifos(void)
+CORE_COLD bool usb_flush_fifos(void)
 {
     write_register(GRSTCTL, GRSTCTL_FLUSH_ALL_TX);
     bool ok = wait_clear(GRSTCTL, GRSTCTL_TX_FLUSH, RESET_TIMEOUT_MS);
@@ -191,7 +191,7 @@ UsbProbe usb_probe(void)
                       read_register(GNPTXFSIZ)};
 }
 
-bool usb_connect(UsbLink *link)
+CORE_COLD bool usb_connect(UsbLink *link)
 {
     link->step = prepare_core(link);
     if (link->step != USB_CONNECT_OK) {

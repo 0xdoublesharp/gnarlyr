@@ -205,8 +205,8 @@ bool core1_stream_step(Core1Stream *stream)
     return true;
 }
 
-void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
-                       FlacDecoder *decoder, uint32_t fill_budget)
+CORE_COLD void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
+                                 FlacDecoder *decoder, uint32_t fill_budget)
 {
     *source = (Core1Source){.region = region,
                             .fill_budget = fill_budget,
@@ -215,7 +215,7 @@ void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener 
     flac_source_init(&source->flac, files, decoder);
 }
 
-void core1_source_stop(Core1Source *source)
+CORE_COLD void core1_source_stop(Core1Source *source)
 {
     source->refilling = false;
     if (source->streaming) {
@@ -334,7 +334,7 @@ static void release_frame(void *context)
     advance_slot(context);
 }
 
-static void close_stream(void *context)
+CORE_COLD static void close_stream(void *context)
 {
     core1_source_stop(context);
 }

@@ -9,20 +9,20 @@ enum {
 };
 
 typedef struct NowPlayingLayout {
-    int cover_size;
-    int cover_top;
-    int cover_gap;
-    int title_top;
-    int artist_top;
-    int album_top;
-    int text_line_height;
-    int format_top;
-    int detail_top;
-    int modes_top;
-    int small_line_height;
-    int progress_top;
-    int progress_height;
-    int times_top;
+    int16_t cover_size;
+    int16_t cover_top;
+    int16_t cover_gap;
+    int16_t title_top;
+    int16_t artist_top;
+    int16_t album_top;
+    int16_t text_line_height;
+    int16_t format_top;
+    int16_t detail_top;
+    int16_t modes_top;
+    int16_t small_line_height;
+    int16_t progress_top;
+    int16_t progress_height;
+    int16_t times_top;
 } NowPlayingLayout;
 
 typedef struct CoverFlowTextLayout {
@@ -34,13 +34,13 @@ typedef struct CoverFlowTextLayout {
 
 typedef struct BoardLayout {
     int home_art_width;
-    NowPlayingLayout now_playing[TEXT_SIZE_COUNT];
-    NowPlayingLayout now_playing_portrait[TEXT_SIZE_COUNT];
     int home_art_min_height;
 } BoardLayout;
 
 typedef struct BoardCoverLayout {
     int up_next_detail_max_width;
+    NowPlayingLayout now_playing[TEXT_SIZE_COUNT];
+    NowPlayingLayout now_playing_portrait[TEXT_SIZE_COUNT];
     CoverFlowLayout cover_flow;
     CoverFlowTextLayout cover_flow_text[TEXT_SIZE_COUNT];
     CoverStackLayout cover_stack;

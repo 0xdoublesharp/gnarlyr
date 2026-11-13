@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
+
 static int32_t filtered_input(const AudioResample *resample, int32_t sample)
 {
     if (resample->factor == 1) {
@@ -24,7 +26,7 @@ uint32_t audio_resample_rate(uint32_t input_rate)
     return 0;
 }
 
-void audio_resample_start(AudioResample *resample, uint32_t input_rate)
+CORE_COLD void audio_resample_start(AudioResample *resample, uint32_t input_rate)
 {
     *resample = (AudioResample){0};
     uint32_t output_rate = audio_resample_rate(input_rate);

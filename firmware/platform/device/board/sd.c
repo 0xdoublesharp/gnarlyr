@@ -115,7 +115,7 @@ static const SdHost HOST = {host_command, host_set_clock,    host_set_bus_width,
                             host_delay,   host_card_present, host_stop,
                             NULL};
 
-static void start_card_detect(void)
+CORE_COLD static void start_card_detect(void)
 {
     if (detect_started) {
         return;
@@ -137,7 +137,7 @@ void sd_reset_controller(void)
     cru_reset(RESET_SD, false);
 }
 
-static void clock_controller(void)
+CORE_COLD static void clock_controller(void)
 {
     cru_gate(GATE_SD_BUS, true);
     cru_gate(GATE_SD_CARD_CLOCK, true);
@@ -299,7 +299,7 @@ bool sd_ejected(void)
     return presence.ejected;
 }
 
-void sd_eject(bool eject)
+CORE_COLD void sd_eject(bool eject)
 {
     presence.ejected = eject;
     sd_forget();
@@ -311,7 +311,7 @@ uint32_t sd_generation(void)
     return generation;
 }
 
-void sd_forget(void)
+CORE_COLD void sd_forget(void)
 {
     ready = false;
     attempts = (CardStart){0};
@@ -327,7 +327,7 @@ bool sd_card_ready(void)
     return ready;
 }
 
-CardStartLog sd_start_log(void)
+CORE_COLD CardStartLog sd_start_log(void)
 {
     CardStartLog log = start_log;
     log.raw_now = detect_started && host_card_present(NULL);

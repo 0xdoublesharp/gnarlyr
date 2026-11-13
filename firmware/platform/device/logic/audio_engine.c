@@ -132,7 +132,7 @@ static void release_frame(AudioEngine *engine)
     engine->pending_frames = 0;
 }
 
-static void close_file(AudioEngine *engine)
+CORE_COLD static void close_file(AudioEngine *engine)
 {
     if (engine->decoding) {
         release_frame(engine);
@@ -270,7 +270,8 @@ CORE_COLD bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *tr
     return start_track(engine, track, track->start_ms + offset_ms);
 }
 
-bool audio_engine_queue_needs_restart(const AudioEngine *engine, const AudioEngineTrack *track)
+CORE_COLD bool audio_engine_queue_needs_restart(const AudioEngine *engine,
+                                                const AudioEngineTrack *track)
 {
     if (track == NULL && !engine->has_next && engine->segment_count <= 1 && !engine->rate_pending &&
         !(engine->draining && engine->decoding)) {
@@ -341,7 +342,7 @@ void audio_engine_resume(AudioEngine *engine)
     }
 }
 
-void audio_engine_stop(AudioEngine *engine)
+CORE_COLD void audio_engine_stop(AudioEngine *engine)
 {
     close_file(engine);
     engine->state = AUDIO_ENGINE_STOPPED;
@@ -827,7 +828,7 @@ bool audio_engine_wants_rate(const AudioEngine *engine, uint32_t *rate)
     return true;
 }
 
-void audio_engine_restart(AudioEngine *engine)
+CORE_COLD void audio_engine_restart(AudioEngine *engine)
 {
     if (!engine->rate_pending) {
         return;

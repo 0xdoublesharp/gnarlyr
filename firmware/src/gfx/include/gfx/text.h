@@ -19,8 +19,13 @@ typedef struct TextSpan {
 int text_width(const Font *font, const char *text);
 int text_digit_width(const Font *font);
 int text_style_width(TextStyle style, const char *text);
-int text_cell_width(TextStyle style, uint32_t codepoint, int advance);
 int text_draw(Canvas *canvas, TextStyle style, Point pen, const char *text);
 int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span);
+static inline int text_cell_width(TextStyle style, uint32_t codepoint, int advance)
+{
+    bool digit = codepoint >= '0' && codepoint <= '9';
+    return style.tabular && digit ? text_digit_width(style.font) : advance;
+}
+
 void text_draw_glyph_scaled(Canvas *canvas, TextStyle style, Rect box, uint32_t codepoint,
                             int scale);
