@@ -44,6 +44,21 @@ SLOW_EMMC_STARTS = 6
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_screen_sleep_keeps_the_lcd_bus_clock_running_across_repeated_wakes(self):
+        script = "\n".join(["build " + self.build_tag(), "screen off", "wait 200", "screen on",
+                            "wait 200", "screen off", "wait 200", "screen on", "reconnect", ""])
+        volume = self.debug_volume(run_txt=script.encode("ascii"))
+        session, machine = self.ejecting_session(volume)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertFalse(any(entry == ("cru", 0x9C, 0x80008000) for entry in machine.register_log))
+        commands = [command for command, _ in machine.panel.groups]
+        self.assertGreaterEqual(commands.count(0x10), 2)
+        self.assertGreaterEqual(commands.count(0x11), 3)
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        self.assertEqual(self.read_report(session)["values"]["script.state"], "finished")
+        self.assert_healthy(session)
+
     def test_a_script_runs_once_after_an_eject_plays_a_track_and_the_player_reconnects(self):
         from PIL import Image
         from echo_emulator.playback import ALBUM_COUNT, Rig

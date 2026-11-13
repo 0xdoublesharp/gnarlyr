@@ -122,7 +122,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(0, result["underruns"], result)
         self.assertEqual(0, result["output_underruns"], result)
         self.assertTrue(result["panel_asleep"], result)
-        self.assertTrue(result["vop_clock_gated"], result)
+        self.assertFalse(result["vop_clock_gated"], result)
         self.assertFalse(result["backlight_on"], result)
         self.assertEqual(0, result["panel_on_ms"], result)
         self.assertEqual(0, result["backlight_on_ms"], result)
