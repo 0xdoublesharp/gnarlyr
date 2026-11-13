@@ -133,3 +133,4 @@ Rect usb_screen_graph(const Theme *theme, const UsbScreenLayout *layout);
 Rect usb_screen_content(const Theme *theme, const UsbScreenLayout *layout);
 Rect usb_screen_drive_lights(const Theme *theme, AppUsbStatus status, int lun);
 Rect usb_screen_activity(const Theme *theme, AppUsbStatus status);
+Rect usb_screen_rate_box(const Theme *theme, AppUsbStatus status);

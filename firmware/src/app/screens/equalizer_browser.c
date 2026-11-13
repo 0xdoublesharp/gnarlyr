@@ -109,7 +109,7 @@ static void draw_options(Canvas *canvas, const EqualizerBrowser *browser, Rect a
         Rect text = {bounds.x + pad, bounds.y, bounds.width - 2 * pad, height};
         label_draw(canvas,
                    (TextStyle){theme->fonts.body,
-                               selected ? theme->colors.text : theme->colors.text_secondary},
+                               selected ? theme->colors.text : theme->colors.text_secondary, false},
                    (Label){text, choice->model.label(choice, index)});
     }
 }
@@ -129,19 +129,19 @@ static void draw(void *context, Canvas *canvas)
     const Font *font = text_width(theme->fonts.title, name) <= layout.primary.width
                            ? theme->fonts.title
                            : theme->fonts.small;
-    label_draw(canvas, (TextStyle){font, theme->colors.text}, (Label){layout.primary, name});
+    label_draw(canvas, (TextStyle){font, theme->colors.text, false}, (Label){layout.primary, name});
     if (browser->valid) {
         equalizer_plot_draw(
             canvas, theme, layout.plot,
             (EqualizerPlotView){.response = browser->response, .selected_band = -1});
         equalizer_plot_caption(canvas, theme, layout.preamp, browser->response);
-        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
+        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
                    (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
     } else {
-        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.danger},
+        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.danger, false},
                            (Label){layout.plot, i18n_text(STR_EQ_FILE_UNREADABLE)});
     }
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){layout.hint, hint});
 }
 

@@ -251,7 +251,7 @@ static void draw_initials(Canvas *canvas, const PlaceholderArt *art)
     int pen = tile.x + (tile.width - fit.span.width * scale) / 2 - fit.span.left * scale;
     int height = (fit.span.top + fit.span.bottom) * scale;
     int baseline = tile.y + (tile.height - height) / 2 + fit.span.top * scale;
-    TextStyle style = {fit.font, art->ink.text};
+    TextStyle style = {fit.font, art->ink.text, false};
     for (int index = 0; index < art->initials.count; index++) {
         uint32_t letter = art->initials.letters[index];
         Glyph glyph = *font_find_glyph(fit.font, letter);

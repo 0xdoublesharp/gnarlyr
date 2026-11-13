@@ -184,7 +184,7 @@ static void draw(void *context, Canvas *canvas)
     int row_height = (hint.y - area.y) / 3;
     Rect row = {pad, area.y, area.width - 2 * pad, row_height};
     header_draw(canvas, theme, editor->screen.title);
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){row, set_clock_screen_summary(editor->config.settings)});
     row.y += row_height;
     centered(canvas, theme, row, i18n_text(FIELDS[editor->field]));
@@ -192,7 +192,7 @@ static void draw(void *context, Canvas *canvas)
     value_text(editor);
     canvas_fill_rect(canvas, row, theme->colors.selection_background);
     centered(canvas, theme, row, editor->text);
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text, false},
                        (Label){hint, i18n_text(STR_SET_CLOCK_HINT)});
 }
 

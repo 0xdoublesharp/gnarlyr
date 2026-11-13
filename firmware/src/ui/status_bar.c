@@ -200,7 +200,7 @@ static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarStat
         char text[STATUS_BAR_PERCENT_CAPACITY];
         StringBuilder builder = string_builder_make(text, sizeof text);
         i18n_format_counts(&builder, STR_POWER_PERCENT, state->battery_percent, 0);
-        label_draw(canvas, (TextStyle){theme->fonts.small, look.outline},
+        label_draw(canvas, (TextStyle){theme->fonts.small, look.outline, false},
                    (Label){{body.x + 5, body.y, body.width - 21, body.height - 2}, text});
         body.x += body.width - 14;
         body.width = 12;
@@ -405,7 +405,7 @@ CORE_SEAM void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarStat
                           (StatusIcon){ICON_SONG_SMALL, icon, theme->colors.header_text});
             }
         }
-        TextStyle style = {theme->fonts.small, theme->colors.header_text};
+        TextStyle style = {theme->fonts.small, theme->colors.header_text, false};
         if (item == STATUS_BAR_PERCENT && !state.usb_power &&
             state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT) {
             style.color = tint(theme, theme->colors.danger);

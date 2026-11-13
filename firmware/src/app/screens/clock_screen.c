@@ -120,13 +120,13 @@ static void draw_time(Canvas *canvas, const Theme *theme, ClockLayout layout, Cl
         face.meridiem != CLOCK_TWENTY_FOUR_HOUR ? i18n_text(clock_face_meridiem(face)) : NULL;
     int width = digits_width(theme, digits, mark, layout.scale);
     Point pen = {layout.time.x + (layout.time.width - width) / 2, layout.time.y};
-    int end = draw_scaled(canvas, (TextStyle){theme->fonts.title, theme->colors.text}, pen, layout,
-                          digits);
+    int end = draw_scaled(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false}, pen,
+                          layout, digits);
     if (mark != NULL) {
         int small = font_line_height(theme->fonts.small);
         Rect area = {end + theme->metrics.padding / 2,
                      layout.time.y + layout.time.height - small - layout.scale, width, small};
-        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                    (Label){.area = area, .text = mark});
     }
 }
@@ -144,11 +144,11 @@ static void draw_known(Canvas *canvas, const ClockScreen *clock, uint32_t local_
     ClockLayout layout = clock_screen_layout(theme, digits, mark);
     CalendarDate today = calendar_date(local_s / CALENDAR_DAY_SECONDS);
     clock_screen_date_text(local_s, date, sizeof date);
-    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                   layout.weekday, i18n_text(clock_screen_weekday(today.weekday)));
     draw_time(canvas, theme, layout, face);
     const Font *font = clock_screen_date_font(theme, date, layout.date.width);
-    draw_centered(canvas, (TextStyle){font, theme->colors.text}, layout.date, date);
+    draw_centered(canvas, (TextStyle){font, theme->colors.text, false}, layout.date, date);
 }
 
 void clock_screen_draw_unknown(Canvas *canvas, const Theme *theme, Rect content)
@@ -161,10 +161,10 @@ void clock_screen_draw_unknown(Canvas *canvas, const Theme *theme, Rect content)
     int hint_height = lines * font_line_height(theme->fonts.body);
     int room = clock_screen_layout(theme, "", NULL).hint.y - content.y;
     int top = content.y + (room - (title + pad / 2 + hint_height)) / 2;
-    draw_centered(canvas, (TextStyle){theme->fonts.title, theme->colors.text},
+    draw_centered(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false},
                   (Rect){pad, top, width, title}, i18n_text(STR_TIME_UNKNOWN));
     label_draw_wrapped(
-        canvas, (TextStyle){theme->fonts.body, theme->colors.text_secondary},
+        canvas, (TextStyle){theme->fonts.body, theme->colors.text_secondary, false},
         (Label){.area = {pad, top + title + pad / 2, width, hint_height}, .text = hint});
 }
 
@@ -182,8 +182,8 @@ static void draw(void *context, Canvas *canvas)
         clock_screen_draw_unknown(canvas, theme, content);
     }
     ClockLayout layout = clock_screen_layout(theme, "", NULL);
-    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary}, layout.hint,
-                  i18n_text(STR_CLOCK_HINT));
+    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
+                  layout.hint, i18n_text(STR_CLOCK_HINT));
 }
 
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)

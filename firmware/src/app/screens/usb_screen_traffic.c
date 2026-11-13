@@ -130,10 +130,12 @@ int usb_screen_draw_scaled(const UsbPainter *painter, TextStyle style, Rect box,
     for (uint32_t point = utf8_next(&cursor); point != 0; point = utf8_next(&cursor)) {
         const Glyph *glyph = font_find_glyph(style.font, point);
         if (glyph != NULL) {
-            Rect ink = {box.x + glyph->left * scale, baseline - glyph->top * scale,
-                        glyph->width * scale, glyph->height * scale};
+            int cell = text_cell_width(style, point, glyph->advance) * scale;
+            int left = box.x + (cell - glyph->advance * scale) / 2 + glyph->left * scale;
+            Rect ink = {left, baseline - glyph->top * scale, glyph->width * scale,
+                        glyph->height * scale};
             text_draw_glyph_scaled(painter->canvas, style, ink, point, scale);
-            box.x += glyph->advance * scale;
+            box.x += cell;
         }
     }
     return box.x;
@@ -171,12 +173,12 @@ static void draw_hero(const UsbPainter *painter, const TrafficLayout *layout)
     char number[USB_SCREEN_NUMBER_CAPACITY];
     usb_screen_rate_text(number, scene->busy ? scene->rate : 0);
     Color ink = scene->busy ? theme->colors.text : theme->colors.text_tertiary;
-    TextStyle style = {theme->fonts.title, ink};
+    TextStyle style = {theme->fonts.title, ink, true};
     Rect box = row.number;
-    box.x += box.width - text_width(style.font, number) * layout->scale;
+    box.x += box.width - text_style_width(style, number) * layout->scale;
     usb_screen_draw_scaled(painter, style, box, number);
     usb_screen_text(painter, row.unit,
-                    (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+                    (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                     i18n_text(STR_USB_RATE_UNIT));
 }
 
@@ -199,8 +201,8 @@ static void draw_caption(const UsbPainter *painter, Rect area, bool split)
     StringBuilder builder = string_builder_make(text, sizeof text);
     const char *arguments[] = {read, written};
     i18n_format(&builder, STR_USB_TOTALS, arguments, 2);
-    usb_screen_text(painter, area, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                    text);
+    usb_screen_text(painter, area,
+                    (TextStyle){theme->fonts.small, theme->colors.text_secondary, true}, text);
 }
 
 static DriveView view_of(const UsbPainter *painter, int lun)
@@ -326,15 +328,15 @@ static void draw_drive(const UsbPainter *painter, const TrafficLayout *layout, i
     drive_note(note, drive);
     draw_lights(painter, &row, drive);
     StringId name = lun == 0 ? STR_USB_STAT_INTERNAL : STR_USB_STAT_CARD;
-    usb_screen_text(painter, row.name, (TextStyle){theme->fonts.small, theme->colors.text},
+    usb_screen_text(painter, row.name, (TextStyle){theme->fonts.small, theme->colors.text, false},
                     i18n_text(name));
     if (row.bar.width > 0) {
         draw_tank(painter, row.bar, drive);
     }
     Rect right = label_centered_area(theme->fonts.small, row.note, note);
     right.x = row.note.x + row.note.width - right.width;
-    usb_screen_text(painter, right, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-                    note);
+    usb_screen_text(painter, right,
+                    (TextStyle){theme->fonts.small, theme->colors.text_secondary, false}, note);
 }
 
 void usb_screen_draw_traffic(const UsbPainter *painter)
@@ -382,4 +384,14 @@ Rect usb_screen_activity(const Theme *theme, AppUsbStatus status)
                           .scene = usb_screen_scene(status),
                           .layout = usb_screen_layout(theme, status)};
     return traffic_layout(&painter).hero;
+}
+
+Rect usb_screen_rate_box(const Theme *theme, AppUsbStatus status)
+{
+    UsbPainter painter = {.theme = theme,
+                          .status = status,
+                          .scene = usb_screen_scene(status),
+                          .layout = usb_screen_layout(theme, status)};
+    TrafficLayout layout = traffic_layout(&painter);
+    return hero_row(theme, layout.hero, layout.scale).number;
 }

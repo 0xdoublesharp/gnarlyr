@@ -546,7 +546,7 @@ static void draw_confirmation(ListeningScreen *screen, Canvas *canvas, Rect area
         rows.x = area.x + area.width - rows.width;
         detail.width = rows.x - detail.x - padding;
     }
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){detail, text});
     screen->list.theme = &choices;
     list_view_fit_rows(&screen->list, rows.height / choices.metrics.row_height);
@@ -559,7 +559,7 @@ static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
     const Theme *theme = screen->theme;
     bool portrait = theme_is_portrait(theme);
     int hint = font_line_height(theme->fonts.small);
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                (Label){{content.x + theme->metrics.padding, content.y + content.height - hint,
                         content.width - 2 * theme->metrics.padding, hint},
                        i18n_text(STR_LISTENING_OPTIONS_HINT)});
@@ -635,14 +635,14 @@ void listening_screen_draw_status(const Theme *theme, Canvas *canvas, Rect area,
     Rect column = {inner.x, inner.y, inner.width,
                    inner.height - hint - headline - STAT_GAP - detail};
     int top = draw_motion_above(canvas, theme, column, status.motion);
-    label_draw_wrapped(canvas, (TextStyle){title, theme->colors.text},
+    label_draw_wrapped(canvas, (TextStyle){title, theme->colors.text, false},
                        (Label){{inner.x, top, inner.width, headline}, status.headline});
     label_draw_wrapped(
-        canvas, (TextStyle){body, theme->colors.text_secondary},
+        canvas, (TextStyle){body, theme->colors.text_secondary, false},
         (Label){{inner.x, top + headline + STAT_GAP, inner.width, detail}, status.detail});
     if (status.hint != NULL) {
         label_draw_wrapped(
-            canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+            canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
             (Label){{inner.x, inner.y + inner.height - hint, inner.width, hint}, status.hint});
     }
 }

@@ -325,7 +325,7 @@ static void a_view_save_failure_is_visible_without_disabling_results(void)
     canvas_fill_rect(&expected, footer, theme.colors.background);
     Rect text = {theme.metrics.padding, footer.y, footer.width - 2 * theme.metrics.padding,
                  footer.height};
-    label_draw(&expected, (TextStyle){theme.fonts.small, theme.colors.text_secondary},
+    label_draw(&expected, (TextStyle){theme.fonts.small, theme.colors.text_secondary, false},
                (Label){text, i18n_text(STR_VIEW_SAVE_FAILED)});
     CHECK(memcmp(expected_footer, pixels + footer.y * footer.width, sizeof expected_footer) == 0);
     CHECK(discovery_screen_order(&discovery).count > 0);

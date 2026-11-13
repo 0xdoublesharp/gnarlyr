@@ -63,7 +63,8 @@ static void fallback_draw(void *context, Canvas *canvas)
                            i18n_text(playing ? STR_PLAYING : STR_PAUSED)};
     for (int index = 0; index < 3; index++) {
         Color color = index == 0 ? theme->colors.text : theme->colors.text_secondary;
-        label_draw(canvas, (TextStyle){theme->fonts.body, color}, (Label){row, lines[index]});
+        label_draw(canvas, (TextStyle){theme->fonts.body, color, false},
+                   (Label){row, lines[index]});
         row.y += line + padding;
     }
 }

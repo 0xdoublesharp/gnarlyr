@@ -138,7 +138,7 @@ static void frequency_label(Canvas *canvas, const Theme *theme, Rect area, int b
     int x = frequency_x(area, SETTINGS_EQUALIZER_BAND_HZ[band]) - width / 2;
     x = x < area.x ? area.x : x;
     x = x + width > area.x + area.width ? area.x + area.width - width : x;
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
                (Label){{x, area.y, width, area.height}, text});
 }
 
@@ -169,7 +169,7 @@ void equalizer_plot_draw(Canvas *canvas, const Theme *theme, Rect area, Equalize
     equalizer_plot_gain(low, sizeof low, -view.response->range_tenth_db);
     int axis = text_width(theme->fonts.small, low) + theme->metrics.padding / 2;
     Rect chart = {area.x + axis, area.y, area.width - axis, area.height - small};
-    TextStyle scale = {theme->fonts.small, theme->colors.text_tertiary};
+    TextStyle scale = {theme->fonts.small, theme->colors.text_tertiary, false};
     label_draw(canvas, scale, (Label){{area.x, chart.y, axis, small}, high});
     label_draw(canvas, scale, (Label){{area.x, chart.y + chart.height - small, axis, small}, low});
     if (chart.height >= 3 * small) {
@@ -211,6 +211,6 @@ void equalizer_plot_caption(Canvas *canvas, const Theme *theme, Rect area,
     } else {
         i18n_format_text(&builder, STR_EQ_PREAMP, number);
     }
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                (Label){area, caption});
 }

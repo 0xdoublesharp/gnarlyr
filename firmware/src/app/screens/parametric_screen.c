@@ -270,7 +270,7 @@ static void draw_rows(ParametricScreen *editor, Canvas *canvas, Rect area)
         const Font *font = text_width(theme->fonts.body, editor->labels[index]) <= bounds.width
                                ? theme->fonts.body
                                : theme->fonts.small;
-        label_draw(canvas, (TextStyle){font, theme->colors.text},
+        label_draw(canvas, (TextStyle){font, theme->colors.text, false},
                    (Label){bounds, editor->labels[index]});
     }
 }
@@ -333,19 +333,19 @@ static void draw(void *context, Canvas *canvas)
     draw_rows(editor, canvas, layout.list);
     if (portrait) {
         int row = editor->list.selected;
-        label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text},
+        label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false},
                    (Label){layout.primary, editor->labels[row]});
-        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.accent},
+        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.accent, false},
                            (Label){layout.secondary, detail_text});
     } else {
-        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent},
+        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent, false},
                    (Label){layout.primary, text});
     }
     if (editor->shaping_mode) {
         layout.plot = sound_shaping_screen_slider(editor, canvas, layout.plot);
     }
     if (editor->shaping_mode && editor->notice != STRING_COUNT) {
-        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.danger},
+        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.danger, false},
                            (Label){layout.plot, i18n_text(editor->notice)});
     } else {
         equalizer_plot_draw(canvas, theme, layout.plot,
@@ -354,9 +354,9 @@ static void draw(void *context, Canvas *canvas)
                                                 .adjusting = editor->adjusting});
     }
     equalizer_plot_caption(canvas, theme, layout.preamp, editor->response);
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){layout.hint, hint});
 }
 

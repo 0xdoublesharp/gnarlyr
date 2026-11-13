@@ -472,13 +472,13 @@ static void draw_heading(const UsbPainter *painter, Rect row, const StatSpec *sp
     heading_note(painter, spec->lun, note);
     Color ink = usb_screen_tint(theme->colors.accent, theme->colors.text);
     usb_screen_text(painter, (Rect){row.x, row.y, row.width, row.height},
-                    (TextStyle){theme->fonts.small, ink}, i18n_text(spec->name));
+                    (TextStyle){theme->fonts.small, ink, false}, i18n_text(spec->name));
     canvas_fill_rect(painter->canvas, (Rect){row.x, row.y + row.height - 1, row.width, 1},
                      usb_screen_tint(theme->colors.divider, theme->colors.accent));
     if (note[0] != '\0') {
         int width = text_width(theme->fonts.small, note);
         usb_screen_text(painter, (Rect){row.x + row.width - width, row.y, width, row.height},
-                        (TextStyle){theme->fonts.small, theme->colors.text_secondary}, note);
+                        (TextStyle){theme->fonts.small, theme->colors.text_secondary, false}, note);
     }
 }
 

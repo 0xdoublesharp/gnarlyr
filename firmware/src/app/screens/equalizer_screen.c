@@ -200,18 +200,18 @@ static void draw(void *context, Canvas *canvas)
     const Font *font = text_width(theme->fonts.title, name) <= layout.primary.width
                            ? theme->fonts.title
                            : theme->fonts.small;
-    label_draw(canvas, (TextStyle){font, theme->colors.text}, (Label){layout.primary, name});
+    label_draw(canvas, (TextStyle){font, theme->colors.text, false}, (Label){layout.primary, name});
     Color ink = equalizer->adjusting ? theme->colors.accent_alt : theme->colors.accent;
-    label_draw(canvas, (TextStyle){theme->fonts.title, ink},
+    label_draw(canvas, (TextStyle){theme->fonts.title, ink, false},
                (Label){layout.secondary, equalizer->text[equalizer->list.selected]});
     equalizer_plot_draw(canvas, theme, layout.plot,
                         (EqualizerPlotView){.response = equalizer->response,
                                             .selected_band = equalizer->list.selected,
                                             .adjusting = equalizer->adjusting});
     equalizer_plot_caption(canvas, theme, layout.preamp, equalizer->response);
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary},
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){layout.hint, hint});
 }
 

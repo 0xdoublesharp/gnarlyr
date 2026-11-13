@@ -206,7 +206,7 @@ static int draw_battery(const UsbPainter *painter, Rect row)
     int width = text_width(theme->fonts.small, text);
     int left = body.x - theme->metrics.padding / 2 - width;
     usb_screen_text(painter, (Rect){left, row.y, width, row.height},
-                    (TextStyle){theme->fonts.small, theme->colors.header_text}, text);
+                    (TextStyle){theme->fonts.small, theme->colors.header_text, false}, text);
     return left - row.x;
 }
 
@@ -307,8 +307,8 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
     }
     int room = draw_battery(painter, row);
     Color ink = theme->colors.header_text;
-    TextStyle name = {theme->fonts.header, ink};
-    TextStyle mode = {theme->fonts.small, usb_screen_tint(theme->colors.accent, ink)};
+    TextStyle name = {theme->fonts.header, ink, false};
+    TextStyle mode = {theme->fonts.small, usb_screen_tint(theme->colors.accent, ink), false};
     int title_width = text_width(theme->fonts.small, title);
     SpeedTag tag = speed_tag(painter);
     if (theme_is_portrait(theme)) {
@@ -429,7 +429,7 @@ int usb_screen_draw_state(const UsbPainter *painter, const char *text)
     canvas_fill_rect(painter->canvas, dot, usb_screen_lamp_color(theme, painter->scene));
     Color ink = warning(painter->scene) ? usb_screen_tint(theme->colors.danger, theme->colors.text)
                                         : theme->colors.text;
-    label_draw_paragraph(painter->canvas, (TextStyle){font, ink}, (Label){words, text});
+    label_draw_paragraph(painter->canvas, (TextStyle){font, ink, false}, (Label){words, text});
     return words.y + words.height;
 }
 
@@ -504,11 +504,12 @@ void usb_screen_row(const UsbPainter *painter, Rect row, const char *name, const
 {
     const Theme *theme = painter->theme;
     const Font *font = theme->fonts.small;
-    int value_width = smaller(text_width(font, value), row.width);
+    TextStyle figures = {font, theme->colors.text, true};
+    int value_width = smaller(text_style_width(figures, value), row.width);
     Rect right = {row.x + row.width - value_width, row.y, value_width, row.height};
     Rect left = {row.x, row.y, row.width - value_width - theme->metrics.padding / 2, row.height};
-    usb_screen_text(painter, left, (TextStyle){font, theme->colors.text_secondary}, name);
-    usb_screen_text(painter, right, (TextStyle){font, theme->colors.text}, value);
+    usb_screen_text(painter, left, (TextStyle){font, theme->colors.text_secondary, false}, name);
+    usb_screen_text(painter, right, figures, value);
 }
 
 static void draw_drive(const UsbPainter *painter, Rect row, StringId name, UsbSceneDrive drive)
@@ -632,7 +633,7 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
     }
     if (usb_screen_touches(painter, painter->layout.detail)) {
         label_draw_wrapped_serviced(
-            painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+            painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
             (Label){painter->layout.detail, detail_text(painter)}, painter->scene->service);
     }
 }
