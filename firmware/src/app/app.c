@@ -72,6 +72,7 @@ enum {
     COVERS_IDLE_MS = 3000,
     COVERS_PAUSED_MS = 60000,
     NOTICE_TEXT_CAPACITY = 64,
+    NOTICE_MESSAGE_CAPACITY = 160,
     TOAST_TEXT_CAPACITY = 64,
     BATTERY_CHECK_MS = 250,
     CHARGE_LIT_MS = 5000
@@ -154,6 +155,7 @@ typedef struct AppState {
     AppUsbRenderer usb_renderer;
     AppScreens screens;
     MessageScreen notice;
+    char notice_message[NOTICE_MESSAGE_CAPACITY];
     WireMotion motion;
     FrameDiff frame_diff;
     FramePacer pacer;
@@ -2384,8 +2386,10 @@ CORE_SEAM void app_show_notice(const char *title, const char *message)
     if (working) {
         wire_motion_tick(&app.motion, hal_clock_milliseconds());
     }
+    StringBuilder copy = string_builder_make(app.notice_message, sizeof app.notice_message);
+    string_builder_append(&copy, message != NULL ? message : "");
     MessageConfig config = {.title = title,
-                            .message = message,
+                            .message = app.notice_message,
                             .theme = &notice_theme,
                             .motion = working ? &app.motion : NULL};
     Screen *screen = message_screen_init(&app.notice, config);

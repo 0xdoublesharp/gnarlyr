@@ -87,6 +87,13 @@ static void a_span_draws_only_its_bytes(void)
     CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 4, 1));
 }
 
+static void a_span_stops_at_a_nul_inside_its_bytes(void)
+{
+    Canvas canvas = blank_canvas();
+    TextSpan cut = {.start = "A\0B", .byte_count = 3};
+    CHECK_EQUAL(4, text_draw_span(&canvas, INK_STYLE, (Point){0, 2}, cut));
+}
+
 static void a_scaled_glyph_is_centred_in_its_box(void)
 {
     Canvas canvas = blank_canvas();
@@ -146,6 +153,7 @@ int main(void)
         TEST_CASE(text_outside_the_canvas_changes_nothing),
         TEST_CASE(a_span_draws_only_its_bytes),
         TEST_CASE(tabular_digits_take_the_widest_digit_and_sit_centred),
+        TEST_CASE(a_span_stops_at_a_nul_inside_its_bytes),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
