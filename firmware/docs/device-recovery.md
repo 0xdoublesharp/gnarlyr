@@ -26,7 +26,7 @@ This is checked in the emulator. This project has not used it on a player yet; t
 The same restart into the boot ROM's USB loader works without a file and without USB storage:
 
 1. Plug the cable into the computer (a port on the computer itself). The player can be on, showing a message, or switched off on the cable (the dark charge screen). If the player is fully off, plugging the cable in starts it; that is enough.
-2. Hold **Power** and **vol+** together, and keep holding them for 5 s.
+2. Hold **Power** and **vol+** together for about 3 s.
 3. After 3 s with both keys held and the cable powered, the player restarts into maskrom with the screen black. Let go, then run `rkdeveloptool-echo ld` (step 3 below).
 
 Gnarlyr checks the keys every 5 ms for as long as it runs, from the first key scan at start-up, including at messages, on the charge screen and during a USB session. Without cable power, with only one of the keys, or with a key let go before 3 s, nothing happens. Two ladder keys can't be told apart on this player, so the combination uses Power plus one ladder key. Holding vol+ may raise the volume while music plays.

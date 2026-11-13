@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en" prefix="og: https://ogp.me/ns#">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Build GNARLYR.img, use developer USB updates, inspect audio-file validation, and follow migration and recovery references."><meta property="og:title" content="Build and develop. — Gnarlyr"><meta property="og:description" content="Build GNARLYR.img, use developer USB updates, inspect audio-file validation, and follow migration and recovery references."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/build.html"><link rel="canonical" href="https://gnarlyr.com/build.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Build and develop. — Gnarlyr</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#150f25"><meta name="description" content="Build GNARLYR.IMG, use developer USB updates, inspect audio-file validation, and follow migration and recovery references."><meta property="og:title" content="Build and develop. — Gnarlyr"><meta property="og:description" content="Build GNARLYR.IMG, use developer USB updates, inspect audio-file validation, and follow migration and recovery references."><meta property="og:type" content="website"><meta property="og:url" content="https://gnarlyr.com/build.html"><link rel="canonical" href="https://gnarlyr.com/build.html"><link rel="icon" type="image/svg+xml" href="favicon.svg"><link rel="stylesheet" href="styles.css"><script src="site.js" defer></script><title>Build and develop. — Gnarlyr</title>
 <meta property="og:site_name" content="Gnarlyr">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="https://gnarlyr.com/assets/social/developers-e4e6e91708d5.png">
@@ -11,7 +11,7 @@
 <meta property="og:image:alt" content="Gnarlyr cassette artwork beside the words “Build it. Make it yours.”">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Build and develop. — Gnarlyr">
-<meta name="twitter:description" content="Build GNARLYR.img, use developer USB updates, inspect audio-file validation, and follow migration and recovery references.">
+<meta name="twitter:description" content="Build GNARLYR.IMG, use developer USB updates, inspect audio-file validation, and follow migration and recovery references.">
 <meta name="twitter:image" content="https://gnarlyr.com/assets/social/developers-e4e6e91708d5.png">
 <meta name="twitter:image:alt" content="Gnarlyr cassette artwork beside the words “Build it. Make it yours.”">
 </head>
@@ -67,10 +67,10 @@
 </p></div><div class="command" role="group" aria-labelledby="hash-command-title"><div class="command-header">
 <h3 id="hash-command-title">Record its SHA-256
 </h3><button class="copy-button" type="button" data-copy="hash-command" aria-label="Copy image checksum command"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M13 5V3H3v10h2"/></svg><span>Copy</span></button></div>
-<pre><code id="hash-command"><span class="cmd">shasum -a 256 firmware/<wbr>build/<wbr>release/<wbr>GNARLYR.img</span></code></pre>
+<pre><code id="hash-command"><span class="cmd">shasum -a 256 firmware/<wbr>build/<wbr>release/<wbr>GNARLYR.IMG</span></code></pre>
 <p class="copy-status" id="hash-command-status" role="status" aria-live="polite">
 </p></div>
-<p>The output is <code>firmware/build/release/GNARLYR.img</code>. SHA-256 is a fingerprint of the file: comparing fingerprints tells you whether the copy is identical.
+<p>The output is <code>firmware/build/release/GNARLYR.IMG</code>. SHA-256 is a fingerprint of the file: comparing fingerprints tells you whether the copy is identical.
 </p>
 </section>
 <section class="doc-section" id="checks" aria-labelledby="checks-title"><h2 id="checks-title">Keep the build inputs in step.</h2><p class="intro">Fonts, menu text and audio tables are generated from source files. One command refreshes them; another checks that they are current.</p><ul class="detail-list"><li><strong>Regenerate:</strong> <code>python3 tools/firmware.py regen --jobs 2</code> refreshes string headers, the browser language catalogue, fonts, glyph packs, Unicode search tables and audio tables.</li><li><strong>Check without rewriting:</strong> <code>python3 tools/firmware.py regen --check --jobs 2</code> reports stale generated files.</li><li><strong>Check memory budgets:</strong> <code>python3 tools/firmware.py sizes --jobs 2</code> builds both release and developer images, prints their memory use and fails if a slot or reserve limit is exceeded.</li><li><strong>Read existing size reports:</strong> <code>python3 tools/firmware.py sizes --existing --jobs 2</code> skips rebuilding. Rebuild after source changes before using those figures for an update.</li></ul><p>The build uses <code>sccache</code> when it is available. Set <code>ECHO_COMPILER_CACHE=0</code> to turn it off. Full workflow details are in <code>docs/development.md</code> in the checkout.</p></section><section class="doc-section" id="developer" aria-labelledby="developer-title">
@@ -143,7 +143,7 @@
 <li><strong>Identify the installed build.</strong> Use its matching <code>identity.json</code> for the update filename, image brand and data-folder name.</li>
 <li><strong>Back up the data on each volume.</strong> Keep the complete existing data folder and prepare its copy at <code>/.gnarlyr</code>. Preserve settings, EQ choices, queues, mixtapes, labels, favorites, bookmarks and listening records.</li>
 <li><strong>Prepare the matching transition image.</strong> Its transport header uses the installed updater’s identity; its code and modules match the ordinary Gnarlyr image. Validate both update steps in the emulator before installation.</li>
-<li><strong>Install in order.</strong> Install the transition image first, then the ordinary <code>GNARLYR.img</code>. Use the matching host tools and debug folder for each stage.</li>
+<li><strong>Install in order.</strong> Install the transition image first, then the ordinary <code>GNARLYR.IMG</code>. Use the matching host tools and debug folder for each stage.</li>
 <li><strong>Check the preserved state.</strong> Verify your settings, saved mixes, queue, bookmarks, playback and normal USB transfers before retiring the previous data folder.</li>
 </ol>
 <p>Gnarlyr uses <code>GNARLYR</code>, the data folder <code>/.gnarlyr</code> and the CUE playlist directive <code>#GNARLYR-START:</code>. Ordinary music files keep their contents.</p>
@@ -159,7 +159,7 @@
 <p>Keep the full-size ECHO’s official <code>ECHOV200.IMG</code> and the exact-model recovery instructions from your checkout. The official V2.0 image is 39,845,892 bytes, with SHA-256:
 </p>
 <pre><code>c6a3b6c86b141c0a428771f8a611fbd44cc12d561acb033a98640b0bf24f8d57</code></pre>
-<p>For a player that does not start, follow <code>firmware/docs/device-recovery.md</code> to restore the official image through maskrom, checking each complete slot readback. While Gnarlyr runs, holding Power and Vol+ for about 5 seconds with the cable in the computer, or a <code>MASKROM.REQ</code> file on internal storage, restarts into maskrom without the paperclip.
+<p>For a player that does not start, follow <code>firmware/docs/device-recovery.md</code> to restore the official image through maskrom, checking each complete slot readback. While Gnarlyr runs, holding Power and Vol+ for about 3 seconds with the cable in the computer, or a <code>MASKROM.REQ</code> file on internal storage, restarts into maskrom without the paperclip.
 </p>
 <p>A running Gnarlyr also recognizes the official ECHO image through its updater. Follow the checkout’s return-to-stock instructions for that image; its on-screen messages and restart sequence differ from an ordinary Gnarlyr update.
 </p><a class="text-link" href="https://fiio.com/newsinfo/1151351.html">FiiO ECHO firmware ↗</a>

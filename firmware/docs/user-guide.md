@@ -250,7 +250,7 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 
 Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and Vol− to the previous row; ▶ changes the selected value immediately. Back closes the panel and hold Back goes Home. Menu returns to Now Playing.
 
-The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphone profile (Off and four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Up Next is also on Home. Hold Menu on Now Playing still opens Lyrics directly.
+The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphone profile (Off and four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Up Next is also on Home. Hold Menu on Now Playing still opens Lyrics directly.
 
 Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Play on Playback speed steps to the next speed (after 3× it returns to 0.5×), applies it at once and saves it.
 ## Long lists and whole artists
@@ -541,7 +541,7 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 - **"Update failed":** copy the file again and retry before turning the player off.
 - **"USB missing: reinstall update" or "Restart to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
 - **"Update rolled back":** the new version didn't start properly, and the player went back to the version it had before. Report it with the Firmware line from Settings → About.
-- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or, with the cable plugged into the computer, hold Power and vol+ together for 5 seconds (same document).
+- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or, with the cable plugged into the computer, hold Power and vol+ together for about 3 seconds (same document).
 - **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
 
 ## Themes

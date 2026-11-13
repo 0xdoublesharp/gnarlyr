@@ -158,7 +158,7 @@ Don't unplug, and don't let the computer sleep, during a write. If a command fai
 | "USB missing: reinstall update" | The USB code could not be loaded from either slot; install again through maskrom |
 | "Update rolled back" | The trial build did not confirm; the previous build is back in both slots. Fix the build and copy it again |
 | Stuck during a trial, for example in a USB session | Hold Power for 10 s; the third restart rolls the update back |
-| No USB drives, but the player starts | With the cable in the computer, hold Power and vol+ for about 5 s: the player restarts into maskrom ([`device-recovery.md`](device-recovery.md)) |
+| No USB drives, but the player starts | With the cable in the computer, hold Power and vol+ for about 3 s: the player restarts into maskrom ([`device-recovery.md`](device-recovery.md)) |
 | A STALL or FAULT screen | Note the values shown, then hold Power for 2 s |
 
 ## Timing a cold start

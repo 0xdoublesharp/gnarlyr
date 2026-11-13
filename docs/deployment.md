@@ -172,7 +172,7 @@ Published release:
 `0780845239168e3f334ee513025e9607a7762b422c09bb20504b61fccf83abbb`.
 Rollback: `e50c9feb9d6a9ca5250173eda0c5ff921be9c90ad2f84ed4b5c916bd4de8b556`.
 The installation guide identifies Gnarlyr 1.0 as the first future public release,
-using `GNARLYR.img`, and removes the development commit marker. The updated
+using `GNARLYR.IMG`, and removes the development commit marker. The updated
 page matches local source over HTTPS; health remains 200.
 
 ## Hardware and firmware guides — 2026-11-10
@@ -184,7 +184,7 @@ Rollback release:
 
 The home page links dedicated firmware, hardware and installation guides.
 Content follows fresh-base through `c45f854`; the active firmware task owns
-the user-selected `GNARLYR.img` identity change. The independent writing and
+the user-selected `GNARLYR.IMG` identity change. The independent writing and
 accuracy review led to corrections for listening statistics, mixtape editing,
 language support, inherited fixes, first-install order and legacy updaters.
 
