@@ -4,9 +4,32 @@
 
 #include "core/utf8.h"
 
+enum {
+    GLYPH_NIBBLE = 0x0F,
+    GLYPH_NIBBLE_BITS = 4
+};
+
+typedef struct GlyphRun {
+    int width;
+    Color color;
+} GlyphRun;
+
 static Rect glyph_area(const Glyph *glyph, Point pen)
 {
     return (Rect){pen.x + glyph->left, pen.y - glyph->top, glyph->width, glyph->height};
+}
+
+static void draw_glyph_row(Color *pixel, const uint8_t *bitmap, int index, GlyphRun run)
+{
+    for (int count = 0; count < run.width; count++, index++, pixel++) {
+        uint8_t packed = bitmap[index >> 1];
+        uint8_t level = (index & 1) != 0 ? packed & GLYPH_NIBBLE : packed >> GLYPH_NIBBLE_BITS;
+        if (level == COLOR_ALPHA_OPAQUE) {
+            *pixel = run.color;
+        } else if (level != 0) {
+            *pixel = color_blend(*pixel, run.color, level);
+        }
+    }
 }
 
 static void draw_glyph(Canvas *canvas, TextStyle style, const Glyph *glyph, Point pen)
@@ -20,16 +43,12 @@ static void draw_glyph(Canvas *canvas, TextStyle style, const Glyph *glyph, Poin
     int stride = canvas->bounds.width;
     Color *row =
         &canvas->pixels[(visible.y - canvas->bounds.y) * stride + (visible.x - canvas->bounds.x)];
-    for (int y = visible.y; y < visible.y + visible.height; y++) {
-        Color *pixel = row;
-        for (int x = visible.x; x < visible.x + visible.width; x++) {
-            uint8_t level = font_bitmap_level(bitmap, glyph, x - area.x, y - area.y);
-            if (level > 0) {
-                *pixel = color_blend(*pixel, style.color, level);
-            }
-            pixel++;
-        }
+    int index = (visible.y - area.y) * glyph->width + (visible.x - area.x);
+    GlyphRun run = {visible.width, style.color};
+    for (int y = 0; y < visible.height; y++) {
+        draw_glyph_row(row, bitmap, index, run);
         row += stride;
+        index += glyph->width;
     }
 }
 

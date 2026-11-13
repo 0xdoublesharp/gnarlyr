@@ -86,6 +86,32 @@ static void an_unchanged_mode_is_not_rewritten(void)
     CHECK_EQUAL(0x11, registers[VOP_DATA]);
 }
 
+static void a_fifo_window_declares_its_lines_and_selects_fifo_mode(void)
+{
+    uint32_t registers[REGISTER_COUNT] = {0};
+    CHECK(vop_begin_fifo(registers, 480, 23));
+    CHECK_EQUAL(0x16, registers[VOP_CONTROL]);
+    CHECK_EQUAL(0x808, registers[VOP_FIFO_LEVELS]);
+    CHECK_EQUAL(7, registers[VOP_INTERRUPT_CLEAR]);
+    CHECK_EQUAL((22u << 12) | 479u, registers[VOP_LCD_SIZE]);
+    vop_end_fifo(registers);
+    CHECK_EQUAL(0x800, registers[VOP_CONTROL]);
+}
+
+static void an_odd_width_is_declared_as_lines_of_the_height(void)
+{
+    CHECK_EQUAL((220u << 12) | 1u, vop_fifo_size(221, 2));
+}
+
+static void a_window_with_an_odd_pixel_count_stays_with_the_cpu(void)
+{
+    uint32_t registers[REGISTER_COUNT] = {0};
+    registers[VOP_CONTROL] = 0x800;
+    CHECK(!vop_begin_fifo(registers, 3, 3));
+    CHECK(!vop_begin_fifo(registers, 0, 4));
+    CHECK_EQUAL(0x800, registers[VOP_CONTROL]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -99,6 +125,9 @@ int main(void)
         TEST_CASE(each_pixel_is_one_sixteen_bit_write_to_the_data_register),
         TEST_CASE(a_busy_controller_makes_the_wait_give_up),
         TEST_CASE(an_unchanged_mode_is_not_rewritten),
+        TEST_CASE(a_fifo_window_declares_its_lines_and_selects_fifo_mode),
+        TEST_CASE(an_odd_width_is_declared_as_lines_of_the_height),
+        TEST_CASE(a_window_with_an_odd_pixel_count_stays_with_the_cpu),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -20,6 +20,7 @@ typedef enum HalDisplayRotation {
 
 void hal_display_set_rotation(HalDisplayRotation rotation);
 void hal_display_write(int x, int y, int width, int height, const uint16_t *pixels);
+uint32_t hal_display_push_fallbacks(void);
 void hal_display_present(void);
 void hal_display_set_power(bool on);
 void hal_display_set_brightness(uint8_t level);

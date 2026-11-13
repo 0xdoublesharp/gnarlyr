@@ -5,6 +5,7 @@
 #include "debug_loop_internal.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/display.h"
 #include "hal/input.h"
 #include "hal/system.h"
 
@@ -21,6 +22,7 @@ typedef struct DebugLoop {
     uint32_t refusals;
     uint32_t underruns;
     uint32_t output_underruns;
+    uint32_t display_fallbacks;
     uint32_t followed_ms;
     uint32_t shutdown_reason;
 } DebugLoop;
@@ -91,6 +93,11 @@ static void follow_audio(void)
     }
     loop.underruns = stats.underruns;
     loop.output_underruns = stats.output_underruns;
+    uint32_t fallbacks = hal_display_push_fallbacks();
+    if (fallbacks > loop.display_fallbacks) {
+        record(DEBUG_EVENT_DISPLAY_FALLBACK, fallbacks, NULL);
+    }
+    loop.display_fallbacks = fallbacks;
 }
 
 void debug_loop_follow(uint32_t now_ms, const Player *player)

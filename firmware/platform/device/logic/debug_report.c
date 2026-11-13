@@ -51,6 +51,7 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_USB_CONNECT] = "usb_connect",
     [DEBUG_EVENT_SCAN] = "scan",
     [DEBUG_EVENT_COVER] = "cover",
+    [DEBUG_EVENT_DISPLAY_FALLBACK] = "display_fallback",
 };
 static const char *const SCAN_PHASES[DEBUG_SCAN_PHASE_COUNT] = {
     [DEBUG_SCAN_START] = "start",

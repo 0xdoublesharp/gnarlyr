@@ -152,6 +152,11 @@ static void show_panel(void)
     SDL_RenderPresent(display.renderer);
 }
 
+uint32_t hal_display_push_fallbacks(void)
+{
+    return 0;
+}
+
 void hal_display_present(void)
 {
     if (display.texture == NULL) {

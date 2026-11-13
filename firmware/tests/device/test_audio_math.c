@@ -1,5 +1,6 @@
 #include "check.h"
 #include "device/audio_math.h"
+#include "device/sample_clamp.h"
 
 static void the_i2c_divider_matches_the_boot_clock_value(void)
 {
@@ -10,6 +11,12 @@ static void the_i2c_divider_follows_pclk(void)
 {
     CHECK_EQUAL(0x001D001Du, i2c_clock_divider(48000000, 100));
     CHECK_EQUAL(0x001F001Eu, i2c_clock_divider(50000000, 100));
+}
+
+static void the_dac_bus_runs_at_stock_300_khz(void)
+{
+    CHECK_EQUAL(0x000A0009u, i2c_clock_divider(50000000, 300));
+    CHECK_EQUAL(0x00090009u, i2c_clock_divider(48000000, 300));
 }
 
 static void the_i2s_divider_truncates_or_rounds(void)
@@ -80,12 +87,24 @@ static void usb_rates_have_documented_dac_codes_and_bounded_clock_error(void)
     }
 }
 
+static void samples_clamp_to_24_bits(void)
+{
+    CHECK_EQUAL(8388607, sample_clamp_24(8388608));
+    CHECK_EQUAL(8388607, sample_clamp_24(INT32_MAX));
+    CHECK_EQUAL(-8388608, sample_clamp_24(-8388609));
+    CHECK_EQUAL(-8388608, sample_clamp_24(INT32_MIN));
+    CHECK_EQUAL(-5, sample_clamp_24(-5));
+    CHECK_EQUAL(8388607, sample_clamp_24(8388607));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(usb_rates_have_documented_dac_codes_and_bounded_clock_error),
         TEST_CASE(the_i2c_divider_matches_the_boot_clock_value),
         TEST_CASE(the_i2c_divider_follows_pclk),
+        TEST_CASE(the_dac_bus_runs_at_stock_300_khz),
+        TEST_CASE(samples_clamp_to_24_bits),
         TEST_CASE(the_i2s_divider_truncates_or_rounds),
         TEST_CASE(the_i2s_clock_register_holds_the_divider),
         TEST_CASE(the_32_khz_clock_uses_an_exact_divider_and_the_documented_dac_rate),

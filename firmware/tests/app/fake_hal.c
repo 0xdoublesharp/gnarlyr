@@ -440,6 +440,11 @@ FakeDisplayWrites fake_hal_display_writes(void)
     return fake.writes;
 }
 
+uint32_t hal_display_push_fallbacks(void)
+{
+    return 0;
+}
+
 void hal_display_present(void)
 {
     fake.present_count++;

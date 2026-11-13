@@ -1,4 +1,5 @@
 #include "device/audio_engine.h"
+#include "device/sample_clamp.h"
 
 #include "device/audio_engine_stage.h"
 
@@ -350,7 +351,7 @@ void audio_engine_stop(AudioEngine *engine)
 
 static int32_t saturate(int32_t sample)
 {
-    return sample > SAMPLE_MAX ? SAMPLE_MAX : sample < SAMPLE_MIN ? SAMPLE_MIN : sample;
+    return sample_clamp_24(sample);
 }
 
 static int32_t unity_16(int32_t sample)

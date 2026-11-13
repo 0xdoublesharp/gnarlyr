@@ -1,18 +1,14 @@
 #include "device/audio_resample.h"
+#include "device/sample_clamp.h"
 
 #include <stddef.h>
-
-enum {
-    SAMPLE_MAX = 8388607,
-    SAMPLE_MIN = -8388608
-};
 
 static int32_t filtered_input(const AudioResample *resample, int32_t sample)
 {
     if (resample->factor == 1) {
         return sample;
     }
-    return sample > SAMPLE_MAX ? SAMPLE_MAX : sample < SAMPLE_MIN ? SAMPLE_MIN : sample;
+    return sample_clamp_24(sample);
 }
 
 uint32_t audio_resample_rate(uint32_t input_rate)

@@ -183,6 +183,11 @@ void hal_display_present(void)
 {
 }
 
+uint32_t hal_display_push_fallbacks(void)
+{
+    return board_panel_push_fallbacks();
+}
+
 void hal_display_set_power(bool on)
 {
     board_start_record_step(on ? HAL_START_STEP_BACKLIGHT_ON : HAL_START_STEP_BACKLIGHT_OFF);

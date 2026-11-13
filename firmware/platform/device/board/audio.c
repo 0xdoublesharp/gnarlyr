@@ -46,6 +46,7 @@ enum {
     PREFILL_DIVISOR = 10,
     PREFILL_TIMEOUT_MS = 1000,
     FILL_BUDGET_BYTES = 8192,
+    FILL_BURST_BYTES = 65536,
     IDLE_SHUTDOWN_MS = 3000,
     AUDIO_CLOCK_MHZ = 200,
     TONE_PERIOD_SAMPLES = 100,
@@ -161,6 +162,7 @@ static void pump(uint32_t consumed_frames)
     read_us_pending = 0;
     uint32_t decode_started_us = hal_clock_microseconds();
     if (using_core1) {
+        core1_source.fill_budget = board_display_lit() ? FILL_BUDGET_BYTES : FILL_BURST_BYTES;
         core1_source_fill(&core1_source);
     }
     audio_engine_pump(&engine, consumed_frames);
