@@ -566,20 +566,36 @@ static void follow_timing(const UsbPort *port)
     }
 }
 
-static bool storage_streaming(const UsbPort *port)
+static bool storage_active(const UsbPort *port)
 {
-    return port->msc != NULL && port->audio == NULL && port->msc->streaming && !port->setup_pending;
+    const Msc *msc = port->msc;
+    return msc->streaming || msc->phase == MSC_PHASE_STATUS || port->in_left != 0;
+}
+
+static bool burst_over(const UsbPort *port, UsbBurst *burst, uint32_t turn)
+{
+    bool timed = (turn & STREAM_CLOCK_TURNS) == 0;
+    if (storage_active(port)) {
+        burst->served = true;
+        burst->listening = false;
+        return timed && hal_clock_milliseconds() - burst->start_ms >= STREAM_BURST_MS;
+    }
+    if (!burst->served || port->yield_when_idle) {
+        return true;
+    }
+    uint32_t now = hal_clock_milliseconds();
+    if (!burst->listening) {
+        burst->listening = true;
+        burst->idle_ms = now;
+    }
+    return now - burst->idle_ms >= STREAM_LISTEN_MS;
 }
 
 static void stream_burst(UsbPort *port)
 {
-    uint32_t start = hal_clock_milliseconds();
+    UsbBurst burst = {.start_ms = hal_clock_milliseconds()};
     uint32_t others = GINT_USB_RESET | GINT_ENUMERATION_DONE;
-    for (uint32_t turn = 1; storage_streaming(port); turn++) {
-        if ((turn & STREAM_CLOCK_TURNS) == 0 &&
-            hal_clock_milliseconds() - start >= STREAM_BURST_MS) {
-            return;
-        }
+    for (uint32_t turn = 1; !port->setup_pending && !burst_over(port, &burst, turn); turn++) {
         uint32_t events = read_register(GINTSTS);
         if ((events & others) != 0) {
             return;
@@ -594,9 +610,7 @@ static void stream_burst(UsbPort *port)
             handle_in_endpoints(port);
         }
         msc_pump(port->msc);
-        if (msc_in_streaming(port->msc)) {
-            stream_in(port);
-        }
+        pump_bulk_in(port);
         follow_timing(port);
     }
 }

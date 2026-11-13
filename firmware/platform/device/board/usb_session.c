@@ -35,10 +35,13 @@ enum {
     WRITE_BUFFER_SECTORS = 56,
     MOTION_FRAME_MS = 400,
     FOLLOW_MS = 10,
+    FOLLOW_BUSY_MS = 100,
+    FOLLOW_FORCED_MS = 250,
     NUDGE_MS = 1500,
     MOTION_STEP = 12,
     CAPTURE_STORAGE_SLOT = 0,
     MS_PER_SECOND = 1000,
+    US_PER_MS = 1000,
     US_PER_PERCENT_MS = 10,
     FULL_PERCENT = 100,
     LIGHT_FRAME_MS = 40,
@@ -64,6 +67,7 @@ typedef struct SessionClock {
     uint32_t media_seen_us;
     uint64_t busy_us;
     uint64_t card_seen_us;
+    uint32_t ui_us;
     uint32_t back_pressed_ms;
     uint32_t nudged_ms;
     bool moving;
@@ -677,10 +681,20 @@ static UsbSessionEnd serve(void)
     uint32_t start = hal_clock_milliseconds();
     SessionWatch watch = {msc_stats(&msc), hal_power_battery(), start, start - FOLLOW_MS,
                           USB_LEAVE_SERVING};
+    uint32_t commands_seen = msc.stats.commands;
     while (usb_session_present(shared, &forced, msc.stats.commands)) {
         uint32_t now = hal_clock_milliseconds();
-        if (now - watch.followed >= FOLLOW_MS) {
+        bool busy = msc.phase != MSC_PHASE_COMMAND || msc.stats.commands != commands_seen;
+        commands_seen = msc.stats.commands;
+        uint32_t since = now - watch.followed;
+        uint32_t wait = msc.phase != MSC_PHASE_COMMAND ? FOLLOW_FORCED_MS
+                        : busy                         ? FOLLOW_BUSY_MS
+                                                       : FOLLOW_MS;
+        port->yield_when_idle = since >= FOLLOW_BUSY_MS;
+        if (since >= wait) {
+            uint32_t from_us = hal_clock_microseconds();
             watch_session(&watch, now);
+            session_clock.ui_us += hal_clock_microseconds() - from_us;
         }
         usb_poll(port);
         board_display_service();
@@ -710,14 +724,16 @@ static uint32_t spent_ms(MscWait wait)
 static HalUsbWrites write_split(const MscStats *stats)
 {
     usb_port_settle_timing();
-    return (HalUsbWrites){stats->traffic[INTERNAL_LUN].writes + stats->traffic[CARD_LUN].writes,
-                          spent_ms(MSC_WAIT_RECEIVE),
-                          spent_ms(MSC_WAIT_CARD),
-                          spent_ms(MSC_WAIT_IDLE),
-                          card_speed.fast,
-                          usb_card_speed().fallbacks,
-                          {card_speed.fifo_words[INTERNAL_LUN], card_speed.fifo_words[CARD_LUN]},
-                          {card_speed.hcon[INTERNAL_LUN], card_speed.hcon[CARD_LUN]}};
+    return (HalUsbWrites){
+        .commands = stats->traffic[INTERNAL_LUN].writes + stats->traffic[CARD_LUN].writes,
+        .receive_ms = spent_ms(MSC_WAIT_RECEIVE),
+        .card_ms = spent_ms(MSC_WAIT_CARD),
+        .idle_ms = spent_ms(MSC_WAIT_IDLE),
+        .fast_cards = card_speed.fast,
+        .fallbacks = usb_card_speed().fallbacks,
+        .fifo_words = {card_speed.fifo_words[INTERNAL_LUN], card_speed.fifo_words[CARD_LUN]},
+        .ui_ms = session_clock.ui_us / US_PER_MS,
+        .hcon = {card_speed.hcon[INTERNAL_LUN], card_speed.hcon[CARD_LUN]}};
 }
 
 static void remember_session(UsbSessionEnd end)

@@ -399,11 +399,11 @@ static void append_word(StringBuilder *text, const char *name, uint32_t value)
 static void put_writes(Writer *writer, const HalUsbWrites *writes)
 {
     static const char *const NAMES[] = {
-        "writes=", " receive_ms=", " card_ms=",       " idle_ms=",
-        " fast=",  " fallbacks=",  " fifo_internal=", " fifo_card="};
-    const uint32_t values[] = {writes->commands,      writes->receive_ms,   writes->card_ms,
-                               writes->idle_ms,       writes->fast_cards,   writes->fallbacks,
-                               writes->fifo_words[0], writes->fifo_words[1]};
+        "writes=",     " receive_ms=",    " card_ms=",   " idle_ms=", " fast=",
+        " fallbacks=", " fifo_internal=", " fifo_card=", " ui_ms="};
+    const uint32_t values[] = {writes->commands,      writes->receive_ms,    writes->card_ms,
+                               writes->idle_ms,       writes->fast_cards,    writes->fallbacks,
+                               writes->fifo_words[0], writes->fifo_words[1], writes->ui_ms};
     begin(writer, "usb.timing");
     for (uint32_t index = 0; index < sizeof values / sizeof values[0]; index++) {
         string_builder_append(&writer->text, NAMES[index]);

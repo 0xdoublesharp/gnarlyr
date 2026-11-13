@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import EchoImageHarness, main
+from echo_emulator.usb_storage_host import phase_summary
 
 CARD_LUN = 1
 SECTOR = 512
@@ -75,11 +76,16 @@ class EchoImageTest(EchoImageHarness):
         session, machine, card, disk, host, scsi = self.storage_host(fast)
         written = [self.pattern(index) for index in range(COMMANDS)]
         writes_before = len(card.writes)
+        host.events.clear()
+        draws = machine.trace("app_show_usb_area")
         start = machine.microseconds()
         for index, data in enumerate(written):
             lba = FIRST_LBA + index * COMMAND_SECTORS
             self.assertEqual(scsi.write(CARD_LUN, lba, data), (0, 0))
         write_us = machine.microseconds() - start
+        write_phases = phase_summary(host.events)
+        write_draws = len(draws)
+        host.events.clear()
         card_writes = card.writes[writes_before:]
         reads_before = len(card.reads)
         start = machine.microseconds()
@@ -89,6 +95,7 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(status, (0, 0))
             self.assertEqual(read, data)
         read_us = machine.microseconds() - start
+        read_phases = phase_summary(host.events)
         card_reads = [count for _, _, count in card.reads[reads_before:]]
         total = COMMANDS * COMMAND_SECTORS * SECTOR
         for index, data in enumerate(written):
@@ -98,6 +105,14 @@ class EchoImageTest(EchoImageHarness):
               "%d card write commands for %d WRITE(10)s, OUT armed for %s packets"
               % (" at 50 MHz" if fast else "", total / write_us, total / read_us, total // 1024,
                  len(card_writes), COMMANDS, sorted(set(host.armed_packets))))
+        print("[usb screen%s] %.0f screen updates a second while writing"
+              % (" at 50 MHz" if fast else "", write_draws * 1000000 / write_us))
+        for name, phases in (("write", write_phases), ("read", read_phases)):
+            print("[usb phases%s] %s: CBW to first data %.0f us, data %.0f us, last data to CSW "
+                  "%.0f us, CSW to next CBW %.0f us (longest %.0f us), longest packet gap %.0f us"
+                  % (" at 50 MHz" if fast else "", name, phases["to_data_us"], phases["data_us"],
+                     phases["to_status_us"], phases["next_command_us"], phases["longest_gap_us"],
+                     phases["longest_packet_gap_us"]))
         self.assertEqual([count for _, _, count in card_writes], [COMMAND_SECTORS] * COMMANDS)
         self.assertEqual(card_reads, [COMMAND_SECTORS] * COMMANDS)
         self.assertEqual(host.faults, [])

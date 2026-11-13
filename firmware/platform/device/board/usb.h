@@ -41,6 +41,13 @@ typedef struct UsbLink {
 
 _Static_assert(USB_PORT_PACKET_BYTES >= 512, "a bulk IN chunk fits the packet buffer");
 
+typedef struct UsbBurst {
+    uint32_t start_ms;
+    uint32_t idle_ms;
+    bool served;
+    bool listening;
+} UsbBurst;
+
 typedef struct UsbWriteTiming {
     uint64_t spent_us[MSC_WAIT_KINDS];
     uint32_t at_us;
@@ -52,6 +59,7 @@ typedef struct UsbPort {
     bool configured;
     bool enumerated;
     bool in_busy;
+    bool yield_when_idle;
     uint16_t in_left;
     bool setup_pending;
     bool setup_ready;

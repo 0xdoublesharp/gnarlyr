@@ -25,6 +25,7 @@ BULK = 1
 SECTOR = 512
 CBW_SIGNATURE = b"USBC"
 CSW_LENGTH = 13
+CBW_LENGTH = 31
 SENSE_LENGTH = 18
 TRANSFER_BYTE_LIMIT = 2047
 TRANSFER_PACKET_LIMIT = 15
@@ -56,6 +57,7 @@ class StorageHost:
         self.packet = packet
         self.faults = []
         self.in_sizes = []
+        self.events = []
         self.packet_us = packet / megabytes_per_second
         self.out_queue = deque()
         self.rx = deque()
@@ -120,6 +122,8 @@ class StorageHost:
         endpoint, kind, data = entry
         padded = data + bytes(-len(data) % 4)
         self.reading = deque(struct.unpack("<%dI" % (len(padded) // 4), padded))
+        if kind == PACKET_OUT_DATA and endpoint == BULK:
+            self.events.append((self.machine.microseconds(), "out", len(data)))
         if kind == PACKET_OUT_DONE:
             self.outputs[endpoint].events |= EP_INT_TRANSFER_DONE
             self.outputs[endpoint].control &= ~EP_ENABLE
@@ -210,6 +214,7 @@ class StorageHost:
         data = struct.pack("<%dI" % len(endpoint.words), *endpoint.words)[:endpoint.bytes]
         if number == BULK:
             self.in_bytes += data
+            self.events.append((self.machine.microseconds(), "in", len(data)))
         endpoint.words = []
         endpoint.control &= ~EP_ENABLE
         endpoint.events |= EP_INT_TRANSFER_DONE
@@ -295,3 +300,39 @@ class ScsiHost:
 
         self.wait(arrived, 5000)
         return box["data"], self.status()
+
+
+def command_phases(events):
+    phases = []
+    current = None
+    for when, kind, length in events:
+        if kind == "out" and length == CBW_LENGTH:
+            if current is not None and "status" in current:
+                phases.append(current)
+            current = {"command": when, "data": [], "status": None}
+        elif current is None:
+            continue
+        elif kind == "in" and length == CSW_LENGTH:
+            current["status"] = when
+        else:
+            current["data"].append(when)
+    if current is not None and current.get("status"):
+        phases.append(current)
+    return phases
+
+
+def phase_summary(events):
+    phases = [phase for phase in command_phases(events) if phase["data"] and phase["status"]]
+    if not phases:
+        return {}
+    count = len(phases)
+    first = sum(phase["data"][0] - phase["command"] for phase in phases) / count
+    data = sum(phase["data"][-1] - phase["data"][0] for phase in phases) / count
+    status = sum(phase["status"] - phase["data"][-1] for phase in phases) / count
+    gaps = [later["command"] - earlier["status"] for earlier, later in zip(phases, phases[1:])]
+    gap = sum(gaps) / len(gaps) if gaps else 0
+    steps = [later - earlier for phase in phases
+             for earlier, later in zip(phase["data"], phase["data"][1:])]
+    return {"commands": count, "to_data_us": first, "data_us": data, "to_status_us": status,
+            "next_command_us": gap, "longest_gap_us": max(gaps) if gaps else 0,
+            "longest_packet_gap_us": max(steps) if steps else 0}

@@ -70,6 +70,7 @@ typedef struct HalUsbWrites {
     uint8_t fast_cards;
     uint8_t fallbacks;
     uint16_t fifo_words[2];
+    uint32_t ui_ms;
     uint32_t hcon[2];
 } HalUsbWrites;
 
