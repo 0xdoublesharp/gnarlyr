@@ -10,6 +10,7 @@ echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES ech
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_format_chain SOURCES core/test_format_chain.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_calendar SOURCES core/test_calendar.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_clock_face SOURCES core/test_clock_face.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_dac_identity SOURCES core/test_dac_identity.c LIBRARIES echo_core)

@@ -210,6 +210,7 @@ typedef struct HalHighRamTest {
 
 HalHighRamTest hal_system_high_ram_test(void);
 bool hal_system_restart_pending(void);
+bool hal_system_settle_user_state(bool requested);
 const void *hal_system_load_rescan_code(void);
 const void *hal_system_load_module(uint32_t module);
 const void *hal_system_loaded_module(void);

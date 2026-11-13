@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/strings.h"
 #include "hal/storage.h"
 #include "player.h"
 #include "ui/screen.h"
@@ -10,7 +11,7 @@ typedef struct CardFormatConfig {
     const Theme *theme;
     void (*notice)(const char *title, const char *text);
     void (*prepare)(void);
-    void (*finished)(bool success);
+    void (*finished)(StringId toast);
 } CardFormatConfig;
 
 typedef struct CardFormatScreen {

@@ -25,9 +25,9 @@ target_compile_definitions(echo_sim_language PRIVATE
 target_link_libraries(echo_sim_language PUBLIC echo_hal PRIVATE echo_options)
 add_dependencies(echo_sim_language echo_language_packs)
 
-add_library(echo_sim_storage STATIC sim_storage.c)
+add_library(echo_sim_storage STATIC sim_storage.c sim_user_state.c)
 target_include_directories(echo_sim_storage PUBLIC .)
-target_link_libraries(echo_sim_storage PUBLIC echo_hal PRIVATE echo_playback echo_options)
+target_link_libraries(echo_sim_storage PUBLIC echo_hal PRIVATE echo_playback echo_settings echo_options)
 
 add_library(echo_sim_audio STATIC sim_audio.c)
 target_include_directories(echo_sim_audio PUBLIC .)

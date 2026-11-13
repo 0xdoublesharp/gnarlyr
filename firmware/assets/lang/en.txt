@@ -168,6 +168,10 @@ STR_OUTPUT_USING_35 = Using 3.5 mm volume levels
 STR_OUTPUT_USING_44 = Using 4.4 mm volume levels
 STR_START_MAIN_MENU = Main menu
 STR_SETTINGS_NOT_SAVED = Couldn't save settings
+STR_RESTORE_BACKUP = Restore backup
+STR_BACKUPS = Backups
+STR_SETTINGS_RESTORED = Settings restored
+STR_RESTORE_FAILED = Couldn't restore settings
 STR_LANGUAGE_FAILED = Couldn't load language
 
 # Equalizer. {0} in STR_EQ_ADJUSTING is the band or row being changed; in the slot texts it is a slot number.

@@ -52,6 +52,7 @@ typedef struct StoreHeader {
     uint32_t hash;
     uint32_t binding;
     uint16_t count;
+    uint16_t version;
 } StoreHeader;
 
 typedef union StoreBlock {

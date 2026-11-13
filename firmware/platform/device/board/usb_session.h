@@ -34,6 +34,11 @@ typedef struct UsbReconnect {
     uint32_t forced_ms;
 } UsbReconnect;
 
+enum {
+    USB_SETTLE_CHANGED = 1,
+    USB_SETTLE_ASKED = 2
+};
+
 typedef struct UsbTrial {
     uint32_t record_lba;
     uint8_t attempts;
@@ -42,6 +47,7 @@ typedef struct UsbTrial {
     bool running;
     bool promoting;
     bool rolled_back;
+    uint8_t settle;
 } UsbTrial;
 
 typedef struct UsbShared {

@@ -5,6 +5,7 @@
 
 #include "core/frame_stats.h"
 #include "core/standby.h"
+#include "core/strings.h"
 #include "gfx/rect.h"
 #include "hal/power.h"
 
@@ -67,6 +68,6 @@ bool app_charging(void);
 uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);
 
-void app_storage_formatted(bool success);
+void app_reload(StringId toast);
 
 const Standby *app_standby(void);

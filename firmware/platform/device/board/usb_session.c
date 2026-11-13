@@ -837,5 +837,7 @@ CORE_SEAM bool usb_storage_session(UsbShared *state)
         update_after_usb(shared);
     }
     bool script_taken = end == USB_SESSION_EJECTED && debug_script_take();
-    return usb_session_storage_changed() || script_taken;
+    bool changed = usb_session_storage_changed();
+    shared->trial.settle |= changed ? USB_SETTLE_ASKED : 0;
+    return changed || script_taken;
 }

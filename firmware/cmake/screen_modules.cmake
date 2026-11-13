@@ -58,9 +58,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_ogg
 set(ECHO_SCREEN_MODULE_SOURCES_trial
     platform/device/board/trial_boot_module.c
     platform/device/board/trial_record.c
+    platform/device/board/user_state_module.c
+    platform/device/board/user_state_fat.c
     platform/device/logic/fat_delete.c
     platform/device/logic/slot_copy.c
     platform/device/logic/update_trial.c
+    src/core/format_chain.c
+    src/settings/user_state.c
+    src/settings/user_state_list.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
@@ -224,6 +229,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/modules/settings_module.c
     src/app/settings_screens.c
     src/app/hidden_choice.c
+    src/app/settings_backup.c
+    src/settings/user_state_list.c
     src/app/hidden_tracks.c
     src/app/plug_modes.c
     src/app/screens/plug_chooser.c

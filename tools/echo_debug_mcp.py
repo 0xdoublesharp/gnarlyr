@@ -125,6 +125,16 @@ TOOLS.update({
         "inputSchema": schema(),
         "call": lambda tool, arguments: tool.set_time(),
     },
+    "echo_settings_backup": {
+        "description": "List saved-state backups; optionally copy them and current state off the player.",
+        "inputSchema": schema({"out": {"type": "string"}, "music_volume": {"type": "string"}}),
+        "call": lambda tool, arguments: tool.settings_backup(arguments.get("out"), arguments.get("music_volume")),
+    },
+    "echo_settings_restore": {
+        "description": "Request a saved-state backup restore and eject, using newest, older, slot number or build name.",
+        "inputSchema": schema({"backup": {"type": "string"}, "music_volume": {"type": "string"}}, ["backup"]),
+        "call": lambda tool, arguments: tool.settings_restore(arguments["backup"], arguments.get("music_volume")),
+    },
 })
 
 

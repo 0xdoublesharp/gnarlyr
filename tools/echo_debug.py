@@ -6,8 +6,9 @@ internal drive, over ordinary USB mass storage. Every command prints one JSON ob
 failure prints {"ok": false, "error": {"code", "message"}} and exits with status 1.
 
 The tool finds the player by its USB identity and its internal drive by name and size. It
-writes only the update file at the drive's top level, files inside the debug folder and, just
-before every eject, the time file that sets the player's clock. It never formats or opens a raw
+writes only the update file at the drive's top level, files inside the debug folder, the
+continuity mark that asks for a settings restore and, just before every eject, the time file
+that sets the player's clock. It never formats or opens a raw
 device. Language commands separately permit validated packs
 inside the active music volume's language folder, bound to the installed clean build.
 Other commands only eject the card, because every drive must be ejected to end a USB session.
@@ -46,6 +47,7 @@ RESTART_FILE = "restart.req"
 RESTART_TEXT = b"RESTART AFTER INSTALL\n"
 UPDATE_FILE = IDENTITY["update_file"]
 TIME_FILE = "time.bin"
+CONTINUITY_FILE = "continuity.bin"
 TIME_MAGIC = b"DSTM"
 TIME_VERSION = 1
 TIME_EARLIEST = 1735689600
@@ -667,14 +669,16 @@ class Tool:
 
 
     def guarded(self, root, path):
-        """The path, if the tool may write it: the update file, the time file or a file in the debug folder."""
+        """The path, if the tool may write it: the update file, the time file, the continuity mark or a
+        file in the debug folder."""
         root = root.resolve()
         debug = root / DATA_DIRECTORY / DEBUG_DIRECTORY
         resolved = (path.parent.resolve() / path.name)
-        allowed = resolved in (root / UPDATE_FILE, root / DATA_DIRECTORY / TIME_FILE) or resolved.parent == debug
+        named = (root / UPDATE_FILE, root / DATA_DIRECTORY / TIME_FILE, root / DATA_DIRECTORY / CONTINUITY_FILE)
+        allowed = resolved in named or resolved.parent == debug
         if not allowed or resolved.is_symlink() or resolved.is_dir():
-            raise DebugError("write_refused",
-                             f"{path} is not the update file, the time file or a file in the debug folder")
+            raise DebugError("write_refused", f"{path} is not the update file, the time file, the continuity "
+                                              "mark or a file in the debug folder")
         return resolved
 
     def write(self, root, path, data):
@@ -825,6 +829,16 @@ class Tool:
     def settings_set(self, setting, value, music_volume=None, timeout=DEFAULT_TIMEOUT):
         return self.companion_manager().set(setting, value, music_volume, timeout)
 
+    def continuity_manager(self):
+        import echo_continuity
+        return echo_continuity.Manager(self, sys.modules[__name__])
+
+    def settings_backup(self, out=None, music_volume=None):
+        return self.continuity_manager().backup(out, music_volume)
+
+    def settings_restore(self, choice, music_volume=None):
+        return self.continuity_manager().restore(choice, music_volume)
+
     def set_time(self):
         """Send the computer's time and eject; the player sets its clock as the session ends."""
         found = self.locate()
@@ -951,6 +965,14 @@ def build_parser():
     for command in (list_settings, set_setting):
         command.add_argument("--music-volume", type=Path, help="the active music volume belonging to this USB player")
     set_setting.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
+    backup = commands.add_parser("settings-backup", help="list the player's settings backups; with --out, copy "
+                                                         "them and the current settings to this computer")
+    backup.add_argument("--out", type=Path, help="a folder for the copies, not on the player")
+    restore = commands.add_parser("settings-restore", help="ask the player to restore a settings backup when the "
+                                                           "USB session ends, and eject")
+    restore.add_argument("backup", help="newest, older, the slot number (1 or 2) or the build it came from")
+    for command in (backup, restore):
+        command.add_argument("--music-volume", type=Path, help="the active music volume belonging to this USB player")
     commands.add_parser("set-time", help="send this computer's time to the player and eject; every other "
                                          "command that ejects sends it too")
     return parser
@@ -969,6 +991,10 @@ def dispatch(tool, arguments):
         return tool.language_install(arguments.pack, arguments.select, arguments.music_volume, arguments.timeout)
     if arguments.command == "language-select":
         return tool.language_select(arguments.code, arguments.music_volume, arguments.timeout)
+    if arguments.command == "settings-backup":
+        return tool.settings_backup(arguments.out, arguments.music_volume)
+    if arguments.command == "settings-restore":
+        return tool.settings_restore(arguments.backup, arguments.music_volume)
     if arguments.command == "set-time":
         return tool.set_time()
     if arguments.command == "status":

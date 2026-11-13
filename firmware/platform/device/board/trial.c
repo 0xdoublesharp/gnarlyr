@@ -110,6 +110,7 @@ static bool count_start(UsbTrial *trial, uint32_t *sector)
     record_image(sector, trial->attempts);
     diag_keep(sector);
     trial->running = true;
+    trial->settle = USB_SETTLE_CHANGED;
     trial->charged = emmc_volume_write(NULL, trial->record_lba, 1, sector);
     trial->session_due = trial->charged;
     return true;
@@ -127,6 +128,14 @@ void board_trial_boot(void)
     if (entry != NULL) {
         entry->start(usb_session_shared(), copy_buffer());
     }
+}
+
+bool hal_system_settle_user_state(bool requested)
+{
+    UsbShared *shared = usb_session_shared();
+    const TrialBootModuleEntry *entry =
+        requested || shared->trial.settle != 0 ? boot_module() : NULL;
+    return entry == NULL || entry->settle(shared);
 }
 
 void board_trial_report(void)

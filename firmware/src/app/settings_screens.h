@@ -17,6 +17,7 @@
 #include "screens/parametric_screen.h"
 #include "screens/plug_chooser.h"
 #include "screens/set_clock_screen.h"
+#include "settings/user_state.h"
 #include "settings_preview.h"
 #include "settings_store.h"
 #include "ui/choice_screen.h"
@@ -48,10 +49,11 @@ enum {
     SETTINGS_PARAMETRIC_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
     SETTINGS_POWER_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 12,
     SETTINGS_NOW_PLAYING_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 13,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 14,
+    SETTINGS_RESTORE_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 14,
+    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 15,
     SETTINGS_EJECT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
     SETTINGS_MOUNT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 15,
+    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 16,
     SETTINGS_MESSAGE_CAPACITY = 64,
     SETTINGS_COUNTDOWN_CAPACITY = 16
 };
@@ -63,7 +65,7 @@ typedef struct SettingsContext {
     PowerPolicy *power;
     Toast *toast;
     void (*format_prepare)(void);
-    void (*format_finished)(bool success);
+    void (*reload)(StringId toast);
     bool *rescan_requested;
     bool *language_requested;
     LibraryStore *library;
@@ -104,11 +106,14 @@ struct SettingsScreens {
     union {
         MenuScreen status_menu;
         MenuScreen power_menu;
+        MenuScreen backup_menu;
     };
     union {
         MenuItem status_items[SETTINGS_STATUS_COUNT];
         MenuItem power_items[SETTINGS_POWER_CHOICES];
+        MenuItem backup_items[USER_STATE_BACKUPS];
     };
+    UserStateList backups;
     union {
         ChoiceScreen choice;
         SetClockScreen clock;
@@ -132,3 +137,4 @@ Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt);
 
 ScreenAction settings_screens_sleep(SettingsScreens *screens);
 MenuItem hidden_choice_item(SettingsScreens *screens);
+MenuItem settings_backup_item(SettingsScreens *screens);

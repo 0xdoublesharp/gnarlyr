@@ -1,6 +1,6 @@
 # Gnarlyr file and pack formats
 
-Gnarlyr 1.0.0 is not released, so every format that Gnarlyr writes starts at version 1. A file whose magic, version, size or checksum does not match is refused: the player uses defaults, rebuilds it (the library) or skips it (a pack). Nothing reads an earlier development layout. Integers are little-endian. FNV-1a means the 32-bit hash with offset basis 2166136261 and prime 16777619. The detailed design notes for each format are linked below. This page is the reference that tools and the desktop app are checked against.
+Gnarlyr 1.0.0 is not released, so every format that Gnarlyr writes starts at version 1. A file whose magic, version, size or checksum does not match is refused: the player uses defaults, rebuilds it (the library) or skips it (a pack). Nothing reads an earlier development layout. From the public beta on, a layout change keeps people's settings and data: see [Settings continuity](#settings-continuity) below. Integers are little-endian. FNV-1a means the 32-bit hash with offset basis 2166136261 and prime 16777619. The detailed design notes for each format are linked below. This page is the reference that tools and the desktop app are checked against.
 
 ## Settings: `/.gnarlyr/settings.bin` (internal storage)
 
@@ -78,7 +78,7 @@ Magic `DSTP`, version 1, a 512-byte header and an IEEE CRC-32 at byte 12. The se
 
 ## Store records
 
-These files use the two-bank 512-byte block of [playback-store.md](../firmware/docs/playback-store.md): magic, a u16 version (1 for all of them), generation, payload size and hash, and a header checksum. Another version is unsupported, and the player keeps it from being overwritten until it is reset.
+These files use the two-bank 512-byte block of [playback-store.md](../firmware/docs/playback-store.md): magic, a u16 version (1 for all of them), generation, payload size and hash, and a header checksum. A block of the kind's version or an earlier one is read, and `StoreHeader.version` tells the reader which layout follows; a later version (or version 0) is unsupported, and the player keeps it from being overwritten until it is reset.
 
 | File | Magic |
 |---|---|
@@ -112,6 +112,24 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | `scan.bin` | `DSSC` | the music fingerprint and the firmware tag that made it; no version |
 
 `resume.bin` and `upnext.bin` from earlier builds are no longer read or created; the session journal holds that state.
+
+## Settings continuity
+
+After the beta, an update must keep people's settings and data, a downgrade must not lose what a newer build wrote, and the settings must have a backup that can be restored. The mechanism is in place before the first layout change, so that change only adds a conversion step.
+
+**Versioned conversion.** `core/format_chain` holds the rule for every format: a file is *older*, *current* or *newer* than the build (version 0 is invalid). A format keeps its v1 decode for good. Version *n* + 1 adds one step `upgrade_vN_to_vN+1(FormatBytes *)`, which rewrites the bytes in place (version byte included) and may grow them within the buffer's capacity; `format_upgrade` runs the steps from the file's version to the current one in order and refuses a newer file without touching it. The settings decoder (`settings_decode`) sends an older DSST file through its chain and decodes the result; the chain has no steps while DSST is at version 1. Store records do the same per block: `store_decode` accepts versions 1 to the kind's own and reports the block's version, so a reader picks the matching layout and the next write is in the current one. `tests/core/test_format_chain.c` proves the chain with a fake format: a v1 file climbs to a fake v2 and v3 through each step, a v2 file takes only the later step, a newer file is refused unchanged, and a failing or missing step stops the chain.
+
+**User-state catalogue.** `settings/user_state` lists the files that hold people's settings and data, with the volume each lives on and where its version is: on internal storage `settings.bin`, `buttons.bin`, `headphones.bin`, `parametric.bin`, `theme.bin`, `discovery.bin` and `eq_slots.bin`; on the music volume `bluetooth.bin`, `session.bin`, `order.bin`, `mixes.bin`, `moments.bin`, `listens.bin`, `recap.bin`, `track_keys.bin`, `favorites.bin`, `bookmarks.bin`, `tags-a.bin`, `tags-b.bin`, `favorite_added.bin`, `hidden.bin` and the tapes `mix00a.bin` to `mix31b.bin`. `library.db`, `covers.bin` and the scan files are rebuilt and are not in it. `eq_slots.bin`, `favorite_added.bin` and `hidden.bin` carry no version; they are backed up and restored but never set aside, so a later change to one of them needs a new magic.
+
+**Continuity mark: `/.gnarlyr/continuity.bin`** (internal storage, 24 bytes): FNV-1a of the build name (u32), version 1 (byte 4), restore request (byte 5: 0 none, 1 or 2 the backup slot plus one), two zero bytes, the build name (`hal_system_version()`, for example `1.0.0-1e1a8e56`, at most 16 bytes, zero-padded). It records the last build that ran the continuity pass.
+
+**Backups: `/.gnarlyr/backup/1/` and `/.gnarlyr/backup/2/`** hold copies of the catalogue's files; `/.gnarlyr/backup/list.bin` (44 bytes) names them: magic `DSBU`, version 1, the newest slot (byte 5), two zero bytes, the build each slot came from (16 bytes each, zero-padded; empty for a free slot), FNV-1a of bytes 0–39. A slot is cleared in the list before its files are written and named only after every copy has been read back and compared, so an interrupted backup is never offered. A new backup goes into the slot that already holds the same build, else a free slot, else the older one, so the last two builds are kept. Files over 2 MiB, empty files and files the source no longer has are left out (and removed from the reused slot).
+
+**When the pass runs.** The pass lives in the trial module (15) and runs before the settings load, from `hal_system_settle_user_state`: at each start of a build on trial (the starts after an update, and the start after a rollback), when Settings or a USB session asked for a restore, and after Settings reloads the app. Ordinary starts load nothing and read nothing extra. When the mark names another build, the pass first copies the files that build left into a backup slot named after it: this is the backup taken before the new build reads anything. It then carries out a requested restore, sets newer files aside and returns kept ones, and writes the mark for the running build. Without a mark (the first build with this code), it only writes the mark. The updater itself does not copy the files: the USB overlay has about 1 KB free in the developer preset, and the backup code needs about 2.5 KB; the first trial start sees the same bytes the old build left, and the same pass also covers a rollback.
+
+**Downgrade.** When the running build finds a catalogue file whose version is newer than it knows, the pass copies it to `/.gnarlyr/newer/<name>` (read back and compared), then removes the original, and the build starts that file from its defaults. A file that cannot be set aside stays in place: store records then stay unsupported and unwritten, and the settings store does not overwrite a DSST file of a later version. When a later build can read a file kept in `newer/` again, the pass copies it back over the one the older build wrote and removes the kept copy, so a downgrade followed by the return keeps everything the newer build wrote.
+
+**Restore.** Settings → Backups lists the backups, newest first, by the build they came from. Choosing one writes the request into the mark and reloads the app; the pass copies every file of that backup over the current one (files absent from the backup are left alone), sets aside anything newer, and the app starts on the restored files with "Settings restored" ("Couldn't restore settings" when a copy fails). `tools/echo_debug.py settings-backup` lists the player's backups (`--out DIR` copies them and the current files to this computer), and `settings-restore newest|older|1|2|<build>` writes the same request and ejects, so the player restores the backup as the USB session ends. The MCP tools `echo_settings_backup` and `echo_settings_restore` use these same operations.
 
 ## Desktop app
 

@@ -42,7 +42,7 @@ class McpServer(LoopCase):
                          ["echo_status", "echo_report", "echo_profile", "echo_install", "echo_run",
                           "echo_wait", "echo_screenshots", "echo_language_inspect", "echo_language_list",
                           "echo_language_install", "echo_language_select", "echo_settings_list", "echo_settings_set",
-                          "echo_set_time"])
+                          "echo_set_time", "echo_settings_backup", "echo_settings_restore"])
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
             self.assertTrue(tool["description"])

@@ -17,6 +17,7 @@ typedef struct TrialBootModuleEntry {
     uint32_t magic;
     void (*start)(struct UsbShared *shared, uint32_t *buffer);
     void (*session_end)(struct UsbShared *shared, uint32_t *buffer);
+    bool (*settle)(struct UsbShared *shared);
 } TrialBootModuleEntry;
 
 extern const TrialCalls TRIAL_CALLS;
@@ -27,3 +28,4 @@ bool trial_module_install(const UpdateFile *update, uint32_t *buffer, UpdateProg
                           bool both);
 void trial_boot_module_start(struct UsbShared *shared, uint32_t *buffer);
 void trial_boot_module_session_end(struct UsbShared *shared, uint32_t *buffer);
+bool user_state_module_settle(struct UsbShared *shared);

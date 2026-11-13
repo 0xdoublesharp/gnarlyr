@@ -465,7 +465,8 @@ class LanguageCommands(VolumeCase):
     def test_a_build_without_version_1_packs_or_settings_is_refused(self):
         for path, old, new in (("firmware/src/core/include/core/i18n.h", "I18N_VERSION = 1,", "I18N_VERSION = 2,"),
                                ("firmware/src/core/include/core/i18n.h", "I18N_VERSION = 1,", "I18N_VERSION = 0,"),
-                               ("firmware/src/settings/settings.c", "    VERSION = 1,", "    VERSION = 2,"),
+                               ("firmware/src/settings/include/settings/settings.h",
+                                "SETTINGS_FORMAT_VERSION = 1", "SETTINGS_FORMAT_VERSION = 2"),
                                ("firmware/src/settings/settings.c", "EXTENSION_CHECKSUM_FIELD = 54",
                                 "EXTENSION_CHECKSUM_FIELD = 38")):
             with self.subTest(path=path, new=new), self.with_source(path, old, new):
@@ -473,6 +474,13 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(status, 1)
                 self.assertEqual(result["error"]["code"], "language_build_unknown")
                 self.assertEqual(list(self.lang.iterdir()), [])
+
+    def test_installed_builds_with_a_numeric_settings_version_remain_supported(self):
+        with self.with_source("firmware/src/settings/settings.c",
+                              "VERSION = SETTINGS_FORMAT_VERSION", "VERSION = 1"):
+            tool, host = self.live_tool()
+            self.assertTrue(tool.language_list()["ok"])
+            self.assertEqual(host.ejected, [])
 
     def test_changed_replay_gain_modes_or_home_items_fail_closed(self):
         for path, old, new in (("firmware/src/core/include/core/replay_gain.h", "    REPLAY_GAIN_MODE_COUNT",

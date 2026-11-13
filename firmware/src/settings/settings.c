@@ -1,10 +1,12 @@
 #include "settings/settings.h"
 
+#include "core/format_chain.h"
 #include "core/hash.h"
 #include "equalizer_peak.h"
 
 enum {
-    VERSION = 1,
+    VERSION = SETTINGS_FORMAT_VERSION,
+    MAGIC_WORD = 0x54535344,
     MAGIC_SIZE = 4,
     VERSION_FIELD = 4,
     BRIGHTNESS_FIELD = 6,
@@ -85,6 +87,7 @@ enum {
 };
 
 static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'S', 'T'};
+static const FormatChain CHAIN = {.current = VERSION, .steps = NULL};
 static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
     [COMFORT_BYTE] =
         REWIND_BIT | SAFE_START_BIT | CLOCK_24H_BIT | TRACK_TRANSITION_OFF << TRANSITION_SHIFT,
@@ -389,12 +392,26 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
                hash_update(HASH_START, bytes + SECOND_FIELD, EXTENSION_SIZE));
 }
 
-static bool header_valid(const uint8_t *bytes)
+static bool magic_valid(const uint8_t *bytes)
 {
     for (int index = 0; index < MAGIC_SIZE; index++) {
         if (bytes[index] != MAGIC[index]) {
             return false;
         }
+    }
+    return true;
+}
+
+bool settings_file_newer(const uint8_t *bytes, uint32_t length)
+{
+    return length > VERSION_FIELD && hash_load(bytes) == MAGIC_WORD &&
+           bytes[VERSION_FIELD] > VERSION;
+}
+
+static bool header_valid(const uint8_t *bytes)
+{
+    if (!magic_valid(bytes)) {
+        return false;
     }
     uint8_t flags = bytes[VERSION_FIELD + 1];
     return bytes[VERSION_FIELD] == VERSION && (flags & 0xC0u) == 0 &&
@@ -537,7 +554,32 @@ static void read_second(const uint8_t *second, Settings *settings)
     settings->bluetooth_volume = second[BLUETOOTH_VOLUME_BYTE];
 }
 
+static bool decode_current(const uint8_t *bytes, uint32_t length, Settings *settings);
+
+static bool decode_older(const uint8_t *bytes, uint32_t length, Settings *settings)
+{
+    uint8_t upgraded[SETTINGS_FILE_CAPACITY];
+    if (length > sizeof upgraded) {
+        return false;
+    }
+    for (uint32_t index = 0; index < length; index++) {
+        upgraded[index] = bytes[index];
+    }
+    FormatBytes file = {.bytes = upgraded, .length = length, .capacity = sizeof upgraded};
+    return format_upgrade(&CHAIN, bytes[VERSION_FIELD], &file) &&
+           decode_current(upgraded, file.length, settings);
+}
+
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
+{
+    if (VERSION > 1 && length > VERSION_FIELD && magic_valid(bytes) && bytes[VERSION_FIELD] != 0 &&
+        bytes[VERSION_FIELD] < VERSION) {
+        return decode_older(bytes, length, settings);
+    }
+    return decode_current(bytes, length, settings);
+}
+
+static bool decode_current(const uint8_t *bytes, uint32_t length, Settings *settings)
 {
     if (length < SETTINGS_FILE_SIZE || !header_valid(bytes) || !values_valid(bytes) ||
         !gains_valid(bytes) || !language_valid(bytes) ||

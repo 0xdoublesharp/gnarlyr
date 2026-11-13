@@ -10,6 +10,7 @@ add_library(echo_core STATIC
     debug_script_parse.c
     debug_span.c
     format.c
+    format_chain.c
     frame_pacer.c
     frame_stats.c
     hash.c

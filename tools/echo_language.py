@@ -15,7 +15,7 @@ PACK_LIMIT = 18432
 FILE_LIMIT = 65535
 SETTINGS_VERSION = 1
 SETTINGS_SIZE = 78
-SETTINGS_SOURCE = {"VERSION": 1, "VERSION_FIELD": 4, "BRIGHTNESS_FIELD": 6, "TIMEOUT_FIELD": 7,
+SETTINGS_SOURCE = {"VERSION_FIELD": 4, "BRIGHTNESS_FIELD": 6, "TIMEOUT_FIELD": 7,
                    "LANGUAGE_FIELD": 19, "TEXT_SIZE_FIELD": 24, "ORIENTATION_FIELD": 26, "HALF_DB_GAINS_FIELD": 28,
                    "EXTENSION_FIELD": 38, "EXTENSION_CHECKSUM_FIELD": 54, "EXTENSION_SIZE": 16,
                    "SECOND_FIELD": 58, "SECOND_CHECKSUM_FIELD": 74, "CLOCK_OFFSET_BYTE": 11,
@@ -95,7 +95,10 @@ class Snapshot:
     def check_settings_layout(self):
         source = self.show("firmware/src/settings/settings.c")
         header = self.show("firmware/src/settings/include/settings/settings.h")
-        if (any(constant(source, name) != value for name, value in SETTINGS_SOURCE.items()) or
+        version = constant(header, "SETTINGS_FORMAT_VERSION") if re.search(
+            r"\bVERSION\s*=\s*SETTINGS_FORMAT_VERSION\b", source) else constant(source, "VERSION")
+        if (version != SETTINGS_VERSION or
+                any(constant(source, name) != value for name, value in SETTINGS_SOURCE.items()) or
                 any(constant(header, name) != value for name, value in SETTINGS_HEADER.items()) or
                 FLAGS_ENCODING not in re.sub(r"\s+", "", source)):
             raise ValueError(f"the installed build does not use the version {SETTINGS_VERSION} settings layout")

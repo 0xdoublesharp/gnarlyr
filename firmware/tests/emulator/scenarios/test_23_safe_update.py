@@ -194,7 +194,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
         self.assert_healthy(trial)
         self.assertEqual(offered, [1])
-        self.assertNotIn(TRIAL_BOOT_MODULE, [module for module, _ in loads])
+        self.assertNotIn(TRIAL_BOOT_MODULE, [module for module, session in loads if session])
+        self.assertEqual(loads[0], (TRIAL_BOOT_MODULE, False))
         self.assertEqual(self.trial_record(trial), (TRIAL_RUNNING, 2))
 
     def test_a_trial_session_that_ends_unplugged_does_not_confirm(self):

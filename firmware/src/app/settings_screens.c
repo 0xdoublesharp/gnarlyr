@@ -930,7 +930,7 @@ static ScreenAction open_format(void *context)
                                .notice =
                                    screens->context.format_prepare != NULL ? app_show_notice : NULL,
                                .prepare = screens->context.format_prepare,
-                               .finished = screens->context.format_finished};
+                               .finished = screens->context.reload};
     return screen_action_push(card_format_screen_init(&screens->card_format, config));
 }
 
@@ -1066,6 +1066,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                       .select = request_rescan,
                                                       .context = &screens->context};
     screens->items[SETTINGS_HIDDEN_ITEM] = hidden_choice_item(screens);
+    screens->items[SETTINGS_RESTORE_ITEM] = settings_backup_item(screens);
     screens->items[SETTINGS_BLUETOOTH_ITEM] = (MenuItem){.label = i18n_text(STR_BLUETOOTH),
                                                          .select = bluetooth_screen_open,
                                                          .context = context.bluetooth,

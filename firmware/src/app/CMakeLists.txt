@@ -23,6 +23,7 @@ add_library(echo_app STATIC
     track_removal.c
     hidden_tracks.c
     hidden_choice.c
+    settings_backup.c
     mixtape_store.c
     mixtape_ui.c
     cassette_ui.c

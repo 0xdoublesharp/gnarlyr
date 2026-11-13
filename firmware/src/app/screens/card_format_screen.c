@@ -100,9 +100,10 @@ static ScreenAction run(CardFormatScreen *screen)
     bool success = hal_card_format(screen->card, progress, screen);
     screen->phase = PHASE_NOTICE;
     screen->screen.title = i18n_text(STR_CARD_FORMAT);
-    message(screen, success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED);
+    StringId result = success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED;
+    message(screen, result);
     if (screen->config.finished != NULL) {
-        screen->config.finished(success);
+        screen->config.finished(result);
         return screen_action_pop_to_root();
     }
     return screen_action_none();

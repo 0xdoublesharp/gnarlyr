@@ -136,7 +136,7 @@ static void an_inline_payload_is_sealed_with_its_header(void)
     CHECK_EQUAL(0, writes);
 }
 
-static void a_kind_reads_only_its_own_version(void)
+static void a_kind_reads_its_own_and_every_earlier_version(void)
 {
     static const StoreKind ONE = {.magic = {'D', 'S', 'X', 'R'}, .version = 1};
     static const StoreKind TWO = {.magic = {'D', 'S', 'X', 'R'}, .version = 2};
@@ -146,10 +146,37 @@ static void a_kind_reads_only_its_own_version(void)
     CHECK_EQUAL(1, block[VERSION_FIELD]);
     CHECK_EQUAL(STORE_READY, store_decode(&ONE, block, &decoded));
     CHECK_EQUAL(9, decoded.generation);
-    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&TWO, block, &decoded));
+    CHECK_EQUAL(1, decoded.version);
+    CHECK_EQUAL(STORE_READY, store_decode(&TWO, block, &decoded));
+    CHECK_EQUAL(9, decoded.generation);
+    CHECK_EQUAL(1, decoded.version);
     memset(block, 0, sizeof block);
     store_encode(&TWO, &(StoreHeader){.generation = 10}, block);
+    CHECK_EQUAL(STORE_READY, store_decode(&TWO, block, &decoded));
+    CHECK_EQUAL(2, decoded.version);
+}
+
+static void a_later_version_is_unsupported_and_reports_nothing(void)
+{
+    static const StoreKind ONE = {.magic = {'D', 'S', 'X', 'R'}, .version = 1};
+    static const StoreKind TWO = {.magic = {'D', 'S', 'X', 'R'}, .version = 2};
+    uint8_t block[STORE_BLOCK_BYTES] = {0};
+    StoreHeader decoded;
+    store_encode(&TWO, &(StoreHeader){.generation = 10}, block);
     CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&ONE, block, &decoded));
+    CHECK_EQUAL(0, decoded.generation);
+    CHECK_EQUAL(0, decoded.version);
+}
+
+static void version_zero_is_unsupported(void)
+{
+    static const StoreKind TWO = {.magic = {'D', 'S', 'X', 'R'}, .version = 2};
+    uint8_t block[STORE_BLOCK_BYTES] = {0};
+    StoreHeader decoded;
+    store_encode(&TWO, &(StoreHeader){.generation = 3}, block);
+    block[VERSION_FIELD] = 0;
+    seal(block);
+    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&TWO, block, &decoded));
 }
 
 static void generations_compare_as_serial_numbers(void)
@@ -391,7 +418,9 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_header_round_trips_and_names_what_is_wrong_with_a_block),
         TEST_CASE(an_inline_payload_is_sealed_with_its_header),
-        TEST_CASE(a_kind_reads_only_its_own_version),
+        TEST_CASE(a_kind_reads_its_own_and_every_earlier_version),
+        TEST_CASE(a_later_version_is_unsupported_and_reports_nothing),
+        TEST_CASE(version_zero_is_unsupported),
         TEST_CASE(generations_compare_as_serial_numbers),
         TEST_CASE(transfers_outside_the_file_never_reach_the_callbacks),
         TEST_CASE(publishing_reports_what_the_read_back_shows),

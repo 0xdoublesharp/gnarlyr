@@ -180,6 +180,8 @@ enum {
     SETTINGS_HOME_ORDER_SLOTS = 10,
     SETTINGS_HOME_PACKED_SIZE = 7,
     SETTINGS_FILE_SIZE = 78,
+    SETTINGS_FILE_CAPACITY = 128,
+    SETTINGS_FORMAT_VERSION = 1,
     SETTINGS_LANGUAGE_LENGTH = 5,
     SETTINGS_LANGUAGE_CAPACITY = SETTINGS_LANGUAGE_LENGTH + 1
 };
@@ -265,6 +267,7 @@ uint8_t settings_safe_start_bluetooth_volume(const Settings *settings, uint8_t v
 SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings);
 void settings_encode(const Settings *settings, uint8_t *bytes);
 bool settings_decode(const uint8_t *bytes, uint32_t length, Settings *settings);
+bool settings_file_newer(const uint8_t *bytes, uint32_t length);
 bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden);
 uint16_t settings_speed_percent(int option);
 

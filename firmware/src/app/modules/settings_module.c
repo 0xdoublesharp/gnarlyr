@@ -47,7 +47,7 @@ static void bind(AppScreens *screens)
         .graphic = &screens->modules.equalizer.graphic.screen,
         .parametric = &screens->modules.equalizer.parametric.screen,
         .format_prepare = app_release_audio,
-        .format_finished = app_storage_formatted,
+        .reload = app_reload,
         .headphones = context->headphones,
         .player = context->player,
         .power = context->power,

@@ -137,8 +137,8 @@ typedef struct AppState {
     uint16_t covers_album;
     bool language_requested;
     bool music_check_requested;
-    bool storage_formatted;
-    bool format_success;
+    bool reload_pending;
+    StringId reload_toast;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
@@ -1579,6 +1579,7 @@ static void start_app(bool power_on)
     app.startup_pending = power_on;
     app.prepare_index = 0;
     app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
+    (void)hal_system_settle_user_state(false);
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
     headphone_store_load(&app.headphones);
@@ -1752,10 +1753,10 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
-void app_storage_formatted(bool success)
+void app_reload(StringId toast)
 {
-    app.storage_formatted = true;
-    app.format_success = success;
+    app.reload_pending = true;
+    app.reload_toast = toast;
     app.listening_loaded = false;
 }
 
@@ -2243,14 +2244,15 @@ CORE_SEAM void app_step(void)
         update_power(now_ms);
         return;
     }
-    if (app.storage_formatted) {
-        bool success = app.format_success;
-        app.storage_formatted = false;
+    if (app.reload_pending) {
+        app.reload_pending = false;
         app.rescan_requested = false;
         app.music_check_requested = false;
+        if (!hal_system_settle_user_state(true)) {
+            app.reload_toast = STR_RESTORE_FAILED;
+        }
         start_app(false);
-        toast_show(&app.toast, i18n_text(success ? STR_CARD_FORMAT_DONE : STR_CARD_FORMAT_FAILED),
-                   hal_clock_milliseconds());
+        toast_show(&app.toast, i18n_text(app.reload_toast), hal_clock_milliseconds());
         return;
     }
     if (app.saying_goodbye && fade_finished(&app.goodbye, now_ms)) {

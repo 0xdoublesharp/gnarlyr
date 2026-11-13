@@ -49,6 +49,12 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - The USB FIFOs are sized from the USB core's FIFO RAM, 308 words on the player. Before, the player refused the USB audio (DAC) configuration.
 - On the player, trial installs ran during development and the paperclip maskrom route put a known-good build back after two broken ones. The automatic rollback of an unhealthy build, confirmation by host writes and the always-on loader keys have emulator checks only.
 
+## Unreleased: settings continuity
+
+- The first start of a new version copies the settings and saved state the previous version left into a backup named after it; the last two are kept. Settings → Backups puts one back.
+- A version that finds a file written by a newer version keeps that file aside instead of resetting it, and the newer version takes it back on return. Every file format has a conversion path from version 1, so the first layout change after the beta converts files instead of resetting them.
+- These are checked by unit tests and emulator scenarios; they have not run on the player yet.
+
 ## Unreleased: cards, power and controls
 
 - The microSD card can be inserted and removed while the player runs; the library follows the card. Settings → Eject card makes it safe to remove, Settings → Mount card uses an ejected card again, and Play on the USB screen ejects the card while the computer has the drives.

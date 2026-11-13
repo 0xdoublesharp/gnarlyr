@@ -90,6 +90,8 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
     shared->trial.running = trial.state == UPDATE_TRIAL_RUNNING;
     shared->trial.promoting = trial.state == UPDATE_TRIAL_PROMOTING;
     shared->trial.rolled_back = step == UPDATE_TRIAL_STEP_REPORT;
+    shared->trial.settle =
+        shared->trial.running || shared->trial.rolled_back ? USB_SETTLE_CHANGED : 0;
 }
 
 static bool running_from_slot_1(const UpdateStorage *storage, uint32_t *buffer)
@@ -156,6 +158,6 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
     board_wait_for_key();
 }
 
-const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER),
-                                                      trial_boot_module_start,
-                                                      trial_boot_module_session_end};
+const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
+    SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
+    trial_boot_module_session_end, user_state_module_settle};

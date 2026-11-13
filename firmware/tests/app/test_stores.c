@@ -206,13 +206,13 @@ static void a_settings_file_on_the_music_volume_is_ignored(void)
     CHECK_EQUAL(settings_defaults().brightness, settings.settings.brightness);
 }
 
-static void a_settings_file_of_another_version_gives_the_defaults(void)
+static const uint8_t *saved_after_loading_version(uint8_t version)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
     Settings written = settings_defaults();
     written.brightness = BRIGHT;
     settings_encode(&written, bytes);
-    bytes[4] = 16;
+    bytes[4] = version;
     hash_store(bytes + 54, hash_update(HASH_START, bytes, 54));
     fake_hal_reset();
     CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
@@ -222,7 +222,32 @@ static void a_settings_file_of_another_version_gives_the_defaults(void)
     uint32_t size = 0;
     const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
-    CHECK_EQUAL(1, saved[4]);
+    return saved;
+}
+
+static void a_later_settings_version_gives_the_defaults_and_is_never_overwritten(void)
+{
+    const uint8_t *saved = saved_after_loading_version(16);
+    CHECK_EQUAL(16, saved[4]);
+    CHECK_EQUAL(BRIGHT, saved[6]);
+}
+
+static void a_settings_file_of_version_zero_is_replaced_by_the_defaults(void)
+{
+    CHECK_EQUAL(1, saved_after_loading_version(0)[4]);
+}
+
+static void a_shorter_newer_settings_file_is_never_overwritten(void)
+{
+    static const uint8_t bytes[] = {'D', 'S', 'S', 'T', 2, 0};
+    fake_hal_reset();
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    settings_store_load(&settings);
+    CHECK(settings_store_save(&settings));
+    uint32_t size = 0;
+    const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
+    CHECK_EQUAL(sizeof bytes, size);
+    CHECK_EQUAL(0, memcmp(bytes, saved, sizeof bytes));
 }
 
 static void a_corrupted_settings_file_falls_back_to_the_defaults(void)
@@ -632,7 +657,9 @@ int main(void)
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),
         TEST_CASE(a_settings_file_on_the_music_volume_is_ignored),
-        TEST_CASE(a_settings_file_of_another_version_gives_the_defaults),
+        TEST_CASE(a_later_settings_version_gives_the_defaults_and_is_never_overwritten),
+        TEST_CASE(a_settings_file_of_version_zero_is_replaced_by_the_defaults),
+        TEST_CASE(a_shorter_newer_settings_file_is_never_overwritten),
         TEST_CASE(a_corrupted_settings_file_falls_back_to_the_defaults),
         TEST_CASE(hardware_settings_reach_the_hal),
         TEST_CASE(toggling_an_album_adds_it_and_saves),

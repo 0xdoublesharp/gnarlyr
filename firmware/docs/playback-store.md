@@ -33,8 +33,8 @@ A block reads as one of five things (`StoreLoad`):
 | Result | Meaning |
 |---|---|
 | empty | all 512 bytes are zero |
-| ready | magic, header checksum and version match; for the journal the payload checksum too |
-| unsupported | magic and header checksum match, the version does not. Nothing is written to that file until it is opened again, so a later format is never overwritten. A later version has to keep these 28 bytes |
+| ready | magic and header checksum match and the version is between 1 and the kind's own; for the journal the payload checksum too. `StoreHeader.version` says which layout the payload has, so a later build keeps reading every earlier one |
+| unsupported | magic and header checksum match, and the version is later than the kind's (or 0). Nothing is written to that file until it is opened again, so a later format is never overwritten. A later version has to keep these 28 bytes. The continuity pass sets such a file aside ([formats.md](../../docs/formats.md#settings-continuity)) |
 | corrupt | anything else |
 | unreadable | the read failed |
 

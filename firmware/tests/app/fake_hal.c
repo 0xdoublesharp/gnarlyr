@@ -1849,6 +1849,12 @@ bool hal_system_restart_pending(void)
     return fake.restart_pending;
 }
 
+bool hal_system_settle_user_state(bool requested)
+{
+    (void)requested;
+    return true;
+}
+
 void fake_hal_set_usb_connect_pending(bool pending)
 {
     fake.usb_connect_pending = pending;

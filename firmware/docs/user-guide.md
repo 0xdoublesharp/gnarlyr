@@ -519,6 +519,12 @@ The new version starts on trial: the previous version stays on the player as a b
 
 The updater deletes the file after a successful install, when it is not a valid image, and when that version is already installed.
 
+### Settings backups
+
+The first time a new version starts, before it reads anything, it copies your settings and the player's saved state (Bluetooth devices, headphone profiles, EQ, the play session, favourites, mixtapes, the listening history and the rest) into a backup named after the version you had before. The player keeps the last two backups. The music library and cover art are not in them; they are rebuilt from your music.
+
+To go back to a backup, open Settings → Backups and choose the version. The player restores those files and restarts its screens with them. If you install an older version again, files that only a newer version understands are kept aside rather than reset, and come back when you return to the newer version.
+
 ## Going back to FiiO's firmware
 
 Copy FiiO's file to the player, the same way you installed Gnarlyr. Maskrom is for a player that doesn't start.

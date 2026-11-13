@@ -14,7 +14,9 @@ The helper resolves the exact installed build in local Git history and checks it
 
 The stdio MCP server exposes the same operations as `echo_settings_list` and `echo_settings_set`. Set arguments are `setting`, `value`, and optional `music_volume` and `timeout`; list accepts optional `music_volume`. These operations share the CLI implementation.
 
-A missing settings file, or one of another version, requires a normal settings save on the player first; the player replaces a refused file with its defaults. Language-pack inspection, installation and selection use the separate [language commands](language-packs.md).
+A missing or damaged settings file requires a normal settings save on the player first. A newer settings version is preserved for a later compatible build. Language-pack inspection, installation and selection use the separate [language commands](language-packs.md).
+
+`settings-backup` lists the player's saved-state backups; `--out DIR` also copies them and the current state to the computer. `settings-restore newest|older|1|2|<build>` asks the player to restore one and ejects its drives. Settings → Backups offers the same restore on the player. The MCP operations `echo_settings_backup` and `echo_settings_restore` share these implementations; see [settings continuity](formats.md#settings-continuity).
 
 ## Clock
 

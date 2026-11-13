@@ -206,6 +206,23 @@ static void every_version_but_one_is_rejected(void)
     }
 }
 
+static void only_a_later_version_with_the_settings_magic_is_newer(void)
+{
+    Settings settings = custom_settings();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(SETTINGS_FORMAT_VERSION, bytes[VERSION_FIELD]);
+    CHECK(!settings_file_newer(bytes, sizeof bytes));
+    for (int version = 0; version < 256; version++) {
+        bytes[VERSION_FIELD] = (uint8_t)version;
+        CHECK_EQUAL(version > SETTINGS_FORMAT_VERSION, settings_file_newer(bytes, sizeof bytes));
+    }
+    bytes[VERSION_FIELD] = SETTINGS_FORMAT_VERSION + 1;
+    CHECK(!settings_file_newer(bytes, VERSION_FIELD));
+    bytes[0] = 'X';
+    CHECK(!settings_file_newer(bytes, sizeof bytes));
+}
+
 static void the_equalizer_is_saved_after_the_dac_volume(void)
 {
     Settings settings = custom_settings();
@@ -1321,6 +1338,7 @@ int main(void)
         TEST_CASE(the_usb_dac_plug_in_answer_is_kept),
         TEST_CASE(the_reserved_plug_in_bits_are_rejected),
         TEST_CASE(every_version_but_one_is_rejected),
+        TEST_CASE(only_a_later_version_with_the_settings_magic_is_newer),
         TEST_CASE(a_volume_above_the_top_is_rejected),
         TEST_CASE(a_current_volume_up_to_sixty_is_kept),
         TEST_CASE(the_accent_color_is_saved_at_byte_seventeen),
