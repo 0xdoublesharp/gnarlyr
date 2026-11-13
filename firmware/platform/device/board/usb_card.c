@@ -68,7 +68,7 @@ typedef struct UsbCard {
 } UsbCard;
 
 static UsbCard cards[USB_CARD_COUNT];
-static uint8_t fallbacks;
+static UsbCardSpeed speed;
 static const EmmcLayout *layout;
 
 static uint32_t read_mmc(const UsbCard *card, uint32_t offset)
@@ -349,9 +349,18 @@ static bool sd_switched(UsbCard *card, uint32_t *scratch)
            (bytes[SD_RESULT_BYTE] & 0x0Fu) == 1u;
 }
 
+static void describe(uint8_t lun, bool running)
+{
+    const UsbCard *card = &cards[lun];
+    speed.hcon[lun] = running ? read_mmc(card, MMC_HCON) : 0u;
+    speed.fifo_words[lun] = running ? (uint16_t)*card->host->fifo_depth : 0u;
+}
+
 void usb_card_speed_up(bool internal_ready, uint32_t *scratch)
 {
-    fallbacks = 0;
+    speed = (UsbCardSpeed){0};
+    describe(USB_CARD_INTERNAL, internal_ready);
+    describe(USB_CARD_SD, sd_card_ready());
     if (!source_fits()) {
         return;
     }
@@ -372,7 +381,7 @@ bool usb_card_slow_down(uint8_t lun)
         return false;
     }
     set_speed(card, false);
-    fallbacks = (uint8_t)(fallbacks < UINT8_MAX ? fallbacks + 1 : fallbacks);
+    speed.fallbacks = (uint8_t)(speed.fallbacks < UINT8_MAX ? speed.fallbacks + 1 : UINT8_MAX);
     return true;
 }
 
@@ -387,7 +396,8 @@ void usb_card_speed_down(void)
 
 UsbCardSpeed usb_card_speed(void)
 {
-    uint8_t fast =
+    UsbCardSpeed now = speed;
+    now.fast =
         (uint8_t)((cards[USB_CARD_INTERNAL].fast ? 1u : 0u) | (cards[USB_CARD_SD].fast ? 2u : 0u));
-    return (UsbCardSpeed){fast, fallbacks};
+    return now;
 }

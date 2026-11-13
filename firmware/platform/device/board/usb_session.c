@@ -715,7 +715,9 @@ static HalUsbWrites write_split(const MscStats *stats)
                           spent_ms(MSC_WAIT_CARD),
                           spent_ms(MSC_WAIT_IDLE),
                           card_speed.fast,
-                          usb_card_speed().fallbacks};
+                          usb_card_speed().fallbacks,
+                          {card_speed.fifo_words[INTERNAL_LUN], card_speed.fifo_words[CARD_LUN]},
+                          {card_speed.hcon[INTERNAL_LUN], card_speed.hcon[CARD_LUN]}};
 }
 
 static void remember_session(UsbSessionEnd end)
@@ -749,7 +751,7 @@ static UsbSessionEnd run(void)
     *usb_port_write_timing() =
         (UsbWriteTiming){.at_us = hal_clock_microseconds(), .wait = MSC_WAIT_NONE};
     refused_before = 0;
-    card_speed = (UsbCardSpeed){0, 0};
+    card_speed = (UsbCardSpeed){0};
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
     prepare_luns();

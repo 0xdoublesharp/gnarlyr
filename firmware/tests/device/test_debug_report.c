@@ -1002,10 +1002,13 @@ static void the_last_usb_session_splits_its_write_time(void)
                                         .card_ms = 2100,
                                         .idle_ms = 350,
                                         .fast_cards = 3,
-                                        .fallbacks = 1}};
+                                        .fallbacks = 1,
+                                        .fifo_words = {256, 128},
+                                        .hcon = {0x04C42C80, 0}}};
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("usb.timing: writes=812 receive_ms=9400 card_ms=2100 idle_ms=350 fast=3 "
-                   "fallbacks=1"));
+                   "fallbacks=1 fifo_internal=256 fifo_card=128 hcon_internal=0x04c42c80 "
+                   "hcon_card=0x00000000"));
 }
 
 static void the_card_start_reports_detection_power_and_the_failing_command(void)

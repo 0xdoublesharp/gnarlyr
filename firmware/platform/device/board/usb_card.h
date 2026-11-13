@@ -17,6 +17,8 @@ extern const MscStream USB_CARD_STREAM;
 typedef struct UsbCardSpeed {
     uint8_t fast;
     uint8_t fallbacks;
+    uint16_t fifo_words[USB_CARD_COUNT];
+    uint32_t hcon[USB_CARD_COUNT];
 } UsbCardSpeed;
 
 void usb_card_prepare(const EmmcLayout *internal);

@@ -16,6 +16,7 @@
 #define MMC_RINTSTS 0x44u
 #define MMC_STATUS 0x48u
 #define MMC_FIFOTH 0x4Cu
+#define MMC_HCON 0x70u
 #define MMC_FIFO 0x200u
 
 #define CMD_START (1u << 31)
