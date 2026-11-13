@@ -15,6 +15,8 @@ SETTLE_MS = 300
 CONFIGURE_LIMIT_MS = 2000
 INT_DATA_CRC = 1 << 7
 MMC_FIFO = 0x200
+FULL_SPEED_PACKET = 64
+FULL_SPEED_BYTES = 16 * 1024
 FAILING_WORD = 3000
 CRU_MMC_DIVIDERS = 0x30
 SD_FIELD = 0x00FF
@@ -29,7 +31,7 @@ LEAVE_LIMIT_MS = 5000
 
 
 class EchoImageTest(EchoImageHarness):
-    def storage_host(self, fast=False):
+    def storage_host(self, fast=False, packet=SECTOR):
         from echo_emulator.emmc import SdCard, SparseDisk
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.usb_storage_host import ScsiHost, StorageHost
@@ -45,7 +47,7 @@ class EchoImageTest(EchoImageHarness):
         machine.host_stays = True
         machine.stub_symbol("msc_finished", lambda machine: 0)
         machine.stub_symbol("usb_activity_quiet", lambda machine: 1)
-        host = StorageHost(machine)
+        host = StorageHost(machine, packet)
         machine.usb.host = host
         machine.note("usb_activity_start")
         session.run_to_first_frame()
@@ -98,6 +100,7 @@ class EchoImageTest(EchoImageHarness):
                  len(card_writes), COMMANDS, sorted(set(host.armed_packets))))
         self.assertEqual([count for _, _, count in card_writes], [COMMAND_SECTORS] * COMMANDS)
         self.assertEqual(card_reads, [COMMAND_SECTORS] * COMMANDS)
+        self.assertEqual(host.faults, [])
         self.assert_healthy(session)
         return session, machine, card
 
@@ -171,6 +174,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.clock_fields(machine)[0], SD_CRYSTAL)
         read, status = scsi.read(CARD_LUN, FIRST_LBA, COMMAND_SECTORS)
         self.assertEqual((read, status), (data, (0, 0)))
+        self.assert_healthy(session)
+
+    def test_at_full_speed_streamed_transfers_keep_to_the_cores_packet_limit(self):
+        session, machine, card, disk, host, scsi = self.storage_host(packet=FULL_SPEED_PACKET)
+        data = self.pattern(3)[:FULL_SPEED_BYTES]
+        self.assertEqual(scsi.write(CARD_LUN, FIRST_LBA, data), (0, 0))
+        read, status = scsi.read(CARD_LUN, FIRST_LBA, FULL_SPEED_BYTES // SECTOR)
+        self.assertEqual((read, status), (data, (0, 0)))
+        self.assertEqual(host.faults, [])
+        self.assertEqual(max(host.armed_packets), 15)
+        self.assertEqual(max(host.in_sizes), 15 * FULL_SPEED_PACKET)
         self.assert_healthy(session)
 
 

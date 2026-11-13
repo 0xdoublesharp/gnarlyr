@@ -26,6 +26,9 @@ SECTOR = 512
 CBW_SIGNATURE = b"USBC"
 CSW_LENGTH = 13
 SENSE_LENGTH = 18
+TRANSFER_BYTE_LIMIT = 2047
+TRANSFER_PACKET_LIMIT = 15
+DSTS_FULL_SPEED = 1 << 1
 SET_CONFIGURATION = bytes([0x00, 0x09, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00])
 
 
@@ -51,6 +54,8 @@ class StorageHost:
     def __init__(self, machine, packet=SECTOR, megabytes_per_second=40):
         self.machine = machine
         self.packet = packet
+        self.faults = []
+        self.in_sizes = []
         self.packet_us = packet / megabytes_per_second
         self.out_queue = deque()
         self.rx = deque()
@@ -63,7 +68,7 @@ class StorageHost:
         self.armed_packets = []
 
     def claims(self, offset):
-        return offset in (GRXSTSR, GRXSTSP, DAINT) or 0x900 <= offset < 0xC00 or \
+        return offset in (GRXSTSR, GRXSTSP, DAINT, DSTS) or 0x900 <= offset < 0xC00 or \
             0x1000 <= offset < 0x5000
 
     def interrupts(self):
@@ -128,6 +133,8 @@ class StorageHost:
             return self.status_word(self.rx[0]) if self.rx else 0
         if offset == GRXSTSP:
             return self.pop()
+        if offset == DSTS:
+            return 0 if self.packet == SECTOR else DSTS_FULL_SPEED
         if offset == DAINT:
             outs = sum(1 << (16 + n) for n, e in self.outputs.items() if e.events)
             ins = sum(1 << n for n, e in self.inputs.items() if e.events)
@@ -149,7 +156,7 @@ class StorageHost:
         return 0
 
     def write_word(self, offset, value):
-        if offset in (GRXSTSR, GRXSTSP, DAINT):
+        if offset in (GRXSTSR, GRXSTSP, DAINT, DSTS):
             return
         if 0x1000 <= offset < 0x5000:
             self.fifo_write((offset - 0x1000) // 0x1000, value)
@@ -176,10 +183,22 @@ class StorageHost:
         endpoint.packets = (endpoint.size >> COUNT_SHIFT) & COUNT_MASK
         endpoint.bytes = endpoint.size & SIZE_MASK
         endpoint.words = []
+        if number == BULK:
+            self.check_transfer(is_in, endpoint)
         if not is_in and number == BULK:
             self.armed_packets.append(endpoint.packets)
         if is_in and endpoint.bytes == 0:
             self.finish_in(number, endpoint)
+
+    def check_transfer(self, is_in, endpoint):
+        whole = -(-endpoint.bytes // self.packet) if endpoint.bytes else 1
+        packets_match = endpoint.packets == whole if is_in else \
+            endpoint.bytes == endpoint.packets * self.packet
+        if endpoint.packets > TRANSFER_PACKET_LIMIT or endpoint.bytes > TRANSFER_BYTE_LIMIT or \
+                not packets_match:
+            self.faults.append(("in" if is_in else "out", endpoint.packets, endpoint.bytes))
+        if is_in:
+            self.in_sizes.append(endpoint.bytes)
 
     def fifo_write(self, number, value):
         endpoint = self.inputs[number]

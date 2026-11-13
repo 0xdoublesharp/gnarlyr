@@ -12,10 +12,15 @@ static void arm_setup(void)
     set_bits(out_control(0), EP_ENABLE | EP_CLEAR_NAK);
 }
 
+static uint32_t transfer_packets(const UsbPort *port)
+{
+    uint32_t packets = TRANSFER_BYTE_LIMIT / port->bulk_packet;
+    return packets < TRANSFER_PACKET_LIMIT ? packets : TRANSFER_PACKET_LIMIT;
+}
+
 static void arm_bulk_out(const UsbPort *port)
 {
-    uint32_t packets = OUT_TRANSFER_LIMIT / port->bulk_packet;
-    packets = packets < OUT_PACKET_LIMIT ? packets : OUT_PACKET_LIMIT;
+    uint32_t packets = transfer_packets(port);
     write_register(out_control(BULK_ENDPOINT) + 0x10u,
                    packets << PACKET_COUNT_SHIFT | packets * port->bulk_packet);
     set_bits(out_control(BULK_ENDPOINT), EP_ENABLE | EP_CLEAR_NAK);
@@ -452,7 +457,7 @@ static bool send_bulk(const UsbPort *port, const uint32_t *words, uint32_t lengt
 static void arm_stream_in(UsbPort *port)
 {
     uint32_t packet = port->bulk_packet;
-    uint32_t length = msc_in_ready(port->msc, packet, OUT_TRANSFER_LIMIT / packet);
+    uint32_t length = msc_in_ready(port->msc, packet, transfer_packets(port));
     if (length == 0) {
         return;
     }
