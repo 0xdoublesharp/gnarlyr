@@ -9,6 +9,7 @@
 #include "cru.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
+#include "device/clock_governor.h"
 #include "device/usb_plug.h"
 #include "emmc.h"
 #include "hal/audio.h"
@@ -27,7 +28,8 @@
 
 enum {
     START_CLOCK_MHZ = 96,
-    EMPTY_NOTICE_MS = 2000
+    EMPTY_NOTICE_MS = 2000,
+    DARK_PASS_MS = 10
 };
 
 static UsbPlug usb_plug;
@@ -255,20 +257,55 @@ static void sleep_until_interrupt(void)
     idle_us += hal_clock_microseconds() - started_us;
 }
 
-static void sleep_until_next_pass(void)
+static const ClockGovernorLimits COAST_LIMITS = {.window_us = 500000,
+                                                 .lowest_divider = 2,
+                                                 .highest_divider = 8,
+                                                 .deepen_percent = 50,
+                                                 .raise_percent = 70};
+static ClockGovernor coast_governor;
+static bool governing_coast;
+
+static void govern_coast(void)
+{
+    if (board_display_lit() || board_audio_running_low()) {
+        governing_coast = false;
+        board_clock_coast_divider(COAST_LIMITS.lowest_divider);
+        return;
+    }
+    ClockGovernorReading reading = {.now_us = hal_clock_microseconds(), .idle = idle_us};
+    if (!governing_coast) {
+        governing_coast = true;
+        clock_governor_start(&coast_governor, &COAST_LIMITS, reading);
+    } else {
+        clock_governor_update(&coast_governor, reading);
+    }
+    board_clock_coast_divider(coast_governor.divider);
+}
+
+static uint32_t pass_interval_ms(void)
 {
     uint32_t interval_ms = app_pass_interval_ms();
+    bool dark = interval_ms >= DARK_PASS_MS && !board_display_lit() &&
+                usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
+    uint32_t rest_ms = board_audio_plan_rest(dark);
+    return rest_ms > interval_ms ? rest_ms : interval_ms;
+}
+
+static void sleep_until_next_pass(void)
+{
+    uint32_t interval_ms = pass_interval_ms();
     bool slow_tick =
         interval_ms >= 4 && usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
 #ifdef ECHO_DEBUG_LOOP
     slow_tick = slow_tick && hal_system_profile_state() != HAL_PROFILE_ON;
 #endif
     board_clock_sleep(slow_tick);
+    govern_coast();
     hal_system_coast(interval_ms > 1 && !board_audio_converting());
     uint32_t due_ms = hal_clock_milliseconds() + interval_ms;
     do {
         sleep_until_interrupt();
-    } while (usb_plug.state != USB_PLUG_LISTENING &&
+    } while (usb_plug.state != USB_PLUG_LISTENING && !board_input_pending() &&
              !deadline_reached(hal_clock_milliseconds(), due_ms));
 }
 

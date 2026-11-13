@@ -167,6 +167,11 @@ bool hal_input_waiting(void)
     return scanner.count != 0;
 }
 
+bool board_input_pending(void)
+{
+    return scanner.count != 0 || headset.remote.count != 0;
+}
+
 bool hal_input_next_headset_command(HalHeadsetCommand *command)
 {
     uint32_t primask = irq_save();

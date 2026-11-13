@@ -190,7 +190,7 @@ typedef struct AppState {
 
 static AppState app;
 
-static const FadeTiming SPLASH_TIMING = {.fade_ms = 600, .hold_ms = 500, .rising = true};
+static const FadeTiming SPLASH_TIMING = {.fade_ms = 300, .hold_ms = 200, .rising = true};
 static const uint32_t SCREEN_ON_CLOCK_MHZ = 200;
 static const uint32_t IDLE_CLOCK_MHZ = 24;
 static const FadeTiming GOODBYE_TIMING = {.fade_ms = 600, .hold_ms = 400, .rising = false};
@@ -325,7 +325,9 @@ static void set_display(bool on)
 {
     app.display_on = on;
     app.light_after_frame = on;
-    if (!on) {
+    if (on) {
+        hal_system_coast(false);
+    } else {
         hal_display_set_power(false);
     }
     use_wanted_clock();

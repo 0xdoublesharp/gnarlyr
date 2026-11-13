@@ -107,6 +107,7 @@ add_library(echo_device_logic STATIC
     bt_module.c
     card_format.c
     card_write.c
+    clock_governor.c
     core1_control.c
     core1_heap.c
     core1_m4a.c
@@ -208,6 +209,7 @@ if(CMAKE_CROSSCOMPILING)
         backlight.c
         battery_gauge.c
         bt_module.c
+        clock_governor.c
         core1_control.c
         core1_open.c
         core1_open_mp3.c

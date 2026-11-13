@@ -34,6 +34,7 @@ static const GpioPin PANEL_RESET = {2, 15};
 static bool controller_running;
 static bool push_failed;
 static uint32_t push_fallbacks;
+static bool controller_gated;
 
 static volatile uint32_t *vop(void)
 {
@@ -117,10 +118,17 @@ void board_panel_start(void)
 void board_panel_sleep(void)
 {
     panel_sleep(&SERVICED_BUS);
+    cru_gate(VOP_GATE, false);
+    controller_gated = true;
 }
 
 void board_panel_wake(void)
 {
+    if (controller_gated) {
+        cru_gate(VOP_GATE, true);
+        controller_gated = false;
+        vop_set_clock(vop(), hal_system_clock_mhz());
+    }
     panel_wake(&SERVICED_BUS);
 }
 
@@ -191,7 +199,7 @@ void board_panel_write(PanelWindow window, const uint16_t *pixels)
 
 void board_panel_after_clock_change(void)
 {
-    if (controller_running) {
+    if (controller_running && !controller_gated) {
         vop_set_clock(vop(), hal_system_clock_mhz());
     }
 }

@@ -47,6 +47,10 @@ enum {
     PREFILL_TIMEOUT_MS = 1000,
     FILL_BUDGET_BYTES = 8192,
     FILL_BURST_BYTES = 65536,
+    BUDGET_PASS_MS = 10,
+    LONGEST_REST_MS = 40,
+    RING_SERVICES = 4,
+    RESTING_PUMPS = 4,
     IDLE_SHUTDOWN_MS = 3000,
     AUDIO_CLOCK_MHZ = 200,
     TONE_PERIOD_SAMPLES = 100,
@@ -139,6 +143,7 @@ _Static_assert(offsetof(HalAudioStats, output_underruns) == 8,
                "the emulator follows the output underrun counter");
 static uint32_t read_us_pending;
 static uint32_t output_started_us;
+static uint32_t rest_ms;
 
 static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
@@ -165,7 +170,14 @@ static void pump(uint32_t consumed_frames)
         core1_source.fill_budget = board_display_lit() ? FILL_BUDGET_BYTES : FILL_BURST_BYTES;
         core1_source_fill(&core1_source);
     }
-    audio_engine_pump(&engine, consumed_frames);
+    uint32_t pumps = rest_ms > BUDGET_PASS_MS ? RESTING_PUMPS : 1;
+    for (uint32_t pump_index = 0; pump_index < pumps; pump_index++) {
+        uint32_t produced = engine.produced;
+        audio_engine_pump(&engine, consumed_frames);
+        if (engine.produced == produced) {
+            break;
+        }
+    }
     uint32_t elapsed_us = hal_clock_microseconds() - decode_started_us;
     stats.busy_us += elapsed_us;
     if (audio_engine_stats(&engine).frames == frames) {
@@ -1001,6 +1013,36 @@ void board_audio_shut_down(void)
 bool board_audio_converting(void)
 {
     return engine_ready && transferring && audio_engine_needs_full_clock(&engine);
+}
+
+bool board_audio_running_low(void)
+{
+    return engine_ready && transferring && !tone_active &&
+           audio_engine_buffered(&engine, consumed) < RING_FRAMES / 2;
+}
+
+static uint32_t block_ms(void)
+{
+    FlacInfo stream = engine.decode_track.stream;
+    uint32_t frames = source_kind == SOURCE_WAV ? WAV_SOURCE_BLOCK_FRAMES : stream.min_block;
+    return stream.sample_rate == 0 ? 0 : frames * MILLISECONDS_PER_SECOND / stream.sample_rate;
+}
+
+static uint32_t smallest(uint32_t a, uint32_t b, uint32_t c)
+{
+    uint32_t least = a < b ? a : b;
+    return least < c ? least : c;
+}
+
+uint32_t board_audio_plan_rest(bool dark)
+{
+    uint32_t rate = engine_ready ? audio_engine_rate(&engine) : 0;
+    rest_ms = 0;
+    if (dark && transferring && !tone_active && stream_service == NULL && rate != 0) {
+        uint32_t ring_ms = RING_FRAMES * MILLISECONDS_PER_SECOND / rate;
+        rest_ms = smallest(LONGEST_REST_MS, ring_ms / RING_SERVICES, block_ms());
+    }
+    return rest_ms;
 }
 
 uint8_t board_audio_volume_level(void)
