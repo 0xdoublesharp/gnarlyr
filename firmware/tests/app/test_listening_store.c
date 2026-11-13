@@ -190,7 +190,7 @@ static void start_real_playback(void)
 static void observe_player(uint32_t now_ms)
 {
     listening_store_follow(&store,
-                           (ListeningObservation){.status = player_status(&player),
+                           (ListeningObservation){.status = player_playback_status(&player),
                                                   .token = player.current_token,
                                                   .output = LISTENING_OUTPUT_SINGLE_ENDED},
                            now_ms);
@@ -261,7 +261,7 @@ static void restarting_after_idle_keeps_the_finished_play_distinct(void)
     player_toggle_pause(&player);
     observe_player(duration + 6000);
     fake_hal_audio_set_position(1000);
-    ListeningObservation paused = {.status = player_status(&player),
+    ListeningObservation paused = {.status = player_playback_status(&player),
                                    .token = player.current_token,
                                    .output = LISTENING_OUTPUT_SINGLE_ENDED};
     listening_store_flush(&store, paused, duration + 7000);

@@ -308,6 +308,33 @@ static void draw_passive_view(uint32_t position_ms, uint32_t now_ms)
     playback_view.screen.draw(&playback_view, &canvas);
 }
 
+static void a_paused_resume_shows_its_planned_start_in_every_layout(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start_passive_view();
+            default_theme_set_text_size(&playback_theme, (TextSize)size);
+            default_theme_set_orientation(&playback_theme, (Orientation)orientation);
+            Player paused = {.state = PLAYER_PAUSED,
+                             .paused_position_ms = 42000,
+                             .rewind_pause = RESUME_REWIND_COLD,
+                             .rewind_on_resume = true};
+            playback_view.status = player_status(&paused);
+            CHECK_EQUAL(22000, playback_view.status.position_ms);
+            playback_view.status.has_track = true;
+            playback_view.status.duration_ms = 60000;
+            playback_view.has_text = true;
+            strcpy(playback_view.title, "Resume preview");
+            Canvas canvas =
+                canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                    playback_theme.metrics.screen_height});
+            canvas_fill_rect(&canvas, canvas.bounds, playback_theme.colors.background);
+            playback_view.screen.draw(&playback_view, &canvas);
+            screen_snapshot_write(&canvas, "resume-preview", orientation * 3 + size);
+        }
+    }
+}
+
 static CoverCache artwork_cache;
 
 static void artwork_has_a_larger_primary_surface_in_every_text_size_and_orientation(void)
@@ -445,6 +472,7 @@ static void ab_hints_fit_every_text_size_and_orientation(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_paused_resume_shows_its_planned_start_in_every_layout),
         TEST_CASE(now_playing_keeps_the_status_band_on_its_header_palette),
         TEST_CASE(classic_status_icons_keep_their_header_background),
         TEST_CASE(ab_hints_fit_every_text_size_and_orientation),

@@ -352,7 +352,8 @@ static ListeningObservation listening_observation(void)
         app.bluetooth.connected && !app.bluetooth.wired ? LISTENING_OUTPUT_BLUETOOTH
         : hal_audio_jack() == HAL_AUDIO_JACK_BALANCED   ? LISTENING_OUTPUT_BALANCED
                                                         : LISTENING_OUTPUT_SINGLE_ENDED;
-    return (ListeningObservation){player_status(&app.player), app.player.current_token, output};
+    return (ListeningObservation){player_playback_status(&app.player), app.player.current_token,
+                                  output};
 }
 
 static void flush_listening(void)
@@ -427,7 +428,7 @@ static void save_session(void)
 {
     cancel_edits();
     flush_listening();
-    spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
+    spoken_store_flush(&app.spoken, player_playback_status(&app.player), hal_clock_milliseconds());
     player_save(&app.player);
     save_settings();
 }
@@ -1754,7 +1755,7 @@ void app_release_audio(void)
 {
     cancel_edits();
     flush_listening();
-    spoken_store_flush(&app.spoken, player_status(&app.player), hal_clock_milliseconds());
+    spoken_store_flush(&app.spoken, player_playback_status(&app.player), hal_clock_milliseconds());
     player_release_output(&app.player);
 }
 
@@ -2270,7 +2271,7 @@ CORE_SEAM void app_step(void)
         }
         follow_listeners();
         bluetooth_link_step(&app.bluetooth, &app.player, now_ms);
-        spoken_store_follow(&app.spoken, player_status(&app.player), now_ms);
+        spoken_store_follow(&app.spoken, player_playback_status(&app.player), now_ms);
         hal_audio_set_effects(listening_effects_choose(
             &app.settings.settings, &app.headphones.profiles, app.player.spoken));
         explain_refusals(now_ms);

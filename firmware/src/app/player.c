@@ -271,17 +271,21 @@ static uint32_t rewind_due(const Player *player)
     return player->rewind_on_resume ? resume_rewind_ms(rewind) : 0;
 }
 
+static uint32_t resume_position(const Player *player)
+{
+    uint32_t back = player->state == PLAYER_PAUSED ? rewind_due(player) : 0;
+    return resume_rewind_position(current_position(player), back);
+}
+
 static void resume_paused(Player *player)
 {
-    uint32_t back = rewind_due(player);
+    uint32_t position = current_position(player);
+    uint32_t target = resume_position(player);
     player->rewind_pause = RESUME_REWIND_NONE;
     if (!player->loaded) {
-        start_track(player, resume_rewind_position(player->paused_position_ms, back),
-                    back == 0 && !player->cassette.active);
+        start_track(player, target, false);
         return;
     }
-    uint32_t position = current_position(player);
-    uint32_t target = resume_rewind_position(position, back);
     if (target != position) {
         hal_audio_seek(player->start_ms + target);
     }
@@ -460,7 +464,7 @@ void player_jump(Player *player, int32_t delta_ms)
     if (!player->has_track) {
         return;
     }
-    uint32_t position = current_position(player);
+    uint32_t position = resume_position(player);
     uint32_t duration = track_duration(player);
     if (delta_ms < 0) {
         uint32_t back = (uint32_t)-delta_ms;
@@ -485,7 +489,7 @@ void player_skip(Player *player, int direction)
         player_jump(player, direction > 0 ? SPOKEN_JUMP_FORWARD_MS : -SPOKEN_JUMP_BACK_MS);
         return;
     }
-    if (direction < 0 && current_position(player) > PLAYER_RESTART_THRESHOLD_MS) {
+    if (direction < 0 && resume_position(player) > PLAYER_RESTART_THRESHOLD_MS) {
         restart_track(player);
         return;
     }
@@ -941,7 +945,7 @@ static HalAudioFormat current_format(const Player *player)
     return status.token == player->current_token ? status.format : unknown;
 }
 
-PlayerStatus player_status(const Player *player)
+static PlayerStatus status_at(const Player *player, uint32_t position_ms)
 {
     LibraryTrack record;
     bool known = player->has_track && library_read_track(player->library, player->track, &record);
@@ -949,7 +953,7 @@ PlayerStatus player_status(const Player *player)
         .state = player->state,
         .has_track = player->has_track,
         .track = player->track,
-        .position_ms = current_position(player),
+        .position_ms = position_ms,
         .duration_ms = known ? record.duration_ms : 0,
         .volume = player_volume(player, player_output()),
         .wired_volume = player->volume,
@@ -962,6 +966,16 @@ PlayerStatus player_status(const Player *player)
         .spoken = player->has_track && player->spoken,
         .speed = player->speed,
     };
+}
+
+PlayerStatus player_status(const Player *player)
+{
+    return status_at(player, resume_position(player));
+}
+
+PlayerStatus player_playback_status(const Player *player)
+{
+    return status_at(player, current_position(player));
 }
 
 void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity)

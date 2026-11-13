@@ -412,7 +412,7 @@ static void a_resume_after_power_off_starts_twenty_seconds_back(void)
     app_start();
     wait_ms(1200);
     CHECK(strcmp(app_screen_title(), "Now Playing") == 0);
-    CHECK_EQUAL(42000, app_player_status().position_ms);
+    CHECK_EQUAL(42000 - RESUME_REWIND_COLD_MUSIC_MS, app_player_status().position_ms);
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
     CHECK_EQUAL(42000 - RESUME_REWIND_COLD_MUSIC_MS, fake_hal_audio_play_start());

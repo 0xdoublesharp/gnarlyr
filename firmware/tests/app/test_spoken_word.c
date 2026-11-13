@@ -59,7 +59,7 @@ static void play(const char *path, bool in_order)
 
 static void follow(uint32_t now_ms)
 {
-    spoken_store_follow(&store, player_status(&player), now_ms);
+    spoken_store_follow(&store, player_playback_status(&player), now_ms);
 }
 
 static void books_play_in_order_even_with_shuffle_on(void)
@@ -653,6 +653,22 @@ static void a_rewind_to_the_top_is_not_undone_by_the_bookmark(void)
     CHECK_EQUAL(0, fake_hal_audio_play_start());
 }
 
+static void adjusting_a_paused_book_to_zero_overrides_its_saved_bookmark(void)
+{
+    start();
+    player_set_rewind(&player, true);
+    play(SPOKEN_CHAPTER_TWO_PATH, true);
+    follow(0);
+    fake_hal_audio_set_position(45000);
+    player_toggle_pause(&player);
+    follow(1000);
+    player_release_output(&player);
+    player_seek(&player, 0);
+    CHECK_EQUAL(0, player_status(&player).position_ms);
+    player_toggle_pause(&player);
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+}
+
 static Bookmark *bookmark_with_key(uint32_t key)
 {
     for (uint16_t index = 0; index < store.bookmarks.count; index++) {
@@ -682,7 +698,7 @@ static void periodic_and_explicit_flushes_write_active_progress(void)
     CHECK(!store.dirty);
     CHECK_EQUAL(SPOKEN_SAVE_INTERVAL_MS, store.last_save_ms);
     fake_hal_audio_set_position(MIDWAY_MS + 1000);
-    spoken_store_flush(&store, player_status(&player), SPOKEN_SAVE_INTERVAL_MS + 1000);
+    spoken_store_flush(&store, player_playback_status(&player), SPOKEN_SAVE_INTERVAL_MS + 1000);
     CHECK(!store.dirty);
     CHECK_EQUAL(SPOKEN_SAVE_INTERVAL_MS + 1000, store.last_save_ms);
     SpokenStore restored;
@@ -782,6 +798,7 @@ int main(void)
         TEST_CASE(a_spoken_track_rewinds_more_after_a_pause),
         TEST_CASE(a_chapter_part_rewinds_no_further_than_its_start),
         TEST_CASE(a_rewind_to_the_top_is_not_undone_by_the_bookmark),
+        TEST_CASE(adjusting_a_paused_book_to_zero_overrides_its_saved_bookmark),
         TEST_CASE(malformed_short_bookmark_files_start_empty),
         TEST_CASE(periodic_and_explicit_flushes_write_active_progress),
         TEST_CASE(invalid_and_nonspoken_tracks_never_start_following),
