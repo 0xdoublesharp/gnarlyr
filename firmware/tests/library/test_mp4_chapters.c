@@ -53,6 +53,16 @@ static bool chapter_file(ChapterFile *file, const char *name)
     return true;
 }
 
+static uint32_t chapter_find(const ChapterFile *file, const char *text, uint32_t start)
+{
+    for (uint32_t offset = start; offset + 4 <= file->length; offset++) {
+        if (memcmp(file->bytes + offset, text, 4) == 0) {
+            return offset;
+        }
+    }
+    return file->length;
+}
+
 static void real_chapter_files_keep_time_and_names(void)
 {
     const char *names[] = {"m4b_real/Audiobooks/Real Book.m4b",
@@ -111,6 +121,43 @@ static void read_failures_do_not_publish_invalid_chapters(void)
         }
         free(file.bytes);
     }
+}
+
+static void version_one_track_headers_and_wide_chunk_tables_are_bounded(void)
+{
+    ChapterFile file;
+    if (!chapter_file(&file, "m4b_real/Audiobooks/Real Track.m4b")) {
+        CHECK(false);
+        return;
+    }
+    static const char *const VERSIONED[] = {"tkhd", "mdhd"};
+    for (uint32_t kind = 0; kind < sizeof VERSIONED / sizeof VERSIONED[0]; kind++) {
+        uint32_t offset = 0;
+        while ((offset = chapter_find(&file, VERSIONED[kind], offset)) < file.length) {
+            CHECK(offset + 28 <= file.length);
+            if (offset + 28 <= file.length) {
+                memcpy(file.bytes + offset + 24, file.bytes + offset + 16, 4);
+                file.bytes[offset + 4] = 1;
+            }
+            offset += 4;
+        }
+    }
+    Mp4Chapters chapters;
+    bool found = mp4_chapters_open(&chapters, memory_source(&file.memory), file.length, 1000);
+    CHECK(found || chapters.count == 0);
+    CHECK(chapters.count <= MP4_CHAPTER_MAX);
+    free(file.bytes);
+
+    CHECK(chapter_file(&file, "m4b_real/Audiobooks/Real Track.m4b"));
+    uint32_t stco = chapter_find(&file, "stco", 0);
+    CHECK(stco < file.length);
+    if (stco < file.length) {
+        memcpy(file.bytes + stco, "co64", 4);
+    }
+    found = mp4_chapters_open(&chapters, memory_source(&file.memory), file.length, 1000);
+    CHECK(found || chapters.count == 0);
+    CHECK(chapters.count <= MP4_CHAPTER_MAX);
+    free(file.bytes);
 }
 
 static void chapters_at_or_after_the_duration_are_excluded(void)
@@ -273,6 +320,64 @@ static void short_chapter_headers_and_unicode_titles_are_handled_safely(void)
     CHECK_EQUAL(0, strcmp("", title));
 }
 
+static void title_guards_handle_short_failed_and_little_endian_text(void)
+{
+    uint8_t bytes[] = {0xff, 0xfe, 'A', 0};
+    MemorySource memory = {.bytes = bytes, .size = sizeof bytes};
+    Mp4Chapters chapters = {
+        .reader = {.source = memory_source(&memory), .size = sizeof bytes},
+        .count = 1,
+        .prefixed = true,
+        .offset = {0},
+        .length = {1},
+    };
+    char title[MP4_CHAPTER_TITLE];
+    mp4_chapter_title(&chapters, 0, title);
+    CHECK_EQUAL(0, strcmp("", title));
+
+    chapters.length[0] = 2;
+    chapters.offset[0] = sizeof bytes;
+    mp4_chapter_title(&chapters, 0, title);
+    CHECK_EQUAL(0, strcmp("", title));
+
+    chapters.prefixed = false;
+    chapters.offset[0] = 0;
+    chapters.length[0] = sizeof bytes;
+    mp4_chapter_title(&chapters, 0, title);
+    CHECK_EQUAL(0, strcmp("", title));
+}
+
+static void chapter_lists_accept_the_largest_count_and_reject_a_short_body(void)
+{
+    ChapterBuffer file = {0};
+    uint32_t moov = chapter_atom(&file, "moov");
+    uint32_t udta = chapter_atom(&file, "udta");
+    uint32_t chpl = chapter_atom(&file, "chpl");
+    file.length += 8;
+    file.bytes[file.length++] = MP4_CHAPTER_MAX;
+    for (uint32_t index = 0; index < MP4_CHAPTER_MAX; index++) {
+        chapter_entry(&file, (uint64_t)index * 10000u, "x");
+    }
+    chapter_close(&file, chpl);
+    chapter_close(&file, udta);
+    chapter_close(&file, moov);
+    MemorySource memory = {.bytes = file.bytes, .size = file.length};
+    Mp4Chapters chapters;
+    CHECK(mp4_chapters_open(&chapters, memory_source(&memory), file.length, 0));
+    CHECK_EQUAL(MP4_CHAPTER_MAX, chapters.count);
+
+    file = (ChapterBuffer){0};
+    moov = chapter_atom(&file, "moov");
+    udta = chapter_atom(&file, "udta");
+    chpl = chapter_atom(&file, "chpl");
+    file.length += 4;
+    chapter_close(&file, chpl);
+    chapter_close(&file, udta);
+    chapter_close(&file, moov);
+    memory = (MemorySource){.bytes = file.bytes, .size = file.length};
+    CHECK(!mp4_chapters_open(&chapters, memory_source(&memory), file.length, 0));
+}
+
 static void corrupt_atom_fields_never_publish_out_of_bounds_chapters(void)
 {
     const char *names[] = {"m4b_real/Audiobooks/Real Book.m4b",
@@ -370,11 +475,14 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(real_chapter_files_keep_time_and_names),
         TEST_CASE(read_failures_do_not_publish_invalid_chapters),
+        TEST_CASE(version_one_track_headers_and_wide_chunk_tables_are_bounded),
         TEST_CASE(chapters_at_or_after_the_duration_are_excluded),
         TEST_CASE(truncated_files_never_publish_out_of_bounds_chapters),
         TEST_CASE(chapter_lists_discard_duplicates_and_times_beyond_the_end),
         TEST_CASE(a_chapter_entry_claiming_bytes_outside_its_atom_is_rejected),
         TEST_CASE(short_chapter_headers_and_unicode_titles_are_handled_safely),
+        TEST_CASE(title_guards_handle_short_failed_and_little_endian_text),
+        TEST_CASE(chapter_lists_accept_the_largest_count_and_reject_a_short_body),
         TEST_CASE(corrupt_atom_fields_never_publish_out_of_bounds_chapters),
         TEST_CASE(damaged_chapter_tables_cannot_publish_invalid_locations),
     };

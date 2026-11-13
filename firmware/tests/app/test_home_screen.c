@@ -12,6 +12,7 @@
 #include "fixture_library.h"
 #include "hal/storage.h"
 #include "home_art.h"
+#include "modules/modules.h"
 #include "music_check.h"
 #include "settings_store.h"
 #include "spoken_library.h"
@@ -259,6 +260,62 @@ static void the_now_playing_start_screen_selects_now_playing_wherever_it_is(void
     CHECK_EQUAL(1, app_screens_start_path(&screens, START_NOW_PLAYING, path));
     CHECK(path[0] == &screens.now_playing.screen);
     CHECK(selected_home_item_is(NOW_PLAYING));
+}
+
+static void every_saved_music_start_screen_builds_its_path(void)
+{
+    settings.settings = settings_defaults();
+    build();
+    static const StartScreen starts[] = {START_ALBUMS, START_ARTISTS, START_FAVORITES,
+                                         START_PLAYLISTS, START_COVER_FLOW};
+    Screen *path[START_PATH_CAPACITY];
+    for (unsigned index = 0; index < sizeof starts / sizeof starts[0]; index++) {
+        CHECK_EQUAL(START_PATH_CAPACITY, app_screens_start_path(&screens, starts[index], path));
+        CHECK(path[0] == &screens.music.screen);
+        CHECK(path[1] != NULL);
+    }
+    store.available = false;
+    CHECK_EQUAL(0, app_screens_start_path(&screens, START_ARTISTS, path));
+}
+
+static void missing_screen_modules_return_safe_fallbacks(void)
+{
+    settings.settings = settings_defaults();
+    build();
+    Screen *opened = browse_pool_open(&screens.browse, 0, browse_root_query(BROWSE_ALL_SONGS));
+    BrowseScreen *browse = opened->context;
+    fake_hal_break_module(SCREEN_MODULE_LIBRARY, true);
+    CHECK(screens.browse.config.options(screens.browse.config.tools_context, browse) == NULL);
+    fake_hal_set_restart_pending(true);
+    CHECK(screens.browse.config.play_group(screens.browse.config.tools_context, browse) == NULL);
+    CHECK(screens.browse.config.info(screens.browse.config.tools_context, 0) == NULL);
+    CHECK(screens.browse.config.tags(screens.browse.config.tools_context, 0) == NULL);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, screens.music_items[0].select(&screens).type);
+    CHECK_EQUAL(SCREEN_ACTION_NONE,
+                screens.music_items[MUSIC_ITEM_COUNT - 1].select(&screens).type);
+    screens.context.toast = NULL;
+    CHECK(screens.browse.config.info(screens.browse.config.tools_context, 0) == NULL);
+    ScreenAction artist =
+        app_screens_artist_keys(&screens.modules.playing.cover_flow,
+                                (KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_LONG_PRESS}, 0);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, artist.type);
+    fake_hal_break_module(SCREEN_MODULE_LIBRARY, false);
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    CHECK(screens.browse.config.manage(screens.browse.config.tools_context, 0, SONG_MANAGE_HIDE) ==
+          NULL);
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    CHECK_EQUAL(LIST_SECTION_BEFORE_LETTERS, screens.browse.config.section(browse, 0));
+    ListSections sections = screens.browse.config.sections(browse, 0);
+    CHECK_EQUAL(0, sections.first);
+    CHECK_EQUAL(0, sections.end);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    CHECK(app_screens_usb_modes(&screens, false) == NULL);
+    list_view_select(&screens.home.list, 4, 0);
+    ScreenAction usb = screens.home.screen.handle_key(
+        &screens.home, (KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS}, 0);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, usb.type);
 }
 
 static void add_player_files(void)
@@ -540,6 +597,8 @@ int main(void)
         TEST_CASE(the_selected_item_keeps_the_selection_when_home_is_rearranged),
         TEST_CASE(a_selected_item_that_is_hidden_gives_the_selection_to_the_first_row),
         TEST_CASE(the_now_playing_start_screen_selects_now_playing_wherever_it_is),
+        TEST_CASE(every_saved_music_start_screen_builds_its_path),
+        TEST_CASE(missing_screen_modules_return_safe_fallbacks),
         TEST_CASE(hiding_an_item_in_the_editor_takes_it_off_home_and_saves),
         TEST_CASE(a_hidden_item_offers_show_and_comes_back),
         TEST_CASE(holding_play_picks_an_item_up_and_volume_moves_it),

@@ -486,6 +486,9 @@ static void equalize(AudioEngine *engine, uint32_t first)
 
 static void refine_block(AudioEngine *engine, uint32_t first)
 {
+    if (engine->segment_count == 0) {
+        return;
+    }
     uint32_t start = engine->segments[engine->segment_count - 1].start;
     AudioEffectsBlock block = {.ring = engine->config.ring,
                                .ring_frames = audio_engine_ring_frames(engine),

@@ -67,8 +67,21 @@ static void text(char *out, const char *prefix, uint8_t first, uint8_t second)
 
 static void path(char *out, const uint8_t *bytes, uint32_t index)
 {
-    snprintf(out, TEXT_BYTES, "%c/%02x/%02u-%02x.flac", 'A' + bytes[0] % 26, bytes[1], index,
-             bytes[2]);
+    switch ((bytes[0] >> 4) & 3u) {
+    case 0:
+        snprintf(out, TEXT_BYTES, "%c/%02x/%02u-%02x.flac", 'A' + bytes[0] % 26, bytes[1], index,
+                 bytes[2]);
+        break;
+    case 1:
+        snprintf(out, TEXT_BYTES, "Audiobooks/%02x/%02u.m4b", bytes[1], index);
+        break;
+    case 2:
+        snprintf(out, TEXT_BYTES, "Shared/%02x.flac", bytes[2]);
+        break;
+    default:
+        snprintf(out, TEXT_BYTES, "/%02x//%02u.flac", bytes[1], index);
+        break;
+    }
 }
 
 static uint32_t capacity(uint32_t maximum, uint8_t value)
@@ -123,26 +136,43 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         char album_artist[TEXT_BYTES];
         char album[TEXT_BYTES];
         char genre[TEXT_BYTES];
+        char sheet[TEXT_BYTES];
         path(file, bytes, index);
         text(title, "Title", bytes[2], bytes[3]);
         text(artist, "Artist", bytes[3] % 9, bytes[4] % 7);
         text(album_artist, "Album Artist", bytes[4] % 6, bytes[5] % 5);
         text(album, "Album", bytes[5] % 11, bytes[6] % 13);
         text(genre, "Genre", bytes[6] % 8, bytes[7] % 3);
-        BuilderTrack track = {.path = file,
-                              .title = title,
-                              .artist = artist,
-                              .album_artist = (bytes[0] & 1u) != 0 ? album_artist : artist,
-                              .album = album,
-                              .genre = genre,
-                              .year = (uint16_t)(1900 + bytes[1]),
-                              .disc = (uint8_t)(1 + bytes[2] % 4),
-                              .number = (uint8_t)(1 + bytes[3] % 40),
-                              .duration_ms = (uint32_t)bytes[4] * 1000u,
-                              .album_artist_guessed = (bytes[0] & 2u) != 0,
-                              .start_ms = (uint32_t)bytes[5] * 100u,
-                              .end_ms = (uint32_t)(bytes[5] + bytes[6] + 1u) * 100u,
-                              .chapters = (bytes[0] & 4u) != 0};
+        text(sheet, "Sheet", bytes[1] % 4, bytes[2] % 3);
+        const char *empty = "";
+        BuilderTrack track = {
+            .path = file,
+            .title = (bytes[0] & 8u) != 0 ? empty : title,
+            .artist = (bytes[1] & 8u) != 0 ? empty : artist,
+            .album_artist = (bytes[0] & 1u) != 0 ? album_artist : artist,
+            .album = (bytes[2] & 8u) != 0 ? empty : album,
+            .genre = (bytes[3] & 8u) != 0 ? empty : genre,
+            .year = (bytes[4] & 8u) != 0 ? 0 : (uint16_t)(1900 + bytes[1]),
+            .disc = (bytes[5] & 8u) != 0 ? 0 : (uint8_t)(1 + bytes[2] % 4),
+            .number = (bytes[6] & 8u) != 0 ? 0 : (uint8_t)(1 + bytes[3] % 40),
+            .duration_ms = (uint32_t)bytes[4] * 1000u,
+            .album_artist_guessed = (bytes[0] & 2u) != 0,
+            .start_ms = (uint32_t)bytes[5] * 100u,
+            .end_ms = (bytes[7] & 8u) != 0 ? 0 : (uint32_t)(bytes[5] + bytes[6] + 1u) * 100u,
+            .sheet = (bytes[1] & 3u) == 0   ? NULL
+                     : (bytes[1] & 3u) == 1 ? empty
+                                            : sheet,
+            .chapters = (bytes[0] & 4u) != 0,
+            .replay_gain = {
+                .track = (bytes[6] & 1u) != 0 ? REPLAY_GAIN_UNITY + bytes[6] : 0,
+                .album = (bytes[7] & 1u) != 0 ? REPLAY_GAIN_UNITY + bytes[7] : 0,
+            }};
+        if ((bytes[7] & 16u) != 0) {
+            track.album_artist = empty;
+        }
+        if ((bytes[7] & 32u) != 0) {
+            track.path = empty;
+        }
         BuilderResult result = library_builder_add_track(&builder, &track);
         fuzz_require(result >= BUILDER_OK && result <= BUILDER_NO_ROOM);
         if (result == BUILDER_OK) {

@@ -107,6 +107,7 @@ static void labels_require_complete_nonempty_utf8_with_at_most_32_bytes(void)
     static const char *invalid[] = {"",
                                     "   ",
                                     "bad\nname",
+                                    "\xc2\x80",
                                     "\xc0\xaf",
                                     "\xed\xa0\x80",
                                     "\xf4\x90\x80\x80",
@@ -309,6 +310,7 @@ typedef struct TagDiskBank {
 } TagDiskBank;
 
 static TagDiskBank disk[2];
+static bool refuse_prepare;
 
 static bool disk_read(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
@@ -339,10 +341,19 @@ static StoreFile disk_file(TagDiskBank *bank)
     return (StoreFile){.source = {disk_read, bank}, .write = disk_write, .size = bank->size};
 }
 
+static bool disk_prepare(void *context, uint8_t bank, uint32_t size, StoreFile *file);
+
+static PersonalTagStorage disk_storage(void)
+{
+    return (PersonalTagStorage){.files = {disk_file(&disk[0]), disk_file(&disk[1])},
+                                .prepare = disk_prepare,
+                                .context = disk};
+}
+
 static bool disk_prepare(void *context, uint8_t bank, uint32_t size, StoreFile *file)
 {
     TagDiskBank *banks = context;
-    if (size > DISK_BYTES) {
+    if (refuse_prepare || size > DISK_BYTES) {
         return false;
     }
     if (banks[bank].size < size) {
@@ -355,10 +366,7 @@ static bool disk_prepare(void *context, uint8_t bank, uint32_t size, StoreFile *
 
 static void disk_open(void)
 {
-    personal_tags_open(&tags, &fixture.library,
-                       (PersonalTagStorage){.files = {disk_file(&disk[0]), disk_file(&disk[1])},
-                                            .prepare = disk_prepare,
-                                            .context = disk});
+    personal_tags_open(&tags, &fixture.library, disk_storage());
     finish();
 }
 
@@ -373,6 +381,7 @@ static void disk_reset(void)
         disk[bank].cut_write = 0;
         disk[bank].blind = false;
     }
+    refuse_prepare = false;
     disk_open();
 }
 
@@ -424,6 +433,164 @@ static void seed_full_capacity(void)
                           .bytes = DISK_BYTES - STORE_BLOCK_BYTES,
                           .hash = hash_update(HASH_START, prefix, DISK_BYTES - STORE_BLOCK_BYTES)};
     store_encode(&kind, &header, bank->bytes);
+}
+
+static void seal_bank(TagDiskBank *bank, StoreHeader header)
+{
+    static const StoreKind kind = {.magic = {'D', 'S', 'T', 'G'}, .version = 1};
+    if (header.bytes <= bank->size - STORE_BLOCK_BYTES) {
+        header.hash = hash_update(HASH_START, bank->bytes + STORE_BLOCK_BYTES, header.bytes);
+    }
+    store_encode(&kind, &header, bank->bytes);
+}
+
+static void invalid_bank_metadata_fails_closed(void)
+{
+    for (int invalid = 0; invalid < 4; invalid++) {
+        disk_reset();
+        uint8_t bank_index = invalid == 3 ? 1 : 0;
+        TagDiskBank *bank = &disk[bank_index];
+        bank->size =
+            invalid == 2 ? STORE_BLOCK_BYTES : STORE_BLOCK_BYTES + PERSONAL_TAG_CATALOG_BYTES;
+        memset(bank->bytes, 0, bank->size);
+        StoreHeader header = {.generation = 1,
+                              .bytes =
+                                  invalid == 0 || invalid == 3 ? 1 : PERSONAL_TAG_CATALOG_BYTES};
+        if (invalid == 1) {
+            header.binding = 1;
+        }
+        seal_bank(bank, header);
+        CHECK_EQUAL(STORE_CORRUPT, personal_tags_open(&tags, &fixture.library, disk_storage()));
+        CHECK_EQUAL(STORE_FAILED, tags.result);
+    }
+}
+
+static void keep_only_active_bank(void)
+{
+    disk[1 - tags.active_bank].size = 0;
+}
+
+static void sealed_catalog_and_row_corruption_fails_closed(void)
+{
+    for (int damaged = 0; damaged < 3; damaged++) {
+        disk_reset();
+        create(0, "Before");
+        assign(0, 1);
+        keep_only_active_bank();
+        TagDiskBank *bank = &disk[tags.active_bank];
+        StoreHeader header = tags.headers[tags.active_bank];
+        uint8_t *payload = bank->bytes + STORE_BLOCK_BYTES;
+        if (damaged == 0) {
+            payload[4] = '\n';
+        } else if (damaged == 1) {
+            payload[PERSONAL_TAG_CATALOG_BYTES] ^= 1;
+        } else {
+            store_put32(payload + PERSONAL_TAG_CATALOG_BYTES + 4, 2);
+        }
+        seal_bank(bank, header);
+        disk_open();
+        CHECK_EQUAL(STORE_FAILED, tags.result);
+        CHECK(tags.load == STORE_CORRUPT || tags.load == STORE_UNREADABLE);
+    }
+}
+
+static void a_read_lost_after_open_fails_the_scan(void)
+{
+    disk_reset();
+    create(0, "Before");
+    assign(0, 1);
+    keep_only_active_bank();
+    CHECK_EQUAL(STORE_EMPTY, personal_tags_open(&tags, &fixture.library, disk_storage()));
+    disk[tags.bank].blind = true;
+    finish();
+    CHECK_EQUAL(STORE_FAILED, tags.result);
+    CHECK_EQUAL(STORE_UNREADABLE, tags.load);
+}
+
+static void advance_to_stage(uint8_t stage)
+{
+    for (int step = 0; step < 1000 && tags.result == STORE_WORKING && tags.stage != stage; step++) {
+        personal_tags_step(&tags);
+    }
+    CHECK_EQUAL(stage, tags.stage);
+}
+
+static void reads_lost_during_catalog_rows_and_edits_fail_closed(void)
+{
+    enum {
+        TAG_STAGE_CATALOG = 2,
+        TAG_STAGE_CHECK_ROWS = 3,
+        TAG_STAGE_COPY_ROWS = 7
+    };
+    for (uint8_t stage = TAG_STAGE_CATALOG; stage <= TAG_STAGE_CHECK_ROWS; stage++) {
+        disk_reset();
+        create(0, "Before");
+        assign(0, 1);
+        keep_only_active_bank();
+        CHECK_EQUAL(STORE_EMPTY, personal_tags_open(&tags, &fixture.library, disk_storage()));
+        advance_to_stage(stage);
+        disk[tags.bank].blind = true;
+        finish();
+        CHECK_EQUAL(STORE_FAILED, tags.result);
+        CHECK_EQUAL(STORE_UNREADABLE, tags.load);
+    }
+    disk_reset();
+    create(0, "Before");
+    assign(0, 1);
+    CHECK(personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_RENAME, .tag = 0, .name = "After"}));
+    disk[tags.active_bank].blind = true;
+    finish();
+    CHECK_EQUAL(STORE_FAILED, tags.result);
+    disk_reset();
+    create(0, "Before");
+    assign(0, 1);
+    CHECK(personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_RENAME, .tag = 0, .name = "After"}));
+    advance_to_stage(TAG_STAGE_COPY_ROWS);
+    disk[tags.active_bank].blind = true;
+    finish();
+    CHECK_EQUAL(STORE_FAILED, tags.result);
+}
+
+static bool short_prepare(void *context, uint8_t bank, uint32_t size, StoreFile *file)
+{
+    (void)size;
+    TagDiskBank *banks = context;
+    *file = disk_file(&banks[bank]);
+    return true;
+}
+
+static void preparation_and_assignment_guards_fail_without_mutation(void)
+{
+    PersonalTags unavailable = {.load = STORE_EMPTY, .result = STORE_IDLE};
+    CHECK(!personal_tags_change(
+        &unavailable, (PersonalTagChange){.operation = PERSONAL_TAG_CREATE, .name = "No file"}));
+    disk_reset();
+    create(0, "Before");
+    tags.library = NULL;
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_ASSIGN, .track = 0, .mask = 1}));
+    tags.library = &fixture.library;
+    assign(0, 1);
+    disk[tags.active_bank].blind = true;
+    CHECK(!personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_ASSIGN, .track = 0, .mask = 0}));
+    disk[tags.active_bank].blind = false;
+    disk_reset();
+    create(0, "Before");
+    refuse_prepare = true;
+    CHECK(personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_RENAME, .tag = 0, .name = "After"}));
+    finish();
+    CHECK_EQUAL(STORE_FAILED, tags.result);
+    disk_reset();
+    create(0, "Before");
+    tags.storage.prepare = short_prepare;
+    CHECK(personal_tags_change(
+        &tags, (PersonalTagChange){.operation = PERSONAL_TAG_RENAME, .tag = 0, .name = "After"}));
+    finish();
+    CHECK_EQUAL(STORE_FAILED, tags.result);
 }
 
 static void all_65535_assignments_are_file_backed_and_searches_are_logarithmic(void)
@@ -600,6 +767,11 @@ int main(void)
         TEST_CASE(a_corrupt_newest_bank_falls_back_to_complete_previous_tags),
         TEST_CASE(hash_collisions_still_require_the_complete_exact_identity),
         TEST_CASE(all_32_labels_can_be_named_and_assigned_together),
+        TEST_CASE(invalid_bank_metadata_fails_closed),
+        TEST_CASE(sealed_catalog_and_row_corruption_fails_closed),
+        TEST_CASE(a_read_lost_after_open_fails_the_scan),
+        TEST_CASE(reads_lost_during_catalog_rows_and_edits_fail_closed),
+        TEST_CASE(preparation_and_assignment_guards_fail_without_mutation),
         TEST_CASE(all_65535_assignments_are_file_backed_and_searches_are_logarithmic),
         TEST_CASE(partial_writes_never_replace_a_complete_old_bank),
         TEST_CASE(unreadable_banks_fail_closed_and_query_errors_are_distinct_from_no_tags),

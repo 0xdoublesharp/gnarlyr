@@ -10,6 +10,7 @@
 #include "playback/track_keys.h"
 #include "player_storage.h"
 #include "screen_snapshot.h"
+#include "screens/listening_work.h"
 #include "screens/smart_list_screen.h"
 #include "text_spy.h"
 
@@ -444,6 +445,33 @@ static void clearing_history_rebuilds_cached_most_and_recently_played_lists(void
     CHECK_EQUAL(store.log.generation, smart.caches[SMART_LIST_RECENTLY_PLAYED].stamp.log);
 }
 
+static void missing_dependencies_and_stale_rows_fail_closed(void)
+{
+    start();
+    pool.config.favorites = NULL;
+    show(SMART_LIST_FORGOTTEN);
+    CHECK_EQUAL(0, rows());
+
+    start();
+    add_play(2);
+    show(SMART_LIST_RECENTLY_PLAYED);
+    CHECK_EQUAL(1, rows());
+    smart.caches[SMART_LIST_RECENTLY_PLAYED].tracks[0] = UINT16_MAX;
+    listening_module_work.owner = NULL;
+    tick();
+    CHECK_EQUAL(0, smart.model.label(&smart, 0)[0]);
+
+    smart.caches[SMART_LIST_RECENTLY_PLAYED].tracks[0] = 2;
+    listening_module_work.owner = NULL;
+    tick();
+    pool.config.player = NULL;
+    ScreenAction action = key(KEY_PLAY, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
+    CHECK(strcmp(toast.text, i18n_text(STR_QUEUE_SAVE_FAILED)) == 0);
+    action = key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -463,6 +491,7 @@ int main(void)
         TEST_CASE(without_the_track_keys_file_the_history_is_unavailable),
         TEST_CASE(the_menu_names_every_list),
         TEST_CASE(lists_render_at_every_size_and_orientation),
+        TEST_CASE(missing_dependencies_and_stale_rows_fail_closed),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

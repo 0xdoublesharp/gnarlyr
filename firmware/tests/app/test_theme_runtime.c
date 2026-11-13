@@ -255,6 +255,196 @@ static void each_asset_of_a_pack_draws_its_own_pixels(void)
     theme_runtime_close(&runtime);
 }
 
+static void art_selection_prefers_exact_dimensions_then_falls_back(void)
+{
+    static uint8_t pack[560 + 2 * 2 * 2 + 4 * 4 * 2 + 3 * 3 * 2];
+    reset();
+    memcpy(pack, first, 512);
+    store_put32(pack + 8, sizeof pack);
+    pack[19] = 3;
+    put_tile(pack, 0, 2, 560);
+    put_tile(pack, 1, 4, 568);
+    put_tile(pack, 2, 3, 600);
+    uint32_t crc = theme_pack_crc(UINT32_MAX, pack, 12);
+    store_put32(pack + 12, ~theme_pack_crc(crc, pack + 16, sizeof pack - 16));
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/fallback.gtheme";
+    fake_hal_add_file(path, pack, sizeof pack);
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "fallback.gtheme"));
+    runtime.pack.assets[0].orientation = 2;
+    runtime.pack.assets[1].orientation = 0;
+    runtime.pack.assets[2].orientation = 0;
+    runtime.pack.assets[2].text_size = 0;
+    CHECK_EQUAL(3000, tile_pixel(&runtime, 0, 0, 0));
+    runtime.pack.assets[2].text_size = 1;
+    CHECK_EQUAL(2000, tile_pixel(&runtime, 0, 0, 0));
+    CHECK_EQUAL(1000, tile_pixel(&runtime, 1, 0, 0));
+    runtime.pack.assets[1].orientation = 2;
+    CHECK_EQUAL(1000, tile_pixel(&runtime, 0, 0, 0));
+    theme_runtime_close(&runtime);
+}
+
+static void placed_art_obeys_its_bounds_and_clip(void)
+{
+    reset();
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    static Color pixels[10 * 10];
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 10, 10});
+    runtime.pack.assets[0].slot = THEME_ART_CASSETTE_LABEL;
+    CHECK(!theme_runtime_draw(
+        &runtime, &canvas,
+        (ThemeArtRequest){.area = {4, 5, 2, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    CHECK(!theme_runtime_draw(
+        &runtime, &canvas,
+        (ThemeArtRequest){.area = {4, 5, 3, 1}, .slot = THEME_ART_CASSETTE_LABEL}));
+    canvas.clip = (Rect){5, 6, 1, 1};
+    CHECK(theme_runtime_draw(
+        &runtime, &canvas,
+        (ThemeArtRequest){.area = {4, 5, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    CHECK_EQUAL(104, pixels[6 * 10 + 5]);
+    canvas.clip = canvas.bounds;
+    CHECK(theme_runtime_draw(
+        &runtime, &canvas,
+        (ThemeArtRequest){.area = {20, 20, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    CHECK(theme_runtime_draw(
+        &runtime, &canvas,
+        (ThemeArtRequest){.area = {4, 20, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    runtime.pack.assets[0].slot = THEME_ART_ICON;
+    CHECK(theme_runtime_draw(&runtime, &canvas,
+                             (ThemeArtRequest){.area = {1, 1, 3, 2}, .slot = THEME_ART_ICON}));
+    theme_runtime_close(&runtime);
+}
+
+static void art_read_failures_close_the_active_pack(void)
+{
+    reset();
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    static Color pixels[10 * 10];
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 10, 10});
+    fake_hal_fail_file_reads(FIRST_PATH);
+    CHECK(!theme_runtime_draw(&runtime, &canvas,
+                              (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_LIST}));
+    CHECK(!runtime.active);
+    CHECK(!theme_runtime_draw(&runtime, &canvas,
+                              (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_LIST}));
+    fake_hal_fail_file_reads(NULL);
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    runtime.pack.assets[0].width = 8;
+    runtime.pack.assets[0].height = 8;
+    fake_hal_fail_file_reads(FIRST_PATH);
+    Canvas full = canvas_make(pixels, (Rect){0, 0, 8, 8});
+    CHECK(!theme_runtime_draw(&runtime, &full,
+                              (ThemeArtRequest){.area = {0, 0, 8, 8}, .slot = THEME_ART_LIST}));
+    CHECK(!runtime.active);
+    fake_hal_fail_file_reads(NULL);
+}
+
+static void streaming_art_closes_after_an_uncached_row_read_fails(void)
+{
+    static uint8_t pack[544 + 2 * 2 * 2 + 8 * 8 * 2];
+    reset();
+    memcpy(pack, first, 512);
+    store_put32(pack + 8, sizeof pack);
+    pack[19] = 2;
+    put_tile(pack, 0, 2, 544);
+    put_tile(pack, 1, 8, 552);
+    uint32_t crc = theme_pack_crc(UINT32_MAX, pack, 12);
+    store_put32(pack + 12, ~theme_pack_crc(crc, pack + 16, sizeof pack - 16));
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/stream.gtheme";
+    fake_hal_add_file(path, pack, sizeof pack);
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "stream.gtheme"));
+    static Color pixels[10 * 10];
+    Canvas small = canvas_make(pixels, (Rect){0, 0, 2, 2});
+    CHECK(theme_runtime_draw(
+        &runtime, &small,
+        (ThemeArtRequest){.area = {0, 0, 2, 2}, .slot = THEME_ART_LIST, .orientation = 0}));
+    fake_hal_fail_file_reads(path);
+    Canvas large = canvas_make(pixels, (Rect){0, 0, 10, 10});
+    CHECK(!theme_runtime_draw(
+        &runtime, &large,
+        (ThemeArtRequest){.area = {0, 0, 10, 10}, .slot = THEME_ART_LIST, .orientation = 1}));
+    CHECK(!runtime.active);
+    fake_hal_fail_file_reads(NULL);
+}
+
+static void shifted_repeated_and_portrait_art_use_the_general_draw_path(void)
+{
+    reset();
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    static Color pixels[3 * 2];
+    Canvas shifted = canvas_make(pixels, (Rect){1, 0, 3, 2});
+    CHECK(theme_runtime_draw(&runtime, &shifted,
+                             (ThemeArtRequest){.area = {1, 0, 3, 2}, .slot = THEME_ART_LIST}));
+    Canvas repeated = canvas_make(pixels, (Rect){0, 1, 3, 2});
+    CHECK(theme_runtime_draw(&runtime, &repeated,
+                             (ThemeArtRequest){.area = {0, 1, 3, 2}, .slot = THEME_ART_LIST}));
+    runtime.pack.assets[0].slot = THEME_ART_CASSETTE_LABEL;
+    Canvas placed = canvas_make(pixels, (Rect){0, 0, 3, 2});
+    CHECK(theme_runtime_draw(
+        &runtime, &placed,
+        (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    runtime.pack.assets[0].slot = THEME_ART_LIST;
+    runtime.pack.assets[0].orientation = 1;
+    Theme theme = ECHO_THEME;
+    theme_runtime_apply(&runtime, &theme);
+    theme.metrics.screen_width = 2;
+    theme.metrics.screen_height = 3;
+    CHECK(theme_art_module_draw(&theme, &placed, THEME_ART_LIST, (Rect){0, 0, 3, 2}));
+    theme_runtime_close(&runtime);
+}
+
+static void selection_storage_failures_are_retryable(void)
+{
+    reset();
+    uint8_t corrupt[1024] = {0};
+    StoreKind unsupported = {.magic = {'D', 'S', 'T', 'S'}, .version = 2, .inline_payload = true};
+    store_encode(&unsupported, &(StoreHeader){.generation = 1, .bytes = 17}, corrupt);
+    CHECK(hal_internal_file_write(THEME_SELECTION_PATH, corrupt, sizeof corrupt));
+    ThemeRuntime runtime = {.blocked = true};
+    CHECK(!theme_runtime_save(&runtime, APPEARANCE_CLASSIC));
+    reset();
+    runtime = (ThemeRuntime){0};
+    CHECK(theme_runtime_save(&runtime, APPEARANCE_CLASSIC));
+    runtime.blocked = true;
+    CHECK(theme_runtime_save(&runtime, APPEARANCE_SUNSET));
+    reset();
+    runtime = (ThemeRuntime){0};
+    fake_hal_fail_internal_writes(THEME_SELECTION_PATH);
+    CHECK(!theme_runtime_save(&runtime, APPEARANCE_CLASSIC));
+    fake_hal_fail_internal_writes(NULL);
+    CHECK(!theme_runtime_load(&runtime, "missing.gtheme"));
+}
+
+static void invalid_selection_metadata_is_never_restored(void)
+{
+    StoreKind kind = {.magic = {'D', 'S', 'T', 'S'}, .version = 1, .inline_payload = true};
+    for (int invalid = 0; invalid < 4; invalid++) {
+        reset();
+        uint8_t bytes[1024] = {0};
+        StoreHeader header = {.generation = 1, .bytes = 17};
+        bytes[STORE_FIELD_BYTES + 16] = APPEARANCE_CLASSIC;
+        if (invalid == 0) {
+            header.bytes = 18;
+        } else if (invalid == 1) {
+            header.binding = 1;
+        } else if (invalid == 2) {
+            header.count = 1;
+        } else {
+            bytes[STORE_FIELD_BYTES + 16] = APPEARANCE_THEME_COUNT;
+        }
+        store_encode(&kind, &header, bytes);
+        CHECK(hal_internal_file_write(THEME_SELECTION_PATH, bytes, sizeof bytes));
+        ThemeRuntime runtime = {0};
+        theme_runtime_boot(&runtime);
+        CHECK(!runtime.stored);
+        CHECK(!runtime.active);
+    }
+}
+
 static void damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version(void)
 {
     reset();
@@ -393,6 +583,13 @@ int main(void)
         TEST_CASE(strips_and_clipped_rectangles_match_a_full_render),
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
         TEST_CASE(each_asset_of_a_pack_draws_its_own_pixels),
+        TEST_CASE(art_selection_prefers_exact_dimensions_then_falls_back),
+        TEST_CASE(placed_art_obeys_its_bounds_and_clip),
+        TEST_CASE(art_read_failures_close_the_active_pack),
+        TEST_CASE(streaming_art_closes_after_an_uncached_row_read_fails),
+        TEST_CASE(shifted_repeated_and_portrait_art_use_the_general_draw_path),
+        TEST_CASE(selection_storage_failures_are_retryable),
+        TEST_CASE(invalid_selection_metadata_is_never_restored),
         TEST_CASE(damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version),
         TEST_CASE(every_torn_selection_write_keeps_a_whole_old_or_new_choice),
         TEST_CASE(cancelling_a_preview_restores_the_saved_pack_and_builtin_choices_clear_it),

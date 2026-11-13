@@ -331,6 +331,90 @@ static void a_recap_rebuilds_after_another_screen_reuses_the_work_buffer(void)
     CHECK(saw_whole(STR_TOP_ARTISTS));
 }
 
+static void sparse_recap_data_hides_only_the_empty_cards(void)
+{
+    start(true, now_utc(), 60);
+    open_period(LISTENING_THIS_MONTH);
+    RecapWork *mutable = &listening_module_work.as.recap;
+    memset(mutable->job.recap.counts, 0, sizeof mutable->job.recap.counts);
+    mutable->job.recap.weekday = LISTENING_RECAP_NONE;
+    mutable->job.recap.artists = 0;
+    mutable->job.recap.totals.listened_ms = 0;
+    mutable->job.recap.totals.plays = 1;
+    CHECK_EQUAL(3, recap_cards_count(&screen));
+
+    screen.card = 7;
+    recap_cards_update(&screen, clock_ms);
+    CHECK_EQUAL(2, screen.card);
+    for (uint8_t group = 0; group < LISTENING_RECAP_GROUPS; group++) {
+        mutable->job.recap.counts[group] = 1;
+    }
+    mutable->job.recap.weekday = 0;
+    mutable->job.recap.totals.listened_ms = 1;
+    CHECK_EQUAL(FULL_DECK, recap_cards_count(&screen));
+
+    listening_module_work.owner = NULL;
+    CHECK_EQUAL(0, recap_cards_count(&screen));
+    CHECK_EQUAL(STR_RECAP, recap_cards_title(&screen));
+    listening_module_work.owner = &screen;
+    mutable->job.recap.totals.plays = 0;
+    CHECK_EQUAL(0, recap_cards_count(&screen));
+}
+
+static void flourish_ends_foreign_shapes_and_non_title_cards(void)
+{
+    start(true, now_utc(), 60);
+    open_period(LISTENING_THIS_MONTH);
+    motion.owner = &screen;
+    motion.running = true;
+    motion.shape = WIRE_SHAPE_DISC;
+    recap_cards_motion(&screen, clock_ms);
+    CHECK(!motion.running);
+
+    RecapWork *mutable = &listening_module_work.as.recap;
+    mutable->flourished = false;
+    motion = (WireMotion){.owner = &screen, .running = true, .shape = WIRE_SHAPE_ICOSAHEDRON};
+    screen.card = 1;
+    recap_cards_motion(&screen, clock_ms);
+    CHECK(mutable->flourished);
+    CHECK(!motion.running);
+}
+
+static void period_and_hour_labels_cover_every_clock_style(void)
+{
+    start(true, now_utc(), 60);
+    open_period(LISTENING_ALL_TIME);
+    draw();
+    CHECK(saw_whole(STR_RECAP_EVERY_PLAY));
+
+    start(true, now_utc(), 60);
+    open_period(LISTENING_THIS_YEAR);
+    draw();
+    CHECK(saw("2026"));
+
+    start(true, now_utc(), 60);
+    open_period(LISTENING_THIS_MONTH);
+    RecapWork *mutable = &listening_module_work.as.recap;
+    mutable->job.recap.hour = 0;
+    mutable->job.recap.streak_days = 1;
+    settings.clock_24h = false;
+    screen.card = 5;
+    draw();
+    CHECK(saw("12 AM"));
+    CHECK(saw_whole(STR_RECAP_ONE_DAY));
+    mutable->job.recap.hour = 13;
+    draw();
+    CHECK(saw("1 PM"));
+    settings.clock_24h = true;
+    mutable->job.recap.hour = 3;
+    draw();
+    CHECK(saw("03:00"));
+    recap_cards_bind(&covers, NULL);
+    draw();
+    CHECK(saw("03:00"));
+    recap_cards_bind(&covers, &settings);
+}
+
 static void a_failed_history_read_is_reported(void)
 {
     start(true, now_utc(), 60);
@@ -430,6 +514,9 @@ int main(void)
         TEST_CASE(a_period_without_plays_and_an_unset_clock_explain_themselves),
         TEST_CASE(a_second_opening_reads_the_saved_recap_until_a_play_is_logged),
         TEST_CASE(a_recap_rebuilds_after_another_screen_reuses_the_work_buffer),
+        TEST_CASE(sparse_recap_data_hides_only_the_empty_cards),
+        TEST_CASE(flourish_ends_foreign_shapes_and_non_title_cards),
+        TEST_CASE(period_and_hour_labels_cover_every_clock_style),
         TEST_CASE(a_failed_history_read_is_reported),
         TEST_CASE(a_log_on_the_card_is_read_through_one_open_file_per_update),
         TEST_CASE(every_card_renders_whole_at_every_size_and_orientation),

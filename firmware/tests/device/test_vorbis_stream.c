@@ -318,6 +318,24 @@ static void invalid_requests_preserve_the_current_stream_and_end_padding_is_zero
     CHECK(!ogg_stream_read(&stream, 1, packet, 1));
     CHECK(!ogg_stream_read(&stream, 0, NULL, 1));
     CHECK(!ogg_stream_read(&stream, 0, packet, UINT32_MAX));
+    CHECK(ogg_stream_read(&stream, 0, NULL, 0));
+    OggStream beyond = stream;
+    beyond.position = OGG_VIRTUAL_END + 1u;
+    CHECK(!ogg_stream_read(&beyond, beyond.position, packet, 0));
+    OggTrack track = {0};
+    CHECK(!ogg_stream_resume(&beyond, (FlacInput){0}, &track, 0));
+    CHECK(!ogg_stream_seek(&beyond, (FlacInput){0}, &track, 0));
+    VorbisModes modes = {0};
+    OggStream guard = {.failed = true};
+    CHECK(!ogg_stream_prepare_vorbis(&guard, &track, &modes, 0));
+    guard = (OggStream){.ended = true};
+    CHECK(!ogg_stream_prepare_vorbis(&guard, &track, &modes, 0));
+    guard = (OggStream){.opus = true};
+    CHECK(!ogg_stream_prepare_vorbis(&guard, &track, &modes, 0));
+    guard = (OggStream){.headers = 2};
+    CHECK(!ogg_stream_prepare_vorbis(&guard, &track, &modes, 0));
+    guard = (OggStream){.headers = 3, .record_size = 1};
+    CHECK(!ogg_stream_prepare_vorbis(&guard, &track, &modes, 0));
     CHECK(!stream.failed);
     CHECK_EQUAL(0, stream.position);
     uint32_t position = 0;
@@ -332,6 +350,35 @@ static void invalid_requests_preserve_the_current_stream_and_end_padding_is_zero
     }
     CHECK_EQUAL(0xA5, packet[127]);
     CHECK_EQUAL(position + 127, stream.position);
+}
+
+static void damaged_vorbis_and_opus_signatures_fail_as_headers(void)
+{
+    if (!load("mono8")) {
+        return;
+    }
+    memset(metadata, 0, sizeof metadata);
+    metadata[0] = 1;
+    memcpy(metadata + 1, "xorbix", 6);
+    replace_packet(0, 30);
+    CHECK(ogg_stream_start(&stream, input(&changed)));
+    CHECK(!ogg_stream_read(&stream, 0, packet, 1));
+    memset(metadata, 0, sizeof metadata);
+    metadata[0] = 3;
+    memcpy(metadata + 1, "vorbis", 6);
+    replace_packet(1, 15);
+    CHECK(ogg_stream_start(&stream, input(&changed)));
+    uint32_t position = 0;
+    VorbisPacket record;
+    CHECK(next_record(&position, &record, 31));
+    CHECK(!next_record(&position, &record, 31));
+    OggTrack opus = {.opus = true};
+    CHECK(ogg_stream_resume(&stream, input(&original), &opus, 0));
+    CHECK(!ogg_stream_read(&stream, 0, packet, 1));
+    memset(metadata, 0, sizeof metadata);
+    replace_packet(0, 18);
+    CHECK(ogg_stream_resume(&stream, input(&changed), &opus, 0));
+    CHECK(!ogg_stream_read(&stream, 0, packet, 1));
 }
 
 static void bulk_reads_cross_packet_boundaries_and_match_independent_record_framing(void)
@@ -388,6 +435,7 @@ int main(void)
         TEST_CASE(oversized_audio_is_refused_and_never_masquerades_as_end_of_stream),
         TEST_CASE(incomplete_or_wrong_configuration_packets_do_not_end_successfully),
         TEST_CASE(invalid_requests_preserve_the_current_stream_and_end_padding_is_zero),
+        TEST_CASE(damaged_vorbis_and_opus_signatures_fail_as_headers),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

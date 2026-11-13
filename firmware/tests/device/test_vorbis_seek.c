@@ -280,6 +280,33 @@ static void failed_or_invalid_probes_leave_the_track_and_seek_result_untouched(v
     CHECK(memcmp(&before, &track, sizeof track) == 0);
 }
 
+static void seek_rejects_each_invalid_public_argument(void)
+{
+    CHECK(load("seek44"));
+    OggTrack track;
+    CHECK(vorbis_track_probe(input(), &track));
+    uint32_t offset = 99;
+    CHECK(!ogg_track_seek(input(), NULL, 0, &offset));
+    CHECK(!ogg_track_seek(input(), &track, 0, NULL));
+
+    OggTrack invalid = track;
+    invalid.samples = 0;
+    CHECK(!ogg_track_seek(input(), &invalid, 0, &offset));
+    FlacInput unreadable = input();
+    unreadable.read = NULL;
+    CHECK(!ogg_track_seek(unreadable, &track, 0, &offset));
+    invalid = track;
+    invalid.file_bytes--;
+    CHECK(!ogg_track_seek(input(), &invalid, 0, &offset));
+    invalid = track;
+    invalid.data_offset = file_size;
+    CHECK(!ogg_track_seek(input(), &invalid, 0, &offset));
+    invalid = track;
+    invalid.origin = UINT32_MAX;
+    CHECK(!ogg_track_seek(input(), &invalid, 1, &offset));
+    CHECK_EQUAL(99, offset);
+}
+
 static void wrong_serial_bad_eos_and_unrepresentable_granules_are_refused(void)
 {
     for (uint32_t variant = 0; variant < 4; variant++) {
@@ -507,6 +534,7 @@ int main(void)
         TEST_CASE(single_page_speech_and_short_tracks_seek_from_the_true_stream_start),
         TEST_CASE(later_seeks_choose_a_preceding_marked_page_and_keep_the_eos_preroll),
         TEST_CASE(failed_or_invalid_probes_leave_the_track_and_seek_result_untouched),
+        TEST_CASE(seek_rejects_each_invalid_public_argument),
         TEST_CASE(wrong_serial_bad_eos_and_unrepresentable_granules_are_refused),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

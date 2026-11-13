@@ -35,7 +35,7 @@ static void capture_progress(const char *directory)
                     }
                 }
                 WireMotion motion = {0};
-                MessageScreen message;
+                MessageScreen message = {0};
                 wire_motion_run(&motion, &message, WIRE_SHAPE_DISC, 0);
                 wire_motion_tick(&motion, phase ? 12000 : 0);
                 Screen *screen =

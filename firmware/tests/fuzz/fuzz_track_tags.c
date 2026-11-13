@@ -13,7 +13,7 @@ static void check_tags(const TrackTags *tags, uint32_t size)
         fuzz_require(memchr(tags->text[field], '\0', TRACK_TAG_TEXT_CAPACITY) != NULL);
     }
     fuzz_require(tags->picture.kind >= TAG_PICTURE_NONE &&
-                 tags->picture.kind <= TAG_PICTURE_BASE64_FLAC_BLOCK);
+                 tags->picture.kind <= TAG_PICTURE_UNSYNC);
     if (tags->picture.kind == TAG_PICTURE_RAW) {
         fuzz_require(tags->picture.offset <= size);
         fuzz_require(tags->picture.length <= size - tags->picture.offset);

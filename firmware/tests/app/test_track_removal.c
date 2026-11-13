@@ -152,6 +152,78 @@ static void a_rescan_leaves_out_hidden_tracks_until_they_are_shown(void)
     CHECK(!scan_skips(HELP_RELATIVE));
 }
 
+static void hidden_storage_rejects_missing_corrupt_and_unwritable_records(void)
+{
+    fake_hal_reset();
+    HiddenTracksHead head;
+    MixIdentity identity;
+    CHECK_EQUAL(0, hidden_tracks_read_head(&head));
+    CHECK(!hidden_tracks_read(0, &identity));
+
+    HiddenTracksHead corrupt = {.magic = 1, .records = 1};
+    fake_hal_add_file(HIDDEN_TRACKS_PATH, (const uint8_t *)&corrupt, sizeof corrupt);
+    CHECK_EQUAL(0, hidden_tracks_read_head(&head));
+    corrupt.magic = HIDDEN_TRACKS_MAGIC;
+    corrupt.records = HIDDEN_TRACKS_RECORDS + 1;
+    fake_hal_reset();
+    fake_hal_add_file(HIDDEN_TRACKS_PATH, (const uint8_t *)&corrupt, sizeof corrupt);
+    CHECK_EQUAL(0, hidden_tracks_read_head(&head));
+
+    fake_hal_reset();
+    fake_hal_add_file(HIDDEN_TRACKS_PATH, NULL, HIDDEN_TRACKS_FILE_BYTES);
+    CHECK(!hidden_tracks_read(0, &identity));
+    CHECK(!hidden_tracks_write(0, &(MixIdentity){0}));
+    fake_hal_fail_file_writes(HIDDEN_TRACKS_PATH);
+    CHECK(!hidden_tracks_write(0, &(MixIdentity){.path = "Album/song.flac"}));
+}
+
+static void hidden_prepare_and_membership_enforce_their_bounds(void)
+{
+    HiddenTracksHead head;
+    CHECK(!hidden_tracks_prepare((HiddenTracks){0}, &head));
+    start();
+    store.hidden = (LibraryHidden){0};
+    store.library.hidden = &store.hidden;
+    store.available = false;
+    CHECK(!hidden_tracks_prepare(tracks(), &head));
+    store.available = true;
+    fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
+    CHECK(!hidden_tracks_prepare(tracks(), &head));
+    fake_hal_set_reserve_result(HAL_RESERVE_EXISTS);
+    CHECK(hidden_tracks_prepare(tracks(), &head));
+
+    hidden_tracks_exclude(tracks(), HELP);
+    CHECK_EQUAL(1, store.hidden.count);
+    hidden_tracks_exclude(tracks(), HELP);
+    CHECK_EQUAL(1, store.hidden.count);
+    hidden_tracks_include(tracks(), ARMY_OF_ME);
+    CHECK_EQUAL(1, store.hidden.count);
+    store.hidden.count = LIBRARY_HIDDEN_CAPACITY;
+    hidden_tracks_exclude(tracks(), ARMY_OF_ME);
+    CHECK_EQUAL(LIBRARY_HIDDEN_CAPACITY, store.hidden.count);
+
+    player.has_track = false;
+    player.track = HELP;
+    hidden_tracks_replan(&player, HELP);
+    CHECK_EQUAL(HELP, hidden_tracks_anchor(&player));
+}
+
+static void unhide_reports_record_and_file_update_failures(void)
+{
+    start();
+    CHECK_EQUAL(HIDDEN_FAILED, hidden_tracks_unhide(tracks(), 0));
+
+    CHECK_EQUAL(HIDDEN_DONE, track_removal_hide(tracks(), ARMY_OF_ME));
+    CHECK_EQUAL(HIDDEN_DONE, track_removal_hide(tracks(), HELP));
+    fake_hal_fail_file_writes(HIDDEN_TRACKS_PATH);
+    CHECK_EQUAL(HIDDEN_FAILED, hidden_tracks_unhide(tracks(), 0));
+
+    start();
+    CHECK_EQUAL(HIDDEN_DONE, track_removal_hide(tracks(), HELP));
+    fake_hal_fail_file_writes(HIDDEN_TRACKS_PATH);
+    CHECK_EQUAL(HIDDEN_FAILED, hidden_tracks_unhide(tracks(), 0));
+}
+
 static void showing_a_track_hidden_since_the_last_rescan_lists_it_again(void)
 {
     start();
@@ -294,6 +366,9 @@ int main(void)
         TEST_CASE(a_hidden_track_leaves_every_list),
         TEST_CASE(a_hidden_track_is_hidden_again_after_a_restart),
         TEST_CASE(a_rescan_leaves_out_hidden_tracks_until_they_are_shown),
+        TEST_CASE(hidden_storage_rejects_missing_corrupt_and_unwritable_records),
+        TEST_CASE(hidden_prepare_and_membership_enforce_their_bounds),
+        TEST_CASE(unhide_reports_record_and_file_update_failures),
         TEST_CASE(showing_a_track_hidden_since_the_last_rescan_lists_it_again),
         TEST_CASE(deleting_the_playing_track_moves_on_and_removes_the_file),
         TEST_CASE(deleting_a_queued_track_takes_it_out_of_the_queue),

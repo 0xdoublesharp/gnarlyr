@@ -10,20 +10,10 @@
 enum {
     VERSION_FIELD = 4,
     FLAGS_FIELD = 5,
-    VOLUME_FIELD = 13,
-    DAC_VOLUME_FIELD = 16,
-    OLD_GAINS_FIELD = 19,
-    OLD_GAIN_COUNT = 5,
-    OLD_GAIN_MAX = 10,
-    OLD_CHECKSUM_FIELD = 20,
-    PREVIOUS_CHECKSUM_FIELD = 28,
-    CURRENT_CHECKSUM_FIELD = 38,
-    FIRST_VERSION = 1,
-    EQUALIZER_VERSION = 6,
-    VOLUME_SCALE_VERSION = 9,
-    HALF_DB_VERSION = 11,
-    CURRENT_VERSION = 14,
-    OLD_VOLUME_MAX = 50
+    EXTENSION_CHECKSUM_FIELD = 54,
+    SECOND_FIELD = 58,
+    SECOND_CHECKSUM_FIELD = 74,
+    CURRENT_VERSION = 1
 };
 
 typedef struct FuzzInput {
@@ -216,27 +206,22 @@ static void canonical_round_trip(const Settings *settings)
     fuzz_require(memcmp(first, second, sizeof first) == 0);
 }
 
-static int checksum_field(uint8_t version)
+static void mutate_record(uint8_t *bytes, int first, int field, int hash_start, FuzzInput *input)
 {
-    return version < EQUALIZER_VERSION ? OLD_CHECKSUM_FIELD
-           : version < HALF_DB_VERSION ? PREVIOUS_CHECKSUM_FIELD
-                                       : CURRENT_CHECKSUM_FIELD;
-}
-
-static void mutate_record(uint8_t *bytes, int field, FuzzInput *input)
-{
-    int selected = FLAGS_FIELD + next_byte(input) % (uint8_t)(field - FLAGS_FIELD);
+    int selected = first + next_byte(input) % (uint8_t)(field - first);
     bytes[selected] ^= (uint8_t)(1u << (next_byte(input) & 7u));
-    hash_store(bytes + field, hash_update(HASH_START, bytes, (size_t)field));
+    hash_store(bytes + field,
+               hash_update(HASH_START, bytes + hash_start, (size_t)(field - hash_start)));
 }
 
-static void check_mutated_settings(const uint8_t *bytes, int field, FuzzInput *input)
+static void check_mutated_settings(const uint8_t *bytes, int first, int field, int hash_start,
+                                   FuzzInput *input)
 {
     uint8_t changed[SETTINGS_FILE_SIZE];
     Settings decoded;
     memcpy(changed, bytes, sizeof changed);
-    mutate_record(changed, field, input);
-    if (decode_settings(changed, (uint32_t)(field + 4), &decoded)) {
+    mutate_record(changed, first, field, hash_start, input);
+    if (decode_settings(changed, sizeof changed, &decoded)) {
         canonical_round_trip(&decoded);
     }
 }
@@ -250,38 +235,21 @@ static void check_current(FuzzInput *input)
     fuzz_require(decode_settings(bytes, sizeof bytes, &decoded));
     fuzz_require(same_settings(&original, &decoded));
     canonical_round_trip(&decoded);
-    check_mutated_settings(bytes, CURRENT_CHECKSUM_FIELD, input);
+    check_mutated_settings(bytes, FLAGS_FIELD, EXTENSION_CHECKSUM_FIELD, 0, input);
+    check_mutated_settings(bytes, SECOND_FIELD, SECOND_CHECKSUM_FIELD, SECOND_FIELD, input);
 }
 
-static uint32_t legacy_record(FuzzInput *input, uint8_t *bytes)
-{
-    Settings original = make_settings(input);
-    uint8_t version = FIRST_VERSION + next_byte(input) % CURRENT_VERSION;
-    settings_encode(&original, bytes);
-    bytes[VERSION_FIELD] = version;
-    bytes[FLAGS_FIELD] = version < CURRENT_VERSION ? 0 : bytes[FLAGS_FIELD];
-    if (version < VOLUME_SCALE_VERSION) {
-        bytes[VOLUME_FIELD] %= OLD_VOLUME_MAX + 1u;
-        bytes[DAC_VOLUME_FIELD] %= OLD_VOLUME_MAX + 1u;
-    }
-    for (int band = 0;
-         version >= EQUALIZER_VERSION && version < HALF_DB_VERSION && band < OLD_GAIN_COUNT;
-         band++) {
-        bytes[OLD_GAINS_FIELD + band] = next_byte(input) % (2u * OLD_GAIN_MAX + 1u);
-    }
-    int field = checksum_field(version);
-    hash_store(bytes + field, hash_update(HASH_START, bytes, (size_t)field));
-    return (uint32_t)(field + 4);
-}
-
-static void check_legacy(FuzzInput *input)
+static void check_wrong_version(FuzzInput *input)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
     Settings decoded;
-    uint32_t length = legacy_record(input, bytes);
-    fuzz_require(decode_settings(bytes, length, &decoded));
-    canonical_round_trip(&decoded);
-    check_mutated_settings(bytes, (int)length - 4, input);
+    Settings original = make_settings(input);
+    settings_encode(&original, bytes);
+    uint8_t version = next_byte(input);
+    bytes[VERSION_FIELD] = version == CURRENT_VERSION ? 0 : version;
+    hash_store(bytes + EXTENSION_CHECKSUM_FIELD,
+               hash_update(HASH_START, bytes, EXTENSION_CHECKSUM_FIELD));
+    fuzz_require(!decode_settings(bytes, sizeof bytes, &decoded));
 }
 
 static bool same_buttons(const Settings *first, const Settings *second)
@@ -332,7 +300,7 @@ static void check_buttons(FuzzInput *input)
     fuzz_require(same_buttons(&original, &decoded));
     settings_buttons_encode(&decoded, second);
     fuzz_require(memcmp(first, second, sizeof first) == 0);
-    mutate_record(first, 28, input);
+    mutate_record(first, FLAGS_FIELD, 28, 0, input);
     decode_buttons(first, sizeof first, &original, &decoded);
 }
 
@@ -356,7 +324,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         check_current(&input);
         break;
     case 2:
-        check_legacy(&input);
+        check_wrong_version(&input);
         break;
     case 3:
         check_buttons(&input);

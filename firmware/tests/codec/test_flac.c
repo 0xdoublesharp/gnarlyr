@@ -1086,6 +1086,40 @@ static void malformed_id3_prefixes_are_rejected(void)
     free(flac.bytes);
 }
 
+static void id3_versions_revision_footer_and_truncation_are_validated(void)
+{
+    Buffer flac = load("fixed_16_mono", "flac");
+    CHECK(flac.size > 0);
+    uint8_t *bytes = calloc(flac.size + 10, 1);
+    CHECK(bytes != NULL);
+    if (bytes == NULL) {
+        free(flac.bytes);
+        return;
+    }
+    memcpy(bytes, "ID3", 3);
+    memcpy(bytes + 10, flac.bytes, flac.size);
+    Buffer tagged = {bytes, flac.size + 10};
+
+    bytes[3] = 4;
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&tagged)));
+    static const struct {
+        uint8_t version;
+        uint8_t revision;
+        uint8_t flags;
+    } invalid[] = {{1, 0, 0}, {5, 0, 0}, {4, 0xff, 0}, {3, 0, 0x10}};
+    for (uint32_t index = 0; index < sizeof invalid / sizeof invalid[0]; index++) {
+        bytes[3] = invalid[index].version;
+        bytes[4] = invalid[index].revision;
+        bytes[5] = invalid[index].flags;
+        CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&tagged)));
+    }
+
+    Buffer short_tag = {bytes, 9};
+    CHECK_EQUAL(FLAC_ERROR, flac_open(&decoder, input_of(&short_tag)));
+    free(bytes);
+    free(flac.bytes);
+}
+
 static FlacResult decode_to_the_end(void)
 {
     FlacResult result;
@@ -1399,6 +1433,7 @@ int main(void)
         TEST_CASE(a_file_that_is_not_flac_is_refused),
         TEST_CASE(an_id3_prefix_with_footer_preserves_decoded_audio),
         TEST_CASE(malformed_id3_prefixes_are_rejected),
+        TEST_CASE(id3_versions_revision_footer_and_truncation_are_validated),
         TEST_CASE(a_truncated_file_ends_with_an_error),
         TEST_CASE(a_corrupted_frame_is_caught),
         TEST_CASE(a_storage_failure_never_publishes_a_partial_frame_and_can_recover),

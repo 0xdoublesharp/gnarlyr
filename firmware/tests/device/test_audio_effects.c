@@ -154,8 +154,8 @@ static void crossfeed_strengths_feed_more_of_the_other_channel(void)
     double previous = 0;
     for (int level = 1; level < HAL_AUDIO_CROSSFEED_LEVELS; level++) {
         Reference filter = reference(level, RATE);
-        Complex low = response(filter, true, 2.0 * PI * 100 / RATE);
-        Complex direct = response(filter, false, 2.0 * PI * 100 / RATE);
+        Complex low = response(filter, true, 2.0 * PI * 100 / (double)RATE);
+        Complex direct = response(filter, false, 2.0 * PI * 100 / (double)RATE);
         double ratio = hypot(low.re, low.im) / hypot(direct.re, direct.im);
         CHECK(ratio > previous);
         previous = ratio;
@@ -308,7 +308,7 @@ static void the_cut_fades_back_in_without_a_step(void)
     for (uint32_t index = cut; index < cut + skip.fade; index++) {
         double gain =
             (double)sample_of(skip_ring[2 * index]) / skip_input[index + skip.mark[0].frames];
-        double expected = (double)(index - cut + 1) * skip.step / AUDIO_SKIP_UNITY;
+        double expected = (double)(index - cut + 1) * skip.step / (double)AUDIO_SKIP_UNITY;
         expected = expected > 1 ? 1 : expected;
         CHECK(fabs(gain - expected) < 0.0001);
         largest = gain > largest ? gain : largest;
@@ -383,7 +383,7 @@ static void marks_settle_into_the_segment_that_held_them(void)
 
 static double ratio(uint32_t gain)
 {
-    return (double)gain / AUDIO_BOOST_UNITY;
+    return (double)gain / (double)AUDIO_BOOST_UNITY;
 }
 
 static void boost_gain_follows_the_square_root_law_between_its_limits(void)
@@ -414,7 +414,8 @@ static int32_t boost_peak(AudioBoost *boost, double amplitude, double hz, uint32
     int32_t peak = 0;
     for (uint32_t done = 0; done < frames; done += BLOCK) {
         for (uint32_t index = 0; index < BLOCK; index++) {
-            int32_t value = (int32_t)lround(amplitude * sin(2.0 * PI * hz * (done + index) / RATE));
+            int32_t value =
+                (int32_t)lround(amplitude * sin(2.0 * PI * hz * (done + index) / (double)RATE));
             words[2 * index] = word(value);
             words[2 * index + 1] = word(-value);
         }

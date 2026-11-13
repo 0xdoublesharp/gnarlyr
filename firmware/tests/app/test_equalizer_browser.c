@@ -156,6 +156,45 @@ static void an_invalid_file_restores_the_committed_sound_and_cannot_be_applied(v
     CHECK_EQUAL(EQUALIZER_POP, settings.equalizer);
 }
 
+static void file_errors_and_parametric_files_are_distinguished(void)
+{
+    static const char PATH[] = "/EQ/curve.txt";
+    reset();
+    fake_hal_add_eq_file("curve.txt", "GraphicEQ: 20 2; 20000 2\n");
+    equalizer_presets_scan(&presets);
+    fake_hal_fail_file_opens(PATH);
+    CHECK(!equalizer_presets_choose(&presets, EQUALIZER_PRESET_COUNT, &settings));
+
+    reset();
+    fake_hal_add_eq_file("curve.txt", "GraphicEQ: 20 2; 20000 2\n");
+    equalizer_presets_scan(&presets);
+    fake_hal_fail_file_reads(PATH);
+    CHECK(!equalizer_presets_choose(&presets, EQUALIZER_PRESET_COUNT, &settings));
+
+    reset();
+    fake_hal_add_eq_file("curve.txt", "Preamp: -2 dB\nFilter 1: ON PK Fc 1000 Hz Gain 2 dB Q 1\n");
+    equalizer_presets_scan(&presets);
+    CHECK(equalizer_presets_choose(&presets, EQUALIZER_PRESET_COUNT, &settings));
+    CHECK_EQUAL(EQUALIZER_PARAMETRIC, settings.equalizer);
+    CHECK_EQUAL(1, settings.parametric.count);
+
+    reset();
+    fake_hal_add_eq_file("curve.txt", "Filter 1: ON PK Fc 1000 Hz Gain 2 dB Q\n");
+    equalizer_presets_scan(&presets);
+    CHECK(!equalizer_presets_choose(&presets, EQUALIZER_PRESET_COUNT, &settings));
+}
+
+static void invalid_options_and_failed_slot_writes_change_nothing(void)
+{
+    reset();
+    equalizer_presets_scan(&presets);
+    int8_t gains[SETTINGS_EQUALIZER_BANDS] = {0};
+    CHECK(!equalizer_presets_load(&presets, -1, gains));
+    CHECK(!equalizer_presets_load(&presets, presets.option_count + 1, gains));
+    fake_hal_fail_file_writes(EQUALIZER_SLOTS_PATH);
+    CHECK(!equalizer_presets_save_slot(&presets, 0, gains));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -163,6 +202,8 @@ int main(void)
         TEST_CASE(response_and_audition_are_cached_between_selection_changes),
         TEST_CASE(saved_and_file_curves_preview_without_mutating_custom_settings),
         TEST_CASE(an_invalid_file_restores_the_committed_sound_and_cannot_be_applied),
+        TEST_CASE(file_errors_and_parametric_files_are_distinguished),
+        TEST_CASE(invalid_options_and_failed_slot_writes_change_nothing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

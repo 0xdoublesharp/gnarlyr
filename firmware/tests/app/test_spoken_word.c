@@ -653,6 +653,128 @@ static void a_rewind_to_the_top_is_not_undone_by_the_bookmark(void)
     CHECK_EQUAL(0, fake_hal_audio_play_start());
 }
 
+static Bookmark *bookmark_with_key(uint32_t key)
+{
+    for (uint16_t index = 0; index < store.bookmarks.count; index++) {
+        if (store.bookmarks.entries[index].key == key) {
+            return &store.bookmarks.entries[index];
+        }
+    }
+    return NULL;
+}
+
+static void malformed_short_bookmark_files_start_empty(void)
+{
+    fake_hal_reset();
+    static const uint8_t invalid[] = {0};
+    fake_hal_add_file(SPOKEN_STORE_PATH, invalid, sizeof invalid);
+    spoken_store_load(&store, library);
+    CHECK_EQUAL(0, store.bookmarks.count);
+}
+
+static void periodic_and_explicit_flushes_write_active_progress(void)
+{
+    start();
+    play(SPOKEN_CHAPTER_ONE_PATH, true);
+    follow(0);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    follow(SPOKEN_SAVE_INTERVAL_MS);
+    CHECK(!store.dirty);
+    CHECK_EQUAL(SPOKEN_SAVE_INTERVAL_MS, store.last_save_ms);
+    fake_hal_audio_set_position(MIDWAY_MS + 1000);
+    spoken_store_flush(&store, player_status(&player), SPOKEN_SAVE_INTERVAL_MS + 1000);
+    CHECK(!store.dirty);
+    CHECK_EQUAL(SPOKEN_SAVE_INTERVAL_MS + 1000, store.last_save_ms);
+    SpokenStore restored;
+    spoken_store_load(&restored, library);
+    CHECK(restored.bookmarks.count > 0);
+}
+
+static void invalid_and_nonspoken_tracks_never_start_following(void)
+{
+    start();
+    PlayerStatus status = {
+        .has_track = true, .state = PLAYER_PLAYING, .spoken = true, .track = UINT16_MAX};
+    spoken_store_follow(&store, status, 0);
+    CHECK(store.follow.known);
+    CHECK(!store.follow.active);
+    status.track = spoken_library_track(library, SPOKEN_SONG_PATH);
+    spoken_store_follow(&store, status, 1);
+    CHECK(store.follow.known);
+    CHECK(!store.follow.active);
+    Bookmark bookmark;
+    CHECK(!spoken_store_track(&store, UINT16_MAX, &bookmark));
+    CHECK(!spoken_store_book(&store, UINT16_MAX, &bookmark));
+    PlayerResume resume = spoken_store_resume(&store);
+    CHECK_EQUAL(0, resume.position_for(resume.context, UINT16_MAX));
+}
+
+static void a_saved_track_key_finds_its_chapter_after_the_number_changes(void)
+{
+    start();
+    play(SPOKEN_CHAPTER_TWO_PATH, true);
+    follow(0);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(2000);
+    uint16_t track = spoken_library_track(library, SPOKEN_CHAPTER_TWO_PATH);
+    LibraryTrack record;
+    CHECK(library_read_track(library, track, &record));
+    uint32_t key = 0;
+    CHECK(spoken_folder_key(library, record.folder, &key));
+    Bookmark *bookmark = bookmark_with_key(key);
+    CHECK(bookmark != NULL);
+    bookmark->chapter = 0;
+    CHECK_EQUAL(1, spoken_store_resume_chapter(&store, record.folder));
+    bookmark->track_key++;
+    CHECK_EQUAL(0, spoken_store_resume_chapter(&store, record.folder));
+    bookmark->flags = BOOKMARK_FINISHED;
+    CHECK_EQUAL(0, spoken_store_resume_chapter(&store, record.folder));
+}
+
+static void descriptions_handle_invalid_zero_and_finished_rows(void)
+{
+    start();
+    char detail[64];
+    SpokenRow invalid = {.item = {.kind = BROWSE_ITEM_FOLDER, .index = UINT16_MAX},
+                         .detail = detail,
+                         .capacity = sizeof detail};
+    CHECK(!spoken_store_describe(&store, invalid));
+    invalid.item.kind = BROWSE_ITEM_GROUP;
+    CHECK(!spoken_store_describe(&store, invalid));
+    play(SPOKEN_EPISODE_A_PATH, true);
+    follow(0);
+    uint16_t episode = spoken_library_track(library, SPOKEN_EPISODE_A_PATH);
+    SpokenRow row = {.shelf = SPOKEN_PODCAST,
+                     .item = {.kind = BROWSE_ITEM_TRACK, .index = episode},
+                     .detail = detail,
+                     .capacity = sizeof detail};
+    CHECK(!spoken_store_describe(&store, row));
+    Bookmark *bookmark = bookmark_with_key(spoken_bookmark_key(SPOKEN_EPISODE_A_PATH));
+    CHECK(bookmark != NULL);
+    LibraryTrack episode_record;
+    CHECK(library_read_track(library, episode, &episode_record));
+    bookmark->position_ms = episode_record.duration_ms;
+    CHECK(!spoken_store_describe(&store, row));
+    play(SPOKEN_CHAPTER_ONE_PATH, true);
+    follow(1000);
+    uint16_t chapter = spoken_library_track(library, SPOKEN_CHAPTER_ONE_PATH);
+    LibraryTrack chapter_record;
+    CHECK(library_read_track(library, chapter, &chapter_record));
+    uint32_t key = 0;
+    CHECK(spoken_folder_key(library, chapter_record.folder, &key));
+    bookmark = bookmark_with_key(key);
+    CHECK(bookmark != NULL);
+    bookmark->flags = BOOKMARK_FINISHED;
+    row = (SpokenRow){.shelf = SPOKEN_AUDIOBOOK,
+                      .item = {.kind = BROWSE_ITEM_FOLDER, .index = chapter_record.folder},
+                      .detail = detail,
+                      .capacity = sizeof detail};
+    CHECK(spoken_store_describe(&store, row));
+    CHECK(strcmp("Finished", detail) == 0);
+}
+
 int main(void)
 {
     library = spoken_library_open(&spoken);
@@ -660,6 +782,11 @@ int main(void)
         TEST_CASE(a_spoken_track_rewinds_more_after_a_pause),
         TEST_CASE(a_chapter_part_rewinds_no_further_than_its_start),
         TEST_CASE(a_rewind_to_the_top_is_not_undone_by_the_bookmark),
+        TEST_CASE(malformed_short_bookmark_files_start_empty),
+        TEST_CASE(periodic_and_explicit_flushes_write_active_progress),
+        TEST_CASE(invalid_and_nonspoken_tracks_never_start_following),
+        TEST_CASE(a_saved_track_key_finds_its_chapter_after_the_number_changes),
+        TEST_CASE(descriptions_handle_invalid_zero_and_finished_rows),
         TEST_CASE(books_play_in_order_even_with_shuffle_on),
         TEST_CASE(holding_volume_jumps_within_a_chapter),
         TEST_CASE(jumping_past_the_end_starts_the_next_chapter),
