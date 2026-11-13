@@ -7,12 +7,34 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "music_walk.h"
+#include "screens/lyrics_lend.h"
 
 static uint32_t now;
 static uint32_t entries;
 static uint32_t frames;
 static uint32_t last_frame;
 static char last_text[160];
+static uint32_t lyrics_words[LYRICS_LENT_SECTORS * 128];
+static int lyrics_lends;
+static uint32_t *lent_window;
+static uint32_t lent_sectors;
+static int returns;
+
+uint32_t *lyrics_screen_lend_work(void)
+{
+    lyrics_lends++;
+    return lyrics_words;
+}
+
+void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
+{
+    if (window == NULL) {
+        returns++;
+        return;
+    }
+    lent_window = window;
+    lent_sectors = sectors;
+}
 
 uint32_t hal_clock_milliseconds(void)
 {
@@ -79,11 +101,24 @@ static void a_silent_walk_keeps_the_same_fingerprint_without_drawing(void)
     CHECK_EQUAL(0, frames);
 }
 
+static void the_walk_lends_the_lyrics_work_to_the_storage_cache_and_takes_it_back(void)
+{
+    now = entries = frames = last_frame = 0;
+    lyrics_lends = returns = 0;
+    lent_window = NULL;
+    music_walk_fingerprint(false);
+    CHECK(lent_window == lyrics_words);
+    CHECK_EQUAL(LYRICS_LENT_SECTORS, lent_sectors);
+    CHECK_EQUAL(1, returns);
+    CHECK_EQUAL(2, lyrics_lends);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(the_walk_reports_counts_at_most_every_150_ms_and_elapsed_after_five_seconds),
         TEST_CASE(a_silent_walk_keeps_the_same_fingerprint_without_drawing),
+        TEST_CASE(the_walk_lends_the_lyrics_work_to_the_storage_cache_and_takes_it_back),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

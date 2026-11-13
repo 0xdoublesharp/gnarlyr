@@ -1563,6 +1563,12 @@ bool hal_language_read(HalLanguagePack pack, uint32_t offset, void *buffer, uint
 static int theme_next;
 static const char THEME_FOLDER[] = "/" FIRMWARE_DATA_DIRECTORY "/themes";
 
+void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
+{
+    (void)window;
+    (void)sectors;
+}
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     if (path == NULL) {

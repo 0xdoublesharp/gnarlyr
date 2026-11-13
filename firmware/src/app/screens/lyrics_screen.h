@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lyrics_lend.h"
 #include "player.h"
 #include "ui/screen.h"
 #include "ui/theme.h"

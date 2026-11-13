@@ -60,6 +60,7 @@ typedef struct HalDirEntry {
 } HalDirEntry;
 
 bool hal_dir_open(HalDir *dir, const char *path);
+void hal_storage_lend_cache(uint32_t *window, uint32_t sectors);
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry);
 void hal_dir_close(HalDir *dir);
 

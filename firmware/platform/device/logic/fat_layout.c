@@ -39,15 +39,18 @@ uint32_t fat_le32(const uint8_t *bytes)
 
 const uint8_t *fat_cached_sector(const FatVolume *volume)
 {
-    return (const uint8_t *)volume->cache + volume->cache_index * FAT_SECTOR_SIZE;
+    const uint32_t *window = volume->in_lent ? volume->lent : volume->cache;
+    return (const uint8_t *)window + volume->cache_index * FAT_SECTOR_SIZE;
 }
 
 bool fat_sector_cached(FatVolume *volume, uint32_t lba)
 {
-    if (lba < volume->cache_lba || lba - volume->cache_lba >= volume->cache_count) {
+    bool lent = lba - volume->lent_lba < volume->lent_count;
+    if (!lent && lba - volume->cache_lba >= volume->cache_count) {
         return false;
     }
-    volume->cache_index = lba - volume->cache_lba;
+    volume->in_lent = lent;
+    volume->cache_index = lba - (lent ? volume->lent_lba : volume->cache_lba);
     return true;
 }
 
@@ -56,15 +59,29 @@ bool fat_read_run(FatVolume *volume, uint32_t lba, uint32_t count)
     if (fat_sector_cached(volume, lba)) {
         return true;
     }
-    count = count < FAT_CACHE_SECTORS ? count : FAT_CACHE_SECTORS;
-    volume->cache_lba = lba;
+    bool lent = volume->lent != NULL && !volume->in_lent;
+    uint32_t limit = lent ? volume->lent_capacity : FAT_CACHE_SECTORS;
+    uint32_t *first = lent ? &volume->lent_lba : &volume->cache_lba;
+    uint32_t *filled = lent ? &volume->lent_count : &volume->cache_count;
+    count = count < limit ? count : limit;
+    *first = lba;
+    *filled = 0;
+    volume->in_lent = lent;
     volume->cache_index = 0;
-    volume->cache_count = 0;
-    if (!volume->device.read(volume->device.context, lba, count, volume->cache)) {
+    if (!volume->device.read(volume->device.context, lba, count,
+                             lent ? volume->lent : volume->cache)) {
         return false;
     }
-    volume->cache_count = count;
+    *filled = count;
     return true;
+}
+
+void fat_lend_window(FatVolume *volume, uint32_t *window, uint32_t sectors)
+{
+    volume->lent = window;
+    volume->lent_capacity = sectors;
+    volume->lent_count = 0;
+    volume->in_lent = false;
 }
 
 bool fat_read_sector(FatVolume *volume, uint32_t lba)
@@ -74,6 +91,7 @@ bool fat_read_sector(FatVolume *volume, uint32_t lba)
 
 uint8_t *fat_sector_for_update(FatVolume *volume, uint32_t lba)
 {
+    fat_lend_window(volume, NULL, 0);
     if (!fat_read_run(volume, lba, 1)) {
         return NULL;
     }
@@ -95,6 +113,7 @@ bool fat_commit_sector(FatVolume *volume, uint32_t lba)
 
 bool fat_write_run(FatVolume *volume, uint32_t lba, const uint8_t *bytes, uint32_t count)
 {
+    fat_lend_window(volume, NULL, 0);
     uint8_t *cache = (uint8_t *)volume->cache;
     uint32_t total = count * FAT_SECTOR_SIZE;
     for (uint32_t index = 0; index < total; index++) {
@@ -125,6 +144,7 @@ bool fat_update_bytes(FatVolume *volume, uint32_t lba, uint32_t within, const ui
 
 bool fat_clear_sectors(FatVolume *volume, uint32_t lba, uint32_t count)
 {
+    fat_lend_window(volume, NULL, 0);
     volume->cache_count = 0;
     volume->fat_sector_valid = false;
     uint8_t *zero = (uint8_t *)volume->cache;
