@@ -5,7 +5,7 @@ from unicorn import UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_READ, UC_HOOK_MEM_W
 from unicorn.arm_const import UC_ARM_REG_PC
 
 from .core1 import CONTROL, RING, SAMPLES, Core1
-from .core1_bridge import CONTROL_BYTES, DECODER_OWNED, RING_BYTES, SAMPLE_BYTES
+from .core1_bridge import CONTROL_BYTES, RING_BYTES, SAMPLE_BYTES
 from .machine import load_symbols
 
 
@@ -65,7 +65,9 @@ class DecoderLoad:
     cycle of the clock it has selected (CRU 0x14 bits 14:12 under the write mask, from the 200 MHz
     PLL). SysTick counts that time: reads of the current value follow it, every wrap adds a period
     to the program's elapsed counter as its tick handler would, and WFI ends at the next wrap.
-    Decoded slots reach core 0 only once the time spent decoding them has passed.
+    Decoded slots reach core 0 only once the time spent decoding them has passed. A publish carries
+    only the control bytes core 1 stored during that wake, as its stores would on the chip, so a slot
+    core 0 emptied in the meantime stays empty.
     """
 
     def __init__(self, audio, directory):
@@ -80,6 +82,7 @@ class DecoderLoad:
         self.next_wake_us = 0.0
         self.publish_at_us = None
         self.ring_bytes = 0
+        self.stored = set()
         audio.core1 = self
         self.machine.hook_symbol("core1_source_fill", self.step)
 
@@ -134,6 +137,9 @@ class DecoderLoad:
             self.deliver()
             uc.mem_write(SYSTICK_CURRENT, struct.pack("<I", self.current()))
 
+        def store(uc, access, address, size, value, user):
+            self.stored.update(range(address, address + size))
+
         def write(uc, access, address, size, value, user):
             self.deliver()
             if address == SYSTICK_RELOAD:
@@ -148,6 +154,7 @@ class DecoderLoad:
         uc.hook_add(UC_HOOK_MEM_READ, read_current, None, SYSTICK_CURRENT, SYSTICK_CURRENT)
         uc.hook_add(UC_HOOK_MEM_WRITE, write, None, SYSTICK_RELOAD, SYSTICK_CURRENT)
         uc.hook_add(UC_HOOK_MEM_WRITE, write, None, CRU_CLOCK_SELECT, CRU_CLOCK_SELECT)
+        uc.hook_add(UC_HOOK_MEM_WRITE, store, None, CONTROL, CONTROL + CONTROL_BYTES - 1)
 
     def period_us(self):
         return (self.reload + 1) / self.mhz
@@ -196,8 +203,9 @@ class DecoderLoad:
     def publish(self):
         machine, core = self.machine, self.core
         machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
-        for offset, count in DECODER_OWNED:
-            machine.uc.mem_write(CONTROL + offset, bytes(core.uc.mem_read(CONTROL + offset, count)))
+        for address in sorted(self.stored):
+            machine.uc.mem_write(address, bytes(core.uc.mem_read(address, 1)))
+        self.stored.clear()
 
     def wake(self):
         machine, core = self.machine, self.core
@@ -208,6 +216,7 @@ class DecoderLoad:
         self.wakes += 1
         core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
         core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
+        self.stored.clear()
         self.run_until_rest()
         self.deliver()
         self.publish_at_us = self.time_us
