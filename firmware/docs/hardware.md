@@ -78,7 +78,7 @@ The [CS43198 data sheet](https://statics.cirrus.com/pubs/proDatasheet/CS43198_DS
 ## Firmware image
 
 - `GNARLYR.IMG` is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
-- FiiO's updater scans `\ECHOECHO.IMG`, then `\ECHOV100.IMG` to `\ECHOV498.IMG` at the top level of internal storage, and the highest wins. FiiO's own Echo image is 39,845,892 bytes.
+- FiiO's updater opens `\ECHOECHO.IMG` at the top level of internal storage first; only when it is absent does it scan `\ECHOV100.IMG` to `\ECHOV498.IMG`, and the highest number present wins. It checks `RKnanoFW` at `0x1F8` and the header copy at the fw-size offset, nothing else, then copies `(fw size + 0x104000)` rounded down to a MiB into slot 2 and from there into slot 1 ([`device-install.md`](device-install.md), Why this name). FiiO's own Echo image is 39,845,892 bytes.
 
 ## Board details
 

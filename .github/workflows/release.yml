@@ -95,8 +95,9 @@ jobs:
           manifest = json.loads((dist / 'firmware.json').read_text())
           assert manifest['commit'] == os.environ['SOURCE_SHA']
           assert 'v' + manifest['version'] == os.environ['RELEASE_TAG']
-          for name in ('GNARLYR.IMG', 'gnarlyr-source.tar.gz'):
+          for name in ('ECHOECHO.IMG', 'GNARLYR.IMG', 'gnarlyr-source.tar.gz'):
               data = (dist / name).read_bytes()
               assert manifest['files'][name] == {'sha256': hashlib.sha256(data).hexdigest(), 'bytes': len(data)}
+          assert (dist / 'ECHOECHO.IMG').read_bytes() == (dist / 'GNARLYR.IMG').read_bytes()
           CHECK
           gh release create "$RELEASE_TAG" dist/* --verify-tag --title "Gnarlyr $RELEASE_TAG" --generate-notes --latest
