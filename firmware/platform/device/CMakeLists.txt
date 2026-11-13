@@ -556,6 +556,7 @@ add_executable(echo_usb_overlay
     board/time_file_take.c
     logic/fat_delete.c
     board/usb_card.c
+    board/fifo_words.c
     board/usb_port.c
     board/usb_session.c
 )

@@ -2,6 +2,7 @@
 
 #include "core/seam.h"
 #include "device/usb_fifo.h"
+#include "fifo_words.h"
 #include "hal/clock.h"
 #include "usb.h"
 #include "usb_registers.h"
@@ -343,6 +344,10 @@ static bool storage_packet(const UsbPort *port, uint32_t status)
 
 static bool receive_blocked(const UsbPort *port)
 {
+    bool storage = port->msc != NULL && port->audio == NULL;
+    if (!storage || !msc_out_blocked(port->msc, port->bulk_packet)) {
+        return false;
+    }
     uint32_t status = read_register(GRXSTSR);
     uint32_t count = (status >> RX_STATUS_COUNT_SHIFT) & RX_STATUS_COUNT_MASK;
     return storage_packet(port, status) && msc_out_blocked(port->msc, count);
@@ -353,7 +358,11 @@ static void receive_storage(UsbPort *port, uint32_t count)
     uint8_t *slot = msc_out_slot(port->msc, count);
     uint32_t capacity = slot != NULL ? count : sizeof port->out_packet;
     uint8_t *bytes = slot != NULL ? slot : (uint8_t *)port->out_packet;
-    read_fifo((uint32_t *)(void *)bytes, capacity / 4, count);
+    if (slot != NULL) {
+        fifo_words_read((uint32_t *)(void *)slot, USB_BASE + fifo(0), count / 4);
+    } else {
+        read_fifo((uint32_t *)(void *)bytes, capacity / 4, count);
+    }
     msc_receive(port->msc, bytes, count < capacity ? count : capacity);
 }
 
@@ -478,10 +487,7 @@ static void stream_in(UsbPort *port)
     if (length == 0 || tx_space(port, BULK_ENDPOINT) < words) {
         return;
     }
-    const uint32_t *data = msc_in_data(port->msc);
-    for (uint32_t index = 0; index < words; index++) {
-        write_register(fifo(BULK_ENDPOINT), data[index]);
-    }
+    fifo_words_write(USB_BASE + fifo(BULK_ENDPOINT), msc_in_data(port->msc), words);
     msc_in_sent(port->msc, length);
     port->in_left = (uint16_t)(port->in_left - length);
 }
@@ -610,7 +616,9 @@ static void stream_burst(UsbPort *port)
             handle_in_endpoints(port);
         }
         msc_pump(port->msc);
-        pump_bulk_in(port);
+        if (port->msc->phase != MSC_PHASE_DATA_OUT) {
+            pump_bulk_in(port);
+        }
         follow_timing(port);
     }
 }

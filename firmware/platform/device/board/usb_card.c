@@ -8,6 +8,7 @@
 #include "device/pll.h"
 #include "device/sd_card.h"
 #include "emmc.h"
+#include "fifo_words.h"
 #include "hal/clock.h"
 #include "mmc.h"
 #include "mmc_registers.h"
@@ -139,13 +140,12 @@ static uint32_t move_words(const UsbCard *card, uint32_t *words, uint32_t count)
         (read_mmc(card, MMC_STATUS) >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
     uint32_t depth = *card->host->fifo_depth;
     uint32_t ready = card->reading ? level : (level < depth ? depth - level : 0);
-    uint32_t moved = 0;
-    for (; moved < ready && moved < count; moved++) {
-        if (card->reading) {
-            words[moved] = read_mmc(card, MMC_FIFO);
-        } else {
-            write_mmc(card, MMC_FIFO, words[moved]);
-        }
+    uint32_t moved = ready < count ? ready : count;
+    uint32_t fifo = card->host->base + MMC_FIFO;
+    if (card->reading) {
+        fifo_words_read(words, fifo, moved);
+    } else {
+        fifo_words_write(fifo, words, moved);
     }
     return moved;
 }

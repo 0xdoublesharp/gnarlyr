@@ -17,6 +17,10 @@ CONFIGURE_LIMIT_MS = 2000
 INT_DATA_CRC = 1 << 7
 MMC_FIFO = 0x200
 FULL_SPEED_PACKET = 64
+HOST_MB_PER_S = 40
+INSTANT_HOST_MB_PER_S = 400
+INSTANT_CARD = {"WRITE_COMMAND_US": 20, "WRITE_BLOCK_US": 0, "READ_COMMAND_US": 20,
+                "READ_EXTRA_BLOCK_US": 0}
 FULL_SPEED_BYTES = 16 * 1024
 FAILING_WORD = 3000
 CRU_MMC_DIVIDERS = 0x30
@@ -32,7 +36,7 @@ LEAVE_LIMIT_MS = 5000
 
 
 class EchoImageTest(EchoImageHarness):
-    def storage_host(self, fast=False, packet=SECTOR):
+    def storage_host(self, fast=False, packet=SECTOR, rate=HOST_MB_PER_S):
         from echo_emulator.emmc import SdCard, SparseDisk
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.usb_storage_host import ScsiHost, StorageHost
@@ -48,7 +52,7 @@ class EchoImageTest(EchoImageHarness):
         machine.host_stays = True
         machine.stub_symbol("msc_finished", lambda machine: 0)
         machine.stub_symbol("usb_activity_quiet", lambda machine: 1)
-        host = StorageHost(machine, packet)
+        host = StorageHost(machine, packet, rate)
         machine.usb.host = host
         machine.note("usb_activity_start")
         session.run_to_first_frame()
@@ -72,8 +76,9 @@ class EchoImageTest(EchoImageHarness):
         value = machine.cru.regs.get(CRU_MMC_DIVIDERS, 0)
         return value & SD_FIELD, value & EMMC_FIELD
 
-    def measure(self, fast):
-        session, machine, card, disk, host, scsi = self.storage_host(fast)
+    def measure(self, fast, label=None, rate=HOST_MB_PER_S):
+        label = label or (" at 50 MHz" if fast else "")
+        session, machine, card, disk, host, scsi = self.storage_host(fast, rate=rate)
         written = [self.pattern(index) for index in range(COMMANDS)]
         writes_before = len(card.writes)
         host.events.clear()
@@ -103,14 +108,14 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(disk.read(lba, COMMAND_SECTORS), data)
         print("\n[usb throughput%s] card write %.2f MB/s, read %.2f MB/s over %d KiB; "
               "%d card write commands for %d WRITE(10)s, OUT armed for %s packets"
-              % (" at 50 MHz" if fast else "", total / write_us, total / read_us, total // 1024,
+              % (label, total / write_us, total / read_us, total // 1024,
                  len(card_writes), COMMANDS, sorted(set(host.armed_packets))))
         print("[usb screen%s] %.0f screen updates a second while writing"
-              % (" at 50 MHz" if fast else "", write_draws * 1000000 / write_us))
+              % (label, write_draws * 1000000 / write_us))
         for name, phases in (("write", write_phases), ("read", read_phases)):
             print("[usb phases%s] %s: CBW to first data %.0f us, data %.0f us, last data to CSW "
                   "%.0f us, CSW to next CBW %.0f us (longest %.0f us), longest packet gap %.0f us"
-                  % (" at 50 MHz" if fast else "", name, phases["to_data_us"], phases["data_us"],
+                  % (label, name, phases["to_data_us"], phases["data_us"],
                      phases["to_status_us"], phases["next_command_us"], phases["longest_gap_us"],
                      phases["longest_packet_gap_us"]))
         self.assertEqual([count for _, _, count in card_writes], [COMMAND_SECTORS] * COMMANDS)
@@ -118,6 +123,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(host.faults, [])
         self.assert_healthy(session)
         return session, machine, card
+
+    def test_with_an_instant_card_the_firmware_sets_the_pace(self):
+        from echo_emulator import emmc
+        saved = {name: getattr(emmc, name) for name in INSTANT_CARD}
+        for name, value in INSTANT_CARD.items():
+            setattr(emmc, name, value)
+        try:
+            self.measure(fast=True, label=" with an instant card", rate=INSTANT_HOST_MB_PER_S)
+        finally:
+            for name, value in saved.items():
+                setattr(emmc, name, value)
 
     def test_card_writes_stream_one_command_each_and_read_back_intact(self):
         session, machine, card = self.measure(fast=False)
