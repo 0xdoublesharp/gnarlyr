@@ -229,10 +229,9 @@ CORE_SEAM void msc_remove_media(Msc *msc)
 
 static void set_sense(Msc *msc, uint8_t key, uint8_t code)
 {
-    if (msc->lun < MSC_MAX_LUNS) {
-        msc->sense_key[msc->lun] = key;
-        msc->sense_code[msc->lun] = code;
-    }
+    uint8_t lun = msc->lun < MSC_MAX_LUNS ? msc->lun : 0;
+    msc->sense_key[lun] = key;
+    msc->sense_code[lun] = code;
     if (key != SENSE_NONE) {
         msc->status = STATUS_FAILED;
     }

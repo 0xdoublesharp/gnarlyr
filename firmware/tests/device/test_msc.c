@@ -266,6 +266,19 @@ static void read_capacity_reports_the_last_block_and_its_size(void)
     check_csw(exchange, 0, 0);
 }
 
+static void read_format_capacities_reports_the_sector_count_and_block_size(void)
+{
+    static const uint8_t block[10] = {0x23};
+    Msc *msc = started();
+    send_command(msc, 12, true, 0, block, 10);
+    Exchange *exchange = collect(msc);
+    CHECK_EQUAL(12, exchange->length);
+    CHECK_EQUAL(8, exchange->data[3]);
+    CHECK_EQUAL(DISK_SECTORS, be32_at(exchange->data + 4));
+    CHECK_EQUAL(0x02000200, be32_at(exchange->data + 8));
+    check_csw(exchange, 0, 0);
+}
+
 static void read_10_streams_the_sectors(void)
 {
     uint8_t block[10];
@@ -320,6 +333,37 @@ static void mode_sense_marks_a_read_only_lun_write_protected(void)
     send_command(msc, 192, true, 0, block, 6);
     exchange = collect(msc);
     CHECK_EQUAL(0x00, exchange->data[2]);
+}
+
+static void ten_byte_mode_sense_marks_only_the_read_only_lun_write_protected(void)
+{
+    static const uint8_t block[10] = {0x5A, 0, 0x3F, 0, 0, 0, 0, 0, 8, 0};
+    Msc *msc = started();
+    send_command(msc, 8, true, 1, block, 10);
+    Exchange *exchange = collect(msc);
+    CHECK_EQUAL(8, exchange->length);
+    CHECK_EQUAL(6, exchange->data[1]);
+    CHECK_EQUAL(0x80, exchange->data[3]);
+    check_csw(exchange, 0, 0);
+    send_command(msc, 8, true, 0, block, 10);
+    exchange = collect(msc);
+    CHECK_EQUAL(0x00, exchange->data[3]);
+    check_csw(exchange, 0, 0);
+}
+
+static void a_command_for_an_invalid_lun_is_rejected(void)
+{
+    static const uint8_t block[6] = {0x00};
+    Msc *msc = started();
+    send_command(msc, 0, false, 2, block, 6);
+    check_csw(collect(msc), 1, 0);
+    MscStats stats = msc_stats(msc);
+    CHECK_EQUAL(1, stats.failed_commands);
+    CHECK_EQUAL(0x05, stats.last_sense_key);
+    CHECK_EQUAL(0x25, stats.last_sense_code);
+    Exchange *reported = sense(msc, 0);
+    CHECK_EQUAL(0x05, reported->data[2]);
+    CHECK_EQUAL(0x25, reported->data[12]);
 }
 
 static void a_read_past_the_end_fails_with_an_out_of_range_sense(void)
@@ -1458,10 +1502,13 @@ int main(void)
         TEST_CASE(test_unit_ready_passes_for_a_present_lun),
         TEST_CASE(an_absent_lun_is_not_ready_with_medium_not_present),
         TEST_CASE(read_capacity_reports_the_last_block_and_its_size),
+        TEST_CASE(read_format_capacities_reports_the_sector_count_and_block_size),
         TEST_CASE(read_10_streams_the_sectors),
         TEST_CASE(write_10_stores_the_sectors),
         TEST_CASE(writing_a_read_only_lun_is_refused_without_changing_it),
         TEST_CASE(mode_sense_marks_a_read_only_lun_write_protected),
+        TEST_CASE(ten_byte_mode_sense_marks_only_the_read_only_lun_write_protected),
+        TEST_CASE(a_command_for_an_invalid_lun_is_rejected),
         TEST_CASE(a_read_past_the_end_fails_with_an_out_of_range_sense),
         TEST_CASE(an_unknown_command_fails_with_an_illegal_request),
         TEST_CASE(a_length_mismatch_is_a_phase_error),
