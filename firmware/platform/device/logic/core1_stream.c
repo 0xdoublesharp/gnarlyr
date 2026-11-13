@@ -205,6 +205,18 @@ bool core1_stream_step(Core1Stream *stream)
     return true;
 }
 
+static bool current(const Core1Stream *stream)
+{
+    return stream->generation != 0 && stream->region.control->generation == stream->generation;
+}
+
+bool core1_stream_waiting_for_room(const Core1Stream *stream)
+{
+    volatile const StreamControl *control = stream->region.control;
+    return current(stream) &&
+           (stream->finished || control->slots[stream->slot].state != STREAM_SLOT_EMPTY);
+}
+
 void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
                        FlacDecoder *decoder, uint32_t fill_budget)
 {
