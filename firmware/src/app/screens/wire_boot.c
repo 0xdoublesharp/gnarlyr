@@ -163,7 +163,7 @@ static void draw_mark(const Ground *ground, const Theme *theme, const char *text
     Canvas clipped = canvas_clipped(ground->canvas, sky);
     Point pen = {sky.x + (sky.width - text_width(font, text)) / 2,
                  hidden - share_of(hidden - rest, shown)};
-    text_draw(&clipped, (TextStyle){font, ink(ground, color)}, pen, text);
+    text_draw(&clipped, (TextStyle){font, ink(ground, color), false}, pen, text);
 }
 
 static void draw_backdrop(const Ground *ground, const Theme *theme, bool art)
