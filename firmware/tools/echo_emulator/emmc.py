@@ -29,6 +29,7 @@ WRITE_COMMAND_US = 900
 WRITE_BLOCK_US = 70
 STATUS_COMMAND_US = 15
 POLL_JUMP_CYCLES = 240
+FIFO_COUNT_LIMIT = 0x1FFF
 STATUS_CARD_BUSY = 1 << 9
 MMC_CLKENA = 0x10
 MMC_PWREN = 0x04
@@ -164,7 +165,7 @@ class DwMmc(RegisterFile):
             return self.read_queue.popleft() if self.read_queue and not self.busy() else 0
         if offset == MMC_STATUS:
             waiting = self.busy()
-            count = 0 if waiting else len(self.read_queue)
+            count = 0 if waiting else min(len(self.read_queue), FIFO_COUNT_LIMIT)
             empty = STATUS_FIFO_EMPTY if count == 0 else 0
             return empty | (count << STATUS_FIFO_COUNT_SHIFT) | (STATUS_CARD_BUSY if waiting and not self.read_queue else 0)
         if offset == MMC_RINTSTS:

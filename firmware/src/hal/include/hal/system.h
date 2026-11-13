@@ -62,6 +62,13 @@ typedef struct HalUsbSetupTrace {
     uint8_t seen;
 } HalUsbSetupTrace;
 
+typedef struct HalUsbWrites {
+    uint32_t commands;
+    uint32_t receive_ms;
+    uint32_t card_ms;
+    uint32_t idle_ms;
+} HalUsbWrites;
+
 typedef struct HalUsbLast {
     HalUsbEnd end;
     uint8_t left_mounted;
@@ -72,6 +79,7 @@ typedef struct HalUsbLast {
     uint32_t card_written;
     uint32_t writes_after_eject;
     HalUsbSetupTrace fallback_setups;
+    HalUsbWrites writes;
 } HalUsbLast;
 
 HalUsbLast hal_system_usb_last(void);

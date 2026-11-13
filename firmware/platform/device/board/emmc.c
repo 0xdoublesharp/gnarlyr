@@ -62,8 +62,7 @@ enum {
 };
 
 static uint32_t emmc_fifo_depth;
-static const MmcHost EMMC_HOST = {EMMC_BASE, CRU_EMMC_IDENTIFY, CRU_EMMC_TRANSFER,
-                                  &emmc_fifo_depth};
+const MmcHost EMMC_HOST = {EMMC_BASE, CRU_EMMC_IDENTIFY, CRU_EMMC_TRANSFER, &emmc_fifo_depth};
 static EmmcInfo emmc;
 static bool started;
 static uint32_t started_magic;

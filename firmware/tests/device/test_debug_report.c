@@ -991,6 +991,18 @@ static void the_last_usb_session_is_reported_once_there_was_one(void)
     CHECK(strstr(text, "usb.speed_fallback") == NULL);
 }
 
+static void the_last_usb_session_splits_its_write_time(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "usb.timing") == NULL);
+    input.usb = (HalUsbLast){
+        .end = HAL_USB_END_EJECTED,
+        .writes = {.commands = 812, .receive_ms = 9400, .card_ms = 2100, .idle_ms = 350}};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.timing: writes=812 receive_ms=9400 card_ms=2100 idle_ms=350"));
+}
+
 static void the_card_start_reports_detection_power_and_the_failing_command(void)
 {
     DebugReportInput input = plain_input();
@@ -1475,6 +1487,7 @@ int main(void)
         TEST_CASE(the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole),
         TEST_CASE(the_cores_session_bit_is_reported_only_while_the_controller_can_be_read),
         TEST_CASE(the_last_usb_session_is_reported_once_there_was_one),
+        TEST_CASE(the_last_usb_session_splits_its_write_time),
         TEST_CASE(a_full_speed_fallback_reports_why_it_fired),
         TEST_CASE(stopped_audio_reports_its_running_figures_as_unknown),
         TEST_CASE(running_audio_reports_averages_worst_times_and_the_busy_share),

@@ -307,6 +307,10 @@ set(ECHO_OVERLAY_IMPORTS
     emmc_volume_read
     emmc_volume_write
     emmc_write
+    EMMC_HOST
+    mmc_command
+    SD_MMC_HOST
+    sd_card_info
     hal_audio_service
     hal_audio_headphones
     headphone_audio_limit
@@ -543,6 +547,7 @@ add_executable(echo_usb_overlay
     board/usb_dac_session.c
     board/time_file_take.c
     logic/fat_delete.c
+    board/usb_card.c
     board/usb_port.c
     board/usb_session.c
 )

@@ -12,6 +12,12 @@ enum {
     MSC_HISTORY_CAPACITY = 8
 };
 
+typedef struct MscStream {
+    bool (*open)(void *context, uint32_t lba, uint32_t count);
+    bool (*feed)(void *context, const uint32_t *words, uint32_t count, uint32_t *accepted);
+    bool (*close)(void *context, bool complete);
+} MscStream;
+
 typedef struct MscLun {
     bool (*read)(void *context, uint32_t lba, uint32_t count, void *buffer);
     bool (*write)(void *context, uint32_t lba, uint32_t count, const void *buffer);
@@ -20,13 +26,15 @@ typedef struct MscLun {
     bool writable;
     bool present;
     char product[MSC_PRODUCT_LENGTH + 1];
+    const MscStream *stream;
 } MscLun;
 
 typedef enum MscPhase {
     MSC_PHASE_COMMAND,
     MSC_PHASE_DATA_IN,
     MSC_PHASE_DATA_OUT,
-    MSC_PHASE_STATUS
+    MSC_PHASE_STATUS,
+    MSC_PHASE_FINISH
 } MscPhase;
 
 typedef enum MscSource {
@@ -34,6 +42,14 @@ typedef enum MscSource {
     MSC_SOURCE_SECTORS,
     MSC_SOURCE_NONE
 } MscSource;
+
+typedef enum MscWait {
+    MSC_WAIT_RECEIVE,
+    MSC_WAIT_CARD,
+    MSC_WAIT_IDLE,
+    MSC_WAIT_NONE,
+    MSC_WAIT_KINDS
+} MscWait;
 
 typedef struct MscTraffic {
     uint32_t sectors_read;
@@ -104,6 +120,11 @@ typedef struct Msc {
     uint32_t *write_buffer;
     uint32_t write_sectors;
     uint32_t batch_bytes;
+    uint32_t ring_in;
+    uint32_t ring_out;
+    uint32_t stream_bytes;
+    bool streaming;
+    bool stream_failed;
 } Msc;
 
 void msc_init(Msc *msc, const MscLun *luns, uint8_t count);
@@ -113,6 +134,10 @@ void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors);
 void msc_receive(Msc *msc, const uint8_t *packet, uint32_t length);
 bool msc_next_in(Msc *msc, uint8_t *buffer, uint32_t capacity, uint32_t *length);
 void msc_prefetch(Msc *msc);
+void msc_pump(Msc *msc);
+bool msc_out_blocked(const Msc *msc, uint32_t length);
+uint8_t *msc_out_slot(Msc *msc, uint32_t length);
+MscWait msc_write_wait(const Msc *msc, uint32_t packet);
 bool msc_ejected(const Msc *msc, uint8_t lun);
 void msc_remove_media(Msc *msc);
 bool msc_finished(const Msc *msc);

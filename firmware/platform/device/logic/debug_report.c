@@ -388,6 +388,20 @@ static void put_setup_trace(StringBuilder *text, const HalUsbSetupTrace *trace)
     }
 }
 
+static void put_writes(Writer *writer, const HalUsbWrites *writes)
+{
+    begin(writer, "usb.timing");
+    string_builder_append(&writer->text, "writes=");
+    string_builder_append_unsigned(&writer->text, writes->commands);
+    string_builder_append(&writer->text, " receive_ms=");
+    string_builder_append_unsigned(&writer->text, writes->receive_ms);
+    string_builder_append(&writer->text, " card_ms=");
+    string_builder_append_unsigned(&writer->text, writes->card_ms);
+    string_builder_append(&writer->text, " idle_ms=");
+    string_builder_append_unsigned(&writer->text, writes->idle_ms);
+    finish(writer);
+}
+
 static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
 {
     bool known = usb.end != HAL_USB_END_NONE;
@@ -397,6 +411,9 @@ static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
     put_known(writer, "usb.internal_sectors_written", known, usb.internal_written);
     put_known(writer, "usb.card_sectors_written", known, usb.card_written);
     put_known(writer, "usb.writes_after_eject", known, usb.writes_after_eject);
+    if (known) {
+        put_writes(writer, &usb.writes);
+    }
     if (usb.speed_fallback != 0) {
         begin(writer, "usb.speed_fallback");
         string_builder_append(&writer->text, NAME_IN(SPEED_FALLBACK_NAMES, usb.speed_fallback));

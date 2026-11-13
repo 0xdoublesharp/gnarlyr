@@ -22,3 +22,6 @@ BlockDevice emmc_device(void);
 bool emmc_volume_start(BlockDevice *device);
 bool emmc_volume_read(void *context, uint32_t lba, uint32_t count, void *buffer);
 bool emmc_volume_write(void *context, uint32_t lba, uint32_t count, const void *buffer);
+
+struct MmcHost;
+extern const struct MmcHost EMMC_HOST;

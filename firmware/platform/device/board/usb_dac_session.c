@@ -29,7 +29,6 @@ enum {
     MS_PER_SECOND = 1000,
     PPM = 1000000,
     RATE_WINDOW_MS = 500,
-    HINT_CAPACITY = 96,
     STEREO = 2,
     CAPTURE_DAC_SLOT = 3
 };
@@ -52,7 +51,7 @@ typedef enum DacNext {
 } DacNext;
 
 static UsbShared *shared;
-static UsbPort port;
+static UsbPort *const port = &usb_session_screen.port;
 static UsbAudio audio;
 static UsbAudioSink sink;
 #ifdef ECHO_DEBUG_LOOP
@@ -71,10 +70,10 @@ _Static_assert(2 * USB_DAC_RING_FRAMES * sizeof(uint32_t) <= USB_SESSION_BUFFER_
 
 static const char CAPTURE_DAC[] = "dac";
 static DacTally tally;
-static char hint[HINT_CAPACITY];
+static char *const hint = usb_session_screen.hint;
 static int hinted_page;
 static int hint_pages;
-static UsbScene scene;
+static UsbScene *const scene = &usb_session_screen.scene;
 static UsbDacMenu menu;
 static AppDacSettings settings;
 static uint32_t open_rate;
@@ -122,14 +121,14 @@ static uint32_t feedback(uint16_t tick)
 static void serve_usb(void)
 {
     for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
-        usb_poll(&port);
+        usb_poll(port);
     }
 }
 
 static void serve_audio_usb(void)
 {
     for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
-        usb_poll_audio(&port);
+        usb_poll_audio(port);
     }
 }
 
@@ -183,14 +182,14 @@ static void follow_rate(uint32_t now_ms)
     if (elapsed < RATE_WINDOW_MS) {
         return;
     }
-    scene.dac.data_rate = (tally.received_bytes - tally.counted_bytes) / elapsed;
+    scene->dac.data_rate = (tally.received_bytes - tally.counted_bytes) / elapsed;
     tally.counted_bytes = tally.received_bytes;
     tally.counted_ms = now_ms;
 }
 
 static void follow_buffer(void)
 {
-    UsbSceneDac *dac = &scene.dac;
+    UsbSceneDac *dac = &scene->dac;
     if (tally.buffer_samples == 0) {
         return;
     }
@@ -201,7 +200,7 @@ static void follow_buffer(void)
 
 static void follow_details(uint32_t now_ms)
 {
-    UsbSceneDac *dac = &scene.dac;
+    UsbSceneDac *dac = &scene->dac;
     dac->channels = STEREO;
     dac->alt = audio.alt;
     dac->asynchronous = usb_audio_asynchronous(&audio);
@@ -215,11 +214,11 @@ static void follow_details(uint32_t now_ms)
 
 static void follow_info(uint32_t now_ms)
 {
-    UsbSceneDac *dac = &scene.dac;
+    UsbSceneDac *dac = &scene->dac;
     follow_details(now_ms);
-    scene.state = stream_state();
-    scene.high_speed = port.device.speed == USB_SPEED_HIGH;
-    scene.fell_back = shared->high_speed_failed;
+    scene->state = stream_state();
+    scene->high_speed = port->device.speed == USB_SPEED_HIGH;
+    scene->fell_back = shared->high_speed_failed;
     dac->rate = audio.rate;
     dac->bits = (uint8_t)(8 * usb_audio_sample_bytes(&audio));
     dac->volume = shared->dac_volume;
@@ -237,48 +236,48 @@ static void follow_info(uint32_t now_ms)
 
 static StringId back_action(int pages)
 {
-    if (scene.page + 1 >= pages) {
+    if (scene->page + 1 >= pages) {
         return STR_USB_BACK_OVERVIEW;
     }
-    return scene.page == USB_SCENE_OVERVIEW ? STR_USB_BACK_DETAILS : STR_USB_BACK_MORE;
+    return scene->page == USB_SCENE_OVERVIEW ? STR_USB_BACK_DETAILS : STR_USB_BACK_MORE;
 }
 
 static const char *paged_hint(void)
 {
-    if (hinted_page == scene.page + 1) {
+    if (hinted_page == scene->page + 1) {
         return hint_pages <= 1 ? i18n_text(STR_USB_DAC_HINT) : hint;
     }
-    hinted_page = scene.page + 1;
-    StringBuilder builder = string_builder_make(hint, sizeof hint);
+    hinted_page = scene->page + 1;
+    StringBuilder builder = string_builder_make(hint, USB_SESSION_HINT_CAPACITY);
     i18n_format_text(&builder, STR_USB_DAC_PAGE_HINT, i18n_text(STR_USB_BACK_OVERVIEW));
-    AppUsbStatus probe = {.view = APP_USB_DAC, .detail = hint, .scene = &scene};
-    const ListView *shown_menu = scene.menu;
-    scene.menu = NULL;
+    AppUsbStatus probe = {.view = APP_USB_DAC, .detail = hint, .scene = scene};
+    const ListView *shown_menu = scene->menu;
+    scene->menu = NULL;
     int pages = usb_screen_pages(app_theme(), probe);
-    scene.menu = shown_menu;
+    scene->menu = shown_menu;
     hint_pages = pages;
     if (pages <= 1) {
         return i18n_text(STR_USB_DAC_HINT);
     }
-    builder = string_builder_make(hint, sizeof hint);
+    builder = string_builder_make(hint, USB_SESSION_HINT_CAPACITY);
     i18n_format_text(&builder, STR_USB_DAC_PAGE_HINT, i18n_text(back_action(pages)));
     return hint;
 }
 
 static AppUsbStatus dac_status(void)
 {
-    scene.menu = menu_open ? &menu.view : NULL;
+    scene->menu = menu_open ? &menu.view : NULL;
     const char *detail = paged_hint();
     if (menu_open) {
         detail = i18n_text(menu.adjusting ? STR_USB_DAC_ADJUST_HINT : STR_QUICK_SETTINGS_HINT);
     }
-    return (AppUsbStatus){.view = APP_USB_DAC, .detail = detail, .scene = &scene};
+    return (AppUsbStatus){.view = APP_USB_DAC, .detail = detail, .scene = scene};
 }
 
 static bool showing_details(void)
 {
     dac_status();
-    return !menu_open && scene.page != USB_SCENE_OVERVIEW && scene.page < hint_pages;
+    return !menu_open && scene->page != USB_SCENE_OVERVIEW && scene->page < hint_pages;
 }
 
 static Rect info_area(AppUsbStatus status)
@@ -310,9 +309,9 @@ static uint8_t follow_levels(uint32_t now_ms)
     uint8_t changed = 0;
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
         uint8_t now = playing ? usb_level_of(peaks[side]) : 0;
-        uint8_t level = usb_level_follow(scene.dac.level[side], now, now_ms - meter_ms);
-        changed |= (uint8_t)(level != scene.dac.level[side] ? 1u << side : 0u);
-        scene.dac.level[side] = level;
+        uint8_t level = usb_level_follow(scene->dac.level[side], now, now_ms - meter_ms);
+        changed |= (uint8_t)(level != scene->dac.level[side] ? 1u << side : 0u);
+        scene->dac.level[side] = level;
     }
     return changed;
 }
@@ -338,7 +337,7 @@ static void step_meter(uint32_t now_ms)
     uint8_t changed = follow_levels(now_ms);
     meter_ms = now_ms;
     sample_buffer();
-    if (scene.page != USB_SCENE_OVERVIEW) {
+    if (scene->page != USB_SCENE_OVERVIEW) {
         return;
     }
     AppUsbStatus status = dac_status();
@@ -377,7 +376,7 @@ static void follow_host(void)
     uint8_t changes = usb_audio_take_changes(&audio);
     if ((changes & USB_AUDIO_CHANGED_VOLUME) != 0) {
         board_audio_set_attenuation(usb_audio_attenuation(&audio));
-        scene.dac.host_volume_known = true;
+        scene->dac.host_volume_known = true;
     }
     if ((changes & USB_AUDIO_CHANGED_FORMAT) != 0) {
         follow_format();
@@ -400,7 +399,7 @@ static void keep_stream(void)
 static void keep_output(void)
 {
     keep_stream();
-    if (scene.state != stream_state()) {
+    if (scene->state != stream_state()) {
         follow_info(hal_clock_milliseconds());
         AppUsbStatus status = dac_status();
         usb_screen_show_in_bands(status, info_area(status));
@@ -477,8 +476,8 @@ static void open_menu(uint32_t now_ms)
     usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
                       now_ms);
     menu_open = true;
-    port.hid.held = 0;
-    port.hid.skipped = 0;
+    port->hid.held = 0;
+    port->hid.skipped = 0;
     show_state();
 }
 
@@ -486,8 +485,8 @@ static void next_page(void)
 {
     dac_status();
     serve_audio_usb();
-    scene.page = (uint8_t)((scene.page + 1) % (hint_pages > 0 ? hint_pages : 1));
-    shared->usb_page = scene.page;
+    scene->page = (uint8_t)((scene->page + 1) % (hint_pages > 0 ? hint_pages : 1));
+    shared->usb_page = scene->page;
     follow_info(hal_clock_milliseconds());
     serve_audio_usb();
     AppUsbStatus status = dac_status();
@@ -525,7 +524,7 @@ static void follow_key(HalKeyTransition key)
     } else if (key.key == KEY_MENU && key.pressed) {
         open_menu(key.time_ms);
     } else {
-        int step = usb_audio_hid_key(&port.hid, key.key, key.pressed, key.time_ms);
+        int step = usb_audio_hid_key(&port->hid, key.key, key.pressed, key.time_ms);
         if (step != 0) {
             step_volume(step);
         }
@@ -546,10 +545,10 @@ static void refresh(uint32_t now_ms, uint32_t *refreshed)
         return;
     }
     *refreshed = now_ms;
-    uint8_t shown = scene.state;
+    uint8_t shown = scene->state;
     follow_info(now_ms);
     AppUsbStatus status = dac_status();
-    if (scene.state != shown) {
+    if (scene->state != shown) {
         app_show_usb_status(status);
         return;
     }
@@ -568,7 +567,7 @@ static void serve(void)
         follow_host();
         keep_output();
         if (!menu_open) {
-            usb_audio_hid_tick(&port.hid, hal_clock_milliseconds());
+            usb_audio_hid_tick(&port->hid, hal_clock_milliseconds());
         }
         uint32_t now = hal_clock_milliseconds();
         step_meter(now);
@@ -586,24 +585,24 @@ static void start_session(void)
     open_rate = 0;
     received_packets = 0;
     forced = (UsbForced){0};
-    scene = (UsbScene){
+    *scene = (UsbScene){
         .state = USB_SCENE_DAC_CHOOSE, .page = shared->usb_page, .service = serve_drawing_usb};
     tally = (DacTally){0};
     hinted_page = 0;
     receiving = false;
     playing = false;
-    port.hid.held = 0;
-    port.hid.skipped = 0;
+    port->hid.held = 0;
+    port->hid.skipped = 0;
     menu_open = false;
     next = DAC_NEXT_STAY;
     settings = app_dac_settings();
-    port = (UsbPort){.link = shared->link,
-                     .bulk_packet = USB_PACKET_SIZE,
-                     .audio = &audio,
-                     .feedback = feedback,
-                     .format_changed = follow_host,
-                     .receive_stream = receive_stream};
-    usb_audio_init(&audio, &port.device);
+    *port = (UsbPort){.link = shared->link,
+                      .bulk_packet = USB_PACKET_SIZE,
+                      .audio = &audio,
+                      .feedback = feedback,
+                      .format_changed = follow_host,
+                      .receive_stream = receive_stream};
+    usb_audio_init(&audio, &port->device);
     if (!shared->dac_volume_known) {
         shared->dac_volume = (uint8_t)SETTINGS_DEFAULT_DAC_VOLUME;
     }
@@ -639,7 +638,7 @@ void usb_dac_session(UsbShared *state)
     start_session();
     AppDacSettings before = settings;
     before.volume = shared->dac_volume;
-    if (usb_wait_for_host(&port, HOST_TIMEOUT_MS)) {
+    if (usb_wait_for_host(port, HOST_TIMEOUT_MS)) {
         connected_ms = hal_clock_milliseconds();
         tally.counted_ms = connected_ms;
         meter_ms = connected_ms;
@@ -651,7 +650,7 @@ void usb_dac_session(UsbShared *state)
     stop_output();
     board_audio_stream_close();
     menu_open = false;
-    usb_screen_capture(dac_status(), &scene, CAPTURE_DAC, CAPTURE_DAC_SLOT);
+    usb_screen_capture(dac_status(), scene, CAPTURE_DAC, CAPTURE_DAC_SLOT);
     board_audio_set_attenuation(0);
     hal_audio_set_volume(level);
     usb_power_down();
