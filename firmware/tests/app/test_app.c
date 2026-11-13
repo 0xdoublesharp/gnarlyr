@@ -2891,7 +2891,7 @@ static void the_splash_ignores_keys_until_it_ends(void)
     step();
     tap(KEY_PLAY);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
-    wait_ms(SPLASH_MS);
+    wait_ms(WIRE_BOOT_OPEN_MS);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
 }
@@ -2922,9 +2922,10 @@ static bool wire_horizon_shown(void)
     return fake_hal_pixel(theme->metrics.screen_width / 2, horizon) == theme->colors.accent;
 }
 
-static void still_on_the_splash_after_the_wireframe_length(void)
+static void the_plain_splash_runs_its_own_length(void)
 {
-    wait_ms(WIRE_BOOT_OPEN_MS + 50);
+    wait_ms(SPLASH_MS / 2);
+    CHECK(!wire_horizon_shown());
     tap(KEY_PLAY);
     CHECK(title_is(FIRMWARE_SHORT_NAME));
     wait_ms(SPLASH_MS);
@@ -2948,14 +2949,14 @@ static void a_start_after_a_notice_keeps_the_plain_splash(void)
     start_app();
     app_show_notice(FIRMWARE_SHORT_NAME, "Notice");
     app_show_splash();
-    still_on_the_splash_after_the_wireframe_length();
+    the_plain_splash_runs_its_own_length();
 }
 
 static void a_start_with_the_animation_off_keeps_the_plain_splash(void)
 {
     start_with_the_animation_off();
     app_show_splash();
-    still_on_the_splash_after_the_wireframe_length();
+    the_plain_splash_runs_its_own_length();
 }
 
 static bool toast_is(const char *expected)
@@ -3972,7 +3973,7 @@ static void leaving_the_charge_screen_keeps_the_plain_splash(void)
     CHECK(app_charging());
     hold_power();
     CHECK(!app_charging());
-    still_on_the_splash_after_the_wireframe_length();
+    the_plain_splash_runs_its_own_length();
 }
 
 static void an_empty_battery_on_usb_power_keeps_playing(void)
