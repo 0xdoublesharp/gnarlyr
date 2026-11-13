@@ -43,7 +43,7 @@ static void wake_panel(void)
     }
 }
 
-void board_display_clear(void)
+CORE_COLD void board_display_clear(void)
 {
     uint16_t *black = (uint16_t *)board_scratch;
     for (int index = 0; index < HAL_DISPLAY_WIDTH * CLEAR_ROWS; index++) {
@@ -65,7 +65,7 @@ static void stop_pwm(void)
     pwm_running = false;
 }
 
-static void drive_backlight(bool level)
+CORE_COLD static void drive_backlight(bool level)
 {
     stop_pwm();
     gpio_mux(BACKLIGHT, GPIO_FUNCTION_GPIO);
@@ -81,7 +81,7 @@ static void start_pwm(void)
     pwm_running = true;
 }
 
-static void run_pwm(BacklightPwm pwm)
+CORE_COLD static void run_pwm(BacklightPwm pwm)
 {
     if (!pwm_running) {
         start_pwm();

@@ -1,5 +1,7 @@
 #include "device/vop.h"
 
+#include "core/seam.h"
+
 bool vop_wait_idle(volatile uint32_t *registers)
 {
     for (int tries = 0; tries < VOP_BUSY_TRIES; tries++) {
@@ -24,7 +26,7 @@ static uint32_t cycles_for(uint32_t mhz, uint32_t nanoseconds)
     return cycles == 0 ? 1u : cycles;
 }
 
-uint32_t vop_timing_for_mhz(uint32_t mhz)
+CORE_COLD uint32_t vop_timing_for_mhz(uint32_t mhz)
 {
     uint32_t strobe = cycles_for(mhz, VOP_STROBE_NS);
     uint32_t cycle = cycles_for(mhz, VOP_CYCLE_NS);
@@ -32,7 +34,7 @@ uint32_t vop_timing_for_mhz(uint32_t mhz)
     return rest | strobe << VOP_TIMING_STROBE_SHIFT | VOP_TIMING_ENABLE;
 }
 
-void vop_start(volatile uint32_t *registers, uint32_t mhz)
+CORE_COLD void vop_start(volatile uint32_t *registers, uint32_t mhz)
 {
     registers[VOP_CONTROL] = VOP_CONTROL_COMMANDS;
     registers[VOP_TIMING] = vop_timing_for_mhz(mhz);

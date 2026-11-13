@@ -26,13 +26,13 @@ CORE_SEAM CORE_COLD bool board_audio_process_prepare(void)
     return ready && board_audio_effects_prepare();
 }
 
-void board_audio_process_forget(void)
+CORE_COLD void board_audio_process_forget(void)
 {
     ready = false;
     board_audio_effects_forget();
 }
 
-bool equalizer_design(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate)
+CORE_COLD bool equalizer_design(Equalizer *equalizer, const HalAudioEqualizer *curve, uint32_t rate)
 {
     if (!ready) {
         *equalizer = (Equalizer){0};
@@ -41,7 +41,7 @@ bool equalizer_design(Equalizer *equalizer, const HalAudioEqualizer *curve, uint
     return entry()->design(equalizer, curve, rate);
 }
 
-bool equalizer_retune(Equalizer *equalizer, EqualizerChange change, uint32_t rate)
+CORE_COLD bool equalizer_retune(Equalizer *equalizer, EqualizerChange change, uint32_t rate)
 {
     return ready ? entry()->retune(equalizer, change, rate)
                  : equalizer_design(equalizer, change.after, rate);

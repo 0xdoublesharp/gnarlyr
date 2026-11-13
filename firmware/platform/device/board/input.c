@@ -81,7 +81,7 @@ uint8_t board_input_held(void)
     return scanner.stable;
 }
 
-void board_input_start(void)
+CORE_COLD void board_input_start(void)
 {
     gpio_mux(POWER_KEY, GPIO_FUNCTION_GPIO);
     gpio_input(POWER_KEY);
@@ -180,7 +180,7 @@ bool hal_input_next_headset_command(HalHeadsetCommand *command)
     return found;
 }
 
-CORE_SEAM void board_wait_for_power_hold(uint32_t hold_ms)
+CORE_SEAM CORE_COLD void board_wait_for_power_hold(uint32_t hold_ms)
 {
     uint32_t pressed_at_ms = hal_clock_milliseconds();
     bool held = false;
@@ -204,7 +204,7 @@ CORE_SEAM bool board_input_take_key_press(void)
     return hal_input_next_transition(&transition) && transition.pressed;
 }
 
-CORE_SEAM void board_wait_for_key(void)
+CORE_SEAM CORE_COLD void board_wait_for_key(void)
 {
     HalKeyTransition transition;
     while (hal_input_next_transition(&transition)) {

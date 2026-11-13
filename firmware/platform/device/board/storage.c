@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "device/fat.h"
 #include "device/storage_mount.h"
 #include "emmc.h"
@@ -36,7 +37,7 @@ static bool mounted(void)
     return mounted_kind != STORAGE_NONE;
 }
 
-HalVolume hal_file_volume(void)
+CORE_COLD HalVolume hal_file_volume(void)
 {
     if (!mounted()) {
         return HAL_VOLUME_NONE;
@@ -146,7 +147,7 @@ static HalReserveResult reserve_result(FatReserveResult result)
     return HAL_RESERVE_FAILED;
 }
 
-static HalReserveResult reserve_in(FatVolume *target, const char *path, uint32_t size)
+CORE_COLD static HalReserveResult reserve_in(FatVolume *target, const char *path, uint32_t size)
 {
     if (target == NULL) {
         return HAL_RESERVE_FAILED;
@@ -160,7 +161,7 @@ static HalReserveResult reserve_in(FatVolume *target, const char *path, uint32_t
     return reserve_result(result);
 }
 
-HalReserveResult hal_file_reserve(const char *path, uint32_t size)
+CORE_COLD HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     return reserve_in(mounted() ? &volume : NULL, path, size);
 }
@@ -181,23 +182,23 @@ bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
            fat_read(target, &file, 0, buffer, length);
 }
 
-bool hal_internal_file_write(const char *path, const void *bytes, uint32_t length)
+CORE_COLD bool hal_internal_file_write(const char *path, const void *bytes, uint32_t length)
 {
     return write_in(player_volume(), path, 0, bytes, length);
 }
 
-bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *bytes,
-                                uint32_t length)
+CORE_COLD bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *bytes,
+                                          uint32_t length)
 {
     return write_in(player_volume(), path, offset, bytes, length);
 }
 
-HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
+CORE_COLD HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size)
 {
     return reserve_in(player_volume(), path, size);
 }
 
-void storage_reset(void)
+CORE_COLD void storage_reset(void)
 {
     mount_tried = false;
     internal_volume_reset();
@@ -219,7 +220,7 @@ static int free_dir_slot(void)
     return -1;
 }
 
-bool hal_dir_open(HalDir *dir, const char *path)
+CORE_COLD bool hal_dir_open(HalDir *dir, const char *path)
 {
     dir->handle = -1;
     int slot = free_dir_slot();
@@ -260,7 +261,7 @@ void hal_dir_close(HalDir *dir)
     dir->handle = -1;
 }
 
-FatVolume *board_music_volume(void)
+CORE_COLD FatVolume *board_music_volume(void)
 {
     return mounted() ? &volume : NULL;
 }

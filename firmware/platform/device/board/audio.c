@@ -201,7 +201,7 @@ static bool open_file(void *context, const char *path, FlacInput *input)
     return true;
 }
 
-static void close_file(void *context)
+CORE_COLD static void close_file(void *context)
 {
     (void)context;
     hal_file_close(&file);
@@ -277,7 +277,8 @@ static AudioSource chosen_source(void)
                                   flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
 
-static bool open_chosen(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
+CORE_COLD static bool open_chosen(void *context, const char *path, uint32_t start_ms,
+                                  AudioTrackInfo *track)
 {
     (void)context;
     source_kind = kind_of(path);
@@ -421,7 +422,7 @@ static void restart_transfer(void)
     end_transfer(true);
 }
 
-static void stop_path(void)
+CORE_COLD static void stop_path(void)
 {
     stop_transfer();
     if (path_up) {
@@ -430,7 +431,7 @@ static void stop_path(void)
     }
 }
 
-static bool ensure_path(uint32_t rate)
+CORE_COLD static bool ensure_path(uint32_t rate)
 {
     if (path_up && path_rate == rate) {
         return true;
@@ -561,7 +562,7 @@ void hal_audio_queue_next(const HalAudioTrack *track)
     }
 }
 
-void hal_audio_pause(void)
+CORE_COLD void hal_audio_pause(void)
 {
     ensure_engine();
     if (transferring) {
@@ -579,7 +580,7 @@ void hal_audio_release(void)
     }
 }
 
-void hal_audio_resume(void)
+CORE_COLD void hal_audio_resume(void)
 {
     ensure_engine();
     if (transferring) {
@@ -593,7 +594,7 @@ void hal_audio_resume(void)
     audio_engine_resume(&engine);
 }
 
-static void seek_to(uint32_t position_ms, bool paused)
+CORE_COLD static void seek_to(uint32_t position_ms, bool paused)
 {
     ensure_engine();
     ensure_audio_clock();
@@ -609,7 +610,7 @@ static void seek_to(uint32_t position_ms, bool paused)
     }
 }
 
-CORE_SEAM void hal_audio_seek(uint32_t position_ms)
+CORE_SEAM CORE_COLD void hal_audio_seek(uint32_t position_ms)
 {
     ensure_engine();
     seek_to(position_ms, audio_engine_status(&engine).state == AUDIO_ENGINE_PAUSED);
@@ -694,17 +695,17 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
     apply_volume();
 }
 
-CORE_SEAM void hal_audio_set_gain(HalAudioGain gain)
+CORE_SEAM CORE_COLD void hal_audio_set_gain(HalAudioGain gain)
 {
     dac_path_set_gain(gain == HAL_AUDIO_GAIN_HIGH);
 }
 
-CORE_SEAM void hal_audio_set_filter(HalAudioFilter filter)
+CORE_SEAM CORE_COLD void hal_audio_set_filter(HalAudioFilter filter)
 {
     dac_path_set_filter((uint8_t)filter);
 }
 
-CORE_SEAM void hal_audio_set_output(HalAudioOutput output)
+CORE_SEAM CORE_COLD void hal_audio_set_output(HalAudioOutput output)
 {
     bool restore = path_up && !dac_path_is_muted();
     if (restore) {
@@ -717,7 +718,7 @@ CORE_SEAM void hal_audio_set_output(HalAudioOutput output)
     }
 }
 
-void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
+CORE_COLD void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
 {
     ensure_engine();
     audio_engine_set_equalizer(&engine, curve);
@@ -905,7 +906,7 @@ void hal_audio_reset_stats(void)
     output_started_us = hal_clock_microseconds();
 }
 
-HalAudioStats hal_audio_stats(void)
+CORE_COLD HalAudioStats hal_audio_stats(void)
 {
     HalAudioStats result = stats;
     if (!engine_ready || !transferring || tone_active) {
@@ -1065,7 +1066,7 @@ static void clear_ring(void)
     }
 }
 
-bool board_audio_stream_open(uint32_t rate, void (*service)(void))
+CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
 {
     if (!workspace_loan_claimable(&workspace_loan)) {
         return false;
@@ -1096,7 +1097,7 @@ bool board_audio_stream_play(void)
                           true);
 }
 
-void board_audio_stream_pause(void)
+CORE_COLD void board_audio_stream_pause(void)
 {
     clear_ring();
     dac_path_stream_quiet();
@@ -1142,7 +1143,7 @@ static WorkspaceActivity audio_activity(void)
                                .tone = tone_active};
 }
 
-struct CardFormat *board_audio_lend_format(void)
+CORE_COLD struct CardFormat *board_audio_lend_format(void)
 {
     return workspace_loan_take(&workspace_loan, audio_activity()) ? &decoding.format : NULL;
 }
@@ -1198,7 +1199,7 @@ CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
     audio_engine_set_sleep_remaining(&engine, remaining_ms);
 }
 
-CORE_SEAM uint8_t hal_audio_repeat_mark(bool clear)
+CORE_SEAM CORE_COLD uint8_t hal_audio_repeat_mark(bool clear)
 {
     ensure_engine();
     update_consumed();
