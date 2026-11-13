@@ -29,6 +29,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup-firmware
+      - name: Label a pre-release build from its tag
+        if: github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          label=$(python3 tools/release_package.py label "$RELEASE_TAG")
+          if [ -n "$label" ]; then echo "ECHO_BUILD_TAG=$label" >> "$GITHUB_ENV"; fi
       - name: Check public host tools and website
         run: python3 -m unittest discover -s tests
       - name: Check firmware host tools before ARM scenarios
@@ -40,21 +48,15 @@ jobs:
       - name: Package firmware and source
         env:
           SOURCE_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           set -euo pipefail
-          dist=/Volumes/Scratch/SnowskyEcho/dist
-          cp firmware/build/release/GNARLYR.IMG "$dist/GNARLYR.IMG"
-          cp firmware/build/release/GNARLYR.IMG "$dist/ECHOECHO.IMG"
-          git archive --format=tar.gz --prefix=gnarlyr/ HEAD > "$dist/gnarlyr-source.tar.gz"
-          python3 - <<'PY'
-          import hashlib, json, os
-          from pathlib import Path
-          dist = Path('/Volumes/Scratch/SnowskyEcho/dist')
-          identity = json.loads(Path('firmware/identity.json').read_text())
-          files = {path.name: {'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'bytes': path.stat().st_size} for path in sorted(dist.iterdir())}
-          (dist / 'firmware.json').write_text(json.dumps({'version': identity['version'], 'commit': os.environ['SOURCE_SHA'], 'model': 'SNOWSKY ECHO (full-size)', 'files': files}, indent=2) + '\n')
-          PY
-          (cd "$dist" && shasum -a 256 ECHOECHO.IMG GNARLYR.IMG gnarlyr-source.tar.gz firmware.json > SHA256SUMS)
+          preset=release
+          if [ -n "$RELEASE_TAG" ]; then preset=$(python3 tools/release_package.py preset "$RELEASE_TAG"); fi
+          git archive --format=tar.gz --prefix=gnarlyr/ HEAD > "$RUNNER_TEMP/source.tar.gz"
+          python3 tools/release_package.py package --image "firmware/build/$preset/GNARLYR.IMG" \
+            --source "$RUNNER_TEMP/source.tar.gz" --dist /Volumes/Scratch/SnowskyEcho/dist \
+            --commit "$SOURCE_SHA" ${RELEASE_TAG:+--tag "$RELEASE_TAG"}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: firmware-${{ github.sha }}
@@ -94,7 +96,8 @@ jobs:
     if: >-
       github.repository == '0xdoublesharp/gnarlyr' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      (github.ref == 'refs/heads/main' ||
+       (startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')))
     runs-on: macos-15
     timeout-minutes: 25
     steps:

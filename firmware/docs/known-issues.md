@@ -2,6 +2,24 @@
 
 Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-size Echo; the recorded checks below include Gnarlyr and its earlier foundation. It comes with no warranty: use it at your own risk. Read this before you install a build, and keep a way back ([`device-recovery.md`](device-recovery.md)).
 
+## Beta testers
+
+These apply to 1.0.0-beta.1, the public beta. It is the `device` build, which writes debug reports.
+
+- **macOS System Information can hang.** With the player connected, System Information (`system_profiler`) can stop responding. Finder, copying and ejecting are not affected.
+- **Copy speed is still being improved.** On the developer's player, copies run at about 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
+- **Battery life hasn't been measured.**
+- **Two safety nets haven't been tried on a player since their latest fixes:** entering recovery mode by holding Power and Vol+ with the cable in a computer, and the automatic rollback of an update that doesn't start properly. The paperclip route to recovery mode ([`device-recovery.md`](device-recovery.md)) has been used on the player.
+- **Settings reset once if you come from a Gnarlyr development build.** Their files changed format, so the beta starts from defaults; the library is rebuilt.
+- **Some playback has had little listening on a player:** Ogg, Opus, APE, WMA and DSD files, and Bluetooth headphones.
+
+### Reporting a problem
+
+1. Note the version in Settings → About → Firmware (`1.0.0-beta.1`).
+2. Connect the player to the computer and choose Connect to computer. Connecting writes a fresh report, and the player also writes one each time it switches off.
+3. Copy the files `report0.txt`, `report1.txt` and `report2.txt` from the folder `.gnarlyr/debug` on the internal drive. The folder is hidden; in Finder press Command-Shift-period to show it.
+4. Open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues> with the version, what you did, what you expected and what happened, and attach the report files. They hold player state and counters, and may name a music file that caused a problem; they don't contain your music.
+
 ## What has been checked
 
 - **Software checks:** host tests, the simulator and the ARM emulator cover boot and updates, memory bounds, queue/session persistence, mixtapes, controls, Listening and lyrics. They do not reproduce analog output, Bluetooth radio operation or full USB host traffic.
