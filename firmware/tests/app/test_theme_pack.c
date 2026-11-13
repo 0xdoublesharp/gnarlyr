@@ -142,6 +142,34 @@ static void ed25519ph_checks_the_rfc8032_vector_and_rejects_a_changed_signature(
     CHECK(!theme_signature_verify((ByteSource){read_bytes, NULL}, length, signature, public_key));
 }
 
+static void signature_trailers_require_the_exact_framing(void)
+{
+    static const uint8_t header[] = {'D', 'S', 'S', 'G', 1, 0, 0, 0};
+    bool verified = true;
+    memset(bytes, 0, sizeof bytes);
+    memcpy(bytes, header, sizeof header);
+    length = THEME_PACK_SIGNATURE_BYTES;
+
+    CHECK(theme_signature_inspect((ByteSource){read_bytes, NULL}, 0, 0, &verified));
+    CHECK(!verified);
+    CHECK(!theme_signature_inspect((ByteSource){read_bytes, NULL}, 0,
+                                   THEME_PACK_SIGNATURE_BYTES - 1, &verified));
+    CHECK(!theme_signature_inspect((ByteSource){read_bytes, NULL}, 1, THEME_PACK_SIGNATURE_BYTES,
+                                   &verified));
+
+    for (size_t index = 0; index < sizeof header; index++) {
+        memcpy(bytes, header, sizeof header);
+        bytes[index] ^= UINT8_C(0x80);
+        CHECK(!theme_signature_inspect((ByteSource){read_bytes, NULL}, 0,
+                                       THEME_PACK_SIGNATURE_BYTES, &verified));
+    }
+
+    memcpy(bytes, header, sizeof header);
+    CHECK(theme_signature_inspect((ByteSource){read_bytes, NULL}, 0, THEME_PACK_SIGNATURE_BYTES,
+                                  &verified));
+    CHECK(!verified);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -150,6 +178,7 @@ int main(void)
         TEST_CASE(versions_dimensions_offsets_duplicates_and_metadata_are_strict),
         TEST_CASE(low_contrast_is_a_warning),
         TEST_CASE(ed25519ph_checks_the_rfc8032_vector_and_rejects_a_changed_signature),
+        TEST_CASE(signature_trailers_require_the_exact_framing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -467,7 +467,7 @@ static void the_first_build_decodes_every_album(void)
 
 static void a_later_track_supplies_embedded_art(void)
 {
-    static uint8_t tagged[PNG_CAPACITY + 16384];
+    static uint8_t tagged[PNG_CAPACITY + 64 * 1024];
     CoverStats stats;
     reset();
     add_file("/Album/01.flac", card.flac, card.flac_size);
@@ -479,6 +479,7 @@ static void a_later_track_supplies_embedded_art(void)
     at = put_be32(put_be32(at, COVER_SIDE), COVER_SIDE);
     at = put_be32(put_be32(at, 24), 0);
     put_be32(at, size);
+    CHECK(36 + size + card.flac_size <= sizeof tagged);
     memcpy(tagged + 78 + size, card.flac + 42, card.flac_size - 42);
     add_file("/Album/02.flac", tagged, 36 + size + card.flac_size);
     CHECK_EQUAL(SCAN_OK, rescan(true, &stats));
