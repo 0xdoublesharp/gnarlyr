@@ -47,8 +47,6 @@ void board_debug_usb_ended(void);
 const DebugReportAudio *board_debug_audio(void);
 void board_debug_power_off(void);
 void debug_report_write(const UsbShared *shared, uint32_t reason);
-void usb_screen_capture(AppUsbStatus status, struct UsbScene *scene, const char *name,
-                        uint8_t slot);
 bool debug_script_take(void);
 void debug_restart_after_install(FatVolume *volume, const UsbShared *shared);
 
@@ -132,15 +130,6 @@ static inline bool debug_script_take(void)
     return false;
 }
 
-static inline void usb_screen_capture(AppUsbStatus status, struct UsbScene *scene, const char *name,
-                                      uint8_t slot)
-{
-    (void)status;
-    (void)scene;
-    (void)name;
-    (void)slot;
-}
-
 static inline void debug_restart_after_install(FatVolume *volume, const UsbShared *shared)
 {
     (void)volume;
@@ -157,4 +146,18 @@ static inline void board_debug_power_off(void)
 {
 }
 
+#endif
+
+#ifdef ECHO_USB_SCREEN_CAPTURES
+void usb_screen_capture(AppUsbStatus status, struct UsbScene *scene, const char *name,
+                        uint8_t slot);
+#else
+static inline void usb_screen_capture(AppUsbStatus status, struct UsbScene *scene, const char *name,
+                                      uint8_t slot)
+{
+    (void)status;
+    (void)scene;
+    (void)name;
+    (void)slot;
+}
 #endif

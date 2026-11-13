@@ -418,7 +418,6 @@ if(NOT ECHO_RELEASE)
         hal_internal_file_reserve
         hal_internal_file_write
         hal_internal_file_write_at
-        strip_renderer_render
         hal_system_clock_mhz
         hal_system_core1_load
         hal_system_idle_microseconds
@@ -426,6 +425,9 @@ if(NOT ECHO_RELEASE)
         hal_system_start_info
         hal_system_version
     )
+    if(ECHO_USB_SCREEN_CAPTURES)
+        list(APPEND ECHO_OVERLAY_IMPORTS strip_renderer_render)
+    endif()
 endif()
 set(ECHO_DEVICE_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/board/echo_device.ld)
 set_target_properties(echo_device PROPERTIES
@@ -548,8 +550,11 @@ add_executable(echo_usb_overlay
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
-        board/usb_screen_capture.c ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
+        ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c)
+    if(ECHO_USB_SCREEN_CAPTURES)
+        target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)
+    endif()
 endif()
 set_target_properties(echo_usb_overlay PROPERTIES
     SUFFIX .elf
