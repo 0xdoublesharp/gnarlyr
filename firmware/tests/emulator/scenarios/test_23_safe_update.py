@@ -35,6 +35,7 @@ USB_END_EJECTED = 1
 TRIAL_LIMIT = 3
 ESCAPE_HOLD_MS = 3000
 ESCAPE_KEYS_MS = 5000
+STOCK_INSTALL_NAME = "ECHOECHO.IMG"
 
 
 class EchoImageTest(EchoImageHarness):
@@ -80,6 +81,20 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.trial_record(session), (TRIAL_RUNNING, 0))
         self.assertFalse(session.file_exists(IDENTITY.update_file))
         summary("trial install", session)
+
+    def test_the_release_under_fiio_s_install_name_goes_on_trial_as_our_update(self):
+        newer = self.newer_image()
+        session = self.session(files=[(STOCK_INSTALL_NAME, newer, None)], vbus=True)
+        session.machine.note("updater_install")
+        self.assertEqual(self.boot_until_waiting_for_key(session), "reached board_wait_for_power_hold")
+        self.assertEqual(session.machine.reached["trial_module_install"], 1)
+        self.assertNotIn("updater_install", session.machine.reached)
+        self.assertEqual(self.firmware_writes(session, "slot_2"), [])
+        self.assertEqual(session.slot_image("slot_1"), self.slot_bytes(newer))
+        self.assertEqual(session.slot_image("slot_2"), self.slot_bytes(self.image))
+        self.assertEqual(self.trial_record(session), (TRIAL_RUNNING, 0))
+        self.assertFalse(session.file_exists(STOCK_INSTALL_NAME))
+        self.assert_healthy(session)
 
     def test_a_trial_build_confirms_with_an_ejected_session_and_becomes_the_backup(self):
         newer = self.newer_image()

@@ -173,6 +173,14 @@ class LayoutTest(unittest.TestCase):
     def test_the_built_image_passes_the_updater_checks(self):
         self.assertEqual([], make_image.validate_image(self.image))
 
+    def test_fiio_s_installer_accepts_the_image_and_copies_exactly_the_slot(self):
+        fw_size = word(self.image, 0x1F4)
+        copied = (fw_size + 0x104000) & ~0xFFFFF
+        self.assertEqual(b"RKnanoFW", self.image[0x1F8:0x200])
+        self.assertEqual(self.image[:0x200], self.image[fw_size:fw_size + 0x200])
+        self.assertEqual(0x500000, copied)
+        self.assertLessEqual(copied, len(self.image))
+
 
 class HeaderFieldTest(unittest.TestCase):
     def test_the_date_is_bcd_month_day_year(self):

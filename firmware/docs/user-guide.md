@@ -4,7 +4,7 @@ Gnarlyr is firmware for the full-size Snowsky (FiiO) Echo music player. It repla
 
 Gnarlyr 1.0.0 is not released. This guide describes the current developer firmware; [`known-issues.md`](known-issues.md) says what has been checked on a player and what hasn't.
 
-**Use it at your own risk.** Gnarlyr comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)). Only install it if you're prepared to use that.
+**Use it at your own risk.** Gnarlyr comes with no warranty (see `LICENSE`). If a player ever stops starting, the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)).
 
 ## Which players
 
@@ -15,14 +15,15 @@ Gnarlyr 1.0.0 is not released. This guide describes the current developer firmwa
 
 1. Copy anything you want to keep off the player's internal storage.
 2. Charge the battery.
-3. Prepare maskrom recovery and check that it reaches your player ([`device-recovery.md`](device-recovery.md)). It is the only way back if the player doesn't start.
-4. Build the image (`README.md`, Build and test). There is no download yet.
 
 ## Install
 
-Follow [`device-install.md`](device-install.md): the first install goes through maskrom, and later versions install by copying a file (see [Updating Gnarlyr](#updating-gnarlyr)).
+1. Download `ECHOECHO.IMG` from the release and check its SHA-256 against the one published with it.
+2. Connect the player to your computer and copy `ECHOECHO.IMG` to the top level of its internal drive, not into a folder.
+3. Eject the drives and unplug, or restart the player.
+4. The player installs Gnarlyr and starts it.
 
-Installing by copying a file under FiiO's firmware is not verified. FiiO's updater only reads files named `ECHOVnnn.IMG`, so `GNARLYR.IMG` would have to be renamed, and whether FiiO's 2.0.0 accepts it is not known.
+FiiO's firmware installs the file itself, the same way it installs other custom firmware for this player. [`device-install.md`](device-install.md) explains why the file has this name and what FiiO's updater checks. If the player ever stops starting, maskrom recovery ([`device-recovery.md`](device-recovery.md)) puts firmware back from a computer. Later versions install the same way, under Gnarlyr's own updater (see [Updating Gnarlyr](#updating-gnarlyr)).
 
 On the first start with a microSD card in the player, Gnarlyr builds its library. You can browse and play as soon as it says "Library: N tracks". Album covers follow while the player is idle and not playing (or paused for a minute): they appear one album at a time, a press of any key or starting a song pauses them, and they carry on the next time the player sits idle, also after a restart. Albums without their cover yet show their initials. Wait for the library to finish before you plug the player into a computer.
 
@@ -504,7 +505,7 @@ Podcasts/
 
 Charge the battery first.
 
-1. Plug the player into the computer and choose **Connect to computer** (or Home → USB mode → Connect to computer). Copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder.
+1. Plug the player into the computer and choose **Connect to computer** (or Home → USB mode → Connect to computer). Copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder. A release's `ECHOECHO.IMG` is the same file and works too.
 2. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
 3. At "Update installed", unplug USB and hold Power. The player turns off.
 4. Hold Power to start the new version.
@@ -516,7 +517,7 @@ The updater deletes the file after a successful install, when it is not a valid 
 
 ## Going back to FiiO's firmware
 
-There are two ways. Maskrom is the one this project has used on its player.
+Copy FiiO's file to the player, the same way you installed Gnarlyr. Maskrom is for a player that doesn't start.
 
 **Through the updater**
 
