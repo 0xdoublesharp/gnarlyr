@@ -22,7 +22,7 @@ const config = JSON.parse(await readFile(configPath, "utf8"));
 assert.equal(config.version, 1);
 assert(config.viewport.width >= 900 && config.viewport.width <= 1600);
 assert(config.viewport.height >= 700 && config.viewport.height <= 1200);
-const known = new Set(["library-dark", "library-light", "sync-preview", "player-settings", "firmware-review", "languages", "mixtapes", "first-install"]);
+const known = new Set(["library-dark", "library-light", "sync-preview", "player-settings", "firmware-review", "languages", "mixtapes", "first-install", "setup-notice", "recovery"]);
 assert(config.screens.length && config.screens.every((name) => known.has(name)));
 assert.equal(new Set(config.screens).size, config.screens.length);
 assert(config.albums.length >= 2 && config.albums.length <= 12);
@@ -38,7 +38,7 @@ await mkdir(temporary, { recursive: true });
 const work = await mkdtemp(join(temporary, "run-"));
 const env = { ...process.env, TMPDIR: work };
 delete env.ELECTRON_RUN_AS_NODE;
-let app, device;
+let app, device, stock, unregisterTypescript;
 const rendered = new Map();
 try {
   if (!args.includes("--no-build")) {
@@ -49,10 +49,12 @@ try {
     assert.equal(result.status, 0, `Companion build failed; see ${join(work, "build.log")}`);
   }
   const require = createRequire(join(source, "package.json"));
+  unregisterTypescript = require("tsx/esm/api").register({ tsconfig: false });
   const electron = require("electron");
   const { _electron } = require("playwright");
   const { deviceFixture } = await import(pathToFileURL(join(source, "tools/fixture.mjs")).href);
   const { imageLanguages, packBytes } = await import(pathToFileURL(join(source, "tests/language-fixture.ts")).href);
+  const { stockFixture, installStockCommandMocks } = await import(pathToFileURL(join(source, "tools/stock-fixture.mjs")).href);
   device = await deviceFixture();
   await rename(device.volume, join(device.root, identity.name));
   device.volume = join(device.root, identity.name);
@@ -117,11 +119,21 @@ try {
   assert.deepEqual(await readdir(target), [], "Preview must not copy files");
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
+  stock = await stockFixture();
+  await app.evaluate(installStockCommandMocks, { tree: stock.tree, info: stock.info });
+  await page.getByRole("button", { name: "Find connected Echo", exact: true }).click();
+  await page.getByText("Echo detected · FiiO firmware", { exact: true }).waitFor();
+  await shot("setup-notice");
+  await page.getByRole("button", { name: "Dismiss setup prompt", exact: true }).click();
   await page.getByRole("button", { name: "Your Echo", exact: true }).click();
   await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
   await page.locator(".stock-install").evaluate((element) => element.scrollIntoView({ block: "center" }));
   await shot("first-install");
   await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
+  await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
+  await page.locator(".recovery-panel").evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await shot("recovery");
+  await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
   await pick(device.volume);
   await page.getByRole("button", { name: "Choose player drive" }).click();
   await page.getByLabel("Brightness", { exact: false }).waitFor();
@@ -176,5 +188,7 @@ try {
 } finally {
   if (app) await app.close();
   if (device) await rm(device.root, { recursive: true, force: true });
+  if (stock) await stock.cleanup();
+  if (unregisterTypescript) await unregisterTypescript();
   await rm(work, { recursive: true, force: true });
 }

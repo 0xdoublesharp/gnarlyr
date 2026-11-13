@@ -35,7 +35,7 @@
 </p>
 <h1 class="page-title">More music. More your way.
 </h1>
-<p>Find music, enjoy gapless albums, save a mix, and make the controls your own. Browse features by task, then explore the fixes behind them. Gnarlyr builds on Podium and EchoPod.
+<p>Find music, enjoy gapless albums, save a mix, and make the controls your own. Browse the features by task, from finding music to setting up your player. Gnarlyr builds on Podium and EchoPod.
 </p><div class="feature-facts" aria-label="At a glance"><span><strong>65,535</strong> tracks in the library</span><span><strong>32</strong> saved mixtapes</span><span><strong>10-band</strong> custom EQ</span><span><strong>4</strong> headphone profiles</span></div></div>
 <div class="feature-showcase wrap" aria-label="Explore the features"><article class="feature-preview"><a class="screen-image" href="#discovery" aria-label="Explore find the album."><img src="assets/screens/cover-flow.png" width="480" height="222" loading="lazy" decoding="async" alt="Gnarlyr cover flow screen"></a><h2><a href="#discovery">Find the album. <span aria-hidden="true">↓</span></a></h2><p>Covers, search, and Smart Lists bring your collection closer.</p></article><article class="feature-preview"><a class="screen-image" href="#queues" aria-label="Explore make the mix."><img src="assets/screens/up-next.png" width="480" height="222" loading="lazy" decoding="async" alt="Gnarlyr up next screen"></a><h2><a href="#queues">Make the mix. <span aria-hidden="true">↓</span></a></h2><p>Edit Up Next, then save a play order for another day.</p></article><article class="feature-preview"><a class="screen-image" href="#listening" aria-label="Explore set up your sound."><img src="assets/screens/headphones.png" width="480" height="222" loading="lazy" decoding="async" alt="Gnarlyr headphones screen"></a><h2><a href="#listening">Tune the sound. <span aria-hidden="true">↓</span></a></h2><p>Keep trim, balance, and a volume ceiling for each pair.</p></article></div><div class="doc-layout wrap">
 <nav class="contents" aria-label="On this page">
@@ -50,7 +50,7 @@
 <li><a href="#spoken">Audiobooks &amp; chapters</a></li>
 <li><a href="#additions">Appearance &amp; controls</a></li>
 <li><a href="#daily-use">USB &amp; connections</a></li>
-<li><a href="#improvements">Fixes &amp; reliability</a></li>
+
 <li><a href="#tools">Updates &amp; developer tools</a></li>
 </ol>
 </nav><div>
@@ -101,7 +101,7 @@
 <h2 class="feature-heading" id="foundation-title"><svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#icon-feature-wave"/></svg><span>Playback, formats, and gapless albums.</span></h2>
 <p class="intro">Gapless playback joins tracks without adding a pause, so a live album or continuous mix keeps flowing. Compatible tracks need the same sample rate. Gnarlyr builds on playback support from Podium and EchoPod.</p>
 <ul class="detail-list">
-<li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. MP3 files need gapless information, such as a LAME tag, to trim the encoder’s extra samples. Gnarlyr’s decoder improvements also handle MP3 end trimming after seeking or resuming, and AAC startup trimming and track timing. <a href="#playback-fixes">Read about the playback improvements below.</a></li>
+<li id="gapless"><strong>Gapless playback.</strong> Play compatible, same-sample-rate tracks continuously. MP3 files need gapless information, such as a LAME tag, to trim the encoder’s extra samples.</li>
 <li><strong>Supported audio.</strong> Play FLAC, MP3, and WAV, with rates up to 192 kHz for compatible files, plus M4A and M4B containing AAC-LC or Apple Lossless.</li>
 <li><strong>Additional decoder paths.</strong> The integrated firmware adds APE and WMA Standard decoding, tags, and artwork, alongside AIFF and DSD-to-PCM conversion. Compression, channel, and rate limits vary by format. <a href="build.html#more-formats">Format limits and player checks →</a></li>
 <li><strong>Playlists and album images.</strong> M3U/M3U8 playlists, album favorites, a Favorite Tracks playlist, and CUE sheets that split a single FLAC, WAV, or MP3 album into separate tracks.
@@ -185,13 +185,13 @@
 </li>
 <li><strong>Four Now Playing styles.</strong> Keep album artwork in Cover, watch a cassette’s reels fill, and turn, follow separate left/right VU needles, or choose a sixteen-bar Spectrum. Neon themes frame the artwork and cassette with a perspective wireframe. All retain the playback controls and progress. <a href="docs.html#playing-styles">See the styles →</a></li>
 <li><strong>Installable theme packs.</strong> Add a .gtheme file for new palettes and artwork, then preview it in Settings → Theme. Selection survives restarts; built-in themes remain available. <a href="docs.html#theme-packs">Install a theme →</a></li>
-<li><strong>Compact status bar.</strong> Smaller indicators and tighter spacing make room for more list entries. The battery includes its percentage; optional volume, queue, and repeat details fit around the title. <a href="docs.html#status-bar">Choose the layout →</a></li>
+
 <li><strong>Power and Menu shortcuts.</strong> Hold Power, then press a volume button to skip tracks, including while locked. Assign a Menu hold to Quick Settings, Up Next, Add to tape, Shuffle, or Sleep timer.</li>
 <li><strong>Your own Home screen.</strong> Home puts Music, Mixtapes, Recap, Clock, USB mode, and Settings together. Now Playing appears automatically at the top when a track is loaded. Reorder or hide the other items, or show Audiobooks, Podcasts, and Up Next, in Settings → Home screen. Settings stays available; Reset to default restores this layout.</li>
 <li><strong>Clock and calendar.</strong> Set the local date, time, and UTC offset in Settings → Date &amp; time, or sync from a Mac. The clock chip and saved offset restore local time after a restart. Home → Clock opens the time and date; Play opens the monthly calendar. Choose 12-hour or 24-hour time. <a href="docs.html#date-time">Set the clock →</a></li>
 <li><strong>Controls that fit your hands.</strong> Set a tap and a hold action for Volume+, Volume−, Play, and Menu: eight playback shortcuts. Choose volume, seeking, playback, Home, or Up Next actions. Audio shortcuts work with the screen off; list navigation keeps its usual controls.
 </li>
-<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art, and clear playback indicators connect Home, Music, and Now Playing. Refined shuffle, repeat, favorite, album, gain, and speaker icons make controls easier to recognize; Cover Flow’s Random album tile uses smoother artwork sampling. A larger battery icon shows remaining charge, with an optional percentage, a bolt for USB power, and red warnings when charge runs low. The charging screen follows your theme. Small animated wireframes accompany scans, saves, and other longer tasks.
+<li><strong>A cassette-inspired interface.</strong> Album artwork, cassette art, and clear playback indicators connect Home, Music, and Now Playing. A larger battery icon shows remaining charge, with an optional percentage, a bolt for USB power, and red warnings when charge runs low. The charging screen follows your theme. Small animated wireframes accompany scans, saves, and other longer tasks.
 </li>
 <li><strong>Language packs.</strong> English is built in. Use the <a href="languages.html">language-pack builder</a> to create, inspect, or edit a pack in your browser, then install it over USB and choose Settings → Language. Packs load the text needed by each part of the interface within the language-memory budget; English remains available.
 </li>
@@ -220,64 +220,7 @@
 </ul>
 
 </section>
-<section class="doc-section" id="improvements" aria-labelledby="improvements-title">
-<h2 class="feature-heading" id="improvements-title"><svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#icon-feature-shield"/></svg><span>Fixes and reliability improvements.</span></h2>
-<p class="intro">These changes improve Gnarlyr and the code it inherits. They help keep playback, saved state, and the interface in step. <a href="hardware.html#engineering">See what we learned about the cores, DMA, memory, and output hardware.</a></p>
-<h3 id="playback-fixes">Gapless playback and track transitions</h3>
-<ul class="detail-list">
-<li><strong>The next song follows your queue edits.</strong> Replacing the next track also rebuilds its prepared audio, so playback follows the new order.</li>
-<li><strong>MP3 gapless trimming after seeking or resume.</strong> The decoder trims the encoder’s extra silent tail even when you seek or resume part-way through a track. Files without gapless information keep every decoded sample.</li>
-<li><strong>AAC timing stays aligned.</strong> The decoder uses supported M4A timing information to trim extra startup samples and honor the intended duration. Seeking stays aligned with the file’s timing.</li>
-</ul>
-<h3>Playback and listening records</h3>
-<ul class="detail-list">
-<li><strong>Listening totals stop with the track.</strong> Idle playback closes the listening record, and time accounting stops at a known track endpoint. Top-list calculations report unavailable history when required records cannot be read.</li>
-<li><strong>Play-log exports finish cleanly.</strong> Exports replace the file at its exact text length, removing old padding and leftover records. Empty history leaves an existing export alone; cancellation removes a partial export, and storage failures show a result.</li>
-<li><strong>Pauses do not inflate diagnostic counts.</strong> Intentionally muted, paused output is excluded from false output-underrun reports.</li>
-<li><strong>Safer analog output changes.</strong> Low gain uses a documented CS43198 setting. Gain and filter changes mute and power-sequence the DACs; jack changes are guarded and restarting discards stale buffered audio.</li>
-<li><strong>DAC startup matches stock timing.</strong> The output power-up wait is 12 ms, correcting the inherited 10 ms wait.</li>
-</ul>
-<h3>Audio-file checks</h3>
-<ul class="detail-list"><li><strong>More efficient decoding.</strong> Decoder paths use targeted ARM arithmetic and optimized FLAC and ALAC loops to reduce processor work. Player runtime and listening comparisons remain measurement tasks.</li><li><strong>Artwork decoding does less repeated work.</strong> JPEG transforms and column weights are reused where possible; PNG rows are unfiltered directly from the input window.</li></ul>
-<p>Files can contain damaged or contradictory information. These checks reject invalid data before it is used to locate or decode audio.</p>
-<ul class="detail-list">
-<li><strong>FLAC headers agree with the audio.</strong> Metadata order, lengths, and sample ranges are checked, including tag headers and frame numbering. Frames must match the declared rate, bit depth, and block limits, and stay within the file’s declared sample count.</li>
-<li><strong>M4A and M4B stay within their file boundaries.</strong> Sample tables, chunk descriptions, timing, and AAC/ALAC configuration are checked. Truncated records and unsupported decoder configurations are rejected.</li>
-</ul>
-<h3>Library and navigation</h3>
-<ul class="detail-list"><li><strong>Visible scan progress.</strong> Library and artwork rebuilding show what the player is working on, with completed and total work where available.</li><li><strong>More reliable storage startup.</strong> Internal storage initialization retries instead of silently dropping the drive. Music checks open folders from the names returned by their parent listing, avoiding failures on valid directory names.</li></ul>
-<ul class="detail-list">
-<li><strong>CUE albums keep valid track boundaries.</strong> The player and computer indexer ignore invalid track numbers, malformed times, and starts that repeat or go backwards. Valid neighboring tracks remain in order. <a href="docs.html#cue-albums">Learn how to use CUE albums.</a></li>
-<li><strong>Saved queues check their position.</strong> Invalid queue cursors are rejected before playback uses them, so damaged saved state cannot select outside the queue.</li>
-<li><strong>Keep your place after USB.</strong> Returning from storage in the same powered-on session keeps the playback position without applying the cold-start rewind. Restoring a card’s session also keeps your configured wired volume instead of an old volume saved with that session.</li>
-<li><strong>Rescans restore the intended song.</strong> Saved sessions check the library’s contents before reusing track IDs, avoiding a wrong song or stale CUE position after a database change.</li>
-<li><strong>Checked language-pack copies.</strong> USB tools validate a pack against the installed firmware, verify copied bytes, and ignore macOS metadata files when listing packs. Returning to English also handles translated setting labels.</li>
-<li><strong>Ogg tags stay with the intended recording.</strong> Library indexing reads metadata from the first audio stream, ignoring unrelated streams and later chained recordings in the same file.</li>
-<li><strong>Safer metadata parsing.</strong> Tag readers preserve Unicode text during whitespace trimming and bound WMA content and MP4 duration reads. The MP3 reader rejects malformed APE footer lengths before locating the audio endpoint.</li>
-<li><strong>Rescans check before rebuilding.</strong> Settings → Rescan library checks for changed music and reports “Library is up to date” when the music, firmware, and last scan are unchanged.</li>
-<li><strong>Recovery from an interrupted scan.</strong> After a scan stops the player, the next startup retries and isolates the file that caused the stop. Repeated failures fall back to building the library without covers.</li>
-<li><strong>More album artwork displays correctly.</strong> Read embedded Ogg/Opus pictures, CMYK/YCCK JPEGs, and JPEG orientation data. If the first song has no usable embedded art, Gnarlyr checks later songs in the album before trying a matching folder image. Computer indexing chooses the same artwork sources.</li>
-<li><strong>Storage failures stay visible.</strong> Library scans preserve storage errors through the final index write instead of replacing them with a different failure.</li>
-<li><strong>Search and labels keep their place.</strong> Searches cover long paths across metadata chunks and preserve the selected song. Cancelled searches do not restore stale results. Label saves protect a newer data bank if a read temporarily fails.</li>
-<li><strong>Lyrics handle failed reads.</strong> Lyrics use the correct storage path and stop displaying cached text when a line read fails, avoiding partial or stale lines.</li>
-<li><strong>Book positions handle long durations.</strong> Selecting a book continues its saved chapter and position inside nested folders. End-of-book checks avoid arithmetic overflow on very long recordings. Desktop indexing preserves chapters, with a whole-book fallback for unreadable chapter data.</li>
-<li><strong>Navigation returns cleanly.</strong> Mixtape loading finishes before playback opens, and seeking keeps control of its cursor and confirmation keys. Returning to Now Playing, Lyrics, or Up Next reuses the existing screen. Hold Back to cancel work and return Home.</li>
-</ul>
-<h3>USB, display, and power</h3>
-<ul class="detail-list"><li><strong>Drawing leaves more time for the player.</strong> DMA sends larger display regions while the main core sleeps. Small regions and failed transfers use the CPU path.</li><li><strong>Less activity with the screen off.</strong> Storage reads arrive in bursts while the panel and backlight sleep. The main core adjusts its pace to the audio workload, and an unconnected Bluetooth radio switches off after 30 seconds.</li><li><strong>Cards start from a clean state.</strong> Card startup cycles power and resets the controller; normal restarts first leave the card idle. A brief card-detect glitch no longer removes the drive, and failed high-capacity-card setup is refused before it can use the wrong sector addressing.</li><li><strong>Updates follow your USB choice.</strong> After confirming a trial and saving it as the backup, the player follows When plugged in on the connected cable. An ordinary eject still returns to the USB chooser.</li></ul>
-<ul class="detail-list"><li><strong>Less work while idle.</strong> Startup draws the interface before optional work. Screen-off scheduling batches reads, rests idle cores, and avoids unnecessary redraws. These changes reduce background work; battery runtime depends on player measurements.</li><li><strong>Headset Play can resume a player pause.</strong> Bluetooth play reports resume a pause made on the player after the connection’s echo guard, including when its audio output has entered pause standby.</li></ul>
-<ul class="detail-list">
-<li><strong>Time returns after startup.</strong> Gnarlyr reads the clock chip and applies the saved UTC offset. If audio is already active, recovery waits until playback stops.</li>
-<li><strong>USB-C detection follows the cable.</strong> USB power control uses the correct supply settings as the cable connects and disconnects.</li>
-<li><strong>Button lock counts a continuous hold.</strong> If either Play or Power is released and pressed again before the combination completes, the hold timer restarts. A completed hold toggles the lock only once until both keys are released.</li>
-<li><strong>Power timers stay within their range.</strong> New activity resets wake timers without expiring screen timeout or auto off immediately. Screen, sleep, and auto-off delays are bounded so large values cannot break clock comparisons.</li>
-<li><strong>Scrolling titles handle extreme sizes.</strong> Text scrolling uses checked width and timing calculations, including very wide titles and short animation cycles.</li>
-<li><strong>Charging views keep the right code active.</strong> The charging screen no longer continues updating an interface module that has been replaced.</li>
-<li><strong>Power states stay distinct.</strong> The USB screens show live statistics: transfer rate, totals, and free space for each drive in Connect to computer, or format, levels, volumes, and buffer in USB audio. Charging, charged, and USB-powered states stay separate; a USB supply reading is not shown as battery voltage.</li>
-<li><strong>The interface does less unnecessary work.</strong> Bounded progress redraws, idle sleeping, frame pacing, and clock coasting reduce processor work.</li>
-</ul>
-<p>DAC startup and MP3/AAC timing fixes improve inherited playback code.</p>
-</section>
+
 <section class="doc-section" id="tools" aria-labelledby="tools-title">
 <h2 class="feature-heading" id="tools-title"><svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#icon-build"/></svg><span>Updates and developer tools.
 </span></h2>
