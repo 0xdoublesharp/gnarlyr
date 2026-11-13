@@ -1187,6 +1187,35 @@ static void aiff_metadata_rejects_malformed_headers_chunks_and_rates(void)
     memcpy(bytes + 28, RATE, sizeof RATE);
     bytes[33] |= 1;
     CHECK(!read_tag_bytes(bytes, 38, TAG_FORMAT_AIFF, &tags));
+
+    memcpy(bytes + 28, RATE, sizeof RATE);
+    mp4_put32(bytes + 4, 31);
+    mp4_put32(bytes + 16, 20);
+    CHECK(!read_tag_bytes(bytes, 39, TAG_FORMAT_AIFF, &tags));
+    mp4_put32(bytes + 4, 28);
+    mp4_put32(bytes + 16, 16);
+    CHECK(!read_tag_bytes(bytes, 36, TAG_FORMAT_AIFF, &tags));
+
+    mp4_put32(bytes + 4, 30);
+    mp4_put32(bytes + 16, 18);
+    mp4_put32(bytes + 28, 16395u << 16);
+    mp4_put32(bytes + 30, 0x80000000u);
+    CHECK(!read_tag_bytes(bytes, 38, TAG_FORMAT_AIFF, &tags));
+    mp4_put32(bytes + 28, 16400u << 16 | 0xc350u);
+    mp4_put32(bytes + 30, 0xc3500000u);
+    CHECK(!read_tag_bytes(bytes, 38, TAG_FORMAT_AIFF, &tags));
+
+    memcpy(bytes + 28, RATE, sizeof RATE);
+    MemorySource memory = {.bytes = bytes, .size = 38};
+    FailingTagSource source = {.original = memory_source(&memory)};
+    ByteSource input = {.read = failing_tag_read, .context = &source};
+    CHECK(track_tags_read(input, memory.size, TAG_FORMAT_AIFF, &tags));
+    uint32_t calls = source.calls;
+    for (uint32_t failure = 1; failure <= calls; failure++) {
+        source.calls = 0;
+        source.fail_at = failure;
+        (void)track_tags_read(input, memory.size, TAG_FORMAT_AIFF, &tags);
+    }
 }
 
 static void wav_metadata_accepts_the_lowercase_id3_chunk_name(void)
@@ -1210,6 +1239,9 @@ static void wav_metadata_accepts_the_lowercase_id3_chunk_name(void)
     memcpy(bytes + 44, original.bytes + id3, id3_size);
     memcpy(bytes + data, "data", 4);
     TrackTags tags;
+    CHECK(read_tag_bytes(bytes, size, TAG_FORMAT_WAV, &tags));
+    CHECK_EQUAL(0, strcmp(TITLE, tags.text[TAG_TITLE]));
+    memcpy(bytes + 36, "ID3 ", 4);
     CHECK(read_tag_bytes(bytes, size, TAG_FORMAT_WAV, &tags));
     CHECK_EQUAL(0, strcmp(TITLE, tags.text[TAG_TITLE]));
     free(bytes);
@@ -1277,6 +1309,60 @@ static void dff_diin_artist_and_title_are_read_with_chunk_bounds(void)
     CHECK_EQUAL(0, strcmp("", tags.text[TAG_TITLE]));
 }
 
+static void dff_diin_rejects_bad_chunks_and_read_failures(void)
+{
+    uint8_t bytes[512] = {0};
+    memcpy(bytes, "FRM8", 4);
+    memcpy(bytes + 12, "DSD DIIN", 8);
+    mp4_put32(bytes + 24, 44);
+    memcpy(bytes + 28, "DIAR", 4);
+    mp4_put32(bytes + 36, 10);
+    mp4_put32(bytes + 40, 6);
+    memcpy(bytes + 44, "Artist", 6);
+    memcpy(bytes + 50, "DIAR", 4);
+    mp4_put32(bytes + 58, 9);
+    mp4_put32(bytes + 62, 5);
+    memcpy(bytes + 66, "Again", 5);
+    MemorySource memory = {.bytes = bytes, .size = 72};
+    TrackTags tags;
+    CHECK(track_tags_read(memory_source(&memory), memory.size, TAG_FORMAT_DFF, &tags));
+    CHECK_EQUAL(0, strcmp("Artist", tags.text[TAG_ARTIST]));
+
+    memcpy(bytes + 28, "FAIL", 4);
+    CHECK(track_tags_read(memory_source(&memory), memory.size, TAG_FORMAT_DFF, &tags));
+    memcpy(bytes + 28, "DIAR", 4);
+    mp4_put32(bytes + 36, 3);
+    CHECK(track_tags_read(memory_source(&memory), memory.size, TAG_FORMAT_DFF, &tags));
+
+    mp4_put32(bytes + 36, 100);
+    CHECK(track_tags_read(memory_source(&memory), memory.size, TAG_FORMAT_DFF, &tags));
+    mp4_put32(bytes + 24, 43);
+    mp4_put32(bytes + 36, 31);
+    CHECK(track_tags_read(memory_source(&memory), memory.size, TAG_FORMAT_DFF, &tags));
+
+    mp4_put32(bytes + 24, 272);
+    mp4_put32(bytes + 36, 260);
+    mp4_put32(bytes + 40, 256);
+    memset(bytes + 44, 'a', 256);
+    memory.size = 300;
+    CHECK(track_tags_read(memory_source(&memory), memory.size, TAG_FORMAT_DFF, &tags));
+
+    mp4_put32(bytes + 24, 44);
+    mp4_put32(bytes + 36, 10);
+    mp4_put32(bytes + 40, 6);
+    memcpy(bytes + 44, "Artist", 6);
+    memory.size = 72;
+    FailingTagSource source = {.original = memory_source(&memory)};
+    ByteSource input = {.read = failing_tag_read, .context = &source};
+    CHECK(track_tags_read(input, memory.size, TAG_FORMAT_DFF, &tags));
+    uint32_t calls = source.calls;
+    for (uint32_t failure = 1; failure <= calls; failure++) {
+        source.calls = 0;
+        source.fail_at = failure;
+        (void)track_tags_read(input, memory.size, TAG_FORMAT_DFF, &tags);
+    }
+}
+
 static void replay_gain_text_decoding_handles_every_encoding_boundary(void)
 {
     char out[REPLAY_GAIN_TEXT_CAPACITY];
@@ -1323,6 +1409,7 @@ int main(void)
         TEST_CASE(wav_metadata_accepts_the_lowercase_id3_chunk_name),
         TEST_CASE(dff_properties_set_duration_and_bound_subchunks),
         TEST_CASE(dff_diin_artist_and_title_are_read_with_chunk_bounds),
+        TEST_CASE(dff_diin_rejects_bad_chunks_and_read_failures),
         TEST_CASE(mp4_tags_read_numeric_tracks_genre_fallback_and_art),
         TEST_CASE(mp4_duration_requires_a_complete_versioned_header),
         TEST_CASE(mp4_text_genre_takes_priority_over_the_legacy_genre),

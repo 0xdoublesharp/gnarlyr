@@ -19,6 +19,7 @@ static Builder file;
 static WavBuffers buffers;
 static WavSource source;
 static int closes;
+static uint32_t failed_read_offset = UINT32_MAX;
 
 static void put_bytes(const void *data, uint32_t length)
 {
@@ -109,7 +110,7 @@ static void build(uint32_t tag, int channels, uint32_t rate, int bits, uint32_t 
 static bool read_file(void *context, uint32_t offset, void *destination, uint32_t length)
 {
     (void)context;
-    if (offset > file.size || length > file.size - offset) {
+    if (offset == failed_read_offset || offset > file.size || length > file.size - offset) {
         return false;
     }
     memcpy(destination, file.bytes + offset, length);
@@ -424,6 +425,17 @@ static bool probe_aiff(WavFormat *format)
     return aiff_probe(input, format);
 }
 
+static void update_aiff_size(void)
+{
+    write_be(file.bytes + 4, file.size - 8, 4);
+}
+
+static void append_aiff_chunk(uint32_t offset, uint32_t length)
+{
+    put_bytes(file.bytes + offset, length);
+    update_aiff_size();
+}
+
 static void aiff_rejects_invalid_headers_chunks_and_common_fields(void)
 {
     WavFormat format;
@@ -488,12 +500,64 @@ static void aiff_rejects_invalid_headers_chunks_and_common_fields(void)
     CHECK(!probe_aiff(&format));
 }
 
+static void aiff_rejects_read_failures_duplicates_and_missing_chunks(void)
+{
+    WavFormat format;
+    static const uint32_t FAILURES[] = {0, 12, 30, 56};
+    for (uint32_t index = 0; index < sizeof FAILURES / sizeof FAILURES[0]; index++) {
+        build_aiff(2, 16, NULL, 10);
+        failed_read_offset = FAILURES[index];
+        CHECK(!probe_aiff(&format));
+    }
+    failed_read_offset = UINT32_MAX;
+
+    build_aiff(2, 16, NULL, 10);
+    memcpy(file.bytes + 22, "JUNK", 4);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 10);
+    memcpy(file.bytes + 48, "JUNK", 4);
+    CHECK(!probe_aiff(&format));
+
+    build_aiff(2, 16, NULL, 1);
+    append_aiff_chunk(22, 26);
+    CHECK(!probe_aiff(&format));
+    build_aiff(2, 16, NULL, 1);
+    append_aiff_chunk(48, file.size - 48);
+    CHECK(!probe_aiff(&format));
+
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 52, 7, 4);
+    CHECK(!probe_aiff(&format));
+
+    build_aiff(2, 16, NULL, 10);
+    write_be(file.bytes + 38, 16400, 2);
+    write_be(file.bytes + 40, 200000u << 14, 4);
+    CHECK(!probe_aiff(&format));
+}
+
+static void aiff_stops_after_its_chunk_limit(void)
+{
+    file.size = 0;
+    put_bytes("FORM", 4);
+    put_be(0, 4);
+    put_bytes("AIFF", 4);
+    for (uint32_t chunk = 0; chunk < 64; chunk++) {
+        put_bytes("JUNK", 4);
+        put_be(0, 4);
+    }
+    update_aiff_size();
+    WavFormat format;
+    CHECK(!probe_aiff(&format));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(aiff_pcm_and_aifc_play_and_seek),
         TEST_CASE(malformed_aiff_is_refused),
         TEST_CASE(aiff_rejects_invalid_headers_chunks_and_common_fields),
+        TEST_CASE(aiff_rejects_read_failures_duplicates_and_missing_chunks),
+        TEST_CASE(aiff_stops_after_its_chunk_limit),
         TEST_CASE(aiff_accepts_the_standard_rates_and_sound_before_common),
         TEST_CASE(sixteen_bit_stereo_plays_every_frame),
         TEST_CASE(blocks_are_as_long_as_the_buffers_allow),
