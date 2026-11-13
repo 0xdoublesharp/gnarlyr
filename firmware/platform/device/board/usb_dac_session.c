@@ -219,6 +219,7 @@ static void follow_info(uint32_t now_ms)
     follow_details(now_ms);
     scene.state = stream_state();
     scene.high_speed = port.device.speed == USB_SPEED_HIGH;
+    scene.fell_back = shared->high_speed_failed;
     dac->rate = audio.rate;
     dac->bits = (uint8_t)(8 * usb_audio_sample_bytes(&audio));
     dac->volume = shared->dac_volume;

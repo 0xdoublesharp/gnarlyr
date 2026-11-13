@@ -470,18 +470,51 @@ class Systick(RegisterFile):
 
 
 class UsbCore(RegisterFile):
+    """The player's DWC2 core: GHWCFG2 0x0820cc42, GHWCFG3 0x01340480 (308 words of FIFO RAM),
+    GHWCFG4 0x09e04061 (one shared FIFO), reset FIFO sizes of 0x93 receive words and 0x80
+    non-periodic transmit words at 0x93. GNPTXSTS reports an empty non-periodic FIFO with both
+    request-queue entries free. A FIFO region the firmware programs past the FIFO RAM is
+    recorded in `fifo_faults`.
+    """
+
     GOTGCTL = 0x000
     GOTGCTL_B_DEVICE = 1 << 16
     GOTGCTL_B_SESSION_VALID = 1 << 19
+    GRXFSIZ = 0x024
+    GNPTXFSIZ = 0x028
+    GNPTXSTS = 0x02C
     GSNPSID = 0x040
     GHWCFG2 = 0x048
     GHWCFG3 = 0x04C
     GHWCFG4 = 0x050
+    DIEPTXF1 = 0x104
+    DIEPTXF2 = 0x108
+    HARDWARE_2 = 0x0820CC42
+    HARDWARE_3 = 0x01340480
+    HARDWARE_4 = 0x09E04061
+    RESET_RX = 0x93
+    RESET_NPTX = 0x00800093
+    QUEUE_ENTRIES = 2
 
     def __init__(self, machine):
         super().__init__()
         self.machine = machine
         self.interrupts = 0
+        self.fifo_faults = []
+        self.reset_fifo_sizes()
+
+    def reset_fifo_sizes(self):
+        self.regs[self.GRXFSIZ] = self.RESET_RX
+        self.regs[self.GNPTXFSIZ] = self.RESET_NPTX
+
+    def check_fifo_ram(self, offset):
+        ends = [self.regs.get(self.GRXFSIZ, 0) & 0xFFFF]
+        for register in (self.GNPTXFSIZ, self.DIEPTXF1, self.DIEPTXF2):
+            value = self.regs.get(register, 0)
+            if value:
+                ends.append((value & 0xFFFF) + (value >> 16))
+        if max(ends) > self.HARDWARE_3 >> 16:
+            self.fifo_faults.append((offset, self.regs[offset]))
 
     def read_word(self, offset):
         if offset == self.GOTGCTL:
@@ -490,11 +523,13 @@ class UsbCore(RegisterFile):
         if offset == self.GSNPSID:
             return 0x4F54294A
         if offset == self.GHWCFG2:
-            return 0x228DDD50
+            return self.HARDWARE_2
         if offset == self.GHWCFG3:
-            return 0x04000000
+            return self.HARDWARE_3
         if offset == self.GHWCFG4:
-            return 0x02000000 | (1 << 25)
+            return self.HARDWARE_4
+        if offset == self.GNPTXSTS:
+            return self.QUEUE_ENTRIES << 16 | self.regs.get(self.GNPTXFSIZ, 0) >> 16
         if offset == GINTSTS:
             return self.interrupts
         if offset == GRSTCTL:
@@ -519,9 +554,12 @@ class UsbCore(RegisterFile):
         if offset == GRSTCTL:
             if value & GRSTCTL_SOFT_RESET:
                 self.interrupts = 0
+                self.reset_fifo_sizes()
             self.regs[offset] = value & ~(GRSTCTL_SOFT_RESET | GRSTCTL_FLUSH_BITS)
             return
         super().write_word(offset, value)
+        if offset in (self.GRXFSIZ, self.GNPTXFSIZ, self.DIEPTXF1, self.DIEPTXF2):
+            self.check_fifo_ram(offset)
 
     def raise_reset(self):
         self.interrupts |= GINT_USB_RESET

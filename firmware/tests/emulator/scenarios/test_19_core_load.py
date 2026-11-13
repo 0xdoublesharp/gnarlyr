@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import (
     EchoImageHarness,
     IDENTITY,
+    fnv1a,
     PROJECT,
     main,
     MOTION_LOAD_LIMIT_PERCENT,
@@ -24,19 +25,14 @@ CORE1_KEEPUP_SLICES = 128
 
 class EchoImageTest(EchoImageHarness):
     def parametric_file(self):
-        def checksum(data):
-            value = 2166136261
-            for byte in data:
-                value = (value ^ byte) * 16777619 & 0xFFFFFFFF
-            return value
         record = bytearray(84)
         struct.pack_into("<BBh", record, 0, 10, 0, -20)
         for index, hz in enumerate((31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)):
             struct.pack_into("<HHhBB", record, 4 + 8 * index, hz, 71, 15,
                              index % 3, 1)
-        payload = bytes((1, 0, 0, 0)) + record + record + bytes(7 * 84)
-        header = struct.pack("<4sHHIIII", b"PEQF", 1, 0, 1, len(payload), checksum(payload), 0)
-        header += struct.pack("<I", checksum(header))
+        payload = bytes((1, 0, 0, 0)) + record + record + bytes(7 * 84) + bytes(9 * 9)
+        header = struct.pack("<4sHHIIII", b"PEQF", 1, 0, 1, len(payload), fnv1a(payload), 0)
+        header += struct.pack("<I", fnv1a(header))
         return header + bytes(512 - len(header)) + payload + bytes(3072 - 512 - len(payload))
 
     def test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns(self):

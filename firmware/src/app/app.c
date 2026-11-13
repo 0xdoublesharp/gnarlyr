@@ -1822,8 +1822,8 @@ static void follow_usb_chooser(uint32_t now_ms)
     }
     const PlugChooser *usb = &app.screens.modules.settings.settings.usb;
     bool open = top_screen() == app.usb_chooser;
-    bool lapsed =
-        open && (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);
+    bool quiet = (usb->timed || app.usb_chooser_charging) && (usb->expired || !app.display_on);
+    bool lapsed = open && (quiet || !hal_power_cable());
     if (lapsed && apply_action(screen_action_pop(), now_ms)) {
         screen_changed();
         open = false;
@@ -1992,8 +1992,8 @@ static void open_debug_screen(uint32_t target, uint32_t now_ms)
 
 static void run_debug_script(uint32_t now_ms)
 {
-    DebugRequest request =
-        debug_runner_step(now_ms, (DebugRunnerView){fade_running(), app.display_on});
+    DebugRequest request = debug_runner_step(
+        now_ms, (DebugRunnerView){fade_running(), app.display_on, app.keys.states[KEY_POWER].held});
 
     if (request.kind == DEBUG_REQUEST_START) {
         start_debug_script(now_ms);
@@ -2354,7 +2354,7 @@ CORE_SEAM void app_show_notice(const char *title, const char *message)
     light_after_first_frame();
 }
 
-void app_show_splash(void)
+CORE_SEAM void app_show_splash(void)
 {
     app.now_ms = hal_clock_milliseconds();
     fade_start(&app.splash, app.now_ms, SPLASH_TIMING);

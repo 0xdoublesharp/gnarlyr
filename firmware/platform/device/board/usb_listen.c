@@ -35,7 +35,8 @@ UsbShared *usb_session_shared(void)
 CORE_SEAM bool usb_session_listen(void)
 {
     shared.report = (UsbReport){.internal_ready = emmc_start(&shared.internal)};
-    shared.link = (UsbLink){.high_speed_allowed = !shared.high_speed_failed};
+    shared.high_speed_failed = false;
+    shared.link = (UsbLink){.high_speed_allowed = true};
     usb_power_up();
     shared.report.after_power_up = usb_probe();
     bool connected = usb_connect(&shared.link);

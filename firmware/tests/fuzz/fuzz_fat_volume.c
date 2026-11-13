@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "core/bytes.h"
 #include "device/fat.h"
 #include "fuzz_source.h"
 
@@ -30,25 +31,19 @@ typedef struct SparseView {
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
-static uint32_t get32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static bool sparse_open(SparseView *view, const uint8_t *data, size_t size)
 {
     if (size < HEADER_BYTES || memcmp(data, "DSSP", 4) != 0) {
         return false;
     }
-    uint32_t entries = get32(data + 8);
+    uint32_t entries = bytes_le32(data + 8);
     if (entries > (size - HEADER_BYTES) / ENTRY_BYTES) {
         return false;
     }
     *view = (SparseView){
         .bytes = data,
         .size = size,
-        .sectors = get32(data + 4),
+        .sectors = bytes_le32(data + 4),
         .entries = entries,
     };
     return view->sectors != 0;
@@ -68,7 +63,7 @@ static const uint8_t *sparse_sector(const SparseView *view, uint32_t lba)
 {
     for (uint32_t index = view->entries; index > 0; index--) {
         const uint8_t *entry = view->bytes + HEADER_BYTES + (size_t)(index - 1) * ENTRY_BYTES;
-        if (get32(entry) == lba) {
+        if (bytes_le32(entry) == lba) {
             return entry + 4;
         }
     }

@@ -4,13 +4,29 @@
 #include <stdint.h>
 
 enum {
-    USB_FALLBACK_MS = 10000
+    USB_FALLBACK_MS = 10000,
+    USB_FALLBACK_COMMANDS = 2
 };
+
+typedef enum UsbFallbackCause {
+    USB_FALLBACK_NONE,
+    USB_FALLBACK_NOT_CONFIGURED,
+    USB_FALLBACK_FEW_COMMANDS
+} UsbFallbackCause;
+
+typedef struct UsbFallbackSigns {
+    bool configured;
+    uint32_t commands;
+} UsbFallbackSigns;
 
 typedef struct UsbFallback {
     bool watching;
+    bool timing;
     uint32_t started_ms;
+    UsbFallbackCause cause;
+    uint32_t commands;
 } UsbFallback;
 
-void usb_fallback_start(UsbFallback *fallback, bool high_speed, uint32_t now_ms);
-bool usb_fallback_due(UsbFallback *fallback, bool working, uint32_t now_ms);
+void usb_fallback_start(UsbFallback *fallback, bool high_speed);
+void usb_fallback_enumerated(UsbFallback *fallback, uint32_t now_ms);
+bool usb_fallback_due(UsbFallback *fallback, UsbFallbackSigns signs, uint32_t now_ms);

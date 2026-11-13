@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     RIFF_HEADER_BYTES = 12,
     CHUNK_HEADER_BYTES = 8,
@@ -15,16 +17,6 @@ enum {
     EIGHT_BIT_CENTRE = 128,
     MILLISECONDS_PER_SECOND = 1000
 };
-
-static uint32_t read_u16(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8;
-}
-
-static uint32_t read_u32(const uint8_t *bytes)
-{
-    return read_u16(bytes) | read_u16(bytes + 2) << 16;
-}
 
 static bool same_tag(const uint8_t *bytes, const char *tag)
 {
@@ -44,18 +36,18 @@ static bool read_format(FlacInput input, uint32_t offset, uint32_t size, WavForm
     if (size < 16 || !input.read(input.context, offset, bytes, length)) {
         return false;
     }
-    uint32_t tag = read_u16(bytes);
+    uint32_t tag = bytes_le16(bytes);
     if (tag == EXTENSIBLE_TAG) {
-        if (size < EXTENSIBLE_MIN_BYTES || read_u16(bytes + 24) != PCM_TAG) {
+        if (size < EXTENSIBLE_MIN_BYTES || bytes_le16(bytes + 24) != PCM_TAG) {
             return false;
         }
     } else if (tag != PCM_TAG) {
         return false;
     }
-    uint32_t channels = read_u16(bytes + 2);
-    uint32_t rate = read_u32(bytes + 4);
-    uint32_t frame_bytes = read_u16(bytes + 12);
-    uint32_t bits = read_u16(bytes + 14);
+    uint32_t channels = bytes_le16(bytes + 2);
+    uint32_t rate = bytes_le32(bytes + 4);
+    uint32_t frame_bytes = bytes_le16(bytes + 12);
+    uint32_t bits = bytes_le16(bytes + 14);
     if (channels < 1 || channels > MAX_CHANNELS || rate == 0 || !supported_bits(bits) ||
         frame_bytes != channels * bits / BITS_PER_BYTE) {
         return false;
@@ -81,7 +73,7 @@ static bool parse(FlacInput input, WavFormat *format)
         if (!input.read(input.context, offset, bytes, sizeof bytes)) {
             return false;
         }
-        uint32_t size = read_u32(bytes + 4);
+        uint32_t size = bytes_le32(bytes + 4);
         uint32_t body = offset + CHUNK_HEADER_BYTES;
         if (same_tag(bytes, "fmt ")) {
             if (!read_format(input, body, size, format)) {
@@ -149,13 +141,13 @@ static int32_t sample_from_little(const uint8_t *bytes, uint32_t bits)
     case 8:
         return (int32_t)bytes[0] - EIGHT_BIT_CENTRE;
     case 16:
-        return (int32_t)(int16_t)read_u16(bytes);
+        return (int32_t)(int16_t)bytes_le16(bytes);
     case 24: {
         uint32_t value = (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16;
         return (int32_t)(value ^ 0x800000u) - 0x800000;
     }
     default:
-        return (int32_t)read_u32(bytes);
+        return (int32_t)bytes_le32(bytes);
     }
 }
 

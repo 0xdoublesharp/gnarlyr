@@ -2991,7 +2991,7 @@ static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/settings.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/resume.bin"));
+    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/session.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/favorites.bin"));
     CHECK_EQUAL(4 * 1024 * 1024, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/library.db"));
     uint32_t covers_size = fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/covers.bin");
@@ -2999,7 +2999,6 @@ static void a_fresh_card_gets_the_player_files_and_a_first_scan(void)
     CHECK((covers_size - COVERS_HEADER_SIZE) / (COVERS_ENTRY_SIZE + COVER_BUILD_RECORD_BYTES) >=
           2500);
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/scan.bin"));
-    CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/upnext.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/bluetooth.bin"));
     CHECK_EQUAL(4096, fake_hal_reserved_size("/" FIRMWARE_DATA_DIRECTORY "/favorite_added.bin"));
     step();
@@ -3567,6 +3566,35 @@ static void start_charging_on_usb(void)
     wait_ms(CHARGE_LIT_MS);
     CHECK(app_charging());
     CHECK(!fake_hal_display_on());
+}
+
+static void pulling_the_cable_closes_the_prompt_and_applies_no_mode(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    const char *before = app_screen_title();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("Computer found"));
+    wait_ms(500);
+    fake_hal_set_cable(false);
+    wait_ms(500);
+    CHECK(title_is(before));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!app_charging());
+}
+
+static void pulling_the_cable_closes_the_counting_prompt_on_the_charge_screen(void)
+{
+    start_charging_on_usb();
+    app_ask_usb_mode();
+    step();
+    CHECK(title_is("Computer found"));
+    fake_hal_set_cable(false);
+    wait_ms(500);
+    CHECK(!title_is("Computer found"));
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
 }
 
 static void a_host_found_while_playing_asks_and_playback_goes_on(void)
@@ -6427,6 +6455,8 @@ int main(void)
         TEST_CASE(a_charged_battery_does_not_keep_redrawing_an_unchanged_screen),
         TEST_CASE(menu_on_the_charge_screen_opens_usb_mode_and_charge_only_returns_to_charging),
         TEST_CASE(a_host_found_while_playing_asks_and_playback_goes_on),
+        TEST_CASE(pulling_the_cable_closes_the_prompt_and_applies_no_mode),
+        TEST_CASE(pulling_the_cable_closes_the_counting_prompt_on_the_charge_screen),
         TEST_CASE(a_quiet_prompt_lapses_to_charge_only_and_playback_goes_on),
         TEST_CASE(one_press_in_the_prompt_connects_to_the_computer),
         TEST_CASE(the_prompt_gives_way_to_charge_only_when_the_screen_goes_dark),

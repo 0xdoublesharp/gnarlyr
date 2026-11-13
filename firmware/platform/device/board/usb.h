@@ -7,6 +7,7 @@
 #include "device/usb_audio.h"
 #include "device/usb_audio_hid.h"
 #include "device/usb_device.h"
+#include "hal/system.h"
 
 enum {
     USB_PORT_PACKET_BYTES = (int)USB_AUDIO_MAX_PACKET > (int)USB_HIGH_SPEED_PACKET_SIZE
@@ -41,8 +42,11 @@ typedef struct UsbLink {
 typedef struct UsbPort {
     UsbLink link;
     bool configured;
+    bool enumerated;
     bool in_busy;
     bool setup_pending;
+    bool setup_ready;
+    HalUsbSetupTrace setups;
     bool defer_control;
     bool control_data_pending;
     uint16_t control_data_length;

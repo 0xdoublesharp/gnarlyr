@@ -15,6 +15,7 @@ import echo_debug
 import image_artifacts
 import lang_pack
 import make_image
+from fnv import FNV_PRIME, fnv1a
 from identity import IDENTITY
 
 SKIP_EXIT_CODE = 77
@@ -77,9 +78,11 @@ MADCTL_MIRROR_ROWS = 0x80
 MADCTL_MIRROR_COLUMNS = 0x40
 PORTRAIT_COLUMNS = (FIRST_ROW, FIRST_ROW + HEIGHT - 1)
 PORTRAIT_LAST_ROW = WIDTH - 1
-SETTINGS_VERSION = 10
+SETTINGS_VERSION = 1
 SETTINGS_ORIENTATION_FIELD = 26
-SETTINGS_CHECKSUM_FIELD = 28
+SETTINGS_FILE_BYTES = 78
+SETTINGS_EXTENSION = bytes((0x07, 24, 15, 0, 0x60, 0x97, 0x18, 0x52, 0x43, 0x26)) + bytes(6)
+SETTINGS_SECOND = bytes((4, 0, 50)) + bytes(13)
 REPORT_BYTES = 16384
 REPORT_SLOTS = 3
 COLD_REPORT_MS = 10000
@@ -161,8 +164,6 @@ SETTINGS_REPEAT_ROW = 2
 HOME_MIXTAPES_BEFORE_SETTINGS = 4
 STEP_GAP_WITH_A_MODULE_MS = 250
 STEPS_AFTER_NOTICE = 20
-FNV_START = 2166136261
-FNV_PRIME = 16777619
 
 GAMMA_POSITIVE = (0xF0, 0x0B, 0x12, 0x09, 0x0A, 0x26, 0x39, 0x54, 0x4E, 0x38, 0x13, 0x13, 0x2E,
                   0x34)
@@ -186,22 +187,25 @@ def english(name):
     return dict(lang_pack.read_catalogue())[name]
 
 
-def settings_file(orientation):
-    data = bytearray(SETTINGS_CHECKSUM_FIELD + 4)
-    data[0:4] = b"DSST"
-    data[4] = SETTINGS_VERSION
-    data[6:9] = bytes((7, 2, 0))
-    data[13] = 13
-    data[14] = 2
-    data[16] = 35
-    data[19:24] = bytes((10,) * 5)
-    data[24] = 1
-    data[SETTINGS_ORIENTATION_FIELD] = orientation
-    checksum = FNV_START
-    for byte in data[:SETTINGS_CHECKSUM_FIELD]:
-        checksum = (checksum ^ byte) * FNV_PRIME & 0xFFFFFFFF
-    data[SETTINGS_CHECKSUM_FIELD:] = checksum.to_bytes(4, "little")
+def seal_settings(data):
+    data = bytearray(data)
+    data[54:58] = struct.pack("<I", fnv1a(data[:54]))
+    data[74:78] = struct.pack("<I", fnv1a(data[58:74]))
     return bytes(data)
+
+
+def settings_file(orientation, size=SETTINGS_FILE_BYTES, **fields):
+    data = bytearray(size)
+    data[0:6] = b"DSST" + bytes((SETTINGS_VERSION, 4))
+    data[6:9] = bytes((7, 2, 0))
+    data[13], data[14], data[16], data[24] = 13, 2, 35, 1
+    data[SETTINGS_ORIENTATION_FIELD] = orientation
+    data[28:38] = bytes((20,) * 10)
+    data[38:54] = SETTINGS_EXTENSION
+    data[58:74] = SETTINGS_SECOND
+    for offset, value in fields.items():
+        data[int(offset[1:])] = value
+    return seal_settings(data)
 
 
 def pin_high_index(machine, port, pin):
@@ -249,6 +253,7 @@ class EchoImageHarness(unittest.TestCase):
         machine = session.machine
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.panics, [])
+        self.assertEqual(machine.usb.fifo_faults, [])
 
     def assert_only_the_user_volume_changed(self, session):
         layout = session.layout
@@ -812,18 +817,10 @@ class EchoImageHarness(unittest.TestCase):
         volume = Fat32Volume()
         volume.add_file("Speech.wav", b"RIFF" + struct.pack("<I", len(body)) + body)
         volume.add_directory(IDENTITY.data_directory)
-        settings = bytearray(4096)
-        settings[:6] = b"DSST" + bytes((14, mode | (4 if clipping else 0)))
-        settings[6:9] = bytes((7, 2, 0))
-        settings[13], settings[14], settings[16] = 60, 2, 35
-        settings[18] = equalizer
-        settings[24], settings[27] = 1, 1
+        settings = bytearray(settings_file(0, 4096, b5=mode | (4 if clipping else 0), b13=60,
+                                           b18=equalizer, b27=1))
         settings[28:38] = bytes((20,) * 10) if gains is None else bytes(20 + gain for gain in gains)
-        checksum = FNV_START
-        for value in settings[:38]:
-            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
-        settings[38:42] = struct.pack("<I", checksum)
-        volume.add_file("settings.bin", bytes(settings), directory=IDENTITY.data_directory)
+        volume.add_file("settings.bin", seal_settings(settings), directory=IDENTITY.data_directory)
         for name, data in extra_files:
             volume.add_file(name, data, directory=IDENTITY.data_directory)
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
@@ -928,19 +925,9 @@ class EchoImageHarness(unittest.TestCase):
         return self.saved_settings(4 | 1 << 3, tenths, shuffle=1)
 
     def saved_settings(self, comfort, tenths, shuffle, speed_step=0):
-        settings = bytearray(4096)
-        settings[:6] = b"DSST" + bytes((15, 0))
-        settings[6:9] = bytes((7, 2, 0))
-        settings[11], settings[13], settings[14], settings[16] = shuffle, 60, 2, 35
-        settings[24], settings[27] = 1, 1
-        settings[28:38] = bytes((20,) * 10)
-        settings[38:43] = bytes((comfort, 13, tenths, speed_step & 0xFF, 0x10))
-        settings[43:47] = bytes((0x32, 0x54, 0x76, 0x08))
-        checksum = FNV_START
-        for value in settings[:54]:
-            checksum = (checksum ^ value) * FNV_PRIME & 0xFFFFFFFF
-        settings[54:58] = struct.pack("<I", checksum)
-        return bytes(settings)
+        settings = bytearray(settings_file(0, 4096, b5=0, b11=shuffle, b13=60, b27=1))
+        settings[38:42] = bytes((comfort, 13, tenths, speed_step & 0xFF))
+        return seal_settings(settings)
 
     def watch_transition(self, rig, boundary, length):
         from echo_emulator.audio import PRODUCED_OFFSET, RING_BYTES
@@ -1178,15 +1165,7 @@ def parse_arguments(argv):
     return parser.parse_args(argv)
 
 
-def scenario_cases(suite):
-    for item in suite:
-        if isinstance(item, unittest.TestSuite):
-            yield from scenario_cases(item)
-        else:
-            yield item
-
-
-def main(test_case=None, argv=None):
+def main(test_case, argv=None):
     arguments = parse_arguments(argv)
     CONFIG["image"] = arguments.image
     CONFIG["elf"] = arguments.elf
@@ -1195,18 +1174,10 @@ def main(test_case=None, argv=None):
     if reason:
         print("SKIP: " + reason)
         return SKIP_EXIT_CODE
-    if test_case is None:
-        suite = unittest.defaultTestLoader.discover(str(Path(__file__).with_name("scenarios")))
-        if arguments.tests:
-            wanted = {name.rsplit(".", 1)[-1] for name in arguments.tests}
-            cases = list(scenario_cases(suite))
-            missing = wanted - {case._testMethodName for case in cases}
-            if missing:
-                raise SystemExit("Unknown scenarios: " + ", ".join(sorted(missing)))
-            suite = unittest.TestSuite(case for case in cases if case._testMethodName in wanted)
+    loader = unittest.defaultTestLoader
+    if arguments.tests:
+        suite = loader.loadTestsFromNames(arguments.tests, sys.modules[test_case.__module__])
     else:
-        suite = unittest.defaultTestLoader.loadTestsFromNames(
-            arguments.tests, sys.modules[test_case.__module__]) if arguments.tests else (
-            unittest.defaultTestLoader.loadTestsFromTestCase(test_case))
+        suite = loader.loadTestsFromTestCase(test_case)
     result = unittest.TextTestRunner(verbosity=2).run(suite)
     return 0 if result.wasSuccessful() else 1

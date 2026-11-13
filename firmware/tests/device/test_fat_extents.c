@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "device/fat.h"
 #include "sparse_card.h"
 
@@ -30,13 +31,6 @@ typedef struct Generated {
     uint32_t first;
 } Generated;
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void boot_sector(uint8_t *sector)
 {
     sector[0] = 0xEB;
@@ -45,9 +39,9 @@ static void boot_sector(uint8_t *sector)
     sector[13] = 1;
     sector[14] = RESERVED;
     sector[16] = 1;
-    put32(sector + 32, DATA_START + CLUSTERS);
-    put32(sector + 36, FAT_SECTORS);
-    put32(sector + 44, ROOT_CLUSTER);
+    bytes_put_le32(sector + 32, DATA_START + CLUSTERS);
+    bytes_put_le32(sector + 36, FAT_SECTORS);
+    bytes_put_le32(sector + 44, ROOT_CLUSTER);
     sector[510] = 0x55;
     sector[511] = 0xAA;
 }
@@ -60,7 +54,7 @@ static void root_sector(const Generated *generated, uint8_t *sector)
     sector[21] = (uint8_t)(generated->first >> 24);
     sector[26] = (uint8_t)generated->first;
     sector[27] = (uint8_t)(generated->first >> 8);
-    put32(sector + 28, generated->file_size);
+    bytes_put_le32(sector + 28, generated->file_size);
 }
 
 static void fill_sector(Generated *generated, uint32_t lba, uint8_t *sector)
@@ -72,13 +66,13 @@ static void fill_sector(Generated *generated, uint32_t lba, uint8_t *sector)
         generated->fat_reads++;
         for (uint32_t word = 0; word < 128; word++) {
             uint32_t cluster = (lba - RESERVED) * 128 + word;
-            put32(sector + word * 4, cluster < CLUSTERS + 2 ? generated->fat[cluster] : 0);
+            bytes_put_le32(sector + word * 4, cluster < CLUSTERS + 2 ? generated->fat[cluster] : 0);
         }
     } else if (lba == DATA_START) {
         root_sector(generated, sector);
     } else {
         for (uint32_t word = 0; word < 128; word++) {
-            put32(sector + word * 4, lba);
+            bytes_put_le32(sector + word * 4, lba);
         }
     }
 }

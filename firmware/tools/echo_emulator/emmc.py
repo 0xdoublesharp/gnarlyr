@@ -86,6 +86,8 @@ class EmmcCard:
         self.accesses = []
         self.commands = []
         self.pending_write = None
+        self.failed_starts = 0
+        self.starts = 0
 
     def ext_csd(self):
         data = bytearray(SECTOR)
@@ -98,9 +100,10 @@ class EmmcCard:
     def command(self, index, argument):
         self.commands.append((self.machine.cycles(), index, argument))
         if index == 0:
+            self.starts += 1
             return ()
         if index == 1:
-            return (OCR_READY_SECTOR_MODE, 0, 0, 0)
+            return (0, 0, 0, 0) if self.starts <= self.failed_starts else (OCR_READY_SECTOR_MODE, 0, 0, 0)
         if index == 2 or index == 9:
             return self.cid()
         return (READY_TRANSFER_STATUS, 0, 0, 0)

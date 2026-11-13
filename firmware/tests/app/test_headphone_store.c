@@ -107,7 +107,7 @@ static void rejected_edits_preserve_audio_and_the_current_settings_version(void)
     uint32_t size;
     const uint8_t *bytes = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
-    CHECK_EQUAL(16, bytes[4]);
+    CHECK_EQUAL(1, bytes[4]);
     CHECK_EQUAL(0, bytes[41]);
     Settings decoded;
     CHECK(settings_decode(bytes, SETTINGS_FILE_SIZE, &decoded));

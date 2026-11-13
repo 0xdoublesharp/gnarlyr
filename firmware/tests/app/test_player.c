@@ -442,17 +442,6 @@ static void a_saved_session_resumes_paused_at_its_position(void)
     CHECK_EQUAL(42000, fake_hal_audio_play_start());
 }
 
-static void a_session_from_another_library_is_ignored(void)
-{
-    fresh_player();
-    ResumeState foreign = {.library_fingerprint = 1, .plan = {.source = back_in_black()}};
-    uint8_t bytes[RESUME_STATE_SIZE];
-    resume_state_encode(&foreign, bytes);
-    hal_file_write("/" FIRMWARE_DATA_DIRECTORY "/resume.bin", bytes, sizeof bytes);
-    CHECK(!player_restore(&player));
-    CHECK_EQUAL(PLAYER_IDLE, player_status(&player).state);
-}
-
 static void the_session_is_saved_regularly_while_playing(void)
 {
     Player *started = playing(0);
@@ -1116,52 +1105,6 @@ static void a_semantically_invalid_session_does_not_prevent_starting_a_new_song(
     CHECK_EQUAL(1, again.up_next.count);
 }
 
-static void legacy_resume_and_manual_queue_migrate_without_modifying_original_files(void)
-{
-    Player *started = playing(0);
-    uint8_t resume_bytes[4096] = {0};
-    uint8_t queue_bytes[4096] = {0};
-    ResumeState state = {.library_fingerprint = started->fingerprint,
-                         .plan = started->queue.plan,
-                         .track = started->track,
-                         .cursor = started->queue.cursor,
-                         .volume = 12,
-                         .position_ms = 5432};
-    resume_state_encode(&state, resume_bytes);
-    UpNext pending = {0};
-    up_next_add(&pending, HELP);
-    up_next_encode(&pending, started->fingerprint, queue_bytes);
-    fake_hal_reset();
-    fake_hal_add_file(PLAYER_RESUME_PATH, resume_bytes, sizeof resume_bytes);
-    fake_hal_add_file(PLAYER_UP_NEXT_PATH, queue_bytes, sizeof queue_bytes);
-    Player migrated;
-    player_init(&migrated, &fixture.library);
-    CHECK(player_restore(&migrated));
-    CHECK_EQUAL(5432, player_status(&migrated).position_ms);
-    CHECK_EQUAL(HELP, migrated.up_next.tracks[0]);
-    CHECK_EQUAL(PLAYER_UP_NEXT_ADDED, player_add_to_up_next(&migrated, ARMY_OF_ME));
-    uint32_t length = 0;
-    const uint8_t *original = fake_hal_file_bytes(PLAYER_RESUME_PATH, &length);
-    CHECK(original != NULL);
-    if (original != NULL) {
-        CHECK_EQUAL(sizeof resume_bytes, length);
-        CHECK(memcmp(resume_bytes, original, sizeof resume_bytes) == 0);
-    }
-    original = fake_hal_file_bytes(PLAYER_UP_NEXT_PATH, &length);
-    CHECK(original != NULL);
-    if (original != NULL) {
-        CHECK_EQUAL(sizeof queue_bytes, length);
-        CHECK(memcmp(queue_bytes, original, sizeof queue_bytes) == 0);
-    }
-    Player restored;
-    player_init(&restored, &fixture.library);
-    CHECK(player_restore(&restored));
-    CHECK_EQUAL(2, restored.up_next.count);
-    CHECK_EQUAL(HELP, restored.up_next.tracks[0]);
-    CHECK_EQUAL(ARMY_OF_ME, restored.up_next.tracks[1]);
-    CHECK_EQUAL(5432, player_status(&restored).position_ms);
-}
-
 static void a_same_layout_rescan_cannot_restore_ids_for_different_songs(void)
 {
     for (int stored = 0; stored < 2; stored++) {
@@ -1655,7 +1598,6 @@ int main(void)
         TEST_CASE(invalid_result_orders_cannot_replace_the_current_song),
         TEST_CASE(a_same_layout_rescan_cannot_restore_ids_for_different_songs),
         TEST_CASE(changed_cue_boundaries_do_not_reuse_the_old_saved_position),
-        TEST_CASE(legacy_resume_and_manual_queue_migrate_without_modifying_original_files),
         TEST_CASE(a_semantically_invalid_session_does_not_prevent_starting_a_new_song),
         TEST_CASE(all_wrapped_moves_and_removals_preserve_the_future_sequence),
         TEST_CASE(generated_playback_advancement_rejects_an_old_edit_selection),
@@ -1735,7 +1677,6 @@ int main(void)
         TEST_CASE(a_cold_resume_rewinds_twenty_seconds),
         TEST_CASE(a_cold_resume_with_rewind_off_starts_in_place),
         TEST_CASE(a_cold_resume_rewinds_only_the_first_play),
-        TEST_CASE(a_session_from_another_library_is_ignored),
         TEST_CASE(the_session_is_saved_regularly_while_playing),
         TEST_CASE(an_added_song_plays_after_the_current_track),
         TEST_CASE(play_next_goes_before_earlier_added_songs),

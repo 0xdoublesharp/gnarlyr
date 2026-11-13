@@ -57,8 +57,9 @@ def long_entry_total(name):
 
 
 class Node:
-    def __init__(self, name, directory, data=None, size=0, source=None):
+    def __init__(self, name, directory, data=None, size=0, source=None, long_name=False):
         self.name = name
+        self.long_name = long_name
         self.source = source
         self.directory = directory
         self.data = data
@@ -91,9 +92,9 @@ class Fat32Volume:
             node = next(child for child in node.children if child.name == part and child.directory)
         return node
 
-    def add_file(self, name, data=None, size=None, directory="", source=None):
+    def add_file(self, name, data=None, size=None, directory="", source=None, long_name=False):
         self.directory(directory).children.append(
-            Node(name, False, data, source.size if source else size or 0, source))
+            Node(name, False, data, source.size if source else size or 0, source, long_name))
 
     def add_directory(self, name, directory=""):
         self.directory(directory).children.append(Node(name, True))
@@ -109,7 +110,8 @@ class Fat32Volume:
     def entry_count(self, node):
         count = 0 if node is self.root else 2
         for child in node.children:
-            count += 1 if fits_short_name(child.name) else long_entry_total(child.name) + 1
+            plain = fits_short_name(child.name) and not child.long_name
+            count += 1 if plain else long_entry_total(child.name) + 1
         return count
 
     def directory_span(self, node):
@@ -201,6 +203,8 @@ class Fat32Volume:
             attribute = ATTRIBUTE_DIRECTORY if child.directory else ATTRIBUTE_ARCHIVE
             if fits_short_name(child.name):
                 raw = short_name(child.name)
+                if child.long_name:
+                    entries.extend(long_entries(child.name, raw))
             else:
                 raw = self.alias(node, child.name)
                 entries.extend(long_entries(child.name, raw))

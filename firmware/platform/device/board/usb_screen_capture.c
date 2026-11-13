@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "app/app.h"
+#include "core/bytes.h"
 #include "debug_probe.h"
 #include "gfx/strip_renderer.h"
 #include "hal/clock.h"
@@ -29,12 +30,6 @@ typedef struct Capture {
     bool written;
 } Capture;
 
-static void put16(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
 static void fill_header(uint8_t *header, Rect area, const char *name, uint8_t page)
 {
     uint32_t now_ms = hal_clock_milliseconds();
@@ -44,11 +39,10 @@ static void fill_header(uint8_t *header, Rect area, const char *name, uint8_t pa
     header[3] = 'H';
     header[4] = VERSION;
     header[5] = RGB565;
-    put16(header + 6, (uint32_t)area.width);
-    put16(header + 8, (uint32_t)area.height);
-    put16(header + 10, HEADER_BYTES);
-    put16(header + 12, now_ms);
-    put16(header + 14, now_ms >> 16);
+    bytes_put_le16(header + 6, (uint32_t)area.width);
+    bytes_put_le16(header + 8, (uint32_t)area.height);
+    bytes_put_le16(header + 10, HEADER_BYTES);
+    bytes_put_le32(header + 12, now_ms);
     size_t index = 0;
     for (; name[index] != '\0'; index++) {
         header[NAME_AT + index] = (uint8_t)name[index];

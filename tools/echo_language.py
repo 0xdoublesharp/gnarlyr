@@ -13,29 +13,26 @@ BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 18432
 FILE_LIMIT = 65535
-PACK_VERSIONS = (1, 2)
-FLAG_MASKS = (0xF8, 0xF0, 0xC8, 0xC0)
-USB_ANSWER_BITS = 0x30
+SETTINGS_VERSION = 1
+SETTINGS_SIZE = 78
+SETTINGS_SOURCE = {"VERSION": 1, "VERSION_FIELD": 4, "BRIGHTNESS_FIELD": 6, "TIMEOUT_FIELD": 7,
+                   "LANGUAGE_FIELD": 19, "TEXT_SIZE_FIELD": 24, "ORIENTATION_FIELD": 26, "HALF_DB_GAINS_FIELD": 28,
+                   "EXTENSION_FIELD": 38, "EXTENSION_CHECKSUM_FIELD": 54, "EXTENSION_SIZE": 16,
+                   "SECOND_FIELD": 58, "SECOND_CHECKSUM_FIELD": 74, "CLOCK_OFFSET_BYTE": 11,
+                   "STATUS_ITEMS_BYTE": 13, "SPEED_BYTE": 3, "STYLE_FLAGS_BYTE": 14, "DAC_FILTER_BYTE": 14,
+                   "CROSSFEED_BYTE": 14, "CROSSFEED_SHIFT": 5, "CROSSFEED_MASK": 3, "BATTERY_CARE_BYTE": 14,
+                   "BATTERY_CARE_SHIFT": 3, "BATTERY_CARE_MASK": 24, "RESERVED_COUNT": 2,
+                   "CLOCK_24H_BIT": 4, "BLUETOOTH_VOLUME_BYTE": 2, "SECOND_RESERVED_BYTE": 3}
+SETTINGS_HEADER = {"SETTINGS_FILE_SIZE": SETTINGS_SIZE, "SETTINGS_VOLUME_MAX": 60,
+                   "SETTINGS_TRANSITION_TENTHS_MIN": 5, "SETTINGS_TRANSITION_TENTHS_MAX": 60,
+                   "SETTINGS_SPEED_COUNT": 9, "SETTINGS_SPEED_NORMAL": 2, "SETTINGS_HOME_FIRST_ITEM_COUNT": 9,
+                   "SETTINGS_HOME_ORDER_SLOTS": 10, "SETTINGS_HOME_SETTINGS_ITEM": 3,
+                   "SETTINGS_BRIGHTNESS_MIN": 1, "SETTINGS_BRIGHTNESS_MAX": 10}
+FLAGS_ENCODING = ("bytes[VERSION_FIELD+1]=settings->replay_gain_mode|(settings->prevent_clipping?4u:0u)|"
+                  "(settings->battery_percent?8u:0u)|(uint8_t)(settings->usb_connect<<4u);")
+DAC_FILTERS = 5
 DIRECTORY_LIMIT = 256
 ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
-F_VERSION = 16
-F_MARKER_FIELD = 53
-F_FIELD = 58
-F_SIZE = 16
-F_CHECKSUM_FIELD = 74
-F_FILE_SIZE = 78
-F2_VOLUME = "bytes[60]=(uint8_t)((settings->bluetooth_volume<SETTINGS_VOLUME_MAX?"
-F2_LIMIT = 61
-F_LAYOUT = (
-    "bytes[53]=16;hash_store(bytes+EXTENSION_CHECKSUM_FIELD,checksum_of(bytes,EXTENSION_CHECKSUM_FIELD));",
-    "bytes[58]=(uint8_t)(settings->status_bar_compact|settings->standby_enabled<<1|"
-    "settings->standby_power_off_option<<2);bytes[59]=settings->long_press_action&7u;",
-    "hash_store(bytes+74,hash_update(HASH_START,bytes+58,16));",
-    "extension[15]==(bytes[VERSION_FIELD]>=16?16:0);",
-    "bytes[VERSION_FIELD]>=16&&length>=SETTINGS_FILE_SIZE&&"
-    "hash_load(bytes+74)==hash_update(HASH_START,bytes+58,16)&&"
-    "(bytes[58]&0xF0u)==0&&(bytes[58]>>2)<3&&(bytes[59]&0xF8u)==0",
-)
 
 
 @lru_cache(maxsize=1)
@@ -55,6 +52,7 @@ def git(root, *arguments):
 
 HOME_FIRST_ITEMS = 9
 HOME_SLOTS = 10
+HOME_SETTINGS_ITEM = 3
 
 
 def constant(source, name):
@@ -71,14 +69,6 @@ class Snapshot:
             code = "language_build_dirty" if isinstance(build, str) and "+" in build else "language_build_unknown"
             raise api.DebugError(code, "language operations require an exact clean installed firmware build")
         self.format = pack_tools(api.ROOT)
-        self.flags_reserved = 0xF8
-        self.status_items_supported = False
-        self.f2_volume = False
-        self.display_flags_byte = None
-        self.style_flags_byte = None
-        self.e14_bits = (0, 0)
-        self.battery_care_supported = False
-        self.usb_answers = 3
         try:
             self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
             self.build = build
@@ -87,200 +77,103 @@ class Snapshot:
             self.pack_version = constant(i18n, "I18N_VERSION")
             if not 0 < self.pack_limit <= PACK_LIMIT:
                 raise ValueError("the installed language capacity is unsupported")
-            if self.pack_version not in PACK_VERSIONS:
-                raise ValueError("the installed language pack format is unsupported")
+            if self.pack_version != self.format.VERSION:
+                raise ValueError(f"the installed build does not read version {self.format.VERSION} language packs")
             self.catalogue = self.format.read_catalogue_text(self.show("firmware/assets/lang/en.txt"))
-            self.segments = None
-            if self.pack_version == self.format.VERSION:
-                self.segments = self.format.segments_from_header(
-                    self.show("firmware/src/core/include/core/strings.h"), self.catalogue)
+            self.segments = self.format.segments_from_header(
+                self.show("firmware/src/core/include/core/strings.h"), self.catalogue)
             self.drawable = self.format.drawable_from_config(
                 json.loads(self.show("firmware/assets/fonts/fonts.json")),
                 json.loads(self.show("firmware/assets/fonts/glyph_pack.json")))
             identity = json.loads(self.show("firmware/identity.json"))
             if identity["data_directory"] != api.DATA_DIRECTORY or identity["name"] != api.IDENTITY["name"]:
                 raise ValueError("the installed firmware identity differs from this tool")
-            source = self.show("firmware/src/settings/settings.c")
-            self.settings_version = constant(source, "VERSION")
-            if (self.settings_version not in (12, 13, 14, 15, F_VERSION) or
-                    (constant(source, "LANGUAGE_VERSION"), constant(source, "LANGUAGE_FIELD"),
-                     constant(source, "HALF_DB_CHECKSUM_FIELD")) != (12, 19, 38)):
-                raise ValueError("the installed settings layout is unsupported")
-            if self.settings_version >= 14:
-                self.check_replay_gain_layout(source)
-            if self.settings_version >= 15 and (
-                    constant(source, "EXTENSION_VERSION"), constant(source, "EXTENSION_FIELD"),
-                    constant(source, "EXTENSION_CHECKSUM_FIELD")) != (15, 38, 54):
-                raise ValueError("the installed settings extension layout is unsupported")
-            if self.settings_version >= F_VERSION:
-                self.check_f_layout(source)
-            self.clock_offset_byte = (constant(source, "CLOCK_OFFSET_BYTE")
-                                      if re.search(r"\bCLOCK_OFFSET_BYTE\s*=", source) else None)
-            if self.clock_offset_byte not in (None, 11):
-                raise ValueError("the installed clock offset layout is unsupported")
-            if self.settings_version >= 15:
-                self.check_home_layout()
-                self.status_items_supported = "STATUS_ITEMS_BYTE" in source
-                if self.status_items_supported and constant(source, "STATUS_ITEMS_BYTE") != 13:
-                    raise ValueError("the installed status bar settings layout is unsupported")
-                self.check_speed_layout(source)
-                if re.search(r"\bDISPLAY_FLAGS_BYTE\s*=", source):
-                    self.display_flags_byte = constant(source, "DISPLAY_FLAGS_BYTE")
-                    if self.display_flags_byte != 13:
-                        raise ValueError("the installed display flags layout is unsupported")
-                if re.search(r"\bSTYLE_FLAGS_BYTE\s*=", source):
-                    self.style_flags_byte = constant(source, "STYLE_FLAGS_BYTE")
-                    if self.style_flags_byte != 14 or not re.search(r"\bSTYLE_HIGH_BIT\s*=\s*1\s*<<\s*7\b", source):
-                        raise ValueError("the installed style flags layout is unsupported")
-                self.check_e14_layout(source)
-                if "BATTERY_CARE_BYTE" in source:
-                    if tuple(constant(source, key) for key in
-                             ("BATTERY_CARE_BYTE", "BATTERY_CARE_SHIFT", "BATTERY_CARE_MASK")) != (14, 3, 24):
-                        raise ValueError("the installed battery care layout is unsupported")
-                    self.battery_care_supported = True
+            self.check_settings_layout()
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
-    def check_replay_gain_layout(self, source):
+    def check_settings_layout(self):
+        source = self.show("firmware/src/settings/settings.c")
+        header = self.show("firmware/src/settings/include/settings/settings.h")
+        if (any(constant(source, name) != value for name, value in SETTINGS_SOURCE.items()) or
+                any(constant(header, name) != value for name, value in SETTINGS_HEADER.items()) or
+                FLAGS_ENCODING not in re.sub(r"\s+", "", source)):
+            raise ValueError(f"the installed build does not use the version {SETTINGS_VERSION} settings layout")
         modes = self.show("firmware/src/core/include/core/replay_gain.h")
         declaration = re.search(r"typedef\s+enum\s+ReplayGainMode\s*\{([^}]+)\}", modes)
         names = [name.strip() for name in declaration.group(1).split(",")] if declaration else []
-        compact = re.sub(r"\s+", "", source)
-        masks = [mask for mask in FLAG_MASKS
-                 if f"(flags&0x{mask:02X}u)==0&&(flags&3u)<REPLAY_GAIN_MODE_COUNT" in compact]
-        if (constant(source, "REPLAY_GAIN_VERSION") != 14 or
-                names not in (["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                               "REPLAY_GAIN_MODE_COUNT"],
-                              ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM",
-                               "REPLAY_GAIN_AUTO", "REPLAY_GAIN_MODE_COUNT"]) or len(masks) != 1):
-            raise ValueError("the installed ReplayGain settings layout is unsupported")
-        self.reserved_flags = masks[0]
-        self.replay_gain_modes = len(names) - 1
-        header = self.show("firmware/src/settings/include/settings/settings.h")
-        self.usb_answers = 4 if re.search(r"\bUSB_CONNECT_DAC\b", header) else 3
-
-    def check_f_layout(self, source):
-        header = self.show("firmware/src/settings/include/settings/settings.h")
-        compact = re.sub(r"\s+", "", source)
-        if (constant(header, "SETTINGS_FILE_SIZE") != F_FILE_SIZE or
-                (constant(source, "EXTENSION_SIZE"), constant(source, "CHECKSUM_SIZE")) != (F_SIZE, 4) or
-                not all(fragment in compact for fragment in F_LAYOUT)):
-            raise ValueError("the installed version 16 settings layout is unsupported")
-        self.f2_volume = F2_VOLUME in compact
-
-    def check_home_layout(self):
-        header = self.show("firmware/src/settings/include/settings/settings.h")
+        filters = re.search(r"typedef\s+enum\s+DacFilter\s*\{([^}]+)\}", header)
+        if (names != ["REPLAY_GAIN_OFF", "REPLAY_GAIN_TRACK", "REPLAY_GAIN_ALBUM", "REPLAY_GAIN_AUTO",
+                      "REPLAY_GAIN_MODE_COUNT"] or not re.search(r"\bUSB_CONNECT_DAC\b", header) or
+                filters is None or len([name for name in filters.group(1).split(",") if name.strip()]) != DAC_FILTERS):
+            raise ValueError(f"the installed build does not use the version {SETTINGS_VERSION} settings values")
         self.home_items = constant(header, "SETTINGS_HOME_ITEM_COUNT")
-        self.home_settings_item = constant(header, "SETTINGS_HOME_SETTINGS_ITEM")
-        if ((constant(header, "SETTINGS_HOME_FIRST_ITEM_COUNT"), constant(header, "SETTINGS_HOME_ORDER_SLOTS"))
-                != (HOME_FIRST_ITEMS, HOME_SLOTS) or not HOME_FIRST_ITEMS <= self.home_items <= HOME_SLOTS or
-                self.home_settings_item >= HOME_FIRST_ITEMS):
+        if not HOME_FIRST_ITEMS <= self.home_items <= HOME_SLOTS:
             raise ValueError("the installed Home layout is unsupported")
 
-    def check_e14_layout(self, source):
-        mask, filters = 0, 0
-        if re.search(r"\bDAC_FILTER_BYTE\s*=", source):
-            header = self.show("firmware/src/settings/include/settings/settings.h")
-            declaration = re.search(r"typedef\s+enum\s+DacFilter\s*\{([^}]+)\}", header)
-            filters = len([name for name in declaration.group(1).split(",") if name.strip()]) if declaration else 0
-            if constant(source, "DAC_FILTER_BYTE") != 14 or not re.search(r"\bDAC_FILTER_MASK\s*=\s*0x07\b", source) or not 0 < filters <= 8:
-                raise ValueError("the installed DAC filter layout is unsupported")
-            mask |= 0x07
-        if re.search(r"\bCROSSFEED_BYTE\s*=", source):
-            if (constant(source, "CROSSFEED_BYTE"), constant(source, "CROSSFEED_SHIFT"),
-                    constant(source, "CROSSFEED_MASK")) != (14, 5, 3):
-                raise ValueError("the installed crossfeed layout is unsupported")
-            mask |= 0x60
-        if self.style_flags_byte == 14:
-            mask |= 0x80
-        self.e14_bits = (mask, filters)
-
-    def check_speed_layout(self, source):
-        self.speed_steps = (0, 0)
-        if re.search(r"\bSPEED_BYTE\s*=", source) is None:
-            return
-        header = self.show("firmware/src/settings/include/settings/settings.h")
-        count, normal = constant(header, "SETTINGS_SPEED_COUNT"), constant(header, "SETTINGS_SPEED_NORMAL")
-        if constant(source, "SPEED_BYTE") != 3 or not 0 <= normal < count <= 128:
-            raise ValueError("the installed playback speed layout is unsupported")
-        self.speed_steps = (-normal, count - 1 - normal)
-
-    def speed_valid(self, value):
-        step = value - 256 if value > 127 else value
-        return self.speed_steps[0] <= step <= self.speed_steps[1]
-
-    def home_valid(self, block):
+    @staticmethod
+    def home_valid(block):
         order = [block[4 + index // 2] >> 4 * (index % 2) & 15 for index in range(HOME_SLOTS)]
         stored = max((count for count in range(1, HOME_SLOTS + 1)
                       if sorted(order[:count]) == list(range(count)) and not any(order[count:])), default=0)
         hidden = block[9] | block[10] << 8
-        hideable = (1 << stored) - 1 & ~(1 << self.home_settings_item)
+        hideable = (1 << stored) - 1 & ~(1 << HOME_SETTINGS_ITEM)
         return stored >= HOME_FIRST_ITEMS and hidden & ~hideable == 0
 
-    def settings_flags_valid(self, version, flags):
-        if version < 14:
-            return flags == 0
-        answer_open = self.reserved_flags & USB_ANSWER_BITS == 0
-        return (flags & self.reserved_flags == 0 and flags & 3 < self.replay_gain_modes and
-                (not answer_open or flags >> 4 & 3 < self.usb_answers))
-
-    def settings_checksum_field(self, version):
-        return 38 if version < 15 else 54
-
     def settings_checksum_valid(self, data):
-        field = self.settings_checksum_field(data[4]) if len(data) > 4 else 38
-        return (len(data) >= field + 4 and data[:4] == b"DSST" and
-                self.format.fnv(data[:field]) == int.from_bytes(data[field:field + 4], "little"))
+        return (len(data) >= SETTINGS_SIZE and data[:4] == b"DSST" and data[4] == SETTINGS_VERSION and
+                self.format.fnv(data[:54]) == int.from_bytes(data[54:58], "little") and
+                self.format.fnv(data[58:74]) == int.from_bytes(data[74:78], "little"))
 
-    def settings_extension_valid(self, data):
-        if data[4] < 15:
-            return True
-        block = data[38:54]
-        offset = int.from_bytes(block[11:13], "little", signed=True) if self.clock_offset_byte else 0
-        reserved = list(block[11:15])
-        if self.clock_offset_byte:
-            reserved[0:2] = [0, 0]
-        if self.status_items_supported or self.display_flags_byte == 13:
-            reserved[2] = 0
-        reserved[3] &= ~self.e14_bits[0] & 0xFF
-        if self.battery_care_supported:
-            reserved[3] &= 0xE7
-        filter_valid = self.e14_bits[1] == 0 or block[14] & 0x07 < self.e14_bits[1]
-        marker = F_VERSION if data[4] >= F_VERSION else 0
-        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and self.speed_valid(block[3]) and
-                -720 <= offset <= 840 and self.home_valid(block) and not any(reserved) and filter_valid and
-                block[14] >> 3 & 3 < 3 and
-                data[F_MARKER_FIELD] == marker and self.f_valid(data))
+    def settings_valid(self, data):
+        if not self.settings_checksum_valid(data) or data[5] & 0xC0:
+            return False
+        block, second = data[38:54], data[58:74]
+        offset = int.from_bytes(block[11:13], "little", signed=True)
+        step = block[3] - 256 if block[3] > 127 else block[3]
+        return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and -2 <= step <= 6 and
+                -720 <= offset <= 840 and self.home_valid(block) and block[14] & 7 < DAC_FILTERS and
+                block[14] >> 3 & 3 < 3 and block[15] == 0 and second[0] & 0xF0 == 0 and second[0] >> 2 < 3 and
+                second[1] & 0xF8 == 0 and second[2] <= 60 and not any(second[3:]))
 
-    def f_valid(self, data):
-        if data[4] < F_VERSION:
-            return True
-        block = data[F_FIELD:F_FIELD + F_SIZE]
-        stored = int.from_bytes(data[F_CHECKSUM_FIELD:F_CHECKSUM_FIELD + 4], "little")
-        return (self.settings_version >= F_VERSION and len(data) >= F_FILE_SIZE and
-                self.format.fnv(block) == stored and block[0] & 0xF0 == 0 and block[0] >> 2 < 3 and
-                block[1] & 0xF8 == 0 and block[2] <= (F2_LIMIT if self.f2_volume else 0) and
-                not any(block[3:]))
+    def settings_checksums(self, data):
+        sealed = bytearray(data)
+        sealed[54:58] = self.format.fnv(sealed[:54]).to_bytes(4, "little")
+        sealed[74:78] = self.format.fnv(sealed[58:74]).to_bytes(4, "little")
+        return bytes(sealed)
 
     def show(self, path):
         return git(self.api.ROOT, "show", self.commit + ":" + path)
 
     def catalogue_hash(self):
-        if self.segments is None:
-            return self.format.catalogue_hash(self.catalogue)
         return self.format.layout_hash(self.segments)
 
     def make_pack(self, code, translations):
-        if self.segments is None:
-            return self.format.build_legacy_pack(code, self.catalogue, translations)
         return self.format.build_pack(code, self.catalogue, translations, self.segments)
 
     def validate(self, data):
         try:
             return self.format.validate_pack(data, self.catalogue, self.drawable, self.segments,
-                                             self.pack_version, self.pack_limit)
+                                             self.pack_limit)
         except self.format.PackError as error:
             raise self.api.DebugError("language_pack_invalid", str(error)) from error
+
+    def header_metadata(self, data):
+        if len(data) < self.format.HEADER.size:
+            return None
+        magic, version, count, size, catalogue, _, code, name = self.format.HEADER.unpack_from(data)
+        if magic != self.format.MAGIC:
+            return None
+        try:
+            code = self.format.metadata_text(code, "language code")
+            name = self.format.metadata_text(name, "language name")
+            self.format.check_native_name(name)
+        except self.format.PackError:
+            return None
+        if not CODE.fullmatch(code):
+            return None
+        return {"code": code, "name": name, "version": version, "count": count,
+                "size": size, "catalogue_hash": catalogue}
 
     def file_info(self, data, repairing=False):
         try:
@@ -289,22 +182,12 @@ class Snapshot:
                 raise self.format.PackError("the pack exceeds the installed language capacity")
             return info
         except self.format.PackError as error:
-            if repairing and len(data) >= self.format.HEADER.size:
-                fields = self.format.HEADER.unpack(data[:self.format.HEADER.size])
-                magic, version, count, size, catalogue, _, code, name = fields
-                if (magic == self.format.MAGIC and version == self.pack_version and count > 0 and
-                        size == len(data) and size <= FILE_LIMIT and
-                        size > self.format.HEADER.size + 2 * count):
-                    try:
-                        code = self.format.metadata_text(code, "language code")
-                        name = self.format.metadata_text(name, "language name")
-                        if not CODE.fullmatch(code):
-                            raise self.format.PackError("the replacement target has an invalid code")
-                        self.format.check_native_name(name)
-                        return {"code": code, "name": name, "version": version, "count": count,
-                                "size": size, "catalogue_hash": catalogue}
-                    except self.format.PackError as metadata_error:
-                        error = metadata_error
+            header = self.header_metadata(data)
+            if header is not None and header["version"] != self.pack_version:
+                return header
+            if (repairing and header is not None and header["count"] > 0 and header["size"] == len(data) and
+                    header["size"] <= FILE_LIMIT and header["size"] > self.format.HEADER.size + 2 * header["count"]):
+                return header
             raise self.api.DebugError("language_pack_invalid", str(error)) from error
 
     def setting_title_ids(self):
@@ -519,12 +402,7 @@ class Manager:
                 data = read_file(root, (self.api.DATA_DIRECTORY, "settings.bin"), 4096)
             except FileNotFoundError:
                 continue
-            version = data[4] if len(data) > 4 else 0
-            snapshot = context["snapshot"]
-            if (not snapshot.settings_checksum_valid(data) or
-                    not 12 <= version <= snapshot.settings_version or
-                    not snapshot.settings_flags_valid(version, data[5]) or
-                    not snapshot.settings_extension_valid(data)):
+            if not context["snapshot"].settings_valid(data):
                 self.error("language_settings_invalid", "the saved language setting cannot be verified")
             raw = data[19:24]
             code, separator, tail = raw.partition(b"\0")

@@ -74,7 +74,7 @@
         <div class="language-field">
           <label for="translation-text">Your translation</label>
           <textarea id="translation-text" name="translation-text" rows="12" maxlength="262144" spellcheck="false" aria-describedby="editor-help" placeholder="STR_LANGUAGE_NAME = Español&#10;STR_SETTINGS = Ajustes"></textarea>
-          <p id="editor-help">Paste or edit entries here. The native-name field and <code>STR_LANGUAGE_NAME</code> stay in step. Packs use up to 18 KiB of player memory and must contain supported characters. Version 2 splits text into sections, so the complete file can be larger than the text held in memory at once.</p>
+          <p id="editor-help">Paste or edit entries here. The native-name field and <code>STR_LANGUAGE_NAME</code> stay in step. Packs use up to 18 KiB of player memory and must contain supported characters. Packs split text into sections, so the complete file can be larger than the text held in memory at once.</p>
         </div>
         <p id="language-error" class="language-error" role="alert" hidden></p>
         <div class="language-actions">
@@ -92,7 +92,7 @@
       <section class="language-panel" aria-labelledby="check-title">
         <p class="eyebrow">02 / Check a pack</p>
         <h2 id="check-title">Have a pack already?</h2>
-        <p class="language-description">Check that it matches the current template, fits the player and has supported text before you copy it. This template creates version 2 packs; rebuild earlier packs from their translation text.</p>
+        <p class="language-description">Check that it matches the current template, fits the player and has supported text before you copy it. This template creates version 1 packs, the format this firmware reads.</p>
         <div class="language-field">
           <label for="pack-file">Choose a .pack file</label>
           <input id="pack-file" name="pack-file" type="file" accept=".pack,application/octet-stream" aria-describedby="inspection-status">

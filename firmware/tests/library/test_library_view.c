@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "fixture_library.h"
 #include "library/library_view.h"
 
@@ -504,30 +505,18 @@ enum {
     LARGE_TITLES_OFFSET = 3000000
 };
 
-static void put16(uint8_t *bytes, uint16_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    put16(bytes, (uint16_t)value);
-    put16(bytes + 2, (uint16_t)(value >> 16));
-}
-
 static bool read_large(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
     (void)context;
     uint8_t *out = bytes;
     if (offset < UINT16_MAX * 32u && offset % 32u == 0 && length == 32) {
         memset(out, 0, length);
-        put32(out + 16, offset / 32u + 1u);
+        bytes_put_le32(out + 16, offset / 32u + 1u);
         return true;
     }
     if (offset >= LARGE_TITLES_OFFSET && offset < LARGE_TITLES_OFFSET + UINT16_MAX * 2u &&
         (offset - LARGE_TITLES_OFFSET) % 2u == 0 && length == 2) {
-        put16(out, (uint16_t)((offset - LARGE_TITLES_OFFSET) / 2u));
+        bytes_put_le16(out, (uint16_t)((offset - LARGE_TITLES_OFFSET) / 2u));
         return true;
     }
     return false;
@@ -569,8 +558,8 @@ static void fixture_track_path(const char *path)
     CHECK(end <= sizeof fixture.bytes);
     memcpy(fixture.bytes + strings->offset + offset, path, bytes);
     strings->count += bytes;
-    put32(fixture.bytes + 8 + LIBRARY_STRINGS * 12 + 4, strings->count);
-    put32(fixture.bytes + fixture.library.sections[LIBRARY_TRACKS].offset + 4, offset);
+    bytes_put_le32(fixture.bytes + 8 + LIBRARY_STRINGS * 12 + 4, strings->count);
+    bytes_put_le32(fixture.bytes + fixture.library.sections[LIBRARY_TRACKS].offset + 4, offset);
     if (end > fixture.size) {
         fixture.size = end;
     }

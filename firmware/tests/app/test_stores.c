@@ -194,63 +194,42 @@ static void settings_survive_a_change_of_music_volume(void)
     CHECK_EQUAL(GAIN_HIGH, settings.settings.gain);
 }
 
-static void settings_from_the_music_volume_move_to_internal_storage(void)
+static void a_settings_file_on_the_music_volume_is_ignored(void)
 {
-    uint8_t old[SETTINGS_FILE_SIZE];
+    uint8_t bytes[SETTINGS_FILE_SIZE];
     Settings written = settings_defaults();
     written.brightness = BRIGHT;
-    settings_encode(&written, old);
+    settings_encode(&written, bytes);
     fake_hal_reset();
-    fake_hal_add_file(SETTINGS_STORE_PATH, old, sizeof old);
+    fake_hal_add_file(SETTINGS_STORE_PATH, bytes, sizeof bytes);
     settings_store_load(&settings);
-    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
-    CHECK(settings_store_save(&settings));
-    fake_hal_replace_music_volume();
-    settings_store_load(&settings);
-    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+    CHECK_EQUAL(settings_defaults().brightness, settings.settings.brightness);
 }
 
-static void a_version_fourteen_file_loads_and_is_saved_as_the_current_version(void)
+static void a_settings_file_of_another_version_gives_the_defaults(void)
 {
-    uint8_t old[SETTINGS_FILE_SIZE];
+    uint8_t bytes[SETTINGS_FILE_SIZE];
     Settings written = settings_defaults();
     written.brightness = BRIGHT;
-    written.clock_24h = false;
-    settings_encode(&written, old);
-    old[4] = 14;
-    hash_store(old + 38, hash_update(HASH_START, old, 38));
+    settings_encode(&written, bytes);
+    bytes[4] = 16;
+    hash_store(bytes + 54, hash_update(HASH_START, bytes, 54));
     fake_hal_reset();
-    fake_hal_add_file(SETTINGS_STORE_PATH, old, SETTINGS_V14_FILE_SIZE);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
     settings_store_load(&settings);
-    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
-    CHECK(settings.settings.clock_24h);
+    CHECK_EQUAL(settings_defaults().brightness, settings.settings.brightness);
     CHECK(settings_store_save(&settings));
     uint32_t size = 0;
     const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
-    CHECK_EQUAL(16, saved[4]);
-}
-
-static void internal_settings_win_over_the_music_volume_copy(void)
-{
-    uint8_t old[SETTINGS_FILE_SIZE];
-    Settings written = settings_defaults();
-    written.brightness = BRIGHT;
-    settings_encode(&written, old);
-    fake_hal_reset();
-    settings_store_load(&settings);
-    settings.settings.brightness = BRIGHT - 1;
-    CHECK(settings_store_save(&settings));
-    fake_hal_add_file(SETTINGS_STORE_PATH, old, sizeof old);
-    settings_store_load(&settings);
-    CHECK_EQUAL(BRIGHT - 1, settings.settings.brightness);
+    CHECK_EQUAL(1, saved[4]);
 }
 
 static void a_corrupted_settings_file_falls_back_to_the_defaults(void)
 {
     static const uint8_t garbage[SETTINGS_FILE_SIZE] = {'D', 'S', 'S', 'T', 9};
     fake_hal_reset();
-    fake_hal_add_file(SETTINGS_STORE_PATH, garbage, sizeof garbage);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, garbage, sizeof garbage));
     settings_store_load(&settings);
     CHECK_EQUAL(settings_defaults().brightness, settings.settings.brightness);
 }
@@ -652,9 +631,8 @@ int main(void)
         TEST_CASE(clock_offsets_survive_reload_without_losing_other_settings),
         TEST_CASE(unchanged_settings_are_not_written_again),
         TEST_CASE(settings_survive_a_change_of_music_volume),
-        TEST_CASE(settings_from_the_music_volume_move_to_internal_storage),
-        TEST_CASE(a_version_fourteen_file_loads_and_is_saved_as_the_current_version),
-        TEST_CASE(internal_settings_win_over_the_music_volume_copy),
+        TEST_CASE(a_settings_file_on_the_music_volume_is_ignored),
+        TEST_CASE(a_settings_file_of_another_version_gives_the_defaults),
         TEST_CASE(a_corrupted_settings_file_falls_back_to_the_defaults),
         TEST_CASE(hardware_settings_reach_the_hal),
         TEST_CASE(toggling_an_album_adds_it_and_saves),

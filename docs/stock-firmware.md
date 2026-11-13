@@ -26,7 +26,6 @@ The container layout and CRC follow the [RKnano format](https://github.com/maara
 
 - `tools/echo_image.py` validates the CRC and module bounds and exports chosen, non-overlapping modules as an ELF that preserves the original bytes and load addresses. The ELF is for analysis only and must never be flashed.
 - `tools/run_analysis.py` imports that ELF into Ghidra with the `ARM:LE:32:Cortex` language and exports pseudocode and instructions. `tools/check_analysis.py` compares what Ghidra loaded with the export map.
-- `tools/rea_session.mjs` keeps one [REA](https://github.com/morluto/rea) server and database alive between queries.
 - Ghidra 12.1.4 is the version REA accepts. Its macOS arm64 decompiler has to be built from the sources in the release (`make ghidra_opt ARCH_TYPE='-arch arm64' OSDIR=mac_arm_64`).
 
 Run `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests` after changing the parser or exporter. Images, ELF files, Ghidra projects and reports stay on the Scratch volume.

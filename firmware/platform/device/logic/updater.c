@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "core/seam.h"
 #include "device/image_crc.h"
 
@@ -72,12 +73,6 @@ void updater_use_scratch(uint32_t *words)
     prefix = words != NULL ? words + 2 * CHUNK_WORDS : NULL;
 }
 
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static bool same_bytes(const uint32_t *left, const uint32_t *right, uint32_t words)
 {
     for (uint32_t index = 0; index < words; index++) {
@@ -112,15 +107,16 @@ static bool has_text(const uint8_t *bytes, const uint8_t *text, size_t length)
 static bool header_is_valid(const uint8_t *header, const UpdateStorage *storage)
 {
     return has_text(header + MAGIC_OFFSET, MAGIC, sizeof MAGIC) &&
-           le32(header + FW_SIZE_OFFSET) == FW_SIZE && le32(header + FW1_END_OFFSET) <= FW_SIZE &&
+           bytes_le32(header + FW_SIZE_OFFSET) == FW_SIZE &&
+           bytes_le32(header + FW1_END_OFFSET) <= FW_SIZE &&
            FW_END / SECTOR_BYTES <= storage->slot_sectors &&
-           le32(header + CONTAINER_BASE_OFFSET) == CODE_BASE &&
-           le32(header + CONTAINER_CAPACITY_OFFSET) == TABLE_ROWS;
+           bytes_le32(header + CONTAINER_BASE_OFFSET) == CODE_BASE &&
+           bytes_le32(header + CONTAINER_CAPACITY_OFFSET) == TABLE_ROWS;
 }
 
 static uint32_t row_word(const uint8_t *header, uint32_t row, uint32_t word)
 {
-    return le32(header + TABLE_OFFSET + ROW_BYTES * row + 4 * word);
+    return bytes_le32(header + TABLE_OFFSET + ROW_BYTES * row + 4 * word);
 }
 
 static bool code_row_is_valid(const uint8_t *header, uint32_t *code_size)
@@ -164,8 +160,8 @@ static bool vectors_are_valid(const UpdateFile *file, uint32_t code_size)
         !file->read(file->context, CODE_OFFSET + code_size, entry, VECTOR_BYTES)) {
         return false;
     }
-    uint32_t stack = le32((const uint8_t *)&entry[0]);
-    uint32_t reset = le32((const uint8_t *)&entry[1]);
+    uint32_t stack = bytes_le32((const uint8_t *)&entry[0]);
+    uint32_t reset = bytes_le32((const uint8_t *)&entry[1]);
     uint32_t handler = reset & ~1u;
     return stack == DATA_BASE && (reset & 1u) != 0 && handler >= CODE_BASE &&
            handler < CODE_BASE + code_size && code[0] == entry[0] && code[1] == entry[1];
@@ -254,7 +250,7 @@ static bool crc_is_valid(const UpdateFile *file, uint32_t fw_end, ModelScan *sca
     }
     uint32_t stored = 0;
     return file->read(file->context, fw_end, &stored, sizeof stored) &&
-           crc == le32((const uint8_t *)&stored);
+           crc == bytes_le32((const uint8_t *)&stored);
 }
 
 static bool stock_fw_size_fits(uint32_t fw_size, uint32_t fw_end)
@@ -272,7 +268,7 @@ static UpdateCheck stock_check(const UpdateFile *file, const UpdateStorage *stor
                                const uint32_t *header)
 {
     const uint8_t *bytes = (const uint8_t *)header;
-    uint32_t fw_size = le32(bytes + FW_SIZE_OFFSET);
+    uint32_t fw_size = bytes_le32(bytes + FW_SIZE_OFFSET);
     uint32_t fw_end = file->size - CRC_BYTES;
     ModelScan scan = {.carried = false, .eight_gb = false, .small_model = false, .echo = false};
     bool valid = fw_end / SECTOR_BYTES <= storage->slot_sectors &&
@@ -303,7 +299,7 @@ CORE_SEAM UpdateCheck updater_check(const UpdateFile *file, const UpdateStorage 
         !header_copy_matches(file, prefix, FW_SIZE) || !layout_is_bootable(file, bytes)) {
         return UPDATE_INVALID;
     }
-    if (matches_installed(file, storage, le32(bytes + FW1_END_OFFSET))) {
+    if (matches_installed(file, storage, bytes_le32(bytes + FW1_END_OFFSET))) {
         return UPDATE_ALREADY_INSTALLED;
     }
     return crc_is_valid(file, FW_END, NULL) ? UPDATE_VALID : UPDATE_INVALID;

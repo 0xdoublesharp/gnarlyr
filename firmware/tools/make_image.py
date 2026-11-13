@@ -1,16 +1,17 @@
 import argparse
 import datetime
-import re
 import struct
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+
 import lang_pack
 from identity import IDENTITY
+from rknano_crc import crc32, crc_bytes
 
-POLYNOMIAL = 0x04C10DB7
 IMAGE_SIZE = 0x500004
 FW_SIZE = 0x44C000
 HEADER_SIZE = 0x200
@@ -150,68 +151,6 @@ class ImageParts:
     core1_dsd: bytes = b""
     core1_ape: bytes = b""
     core1_wma: bytes = b""
-
-
-def crc_table():
-    table = []
-    for index in range(256):
-        value = index << 24
-        for _ in range(8):
-            value = (value << 1) ^ POLYNOMIAL if value & 0x80000000 else value << 1
-            value &= 0xFFFFFFFF
-        table.append(value)
-    return table
-
-
-CRC_TABLE = crc_table()
-ZERO_RUN = re.compile(rb"\x00{256,}")
-
-
-def crc_bytes(value, data):
-    for byte in data:
-        value = ((value << 8) & 0xFFFFFFFF) ^ CRC_TABLE[(value >> 24) ^ byte]
-    return value
-
-
-def apply_matrix(matrix, value):
-    result = 0
-    for column in matrix:
-        if value & 1:
-            result ^= column
-        value >>= 1
-    return result
-
-
-def zero_powers(count):
-    matrix = [crc_bytes(1 << bit, b"\x00") for bit in range(32)]
-    powers = []
-    for _ in range(count):
-        powers.append(matrix)
-        matrix = [apply_matrix(matrix, column) for column in matrix]
-    return powers
-
-
-ZERO_POWERS = zero_powers(32)
-
-
-def crc_zeros(value, count):
-    for matrix in ZERO_POWERS:
-        if not count:
-            break
-        if count & 1:
-            value = apply_matrix(matrix, value)
-        count >>= 1
-    return value
-
-
-def crc32(data):
-    data = memoryview(data).cast("B")
-    value, position = 0, 0
-    for run in ZERO_RUN.finditer(data):
-        value = crc_bytes(value, data[position:run.start()])
-        value = crc_zeros(value, run.end() - run.start())
-        position = run.end()
-    return crc_bytes(value, data[position:])
 
 
 def fw_end(fw_size):
@@ -735,7 +674,6 @@ def parse_arguments(argv):
                         help="major.minor.patch written to the header")
     parser.add_argument("--elf", type=Path, required=True,
                         help="device ELF with .code at 0x03050000 and .data at 0x03004000")
-    parser.add_argument("--brand", default=IDENTITY.id)
     parser.add_argument("--build-tag", help="defaults to the short git commit, + when dirty")
     parser.add_argument("--date", type=parse_date, help="YYYY-MM-DD; defaults to today")
     parser.add_argument("--overlay", type=Path, help="rescan overlay ELF linked at 0x0307A000")
@@ -789,7 +727,7 @@ def main(argv=None):
         if not language_packs:
             raise ImageError("an image needs at least one language pack (--language-pack)")
         modules = modules_from_elfs(main_elf, arguments.module)
-        image = build_image(firmware, arguments.brand, build_tag, date, overlay, core1_mp3,
+        image = build_image(firmware, IDENTITY.id, build_tag, date, overlay, core1_mp3,
                             core1_flac, arguments.version, glyph_faces, core1_m4a, usb_overlay,
                             language_packs, modules, core1_vorbis, core1_opus, core1_dsd,
                             core1_ape, core1_wma)

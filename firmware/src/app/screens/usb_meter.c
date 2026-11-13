@@ -80,6 +80,19 @@ uint8_t usb_meter_glow(bool seen, uint32_t age_ms)
     return (uint8_t)((USB_METER_GLOW_FULL * left + USB_METER_GLOW_MS - 1) / USB_METER_GLOW_MS);
 }
 
+bool usb_meter_lit(bool seen, uint32_t age_ms)
+{
+    return seen && age_ms < USB_METER_LIT_MS;
+}
+
+uint32_t usb_meter_smooth(uint32_t shown, uint32_t sample)
+{
+    if (shown == 0) {
+        return sample;
+    }
+    return (shown * (USB_METER_SMOOTH_SHARE - 1) + sample) / USB_METER_SMOOTH_SHARE;
+}
+
 void usb_steady_start(UsbSteady *steady, uint8_t shown, uint32_t now_ms)
 {
     *steady = (UsbSteady){.shown = shown, .since_ms = now_ms - USB_METER_HOLD_MS};

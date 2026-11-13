@@ -7,18 +7,7 @@ from echo_image_harness import EchoImageHarness, IDENTITY, main, settings_file
 
 
 def power_settings(press):
-    data = bytearray(58)
-    data[:28] = settings_file(0)[:28]
-    data[4] = 15
-    data[28:38] = bytes([20] * 10)
-    data[38:41] = bytes((7, 24, 15))
-    data[42:47] = bytes.fromhex('10 32 54 76 98')
-    data[51] = 0x10 if press else 0
-    checksum = 2166136261
-    for byte in data[:54]:
-        checksum = (checksum ^ byte) * 16777619 & 0xFFFFFFFF
-    data[54:] = checksum.to_bytes(4, 'little')
-    return bytes(data)
+    return settings_file(0, b38=7, b51=0x10 if press else 0)
 
 
 class EchoImageTest(EchoImageHarness):
@@ -59,4 +48,4 @@ class EchoImageTest(EchoImageHarness):
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main(EchoImageTest))

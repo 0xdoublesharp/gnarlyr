@@ -136,27 +136,20 @@ static void an_inline_payload_is_sealed_with_its_header(void)
     CHECK_EQUAL(0, writes);
 }
 
-static void a_kind_reads_the_older_versions_it_names_and_writes_its_own(void)
+static void a_kind_reads_only_its_own_version(void)
 {
-    static const StoreKind OLD = {.magic = {'D', 'S', 'X', 'R'}, .version = 1};
-    static const StoreKind NEWER = {
-        .magic = {'D', 'S', 'X', 'R'}, .version = 3, .oldest_version = 2};
-    static const StoreKind FUTURE = {.magic = {'D', 'S', 'X', 'R'}, .version = 4};
+    static const StoreKind ONE = {.magic = {'D', 'S', 'X', 'R'}, .version = 1};
+    static const StoreKind TWO = {.magic = {'D', 'S', 'X', 'R'}, .version = 2};
     uint8_t block[STORE_BLOCK_BYTES] = {0};
     StoreHeader decoded;
-    store_encode(&OLD, &(StoreHeader){.generation = 9}, block);
-    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&NEWER, block, &decoded));
-    memset(block, 0, sizeof block);
-    store_encode(&(StoreKind){.magic = {'D', 'S', 'X', 'R'}, .version = 2},
-                 &(StoreHeader){.generation = 9}, block);
-    CHECK_EQUAL(STORE_READY, store_decode(&NEWER, block, &decoded));
-    CHECK_EQUAL(2, decoded.version);
+    store_encode(&ONE, &(StoreHeader){.generation = 9}, block);
+    CHECK_EQUAL(1, block[VERSION_FIELD]);
+    CHECK_EQUAL(STORE_READY, store_decode(&ONE, block, &decoded));
     CHECK_EQUAL(9, decoded.generation);
-    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&FUTURE, block, &decoded));
+    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&TWO, block, &decoded));
     memset(block, 0, sizeof block);
-    store_encode(&NEWER, &(StoreHeader){.generation = 10}, block);
-    CHECK_EQUAL(3, block[VERSION_FIELD]);
-    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&OLD, block, &decoded));
+    store_encode(&TWO, &(StoreHeader){.generation = 10}, block);
+    CHECK_EQUAL(STORE_UNSUPPORTED, store_decode(&ONE, block, &decoded));
 }
 
 static void generations_compare_as_serial_numbers(void)
@@ -398,7 +391,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(a_header_round_trips_and_names_what_is_wrong_with_a_block),
         TEST_CASE(an_inline_payload_is_sealed_with_its_header),
-        TEST_CASE(a_kind_reads_the_older_versions_it_names_and_writes_its_own),
+        TEST_CASE(a_kind_reads_only_its_own_version),
         TEST_CASE(generations_compare_as_serial_numbers),
         TEST_CASE(transfers_outside_the_file_never_reach_the_callbacks),
         TEST_CASE(publishing_reports_what_the_read_back_shows),

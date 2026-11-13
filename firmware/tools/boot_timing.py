@@ -3,6 +3,7 @@ import json
 import struct
 from pathlib import Path
 
+import echo_sync
 import image_artifacts
 import library_index
 import make_image
@@ -41,7 +42,7 @@ def volume_with_library(tracks, version):
     if tracks:
         database = library_index.encode_library(library_index.build_library(entries))
         volume.add_file('library.db', database, 4 * 1024 * 1024, IDENTITY.data_directory)
-        stamp = struct.pack('<4I', 0x43535344, 0, 0, 0) + version.encode('ascii')[:15].ljust(16, b'\0')
+        stamp = echo_sync.SCAN_RECORD.pack(echo_sync.SCAN_MAGIC, 0, 0, 0, version.encode('ascii')[:15])
         volume.add_file('scan.bin', stamp, 4096, IDENTITY.data_directory)
     for name, size in (('covers.bin', 80 * 1024 * 1024), ('build.tmp', 24 * 1024 * 1024)):
         volume.add_file(name, size=size, directory=IDENTITY.data_directory)

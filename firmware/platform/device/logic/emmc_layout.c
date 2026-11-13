@@ -1,4 +1,5 @@
 #include "device/emmc_layout.h"
+#include "core/bytes.h"
 
 #define IDB_MAGIC 0xFCDC8C3Bu
 
@@ -21,16 +22,6 @@ enum {
     SEARCH_TRIES = 20
 };
 
-static uint32_t le16(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8;
-}
-
-static uint32_t le32(const uint8_t *bytes)
-{
-    return le16(bytes) | le16(bytes + 2) << 16;
-}
-
 static bool matches(const uint8_t *bytes, const char *text, int length)
 {
     for (int index = 0; index < length; index++) {
@@ -47,9 +38,9 @@ static bool read_system_mib(const BlockDevice *device, uint32_t *system_mib, uin
     const uint8_t *bytes = (const uint8_t *)words;
     for (uint32_t copy = 0; copy < IDB_COPIES; copy++) {
         uint32_t lba = IDB_FIRST + copy * IDB_STRIDE;
-        if (device->read(device->context, lba, 2, words) && le32(bytes) == IDB_MAGIC &&
-            matches(bytes + IDB_TAG, "NANO", 4) && le16(bytes + IDB_SYSTEM_MIB) != 0) {
-            *system_mib = le16(bytes + IDB_SYSTEM_MIB);
+        if (device->read(device->context, lba, 2, words) && bytes_le32(bytes) == IDB_MAGIC &&
+            matches(bytes + IDB_TAG, "NANO", 4) && bytes_le16(bytes + IDB_SYSTEM_MIB) != 0) {
+            *system_mib = bytes_le16(bytes + IDB_SYSTEM_MIB);
             return true;
         }
     }
@@ -65,7 +56,7 @@ static bool read_header(const BlockDevice *device, uint32_t lba, uint32_t *words
 static bool header_copy_matches(const BlockDevice *device, uint32_t lba, const uint32_t *header,
                                 uint32_t *copy)
 {
-    uint32_t size = le32((const uint8_t *)header + HEADER_FW_SIZE);
+    uint32_t size = bytes_le32((const uint8_t *)header + HEADER_FW_SIZE);
     if (size < HEADER_BYTES || size % SECTOR_SIZE != 0 ||
         !device->read(device->context, lba + size / SECTOR_SIZE, 1, copy)) {
         return false;
@@ -93,7 +84,7 @@ static bool searched_slot_2(const BlockDevice *device, uint32_t half, uint32_t *
     if (!first_slot_header(device, first, copy)) {
         return false;
     }
-    uint32_t size = le32((const uint8_t *)first + HEADER_FW_SIZE);
+    uint32_t size = bytes_le32((const uint8_t *)first + HEADER_FW_SIZE);
     uint32_t start = ((size + SEARCH_MARGIN) / SECTOR_SIZE) & ~(uint32_t)(SECTORS_PER_MIB - 1);
     for (uint32_t step = 0; step < SEARCH_TRIES; step++) {
         uint32_t offset = start + step * SECTORS_PER_MIB;
@@ -111,13 +102,14 @@ static bool searched_slot_2(const BlockDevice *device, uint32_t half, uint32_t *
 
 static bool is_volume_start(const uint8_t *sector)
 {
-    if (le16(sector + SIGNATURE) != 0xAA55) {
+    if (bytes_le16(sector + SIGNATURE) != 0xAA55) {
         return false;
     }
     const uint8_t *entry = sector + PARTITION_ENTRY;
     bool exfat = matches(sector + 3, "EXFAT   ", 8);
-    bool fat = (sector[0] == 0xEB || sector[0] == 0xE9) && le16(sector + 11) == SECTOR_SIZE;
-    bool mbr = (entry[0] == 0x00 || entry[0] == 0x80) && entry[4] != 0 && le32(entry + 8) != 0;
+    bool fat = (sector[0] == 0xEB || sector[0] == 0xE9) && bytes_le16(sector + 11) == SECTOR_SIZE;
+    bool mbr =
+        (entry[0] == 0x00 || entry[0] == 0x80) && entry[4] != 0 && bytes_le32(entry + 8) != 0;
     return exfat || fat || mbr;
 }
 

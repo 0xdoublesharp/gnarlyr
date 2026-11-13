@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "core/bytes.h"
 #include "device/card_format.h"
 #include "device/fat.h"
 #include "fuzz_source.h"
@@ -27,12 +28,6 @@ typedef struct SparseCard {
 } SparseCard;
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
-
-static uint32_t get32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static int stored_index(const SparseCard *card, uint32_t lba)
 {
@@ -199,7 +194,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     memcpy(controls, data, copied);
 
     CardFormatPlan raw;
-    card_format_plan(&raw, get32(controls), get32(controls + 4));
+    card_format_plan(&raw, bytes_le32(controls), bytes_le32(controls + 4));
 
     uint32_t sectors =
         SECTOR_COUNTS[controls[0] % (sizeof SECTOR_COUNTS / sizeof SECTOR_COUNTS[0])];

@@ -375,7 +375,7 @@ class EncodeLibraryTest(unittest.TestCase):
 
     def test_the_header_identifies_the_format(self):
         magic, version, sections = struct.unpack_from("<4sHH", self.data, 0)
-        self.assertEqual((b"DSDB", 6, 10), (magic, version, sections))
+        self.assertEqual((b"DSDB", 1, 10), (magic, version, sections))
         self.assertEqual(HEADER_SIZE, self.section(0)[0])
 
     def test_sections_declare_their_counts_and_record_sizes(self):

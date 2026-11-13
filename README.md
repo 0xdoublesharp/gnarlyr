@@ -77,7 +77,7 @@ python3 tools/firmware.py build --target echo_sim
 Prerequisites:
 
 - CMake, SDL2, FFmpeg and clang-format on `PATH`.
-- Python 3.14. Its Unicode tables reproduce the checked-in sort tables; 3.13 and 3.15 do not. The wrapper expects a virtual environment at `/Volumes/Scratch/SnowskyEcho/tools/podium-python314` with `firmware/tools/requirements.txt` installed; set `ECHO_VENV` to use another.
+- Python 3.14. Its Unicode tables reproduce the checked-in sort tables; 3.13 and 3.15 do not. The wrapper expects a virtual environment at `/Volumes/Scratch/SnowskyEcho/tools/gnarlyr-python314` with `firmware/tools/requirements.txt` installed; set `ECHO_VENV` to use another.
 - Arm GNU Toolchain 15.3.rel2 (GCC 15.3.1) for `arm-none-eabi`, expected under `/Volumes/Scratch/SnowskyEcho/tools/arm-15.3-expanded/Payload/bin`; set `ECHO_ARM_BIN` to use another. The macOS arm64 package is at [Arm's package service](https://gitlab.arm.com/api/v4/projects/tooling%2Fgnu-toolchains-for-arm/packages/generic/gnu-toolchain/15.3.rel2/arm-gnu-toolchain-15.3.rel2-darwin-arm64-arm-none-eabi.pkg), SHA-256 `779972fa545f738bfbba2ff0ae44d5ad7510b00cfb414702974844ba625412f3`. Check the digest, then unpack it with `pkgutil --expand-full`; no installer needs to run.
 
 ## Contribute

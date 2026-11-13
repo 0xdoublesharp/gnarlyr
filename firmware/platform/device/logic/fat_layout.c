@@ -4,6 +4,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 #define FAT32_CLUSTER_MASK 0x0FFFFFFFu
 
 enum {
@@ -404,13 +406,6 @@ static bool info_valid(const uint8_t *sector)
            fat_le32(sector + INFO_STRUCT_OFFSET) == INFO_STRUCT_SIGNATURE;
 }
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 uint32_t fat_info_next_free(FatVolume *volume)
 {
     if (volume->info_sector == 0 || !fat_read_sector(volume, volume->info_sector) ||
@@ -446,8 +441,8 @@ bool fat_info_record(FatVolume *volume, uint32_t next_free, uint32_t count, bool
         return true;
     }
     uint32_t free_count = fat_le32(sector + INFO_FREE_OFFSET);
-    put32(sector + INFO_FREE_OFFSET, adjusted_free_count(free_count, count, released));
-    put32(sector + INFO_NEXT_OFFSET, next_free);
+    bytes_put_le32(sector + INFO_FREE_OFFSET, adjusted_free_count(free_count, count, released));
+    bytes_put_le32(sector + INFO_NEXT_OFFSET, next_free);
     return fat_commit_sector(volume, volume->info_sector);
 }
 

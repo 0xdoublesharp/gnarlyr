@@ -38,7 +38,6 @@ typedef struct StoreKind {
     uint8_t magic[STORE_MAGIC_BYTES];
     uint16_t version;
     bool inline_payload;
-    uint16_t oldest_version;
 } StoreKind;
 
 typedef struct StoreSlot {
@@ -53,7 +52,6 @@ typedef struct StoreHeader {
     uint32_t hash;
     uint32_t binding;
     uint16_t count;
-    uint16_t version;
 } StoreHeader;
 
 typedef union StoreBlock {

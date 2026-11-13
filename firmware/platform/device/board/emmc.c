@@ -211,11 +211,6 @@ bool emmc_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
     return card_write(&WRITER, lba, count, buffer);
 }
 
-uint32_t emmc_fifo_depth_words(void)
-{
-    return emmc_fifo_depth;
-}
-
 BlockDevice emmc_device(void)
 {
     return (BlockDevice){emmc_read, NULL, NULL};
@@ -278,6 +273,11 @@ bool emmc_start(EmmcInfo *info)
         start_with_retries();
     }
     *info = emmc;
+    return started;
+}
+
+bool emmc_ready(void)
+{
     return started;
 }
 

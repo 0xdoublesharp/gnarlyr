@@ -7,14 +7,11 @@
 enum {
     HERO_SCALE = 2,
     ARROW_SHARE = 3,
+    ARROW_WIDTH_HALVES = 3,
     BAR_HEIGHT = 6,
     INLINE_WIDTH = 260,
-    GRAPH_FLOOR = 1000,
-    CAP_HEIGHT = 2,
-    GLOW_STEPS = 3,
     DIM_STEPS = 5,
-    LED_SHARE = 2,
-    HEADROOM_SHARE = 5
+    LED_SHARE = 2
 };
 
 typedef struct TrafficLayout {
@@ -38,9 +35,65 @@ typedef struct DriveRow {
     Rect note;
 } DriveRow;
 
+typedef struct HeroRow {
+    Rect up;
+    Rect down;
+    Rect number;
+    Rect unit;
+} HeroRow;
+
 static int larger(int first, int second)
 {
     return first > second ? first : second;
+}
+
+static int widest_digit(const Font *font)
+{
+    char digit[2] = {'0', '\0'};
+    int widest = 0;
+    for (; digit[0] <= '9'; digit[0]++) {
+        widest = larger(widest, text_width(font, digit));
+    }
+    return widest;
+}
+
+static int number_width(const Font *font)
+{
+    char text[USB_SCREEN_NUMBER_CAPACITY];
+    usb_screen_rate_text(text, USB_METER_RATE_LIMIT);
+    int digit = widest_digit(font);
+    int width = 0;
+    for (const char *cursor = text; *cursor != '\0'; cursor++) {
+        char one[2] = {*cursor, '\0'};
+        width += *cursor >= '0' && *cursor <= '9' ? digit : text_width(font, one);
+    }
+    return width;
+}
+
+static HeroRow hero_row(const Theme *theme, Rect hero, int scale)
+{
+    int gap = theme->metrics.padding / 2;
+    int side = hero.height * 2 / ARROW_SHARE;
+    int arrow = (side - gap) / 2;
+    int width = (arrow * ARROW_WIDTH_HALVES / 2) | 1;
+    int top = hero.y + (hero.height - side) / 2;
+    HeroRow row = {.up = {hero.x, top, width, arrow},
+                   .down = {hero.x, top + side - arrow, width, arrow}};
+    row.number = (Rect){hero.x + row.up.width + gap, hero.y,
+                        number_width(theme->fonts.title) * scale, hero.height};
+    const Font *small = theme->fonts.small;
+    int baseline = hero.y + theme->fonts.title->ascent * scale;
+    row.unit = (Rect){row.number.x + row.number.width + gap, baseline - small->ascent,
+                      text_width(small, i18n_text(STR_USB_RATE_UNIT)), font_line_height(small)};
+    return row;
+}
+
+static bool hero_fits(const Theme *theme, Rect column, int scale)
+{
+    int ascent = theme->fonts.title->ascent;
+    Rect hero = {column.x, column.y, column.width, scale * ascent + theme->metrics.padding / 2};
+    HeroRow row = hero_row(theme, hero, scale);
+    return row.unit.x + row.unit.width <= column.x + column.width;
 }
 
 static TrafficLayout traffic_layout(const UsbPainter *painter)
@@ -55,7 +108,8 @@ static TrafficLayout traffic_layout(const UsbPainter *painter)
     int caption = layout.inline_bars ? small : 2 * small;
     int room = column.height - caption - 2 * drive - 2 * gap;
     int ascent = theme->fonts.title->ascent;
-    layout.scale = room >= HERO_SCALE * ascent + gap ? HERO_SCALE : 1;
+    bool tall = room >= HERO_SCALE * ascent + gap;
+    layout.scale = tall && hero_fits(theme, column, HERO_SCALE) ? HERO_SCALE : 1;
     int hero = layout.scale == 1 ? line : layout.scale * ascent + gap;
     layout.hero = (Rect){column.x, column.y, column.width, hero};
     layout.caption = (Rect){column.x, column.y + hero, column.width, caption};
@@ -95,48 +149,35 @@ static void draw_arrow(const UsbPainter *painter, Rect box, bool down, Color ink
     }
 }
 
-static bool active(const UsbScene *scene)
-{
-    return scene->busy;
-}
-
-static bool writing(const UsbScene *scene)
-{
-    return scene->writing;
-}
-
 static Color direction_color(const Theme *theme, bool down)
 {
     return down ? theme->colors.success : theme->colors.accent;
+}
+
+static Color arrow_color(const Theme *theme, bool lit, bool down)
+{
+    return lit ? direction_color(theme, down) : theme->colors.text_tertiary;
 }
 
 static void draw_hero(const UsbPainter *painter, const TrafficLayout *layout)
 {
     const Theme *theme = painter->theme;
     const UsbScene *scene = painter->scene;
-    Rect hero = layout->hero;
-    if (!active(scene)) {
-        usb_screen_draw_scaled(painter,
-                               (TextStyle){theme->fonts.title, theme->colors.text_secondary}, hero,
-                               i18n_text(STR_USB_IDLE));
-        return;
-    }
+    HeroRow row = hero_row(theme, layout->hero, layout->scale);
+    bool reading = scene->lit[USB_METER_READ];
+    bool writing = scene->lit[USB_METER_WRITE];
+    draw_arrow(painter, row.up, false, arrow_color(theme, reading, false));
+    draw_arrow(painter, row.down, true, arrow_color(theme, writing, true));
     char number[USB_SCREEN_NUMBER_CAPACITY];
-    usb_screen_rate_text(number, usb_meter_total(&scene->meter, 0));
-    bool down = writing(scene);
-    int side = hero.height * 2 / ARROW_SHARE;
-    draw_arrow(painter, (Rect){hero.x, hero.y + (hero.height - side) / 2, side, side}, down,
-               direction_color(theme, down));
-    hero.x += side + theme->metrics.padding / 2;
-    int end = usb_screen_draw_scaled(painter, (TextStyle){theme->fonts.title, theme->colors.text},
-                                     hero, number);
-    const Font *small = theme->fonts.small;
-    int line = font_line_height(small);
-    const char *unit = i18n_text(STR_USB_RATE_UNIT);
-    int baseline = hero.y + theme->fonts.title->ascent * layout->scale;
-    Rect area = {end + theme->metrics.padding / 2, baseline - small->ascent,
-                 text_width(small, unit), line};
-    usb_screen_text(painter, area, (TextStyle){small, theme->colors.text_secondary}, unit);
+    usb_screen_rate_text(number, scene->busy ? scene->rate : 0);
+    Color ink = scene->busy ? theme->colors.text : theme->colors.text_tertiary;
+    TextStyle style = {theme->fonts.title, ink};
+    Rect box = row.number;
+    box.x += box.width - text_width(style.font, number) * layout->scale;
+    usb_screen_draw_scaled(painter, style, box, number);
+    usb_screen_text(painter, row.unit,
+                    (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+                    i18n_text(STR_USB_RATE_UNIT));
 }
 
 static void draw_caption(const UsbPainter *painter, Rect area, bool split)
@@ -236,18 +277,14 @@ static Color glow_color(const Theme *theme, Color lit, uint8_t glow, bool mounte
     return mounted ? color_between(rest, lit, glow, USB_METER_GLOW_FULL) : rest;
 }
 
-static uint8_t brighter(uint8_t first, uint8_t second)
-{
-    return first > second ? first : second;
-}
-
 static void draw_lights(const UsbPainter *painter, const DriveRow *row, DriveView view)
 {
     const Theme *theme = painter->theme;
     bool mounted = view.drive.state == USB_SCENE_DRIVE_MOUNTED;
-    uint8_t glow = brighter(view.usage.read_glow, view.usage.write_glow);
+    bool used = mounted && view.usage.reads + view.usage.writes != 0;
     canvas_fill_rect(painter->canvas, row->led,
-                     glow_color(theme, theme->colors.success, glow, mounted));
+                     used ? theme->colors.success
+                          : glow_color(theme, theme->colors.success, 0, mounted));
     Rect down = {row->arrows.x, row->arrows.y, row->arrows.height, row->arrows.height};
     Rect up = {row->arrows.x + row->arrows.width - row->arrows.height, row->arrows.y,
                row->arrows.height, row->arrows.height};
@@ -300,64 +337,6 @@ static void draw_drive(const UsbPainter *painter, const TrafficLayout *layout, i
                     note);
 }
 
-static void draw_bar_column(const UsbPainter *painter, Rect column, Color color, bool lively)
-{
-    if (column.height <= 0) {
-        return;
-    }
-    const ThemeColors *colors = &painter->theme->colors;
-    Color top = lively ? color : color_between(colors->backdrop_bottom, color, 2, DIM_STEPS);
-    Color base = color_between(colors->backdrop_bottom, color, 1, lively ? GLOW_STEPS : DIM_STEPS);
-    canvas_fill_gradient(painter->canvas, column, top, base);
-    int cap = column.height < CAP_HEIGHT ? column.height : CAP_HEIGHT;
-    Color shine = lively ? usb_screen_tint(color, colors->text) : top;
-    canvas_fill_rect(painter->canvas, (Rect){column.x, column.y, column.width, cap}, shine);
-}
-
-static uint32_t graph_top(const UsbMeter *meter)
-{
-    uint32_t top = GRAPH_FLOOR;
-    for (int age = 0; age < meter->count; age++) {
-        uint32_t total = usb_meter_total(meter, age);
-        top = total > top ? total : top;
-    }
-    return top + top / HEADROOM_SHARE;
-}
-
-static void draw_sample(const UsbPainter *painter, Rect slot, int age, uint32_t top)
-{
-    const UsbMeter *meter = &painter->scene->meter;
-    const ThemeColors *colors = &painter->theme->colors;
-    bool lively = active(painter->scene);
-    int written =
-        (int)((uint64_t)usb_meter_rate(meter, USB_METER_WRITE, age) * (uint32_t)slot.height / top);
-    int read =
-        (int)((uint64_t)usb_meter_rate(meter, USB_METER_READ, age) * (uint32_t)slot.height / top);
-    int base = slot.y + slot.height;
-    draw_bar_column(painter, (Rect){slot.x, base - written, slot.width, written}, colors->success,
-                    lively);
-    draw_bar_column(painter, (Rect){slot.x, base - written - read, slot.width, read},
-                    colors->accent, lively);
-}
-
-void usb_screen_draw_graph(const UsbPainter *painter)
-{
-    const Theme *theme = painter->theme;
-    Rect area = usb_screen_graph(theme, &painter->layout);
-    const UsbMeter *meter = &painter->scene->meter;
-    uint32_t top = graph_top(meter);
-    int pitch = area.width / USB_METER_SAMPLES;
-    for (int age = 0; age < USB_METER_SAMPLES && pitch > 1; age++) {
-        Rect slot = {area.x + area.width - (age + 1) * pitch, area.y, pitch - 1, area.height};
-        draw_sample(painter, slot, age, top);
-        usb_screen_service(painter->scene);
-    }
-    Color rule = active(painter->scene) ? usb_screen_tint(theme->colors.accent, theme->colors.text)
-                                        : dim(theme, theme->colors.accent);
-    canvas_fill_rect(painter->canvas, (Rect){area.x, area.y + area.height - 1, area.width, 1},
-                     rule);
-}
-
 void usb_screen_draw_traffic(const UsbPainter *painter)
 {
     usb_screen_draw_frame(painter, charge_screen_usb_title(painter->status.view));
@@ -394,4 +373,13 @@ Rect usb_screen_drive_lights(const Theme *theme, AppUsbStatus status, int lun)
     int top = row.led.y < row.arrows.y ? row.led.y : row.arrows.y;
     int bottom = row.arrows.y + row.arrows.height;
     return (Rect){row.led.x, top, row.arrows.x + row.arrows.width - row.led.x, bottom - top};
+}
+
+Rect usb_screen_activity(const Theme *theme, AppUsbStatus status)
+{
+    UsbPainter painter = {.theme = theme,
+                          .status = status,
+                          .scene = usb_screen_scene(status),
+                          .layout = usb_screen_layout(theme, status)};
+    return traffic_layout(&painter).hero;
 }

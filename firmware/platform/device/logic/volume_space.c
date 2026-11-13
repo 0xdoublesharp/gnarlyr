@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     PARTITION_START = 446 + 8,
     SIGNATURE_AT = 510,
@@ -38,17 +40,6 @@ typedef struct Exfat {
     uint8_t shift;
 } Exfat;
 
-static uint16_t le16(const uint8_t *bytes)
-{
-    return (uint16_t)(bytes[0] | bytes[1] << 8);
-}
-
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static bool same(const uint8_t *bytes, const char *text)
 {
     for (int index = 0; index < LABEL_BYTES; index++) {
@@ -66,14 +57,14 @@ static bool read_run(Reader *reader, uint32_t lba, uint32_t count)
 
 static bool is_fat32(const uint8_t *bytes)
 {
-    return same(bytes + FAT32_LABEL_AT, "FAT32   ") && le16(bytes + 11) == VOLUME_SPACE_SECTOR &&
-           bytes[13] != 0;
+    return same(bytes + FAT32_LABEL_AT, "FAT32   ") &&
+           bytes_le16(bytes + 11) == VOLUME_SPACE_SECTOR && bytes[13] != 0;
 }
 
 static bool is_fat16(const uint8_t *bytes)
 {
-    return same(bytes + FAT16_LABEL_AT, "FAT16   ") && le16(bytes + 11) == VOLUME_SPACE_SECTOR &&
-           bytes[13] != 0;
+    return same(bytes + FAT16_LABEL_AT, "FAT16   ") &&
+           bytes_le16(bytes + 11) == VOLUME_SPACE_SECTOR && bytes[13] != 0;
 }
 
 static bool is_exfat(const uint8_t *bytes)
@@ -95,7 +86,7 @@ static bool find_volume(Reader *reader, uint32_t *start)
     if (is_fat32(reader->bytes) || is_exfat(reader->bytes) || is_fat16(reader->bytes)) {
         return true;
     }
-    *start = le32(reader->bytes + PARTITION_START);
+    *start = bytes_le32(reader->bytes + PARTITION_START);
     return *start != 0 && read_run(reader, *start, 1) && signed_sector(reader->bytes);
 }
 
@@ -129,28 +120,28 @@ static uint32_t clusters_after(uint32_t total, uint32_t system, uint32_t per_clu
 
 static FatTable fat32_of(const uint8_t *bytes, uint32_t start)
 {
-    uint32_t fat_sectors = le32(bytes + 36);
-    uint64_t system = (uint64_t)le16(bytes + 14) + (uint64_t)bytes[16] * fat_sectors;
-    uint32_t clusters = system < le32(bytes + 32)
-                            ? clusters_after(le32(bytes + 32), (uint32_t)system, bytes[13])
+    uint32_t fat_sectors = bytes_le32(bytes + 36);
+    uint64_t system = (uint64_t)bytes_le16(bytes + 14) + (uint64_t)bytes[16] * fat_sectors;
+    uint32_t clusters = system < bytes_le32(bytes + 32)
+                            ? clusters_after(bytes_le32(bytes + 32), (uint32_t)system, bytes[13])
                             : 0;
-    return (FatTable){start + le16(bytes + 14), fat_sectors, clusters, bytes[13], 4};
+    return (FatTable){start + bytes_le16(bytes + 14), fat_sectors, clusters, bytes[13], 4};
 }
 
 static FatTable fat16_of(const uint8_t *bytes, uint32_t start)
 {
-    uint32_t total = le16(bytes + 19) != 0 ? le16(bytes + 19) : le32(bytes + 32);
-    uint32_t fat_sectors = le16(bytes + 22);
-    uint32_t root = ((uint32_t)le16(bytes + 17) * DIRECTORY_ENTRY + VOLUME_SPACE_SECTOR - 1) /
+    uint32_t total = bytes_le16(bytes + 19) != 0 ? bytes_le16(bytes + 19) : bytes_le32(bytes + 32);
+    uint32_t fat_sectors = bytes_le16(bytes + 22);
+    uint32_t root = ((uint32_t)bytes_le16(bytes + 17) * DIRECTORY_ENTRY + VOLUME_SPACE_SECTOR - 1) /
                     VOLUME_SPACE_SECTOR;
-    uint32_t system = le16(bytes + 14) + bytes[16] * fat_sectors + root;
-    return (FatTable){start + le16(bytes + 14), fat_sectors,
+    uint32_t system = bytes_le16(bytes + 14) + bytes[16] * fat_sectors + root;
+    return (FatTable){start + bytes_le16(bytes + 14), fat_sectors,
                       clusters_after(total, system, bytes[13]), bytes[13], 2};
 }
 
 static bool table_entry_free(const uint8_t *bytes)
 {
-    return le16(bytes) == 0;
+    return bytes_le16(bytes) == 0;
 }
 
 static uint32_t table_free(Reader *reader, FatTable table)
@@ -180,12 +171,12 @@ static uint32_t table_free(Reader *reader, FatTable table)
 static uint32_t fat32_free(Reader *reader, uint32_t start)
 {
     FatTable table = fat32_of(reader->bytes, start);
-    uint32_t info = le16(reader->bytes + 48);
+    uint32_t info = bytes_le16(reader->bytes + 48);
     const uint8_t *bytes = reader->bytes;
-    if (info != 0 && read_run(reader, start + info, 1) && le32(bytes) == INFO_LEAD &&
-        le32(bytes + INFO_STRUCT_AT) == INFO_STRUCT &&
-        le32(bytes + INFO_FREE_AT) <= table.clusters) {
-        return sectors_of(le32(bytes + INFO_FREE_AT), shift_of(table.per_cluster));
+    if (info != 0 && read_run(reader, start + info, 1) && bytes_le32(bytes) == INFO_LEAD &&
+        bytes_le32(bytes + INFO_STRUCT_AT) == INFO_STRUCT &&
+        bytes_le32(bytes + INFO_FREE_AT) <= table.clusters) {
+        return sectors_of(bytes_le32(bytes + INFO_FREE_AT), shift_of(table.per_cluster));
     }
     return VOLUME_SPACE_UNKNOWN;
 }
@@ -211,9 +202,9 @@ static bool find_bitmap(Reader *reader, const Exfat *volume, uint32_t *first)
             return false;
         }
         if (entry[0] == BITMAP_ENTRY && (entry[1] & 1u) == 0) {
-            *first = le32(entry + 20);
-            return *first >= FIRST_CLUSTER && le32(entry + 28) == 0 &&
-                   le32(entry + 24) >= (volume->clusters + 7) / 8;
+            *first = bytes_le32(entry + 20);
+            return *first >= FIRST_CLUSTER && bytes_le32(entry + 28) == 0 &&
+                   bytes_le32(entry + 24) >= (volume->clusters + 7) / 8;
         }
     }
     return false;
@@ -263,7 +254,8 @@ static uint32_t bitmap_used(Reader *reader, const Exfat *volume, uint32_t lba)
 static uint32_t exfat_free(Reader *reader, uint32_t start)
 {
     const uint8_t *bytes = reader->bytes;
-    Exfat volume = {start, le32(bytes + 88), le32(bytes + 92), le32(bytes + 96), bytes[109]};
+    Exfat volume = {start, bytes_le32(bytes + 88), bytes_le32(bytes + 92), bytes_le32(bytes + 96),
+                    bytes[109]};
     uint32_t first = 0;
     uint32_t sectors = (volume.clusters + BITS_PER_SECTOR - 1) / BITS_PER_SECTOR;
     if (volume.shift > 25 || volume.root < FIRST_CLUSTER || sectors > VOLUME_SPACE_BITMAP_SECTORS ||

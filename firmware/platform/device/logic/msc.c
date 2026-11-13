@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     CBW_LENGTH = 31,
     CSW_LENGTH = 13,
@@ -56,12 +58,6 @@ _Static_assert(sizeof INQUIRY_VENDOR - 1 <= INQUIRY_VENDOR_BYTES,
 _Static_assert(sizeof INQUIRY_REVISION - 1 <= INQUIRY_REVISION_BYTES,
                "the firmware's major.minor version fits the INQUIRY revision field");
 
-static uint32_t le32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
 static uint32_t be32(const uint8_t *bytes)
 {
     return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 | bytes[3];
@@ -97,7 +93,7 @@ void msc_init(Msc *msc, const MscLun *luns, uint8_t count)
     }
 }
 
-void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors)
+CORE_SEAM void msc_set_media(Msc *msc, uint8_t lun, bool present, uint32_t sectors)
 {
     if (lun >= msc->lun_count || msc->luns[lun].present == present) {
         return;
@@ -136,6 +132,13 @@ void msc_reset(Msc *msc)
 MscStats msc_stats(const Msc *msc)
 {
     return msc->stats;
+}
+
+CORE_SEAM bool msc_write_proven(const MscStats *stats, uint8_t lun)
+{
+    return lun < MSC_MAX_LUNS && stats->traffic[lun].writes > 0 &&
+           stats->lun_sectors_written[lun] > 0 && stats->write_failures == 0 &&
+           stats->failed_writes == 0 && stats->writes_after_eject == 0;
 }
 
 CORE_SEAM uint32_t msc_sectors_moved(const Msc *msc, bool written)
@@ -415,8 +418,8 @@ static void begin_command(Msc *msc, const uint8_t *cbw)
 {
     msc->stats.commands++;
     msc->opcode = cbw[CBW_BLOCK];
-    msc->tag = le32(cbw + 4);
-    msc->expected = le32(cbw + 8);
+    msc->tag = bytes_le32(cbw + 4);
+    msc->expected = bytes_le32(cbw + 8);
     msc->lun = cbw[CBW_LUN] & 0x0F;
     msc->transferred = 0;
     msc->valid_bytes = 0;
@@ -638,6 +641,9 @@ static void count_failure(Msc *msc)
         return;
     }
     msc->stats.failed_commands++;
+    if (msc->opcode == SCSI_WRITE_10) {
+        msc->stats.failed_writes++;
+    }
     msc->stats.last_sense_key = msc->sense_key[lun];
     msc->stats.last_sense_code = msc->sense_code[lun];
 }

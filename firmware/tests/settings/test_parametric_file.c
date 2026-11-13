@@ -115,7 +115,7 @@ static void canonical_encoding_rejects_invalid_filters_and_padding(void)
     CHECK(!parametric_bank_encode(&bank, bytes));
 }
 
-static void shaping_positions_survive_custom_and_slots_and_old_payloads_still_load(void)
+static void shaping_positions_survive_custom_and_slots_and_the_spare_bytes_stay_zero(void)
 {
     ParametricBank bank = {0};
     bank.shaping[0] = (SoundShaping){.positions = {2, -3, 0, 1}, .active = true};
@@ -131,19 +131,15 @@ static void shaping_positions_survive_custom_and_slots_and_old_payloads_still_lo
     CHECK(restored.shaping[0].active);
     CHECK_EQUAL(2, restored.shaping[0].positions[0]);
     CHECK_EQUAL(-3, restored.shaping[8].positions[1]);
-    bytes[1] = 0;
-    CHECK(parametric_bank_decode(bytes, &restored));
-    CHECK(!restored.shaping[0].active);
-    CHECK(!restored.shaping[8].active);
-    CHECK(parametric_same(&restored.custom, &bank.custom));
+    CHECK_EQUAL(0, bytes[1]);
     bytes[1] = 1;
-    bytes[PARAMETRIC_LEGACY_BYTES] = 6;
     CHECK(!parametric_bank_decode(bytes, &restored));
-    bytes[1] = 2;
+    bytes[1] = 0;
+    bytes[PARAMETRIC_SHAPING_OFFSET] = 6;
     CHECK(!parametric_bank_decode(bytes, &restored));
 }
 
-static void an_old_durable_bank_loads_without_shaping_and_upgrades_on_save(void)
+static void a_bank_without_the_shaping_records_is_corrupt(void)
 {
     memset(disk, 0, sizeof disk);
     no_read = false;
@@ -152,31 +148,23 @@ static void an_old_durable_bank_loads_without_shaping_and_upgrades_on_save(void)
     ParametricBank bank = sample();
     uint8_t bytes[PARAMETRIC_PAYLOAD_BYTES];
     CHECK(parametric_bank_encode(&bank, bytes));
-    bytes[1] = 0;
-    memcpy(disk + STORE_BLOCK_BYTES, bytes, PARAMETRIC_LEGACY_BYTES);
+    memcpy(disk + STORE_BLOCK_BYTES, bytes, PARAMETRIC_SHAPING_OFFSET);
     StoreKind kind = {.magic = {'P', 'E', 'Q', 'F'}, .version = 1};
     StoreHeader header = {.generation = 42,
-                          .bytes = PARAMETRIC_LEGACY_BYTES,
-                          .hash = hash_update(HASH_START, bytes, PARAMETRIC_LEGACY_BYTES)};
+                          .bytes = PARAMETRIC_SHAPING_OFFSET,
+                          .hash = hash_update(HASH_START, bytes, PARAMETRIC_SHAPING_OFFSET)};
     store_encode(&kind, &header, disk);
     ParametricFile owner;
-    CHECK_EQUAL(STORE_READY, parametric_file_open(&owner, file(), &bank));
-    CHECK_EQUAL(42, owner.generation);
-    CHECK_EQUAL(-62, bank.custom.preamp);
-    CHECK(!bank.shaping[0].active);
-    CHECK_EQUAL(STORE_DONE, parametric_file_save(&owner, &bank));
-    CHECK_EQUAL(STORE_READY, parametric_file_open(&owner, file(), &bank));
-    CHECK_EQUAL(43, owner.generation);
-    CHECK_EQUAL(-62, bank.custom.preamp);
+    CHECK(parametric_file_open(&owner, file(), &bank) != STORE_READY);
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(an_old_durable_bank_loads_without_shaping_and_upgrades_on_save),
+        TEST_CASE(a_bank_without_the_shaping_records_is_corrupt),
         TEST_CASE(bank_round_trips_and_a_torn_write_keeps_the_previous_copy),
         TEST_CASE(canonical_encoding_rejects_invalid_filters_and_padding),
-        TEST_CASE(shaping_positions_survive_custom_and_slots_and_old_payloads_still_load),
+        TEST_CASE(shaping_positions_survive_custom_and_slots_and_the_spare_bytes_stay_zero),
         TEST_CASE(corrupt_newest_payload_falls_back_and_uncertain_readback_blocks_saves),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

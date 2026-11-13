@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -25,7 +26,7 @@ enum {
     DAC_RATE = 44100,
     STORAGE_DETAIL_PAGES = 2,
     DAC_DETAIL_PAGES = 2,
-    VARIANTS = 24
+    VARIANTS = 26
 };
 
 typedef struct Variant {
@@ -38,9 +39,11 @@ static char paged_hint[96];
 
 static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
 {
-    StringId frame = status.view == APP_USB_DAC ? STR_USB_DAC_PAGE_HINT : STR_USB_DRIVES_HINT;
+    bool dac = status.view == APP_USB_DAC;
+    StringId frame = dac ? STR_USB_DAC_PAGE_HINT : STR_USB_DRIVES_HINT;
     StringBuilder builder = string_builder_make(paged_hint, sizeof paged_hint);
-    i18n_format_text(&builder, frame, i18n_text(STR_USB_BACK_OVERVIEW));
+    i18n_format_text(&builder, frame,
+                     i18n_text(dac ? STR_USB_BACK_OVERVIEW : STR_USB_MENU_OVERVIEW));
     AppUsbStatus probe = status;
     probe.detail = paged_hint;
     int pages = usb_screen_pages(theme, probe);
@@ -48,9 +51,9 @@ static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
     if (pages <= 1 || usb_screen_scene(status)->menu != NULL) {
         return status;
     }
-    StringId action = page + 1 >= pages ? STR_USB_BACK_OVERVIEW
-                      : page == 0       ? STR_USB_BACK_DETAILS
-                                        : STR_USB_BACK_MORE;
+    StringId action = page + 1 >= pages ? (dac ? STR_USB_BACK_OVERVIEW : STR_USB_MENU_OVERVIEW)
+                      : page == 0       ? (dac ? STR_USB_BACK_DETAILS : STR_USB_MENU_DETAILS)
+                                        : (dac ? STR_USB_BACK_MORE : STR_USB_MENU_MORE);
     builder = string_builder_make(paged_hint, sizeof paged_hint);
     i18n_format_text(&builder, frame, i18n_text(action));
     status.detail = paged_hint;
@@ -138,7 +141,9 @@ static UsbScene storage_scene(uint8_t state)
     bool busy = state == USB_SCENE_WRITING || state == USB_SCENE_READING;
     fill_meter(&scene.meter, busy, state == USB_SCENE_READING);
     scene.busy = busy;
-    scene.writing = state != USB_SCENE_READING;
+    scene.lit[USB_METER_READ] = state == USB_SCENE_READING;
+    scene.lit[USB_METER_WRITE] = state == USB_SCENE_WRITING;
+    scene.rate = busy ? usb_meter_total(&scene.meter, 0) : 0;
     scene.usage[0].write_glow = state == USB_SCENE_WRITING ? 255 : 0;
     scene.usage[0].read_glow = state == USB_SCENE_READING ? 255 : 40;
     return scene;
@@ -219,6 +224,13 @@ static int variants(Variant *list)
         list[count].scene.page = page;
         list[count++].name = page == 1 ? "storage-details" : "storage-details-2";
     }
+    list[count] = list[1];
+    list[count].scene.nudge = true;
+    list[count++].name = "storage-hold-hint";
+    list[count] = list[3];
+    list[count].scene.lit[USB_METER_READ] = true;
+    list[count].scene.usage[0].read_glow = 255;
+    list[count++].name = "storage-both";
     static const struct {
         uint8_t state;
         const char *name;
@@ -281,8 +293,11 @@ static void layout_holds_together(const Theme *theme, AppUsbStatus status)
 
 static void check_texts(const Variant *variant, AppUsbStatus status)
 {
-    CHECK(saw(charge_screen_usb_title(variant->status.view)));
-    CHECK(saw_start(status.detail));
+    bool connected =
+        variant->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(&variant->scene);
+    CHECK(saw(connected ? i18n_text(STR_USB_STATE_CONNECTED)
+                        : charge_screen_usb_title(variant->status.view)));
+    CHECK(saw_start(variant->scene.nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : status.detail));
     bool overview = variant->scene.page == USB_SCENE_OVERVIEW;
     bool storage = variant->status.view == APP_USB_STORAGE;
     if (storage && variant->scene.state <= USB_SCENE_LEAVING && variant->scene.state > 0) {
@@ -518,7 +533,7 @@ static void an_idle_overview_shows_the_session_totals(void)
     scene.usage[1] = (UsbSceneUsage){0};
     scene.usage[0].free_sectors = USB_SCENE_FREE_UNKNOWN;
     draw_text_of(&theme, storage_status(STR_USB_EJECT_DRIVE), &scene);
-    CHECK(!saw(i18n_text(STR_USB_RATE_UNIT)));
+    CHECK(saw(i18n_text(STR_USB_RATE_UNIT)));
     CHECK(saw(i18n_text(STR_USB_STAT_READ)));
     CHECK(saw("2.1 MB"));
     CHECK(saw("268 MB"));
@@ -677,6 +692,352 @@ static void a_total_that_moved_never_reads_zero(void)
     CHECK(strcmp(text, "0.1 MB") == 0);
 }
 
+static void light_writing(UsbScene *scene)
+{
+    scene->lit[USB_METER_WRITE] = true;
+    scene->rate = USB_METER_RATE_LIMIT;
+}
+
+static void light_both(UsbScene *scene)
+{
+    light_writing(scene);
+    scene->lit[USB_METER_READ] = true;
+    scene->rate = 1200;
+}
+
+static UsbScene resting_scene(void)
+{
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    scene.lit[USB_METER_WRITE] = false;
+    scene.rate = 0;
+    return scene;
+}
+
+static void activity_stays_in_its_row(const Theme *theme, void (*change)(UsbScene *scene))
+{
+    UsbScene scene = resting_scene();
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    draw_twice(theme, status, &scene, change);
+    CHECK(changed(theme));
+    status.scene = &scene;
+    Rect row = usb_screen_activity(theme, status);
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    Rect inside = rect_intersection(usb_screen_column(&layout), row);
+    CHECK(inside.x == row.x && inside.y == row.y && inside.width == row.width &&
+          inside.height == row.height);
+    CHECK(row.height > font_line_height(theme->fonts.title));
+    CHECK(changes_stay_inside(theme, row));
+}
+
+static void lit_arrows_and_the_rate_change_only_the_activity_row(void)
+{
+    for (int appearance = 0; appearance < THEMES; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = theme_for(appearance, orientation, size);
+                activity_stays_in_its_row(&theme, light_writing);
+                activity_stays_in_its_row(&theme, light_both);
+            }
+        }
+    }
+}
+
+static int pixels_of(const Theme *theme, Rect area, Color color)
+{
+    int found = 0;
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            found += pixels[y * theme->metrics.screen_width + x] == color;
+        }
+    }
+    return found;
+}
+
+static void a_resting_row_dims_both_arrows_and_a_lit_one_takes_its_colour(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    UsbScene scene = resting_scene();
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = &scene;
+    Rect row = usb_screen_activity(&theme, status);
+    draw_text_of(&theme, status, &scene);
+    CHECK(pixels_of(&theme, row, theme.colors.text_tertiary) > 0);
+    CHECK_EQUAL(0, pixels_of(&theme, row, theme.colors.success));
+    CHECK_EQUAL(0, pixels_of(&theme, row, theme.colors.accent));
+    CHECK(saw(i18n_text(STR_USB_RATE_UNIT)));
+    light_writing(&scene);
+    draw_text_of(&theme, status, &scene);
+    CHECK(pixels_of(&theme, row, theme.colors.success) > 0);
+    CHECK_EQUAL(0, pixels_of(&theme, row, theme.colors.accent));
+    light_both(&scene);
+    draw_text_of(&theme, status, &scene);
+    CHECK(pixels_of(&theme, row, theme.colors.accent) > 0);
+}
+
+static Color drive_led(const Theme *theme, UsbScene *scene, int lun)
+{
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = scene;
+    draw_text_of(theme, status, scene);
+    Rect lights = usb_screen_drive_lights(theme, status, lun);
+    return pixels[(lights.y + lights.height / 2) * theme->metrics.screen_width + lights.x + 1];
+}
+
+static void a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flashes(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        scene.usage[0].write_glow = 0;
+        scene.usage[0].read_glow = 0;
+        CHECK_EQUAL(theme.colors.success, drive_led(&theme, &scene, 0));
+        scene.usage[0].write_glow = 255;
+        CHECK_EQUAL(theme.colors.success, drive_led(&theme, &scene, 0));
+        scene.usage[0].reads = 0;
+        scene.usage[0].writes = 0;
+        CHECK(drive_led(&theme, &scene, 0) != theme.colors.success);
+        scene = storage_scene(USB_SCENE_WRITING);
+        scene.drives[1].state = USB_SCENE_DRIVE_EJECTED;
+        CHECK(drive_led(&theme, &scene, 1) != theme.colors.success);
+        scene.drives[1] = (UsbSceneDrive){.state = USB_SCENE_DRIVE_ABSENT};
+        CHECK(drive_led(&theme, &scene, 1) != theme.colors.success);
+    }
+}
+
+static Color fresh[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+
+static void flatten(UsbScene *scene)
+{
+    uint32_t totals[USB_METER_DIRECTIONS] = {scene->meter.sectors[USB_METER_READ],
+                                             scene->meter.sectors[USB_METER_WRITE]};
+    usb_meter_start(&scene->meter, 0);
+    scene->meter.sectors[USB_METER_READ] = totals[USB_METER_READ];
+    scene->meter.sectors[USB_METER_WRITE] = totals[USB_METER_WRITE];
+    for (uint32_t sample = 1; sample <= USB_METER_SAMPLES; sample++) {
+        usb_meter_sample(&scene->meter, totals, sample * USB_METER_PERIOD_MS);
+    }
+}
+
+static void graph_redraw_leaves_nothing_of_the_frame_before(const Theme *theme)
+{
+    HalBattery battery = {.known = true, .percent = 64};
+    UsbScene scene = storage_scene(USB_SCENE_READING);
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = &scene;
+    Canvas canvas = canvas_for(theme);
+    usb_screen_draw(&canvas, theme, battery, status);
+    flatten(&scene);
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    canvas.clip = usb_screen_graph(theme, &layout);
+    usb_screen_draw(&canvas, theme, battery, status);
+    memcpy(before, pixels, sizeof pixels);
+    canvas = canvas_for(theme);
+    usb_screen_draw(&canvas, theme, battery, status);
+    memcpy(fresh, pixels, sizeof pixels);
+    int count = theme->metrics.screen_width * theme->metrics.screen_height;
+    CHECK_EQUAL(0, memcmp(before, fresh, (size_t)count * sizeof pixels[0]));
+}
+
+static void a_low_graph_frame_leaves_no_line_of_a_high_one(void)
+{
+    for (int appearance = 0; appearance < THEMES; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = theme_for(appearance, orientation, size);
+                graph_redraw_leaves_nothing_of_the_frame_before(&theme);
+            }
+        }
+    }
+}
+
+static void flat_rows_lie_on_the_floor_instead_of_drawing_ridge_lines(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        flatten(&scene);
+        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        status.scene = &scene;
+        draw_text_of(&theme, status, &scene);
+        UsbScreenLayout layout = usb_screen_layout(&theme, status);
+        Rect graph = usb_screen_graph(&theme, &layout);
+        CHECK_EQUAL(0, pixels_of(&theme, graph, theme.colors.accent));
+        CHECK_EQUAL(0, pixels_of(&theme, graph, theme.colors.success));
+    }
+}
+
+static int rate_ink(const Theme *theme, UsbScene *scene)
+{
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = scene;
+    draw_text_of(theme, status, scene);
+    return pixels_of(theme, usb_screen_activity(theme, status), theme->colors.text);
+}
+
+static void the_rate_keeps_its_colour_between_commands_and_dims_only_when_the_session_rests(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    UsbScene scene = storage_scene(USB_SCENE_WRITING);
+    int lit = rate_ink(&theme, &scene);
+    CHECK(lit > 0);
+    scene.lit[USB_METER_WRITE] = false;
+    CHECK_EQUAL(lit, rate_ink(&theme, &scene));
+    scene.busy = false;
+    scene.lit[USB_METER_WRITE] = true;
+    CHECK_EQUAL(0, rate_ink(&theme, &scene));
+}
+
+static void speed_shot(const Theme *theme, AppUsbStatus status, UsbScene *scene, int shot)
+{
+    status.scene = scene;
+    Canvas canvas = canvas_for(theme);
+    text_spy_reset();
+    usb_screen_draw(&canvas, theme, (HalBattery){.known = true, .percent = 64}, status);
+    screen_snapshot_write(&canvas, "speed", shot);
+}
+
+static double channel_light(int value, int top)
+{
+    double level = (double)value / top;
+    return level <= 0.03928 ? level / 12.92 : pow((level + 0.055) / 1.055, 2.4);
+}
+
+static double light(Color color)
+{
+    return 0.2126 * channel_light(color >> 11, 31) + 0.7152 * channel_light(color >> 5 & 63, 63) +
+           0.0722 * channel_light(color & 31, 31);
+}
+
+static double contrast(Color first, Color second)
+{
+    double a = light(first) + 0.05;
+    double b = light(second) + 0.05;
+    return a > b ? a / b : b / a;
+}
+
+static int header_ink(const Theme *theme, Color color)
+{
+    return pixels_of(theme, (Rect){0, 0, theme->metrics.screen_width, theme->metrics.header_height},
+                     color);
+}
+
+static Color fallback_ink(const Theme *theme)
+{
+    int count = theme->metrics.screen_width * theme->metrics.header_height;
+    Color best = theme->colors.header_background;
+    int most = 0;
+    for (int index = 0; index < count; index++) {
+        if (before[index] != theme->colors.header_text || pixels[index] == before[index]) {
+            continue;
+        }
+        int same = 0;
+        for (int other = 0; other < count; other++) {
+            same += pixels[other] == pixels[index];
+        }
+        best = same > most ? pixels[index] : best;
+        most = same > most ? same : most;
+    }
+    return best;
+}
+
+static int speed_frame(const Theme *theme, UsbScene scene, int kind, int shot)
+{
+    scene.high_speed = kind == 0;
+    scene.fell_back = kind == 2;
+    speed_shot(theme, storage_status(STR_USB_EJECT_DRIVES), &scene, shot);
+    return header_ink(theme, theme->colors.header_text);
+}
+
+static void the_header_marks_the_link_speed_with_an_icon(void)
+{
+    for (int appearance = 0; appearance < THEMES; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            Theme theme = theme_for(appearance, orientation, TEXT_SIZE_MEDIUM);
+            UsbScene scene = storage_scene(USB_SCENE_WRITING);
+            int shot = appearance * 100 + orientation * 10;
+            int high = speed_frame(&theme, scene, 0, shot);
+            int full = speed_frame(&theme, scene, 1, shot + 1);
+            CHECK(saw(i18n_text(STR_USB_STATE_CONNECTED)));
+            memcpy(before, pixels, sizeof pixels);
+            int fell = speed_frame(&theme, scene, 2, shot + 2);
+            CHECK(high > full);
+            CHECK(fell < full);
+            CHECK(contrast(fallback_ink(&theme), theme.colors.header_background) >= 4.5);
+        }
+    }
+}
+
+static void the_dac_screen_marks_its_speed_and_waiting_shows_none(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        AppUsbStatus dac = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+        int counts[2];
+        for (int kind = 0; kind < 2; kind++) {
+            UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+            scene.high_speed = kind == 0;
+            speed_shot(&theme, dac, &scene, orientation * 10 + kind + 5);
+            CHECK(saw(charge_screen_usb_title(APP_USB_DAC)));
+            counts[kind] = header_ink(&theme, theme.colors.header_text);
+        }
+        CHECK(counts[0] > counts[1]);
+        UsbScene waiting = storage_scene(USB_SCENE_WAITING);
+        speed_shot(&theme, storage_status(STR_USB_KEEP_HOLDING), &waiting, orientation * 10 + 9);
+        CHECK(saw(charge_screen_usb_title(APP_USB_STORAGE)));
+    }
+}
+
+static bool rows_plain(const Theme *theme, Rect area)
+{
+    for (int y = area.y; y < area.y + area.height; y++) {
+        const Color *row = &pixels[y * theme->metrics.screen_width];
+        for (int x = area.x + 1; x < area.x + area.width; x++) {
+            if (row[x] != row[area.x]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void no_backdrop_grid_shows_around_the_terrain(void)
+{
+    for (int appearance = 0; appearance < THEMES; appearance++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            Theme theme = theme_for(appearance, orientation, TEXT_SIZE_MEDIUM);
+            UsbScene scene = storage_scene(USB_SCENE_WRITING);
+            AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+            status.scene = &scene;
+            draw_text_of(&theme, status, &scene);
+            UsbScreenLayout layout = usb_screen_layout(&theme, status);
+            Rect graph = usb_screen_graph(&theme, &layout);
+            int below = graph.y + graph.height;
+            CHECK(below < layout.art.y + layout.art.height);
+            CHECK(rows_plain(&theme, (Rect){layout.art.x, below, layout.art.width,
+                                            layout.art.y + layout.art.height - below}));
+        }
+    }
+}
+
+static void nudge(UsbScene *scene)
+{
+    scene->nudge = true;
+}
+
+static void the_hold_reminder_changes_only_the_hint_line(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
+        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES));
+        draw_twice(&theme, status, &scene, nudge);
+        CHECK(changed(&theme));
+        status.scene = &scene;
+        CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).detail));
+        CHECK(saw(i18n_text(STR_USB_HOLD_BACK_HINT)));
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -796,11 +1157,21 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(the_hold_reminder_changes_only_the_hint_line),
+        TEST_CASE(no_backdrop_grid_shows_around_the_terrain),
+        TEST_CASE(the_header_marks_the_link_speed_with_an_icon),
+        TEST_CASE(the_dac_screen_marks_its_speed_and_waiting_shows_none),
         TEST_CASE(the_totals_move_with_the_rate_from_the_same_counters),
         TEST_CASE(a_total_that_moved_never_reads_zero),
         TEST_CASE(a_copy_keeps_its_words_still_while_the_lights_and_rates_move),
         TEST_CASE(warnings_and_waits_have_no_details),
         TEST_CASE(a_new_sample_changes_only_the_graph),
+        TEST_CASE(a_low_graph_frame_leaves_no_line_of_a_high_one),
+        TEST_CASE(flat_rows_lie_on_the_floor_instead_of_drawing_ridge_lines),
+        TEST_CASE(the_rate_keeps_its_colour_between_commands_and_dims_only_when_the_session_rests),
+        TEST_CASE(lit_arrows_and_the_rate_change_only_the_activity_row),
+        TEST_CASE(a_resting_row_dims_both_arrows_and_a_lit_one_takes_its_colour),
+        TEST_CASE(a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flashes),
         TEST_CASE(dac_overview_shows_format_output_and_host),
         TEST_CASE(dac_details_show_what_the_session_measured),
     };

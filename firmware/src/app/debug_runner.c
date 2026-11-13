@@ -118,7 +118,9 @@ DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view)
 {
     DebugRequest none = {.kind = DEBUG_REQUEST_NONE};
     if (!debug_runner_active()) {
-        reconnect_when_due(now_ms);
+        if (!view.power_down) {
+            reconnect_when_due(now_ms);
+        }
         return none;
     }
     const DebugCodeEntry *code = debug_code();

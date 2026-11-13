@@ -42,6 +42,10 @@ typedef struct TrialDiag {
     uint32_t words[DIAG_WORDS];
 } TrialDiag;
 
+_Static_assert(sizeof(MmcFailure) % 4 == 0 &&
+                   DIAG_REPORT_WORDS + sizeof(MmcFailure) / 4 + 5 <= DIAG_SNAPSHOT_WORDS,
+               "a trial snapshot holds whole words and fits its slot");
+
 static uint32_t power_since_ms;
 static uint32_t escape_since_ms;
 static bool power_released;
@@ -168,9 +172,12 @@ void board_trial_snapshot(uint32_t kind)
     words[0] = hal_clock_milliseconds();
     words[1] = hal_system_clock_mhz() | (uint32_t)shared->high_speed_failed << 16;
     words = diag_copy(words + 2, &shared->report, DIAG_REPORT_WORDS);
-    words = diag_copy(words, &shared->link, sizeof shared->link / 4);
+    *words++ = (uint32_t)shared->link.step | (uint32_t)shared->link.high_speed_allowed << 8 |
+               (uint32_t)shared->link.dedicated_fifos << 16;
     words = diag_copy(words, &failure, sizeof failure / 4);
-    *words = (uint32_t)shared->last_session.end;
+    *words++ = (uint32_t)shared->last_session.end | (uint32_t)shared->last_session.internal_write_ok
+                                                        << 8;
+    *words = shared->last_session.internal_written;
     diag.magic = DIAG_MAGIC;
     write_record(&shared->trial, KEEP_ATTEMPTS);
 }
@@ -211,7 +218,8 @@ void board_trial_session_starting(void)
 void board_trial_session_ended(void)
 {
     UsbShared *shared = usb_session_shared();
-    bool confirmed = shared->trial.running && shared->last_session.end == HAL_USB_END_EJECTED;
+    bool confirmed = shared->trial.running && shared->last_session.end == HAL_USB_END_EJECTED &&
+                     shared->last_session.internal_write_ok;
     const TrialBootModuleEntry *entry = confirmed || shared->trial.promoting ? boot_module() : NULL;
     if (entry != NULL) {
         entry->session_end(shared, copy_buffer());

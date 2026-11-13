@@ -31,6 +31,7 @@ typedef struct DebugRequest {
 typedef struct DebugRunnerView {
     bool held;
     bool screen_on;
+    bool power_down;
 } DebugRunnerView;
 
 typedef struct DebugFrameSources {

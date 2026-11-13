@@ -17,3 +17,5 @@ container-map.json
 .local/
 notes/
 log/
+!firmware/tests/fixtures/**
+firmware/tests/fixtures/**/.DS_Store

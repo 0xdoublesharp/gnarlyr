@@ -1,22 +1,32 @@
 #include "device/usb_fallback.h"
 
-void usb_fallback_start(UsbFallback *fallback, bool high_speed, uint32_t now_ms)
+void usb_fallback_start(UsbFallback *fallback, bool high_speed)
 {
-    *fallback = (UsbFallback){.watching = high_speed, .started_ms = now_ms};
+    *fallback = (UsbFallback){.watching = high_speed, .cause = USB_FALLBACK_NONE};
 }
 
-bool usb_fallback_due(UsbFallback *fallback, bool working, uint32_t now_ms)
+void usb_fallback_enumerated(UsbFallback *fallback, uint32_t now_ms)
+{
+    if (fallback->watching && !fallback->timing) {
+        fallback->timing = true;
+        fallback->started_ms = now_ms;
+    }
+}
+
+bool usb_fallback_due(UsbFallback *fallback, UsbFallbackSigns signs, uint32_t now_ms)
 {
     if (!fallback->watching) {
         return false;
     }
-    if (working) {
+    if (signs.configured && signs.commands >= USB_FALLBACK_COMMANDS) {
         fallback->watching = false;
         return false;
     }
-    if (now_ms - fallback->started_ms < USB_FALLBACK_MS) {
+    if (!fallback->timing || now_ms - fallback->started_ms < USB_FALLBACK_MS) {
         return false;
     }
     fallback->watching = false;
+    fallback->cause = signs.configured ? USB_FALLBACK_FEW_COMMANDS : USB_FALLBACK_NOT_CONFIGURED;
+    fallback->commands = signs.commands;
     return true;
 }

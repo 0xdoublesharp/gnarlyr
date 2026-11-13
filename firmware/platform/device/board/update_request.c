@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "device/fat.h"
 #include "device/loader_request.h"
 #include "emmc.h"
@@ -25,6 +26,8 @@ static bool request_write(void *context, uint32_t offset, const void *bytes, uin
     return fat_write(request->volume, &request->file, offset, bytes, length);
 }
 
+static bool checked;
+
 static bool open_request(RequestFile *request)
 {
     EmmcInfo info;
@@ -32,14 +35,17 @@ static bool open_request(RequestFile *request)
         return false;
     }
     request->volume = internal_volume_remount();
-    return request->volume != NULL &&
-           fat_open(request->volume, LOADER_REQUEST_PATH, &request->file);
+    if (request->volume == NULL) {
+        return false;
+    }
+    checked = true;
+    return fat_open(request->volume, LOADER_REQUEST_PATH, &request->file);
 }
 
-void update_check_loader_request(void)
+CORE_SEAM void update_check_loader_request(void)
 {
     RequestFile open;
-    if (!open_request(&open)) {
+    if (checked || !open_request(&open)) {
         return;
     }
     LoaderRequestFile request = {request_read, request_write, open.file.size, &open};

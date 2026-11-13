@@ -2,6 +2,7 @@
 
 #include "core/i18n.h"
 #include "home_art.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/wire_figure.h"
 
@@ -23,6 +24,7 @@ enum {
     BATTERY_WIDTH = 24,
     BATTERY_HEIGHT = 12,
     BATTERY_NUB = 2,
+    TAG_LUMA_GAP = 64,
     MSC_BYTES_PER_SECTOR = 512,
     BYTES_PER_KIB = 1024,
     BYTES_PER_TENTH_MB = 100000,
@@ -208,7 +210,73 @@ static int draw_battery(const UsbPainter *painter, Rect row)
     return left - row.x;
 }
 
-static void draw_header(const UsbPainter *painter, const char *title)
+typedef struct SpeedTag {
+    bool shown;
+    bool bolt;
+    Color ink;
+    int height;
+    int width;
+} SpeedTag;
+
+static bool linked(const UsbPainter *painter)
+{
+    const UsbScene *scene = painter->scene;
+    if (painter->status.scene == NULL) {
+        return false;
+    }
+    if (painter->status.view == APP_USB_DAC) {
+        return scene->state == USB_SCENE_DAC_READY || scene->state == USB_SCENE_DAC_PLAYING;
+    }
+    return painter->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
+}
+
+static int color_luma(Color color)
+{
+    int red = (color >> 11) * 255 / 31;
+    int green = (color >> 5 & 63) * 255 / 63;
+    int blue = (color & 31) * 255 / 31;
+    return (54 * red + 183 * green + 19 * blue) >> 8;
+}
+
+static Color warning_ink(const ThemeColors *colors)
+{
+    int gap = color_luma(colors->danger) - color_luma(colors->header_background);
+    gap = gap < 0 ? -gap : gap;
+    return gap >= TAG_LUMA_GAP ? colors->danger
+                               : color_between(colors->danger, colors->header_text, 1, 2);
+}
+
+static SpeedTag speed_tag(const UsbPainter *painter)
+{
+    const Theme *theme = painter->theme;
+    int height = theme->fonts.small->ascent;
+    int width = icon_width(ICON_USB, height) + icon_width(ICON_BOLT, height);
+    if (!linked(painter)) {
+        return (SpeedTag){.shown = false};
+    }
+    const UsbScene *scene = painter->scene;
+    bool warn = !scene->high_speed && scene->fell_back;
+    Color ink = warn ? warning_ink(&theme->colors) : theme->colors.header_text;
+    return (SpeedTag){true, scene->high_speed, ink, height, width + theme->metrics.padding / 2};
+}
+
+static void draw_tag(const UsbPainter *painter, Rect row, int after, SpeedTag tag)
+{
+    if (!tag.shown) {
+        return;
+    }
+    int left = after + painter->theme->metrics.padding / 2;
+    int top = row.y + (row.height - tag.height) / 2;
+    Rect usb = {left, top, icon_width(ICON_USB, tag.height), tag.height};
+    IconInk ink = {tag.ink, tag.ink};
+    icon_draw(painter->canvas, ICON_USB, usb, ink);
+    if (tag.bolt) {
+        Rect bolt = {usb.x + usb.width, top, icon_width(ICON_BOLT, tag.height), tag.height};
+        icon_draw(painter->canvas, ICON_BOLT, bolt, ink);
+    }
+}
+
+static Rect header_band(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
     Rect band = {0, 0, theme->metrics.screen_width, theme->metrics.header_height};
@@ -217,6 +285,20 @@ static void draw_header(const UsbPainter *painter, const char *title)
                      theme->header_rule ? theme->colors.accent : theme->colors.divider);
     Rect row = painter->layout.header;
     row.height -= 1;
+    return row;
+}
+
+static const char *header_title(const UsbPainter *painter, const char *title)
+{
+    bool storage = painter->status.view == APP_USB_STORAGE;
+    return storage && linked(painter) ? i18n_text(STR_USB_STATE_CONNECTED) : title;
+}
+
+static void draw_header(const UsbPainter *painter, const char *mode_title)
+{
+    const Theme *theme = painter->theme;
+    const char *title = header_title(painter, mode_title);
+    Rect row = header_band(painter);
     Rect second = row;
     if (theme_is_portrait(theme)) {
         row.height = font_line_height(theme->fonts.header);
@@ -228,16 +310,20 @@ static void draw_header(const UsbPainter *painter, const char *title)
     TextStyle name = {theme->fonts.header, ink};
     TextStyle mode = {theme->fonts.small, usb_screen_tint(theme->colors.accent, ink)};
     int title_width = text_width(theme->fonts.small, title);
+    SpeedTag tag = speed_tag(painter);
     if (theme_is_portrait(theme)) {
         usb_screen_text(painter, (Rect){row.x, row.y, room, row.height}, name, FIRMWARE_SHORT_NAME);
         usb_screen_text(painter, second, mode, title);
+        draw_tag(painter, second, second.x + title_width, tag);
         return;
     }
     int gap = theme->metrics.padding;
-    int title_x = row.x + room - gap - title_width;
+    int title_x = row.x + room - gap - title_width - tag.width;
     usb_screen_text(painter, (Rect){row.x, row.y, title_x - gap - row.x, row.height}, name,
                     FIRMWARE_SHORT_NAME);
     usb_screen_text(painter, (Rect){title_x, row.y, title_width, row.height}, mode, title);
+    draw_tag(painter, (Rect){row.x, row.y, row.x + room - row.x, row.height}, title_x + title_width,
+             tag);
 }
 
 static void draw_floor(const UsbPainter *painter, int rule)
@@ -265,7 +351,9 @@ static void draw_stage(const UsbPainter *painter)
     int width = theme->metrics.screen_width;
     canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top}, colors->backdrop_top,
                          colors->backdrop_bottom);
-    if (painter->status.view != APP_USB_DAC && !painter->details) {
+    bool terrain = painter->status.view == APP_USB_STORAGE && painter->status.scene != NULL &&
+                   usb_screen_shows_traffic(painter->scene);
+    if (painter->status.view != APP_USB_DAC && !painter->details && !terrain) {
         draw_floor(painter, rule);
     }
     canvas_fill_rect(painter->canvas, (Rect){0, rule, width, theme->metrics.screen_height - rule},
@@ -528,6 +616,12 @@ Rect usb_screen_column(const UsbScreenLayout *layout)
                   layout->lines.y + layout->lines.height - layout->state.y};
 }
 
+static const char *detail_text(const UsbPainter *painter)
+{
+    bool nudge = painter->status.view == APP_USB_STORAGE && painter->scene->nudge;
+    return nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : painter->status.detail;
+}
+
 void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
 {
     draw_stage(painter);
@@ -539,7 +633,7 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
     if (usb_screen_touches(painter, painter->layout.detail)) {
         label_draw_wrapped_serviced(
             painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
-            (Label){painter->layout.detail, painter->status.detail}, painter->scene->service);
+            (Label){painter->layout.detail, detail_text(painter)}, painter->scene->service);
     }
 }
 

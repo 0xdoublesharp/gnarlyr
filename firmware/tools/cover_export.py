@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import library_index
+from fnv import fnv1a
 
 MAGIC = b"DSCV"
 VERSION = 1
@@ -15,8 +16,6 @@ FULL_SIZE = 112
 HALF_SIZE = 56
 HEADER = struct.Struct("<4sHHHHI")
 ENTRY = struct.Struct("<II")
-FNV_OFFSET = 2166136261
-FNV_PRIME = 16777619
 KEY_SEPARATOR = b"\x1f"
 KEY_NAME_LIMIT = 255
 FRONT_COVER = 3
@@ -65,13 +64,6 @@ class CoverSet:
     records: dict = field(default_factory=dict)
     stamps: dict = field(default_factory=dict)
     missing: list = field(default_factory=list)
-
-
-def fnv1a(data, start=FNV_OFFSET):
-    value = start
-    for byte in data:
-        value = ((value ^ byte) * FNV_PRIME) & 0xFFFFFFFF
-    return value
 
 
 def album_key(album_artist, title):
@@ -330,7 +322,7 @@ def section(data, index):
 
 def album_sources_from_library(data):
     if data[:4] != library_index.MAGIC:
-        raise ValueError("not an Echo Mini library")
+        raise ValueError("not a library for the player")
     tracks_offset, track_count = section(data, 0)
     albums_offset, album_count = section(data, 1)
     album_artists_offset, _ = section(data, 3)
@@ -438,7 +430,7 @@ def collect_images(root, sources, convert=unchanged):
 
 
 def parse_arguments(argv):
-    parser = argparse.ArgumentParser(description="Export album covers for the Echo Mini")
+    parser = argparse.ArgumentParser(description="Export album covers for the player")
     parser.add_argument("--music", type=Path, required=True, help="music root (read only)")
     parser.add_argument("--library", type=Path,
                         help="an existing library.db for this music root, to skip the tag scan")

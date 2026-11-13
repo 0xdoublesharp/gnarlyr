@@ -98,6 +98,8 @@ typedef struct UsbScene {
     uint8_t turn;
     bool holding;
     bool high_speed;
+    bool fell_back;
+    bool nudge;
     uint32_t written_kib;
     UsbSceneDrive drives[USB_SCENE_DRIVES];
     UsbSceneDac dac;
@@ -108,7 +110,8 @@ typedef struct UsbScene {
     UsbSceneLink link;
     UsbSceneUsage usage[USB_SCENE_DRIVES];
     bool busy;
-    bool writing;
+    bool lit[USB_METER_DIRECTIONS];
+    uint32_t rate;
 } UsbScene;
 
 typedef struct UsbScreenLayout {
@@ -129,3 +132,4 @@ int usb_screen_pages(const Theme *theme, AppUsbStatus status);
 Rect usb_screen_graph(const Theme *theme, const UsbScreenLayout *layout);
 Rect usb_screen_content(const Theme *theme, const UsbScreenLayout *layout);
 Rect usb_screen_drive_lights(const Theme *theme, AppUsbStatus status, int lun);
+Rect usb_screen_activity(const Theme *theme, AppUsbStatus status);

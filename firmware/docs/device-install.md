@@ -4,7 +4,7 @@ This covers installing a build you made yourself; there is no released image. Be
 
 ## What has been done on a player
 
-An earlier build of this project, based on Podium 4.5.5, was installed on the owner's Echo (full size, 4 GB) from macOS with exactly the maskrom steps below, and FiiO's 2.0.0 was written back the same way ([`device-recovery.md`](device-recovery.md)). Canonical Gnarlyr developer firmware has also been installed through the two-hop file-copy transition, with automatic restart/reconnect and live build confirmation. See [`known-issues.md`](known-issues.md) for the bounded device checks.
+The maskrom steps below have been used on the owner's Echo (full size, 4 GB) from macOS several times: to install an early build based on Podium 4.5.5, to write FiiO's 2.0.0 back ([`device-recovery.md`](device-recovery.md)), and to put a known-good Gnarlyr build back after broken test builds. Gnarlyr developer firmware has been installed by file copy many times, including the two-hop transition to the canonical identity, with automatic restart/reconnect and live build confirmation. Trial installs into slot 1 have run on the player too; [`known-issues.md`](known-issues.md) says which parts of the trial have been seen working.
 
 ## Install through maskrom
 
@@ -80,13 +80,13 @@ FiiO's updater scans the top level of internal storage for `ECHOVnnn.IMG` files 
 
 ## Later updates: Gnarlyr's own updater
 
-File-copy updates have run on the owner's player with earlier developer identities. The canonical `GNARLYR` transition has completed on the owner's full-size ECHO after exact-image emulator checks ([`known-issues.md`](known-issues.md)). Trial updates, described next, have run only in the emulator.
+File-copy updates have run on the owner's player, including the transition to the canonical `GNARLYR` identity. Builds with trial updates install the new build on trial, described next.
 
 1. Connect the player. It shows "Computer found", and two drives appear: internal storage and the SD card.
 2. Copy the new image to the top level of internal storage and check it. On macOS: `cp -X firmware/build/release/GNARLYR.IMG /Volumes/<internal drive>/`, then `rm -f /Volumes/<internal drive>/._GNARLYR.IMG` and `shasum -a 256` on both copies.
 3. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage, then "Update installed".
 4. Unplug and hold Power: the player turns off. Hold Power again to start the new build.
-5. Connect again and eject both drives. The player shows "Saving this version as the backup" and copies the new build into slot 2. With `tools/echo_debug.py install --restart`, the next command that ejects (`set-time`, `run`) does this.
+5. Connect again, write a file to internal storage (any small file; macOS often writes on its own, but not always), and eject both drives. The player shows "Saving this version as the backup" and copies the new build into slot 2. With `tools/echo_debug.py install --restart`, the next command that ejects (`set-time`, `run`) does this, since it writes the time file or the script first.
 
 What the updater does:
 
@@ -98,7 +98,7 @@ What the updater does:
 
 ### The trial
 
-The new build is on trial until a USB session with it ends with every drive ejected. Then it copies itself into slot 2 and the trial ends. The record is `/.gnarlyr/trial.bin` on internal storage; leave it alone.
+The new build is on trial until a USB session with it ends with every drive ejected after the computer wrote to internal storage: at least one write finished with its sectors stored, and no write in the session failed or was refused, on either drive. Then it copies itself into slot 2 and the trial ends. A session in which macOS could only mount the drives read-only, or that wrote nothing, leaves the trial running and counts as one attempt. The record is `/.gnarlyr/trial.bin` on internal storage; leave it alone.
 
 - Every start of the trial build counts one attempt, and every USB session counts one more as it starts. A start after which the player runs for 20 s with its text loaded is not counted.
 - A trial build that starts without its text (no language pack could be read) or without its extension module counts as failed at once: it restarts by itself, with no message and no key press, and the next start rolls back. If its storage stops working after the start was counted, it restarts by itself until the fourth start rolls back.
@@ -122,13 +122,9 @@ Installing FiiO's image this way is the file-copy way back to FiiO's firmware ("
 
 The updater that runs is the one already installed. A build without trial updates writes the new build into both slots, so the install of the first build with trial updates is not protected by it. Prove it in the emulator first (`firmware/tools/prove_upgrade.py --old <installed> --new <candidate>`), and have maskrom ready.
 
-## Moving an installed developer build to the canonical identity
-
-An installed updater accepts the filename and image brand of its own identity. A canonical `GNARLYR.IMG` therefore needs a prepared transition when the installed build uses different identifiers. The transition preserves the existing data before the first canonical boot and uses a matching transport bridge, followed by the ordinary canonical image. Follow [`identity-transition.md`](identity-transition.md); do not substitute a bridge built for another installed identity.
-
 ## What to check after an install
 
-- **Start-up:** the splash and the Home title say "Gnarlyr", with Music and Settings (and Now Playing once a track is loaded). Without a library, Music says "No library".
+- **Start-up:** the splash and the Home title say "Gnarlyr", with Music, Mixtapes, Stats, Clock, USB Mode and Settings (and Now playing above them once a track is loaded). Without a library, Music says "No library".
 - **Settings → About → Firmware:** the version and the commit you built.
 - **Keys:** each button does what the Buttons table in [`user-guide.md`](user-guide.md) says.
 - **Power:** a tap turns the screen off and on. Holding it for 2 s switches the player off; with a cable in, it shows the charge screen instead, and holding Power again turns the player back on.
@@ -147,7 +143,7 @@ An installed updater accepts the filename and image brand of its own identity. A
 | "USB missing: reinstall update" | The USB code could not be loaded from either slot; install again through maskrom |
 | "Update rolled back" | The trial build did not confirm; the previous build is back in both slots. Fix the build and copy it again |
 | Stuck during a trial, for example in a USB session | Hold Power for 10 s; the third restart rolls the update back |
-| No USB drives, but the player starts | Plug in the cable while holding Power and vol+ for 2 s: the player restarts into maskrom ([`device-recovery.md`](device-recovery.md)) |
+| No USB drives, but the player starts | With the cable in the computer, hold Power and vol+ for about 5 s: the player restarts into maskrom ([`device-recovery.md`](device-recovery.md)) |
 | A STALL or FAULT screen | Note the values shown, then hold Power for 2 s |
 
 ## Timing a cold start

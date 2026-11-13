@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "device/core1_vorbis.h"
 #include "device/ogg_stream.h"
 
@@ -55,13 +56,6 @@ static bool load(const char *name)
     return true;
 }
 
-static void put32(uint8_t *bytes, uint32_t value)
-{
-    for (uint32_t index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static void repair(const OggPage *page)
 {
     uint32_t crc = 0;
@@ -72,7 +66,7 @@ static void repair(const OggPage *page)
             crc = (crc << 1) ^ ((crc & 0x80000000u) != 0 ? 0x04C11DB7u : 0);
         }
     }
-    put32(data + page->offset + 22, crc);
+    bytes_put_le32(data + page->offset + 22, crc);
 }
 
 static void the_probe_reports_decoded_format_and_exact_final_sample_count(void)
@@ -293,11 +287,11 @@ static void wrong_serial_bad_eos_and_unrepresentable_granules_are_refused(void)
         OggPage last;
         CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), 12752, &last));
         if (variant == 0) {
-            put32(data + last.offset + 14, 43);
+            bytes_put_le32(data + last.offset + 14, 43);
         } else if (variant == 1) {
             data[last.offset + 5] &= (uint8_t)~4;
         } else if (variant == 2) {
-            put32(data + last.offset + 10, 1);
+            bytes_put_le32(data + last.offset + 10, 1);
         } else {
             memset(data + last.offset + 6, 255, 8);
         }
@@ -327,9 +321,9 @@ static void distant_seeks_read_a_bounded_fraction_of_a_large_file(void)
         if (index != 0) {
             memcpy(data + at, data + first, page_size);
         }
-        put32(data + at + 18, 2 + index);
-        put32(data + at + 6, (index + 1) * 47808);
-        put32(data + at + 10, 0);
+        bytes_put_le32(data + at + 18, 2 + index);
+        bytes_put_le32(data + at + 6, (index + 1) * 47808);
+        bytes_put_le32(data + at + 10, 0);
         data[at + 5] = index == 199 ? 4 : 0;
         OggPage changed = {.offset = at, .next = at + page_size};
         repair(&changed);
@@ -358,16 +352,16 @@ static void an_empty_timestamp_page_does_not_replace_the_decodable_seek_anchor(v
     file_size += 27;
     memset(data + at, 0, 27);
     memcpy(data + at, "OggS", 4);
-    put32(data + at + 6, 47808);
-    put32(data + at + 14, 42);
-    put32(data + at + 18, 3);
+    bytes_put_le32(data + at + 6, 47808);
+    bytes_put_le32(data + at + 14, 42);
+    bytes_put_le32(data + at + 18, 3);
     OggPage page = {.offset = at, .next = at + 27};
     repair(&page);
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), at + 27, &page));
-    put32(data + page.offset + 18, 4);
+    bytes_put_le32(data + page.offset + 18, 4);
     repair(&page);
     CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), page.next, &page));
-    put32(data + page.offset + 18, 5);
+    bytes_put_le32(data + page.offset + 18, 5);
     repair(&page);
     OggTrack track;
     CHECK(vorbis_track_probe(input(), &track));
@@ -388,8 +382,8 @@ static void shift_origin(uint32_t delta)
         CHECK_EQUAL(OGG_PACKET_READY, ogg_page_read(input(), offset, &page));
         if (page.granule > 0 && page.granule != UINT64_MAX) {
             uint64_t granule = page.granule + delta;
-            put32(data + offset + 6, (uint32_t)granule);
-            put32(data + offset + 10, (uint32_t)(granule >> 32));
+            bytes_put_le32(data + offset + 6, (uint32_t)granule);
+            bytes_put_le32(data + offset + 10, (uint32_t)(granule >> 32));
             repair(&page);
         }
         offset = page.next;

@@ -64,7 +64,7 @@ The generator requires macOS `say` for speech and ffmpeg for native Vorbis and F
 
 ## Emulated core-1 headroom
 
-`tools/vorbis_benchmark.py` runs the actual Cortex-M3 program with continuously available input and output slots, checks every sample against independent PCM (maximum two LSB and exact lengths), and keeps a stack-boundary guard. These 3.25-second corpus signals include higher-complexity content than the older sine/chirp-only fixtures. Counts are whole-file instructions divided by output duration, including setup and short idle intervals, in 1,000-instruction emulator slices.
+A benchmark run, since retired, ran the actual Cortex-M3 program with continuously available input and output slots, checks every sample against independent PCM (maximum two LSB and exact lengths), and keeps a stack-boundary guard. These 3.25-second corpus signals include higher-complexity content than the older sine/chirp-only fixtures. Counts are whole-file instructions divided by output duration, including setup and short idle intervals, in 1,000-instruction emulator slices.
 
 | Stream | Instructions / 20 ms | Audio after setup / 20 ms | Decode MHz | Ideal budget used | Ideal margin | Break-even cycles / instruction |
 |---|---:|---:|---:|---:|---:|---:|
@@ -88,9 +88,7 @@ the 96 kHz case at 100 MHz and the 192 kHz case at 200 MHz would exceed their
 budgets. Instruction counts do not establish actual cycles per instruction;
 hardware load and listening remain unmeasured.
 
-```sh
-.venv/bin/python tools/vorbis_benchmark.py --corpus /Volumes/Scratch/SnowskyEcho/data/vorbis-finish --program build/device/platform/device/core1_vorbis.bin --tool build/dev/tests/ogg_packet_tool
-```
+`tools/core1_bench.py` measures the core-1 programs now.
 
 ## Desktop simulator
 

@@ -7,8 +7,8 @@ A `.gtheme` is data: metadata, a complete RGB565 palette, a bounded image direct
 Put `theme.json` or `theme.toml` and opaque PNG assets in one source folder. Build with Python 3 and Pillow:
 
 ```sh
-python3 tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
-python3 tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
+python3 firmware/tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
+python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
 ```
 
 Copy the resulting file into `.gnarlyr/themes` on the SD card, or internal storage when using no card. Eject normally, then open Settings → Theme. The five built-ins precede installed packs. Highlight previews; Play saves; Back cancels. The simulator uses the same files and validator: with `--card`, put packs in that card directory's `.gnarlyr/themes`; without a card, put them in `<system-dir>/themes`.
@@ -137,7 +137,7 @@ The player validates the entire file, including CRC and every asset bound, befor
 
 The loader, parser, catalogue, selection writer and Theme screen live in the demand-loaded listening module. Only palette application and bounded blitting stay resident. Active metadata and descriptors are copied into resident caller-owned state; no pointers into evictable BSS survive. The catalogue shares the existing listening/lyrics/smart-list work union, and rebuilds after module eviction or a change of owner. CRC/signature reads service audio between 512-byte chunks.
 
-Rendering reads only the clipped pixels into the existing strip canvas. Full-width strips use one contiguous read; partial rectangles read row segments. A fixed 64-byte cache holds one small tile or icon, never a full-screen image. A failed image read disables pack artwork and falls back to ordinary drawing. Selection lives on internal storage in `/.gnarlyr/theme.bin`: two 512-byte `DSTS` version-1 store banks with generation, payload hash and verified read-back. Its 17-byte payload is the UUID plus built-in base index. Choosing a built-in stores a zero UUID. Settings v15 is unchanged. An absent/damaged selected pack at startup uses Neon Noir, the built-in default; removing a card cannot prevent startup. An unavailable listening module leaves built-in drawing usable.
+Rendering reads only the clipped pixels into the existing strip canvas. Full-width strips use one contiguous read; partial rectangles read row segments. A fixed 64-byte cache holds one small tile or icon, never a full-screen image. A failed image read disables pack artwork and falls back to ordinary drawing. Selection lives on internal storage in `/.gnarlyr/theme.bin`: two 512-byte `DSTS` version-1 store banks with generation, payload hash and verified read-back. Its 17-byte payload is the UUID plus built-in base index. Choosing a built-in stores a zero UUID. An absent/damaged selected pack at startup uses Neon Noir, the built-in default; removing a card cannot prevent startup. An unavailable listening module leaves built-in drawing usable.
 
 ## Optional signatures and trust
 
@@ -156,8 +156,8 @@ Ed25519ph signs every preceding byte, including metadata, UUID, palette, descrip
 Signing/checking also require libsodium, loaded through Python's standard `ctypes` (`brew install libsodium` on macOS). A private-key input is a 32-byte seed, raw or 64 hex digits. Public-key inputs use the same raw/hex lengths:
 
 ```sh
-python3 tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/signed.gtheme --sign-key /path/to/private-seed --public-key-out /Volumes/Scratch/SnowskyEcho/public.key
-python3 tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/signed.gtheme --verify-key /Volumes/Scratch/SnowskyEcho/public.key
+python3 firmware/tools/theme_pack.py examples/themes/pocket-scope --output /Volumes/Scratch/SnowskyEcho/signed.gtheme --sign-key /path/to/private-seed --public-key-out /Volumes/Scratch/SnowskyEcho/public.key
+python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/signed.gtheme --verify-key /Volumes/Scratch/SnowskyEcho/public.key
 ```
 
 Without a matching public key, `--check` reports `unknown-key` while checking all ordinary data. With a matching key it verifies the signature and fails on a forgery. Firmware verification uses pinned Monocypher 4.0.2 in the cold module, never resident code. `theme_trusted_keys.h` holds a build-time list of at most four key IDs/public keys; it ships empty until the owner provisions gallery keys. Thus this build does not award Verified badges. Adding keys requires a fresh size-budget check; unused verification code is discarded when there are no keys.

@@ -7,7 +7,7 @@ from echo_image_harness import (
     EchoImageHarness,
     main,
     FNV_PRIME,
-    FNV_START,
+    fnv1a,
     IDENTITY,
     PROJECT,
     summary,
@@ -38,9 +38,7 @@ COST_TRACKS = 10
 
 
 def guard_mark(path, size, phase):
-    key = FNV_START
-    for byte in path.encode("utf-8"):
-        key = ((key ^ byte) * FNV_PRIME) & 0xFFFFFFFF
+    key = fnv1a(path.encode("utf-8"))
     key = ((key ^ size) * FNV_PRIME) & 0xFFFFFFFF
     return (key & ~PHASE_MASK & 0xFFFFFFFF) | phase
 

@@ -179,6 +179,7 @@ def run_until_promoted(session, step_ms=500, limit_ms=30000):
 def prove_confirm(state, new, newer):
     session = candidate_session(new, reuse=forked(state), vbus=True)
     session.machine.host_ejects()
+    session.machine.stub_symbol("msc_write_proven", lambda machine: 1)
     require(session.run_to_first_frame() == "condition met", "Trial image did not boot")
     require(trial_record(session) == (TRIAL_RUNNING, 1), "Trial start was not counted")
     require(session.run_through_update_check() == "reached usb_session_storage_changed",

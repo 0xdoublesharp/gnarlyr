@@ -4,6 +4,7 @@
 
 #include "big_library.h"
 #include "check.h"
+#include "core/bytes.h"
 #include "fixture_library.h"
 #include "playback/play_queue.h"
 
@@ -47,18 +48,12 @@ static PlayQueue *built(BrowseQuery source, uint16_t anchor, ShuffleMode shuffle
     return &queue;
 }
 
-static void put16(uint8_t *bytes, uint16_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-}
-
 static void set_album_range(uint16_t album, uint16_t first_track, uint16_t track_count)
 {
     LibrarySectionInfo section = fixture.library.sections[LIBRARY_ALBUMS];
     uint8_t *record = fixture.bytes + section.offset + album * section.record_size;
-    put16(record + 10, first_track);
-    put16(record + 12, track_count);
+    bytes_put_le16(record + 10, first_track);
+    bytes_put_le16(record + 12, track_count);
 }
 
 static int current_track(const PlayQueue *built_queue)

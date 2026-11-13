@@ -63,8 +63,10 @@ class UsbAudioHost:
         self.rx.append((endpoint, payload, packet_type))
         control = 0xB00 + endpoint * 0x20
         self.core.regs[control] = self.core.regs.get(control, 0) & ~(1 << 31)
-        event = 8 if packet_type == 6 else 1
-        self.core.regs[control + 8] = self.core.regs.get(control + 8, 0) | event
+        if packet_type == 6:
+            self.rx.append((endpoint, b"", 4))
+            return
+        self.core.regs[control + 8] = self.core.regs.get(control + 8, 0) | 1
 
     def complete_request(self):
         if self.pending is None:
@@ -146,6 +148,9 @@ class UsbAudioHost:
             return incoming | out
         if offset == 0x020:
             endpoint, payload, packet_type = self.rx.popleft()
+            if packet_type == 4:
+                control = 0xB00 + endpoint * 0x20
+                self.core.regs[control + 8] = self.core.regs.get(control + 8, 0) | 8
             self.words.extend(struct.unpack("<%dI" % ((len(payload) + 3) // 4), payload + bytes(-len(payload) % 4)))
             return endpoint | len(payload) << 4 | packet_type << 17
         if offset == 0x1000:

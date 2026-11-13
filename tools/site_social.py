@@ -12,10 +12,11 @@ import subprocess
 import tempfile
 from urllib.parse import urlsplit
 
+from echo_debug import IDENTITY
+
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho/tmp/site-social")
-IDENTITY = json.loads((ROOT / "firmware/identity.json").read_text())
 MANAGED = {
     "og:site_name", "og:locale", "og:image", "og:image:secure_url", "og:image:type",
     "og:image:width", "og:image:height", "og:image:alt", "twitter:card",

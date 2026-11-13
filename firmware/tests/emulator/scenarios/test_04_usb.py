@@ -32,7 +32,9 @@ from echo_image_harness import (
     LEAVE_FORCE_HOLD_MS,
     LEAVE_GRACE_MS,
     LEAVE_HOLD_MS,
+    KEY_MENU,
     TRAFFIC_MEASURE_MS,
+    lang_pack,
 )
 
 TRAFFIC_SAMPLE_MS = 500
@@ -41,6 +43,16 @@ CAPTURE_GAP_MS = TRAFFIC_SAMPLE_MS
 LIGHT_FRAMES_PER_S = 25
 HOST_SECTORS_PER_MS = 40
 BACK_TAP_MS = 150
+NUDGE_MS = 1500
+CARD_LUN = 1
+CARD_LATE_MS = 1000
+CARD_RETRY_MS = 1000
+CARD_FOLLOW_SLACK_MS = 100
+
+
+def string_id(name):
+    segments = lang_pack.read_segments(lang_pack.read_catalogue())
+    return [entry for _, names in segments for entry in names].index(name)
 
 
 class EchoImageTest(EchoImageHarness):
@@ -395,7 +407,7 @@ class EchoImageTest(EchoImageHarness):
                 png = echo_debug.png_bytes(480, count // 480, echo_debug.rgb888(pixels, count))
                 Path(directory, "copy-frame-%d.png" % (frame + 1)).write_bytes(png)
 
-    def test_a_back_tap_shows_the_details_without_leaving(self):
+    def test_menu_shows_the_details_and_a_back_tap_only_reminds_to_hold(self):
         session, machine, _, applied, removed = self.staying_storage_session(quiet=True)
         if "usb_meter_sample" not in machine.overlays[0].symbols:
             return
@@ -405,15 +417,63 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(areas, [])
         self.hold_back(machine, BACK_TAP_MS)
         machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
+        self.assertEqual(statuses, [])
+        self.assertEqual(len(areas), 1)
+        machine.run(until_ms=machine.milliseconds() + NUDGE_MS)
+        self.assertEqual(len(areas), 2)
+        self.assertEqual(statuses, [])
+        machine.press_key(KEY_MENU, delay_ms=20, hold_ms=BACK_TAP_MS)
+        machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
         self.assertEqual(len(statuses), 1)
-        areas.clear()
-        machine.run(until_ms=machine.milliseconds() + 3000)
-        self.assertGreaterEqual(len(areas), 2)
-        self.assertLessEqual(len(areas), 4)
+        self.hold_back(machine, BACK_TAP_MS)
+        machine.run(until_ms=machine.milliseconds() + BACK_TAP_MS + 200)
+        self.assertEqual(len(statuses), 2)
         self.assertEqual(removed, [])
         self.assertEqual(applied, [])
         self.assertNotIn("usb_session_storage_changed", machine.reached)
         self.assert_healthy(session)
+
+    def test_a_card_not_ready_at_connect_appears_on_the_screen_and_to_the_host_once_it_answers(self):
+        from unicorn.arm_const import UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.card_present = True
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda machine: 0)
+        machine.stub_symbol("usb_activity_quiet", lambda machine: 1)
+        media, notes = [], []
+        machine.hook_symbol("msc_set_media", lambda: media.append(
+            (machine.milliseconds(), machine.reg(UC_ARM_REG_R1), machine.reg(UC_ARM_REG_R2),
+             machine.reg(UC_ARM_REG_R3))))
+        machine.hook_symbol("i18n_format_text", lambda: notes.append(
+            (machine.milliseconds(), machine.reg(UC_ARM_REG_R1))))
+        no_card, total = string_id("STR_USB_NO_CARD"), string_id("STR_USB_TOTAL")
+        machine.note("usb_activity_start")
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: "usb_activity_start" in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        machine.run(until_ms=machine.milliseconds() + CARD_LATE_MS)
+        self.assertEqual(media, [])
+        self.assertIn(no_card, [text for _, text in notes])
+        disk = SparseDisk(1024 * 1024)
+        Fat32Volume().write_to(disk, 0)
+        answered = machine.milliseconds()
+        machine.sd_controller.card = SdCard(disk, machine)
+        self.assertEqual(machine.run(until=lambda: bool(media),
+                                     until_ms=answered + 2 * CARD_RETRY_MS), "condition met")
+        changed_ms, lun, present, sectors = media[0]
+        self.assertEqual((lun, present, sectors), (CARD_LUN, 1, disk.sector_count))
+        self.assertLessEqual(changed_ms - answered, CARD_RETRY_MS + CARD_FOLLOW_SLACK_MS)
+        machine.run(until_ms=machine.milliseconds() + 300)
+        shown = [text for when, text in notes if when >= changed_ms]
+        self.assertIn(total, shown)
+        self.assertNotIn(no_card, shown)
+        self.assertEqual(len(media), 1)
+        self.assert_healthy(session)
+        print("\n[late card] the card drive appeared %d ms after the card answered"
+              % (changed_ms - answered))
 
 
 if __name__ == "__main__":

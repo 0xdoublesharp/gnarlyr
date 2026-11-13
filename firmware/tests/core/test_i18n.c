@@ -90,10 +90,10 @@ static void the_last_string_of_every_segment_is_reachable(void)
     i18n_detach();
 }
 
-static void a_version_one_pack_is_refused(void)
+static void a_version_two_pack_is_refused(void)
 {
     build_bracketed();
-    pack[TEST_PACK_VERSION_FIELD] = 1;
+    pack[TEST_PACK_VERSION_FIELD] = 2;
     test_pack_seal(pack, pack_size);
     I18nPackInfo info;
     CHECK(!i18n_pack_info(pack, I18N_INDEX_BYTES, &info));
@@ -130,6 +130,7 @@ static void another_magic_version_count_or_segment_count_is_refused(void)
 {
     CHECK(!attaches_after(0, 'E', true));
     CHECK(!attaches_after(TEST_PACK_VERSION_FIELD, I18N_VERSION + 1, true));
+    CHECK(!attaches_after(TEST_PACK_VERSION_FIELD, 0, true));
     CHECK(!attaches_after(TEST_PACK_COUNT_FIELD, (uint8_t)(STRING_COUNT + 1), true));
     CHECK(!attaches_after(TEST_PACK_SEGMENTS_FIELD, STRING_SEGMENT_COUNT + 1, true));
     CHECK(attaches_after(TEST_PACK_VERSION_FIELD, I18N_VERSION, true));
@@ -349,7 +350,7 @@ int main(void)
         TEST_CASE(a_sound_pack_is_attached_and_gives_its_resident_text),
         TEST_CASE(a_module_string_reads_its_segment_only_while_that_segment_is_attached),
         TEST_CASE(the_last_string_of_every_segment_is_reachable),
-        TEST_CASE(a_version_one_pack_is_refused),
+        TEST_CASE(a_version_two_pack_is_refused),
         TEST_CASE(a_pack_names_its_language_and_code),
         TEST_CASE(a_header_shorter_than_the_index_is_refused),
         TEST_CASE(another_magic_version_count_or_segment_count_is_refused),

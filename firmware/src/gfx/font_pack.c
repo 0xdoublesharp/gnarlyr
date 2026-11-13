@@ -1,4 +1,5 @@
 #include "gfx/font_pack.h"
+#include "core/bytes.h"
 
 enum {
     FACE_UNKNOWN = 0,
@@ -34,16 +35,6 @@ static PackState *state;
 static PackSlot *slots;
 static uint32_t slot_count;
 static uint32_t victim;
-
-static uint32_t le16(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8;
-}
-
-static uint32_t le32(const uint8_t *bytes)
-{
-    return le16(bytes) | le16(bytes + 2) << 16;
-}
 
 uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
 {
@@ -100,17 +91,17 @@ static bool open_face(uint32_t index, PackFace *face)
             return false;
         }
     }
-    uint32_t count = le32(header + 8);
+    uint32_t count = bytes_le32(header + 8);
     uint32_t sectors = (count + FONT_PACK_ENTRIES_PER_SECTOR - 1) / FONT_PACK_ENTRIES_PER_SECTOR;
     if (header[4] != FONT_PACK_VERSION || header[5] != FONT_PACK_ENTRY_BYTES ||
-        le16(header + 6) != FONT_PACK_ENTRIES_PER_SECTOR || count == 0 ||
+        bytes_le16(header + 6) != FONT_PACK_ENTRIES_PER_SECTOR || count == 0 ||
         sectors > FONT_PACK_MAX_DIRECTORY) {
         return false;
     }
     face->glyph_count = count;
     face->directory_count = (uint16_t)sectors;
-    face->index_offset = le32(header + 16);
-    return read_face(index, le32(header + 12), face->directory, 2 * sectors);
+    face->index_offset = bytes_le32(header + 16);
+    return read_face(index, bytes_le32(header + 12), face->directory, 2 * sectors);
 }
 
 static PackFace *ready_face(uint32_t index)
@@ -129,7 +120,7 @@ static int index_sector(const PackFace *face, uint32_t codepoint)
     int found = -1;
     while (low <= high) {
         int middle = low + (high - low) / 2;
-        if (le16(face->directory + 2 * middle) <= codepoint) {
+        if (bytes_le16(face->directory + 2 * middle) <= codepoint) {
             found = middle;
             low = middle + 1;
         } else {
@@ -158,7 +149,7 @@ static const uint8_t *find_entry(uint32_t index, const PackFace *face, uint32_t 
     while (low <= high) {
         int middle = low + (high - low) / 2;
         const uint8_t *entry = state->entries + middle * FONT_PACK_ENTRY_BYTES;
-        uint32_t found = le16(entry);
+        uint32_t found = bytes_le16(entry);
         if (found == codepoint) {
             return entry;
         }
@@ -180,7 +171,7 @@ static bool load_glyph(uint32_t index, uint32_t codepoint, PackSlot *slot)
     }
     uint32_t bytes = ((uint32_t)entry[2] * entry[3] + 1) / 2;
     if (bytes > FONT_PACK_MAX_BITMAP ||
-        (bytes > 0 && !read_face(index, le32(entry + 8), slot->bitmap, bytes))) {
+        (bytes > 0 && !read_face(index, bytes_le32(entry + 8), slot->bitmap, bytes))) {
         return false;
     }
     slot->glyph = (Glyph){.codepoint = (uint16_t)codepoint,

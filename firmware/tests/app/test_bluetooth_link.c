@@ -758,17 +758,20 @@ static void searching_disconnects_and_scans_without_reconnecting(void)
     CHECK_EQUAL(0, fake_hal_bluetooth_connect_count());
 }
 
-static void an_old_single_device_store_still_loads(void)
+static void a_store_of_another_version_loads_nothing(void)
 {
     fresh();
-    uint8_t old[42] = {'B', 'T', 1, 1, 2, 3, 4, 5, 6, 'B', 'u', 'd', 's'};
-    old[41] = 1;
-    fake_hal_add_file(BLUETOOTH_STORE_PATH, old, sizeof old);
+    uint8_t record[3 + 1 + 1 + 6 * 38 + 1] = {'B', 'T', 2, 1,   1,   1,   2,  3,
+                                              4,   5,   6, 'B', 'u', 'd', 's'};
+    fake_hal_add_file(BLUETOOTH_STORE_PATH, record, sizeof record);
     BluetoothSaved saved = stored();
+    CHECK(!saved.enabled);
+    CHECK_EQUAL(0, saved.count);
+    record[2] = 1;
+    saved = stored();
     CHECK(saved.enabled);
     CHECK_EQUAL(1, saved.count);
     CHECK(strcmp("Buds", saved.devices[0].name) == 0);
-    CHECK_EQUAL(6, saved.devices[0].address[5]);
 }
 
 static void invalid_saved_device_indices_leave_the_connection_and_store_alone(void)
@@ -1192,15 +1195,23 @@ static void a_wait_keeps_the_module_awake(void)
     CHECK(fake_hal_bluetooth_powered());
 }
 
-static void a_store_without_the_output_byte_loads_as_wired(void)
+static void a_short_or_out_of_range_store_loads_nothing(void)
 {
     fresh();
-    uint8_t record[3 + 1 + 1 + 6 * 38] = {'B', 'T', 2, 1, 1, 1, 2, 3, 4, 5, 6, 'B', 'u', 'd', 's'};
-    fake_hal_add_file(BLUETOOTH_STORE_PATH, record, sizeof record);
-    BluetoothSaved saved = stored();
-    CHECK(saved.enabled);
-    CHECK_EQUAL(1, saved.count);
-    CHECK(!saved.on_bluetooth);
+    uint8_t record[3 + 1 + 1 + 6 * 38 + 1] = {'B', 'T', 1, 1,   1,   1,   2,  3,
+                                              4,   5,   6, 'B', 'u', 'd', 's'};
+    fake_hal_add_file(BLUETOOTH_STORE_PATH, record, sizeof record - 1);
+    CHECK_EQUAL(0, stored().count);
+    static const uint8_t FIELDS[][2] = {{3, 2}, {4, 7}, {sizeof record - 1, 2}};
+    for (uint32_t at = 0; at < sizeof FIELDS / sizeof FIELDS[0]; at++) {
+        fresh();
+        fake_hal_add_file(BLUETOOTH_STORE_PATH, record, sizeof record);
+        CHECK_EQUAL(1, stored().count);
+        uint8_t kept = record[FIELDS[at][0]];
+        record[FIELDS[at][0]] = FIELDS[at][1];
+        CHECK_EQUAL(0, stored().count);
+        record[FIELDS[at][0]] = kept;
+    }
 }
 
 static void device_state_classifies_each_transient_condition(void)
@@ -1283,7 +1294,7 @@ int main(void)
         TEST_CASE(choosing_the_connected_device_disconnects_and_stays_off),
         TEST_CASE(choosing_another_device_switches_to_it),
         TEST_CASE(searching_disconnects_and_scans_without_reconnecting),
-        TEST_CASE(an_old_single_device_store_still_loads),
+        TEST_CASE(a_store_of_another_version_loads_nothing),
         TEST_CASE(forgetting_disconnects_and_clears_the_device),
         TEST_CASE(sleeping_an_enabled_module_is_idempotent_and_resume_wakes_it),
         TEST_CASE(choosing_a_different_device_during_paired_confirmation_resets_the_old_one),
@@ -1308,7 +1319,7 @@ int main(void)
         TEST_CASE(headphones_disconnected_on_purpose_are_not_waited_for),
         TEST_CASE(headphones_back_in_range_reconnect_without_playing),
         TEST_CASE(a_wait_keeps_the_module_awake),
-        TEST_CASE(a_store_without_the_output_byte_loads_as_wired),
+        TEST_CASE(a_short_or_out_of_range_store_loads_nothing),
         TEST_CASE(device_state_classifies_each_transient_condition),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
