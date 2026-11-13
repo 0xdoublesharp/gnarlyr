@@ -49,6 +49,19 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.panics, ["hal_power_off", "board_power_cut"])
         self.assert_only_the_user_volume_changed(session)
 
+    def test_a_long_power_press_folds_the_wireframe_before_the_power_is_cut(self):
+        session = self.session()
+        machine = session.machine
+        session.run_to_home_screen()
+        machine.run(until_ms=COLD_REPORT_MS + 500)
+        frames = machine.trace("wire_boot_fade")
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
+                         "firmware reached hal_power_off")
+        self.assertGreaterEqual(len(frames), 3)
+        self.assertLessEqual(machine.milliseconds() - frames[0], 600)
+        self.assertEqual(machine.faults, [])
+
     def test_switching_off_on_usb_power_saves_a_report_on_the_way_into_charge_mode(self):
         for screen_off in (False, True):
             with self.subTest(screen_off=screen_off):

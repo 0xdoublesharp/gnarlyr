@@ -35,6 +35,7 @@
 #include "scan_guard.h"
 #include "screen_modules.h"
 #include "screens/charge_screen.h"
+#include "screens/wire_boot.h"
 #include "settings/equalizer_slots.h"
 #include "settings/headphone_profile.h"
 #include "settings/settings.h"
@@ -2895,13 +2896,66 @@ static void the_splash_ignores_keys_until_it_ends(void)
     CHECK(title_is("Music"));
 }
 
-static void the_splash_draws_over_the_home_screen(void)
+static void start_with_the_animation_off(void)
 {
     start_app();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.startup_animation = false;
+    CHECK(settings_store_save(&store));
+    restart_app();
+}
+
+static void the_splash_draws_over_the_home_screen(void)
+{
+    start_with_the_animation_off();
     app_show_splash();
     wait_ms(SPLASH_FADE_MS);
     Rect content = theme_content_area(expected_theme());
     CHECK_EQUAL(NOTICE_THEME.colors.background, fake_hal_pixel(content.x + 2, content.y + 4));
+}
+
+static bool wire_horizon_shown(void)
+{
+    const Theme *theme = expected_theme();
+    int horizon = theme->metrics.screen_height * 9 / 16;
+    return fake_hal_pixel(theme->metrics.screen_width / 2, horizon) == theme->colors.accent;
+}
+
+static void still_on_the_splash_after_the_wireframe_length(void)
+{
+    wait_ms(WIRE_BOOT_OPEN_MS + 50);
+    tap(KEY_PLAY);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    wait_ms(SPLASH_MS);
+    tap(KEY_PLAY);
+    CHECK(title_is("Music"));
+}
+
+static void the_start_flies_in_a_wireframe_and_hands_over_to_home_sooner(void)
+{
+    start_app();
+    app_show_splash();
+    wait_ms(WIRE_BOOT_OPEN_MS - 40);
+    CHECK(wire_horizon_shown());
+    wait_ms(40);
+    tap(KEY_PLAY);
+    CHECK(title_is("Music"));
+}
+
+static void a_start_after_a_notice_keeps_the_plain_splash(void)
+{
+    start_app();
+    app_show_notice(FIRMWARE_SHORT_NAME, "Notice");
+    app_show_splash();
+    still_on_the_splash_after_the_wireframe_length();
+}
+
+static void a_start_with_the_animation_off_keeps_the_plain_splash(void)
+{
+    start_with_the_animation_off();
+    app_show_splash();
+    still_on_the_splash_after_the_wireframe_length();
 }
 
 static bool toast_is(const char *expected)
@@ -3870,6 +3924,55 @@ static void an_empty_battery_saves_and_turns_the_player_off(void)
     CHECK(fake_hal_write_count() > writes);
     wait_ms(GOODBYE_MS);
     CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
+static void a_long_power_press_folds_the_wireframe_in_half_a_second(void)
+{
+    start_app_with_library();
+    hold_power();
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    wait_ms(WIRE_BOOT_CLOSE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
+static void a_power_press_in_settings_keeps_the_plain_goodbye(void)
+{
+    start_app_with_library();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Settings"));
+    hold_power();
+    wait_ms(WIRE_BOOT_CLOSE_MS + 50);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
+static void an_empty_battery_keeps_the_plain_goodbye(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 0, .millivolts = 3400});
+    wait_ms(300);
+    wait_ms(1900);
+    wait_ms(300);
+    wait_ms(WIRE_BOOT_CLOSE_MS + 50);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
+static void leaving_the_charge_screen_keeps_the_plain_splash(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    hold_power();
+    CHECK(!app_charging());
+    still_on_the_splash_after_the_wireframe_length();
 }
 
 static void an_empty_battery_on_usb_power_keeps_playing(void)
@@ -6407,6 +6510,13 @@ int main(void)
         TEST_CASE(keys_are_ignored_while_saying_goodbye),
         TEST_CASE(the_splash_ignores_keys_until_it_ends),
         TEST_CASE(the_splash_draws_over_the_home_screen),
+        TEST_CASE(the_start_flies_in_a_wireframe_and_hands_over_to_home_sooner),
+        TEST_CASE(a_start_after_a_notice_keeps_the_plain_splash),
+        TEST_CASE(a_start_with_the_animation_off_keeps_the_plain_splash),
+        TEST_CASE(a_long_power_press_folds_the_wireframe_in_half_a_second),
+        TEST_CASE(a_power_press_in_settings_keeps_the_plain_goodbye),
+        TEST_CASE(an_empty_battery_keeps_the_plain_goodbye),
+        TEST_CASE(leaving_the_charge_screen_keeps_the_plain_splash),
         TEST_CASE(the_sleep_timer_turns_the_player_off),
         TEST_CASE(a_refused_track_says_why_it_was_skipped),
         TEST_CASE(formatting_a_paused_card_clears_the_library_and_saved_playback_state),

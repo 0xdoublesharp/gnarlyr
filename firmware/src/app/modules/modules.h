@@ -8,12 +8,14 @@
 #include "headphone_store.h"
 #include "library/music_fingerprint.h"
 #include "screen_modules.h"
+#include "screens/wire_boot.h"
 
 typedef struct PlayingModuleEntry {
     ScreenModuleEntry module;
     int (*section)(const BrowseScreen *browse, int index);
     ListSections (*sections)(const BrowseScreen *browse, int index);
     void (*now_playing_attach)(NowPlayingScreen *now_playing);
+    void (*wire_boot)(Canvas *canvas, const Theme *theme, const Fade *fade, const char *text);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {

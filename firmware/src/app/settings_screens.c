@@ -651,6 +651,17 @@ static void choose_standby(void *context, int index)
     settings_action_save(context);
 }
 
+static int current_startup_animation(const void *context)
+{
+    return settings_of(context)->startup_animation;
+}
+
+static void choose_startup_animation(void *context, int index)
+{
+    editable_settings(context)->startup_animation = index != 0;
+    settings_action_save(context);
+}
+
 static int current_standby_timeout(const void *context)
 {
     return settings_of(context)->standby_power_off_option;
@@ -742,6 +753,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_STANDBY_ENABLED, OFF_ON_OPTIONS, 2, current_standby, choose_standby, NULL, NULL},
     {STR_STANDBY_TIMEOUT, STANDBY_OPTIONS, 3, current_standby_timeout, choose_standby_timeout, NULL,
      NULL},
+    {STR_STARTUP_ANIMATION, OFF_ON_OPTIONS, 2, current_startup_animation, choose_startup_animation,
+     NULL, NULL},
     [SETTINGS_NOW_PLAYING_CHOICE] = {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 4,
                                      current_now_playing, choose_now_playing, NULL, NULL},
 };
@@ -805,7 +818,7 @@ static const char *choice_value(const void *context);
 static ScreenAction open_power(void *context)
 {
     SettingsScreens *screens = context;
-    for (int index = 0; index < 2; index++) {
+    for (int index = 0; index < SETTINGS_POWER_CHOICES; index++) {
         screens->power_items[index] =
             (MenuItem){.label = i18n_text(CHOICES[SETTINGS_STANDBY_CHOICE + index].title),
                        .select = open_choice,
@@ -815,7 +828,7 @@ static ScreenAction open_power(void *context)
     }
     MenuConfig config = {.title = i18n_text(STR_STANDBY_POWER),
                          .items = screens->power_items,
-                         .item_count = 2,
+                         .item_count = SETTINGS_POWER_CHOICES,
                          .theme = screens->theme,
                          .detail_below = true};
     return screen_action_push(menu_screen_init(&screens->power_menu, config));

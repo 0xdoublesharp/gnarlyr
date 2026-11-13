@@ -6,6 +6,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import EchoImageHarness, IDENTITY, main, settings_file
 
 
+STATUS_PIXELS = 480 * 30
+HOME_SETTLED_MS = 2200
+WIREFRAME_FRAMES_MINIMUM = 10
+PLAIN_SPLASH_MS = 1100
+
+
 def power_settings(press):
     return settings_file(0, b38=7, b51=0x10 if press else 0)
 
@@ -45,6 +51,26 @@ class EchoImageTest(EchoImageHarness):
             machine.run(until_ms=machine.milliseconds() + 500)
             self.assertEqual(before + int(press), len(stops))
             self.assert_healthy(session)
+
+    def test_the_wireframe_start_shows_home_sooner_than_the_plain_splash(self):
+        session = self.playback_rig().session.reboot()
+        machine, panel = session.machine, session.panel
+        splash = machine.trace('app_show_splash')
+        frames = machine.trace('wire_boot_fade')
+        changes = []
+
+        def watch():
+            if len(panel.windows) != len(changes):
+                changes.append((machine.milliseconds(), hash(tuple(panel.frame[STATUS_PIXELS:]))))
+            return False
+
+        machine.run(until=watch, until_ms=HOME_SETTLED_MS)
+        home = next(ms for ms, digest in changes if digest == changes[-1][1])
+        print('\n[boot] splash %d ms, %d wireframe frames, home %d ms, %d ms after the splash began'
+              % (splash[0], len(frames), home, home - splash[0]))
+        self.assertGreaterEqual(len(frames), WIREFRAME_FRAMES_MINIMUM)
+        self.assertLess(home - splash[0], PLAIN_SPLASH_MS)
+        self.assert_healthy(session)
 
 
 if __name__ == '__main__':

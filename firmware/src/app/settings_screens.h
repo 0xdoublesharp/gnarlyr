@@ -25,11 +25,12 @@
 #include "ui/toast.h"
 
 enum {
-    SETTINGS_CHOICE_COUNT = 40,
+    SETTINGS_CHOICE_COUNT = 41,
     SETTINGS_MAIN_CHOICE_COUNT = 32,
     SETTINGS_STATUS_CHOICE = 21,
     SETTINGS_STATUS_COUNT = 6,
     SETTINGS_STANDBY_CHOICE = SETTINGS_MAIN_CHOICE_COUNT + 5,
+    SETTINGS_POWER_CHOICES = 3,
     SETTINGS_NOW_PLAYING_CHOICE = SETTINGS_CHOICE_COUNT - 1,
     SETTINGS_LANGUAGE_CHOICE = 10,
     SETTINGS_USB_MODE_CHOICE = 19,
@@ -106,7 +107,7 @@ struct SettingsScreens {
     };
     union {
         MenuItem status_items[SETTINGS_STATUS_COUNT];
-        MenuItem power_items[2];
+        MenuItem power_items[SETTINGS_POWER_CHOICES];
     };
     union {
         ChoiceScreen choice;

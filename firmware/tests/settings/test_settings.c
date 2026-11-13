@@ -1156,9 +1156,26 @@ static void the_second_block_round_trips_and_its_checksum_guards_the_file(void)
     }
 }
 
+static void the_startup_animation_defaults_on_and_is_kept_in_bit_4_of_f0(void)
+{
+    Settings settings = settings_defaults();
+    CHECK(settings.startup_animation);
+    settings.standby_power_off_option = 2;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0, bytes[SECOND_FIELD] & 0x10);
+    settings.startup_animation = false;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0x10, bytes[SECOND_FIELD] & 0x10);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK(!decoded.startup_animation);
+    CHECK_EQUAL(2, decoded.standby_power_off_option);
+}
+
 static void each_invalid_second_block_value_is_rejected(void)
 {
-    static const uint8_t CASES[][2] = {{0, 0x10}, {0, 0x0C}, {1, 0x08}, {2, 61}, {3, 1}, {15, 1}};
+    static const uint8_t CASES[][2] = {{0, 0x20}, {0, 0x0C}, {1, 0x08}, {2, 61}, {3, 1}, {15, 1}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1286,6 +1303,7 @@ int main(void)
         TEST_CASE(a_theme_survives_saving_without_moving_existing_settings),
         TEST_CASE(button_maps_survive_a_separate_bounded_record),
         TEST_CASE(the_second_block_round_trips_and_its_checksum_guards_the_file),
+        TEST_CASE(the_startup_animation_defaults_on_and_is_kept_in_bit_4_of_f0),
         TEST_CASE(each_invalid_second_block_value_is_rejected),
         TEST_CASE(the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db),
         TEST_CASE(bluetooth_safe_start_caps_only_above_stocks_default_level),

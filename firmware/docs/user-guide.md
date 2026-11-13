@@ -282,6 +282,10 @@ After a few minutes of charging the screen adds an estimate: the gain in percent
 
 Settings → Power → Standby when switched off (off by default) changes what a tap of Power does. Instead of only turning the screen off, the player goes into standby: playback pauses, the sound output and Bluetooth switch off, and every button except Power is ignored. Tap Power again and the player is back at once, on the screen you left, with Bluetooth on again if it was on before. Auto off also goes into standby instead of switching off. After the time in Settings → Power → Power off after (30 min, 2 h, the default, or 8 h) in standby, the player switches off. Holding Power for 2 seconds still switches it off straight away.
 
+## Start and stop animation
+
+When the player turns on, a wireframe floor in the theme's accent colour flies in towards a horizon and the name rises above it, then Home appears; the whole start takes about 0.8 seconds, shorter than the plain fade it replaces. Holding Power to switch off folds the floor into the horizon line, which shrinks and fades as the screen goes dark, in about half a second; your place is saved before it starts. The fold plays when you switch off from Home, a music list, Cover Flow or Now Playing; anywhere else, and when the battery runs out, the plain fade stays. Turning on from the charge screen, or after a message about missing text or an update that was rolled back, also keeps the plain fade. Settings → Power → Start and stop animation turns both off.
+
 ## Button lock
 
 Hold ▶, then press Power while still holding it, and keep both down for about a second to lock the buttons, for example before the player goes into a pocket; do the same to unlock. While locked, a padlock shows in the top bar and every button except Power is ignored; Power still turns the screen on and off. Pressing another button shows "Hold Play+Power" if the screen is on. Locking or unlocking lights the screen to confirm. Wired headset buttons keep working. Restarting the player unlocks it.

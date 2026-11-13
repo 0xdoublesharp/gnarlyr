@@ -234,6 +234,7 @@ typedef struct Settings {
     bool status_bar_compact;
     bool standby_enabled;
     uint8_t standby_power_off_option;
+    bool startup_animation;
     uint8_t long_press_action;
     uint8_t crossfeed;
     bool skip_silence;

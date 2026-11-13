@@ -73,4 +73,5 @@ const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_PLAYING, bind),
     .section = browse_sections_at,
     .sections = browse_sections_range,
-    .now_playing_attach = now_playing_screen_attach};
+    .now_playing_attach = now_playing_screen_attach,
+    .wire_boot = wire_boot_fade};
