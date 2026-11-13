@@ -105,6 +105,26 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(again.written_ranges(), [])
         summary("trial confirmed", trial)
 
+    def test_a_trial_confirmed_with_the_cable_kept_in_reconnects_storage_without_the_chooser(self):
+        newer = self.newer_image()
+        trial = self.start(self.install_on_trial(newer), newer, vbus=True)
+        machine = trial.machine
+        machine.host_ejects()
+        self.host_writes(machine)
+        machine.note("usb_session_storage_changed")
+        modes = machine.trace("app_open_usb_modes")
+        asked = machine.trace("app_ask_usb_mode")
+        self.assertEqual(trial.run_to_first_frame(), "condition met")
+        self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertTrue(prove_upgrade.run_until_promoted(trial))
+        self.assertEqual(trial.slot_image("slot_2"), self.slot_bytes(newer))
+        self.assertEqual(modes, [])
+        self.assertIn(self.run_usb_sessions(trial, 2),
+                      ("condition met", "reached usb_session_storage_changed"))
+        self.assertEqual(machine.reached["usb_session_storage_changed"], 2)
+        self.assertEqual((modes, asked), ([], []))
+        self.assert_healthy(trial)
+
     def host_writes(self, machine):
         machine.stub_symbol("msc_write_proven", lambda machine: 1)
 
