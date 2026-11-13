@@ -164,6 +164,20 @@ static bool parse(const char *text, ParametricEq *eq, ParametricImport *parser)
 static void malformed_filters_never_publish_a_partial_curve(void)
 {
     static const char *const bad[] = {
+        "Filter",
+        "Filter 0: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7",
+        "Filter 1.5: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7",
+        "Filter 100001: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7",
+        "Filter 1",
+        "Filter 1: MAYBE PK Fc 105 Hz Gain -2.3 dB Q 0.7",
+        "Filter 1: ON",
+        "Filter 1: ON PK nope 105 Hz Gain -2.3 dB Q 0.7",
+        "Filter 1: ON PK Fc",
+        "Filter 1: ON PK Fc 105 nope Gain -2.3 dB Q 0.7",
+        "Filter 1: ON PK Fc 105 Hz nope -2.3 dB Q 0.7",
+        "Filter 1: ON PK Fc 105 Hz Gain",
+        "Filter 1: ON PK Fc 105 Hz Gain -2.3 nope Q 0.7",
+        "Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q",
         "Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.29",
         "Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 10.01",
         "Filter 1: ON PK Fc 19 Hz Gain -2.3 dB Q 0.7",
@@ -174,6 +188,9 @@ static void malformed_filters_never_publish_a_partial_curve(void)
         "Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7garbage",
         "Filter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7 extra",
         "Filter 1: ON XX Fc 105 Hz Gain -2.3 dB Q 0.7",
+        "Preamp",
+        "Preamp: 0",
+        "Preamp: 0 dB extra\nFilter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7",
         "Preamp: -61 dB\nFilter 1: ON PK Fc 105 Hz Gain -2.3 dB Q 0.7",
     };
     for (size_t index = 0; index < sizeof bad / sizeof bad[0]; index++) {
@@ -190,20 +207,49 @@ static void malformed_filters_never_publish_a_partial_curve(void)
     CHECK_EQUAL(13, eq.filters[0].gain);
 }
 
+static void aliases_comments_and_line_limits_are_explicit(void)
+{
+    const char *text = "Preamp:\t+1.2 DB # headroom\r\n"
+                       "Filter +1: ON PEQ FC 20 HZ GAIN +12 DB Q .30 # peak\n"
+                       "Filter 2: ON LSC FC 200 HZ GAIN -12 DB\n"
+                       "Filter 3: ON LS FC 300 HZ GAIN 0 DB\n"
+                       "Filter 4: ON HSC FC 19000 HZ GAIN 1 DB\n"
+                       "Filter 5: ON HS FC 20000 HZ GAIN -1 DB\n";
+    ParametricImport parser;
+    ParametricEq eq;
+    CHECK(parse(text, &eq, &parser));
+    CHECK_EQUAL(5, eq.count);
+    CHECK_EQUAL(12, eq.preamp);
+    CHECK_EQUAL(PARAMETRIC_PEAK, eq.filters[0].type);
+    CHECK_EQUAL(PARAMETRIC_LOW_SHELF, eq.filters[1].type);
+    CHECK_EQUAL(PARAMETRIC_LOW_SHELF, eq.filters[2].type);
+    CHECK_EQUAL(PARAMETRIC_HIGH_SHELF, eq.filters[3].type);
+    CHECK_EQUAL(PARAMETRIC_HIGH_SHELF, eq.filters[4].type);
+    CHECK_EQUAL(30, eq.filters[0].q);
+
+    char too_long[PARAMETRIC_LINE_BYTES + 8];
+    memset(too_long, 'x', sizeof too_long);
+    parametric_import_start(&parser);
+    parametric_import_text(&parser, too_long, sizeof too_long);
+    CHECK(parser.invalid);
+    CHECK(!parametric_import_finish(&parser, &eq));
+}
+
 static void the_ten_strongest_filters_are_kept_and_reported(void)
 {
     char text[2048];
     size_t at = 0;
-    for (int index = 1; index <= 12; index++) {
+    for (int index = 1; index <= 13; index++) {
+        int gain = index == 13 ? 0 : index % 2 == 0 ? -index : index;
         at += (size_t)snprintf(text + at, sizeof text - at,
                                "Filter %d: ON PK Fc %d Hz Gain %d dB Q 0.7\n", index, 100 * index,
-                               index % 2 == 0 ? -index : index);
+                               gain);
     }
     ParametricImport parser;
     ParametricEq eq;
     CHECK(parse(text, &eq, &parser));
     CHECK_EQUAL(10, eq.count);
-    CHECK_EQUAL(12, parser.total);
+    CHECK_EQUAL(13, parser.total);
     for (int index = 0; index < eq.count; index++) {
         CHECK(abs(eq.filters[index].gain) >= 30);
     }
@@ -231,6 +277,7 @@ int main(void)
         TEST_CASE(autoeq_filters_preserve_parameters_and_skip_off_entries),
         TEST_CASE(headroom_bounds_the_response_and_impulse_at_every_rate),
         TEST_CASE(malformed_filters_never_publish_a_partial_curve),
+        TEST_CASE(aliases_comments_and_line_limits_are_explicit),
         TEST_CASE(the_ten_strongest_filters_are_kept_and_reported),
         TEST_CASE(cascade_response_sums_filters_and_preamp_never_raises_the_safe_limit),
     };

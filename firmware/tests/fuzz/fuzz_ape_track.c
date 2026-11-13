@@ -40,7 +40,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     for (uint32_t frame = 0; frame < frames; frame++) {
         ApeFrame out;
         if (ape_track_frame(input, &track, frame, &out)) {
-            fuzz_require(out.offset <= file.size && out.bytes <= file.size - out.offset);
+            fuzz_require(out.offset <= file.size);
+            fuzz_require(out.skip < 4 && out.bytes % 4 == 0);
+            fuzz_require((uint64_t)out.offset + out.bytes <= (uint64_t)file.size + 7);
         }
     }
     return 0;

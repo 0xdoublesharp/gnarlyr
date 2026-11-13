@@ -6,6 +6,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "playback/moments.h"
+#include "screens/listening_work.h"
 #include "screens/moments_screen.h"
 
 static FixtureLibrary fixture;
@@ -119,6 +120,10 @@ static void every_visible_moment_has_a_label_in_small_portrait(void)
         choose(0, KEY_GESTURE_PRESS);
         finish();
     }
+    listening_module_work.as.moments.moments.count = MOMENTS_CAPACITY;
+    choose(0, KEY_GESTURE_PRESS);
+    CHECK(strcmp(toast.text, i18n_text(STR_MOMENTS_FULL)) == 0);
+    CHECK_EQUAL(MOMENTS_CAPACITY + 1, moments.model.count(&moments));
     for (int row = moments.list.top; row < moments.list.top + moments.list.visible_rows; row++) {
         CHECK(moments.model.label(&moments, row)[0] != 0);
     }
@@ -183,6 +188,8 @@ static void confirmation_can_be_kept_or_cancelled_without_deleting(void)
     choose(0, KEY_GESTURE_PRESS);
     finish();
     choose(1, KEY_GESTURE_LONG_PRESS);
+    CHECK(strcmp(moments.model.label(&moments, 0), i18n_text(STR_MOMENT_KEEP)) == 0);
+    CHECK(strcmp(moments.model.label(&moments, 1), i18n_text(STR_DELETE)) == 0);
     choose(0, KEY_GESTURE_PRESS);
     CHECK_EQUAL(2, moments.model.count(&moments));
 
@@ -190,6 +197,35 @@ static void confirmation_can_be_kept_or_cancelled_without_deleting(void)
     CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_BACK, KEY_GESTURE_PRESS).type);
     CHECK_EQUAL(2, moments.model.count(&moments));
     CHECK_EQUAL(SCREEN_ACTION_POP, press(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void back_aborts_pending_save_and_delete_jobs(void)
+{
+    reset();
+    CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+    choose(0, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_BACK, KEY_GESTURE_PRESS).type);
+    finish();
+    CHECK_EQUAL(1, moments.model.count(&moments));
+
+    choose(0, KEY_GESTURE_PRESS);
+    finish();
+    CHECK_EQUAL(2, moments.model.count(&moments));
+    choose(1, KEY_GESTURE_LONG_PRESS);
+    choose(1, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_BACK, KEY_GESTURE_PRESS).type);
+    finish();
+    CHECK_EQUAL(2, moments.model.count(&moments));
+}
+
+static void navigation_and_an_unowned_update_leave_the_list_stable(void)
+{
+    reset();
+    CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_VOLUME_UP, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS).type);
+    listening_module_work.owner = NULL;
+    screen->update(screen->context, 200);
+    CHECK_EQUAL(1, moments.model.count(&moments));
 }
 
 static void home_always_leaves_the_nested_confirmation(void)
@@ -212,6 +248,8 @@ int main(void)
         TEST_CASE(a_moment_at_zero_overrides_a_spoken_bookmark_before_audio_starts),
         TEST_CASE(save_reports_storage_creation_and_verification_failures),
         TEST_CASE(confirmation_can_be_kept_or_cancelled_without_deleting),
+        TEST_CASE(back_aborts_pending_save_and_delete_jobs),
+        TEST_CASE(navigation_and_an_unowned_update_leave_the_list_stable),
         TEST_CASE(home_always_leaves_the_nested_confirmation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
