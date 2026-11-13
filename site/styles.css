@@ -343,3 +343,5 @@ nav a[aria-current="location"]{color:var(--mint);text-decoration:underline}
 
 .docs-hardware-link{max-width:680px;margin-top:24px}.hero-hardware-link{margin-top:18px}
 @media(max-width:700px){.header nav{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px}.header nav .nav-cta{padding-inline:8px}}
+
+.transfer-chart td{width:34%}.transfer-value{display:block;color:var(--paper);font-family:var(--mono);font-variant-numeric:tabular-nums}.transfer-track{display:block;height:7px;margin-top:8px;background:var(--line)}.transfer-bar{display:block;height:100%}.transfer-bar.stock{background:var(--muted)}.transfer-bar.gnarlyr{background:var(--mint)}.transfer-method{margin-top:18px;color:var(--muted);font-size:13px}

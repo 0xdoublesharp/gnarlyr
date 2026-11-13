@@ -51,6 +51,7 @@
 </li>
 <li><a href="#usb">USB and Bluetooth</a>
 </li>
+<li><a href="#usb-speed">USB transfer speeds</a></li>
 <li><a href="#memory">Storage, memory and power</a>
 </li>
 <li><a href="#potential-ports">Potential ports</a></li>
@@ -179,6 +180,7 @@
 <p><a href="install.html#usb">How the USB changes affect updates →</a>
 </p>
 </section>
+<section class="doc-section" id="usb-speed" aria-labelledby="usb-speed-title"><h2 id="usb-speed-title">About twice the microSD transfer speed.</h2><p class="intro">On the same ECHO and microSD card, Gnarlyr recorded 12.81 MB/s writing and 14.90 MB/s reading. Stock 2.0.0 recorded 5.95 and 6.90 MB/s in the same file-transfer test.</p><table class="data-table transfer-chart"><caption>Recorded USB throughput · MB/s · higher is faster</caption><thead><tr><th scope="col">Storage / direction</th><th scope="col">Stock 2.0.0</th><th scope="col">Gnarlyr</th></tr></thead><tbody><tr><th scope="row">Internal · write</th><td><span class="transfer-value">8.85</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:44.25%"></span></span></td><td><span class="transfer-value">9.05</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:45.25%"></span></span></td></tr><tr><th scope="row">Internal · read</th><td><span class="transfer-value">10.93</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:54.65%"></span></span></td><td><span class="transfer-value">16.65</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:83.25%"></span></span></td></tr><tr><th scope="row">microSD · write</th><td><span class="transfer-value">5.95</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:29.75%"></span></span></td><td><span class="transfer-value">12.81</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:64.05%"></span></span></td></tr><tr><th scope="row">microSD · read</th><td><span class="transfer-value">6.90</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:34.50%"></span></span></td><td><span class="transfer-value">14.90</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:74.50%"></span></span></td></tr></tbody></table><p class="transfer-method">Single runs on 13 November 2026, using Gnarlyr build <code>68f3450</code>. Each drive transferred eight 16 MiB files (128 MiB total) with uncached macOS file I/O. Writes include flushing and unmounting; reads include SHA-256 verification after remounting. All 16 files verified in each run. Bars share a 0–20 MB/s scale. Results depend on the computer, cable, card and files.</p></section>
 <section class="doc-section" id="memory" aria-labelledby="memory-title">
 <h2 id="memory-title">Storage and working memory.
 </h2>
