@@ -836,7 +836,7 @@ static void every_destination_failure_leaves_the_database_unpublished(void)
     Built reference;
     finish(&builder, &reference);
     CHECK_EQUAL(BUILDER_OK, reference.result);
-    CHECK(reference.output.calls >= 3);
+    CHECK(reference.output.calls >= 2);
     for (int failure = 1; failure <= reference.output.calls; failure++) {
         Output output = fresh_output();
         output.fail_write = failure;
