@@ -6,7 +6,7 @@ The cassette artwork is an original inline SVG, not a device photograph or firmw
 
 The Docs screenshots are product assets under `site/assets/screens/`, generated from the real firmware simulator with a silent sample library. They illustrate the interface and do not establish device behavior. Keep final public image assets under `site/assets/`; the publisher includes that directory. Do not add empty screenshot placeholders or claim that the cassette illustration is a screenshot.
 
-DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the nine HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those sixteen root files and optional image assets; this README and `deploy/` stay outside the served release.
+DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the eight public HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those fifteen root files and optional image assets; this README and `deploy/` stay outside the served release.
 
 Firmware feature copy follows `main` through `40a6f193`, including scan-phase progress, panel DMA, screen-off scheduling, wireframe start/stop, card startup and the USB reconnect cycle. The five USB product images use the native renderer with fixed-width figures and the updated headers through `ebcbe065`; other firmware images retain the simulator capture baseline `22924eb2`. This includes four Now Playing styles, data-only theme packs, crossfeed and speech controls, hide/delete track actions, language packs and USB session statistics, alongside the existing listening and playback features. Installation references cover trial confirmation and rollback; known USB-audio acceptance limits stay in Developers. Technical hardware documentation explains the two cores, DMA, reusable memory banks and analog-output changes; host and physical audio acceptance stays in the developer guide. Home puts Clock above USB mode, and storage guidance covers Gnarlyr internal storage, newly formatted GnarlySD cards and preserved custom labels. The seven Settings views and the lower Quick Settings view remain visible by default. The browser language catalogue is exported from the same firmware snapshot. Keep plans and validation work in firmware documentation and ignored notes; simulator captures show the interface, not physical-device validation.
 
@@ -100,7 +100,7 @@ The supplied product screenshots identify all three as the full-size ECHO. Keep 
 
 ## Companion screenshots and availability
 
-The companion page links from Home, Docs, Features and the shared navigation. The desktop screenshots are product assets under `site/assets/companion/`; they use a sample music library and synthetic player folders, never the owner’s player. Desktop images use a window frame rather than the firmware’s player outline.
+The Companion page is temporarily hidden. Its HTML, screenshots and social card remain in source but are excluded from publication; navigation, promotions and the sitemap omit it. The desktop screenshots are product assets under `site/assets/companion/`; they use a sample music library and synthetic player folders, never the owner’s player. Desktop images use a window frame rather than the firmware’s player outline.
 
 ```sh
 node tools/site_companion_screenshots.mjs --source-root /path/to/gnarlyr-companion

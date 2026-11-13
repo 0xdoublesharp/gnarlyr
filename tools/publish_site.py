@@ -18,7 +18,7 @@ SITE = ROOT / "site"
 PUBLIC_FILES = (
     "index.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
     "styles.css", "site.js", "favicon.svg", "robots.txt", "sitemap.xml",
-    "languages.html", "language-catalog.js", "language-packs.js", "companion.html",
+    "languages.html", "language-catalog.js", "language-packs.js",
 )
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".avif"}
 
@@ -36,6 +36,9 @@ def public_files():
                 continue
             if path.suffix.lower() not in IMAGE_SUFFIXES:
                 raise SystemExit(f"Only public images belong under site/assets: {path}")
+            relative = path.relative_to(SITE).as_posix()
+            if relative.startswith(("assets/companion/", "assets/social/companion-")):
+                continue
             paths.append(path)
     files = {}
     total = 0
