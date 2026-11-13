@@ -61,9 +61,10 @@ class EchoImageTest(EchoImageHarness):
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, 11, 600, lambda byte: byte ^ 0xFF)
         self.assertEqual(session.run_to_home_screen(), "condition met")
-        reads = [session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")]
-        self.assertTrue(all(reads))
+        self.assertTrue(all(session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")))
         machine = session.machine
+        machine.run(until_ms=image_tests.STARTUP_SETTLED_MS)
+        reads = [session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")]
         machine.run(until_ms=machine.milliseconds() + 1500)
         self.assertEqual(reads, [session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")])
         self.open_settings(machine)
@@ -71,6 +72,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         self.press(machine, image_tests.KEY_BACK)
         self.assertTrue(settings.loaded(machine))
+        self.assertEqual(reads, [session.module_reads(slot, 11) for slot in ("slot_1", "slot_2")])
         self.assert_healthy(session)
 
     def test_usb_draws_its_backdrop_with_playing_art_unavailable(self):
