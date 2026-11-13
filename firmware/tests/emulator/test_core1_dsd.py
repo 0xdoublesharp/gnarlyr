@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 
 from dsd_fixture import signal, dsf, dff
-from echo_emulator.core1 import Core1, decode_stream
+from echo_emulator.core1 import CLOCK_100_MHZ, CLOCK_200_MHZ, Core1, decode_stream
 
 ARGUMENTS = {}
 
@@ -84,17 +84,17 @@ class DsdProgramTest(unittest.TestCase):
                     break
             else:
                 self.fail("DSD did not fill both output slots")
-            expected = {0x70001000} if ratio == 1 and channels == 1 else {0x70001000, 0x70000000}
+            demanding = ratio > 1 or channels > 1
+            expected = {CLOCK_100_MHZ, CLOCK_200_MHZ} if demanding else set()
             self.assertEqual(expected, set(machine.clock_writes))
             machine.clock_writes.clear()
             for _ in range(10):
                 machine.run_slice()
-            idle = set() if ratio == 1 and channels == 1 else {0x70001000, 0x70000000}
-            self.assertEqual(idle, set(machine.clock_writes))
+            self.assertEqual(expected, set(machine.clock_writes))
             machine.set_control("generation", 0)
             for _ in range(10):
                 machine.run_slice()
-            self.assertEqual(0x70001000, machine.clock_writes[-1])
+            self.assertEqual(CLOCK_100_MHZ, machine.clock)
             for slot in (0, 1):
                 machine.put(0x01020134 + slot * 20, 0)
 
