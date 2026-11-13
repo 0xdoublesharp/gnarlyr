@@ -310,14 +310,19 @@ static void every_chooser_fits_every_size_and_orientation(void)
 
 static void portrait_rows_use_short_names_while_landscape_keeps_the_full_titles(void)
 {
-    static const char *const SHORT[] = {"Computer", "Charge", "USB power", "USB audio"};
+    static const char *const SHORT[] = {"Computer", "Charge/Play", "USB power", "USB audio"};
     static const char *const FULL[] = {"Connect to computer", "Charge & play", "Run from USB power",
                                        "USB audio (DAC)"};
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         open_chooser(true);
         use_theme(0, ORIENTATION_PORTRAIT, size);
+        const PlugChooser *chooser = &screens.usb;
+        PlugChooserLayout layout =
+            plug_chooser_layout(&theme, plug_chooser_footer_rows(chooser), chooser->choices.count);
         for (int row = 0; row < 4; row++) {
             CHECK(strcmp(SHORT[row], label(row)) == 0);
+            CHECK(text_width(theme.fonts.body, label(row)) <=
+                  layout.list.width - 4 * theme.metrics.padding);
         }
         use_theme(0, ORIENTATION_LANDSCAPE, size);
         for (int row = 0; row < 4; row++) {
