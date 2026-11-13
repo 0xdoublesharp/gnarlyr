@@ -28,33 +28,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 #include "filter.h"
 #include "demac_config.h"
      
-#if FILTER_BITS == 32
-
-#if defined(CPU_ARM) && (ARM_ARCH == 4)
-#include "vector_math32_armv4.h"
-#else
 #include "vector_math_generic.h"
-#endif
-
-#else /* FILTER_BITS == 16 */
-
-#ifdef CPU_COLDFIRE
-#include "vector_math16_cf.h"
-#elif defined(CPU_ARM) && (ARM_ARCH >= 7) && defined(__ARM_NEON__)
-#include "vector_math16_armv7.h"
-#elif defined(CPU_ARM) && (ARM_ARCH >= 6)
-#include "vector_math16_armv6.h"
-#elif defined(CPU_ARM) && (ARM_ARCH >= 5)
-/* Assume all our ARMv5 targets are ARMv5te(j) */
-#include "vector_math16_armv5te.h"
-#elif (defined(__i386__) || defined(__i486__))  && defined(__MMX__) \
-    || defined(__x86_64__)
-#include "vector_math16_mmx.h"
-#else
-#include "vector_math_generic.h"
-#endif
-
-#endif /* FILTER_BITS */
 
 struct filter_t {
     filter_int* coeffs; /* ORDER entries */
