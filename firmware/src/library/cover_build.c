@@ -341,12 +341,12 @@ static bool read_track_path(CoverState *state, uint32_t track_index, LibraryTrac
                                sizeof state->path - 1);
 }
 
-static bool open_embedded(CoverState *state, const CoverJob *job, ArtFile *art)
+static bool open_embedded(CoverState *state, const CoverJob *job, uint32_t index, ArtFile *art)
 {
     LibraryTrack track;
     ByteSource source;
     uint32_t size = 0;
-    if (!read_track_path(state, state->album.first_track, &track) ||
+    if (!read_track_path(state, state->album.first_track + index, &track) ||
         !job->files.open_file(job->files.context, state->path, &source, &size)) {
         return false;
     }
@@ -617,8 +617,12 @@ static ScanResult cover_album(CoverState *state, const CoverJob *job, CoverStats
 {
     ArtFile art;
     Placement placement = PLACE_UNREADABLE;
-    if (state->album.track_count > 0 && open_embedded(state, job, &art)) {
-        placement = place_opened(state, job, &art, stats);
+    for (uint32_t index = 0;
+         index < state->album.track_count && placement == PLACE_UNREADABLE && !stop_requested(job);
+         index++) {
+        if (open_embedded(state, job, index, &art)) {
+            placement = place_opened(state, job, &art, stats);
+        }
     }
     if (placement == PLACE_UNREADABLE && state->album.track_count > 0 &&
         open_folder_art(state, job, &art)) {

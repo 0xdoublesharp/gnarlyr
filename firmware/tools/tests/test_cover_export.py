@@ -166,13 +166,31 @@ class ArtSearchTest(unittest.TestCase):
     def test_an_album_without_art_has_none(self):
         self.assertIsNone(self.found_color())
 
-    def test_only_the_first_track_is_read(self):
+    def test_later_tracks_supply_art_when_the_first_has_none(self):
         second = self.album / "02 - Other.flac"
         write_silent_flac(second, 1)
         add_picture(second, image_bytes((255, 0, 0)), 3)
         data = cover_export.find_art(self.root, ["Artist/Album/01 - Song.flac",
                                                  "Artist/Album/02 - Other.flac"])
-        self.assertIsNone(data)
+        self.assertEqual((255, 0, 0), Image.open(io.BytesIO(data)).getpixel((0, 0)))
+
+    def test_later_embedded_art_precedes_folder_art(self):
+        second = self.album / "02 - Other.flac"
+        write_silent_flac(second, 1)
+        add_picture(second, image_bytes((255, 0, 0)), 3)
+        (self.album / "cover.png").write_bytes(image_bytes((0, 0, 255)))
+        data = cover_export.find_art(self.root, ["Artist/Album/01 - Song.flac",
+                                                 "Artist/Album/02 - Other.flac"])
+        self.assertEqual((255, 0, 0), Image.open(io.BytesIO(data)).getpixel((0, 0)))
+
+    def test_a_later_track_replaces_undecodable_embedded_art(self):
+        add_picture(self.track, b"not an image", 3)
+        second = self.album / "02 - Other.flac"
+        write_silent_flac(second, 1)
+        add_picture(second, image_bytes((255, 0, 0)), 3)
+        data = cover_export.find_art(self.root, ["Artist/Album/01 - Song.flac",
+                                                 "Artist/Album/02 - Other.flac"])
+        self.assertEqual((255, 0, 0), Image.open(io.BytesIO(data)).getpixel((0, 0)))
 
     def test_folder_images_are_ordered_by_their_name_bytes_as_on_the_player(self):
         (self.album / "folder.jpg").write_bytes(image_bytes((0, 0, 255), image_format="JPEG"))

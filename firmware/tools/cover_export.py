@@ -263,8 +263,11 @@ def embedded_art(root, first):
 def locate_art(root, relative_paths):
     if not relative_paths:
         return None
-    art = usable(embedded_art(root, relative_paths[0]))
-    return art if art is not None else usable(folder_art(root, relative_paths))
+    for relative in relative_paths:
+        art = usable(embedded_art(root, relative))
+        if art is not None:
+            return art
+    return usable(folder_art(root, relative_paths))
 
 
 def find_art(root, relative_paths):
