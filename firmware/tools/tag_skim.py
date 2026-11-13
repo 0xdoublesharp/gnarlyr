@@ -139,7 +139,7 @@ class SkimmingReader(io.RawIOBase):
         view, filled = memoryview(buffer).cast("B"), 0
         while filled < len(view) and self.position < self.size:
             end, skipped = self.span_at(self.position)
-            limit = min(len(view) - filled, end - self.position)
+            limit = min(len(view) - filled, end - self.position, self.size - self.position)
             count = self.read_span(view, filled, limit, skipped)
             if count == 0:
                 break
