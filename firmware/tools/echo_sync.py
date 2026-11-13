@@ -1,8 +1,10 @@
 import argparse
+import contextlib
 import importlib.util
 import os
 import re
 import string
+import stat
 import struct
 import subprocess
 import sys
@@ -61,6 +63,7 @@ class CardFile:
 
 
 LIBRARY_FILE = CardFile("library.db", 4 * MEBIBYTE, library_index.HEADER_SIZE)
+MAX_LIBRARY_BYTES = 128 * MEBIBYTE
 COVERS_FILE = CardFile("covers.bin", 80 * MEBIBYTE, cover_export.HEADER.size)
 SCAN_FILE = CardFile("scan.bin", 4096, SCAN_RECORD.size)
 
@@ -229,7 +232,7 @@ def stored_version(data):
 
 def read_prefix(path, length):
     try:
-        with open(path, "rb") as file:
+        with open_card_file(path, writable=False) as file:
             return file.read(length)
     except OSError:
         return b""
@@ -248,11 +251,20 @@ def existing_size(path):
         return None
 
 
+def write_all(file, data):
+    position = 0
+    while position < len(data):
+        written = file.write(data[position:])
+        if not written:
+            raise OSError("the cache stopped accepting data")
+        position += written
+
+
 def zero_fill(file, start, end):
     file.seek(start)
     while start < end:
         length = min(WRITE_CHUNK_BYTES, end - start)
-        file.write(bytes(length))
+        write_all(file, bytes(length))
         start += length
 
 
@@ -261,28 +273,92 @@ def settle(file):
     os.fsync(file.fileno())
 
 
+def checked_cache_folder(folder):
+    if folder.resolve() != folder.absolute():
+        raise SyncError(f"{folder} contains a symbolic link. Nothing was written.")
+    return folder.stat(follow_symlinks=False)
+
+
+def same_file(first, second):
+    return (first.st_dev, first.st_ino) == (second.st_dev, second.st_ino)
+
+
+@contextlib.contextmanager
+def open_card_file(path, create=False, writable=True):
+    path = path.absolute()
+    parent = checked_cache_folder(path.parent)
+    flags = (os.O_RDWR if writable else os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
+    if create:
+        flags |= os.O_CREAT
+    directory = None
+    descriptor = None
+    try:
+        if os.open in os.supports_dir_fd:
+            directory = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) |
+                                getattr(os, "O_NOFOLLOW", 0))
+            if not same_file(parent, os.fstat(directory)):
+                raise SyncError("The cache folder changed. Nothing was written.")
+            descriptor = os.open(path.name, flags, 0o600, dir_fd=directory)
+        else:
+            descriptor = os.open(path, flags, 0o600)
+        current = os.fstat(descriptor)
+        if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1 or
+                not same_file(current, path.lstat()) or
+                not same_file(parent, checked_cache_folder(path.parent))):
+            raise SyncError("The cache path changed or is linked. Nothing was written.")
+        with os.fdopen(descriptor, "r+b" if writable else "rb") as file:
+            descriptor = None
+            yield file
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if directory is not None:
+            os.close(directory)
+
+
+def verify_cache(file, data, start=0):
+    file.seek(start)
+    while start < len(data):
+        end = min(start + WRITE_CHUNK_BYTES, len(data))
+        if file.read(end - start) != data[start:end]:
+            raise OSError("the cache readback did not match")
+        start = end
+
+
 def write_card_file(path, data, card_file):
-    size = target_size(existing_size(path), len(data), card_file.standard_size)
     header = min(card_file.header_size, len(data))
-    with open(path, "r+b" if path.exists() else "w+b") as file:
-        file.write(bytes(header))
-        settle(file)
-        file.seek(header)
-        file.write(data[header:])
-        end = file.seek(0, os.SEEK_END)
-        zero_fill(file, end, size)
-        settle(file)
-        file.seek(0)
-        file.write(data[:header])
-        settle(file)
+    with open_card_file(path, create=True) as file:
+        size = target_size(os.fstat(file.fileno()).st_size, len(data), card_file.standard_size)
+        try:
+            write_all(file, bytes(header))
+            settle(file)
+            file.seek(header)
+            write_all(file, data[header:])
+            end = file.seek(0, os.SEEK_END)
+            zero_fill(file, end, size)
+            settle(file)
+            verify_cache(file, data, header)
+            file.seek(0)
+            write_all(file, data[:header])
+            settle(file)
+            verify_cache(file, data)
+        except OSError:
+            with contextlib.suppress(OSError):
+                file.seek(0)
+                write_all(file, bytes(header))
+                settle(file)
+            raise
     return size
 
 
 def forget_fingerprint(path):
-    if existing_size(path):
-        with open(path, "r+b") as file:
-            file.write(bytes(len(SCAN_MAGIC)))
-            settle(file)
+    try:
+        with open_card_file(path) as file:
+            if os.fstat(file.fileno()).st_size:
+                write_all(file, bytes(len(SCAN_MAGIC)))
+                settle(file)
+    except FileNotFoundError:
+        return
 
 
 def file_system_name(card):
@@ -440,6 +516,8 @@ def check_target(card, volume, echo_exists):
 
 
 def ensure_data_folder(folder, options, assume_yes):
+    if folder.resolve() != folder.absolute():
+        raise SyncError(f"{folder} contains a symbolic link. Nothing was written.")
     if folder.is_dir():
         return
     if options.dry_run:
@@ -497,12 +575,34 @@ def build_library(card):
     return model, data
 
 
+def cached_album_sources(path):
+    with open_card_file(path, writable=False) as file:
+        if os.fstat(file.fileno()).st_size > MAX_LIBRARY_BYTES:
+            raise ValueError("the cached library is too large")
+        data = file.read()
+    prefix = (library_index.MAGIC, library_index.VERSION, 10)
+    if len(data) < library_index.HEADER_SIZE or library_index.HEADER_PREFIX.unpack_from(data) != prefix:
+        raise ValueError("the cached library is incomplete or unsupported")
+    widths = (library_index.TRACK_RECORD.size, library_index.ALBUM_RECORD.size,
+              library_index.GROUP_RECORD.size, library_index.GROUP_RECORD.size,
+              library_index.GROUP_RECORD.size, library_index.FOLDER_RECORD.size,
+              library_index.INDEX_RECORD.size, library_index.GROUP_RECORD.size,
+              library_index.INDEX_RECORD.size, 1)
+    for index, width in enumerate(widths):
+        offset, count, stride, music = library_index.SECTION_ENTRY.unpack_from(
+            data, library_index.HEADER_PREFIX.size + index * library_index.SECTION_ENTRY.size)
+        if (offset < library_index.HEADER_SIZE or stride != width or music > count or
+                offset + count * stride > len(data) or (index < 8 and count > library_index.MAX_U16)):
+            raise ValueError("the cached library section is invalid")
+    return cover_export.album_sources_from_library(data)
+
+
 def album_sources(card, model, library_path):
     if model is not None:
         return cover_export.album_sources(model)
     try:
-        return cover_export.album_sources_from_library(library_path.read_bytes())
-    except (OSError, ValueError):
+        return cached_album_sources(library_path)
+    except (OSError, ValueError, struct.error):
         print("(no library on the card yet, reading the music first)")
         return cover_export.album_sources(build_library(card)[0])
 
@@ -521,7 +621,31 @@ def covers_capacity(path, count):
                        COVERS_FILE.standard_size)
 
 
+def check_music_paths(card):
+    folders = [card]
+    while folders:
+        with os.scandir(folders.pop()) as listing:
+            for entry in listing:
+                if entry.name.startswith("."):
+                    continue
+                if entry.is_symlink():
+                    raise SyncError(f"{entry.path} is a symbolic link. Nothing was written.")
+                if entry.is_dir(follow_symlinks=False):
+                    folders.append(Path(entry.path))
+
+
+def check_album_paths(card, sources):
+    for source in sources:
+        for relative in source.paths:
+            parts = relative.split("/")
+            if (any(part in ("", ".", "..") for part in parts) or
+                    "\\" in relative or ":" in relative or "\x00" in relative or
+                    not (card / relative).resolve().is_relative_to(card.resolve())):
+                raise SyncError("The library contains a path outside this card. Rebuild it first.")
+
+
 def build_covers(card, sources, volume, options):
+    check_album_paths(card, sources)
     step("Finding album covers...")
     covers = cover_export.collect_covers(card, sources, cover_export.cover_record,
                                          art_describer(volume))
@@ -575,8 +699,23 @@ def record_fingerprint(folder, card, volume, before, options):
     return True
 
 
+def check_cache_targets(folder):
+    try:
+        checked_cache_folder(folder)
+    except FileNotFoundError:
+        return
+    for card_file in (LIBRARY_FILE, COVERS_FILE, SCAN_FILE):
+        try:
+            with open_card_file(folder / card_file.name, writable=False):
+                pass
+        except FileNotFoundError:
+            continue
+
+
 def sync(card, volume, options):
+    check_music_paths(card)
     folder = card / DATA_FOLDER
+    check_cache_targets(folder)
     library_path = folder / LIBRARY_FILE.name
     before = None
     if options.library and options.fingerprint:
@@ -721,7 +860,7 @@ def run(arguments):
         print(f"{IDENTITY.name} sync: {card} ({volume.file_system})")
         ensure_data_folder(folder, options, arguments.yes)
         recorded = sync(card, volume, options)
-    except SyncError as error:
+    except (SyncError, OSError) as error:
         print(f"echo_sync: {error}", file=sys.stderr)
         return 2
     print_next_steps(options, recorded, volume, time.monotonic() - started)
