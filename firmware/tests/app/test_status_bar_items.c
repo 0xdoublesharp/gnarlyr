@@ -198,9 +198,47 @@ static void a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_c
     }
 }
 
+static void crowded_status_icons_leave_long_titles_untouched(void)
+{
+    static Color before[HEADER_CAPTURE_PIXELS];
+    const char *title = "A long album or settings title that needs the whole header";
+    for (int compact = 0; compact < 2; compact++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = BOARD_THEME;
+                default_theme_set_text_size(&theme, (TextSize)size);
+                default_theme_set_orientation(&theme, (Orientation)orientation);
+                default_theme_set_status_bar(&theme, compact != 0);
+                StatusBarState state = all_items();
+                state.locked = true;
+                state.bluetooth = STATUS_BLUETOOTH_CONNECTED;
+                state.shuffle = STATUS_SHUFFLE_ALBUMS;
+                state.title_width = text_width(theme.fonts.header, title);
+                Canvas canvas = canvas_make(header_pixels, (Rect){0, 0, theme.metrics.screen_width,
+                                                                  theme.metrics.screen_height});
+                canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
+                header_draw(&canvas, &theme, title);
+                memcpy(before, header_pixels, sizeof before);
+                status_bar_draw(&canvas, &theme, state);
+                Rect area = header_title_area(&theme, theme.fonts.header, title);
+                bool unchanged = true;
+                for (int y = area.y; y < area.y + area.height; y++) {
+                    for (int x = area.x; x < area.x + area.width; x++) {
+                        int pixel = y * theme.metrics.screen_width + x;
+                        unchanged = unchanged && before[pixel] == header_pixels[pixel];
+                    }
+                }
+                CHECK(unchanged);
+                screen_snapshot_write(&canvas, "long-title", compact * 6 + orientation * 3 + size);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(crowded_status_icons_leave_long_titles_untouched),
         TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
         TEST_CASE(portrait_puts_the_position_on_line_two_and_landscape_protects_the_title),

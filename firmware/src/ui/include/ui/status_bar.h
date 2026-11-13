@@ -61,6 +61,7 @@ typedef struct StatusBarLayout {
     Rect areas[5];
     int shift;
     uint8_t items;
+    bool icons_visible;
 } StatusBarLayout;
 
 typedef struct StatusQueuePosition {

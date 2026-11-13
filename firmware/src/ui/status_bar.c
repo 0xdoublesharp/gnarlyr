@@ -12,7 +12,7 @@ enum {
     FILL_GAP = 1,
     NUB_DIVISOR = 5,
     BLUETOOTH_WIDTH_TENTHS = 7,
-    BADGE_GAP = 1,
+    BADGE_GAP = 4,
     TENTHS = 10,
     FULL_PERCENT = 100,
     BODY_EIGHTHS = 13,
@@ -75,7 +75,7 @@ Rect status_bar_bluetooth_area(const Theme *theme)
 {
     Rect playback = status_bar_playback_area(theme);
     int width = playback.width * BLUETOOTH_WIDTH_TENTHS / TENTHS;
-    return (Rect){playback.x + playback.width + (theme->metrics.padding >> 1), playback.y,
+    return (Rect){playback.x + playback.width + theme->metrics.padding, playback.y,
                   width > 0 ? width : 1, playback.height};
 }
 
@@ -97,7 +97,7 @@ Rect status_bar_battery_area(const Theme *theme)
 Rect status_bar_lock_area(const Theme *theme)
 {
     Rect bluetooth = status_bar_bluetooth_area(theme);
-    return (Rect){bluetooth.x + bluetooth.width + (theme->metrics.padding >> 1), bluetooth.y,
+    return (Rect){bluetooth.x + bluetooth.width + theme->metrics.padding, bluetooth.y,
                   bluetooth.width, bluetooth.height};
 }
 
@@ -111,7 +111,7 @@ Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle)
     Rect lock = status_bar_lock_area(theme);
     int width = icon_width(shuffle_badge(shuffle), lock.height) + BADGE_GAP +
                 icon_width(ICON_SHUFFLE_SMALL, lock.height);
-    return (Rect){lock.x + lock.width + (theme->metrics.padding >> 1), lock.y, width, lock.height};
+    return (Rect){lock.x + lock.width + theme->metrics.padding, lock.y, width, lock.height};
 }
 
 int status_bar_battery_fill_width(uint8_t percent, int inner_width)
@@ -234,8 +234,7 @@ int status_bar_left_end(const Theme *theme, StatusBarState state)
     int count = state.locked ? 2 : state.bluetooth != STATUS_BLUETOOTH_OFF ? 1 : 0;
     int end = theme->metrics.padding;
     if (count > 0 || state.playback != STATUS_PLAYBACK_NONE) {
-        end +=
-            size + count * ((theme->metrics.padding >> 1) + size * BLUETOOTH_WIDTH_TENTHS / TENTHS);
+        end += size + count * (theme->metrics.padding + size * BLUETOOTH_WIDTH_TENTHS / TENTHS);
     }
     return end;
 }
@@ -400,6 +399,10 @@ CORE_SEAM void status_bar_layout(const Theme *theme, const StatusBarState *state
     if (split) {
         join_line_two(layout, gap, end, icons_end);
     }
+    layout->icons_visible = state->title_width == 0 ||
+                            (split ? layout->shift >= state->title_width + gap
+                                   : icons_end + theme->metrics.padding <=
+                                         (theme->metrics.screen_width - state->title_width) / 2);
 }
 
 uint8_t status_bar_items(const Theme *theme, const StatusBarState *state)
@@ -428,7 +431,9 @@ CORE_SEAM void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarStat
     Rect clip = canvas->clip;
     Canvas moved = canvas_shifted(canvas, layout.shift,
                                   (Rect){clip.x - layout.shift, clip.y, clip.width, clip.height});
-    draw_left_icons(&moved, theme, &state);
+    if (layout.icons_visible) {
+        draw_left_icons(&moved, theme, &state);
+    }
     if (state.battery_known) {
         draw_battery(canvas, theme, &state);
     }

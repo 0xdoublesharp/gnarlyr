@@ -250,14 +250,17 @@ static SpeedTag speed_tag(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
     int height = theme->fonts.small->ascent;
-    int width = icon_width(ICON_USB, height) + icon_width(ICON_BOLT, height);
     if (!linked(painter)) {
         return (SpeedTag){.shown = false};
     }
     const UsbScene *scene = painter->scene;
+    int width = icon_width(ICON_USB, height);
+    if (scene->high_speed) {
+        width += theme->metrics.padding / 2 + icon_width(ICON_BOLT, height);
+    }
     bool warn = !scene->high_speed && scene->fell_back;
     Color ink = warn ? warning_ink(&theme->colors) : theme->colors.header_text;
-    return (SpeedTag){true, scene->high_speed, ink, height, width + theme->metrics.padding / 2};
+    return (SpeedTag){true, scene->high_speed, ink, height, width + theme->metrics.padding};
 }
 
 static void draw_tag(const UsbPainter *painter, Rect row, int after, SpeedTag tag)
@@ -265,13 +268,14 @@ static void draw_tag(const UsbPainter *painter, Rect row, int after, SpeedTag ta
     if (!tag.shown) {
         return;
     }
-    int left = after + painter->theme->metrics.padding / 2;
+    int left = after + painter->theme->metrics.padding;
     int top = row.y + (row.height - tag.height) / 2;
     Rect usb = {left, top, icon_width(ICON_USB, tag.height), tag.height};
     IconInk ink = {tag.ink, tag.ink};
     icon_draw(painter->canvas, ICON_USB, usb, ink);
     if (tag.bolt) {
-        Rect bolt = {usb.x + usb.width, top, icon_width(ICON_BOLT, tag.height), tag.height};
+        Rect bolt = {usb.x + usb.width + painter->theme->metrics.padding / 2, top,
+                     icon_width(ICON_BOLT, tag.height), tag.height};
         icon_draw(painter->canvas, ICON_BOLT, bolt, ink);
     }
 }
