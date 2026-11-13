@@ -39,7 +39,7 @@ void core1_main(void)
     core1_idle_start();
     for (;;) {
         if (!core1_stream_step(&stream)) {
-            core1_idle();
+            core1_idle(&stream);
         }
     }
 }
