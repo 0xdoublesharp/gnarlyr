@@ -44,11 +44,16 @@ static void fitting_priority(bool compact)
                         continue;
                     }
                     Rect area = layout.areas[item];
+                    bool split = narrow.metrics.status_height > 0 &&
+                                 narrow.metrics.header_height > narrow.metrics.status_height;
+                    int limit = split ? narrow.metrics.screen_width - narrow.metrics.padding
+                                      : status_bar_battery_body(&narrow).x;
                     CHECK(area.x >= narrow.metrics.padding);
-                    CHECK(area.x + area.width <= status_bar_battery_body(&narrow).x);
-                    CHECK(area.y >= 0);
-                    int band = narrow.metrics.status_height > 0 ? narrow.metrics.status_height
-                                                                : narrow.metrics.header_height;
+                    CHECK(area.x + area.width <= limit);
+                    CHECK(area.y >= (split ? narrow.metrics.status_height : 0));
+                    int band = split || narrow.metrics.status_height == 0
+                                   ? narrow.metrics.header_height
+                                   : narrow.metrics.status_height;
                     CHECK(area.y + area.height <= band);
                     for (int other = item + 1; other < 5; other++) {
                         if ((chosen & (1u << other)) != 0) {
@@ -77,16 +82,20 @@ static void every_orientation_and_text_size_respects_fitting_priority(void)
     fitting_priority(true);
 }
 
-static void portrait_centres_the_position_and_landscape_protects_the_title(void)
+static void portrait_puts_the_position_on_line_two_and_landscape_protects_the_title(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = BOARD_THEME;
         default_theme_set_text_size(&theme, (TextSize)size);
         StatusBarState state = all_items();
         default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-        CHECK((status_bar_items(&theme, &state) & STATUS_BAR_POSITION) != 0);
+        uint8_t portrait = status_bar_items(&theme, &state);
+        CHECK((portrait & STATUS_BAR_POSITION) != 0);
         Rect area = status_bar_item_area(&theme, &state, STATUS_BAR_POSITION);
-        CHECK_EQUAL((theme.metrics.screen_width - area.width) / 2, area.x);
+        CHECK(area.y >= theme.metrics.status_height);
+        if ((portrait & STATUS_BAR_CLOCK) != 0) {
+            CHECK(area.x + area.width < status_bar_item_area(&theme, &state, STATUS_BAR_CLOCK).x);
+        }
         default_theme_set_orientation(&theme, ORIENTATION_LANDSCAPE);
         state.title_width = 300;
         uint8_t shown = status_bar_items(&theme, &state);
@@ -182,7 +191,9 @@ static void a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_c
             header_pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
         canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
         header_draw(&canvas, &theme, "Settings");
-        status_bar_draw(&canvas, &theme, all_items());
+        StatusBarState state = all_items();
+        state.title_width = text_width(font, "Settings");
+        status_bar_draw(&canvas, &theme, state);
         screen_snapshot_write(&canvas, "header", orientation);
     }
 }
@@ -192,7 +203,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
-        TEST_CASE(portrait_centres_the_position_and_landscape_protects_the_title),
+        TEST_CASE(portrait_puts_the_position_on_line_two_and_landscape_protects_the_title),
         TEST_CASE(a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_centred),
         TEST_CASE(queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue),
     };

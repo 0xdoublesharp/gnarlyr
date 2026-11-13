@@ -59,6 +59,7 @@ typedef struct StatusBarState {
 
 typedef struct StatusBarLayout {
     Rect areas[5];
+    int shift;
     uint8_t items;
 } StatusBarLayout;
 

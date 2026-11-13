@@ -145,14 +145,23 @@ static void the_battery_ends_at_the_right_padding_and_fits_the_narrowest_status_
     CHECK(area.y >= 1 && area.y + area.height <= PORTRAIT_STATUS_HEIGHT - 1);
 }
 
-static void the_battery_shares_its_vertical_centre_with_the_play_icon(void)
+static void the_battery_centres_on_line_one_and_the_play_icon_on_its_own_line(void)
 {
     Theme theme = panel_theme();
     for (int band = 0; band < 2; band++) {
         theme.metrics.status_height = band == 0 ? 0 : PORTRAIT_STATUS_HEIGHT;
         Rect body = status_bar_battery_body(&theme);
         Rect play = status_bar_playback_area(&theme);
-        CHECK_EQUAL(2 * play.y + play.height, 2 * body.y + body.height);
+        int status = theme.metrics.status_height;
+        int header = theme.metrics.header_height;
+        if (status > 0 && header > status) {
+            int battery = 2 * body.y + body.height - status;
+            int icon = 2 * play.y + play.height - (status + header - 1);
+            CHECK(battery >= -1 && battery <= 1);
+            CHECK(icon >= -1 && icon <= 1);
+        } else {
+            CHECK_EQUAL(2 * play.y + play.height, 2 * body.y + body.height);
+        }
     }
 }
 
@@ -561,7 +570,7 @@ int main(void)
         TEST_CASE(a_playing_player_shows_the_play_icon_at_the_left),
         TEST_CASE(a_paused_player_shows_two_bars),
         TEST_CASE(the_battery_ends_at_the_right_padding_and_fits_the_narrowest_status_band),
-        TEST_CASE(the_battery_shares_its_vertical_centre_with_the_play_icon),
+        TEST_CASE(the_battery_centres_on_line_one_and_the_play_icon_on_its_own_line),
         TEST_CASE(the_battery_body_frames_the_icon_size_and_is_thirteen_eighths_as_wide),
         TEST_CASE(a_full_battery_keeps_a_two_pixel_outline_and_a_one_pixel_gap_before_the_fill),
         TEST_CASE(the_fill_follows_the_charge),

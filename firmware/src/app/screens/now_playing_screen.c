@@ -658,6 +658,7 @@ static void draw(void *context, Canvas *canvas)
     Rect header = theme_header_area(theme);
     canvas_fill_rect(canvas, header, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
+    header_draw_app_name(canvas, theme);
     TextStyle heading = {.font = theme->fonts.small, .color = theme->colors.header_text};
     Rect title = header_title_area(theme, heading.font, now_playing->screen.title);
     label_draw(canvas, heading, (Label){title, now_playing->screen.title});

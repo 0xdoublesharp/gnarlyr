@@ -30,9 +30,23 @@ static int band_top(const Theme *theme, int height)
     return (band - height) / 2;
 }
 
+static bool two_lines(const Theme *theme)
+{
+    return theme->metrics.status_height > 0 &&
+           theme->metrics.header_height > theme->metrics.status_height;
+}
+
+static Rect icon_row(const Theme *theme)
+{
+    int top = theme->metrics.status_height;
+    return (Rect){0, top, theme->metrics.screen_width, theme->metrics.header_height - top - 1};
+}
+
 static int icon_top(const Theme *theme)
 {
-    return band_top(theme, theme->metrics.status_icon_size);
+    int size = theme->metrics.status_icon_size;
+    Rect row = icon_row(theme);
+    return two_lines(theme) ? row.y + (row.height - size) / 2 : band_top(theme, size);
 }
 
 static int nub_width(int size)
@@ -308,41 +322,68 @@ static int item_width(const Theme *theme, const StatusBarState *state, uint8_t i
     return width + (item == STATUS_BAR_VOLUME && width > 0 ? icon + BADGE_GAP : 0);
 }
 
+static void join_line_two(StatusBarLayout *layout, int gap, int end, int icons_end)
+{
+    Rect *areas = layout->areas;
+    uint8_t items = layout->items;
+    int edge = (items & STATUS_BAR_CLOCK) != 0     ? areas[2].x
+               : (items & STATUS_BAR_PERCENT) != 0 ? areas[4].x
+                                                   : end - gap;
+    if ((items & STATUS_BAR_POSITION) != 0) {
+        areas[1].x = edge - gap - areas[1].width;
+        edge = areas[1].x;
+    }
+    int last = (items & STATUS_BAR_VOLUME) != 0   ? areas[0].x + areas[0].width
+               : (items & STATUS_BAR_REPEAT) != 0 ? areas[3].x + areas[3].width
+                                                  : icons_end;
+    layout->shift = edge - gap - last;
+    areas[0].x += layout->shift;
+    areas[3].x += layout->shift;
+}
+
 CORE_SEAM void status_bar_layout(const Theme *theme, const StatusBarState *state,
                                  StatusBarLayout *layout)
 {
     layout->items = 0;
+    layout->shift = 0;
+    bool split = two_lines(theme);
     int gap = theme->metrics.padding >> 1;
     int left = status_bar_left_end(theme, *state);
+    int icons_end = left;
     int begin = left + gap;
     Rect body = status_bar_battery_body(theme);
-    int end = state->battery_known ? body.x : theme->metrics.screen_width - gap;
+    Rect row = split ? icon_row(theme) : body;
+    int end = state->battery_known && !split ? body.x : theme->metrics.screen_width - gap;
     int right = end;
-    int centre_width = state->title_width;
+    int centre_width = split ? 0 : state->title_width;
+    int reserve = split ? state->title_width + gap : 0;
     for (int index = 0; index < 5; index++) {
         uint8_t item = (uint8_t)(1u << index);
         int width = item_width(theme, state, item);
-        int x = item == STATUS_BAR_POSITION ? (theme->metrics.screen_width - width) >> 1
-                : item == STATUS_BAR_CLOCK || item == STATUS_BAR_PERCENT ? end - gap - width
-                                                                         : begin;
-        layout->areas[index] = (Rect){x, body.y, width, body.height};
-        if (width == 0 || (item == STATUS_BAR_POSITION && state->title_width != 0) ||
+        bool centred = item == STATUS_BAR_POSITION && !split;
+        bool trailing =
+            item == STATUS_BAR_CLOCK || item == STATUS_BAR_PERCENT || item == STATUS_BAR_POSITION;
+        int x = centred    ? (theme->metrics.screen_width - width) >> 1
+                : trailing ? end - gap - width
+                           : begin;
+        layout->areas[index] = (Rect){x, row.y, width, row.height};
+        if (width == 0 || (centred && state->title_width != 0) ||
             (item == STATUS_BAR_PERCENT && !state->battery_known)) {
             continue;
         }
         int l = left;
         int r = right;
         int c = centre_width;
-        if (item == STATUS_BAR_POSITION) {
+        if (centred) {
             c = width;
-        } else if (item == STATUS_BAR_CLOCK || item == STATUS_BAR_PERCENT) {
+        } else if (trailing) {
             r -= width + gap;
         } else {
             l += width + gap;
         }
         int start = (theme->metrics.screen_width - c) >> 1;
         int pad = theme->metrics.padding;
-        bool fits = c > 0 ? l + pad <= start && start + c + pad <= r : l + pad <= r;
+        bool fits = c > 0 ? l + pad <= start && start + c + pad <= r : l + pad + reserve <= r;
         if (fits) {
             layout->items |= item;
             left = l;
@@ -355,6 +396,9 @@ CORE_SEAM void status_bar_layout(const Theme *theme, const StatusBarState *state
     }
     if ((layout->items & STATUS_BAR_PERCENT) != 0) {
         layout->areas[2].x -= layout->areas[4].width + gap;
+    }
+    if (split) {
+        join_line_two(layout, gap, end, icons_end);
     }
 }
 
@@ -381,7 +425,10 @@ CORE_SEAM void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarStat
     StatusBarLayout layout;
     status_bar_layout(theme, &state, &layout);
     uint8_t items = layout.items;
-    draw_left_icons(canvas, theme, &state);
+    Rect clip = canvas->clip;
+    Canvas moved = canvas_shifted(canvas, layout.shift,
+                                  (Rect){clip.x - layout.shift, clip.y, clip.width, clip.height});
+    draw_left_icons(&moved, theme, &state);
     if (state.battery_known) {
         draw_battery(canvas, theme, &state);
     }

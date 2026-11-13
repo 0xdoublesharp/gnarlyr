@@ -34,6 +34,7 @@
 #include "plug_modes.h"
 #include "scan_guard.h"
 #include "screen_modules.h"
+#include "screen_snapshot.h"
 #include "screens/charge_screen.h"
 #include "screens/wire_boot.h"
 #include "settings/equalizer_slots.h"
@@ -6372,6 +6373,66 @@ static void standby_low_battery_really_powers_off(void)
     CHECK_EQUAL(1, fake_hal_power_off_count());
 }
 
+static Color header_capture[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+
+static void capture_panel(const char *name, int variant)
+{
+    bool portrait = fake_hal_display_rotation() != HAL_DISPLAY_LANDSCAPE;
+    int width = portrait ? HAL_DISPLAY_SHORT_SIDE : HAL_DISPLAY_LONG_SIDE;
+    int height = portrait ? HAL_DISPLAY_LONG_SIDE : HAL_DISPLAY_SHORT_SIDE;
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            header_capture[y * width + x] = fake_hal_pixel(x, y);
+        }
+    }
+    Canvas canvas = canvas_make(header_capture, (Rect){0, 0, width, height});
+    screen_snapshot_write(&canvas, name, variant);
+}
+
+static void start_portrait_home(bool compact, bool usb)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.orientation = ORIENTATION_PORTRAIT;
+    store.settings.status_bar_compact = compact;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&store.settings, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    if (usb) {
+        fake_hal_set_battery(ON_USB);
+    }
+    app_start();
+    wait_ms(3000);
+}
+
+static void put_home_in_play_state(int state)
+{
+    if (state > 0) {
+        play_first_album_track();
+        wait_ms(500);
+        if (state == 2) {
+            tap(KEY_PLAY);
+        }
+        hold_back();
+        wait_ms(1000);
+    }
+}
+
+static void portrait_home_headers_in_every_play_and_power_state(void)
+{
+    for (int compact = 0; compact < 2; compact++) {
+        for (int usb = 0; usb < 2; usb++) {
+            for (int state = 0; state < 3; state++) {
+                start_portrait_home(compact != 0, usb != 0);
+                put_home_in_play_state(state);
+                CHECK(title_is(FIRMWARE_SHORT_NAME));
+                capture_panel("home-header", compact * 100 + usb * 10 + state);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -6641,6 +6702,7 @@ int main(void)
         TEST_CASE(storage_selection_and_return_keep_the_playback_session),
         TEST_CASE(holding_power_on_the_charge_screen_turns_the_player_on),
         TEST_CASE(pressing_power_leaves_charge_mode_only_when_selected),
+        TEST_CASE(portrait_home_headers_in_every_play_and_power_state),
         TEST_CASE(unplugging_on_the_charge_screen_turns_the_player_off),
         TEST_CASE(a_cable_start_opens_the_charge_screen),
         TEST_CASE(a_scan_after_a_cable_start_keeps_the_player_charging),
