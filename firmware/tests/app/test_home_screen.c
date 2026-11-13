@@ -451,7 +451,7 @@ static void the_move_action_picks_the_item_up_like_a_hold(void)
     CHECK(title_is(STR_HOME_SCREEN));
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
-    CHECK(toast_is("Stats placed"));
+    CHECK(toast_is("Recap placed"));
     CHECK_EQUAL(LISTENING, saved_settings().home_order[3]);
 }
 
