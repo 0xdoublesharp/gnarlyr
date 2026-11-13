@@ -15,6 +15,18 @@ static Color expected[HAL_DISPLAY_SHORT_SIDE * 80];
 static Theme theme;
 static SettingsStore store;
 static ButtonSettings buttons;
+static int changed_count;
+
+static void settings_changed(void *context)
+{
+    CHECK(context == &changed_count);
+    changed_count++;
+}
+
+static DebugSpan span_of(const char *text)
+{
+    return (DebugSpan){.text = text, .length = strlen(text)};
+}
 
 static int expected_row_height(void)
 {
@@ -212,6 +224,81 @@ static void landscape_controls_keep_the_original_row_geometry(void)
     }
 }
 
+static void control_choices_validate_names_and_report_each_change(void)
+{
+    open_controls(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    changed_count = 0;
+    buttons.config.changed = settings_changed;
+    buttons.config.context = &changed_count;
+
+    CHECK(button_settings_choose(&buttons, span_of(i18n_text(STR_MENU_LONG_ACTION)),
+                                 span_of(i18n_text(STR_SLEEP_TIMER))));
+    CHECK_EQUAL(5, store.settings.long_press_action);
+    CHECK_EQUAL(1, changed_count);
+
+    CHECK(button_settings_choose(&buttons, span_of(i18n_text(STR_BUTTON_VOLUME_UP_TAP)),
+                                 span_of(i18n_text(STR_BUTTON_HOME))));
+    CHECK_EQUAL(BUTTON_ACTION_HOME, store.settings.button_actions[PLAYBACK_VOLUME_UP_TAP]);
+    CHECK_EQUAL(2, changed_count);
+
+    CHECK(!button_settings_choose(&buttons, span_of(i18n_text(STR_MENU_LONG_ACTION)),
+                                  span_of("Not an action")));
+    CHECK(!button_settings_choose(&buttons, span_of("Not a button"),
+                                  span_of(i18n_text(STR_BUTTON_HOME))));
+    CHECK_EQUAL(2, changed_count);
+}
+
+static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(void)
+{
+    open_controls(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    changed_count = 0;
+    buttons.config.changed = settings_changed;
+    buttons.config.context = &changed_count;
+
+    store.settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = UINT8_MAX;
+    CHECK(strcmp(buttons.items[PLAYBACK_VOLUME_UP_TAP].value(
+                     buttons.items[PLAYBACK_VOLUME_UP_TAP].context),
+                 i18n_text(STR_BUTTON_DEFAULT)) == 0);
+    ScreenAction action =
+        buttons.items[PLAYBACK_VOLUME_UP_TAP].select(buttons.items[PLAYBACK_VOLUME_UP_TAP].context);
+    CHECK(action.target == &buttons.choice.screen);
+    CHECK_EQUAL(UINT8_MAX, buttons.choice.config.current(buttons.choice.config.context));
+    buttons.choice.config.choose(buttons.choice.config.context, -1);
+    buttons.choice.config.choose(buttons.choice.config.context, BUTTON_ACTION_COUNT);
+    CHECK_EQUAL(0, changed_count);
+    buttons.choice.config.choose(buttons.choice.config.context, BUTTON_ACTION_NEXT);
+    CHECK_EQUAL(BUTTON_ACTION_NEXT, store.settings.button_actions[PLAYBACK_VOLUME_UP_TAP]);
+    CHECK_EQUAL(1, changed_count);
+
+    store.settings.long_press_action = UINT8_MAX;
+    CHECK(strcmp(buttons.items[PLAYBACK_BUTTON_COUNT].value(
+                     buttons.items[PLAYBACK_BUTTON_COUNT].context),
+                 i18n_text(STR_LONG_CURRENT)) == 0);
+    action =
+        buttons.items[PLAYBACK_BUTTON_COUNT].select(buttons.items[PLAYBACK_BUTTON_COUNT].context);
+    CHECK(action.target == &buttons.choice.screen);
+    buttons.choice.config.choose(buttons.choice.config.context, -1);
+    buttons.choice.config.choose(buttons.choice.config.context, 6);
+    CHECK_EQUAL(1, changed_count);
+    buttons.choice.config.choose(buttons.choice.config.context, 1);
+    CHECK_EQUAL(1, store.settings.long_press_action);
+    CHECK_EQUAL(2, changed_count);
+
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        store.settings.button_actions[index] = UINT8_MAX;
+    }
+    store.settings.long_press_action = UINT8_MAX;
+    action = buttons.items[PLAYBACK_BUTTON_COUNT + 1].select(
+        buttons.items[PLAYBACK_BUTTON_COUNT + 1].context);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
+    CHECK_EQUAL(0, store.settings.long_press_action);
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        CHECK_EQUAL(settings_default_button_action((PlaybackButton)index),
+                    store.settings.button_actions[index]);
+    }
+    CHECK_EQUAL(3, changed_count);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -220,6 +307,8 @@ int main(void)
         TEST_CASE(every_control_label_and_value_is_shown_whole_in_portrait),
         TEST_CASE(landscape_controls_keep_the_original_row_geometry),
         TEST_CASE(settings_values_use_the_same_whole_label_layout_in_large_portrait),
+        TEST_CASE(control_choices_validate_names_and_report_each_change),
+        TEST_CASE(control_menu_recovers_invalid_values_and_bounds_choice_callbacks),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

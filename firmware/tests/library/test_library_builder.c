@@ -800,11 +800,9 @@ static void check_encoding_faults(bool read)
     int operations = (read ? scratch->reads : scratch->writes) - before;
     CHECK(operations > 0);
     free(built.output.bytes);
-    int checkpoints = operations < 128 ? operations : 128;
-    for (int part = 0; part < checkpoints; part++) {
+    for (int failure = 1; failure <= operations; failure++) {
         LibraryBuilder builder;
         scratch = prepare_for_encoding(&builder);
-        int failure = checkpoints > 1 ? 1 + (operations - 1) * part / (checkpoints - 1) : 1;
         if (read) {
             scratch->fail_read = scratch->reads + failure;
         } else {
@@ -1045,8 +1043,8 @@ static void check_preparation_checkpoints(bool read)
     CHECK_EQUAL(BUILDER_OK, library_builder_prepare(&builder));
     int operations = (read ? scratch->reads : scratch->writes) - before;
     CHECK(operations >= 4);
-    for (int part = 0; part < 256; part++) {
-        check_preparation_fault(read, 1 + (operations - 1) * part / 255);
+    for (int failure = 1; failure <= operations; failure++) {
+        check_preparation_fault(read, failure);
     }
 }
 

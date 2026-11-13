@@ -327,6 +327,7 @@ typedef struct Tree {
     uint32_t listed;
     uint32_t cursor;
     uint32_t opens;
+    bool files_open;
     uint8_t blob[FRAMES * FRAME_BYTES];
 } Tree;
 
@@ -397,6 +398,9 @@ static bool tree_open_file(void *context, const char *path, ByteSource *source, 
 {
     (void)context;
     (void)path;
+    if (!tree.files_open) {
+        return false;
+    }
     *source = (ByteSource){.read = tree_read, .context = NULL};
     *size = sizeof tree.blob;
     return true;
@@ -411,6 +415,7 @@ static void start_tree(void)
 {
     tree.count = 0;
     tree.opens = 0;
+    tree.files_open = true;
     memset(tree.blob, 0, sizeof tree.blob);
     for (uint32_t frame = 0; frame < FRAMES; frame++) {
         uint8_t *header = tree.blob + frame * FRAME_BYTES;
@@ -437,6 +442,43 @@ static ScanResult scan_tree(uint32_t listing_size, Output *output, ScanStats *st
         .sink = {write_output, output},
     };
     return library_scan(&job, stats);
+}
+
+static void too_little_scan_memory_is_reported_before_the_filesystem_is_used(void)
+{
+    uint8_t memory[1] = {0};
+    ScanJob job = {.memory = memory, .size = sizeof memory};
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OUT_OF_MEMORY, library_scan(&job, &stats));
+    CHECK_EQUAL(0u, stats.files);
+    CHECK_EQUAL(0u, stats.tracks);
+    CHECK_EQUAL(0u, stats.length);
+}
+
+static void a_file_that_disappears_during_the_scan_is_skipped(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/Missing.mp3");
+    tree.files_open = false;
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &output, &stats));
+    CHECK_EQUAL(1u, stats.files);
+    CHECK_EQUAL(0u, stats.tracks);
+    CHECK_EQUAL(1u, stats.skipped);
+}
+
+static void an_unreadable_audio_header_is_skipped(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/Broken.mp3");
+    memset(tree.blob, 0, sizeof tree.blob);
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &output, &stats));
+    CHECK_EQUAL(1u, stats.files);
+    CHECK_EQUAL(0u, stats.tracks);
+    CHECK_EQUAL(1u, stats.skipped);
 }
 
 static bool output_read(void *context, uint32_t offset, void *buffer, uint32_t length)
@@ -997,6 +1039,9 @@ int main(int argc, char **argv)
         TEST_CASE(real_ffmpeg_chapters_are_read_from_either_style),
         TEST_CASE(a_chaptered_book_is_a_folder_of_its_chapters_and_not_a_file_row),
         TEST_CASE(a_missing_music_root_says_so),
+        TEST_CASE(too_little_scan_memory_is_reported_before_the_filesystem_is_used),
+        TEST_CASE(a_file_that_disappears_during_the_scan_is_skipped),
+        TEST_CASE(an_unreadable_audio_header_is_skipped),
         TEST_CASE(each_build_phase_after_the_walk_reports_its_progress),
         TEST_CASE(a_separate_listing_leaves_the_memory_to_the_builder),
         TEST_CASE(a_folder_bigger_than_the_listing_is_read_in_batches),

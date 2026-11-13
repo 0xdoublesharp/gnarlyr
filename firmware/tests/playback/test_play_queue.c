@@ -509,6 +509,22 @@ static void album_shuffle_rejects_inconsistent_anchor_ranges(void)
     CHECK(library_read_track(library, JOGA, &anchor));
     set_album_range(anchor.album, JOGA, 0);
     CHECK(!play_queue_build(&queue, library, plan));
+    library = fixture_library_open(&fixture);
+    CHECK(library_read_track(library, JOGA, &anchor));
+    uint16_t tracks = (uint16_t)library_count(library, LIBRARY_TRACKS);
+    set_album_range(anchor.album, JOGA, (uint16_t)(tracks - JOGA + 1));
+    CHECK(!play_queue_build(&queue, library, plan));
+}
+
+static void an_album_stream_rejects_a_zero_length_album(void)
+{
+    PlayQueue *source = built(browse_root_query(BROWSE_ALL_SONGS), JOGA, SHUFFLE_ALBUMS, 93);
+    set_album_range(BACK_IN_BLACK, 0, 0);
+    PlayQueueStream stream;
+    play_queue_stream_init(&stream, source);
+    while (play_queue_stream_prepare(&stream) == STORE_WORKING) {
+    }
+    CHECK_EQUAL(STORE_FAILED, stream.result);
 }
 
 static void stream_reads_validate_bounds_and_empty_requests(void)
@@ -543,6 +559,7 @@ int main(void)
         TEST_CASE(generated_queues_reject_steps_from_past_the_end),
         TEST_CASE(album_cursors_outside_the_album_are_rejected_everywhere),
         TEST_CASE(album_shuffle_rejects_inconsistent_anchor_ranges),
+        TEST_CASE(an_album_stream_rejects_a_zero_length_album),
         TEST_CASE(stream_reads_validate_bounds_and_empty_requests),
         TEST_CASE(all_songs_play_in_title_order),
         TEST_CASE(folders_queue_only_their_tracks),
