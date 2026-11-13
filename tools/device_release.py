@@ -59,7 +59,8 @@ def check_report(report, build, previous=None):
     if values.get("firmware.build") != build:
         raise ValueError("Restarted player does not report the candidate build")
     for key in ("fault.cfsr", "fault.hfsr", "fault.pc", "audio.output_underruns"):
-        if values.get(key) != 0:
+        unknown_cold = values.get("start.warm") == 0 and key.startswith("fault.") and values.get(key) is None
+        if key not in values or (values[key] != 0 and not unknown_cold):
             raise ValueError(f"Restart health check failed: {key}={values.get(key)!r}")
     if previous is not None and report == previous:
         raise ValueError("Restart report is unchanged")

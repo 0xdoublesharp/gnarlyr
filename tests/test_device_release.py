@@ -215,6 +215,28 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse((self.scratch / "tmp" / checkout.name).exists())
         self.assertTrue(shared.exists())
 
+    def test_cold_boot_unknown_fault_history_is_healthy_but_missing_fields_are_not(self):
+        for recent in (0, 1):
+            parsed = report(NEW)
+            parsed["values"].update({"report.cold_start": recent, "start.warm": 0,
+                                      "fault.cfsr": None, "fault.hfsr": None, "fault.pc": None})
+            release.check_report(parsed, NEW[:7])
+            del parsed["values"]["fault.pc"]
+            with self.assertRaisesRegex(ValueError, "fault.pc"):
+                release.check_report(parsed, NEW[:7])
+
+    def test_cold_boot_does_not_hide_faults_or_underruns_or_unknown_warm_history(self):
+        for key in ("fault.cfsr", "fault.hfsr", "fault.pc", "audio.output_underruns"):
+            parsed = report(NEW)
+            parsed["values"]["start.warm"] = 0
+            parsed["values"][key] = 1
+            with self.assertRaisesRegex(ValueError, key):
+                release.check_report(parsed, NEW[:7])
+        parsed = report(NEW)
+        parsed["values"].update({"start.warm": 1, "fault.cfsr": None})
+        with self.assertRaisesRegex(ValueError, "fault.cfsr"):
+            release.check_report(parsed, NEW[:7])
+
     def test_faults_underruns_missing_fields_and_wrong_build_are_rejected(self):
         for key in ("fault.cfsr", "fault.hfsr", "fault.pc", "audio.output_underruns", "firmware.build"):
             with self.subTest(key=key):
