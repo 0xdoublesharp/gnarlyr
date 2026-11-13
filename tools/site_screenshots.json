@@ -1426,7 +1426,7 @@
     {
       "name": "recap",
       "file": "recap.png",
-      "expected_title": "Recap",
+      "expected_title": "Highlights",
       "keys": [
         "down",
         "down",
