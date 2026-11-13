@@ -1725,7 +1725,11 @@ static void run_rescan(void)
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
         music_check_remember(walk_music(false));
+        bool charging = app.charging;
         start_app(false);
+        if (charging) {
+            start_charging(hal_clock_milliseconds());
+        }
         app.covers_pending = true;
         app.covers_album = 0;
         debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_LIBRARY, outcome.stats.tracks));
