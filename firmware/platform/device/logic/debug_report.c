@@ -388,6 +388,32 @@ static void put_setup_trace(StringBuilder *text, const HalUsbSetupTrace *trace)
     }
 }
 
+static void append_word(StringBuilder *text, const char *name, uint32_t value)
+{
+    string_builder_append_char(text, ' ');
+    string_builder_append(text, name);
+    string_builder_append(text, "=0x");
+    append_hex(text, value, HEX_DIGITS);
+}
+
+static void put_writes(Writer *writer, const HalUsbWrites *writes)
+{
+    static const char *const NAMES[] = {
+        "writes=", " receive_ms=", " card_ms=",       " idle_ms=",
+        " fast=",  " fallbacks=",  " fifo_internal=", " fifo_card="};
+    const uint32_t values[] = {writes->commands,      writes->receive_ms,   writes->card_ms,
+                               writes->idle_ms,       writes->fast_cards,   writes->fallbacks,
+                               writes->fifo_words[0], writes->fifo_words[1]};
+    begin(writer, "usb.timing");
+    for (uint32_t index = 0; index < sizeof values / sizeof values[0]; index++) {
+        string_builder_append(&writer->text, NAMES[index]);
+        string_builder_append_unsigned(&writer->text, values[index]);
+    }
+    append_word(&writer->text, "hcon_internal", writes->hcon[0]);
+    append_word(&writer->text, "hcon_card", writes->hcon[1]);
+    finish(writer);
+}
+
 static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
 {
     bool known = usb.end != HAL_USB_END_NONE;
@@ -397,6 +423,9 @@ static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
     put_known(writer, "usb.internal_sectors_written", known, usb.internal_written);
     put_known(writer, "usb.card_sectors_written", known, usb.card_written);
     put_known(writer, "usb.writes_after_eject", known, usb.writes_after_eject);
+    if (known) {
+        put_writes(writer, &usb.writes);
+    }
     if (usb.speed_fallback != 0) {
         begin(writer, "usb.speed_fallback");
         string_builder_append(&writer->text, NAME_IN(SPEED_FALLBACK_NAMES, usb.speed_fallback));
@@ -648,14 +677,6 @@ static void put_measure(Writer *writer, const DebugMeasure *measure)
     uint32_t core1_busy = measure->core1_cycles - measure->core1_idle_cycles;
     append_permille(&writer->text, "core1_busy_permille", core1_busy, measure->core1_cycles);
     finish(writer);
-}
-
-static void append_word(StringBuilder *text, const char *name, uint32_t value)
-{
-    string_builder_append_char(text, ' ');
-    string_builder_append(text, name);
-    string_builder_append(text, "=0x");
-    append_hex(text, value, HEX_DIGITS);
 }
 
 static void put_probe(Writer *writer, const DebugProbe *probe)

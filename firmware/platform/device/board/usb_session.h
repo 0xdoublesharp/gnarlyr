@@ -7,6 +7,7 @@
 #include "device/usb_forced.h"
 #include "emmc.h"
 #include "hal/system.h"
+#include "screens/usb_scene.h"
 #include "usb.h"
 
 typedef enum UsbSessionEnd {
@@ -86,10 +87,22 @@ UsbShared *usb_session_shared(void);
 bool usb_storage_session(UsbShared *shared);
 bool usb_session_storage_changed(void);
 enum {
-    USB_SESSION_BUFFER_BYTES = 64 * 512
+    USB_SESSION_BUFFER_BYTES = 56 * 512
 };
 
 uint32_t *usb_session_buffer(void);
+
+enum {
+    USB_SESSION_HINT_CAPACITY = 96
+};
+
+typedef struct UsbSessionScreen {
+    UsbPort port;
+    UsbScene scene;
+    char hint[USB_SESSION_HINT_CAPACITY];
+} UsbSessionScreen;
+
+extern UsbSessionScreen usb_session_screen;
 void usb_dac_session(UsbShared *shared);
 void update_after_usb(UsbShared *shared);
 void time_file_take(bool apply);

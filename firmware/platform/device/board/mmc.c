@@ -4,62 +4,8 @@
 #include "core/seam.h"
 #include "cru.h"
 #include "hal/clock.h"
+#include "mmc_registers.h"
 #include "registers.h"
-
-#define MMC_CTRL 0x00u
-#define MMC_PWREN 0x04u
-#define MMC_CLKDIV 0x08u
-#define MMC_CLKSRC 0x0Cu
-#define MMC_CLKENA 0x10u
-#define MMC_TMOUT 0x14u
-#define MMC_CTYPE 0x18u
-#define MMC_BLKSIZ 0x1Cu
-#define MMC_BYTCNT 0x20u
-#define MMC_INTMASK 0x24u
-#define MMC_CMDARG 0x28u
-#define MMC_CMD 0x2Cu
-#define MMC_RESP0 0x30u
-#define MMC_RINTSTS 0x44u
-#define MMC_STATUS 0x48u
-#define MMC_FIFOTH 0x4Cu
-#define MMC_FIFO 0x200u
-
-#define CMD_START (1u << 31)
-#define CMD_BASE 0xA0002000u
-#define CMD_UPDATE_CLOCK 0x80202000u
-#define CMD_INITIALISE (1u << 15)
-#define CMD_STOP_ABORT (1u << 14)
-#define CMD_DATA_READ 0x340u
-#define CMD_WRITE (1u << 10)
-#define CMD_CHECK_CRC (1u << 8)
-#define CMD_LONG (1u << 7)
-#define CMD_RESPONSE (1u << 6)
-
-#define INT_RESPONSE_ERROR (1u << 1)
-#define INT_COMMAND_DONE (1u << 2)
-#define INT_DATA_OVER (1u << 3)
-#define INT_RESPONSE_CRC (1u << 6)
-#define INT_RESPONSE_TIMEOUT MMC_INT_RESPONSE_TIMEOUT
-#define INT_HARDWARE_LOCKED (1u << 12)
-#define INT_DATA_ABORT 0xAF82u
-#define INT_DATA_FINISHED 0xAE88u
-#define INT_DATA_FAILED 0xAE80u
-#define INT_ALL 0xFFFFFFFFu
-
-#define STATUS_FIFO_EMPTY (1u << 2)
-#define STATUS_CARD_BUSY (1u << 9)
-#define STATUS_FIFO_COUNT_SHIFT 17
-#define STATUS_FIFO_COUNT_MASK 0x1FFFu
-
-#define CTRL_RESET_ALL 0x7u
-#define CTRL_FIFO_RESET 0x2u
-#define FIFOTH_VALUE 0x300F0010u
-#define TMOUT_VALUE 0xFFFFFF40u
-#define CLKENA_ON 0x00010001u
-#define CTYPE_4_BIT 0x1u
-#define CTYPE_8_BIT 0x10000u
-#define FIFOTH_RX_WATERMARK_SHIFT 16
-#define FIFOTH_RX_WATERMARK_MASK 0xFFFu
 
 #define CRU_MMC_DIVIDERS 0x30u
 

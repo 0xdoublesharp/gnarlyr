@@ -167,7 +167,8 @@ void update_after_usb(UsbShared *state)
     if (!open_update(&storage)) {
         return;
     }
-    _Static_assert(UPDATER_SCRATCH_WORDS * 4 <= 64 * 512, "the USB write buffer holds the scratch");
+    _Static_assert(UPDATER_SCRATCH_WORDS * 4 <= USB_SESSION_BUFFER_BYTES,
+                   "the USB write buffer holds the scratch");
     updater_use_scratch(usb_session_buffer());
     UpdateFile update = {read_update, file.size, NULL};
     const char *name = update_path + 1;

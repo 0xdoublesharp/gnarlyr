@@ -12,9 +12,17 @@ static void arm_setup(void)
     set_bits(out_control(0), EP_ENABLE | EP_CLEAR_NAK);
 }
 
+static uint32_t transfer_packets(const UsbPort *port)
+{
+    uint32_t packets = TRANSFER_BYTE_LIMIT / port->bulk_packet;
+    return packets < TRANSFER_PACKET_LIMIT ? packets : TRANSFER_PACKET_LIMIT;
+}
+
 static void arm_bulk_out(const UsbPort *port)
 {
-    write_register(out_control(BULK_ENDPOINT) + 0x10u, ONE_PACKET | port->bulk_packet);
+    uint32_t packets = transfer_packets(port);
+    write_register(out_control(BULK_ENDPOINT) + 0x10u,
+                   packets << PACKET_COUNT_SHIFT | packets * port->bulk_packet);
     set_bits(out_control(BULK_ENDPOINT), EP_ENABLE | EP_CLEAR_NAK);
 }
 
@@ -123,6 +131,7 @@ static void handle_reset(UsbPort *port)
     usb_flush_fifos();
     port->configured = false;
     port->in_busy = false;
+    port->in_left = 0;
     port->control_out_pending = false;
     port->control_data_pending = false;
     port->setup_pending = false;
@@ -234,6 +243,7 @@ static void apply_action(UsbPort *port, UsbReply reply)
     case USB_ACTION_MSC_RESET:
         msc_reset(port->msc);
         port->in_busy = false;
+        port->in_left = 0;
         break;
     case USB_ACTION_NONE:
         break;
@@ -296,9 +306,8 @@ static void finish_control_out(UsbPort *port, uint32_t length, const uint8_t *by
     finish_setup(port, port->control_out, reply);
 }
 
-static void deliver(UsbPort *port, uint32_t endpoint, uint32_t length)
+static void deliver(UsbPort *port, uint32_t endpoint, const uint8_t *bytes, uint32_t length)
 {
-    const uint8_t *bytes = (const uint8_t *)port->out_packet;
     if (endpoint == 0 &&
         (port->setup_pending || (port->defer_control && port->control_out_pending))) {
         for (uint32_t index = 0; index < length && index < sizeof port->control_data; index++) {
@@ -325,13 +334,41 @@ static void read_fifo(uint32_t *words, uint32_t capacity_words, uint32_t bytes)
     }
 }
 
+static bool storage_packet(const UsbPort *port, uint32_t status)
+{
+    uint32_t type = (status >> RX_STATUS_TYPE_SHIFT) & RX_STATUS_TYPE_MASK;
+    return type == PACKET_OUT_DATA && (status & RX_STATUS_ENDPOINT_MASK) == BULK_ENDPOINT &&
+           port->audio == NULL && port->msc != NULL;
+}
+
+static bool receive_blocked(const UsbPort *port)
+{
+    uint32_t status = read_register(GRXSTSR);
+    uint32_t count = (status >> RX_STATUS_COUNT_SHIFT) & RX_STATUS_COUNT_MASK;
+    return storage_packet(port, status) && msc_out_blocked(port->msc, count);
+}
+
+static void receive_storage(UsbPort *port, uint32_t count)
+{
+    uint8_t *slot = msc_out_slot(port->msc, count);
+    uint32_t capacity = slot != NULL ? count : sizeof port->out_packet;
+    uint8_t *bytes = slot != NULL ? slot : (uint8_t *)port->out_packet;
+    read_fifo((uint32_t *)(void *)bytes, capacity / 4, count);
+    msc_receive(port->msc, bytes, count < capacity ? count : capacity);
+}
+
 static void handle_receive(UsbPort *port)
 {
+    if (receive_blocked(port)) {
+        return;
+    }
     uint32_t status = read_register(GRXSTSP);
     uint32_t endpoint = status & RX_STATUS_ENDPOINT_MASK;
     uint32_t count = (status >> RX_STATUS_COUNT_SHIFT) & RX_STATUS_COUNT_MASK;
     uint32_t type = (status >> RX_STATUS_TYPE_SHIFT) & RX_STATUS_TYPE_MASK;
-    if (type == PACKET_SETUP_DATA) {
+    if (storage_packet(port, status)) {
+        receive_storage(port, count);
+    } else if (type == PACKET_SETUP_DATA) {
         port->control_data_pending = false;
         port->control_out_pending = false;
         read_fifo(port->setup, sizeof port->setup / 4, count);
@@ -340,7 +377,8 @@ static void handle_receive(UsbPort *port)
     } else if (type == PACKET_OUT_DATA) {
         read_fifo(port->out_packet, sizeof port->out_packet / 4, count);
         uint32_t capacity = sizeof port->out_packet;
-        deliver(port, endpoint, count < capacity ? count : capacity);
+        deliver(port, endpoint, (const uint8_t *)port->out_packet,
+                count < capacity ? count : capacity);
     }
 }
 
@@ -416,11 +454,47 @@ static bool send_bulk(const UsbPort *port, const uint32_t *words, uint32_t lengt
     return true;
 }
 
+static void arm_stream_in(UsbPort *port)
+{
+    uint32_t packet = port->bulk_packet;
+    uint32_t length = msc_in_ready(port->msc, packet, transfer_packets(port));
+    if (length == 0) {
+        return;
+    }
+    uint32_t packets = (length + packet - 1) / packet;
+    write_register(in_control(BULK_ENDPOINT) + 0x10u, packets << PACKET_COUNT_SHIFT | length);
+    set_bits(in_control(BULK_ENDPOINT), EP_ENABLE | EP_CLEAR_NAK);
+    port->in_busy = true;
+    port->in_left = (uint16_t)length;
+}
+
+static void stream_in(UsbPort *port)
+{
+    if (port->in_left == 0 && !port->in_busy) {
+        arm_stream_in(port);
+    }
+    uint32_t length = port->in_left < port->bulk_packet ? port->in_left : port->bulk_packet;
+    uint32_t words = (length + 3) / 4;
+    if (length == 0 || tx_space(port, BULK_ENDPOINT) < words) {
+        return;
+    }
+    const uint32_t *data = msc_in_data(port->msc);
+    for (uint32_t index = 0; index < words; index++) {
+        write_register(fifo(BULK_ENDPOINT), data[index]);
+    }
+    msc_in_sent(port->msc, length);
+    port->in_left = (uint16_t)(port->in_left - length);
+}
+
 static void pump_bulk_in(UsbPort *port)
 {
-    static uint32_t chunk[BULK_CHUNK_BYTES / 4];
+    uint32_t *chunk = port->out_packet;
     uint32_t length = 0;
     if (!port->configured || port->msc == NULL) {
+        return;
+    }
+    if (msc_in_streaming(port->msc) || port->in_left != 0) {
+        stream_in(port);
         return;
     }
     if (port->in_busy) {
@@ -466,6 +540,64 @@ static void pump_audio_in(UsbPort *port)
         if (pending) {
             usb_audio_hid_sent(&port->hid);
         }
+    }
+}
+
+static UsbWriteTiming write_timing;
+
+UsbWriteTiming *usb_port_write_timing(void)
+{
+    return &write_timing;
+}
+
+void usb_port_settle_timing(void)
+{
+    uint32_t now = hal_clock_microseconds();
+    write_timing.spent_us[write_timing.wait] += now - write_timing.at_us;
+    write_timing.at_us = now;
+}
+
+static void follow_timing(const UsbPort *port)
+{
+    uint8_t wait = (uint8_t)msc_write_wait(port->msc, port->bulk_packet);
+    if (wait != write_timing.wait) {
+        usb_port_settle_timing();
+        write_timing.wait = wait;
+    }
+}
+
+static bool storage_streaming(const UsbPort *port)
+{
+    return port->msc != NULL && port->audio == NULL && port->msc->streaming && !port->setup_pending;
+}
+
+static void stream_burst(UsbPort *port)
+{
+    uint32_t start = hal_clock_milliseconds();
+    uint32_t others = GINT_USB_RESET | GINT_ENUMERATION_DONE;
+    for (uint32_t turn = 1; storage_streaming(port); turn++) {
+        if ((turn & STREAM_CLOCK_TURNS) == 0 &&
+            hal_clock_milliseconds() - start >= STREAM_BURST_MS) {
+            return;
+        }
+        uint32_t events = read_register(GINTSTS);
+        if ((events & others) != 0) {
+            return;
+        }
+        if ((events & GINT_RX_LEVEL) != 0) {
+            handle_receive(port);
+        }
+        if ((events & GINT_OUT_ENDPOINT) != 0) {
+            handle_out_endpoints(port);
+        }
+        if ((events & GINT_IN_ENDPOINT) != 0) {
+            handle_in_endpoints(port);
+        }
+        msc_pump(port->msc);
+        if (msc_in_streaming(port->msc)) {
+            stream_in(port);
+        }
+        follow_timing(port);
     }
 }
 
@@ -526,6 +658,10 @@ CORE_SEAM void usb_poll(UsbPort *port)
     }
     pump_bulk_in(port);
     pump_audio_in(port);
+    if (port->msc != NULL && port->audio == NULL) {
+        follow_timing(port);
+        stream_burst(port);
+    }
 }
 
 void usb_poll_audio(UsbPort *port)
@@ -538,7 +674,8 @@ void usb_poll_audio(UsbPort *port)
 
 bool usb_reply_pending(const UsbPort *port)
 {
-    return port->in_busy || port->msc->phase == MSC_PHASE_STATUS;
+    return port->in_busy || port->msc->phase == MSC_PHASE_STATUS ||
+           port->msc->phase == MSC_PHASE_FINISH;
 }
 
 bool usb_port_connect(UsbPort *port)

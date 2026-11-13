@@ -514,6 +514,7 @@ class UsbCore(RegisterFile):
         self.machine = machine
         self.interrupts = 0
         self.fifo_faults = []
+        self.host = None
         self.reset_fifo_sizes()
 
     def reset_fifo_sizes(self):
@@ -530,6 +531,8 @@ class UsbCore(RegisterFile):
             self.fifo_faults.append((offset, self.regs[offset]))
 
     def read_word(self, offset):
+        if self.host is not None and self.host.claims(offset):
+            return self.host.read_word(offset)
         if offset == self.GOTGCTL:
             valid = self.GOTGCTL_B_SESSION_VALID if self.machine.vbus else 0
             return self.GOTGCTL_B_DEVICE | valid
@@ -544,13 +547,18 @@ class UsbCore(RegisterFile):
         if offset == self.GNPTXSTS:
             return self.QUEUE_ENTRIES << 16 | self.regs.get(self.GNPTXFSIZ, 0) >> 16
         if offset == GINTSTS:
-            return self.interrupts
+            return self.interrupts | (self.host.interrupts() if self.host is not None else 0)
         if offset == GRSTCTL:
             return super().read_word(offset) | GRSTCTL_AHB_IDLE
         return super().read_word(offset)
 
     def write_word(self, offset, value):
+        if self.host is not None and self.host.claims(offset):
+            self.host.write_word(offset, value)
+            return
         if offset == GINTSTS:
+            if self.host is not None:
+                self.host.clear(value)
             cleared = self.interrupts & value
             self.interrupts &= ~value
             if cleared & GINT_USB_RESET:

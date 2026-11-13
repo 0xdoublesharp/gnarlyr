@@ -39,11 +39,20 @@ typedef struct UsbLink {
     bool dedicated_fifos;
 } UsbLink;
 
+_Static_assert(USB_PORT_PACKET_BYTES >= 512, "a bulk IN chunk fits the packet buffer");
+
+typedef struct UsbWriteTiming {
+    uint64_t spent_us[MSC_WAIT_KINDS];
+    uint32_t at_us;
+    uint8_t wait;
+} UsbWriteTiming;
+
 typedef struct UsbPort {
     UsbLink link;
     bool configured;
     bool enumerated;
     bool in_busy;
+    uint16_t in_left;
     bool setup_pending;
     bool setup_ready;
     HalUsbSetupTrace setups;
@@ -79,3 +88,5 @@ bool usb_wait_for_host(UsbPort *port, uint32_t timeout_ms);
 void usb_poll(UsbPort *port);
 void usb_poll_audio(UsbPort *port);
 bool usb_reply_pending(const UsbPort *port);
+UsbWriteTiming *usb_port_write_timing(void);
+void usb_port_settle_timing(void);

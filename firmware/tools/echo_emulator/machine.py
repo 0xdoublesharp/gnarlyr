@@ -256,6 +256,15 @@ class Machine:
         self.set_core_hz(hz)
         self.systick.restart()
 
+    def pll_hz(self):
+        cru = self.cru.regs
+        con0, con1 = cru.get(0x00, 0), cru.get(0x04, 0)
+        fbdiv, postdiv1 = con0 & 0xFFF, (con0 >> 12) & 7
+        refdiv, postdiv2 = con1 & 0x3F, (con1 >> 6) & 7
+        if 0 in (fbdiv, postdiv1, refdiv, postdiv2) or not cru.get(devices.CRU_MODE, 0) & 1:
+            return CRYSTAL_HZ
+        return CRYSTAL_HZ // refdiv * fbdiv // postdiv1 // postdiv2
+
     def pclk_hz(self):
         shift = (self.cru.regs.get(devices.CRU_PCLK_SELECT, 0) >> 8) & 3
         return self.core_hz >> shift if self.cru.regs.get(devices.CRU_MODE, 0) & 1 else CRYSTAL_HZ
@@ -284,7 +293,7 @@ class Machine:
         self.dmac = devices.Dmac(self)
         from .emmc import DwMmc
         self.watchdog = devices.Watchdog(self)
-        self.emmc_controller = DwMmc(self, self.card)
+        self.emmc_controller = DwMmc(self, self.card, clock_shift=8)
         self.sd_controller = DwMmc(self, None)
         self.grf = devices.Grf(self)
         self.rtc_bus = devices.RtcBus(self)
