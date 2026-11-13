@@ -229,7 +229,8 @@ static void watch_speed(uint32_t now)
     if (port->enumerated) {
         usb_fallback_enumerated(&fallback, now);
     }
-    UsbFallbackSigns signs = {port->configured, msc.stats.commands};
+    UsbFallbackSigns signs = {
+        .configured = port->configured, .resets = port->resets, .commands = msc.stats.commands};
     if (usb_fallback_due(&fallback, signs, now)) {
         fall_back_to_full_speed();
     }

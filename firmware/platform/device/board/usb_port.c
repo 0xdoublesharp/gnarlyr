@@ -131,6 +131,9 @@ static void handle_reset(UsbPort *port)
     }
     usb_flush_fifos();
     port->configured = false;
+    if (port->resets < UINT8_MAX) {
+        port->resets++;
+    }
     port->in_busy = false;
     port->in_left = 0;
     port->control_out_pending = false;

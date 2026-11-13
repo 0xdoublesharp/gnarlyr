@@ -22,11 +22,14 @@ bool usb_fallback_due(UsbFallback *fallback, UsbFallbackSigns signs, uint32_t no
         fallback->watching = false;
         return false;
     }
-    if (!fallback->timing || now_ms - fallback->started_ms < USB_FALLBACK_MS) {
+    bool resets_only = !fallback->timing && signs.resets >= USB_FALLBACK_RESETS;
+    if (!resets_only && (!fallback->timing || now_ms - fallback->started_ms < USB_FALLBACK_MS)) {
         return false;
     }
     fallback->watching = false;
-    fallback->cause = signs.configured ? USB_FALLBACK_FEW_COMMANDS : USB_FALLBACK_NOT_CONFIGURED;
+    fallback->cause = resets_only        ? USB_FALLBACK_RESETS_ONLY
+                      : signs.configured ? USB_FALLBACK_FEW_COMMANDS
+                                         : USB_FALLBACK_NOT_CONFIGURED;
     fallback->commands = signs.commands;
     return true;
 }
