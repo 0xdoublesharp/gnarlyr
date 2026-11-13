@@ -1,35 +1,28 @@
+#include <stdbool.h>
 #include <stdint.h>
 
+#include "device/clock_governor.h"
 #include "device/core1_control.h"
+#include "device/core1_pace.h"
 #include "idle.h"
 #include "registers.h"
 
 #define CORE1_STACK_TOP 0x0102E000u
 #define ALL_INTERRUPTS 0xFFFFFFFFu
-#define IDLE_TICKS 500000u
 #define IDLE_LIMIT 0x80000000u
 #define SYSTICK_ENABLE_INTERRUPT_CORE_CLOCK 0x7u
+#define SYSTICK_COUNTED (1u << 16)
 #define CRU_CLOCK_SELECT 0x40180014u
-
-static uint32_t requested_mhz;
-
-static void clock_mhz(uint32_t mhz)
-{
-    register_write(CRU_CLOCK_SELECT, 0x70000000u | (mhz == 200 ? 0u : 0x1000u));
-    __asm__ volatile("dsb\nisb" ::: "memory");
-    register_write(SYSTICK_RELOAD, mhz * 1000u - 1u);
-}
-
-void core1_request_clock(uint32_t mhz)
-{
-    requested_mhz = mhz == 200 ? 200u : 100u;
-    clock_mhz(requested_mhz);
-}
+#define CORE1_DIVIDER_WRITE 0x70000000u
+#define CORE1_DIVIDER_SHIFT 12
 
 typedef void (*Handler)(void);
 
-static volatile uint32_t elapsed_cycles;
-static uint32_t idle_cycles;
+static volatile uint32_t elapsed_units;
+static uint32_t idle_units;
+static uint32_t clock_mhz;
+static uint32_t timer_us;
+static ClockGovernor governor;
 
 extern uint32_t core1_bss_start;
 extern uint32_t core1_bss_end;
@@ -67,51 +60,105 @@ void core1_default_handler(void)
 
 void core1_tick(void)
 {
-    elapsed_cycles += register_read(SYSTICK_RELOAD) + 1u;
-    register_write(CORE1_SHARED_CYCLES, elapsed_cycles);
+    (void)register_read(SYSTICK_CTRL);
+    elapsed_units += core1_pace_units(register_read(SYSTICK_RELOAD) + 1u, clock_mhz);
+    register_write(CORE1_SHARED_CYCLES, elapsed_units);
 }
 
-static uint32_t cycles_now(void)
+static uint32_t units_now(void)
 {
     uint32_t base;
     uint32_t reload;
     uint32_t current;
     do {
-        base = elapsed_cycles;
+        base = elapsed_units;
         reload = register_read(SYSTICK_RELOAD);
         current = register_read(SYSTICK_CURRENT);
-    } while (base != elapsed_cycles);
-    return base + reload - current;
+    } while (base != elapsed_units);
+    return base + core1_pace_units(reload - current, clock_mhz);
+}
+
+static void fold_period(void)
+{
+    uint32_t reload = register_read(SYSTICK_RELOAD);
+    uint32_t current = register_read(SYSTICK_CURRENT);
+    if ((register_read(SYSTICK_CTRL) & SYSTICK_COUNTED) != 0) {
+        register_write(SCB_ICSR, SCB_ICSR_PENDSTCLR);
+        current = register_read(SYSTICK_CURRENT);
+        elapsed_units += core1_pace_units(reload + 1u, clock_mhz);
+    }
+    elapsed_units += core1_pace_units(reload - current, clock_mhz);
+}
+
+static void use_timer(uint32_t mhz, uint32_t microseconds)
+{
+    if (mhz == clock_mhz && microseconds == timer_us) {
+        return;
+    }
+    uint32_t primask;
+    __asm__ volatile("mrs %0, primask\ncpsid i" : "=r"(primask)::"memory");
+    fold_period();
+    if (mhz != clock_mhz) {
+        register_write(CRU_CLOCK_SELECT, CORE1_DIVIDER_WRITE | core1_pace_divider_field(mhz)
+                                                                   << CORE1_DIVIDER_SHIFT);
+        __asm__ volatile("dsb\nisb" ::: "memory");
+        clock_mhz = mhz;
+    }
+    register_write(SYSTICK_RELOAD, mhz * microseconds - 1u);
+    register_write(SYSTICK_CURRENT, 0);
+    timer_us = microseconds;
+    register_write(CORE1_SHARED_CYCLES, elapsed_units);
+    __asm__ volatile("msr primask, %0" ::"r"(primask) : "memory");
+}
+
+static ClockGovernorReading reading(void)
+{
+    return (ClockGovernorReading){.now_us = units_now(), .idle = idle_units};
+}
+
+void core1_request_clock(uint32_t mhz)
+{
+    clock_governor_start(&governor, core1_pace_limits(mhz), reading());
+    use_timer(core1_pace_mhz(governor.divider), timer_us);
 }
 
 void core1_idle_start(void)
 {
     register_write(SYSTICK_CTRL, 0);
-    elapsed_cycles = 0;
-    idle_cycles = 0;
+    elapsed_units = 0;
+    idle_units = 0;
+    clock_mhz = CORE1_PACE_IDLE_MHZ;
+    timer_us = CORE1_PACE_REST_US;
     register_write(CORE1_SHARED_CYCLES, 0);
     register_write(CORE1_SHARED_IDLE_CYCLES, 0);
-    register_write(SYSTICK_RELOAD, IDLE_TICKS - 1u);
+    register_write(SYSTICK_RELOAD, clock_mhz * timer_us - 1u);
     register_write(SYSTICK_CURRENT, 0);
+    clock_governor_start(&governor, core1_pace_limits(CORE1_PACE_IDLE_MHZ), reading());
     register_write(SYSTICK_CTRL, SYSTICK_ENABLE_INTERRUPT_CORE_CLOCK);
     __asm__ volatile("cpsie i" ::: "memory");
 }
 
-void core1_idle(void)
+static void follow_load(void)
 {
-    uint32_t start = cycles_now();
-    if (requested_mhz == 200) {
-        clock_mhz(100);
+    if (clock_governor_update(&governor, reading())) {
+        use_timer(core1_pace_mhz(governor.divider), timer_us);
     }
+}
+
+void core1_idle(const Core1Stream *stream)
+{
+    bool waiting = core1_stream_waiting_for_room(stream);
+    uint32_t running = clock_mhz;
+    uint32_t start = units_now();
+    use_timer(core1_pace_rest_mhz(running), core1_pace_rest_us(waiting));
     __asm__ volatile("wfi" ::: "memory");
-    if (requested_mhz == 200) {
-        clock_mhz(200);
-    }
-    uint32_t idle = cycles_now() - start;
+    use_timer(running, timer_us);
+    uint32_t idle = units_now() - start;
     if (idle < IDLE_LIMIT) {
-        idle_cycles += idle;
-        register_write(CORE1_SHARED_IDLE_CYCLES, idle_cycles);
+        idle_units += idle;
+        register_write(CORE1_SHARED_IDLE_CYCLES, idle_units);
     }
+    follow_load();
 }
 
 static void zero_bss(void)

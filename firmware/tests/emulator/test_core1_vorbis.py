@@ -141,12 +141,12 @@ class Core1VorbisTest(unittest.TestCase):
             struct.pack_into("<I", stream, 16 + 12, rate)
             machine, blocks = decode(self.program, bytes(stream), 2)
             self.assertEqual(core1.RESULT_END, blocks[-1][0])
-            expected = {0x70001000} if rate <= 96000 else {0x70001000, 0x70000000}
+            expected = set() if rate <= 96000 else {core1.CLOCK_100_MHZ, core1.CLOCK_200_MHZ}
             self.assertEqual(expected, set(machine.clock_writes))
             machine.set_control("generation", 0)
             for _ in range(10):
                 machine.run_slice()
-            self.assertEqual(0x70001000, machine.clock_writes[-1])
+            self.assertEqual(core1.CLOCK_100_MHZ, machine.clock)
 
     def test_low_quality_stereo_fits_and_matches_the_reference(self):
         self.check_reference("low48", 2)

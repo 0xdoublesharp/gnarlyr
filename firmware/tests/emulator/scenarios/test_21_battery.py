@@ -71,6 +71,8 @@ class EchoImageTest(EchoImageHarness):
                 command += ["-b:a", "320k"]
             elif codec == "flac":
                 command += ["-sample_fmt", "s16"]
+            elif codec == "ogg":
+                command += ["-c:a", "vorbis", "-strict", "-2"]
             subprocess.run(command + [str(path)], check=True)
             volume.add_file(path.name, path.read_bytes())
         if output == 0:

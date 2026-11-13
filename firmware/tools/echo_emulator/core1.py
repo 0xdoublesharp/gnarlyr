@@ -25,6 +25,8 @@ OFFSETS = {"generation": 0, "channels": 8, "bits": 12, "first_sample": 28, "star
            "end": 36, "written": 40, "acked": 44, "released": 48,
            "tail_trim": CONTROL_SLOTS + 2 * SLOT_BYTES}
 VIRTUAL_END = 0x7FFFFFFF
+CLOCK_100_MHZ = 0x70001000
+CLOCK_200_MHZ = 0x70000000
 
 
 class Core1:
@@ -36,15 +38,18 @@ class Core1:
         self.uc.mem_map(0xE0000000, 0x100000)
         self.uc.mem_map(0x40000000, 0x200000)
         self.clock_writes = []
-        self.uc.hook_add(UC_HOOK_MEM_WRITE,
-                         lambda uc, access, address, size, value, data: self.clock_writes.append(value),
-                         begin=0x40180014, end=0x40180014)
+        self.clock = CLOCK_100_MHZ
+        self.uc.hook_add(UC_HOOK_MEM_WRITE, self.note_clock, begin=0x40180014, end=0x40180014)
         self.uc.mem_write(CODE_BASE, program)
         self.instructions = 0
         self.next_slot = 0
         sp, pc = struct.unpack("<II", program[:8])
         self.uc.reg_write(UC_ARM_REG_SP, sp)
         self.pc = pc | 1
+
+    def note_clock(self, uc, access, address, size, value, data):
+        self.clock_writes.append(value)
+        self.clock = value
 
     def word(self, address):
         return struct.unpack("<I", self.uc.mem_read(address, 4))[0]

@@ -98,6 +98,7 @@ typedef struct Core1Stream {
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder);
 void core1_stream_clock(StreamRegion region, uint32_t mhz);
 bool core1_stream_step(Core1Stream *stream);
+bool core1_stream_waiting_for_room(const Core1Stream *stream);
 
 typedef enum Core1Format {
     CORE1_FORMAT_FLAC,
