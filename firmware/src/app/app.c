@@ -138,7 +138,6 @@ typedef struct AppState {
     bool language_requested;
     bool music_check_requested;
     bool reload_pending;
-    StringId reload_toast;
     bool prepare_pending;
     size_t prepare_index;
     CardFilesReport prepare_report;
@@ -1756,7 +1755,7 @@ void app_release_audio(void)
 void app_reload(StringId toast)
 {
     app.reload_pending = true;
-    app.reload_toast = toast;
+    toast_show(&app.toast, i18n_text(toast), hal_clock_milliseconds());
     app.listening_loaded = false;
 }
 
@@ -2245,14 +2244,14 @@ CORE_SEAM void app_step(void)
         return;
     }
     if (app.reload_pending) {
+        Toast toast = app.toast;
         app.reload_pending = false;
         app.rescan_requested = false;
         app.music_check_requested = false;
-        if (!hal_system_settle_user_state(true)) {
-            app.reload_toast = STR_RESTORE_FAILED;
-        }
+        bool restored = hal_system_settle_user_state(true);
         start_app(false);
-        toast_show(&app.toast, i18n_text(app.reload_toast), hal_clock_milliseconds());
+        toast_show(&app.toast, restored ? toast.text : i18n_text(STR_RESTORE_FAILED),
+                   hal_clock_milliseconds());
         return;
     }
     if (app.saying_goodbye && fade_finished(&app.goodbye, now_ms)) {

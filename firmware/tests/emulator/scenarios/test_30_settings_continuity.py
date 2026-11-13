@@ -7,6 +7,7 @@ from echo_image_harness import (
     EchoImageHarness,
     main,
     IDENTITY,
+    english,
     TRIAL_RUNNING,
     fnv1a,
     make_image,
@@ -140,6 +141,23 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.read(session, "continuity.bin"), mark(build_of(self.image)))
         self.assertIsNone(self.read(session, "backup/2/settings.bin"))
         summary("restore request", session)
+
+    def test_a_settings_restore_keeps_its_result_text_after_the_module_is_replaced(self):
+        from echo_emulator.playback import Rig
+        saved = self.custom_settings()
+        volume = self.player_volume(
+            [("settings.bin", self.saved_settings(0, 20, 0)), ("backup/1/settings.bin", saved),
+             ("backup/list.bin", backup_list(["1.0.0-aaaa1111", ""], 0)),
+             ("continuity.bin", mark(build_of(self.image)))], folders=["backup", "backup/1"])
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        toasts = self.collect_toasts(rig.machine)
+        for key in ("previous", "play", "previous", "previous", "play", "play"):
+            rig.press(key)
+        self.assertEqual(0, rig.machine.watchdog_resets)
+        self.assertEqual(saved, self.read(rig.session, "settings.bin"))
+        self.assertEqual(english("STR_SETTINGS_RESTORED"), toasts[-1])
+        self.assert_healthy(rig.session)
 
 
 if __name__ == "__main__":

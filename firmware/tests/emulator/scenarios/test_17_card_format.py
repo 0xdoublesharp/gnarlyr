@@ -138,14 +138,21 @@ class EchoImageTest(EchoImageHarness):
             rig.press("play")
 
         confirm()
-        rig.machine.run(until=lambda: english("STR_CARD_FORMAT_FAILED") in toasts)
+        rig.machine.run(until=lambda: english("STR_CARD_FORMAT_FAILED") in toasts or
+                        rig.machine.watchdog_resets > 0,
+                        until_ms=rig.machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
+        self.assertIn(english("STR_CARD_FORMAT_FAILED"), toasts)
         self.assertEqual(3, len(inserted[0].writes))
         self.assertEqual(bytes(512), card.read(0, 1))
         self.assertEqual(0, rig.machine.watchdog_resets)
         rig.settle()
+        self.assertEqual(english("STR_CARD_FORMAT_FAILED"), toasts[-1])
         rig.machine.card_present = True
         confirm()
-        rig.machine.run(until=lambda: english("STR_CARD_FORMAT_DONE") in toasts)
+        rig.machine.run(until=lambda: english("STR_CARD_FORMAT_DONE") in toasts or
+                        rig.machine.watchdog_resets > 0,
+                        until_ms=rig.machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
+        self.assertIn(english("STR_CARD_FORMAT_DONE"), toasts)
         self.assertEqual(b"\x55\xaa", card.read(0, 1)[510:512])
         self.assertEqual(0, rig.machine.watchdog_resets)
         self.assert_healthy(rig.session)
