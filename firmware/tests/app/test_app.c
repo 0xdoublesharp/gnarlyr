@@ -2848,6 +2848,7 @@ static void powering_on_still_applies_the_configured_cold_rewind(void)
     fake_hal_audio_set_position(42000);
     tap(KEY_PLAY);
     restart_app();
+    CHECK_EQUAL(22000, app_player_status().position_ms);
     headset(HAL_HEADSET_TOGGLE_PAUSE);
     CHECK_EQUAL(22000, fake_hal_audio_play_start());
 }
@@ -3957,9 +3958,12 @@ static void storage_selection_and_return_keep_the_playback_session(void)
     move_down(1);
     tap(KEY_PLAY);
     CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
-    restart_app();
+    hal_audio_release();
+    app_start_after_storage();
     CHECK_EQUAL(before.track, app_player_status().track);
     CHECK_EQUAL(before.position_ms, app_player_status().position_ms);
+    headset(HAL_HEADSET_TOGGLE_PAUSE);
+    CHECK_EQUAL(before.position_ms, fake_hal_audio_play_start());
 }
 
 static void holding_power_on_the_charge_screen_turns_the_player_on(void)
