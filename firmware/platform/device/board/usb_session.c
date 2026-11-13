@@ -90,6 +90,7 @@ static UsbActivity activity;
 static UsbLeave leave;
 static UsbScene *const scene = &usb_session_screen.scene;
 static uint32_t refused_before;
+static UsbCardSpeed card_speed;
 static uint32_t motion_ms;
 
 uint32_t *usb_session_buffer(void)
@@ -119,6 +120,9 @@ static bool timed_read(void *context, uint32_t lba, uint32_t count, void *buffer
 {
     uint32_t start = hal_clock_microseconds();
     bool read = DRIVES[(uintptr_t)context](NULL, lba, count, buffer);
+    if (!read && usb_card_slow_down((uint8_t)(uintptr_t)context)) {
+        read = DRIVES[(uintptr_t)context](NULL, lba, count, buffer);
+    }
     session_clock.media_us += hal_clock_microseconds() - start;
     return read;
 }
@@ -706,8 +710,11 @@ static HalUsbWrites write_split(const MscStats *stats)
 {
     usb_port_settle_timing();
     return (HalUsbWrites){stats->traffic[INTERNAL_LUN].writes + stats->traffic[CARD_LUN].writes,
-                          spent_ms(MSC_WAIT_RECEIVE), spent_ms(MSC_WAIT_CARD),
-                          spent_ms(MSC_WAIT_IDLE)};
+                          spent_ms(MSC_WAIT_RECEIVE),
+                          spent_ms(MSC_WAIT_CARD),
+                          spent_ms(MSC_WAIT_IDLE),
+                          card_speed.fast,
+                          usb_card_speed().fallbacks};
 }
 
 static void remember_session(UsbSessionEnd end)
@@ -741,6 +748,7 @@ static UsbSessionEnd run(void)
     *usb_port_write_timing() =
         (UsbWriteTiming){.at_us = hal_clock_microseconds(), .wait = MSC_WAIT_NONE};
     refused_before = 0;
+    card_speed = (UsbCardSpeed){0, 0};
     debug_report_write(shared, DEBUG_REPORT_USB_SESSION);
     prepare_port();
     prepare_luns();
@@ -755,7 +763,10 @@ static UsbSessionEnd run(void)
         session_clock.lit_ms = session_clock.started_ms;
         scene_follow(USB_LEAVE_SERVING, hal_clock_milliseconds());
         show_storage_state();
+        usb_card_speed_up(shared->report.internal_ready, write_buffer);
+        card_speed = usb_card_speed();
         end = serve();
+        usb_card_speed_down();
     }
     usb_session_stop_listening();
     if (end == USB_SESSION_EJECTED && traffic(scene->state)) {

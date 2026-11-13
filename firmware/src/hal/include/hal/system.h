@@ -67,6 +67,8 @@ typedef struct HalUsbWrites {
     uint32_t receive_ms;
     uint32_t card_ms;
     uint32_t idle_ms;
+    uint8_t fast_cards;
+    uint8_t fallbacks;
 } HalUsbWrites;
 
 typedef struct HalUsbLast {

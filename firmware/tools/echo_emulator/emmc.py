@@ -39,6 +39,16 @@ CLKENA_CARD_CLOCK = 0x1
 CTRL_RESET_BITS = 0x7
 CTRL_FIFO_RESET = 0x2
 FIFOTH_RESET_VALUE = 0x000F0000
+EXT_CSD_CARD_TYPE = 196
+SWITCH_STATUS_BYTES = 64
+SWITCH_SUPPORT_BYTE = 13
+SWITCH_RESULT_BYTE = 16
+SWITCH_HIGH_SPEED = 0x02
+SWITCH_SET = 0x80000000
+CRU_MMC_DIVIDERS = 0x30
+CRYSTAL_SOURCE = 0x80
+DIVIDER_MASK = 0x1F
+CRYSTAL_HZ = 24000000
 
 
 class SparseDisk:
@@ -93,10 +103,12 @@ class EmmcCard:
         self.pending_write = None
         self.failed_starts = 0
         self.starts = 0
+        self.card_type = 0
 
     def ext_csd(self):
         data = bytearray(SECTOR)
         struct.pack_into("<I", data, EXT_CSD_SECTOR_COUNT, self.disk.sector_count)
+        data[EXT_CSD_CARD_TYPE] = self.card_type
         return bytes(data)
 
     def cid(self):
@@ -129,10 +141,11 @@ class EmmcCard:
 
 
 class DwMmc(RegisterFile):
-    def __init__(self, machine, card):
+    def __init__(self, machine, card, clock_shift=0):
         super().__init__()
         self.machine = machine
         self.card = card
+        self.clock_shift = clock_shift
         self.read_queue = deque()
         self.write_words = []
         self.write_target = None
@@ -217,15 +230,25 @@ class DwMmc(RegisterFile):
         if value & CMD_DATA:
             self.start_data(index, argument, value)
 
+    def card_hz(self):
+        field = (self.machine.cru.regs.get(CRU_MMC_DIVIDERS, 0) >> self.clock_shift) & 0xFF
+        if field & CRYSTAL_SOURCE:
+            return CRYSTAL_HZ
+        return self.machine.pll_hz() // ((field & DIVIDER_MASK) + 1)
+
+    def block_scale(self):
+        return min(1.0, CRYSTAL_HZ / max(1, self.card_hz()))
+
     def latency_cycles(self, index, value):
         count = max(1, self.regs.get(MMC_BYTCNT, SECTOR) // SECTOR)
+        scale = self.block_scale()
         if value & CMD_DATA and value & CMD_WRITE:
-            microseconds = WRITE_COMMAND_US + WRITE_BLOCK_US * count
+            microseconds = WRITE_COMMAND_US + WRITE_BLOCK_US * count * scale
         elif value & CMD_DATA:
-            microseconds = READ_COMMAND_US + READ_EXTRA_BLOCK_US * (count - 1)
+            microseconds = READ_COMMAND_US + READ_EXTRA_BLOCK_US * (count - 1) * scale
         else:
             microseconds = STATUS_COMMAND_US
-        return microseconds * self.machine.core_hz // 1000000
+        return int(microseconds * self.machine.core_hz // 1000000)
 
     def start_data(self, index, argument, value):
         count = max(1, self.regs.get(MMC_BYTCNT, SECTOR) // SECTOR)
@@ -277,6 +300,7 @@ def synthetic_emmc(machine, image, volume, system_mib=96):
 
 class SdCard(EmmcCard):
     stuck = False
+    high_speed = False
     off_since_ms = None
     power_cycles = 0
 
@@ -311,4 +335,13 @@ class SdCard(EmmcCard):
             status = bytearray(64)
             status[10] = 0x90
             return bytes(status)
+        if index == 6:
+            return self.switch_status(argument)
         return super().read_blocks(index, argument, count)
+
+    def switch_status(self, argument):
+        status = bytearray(SWITCH_STATUS_BYTES)
+        status[SWITCH_SUPPORT_BYTE] = SWITCH_HIGH_SPEED if self.high_speed else 0
+        status[SWITCH_RESULT_BYTE] = 1 if self.high_speed else (0xF if argument & SWITCH_SET else 0)
+        self.switches = getattr(self, "switches", []) + [argument]
+        return bytes(status)

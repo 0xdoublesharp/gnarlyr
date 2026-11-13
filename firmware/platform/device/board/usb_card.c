@@ -5,6 +5,7 @@
 #include "device/block_device.h"
 #include "device/card_write.h"
 #include "device/emmc_layout.h"
+#include "device/pll.h"
 #include "device/sd_card.h"
 #include "emmc.h"
 #include "hal/clock.h"
@@ -20,12 +21,34 @@
 #define STATUS_STATE_MASK 0xFu
 #define STATE_TRANSFER 4u
 #define EMMC_RCA_ARGUMENT 0x00020000u
+#define STATUS_SWITCH_ERROR (1u << 7)
+#define SWITCH_HIGH_SPEED_TIMING 0x03B90100u
+#define SD_CHECK_HIGH_SPEED 0x00FFFFF1u
+#define SD_SWITCH_HIGH_SPEED 0x80FFFFF1u
+#define CARD_TYPE_52_MHZ 0x02u
+#define SD_GROUP_1_HIGH_SPEED 0x02u
+#define CRU_PLL_CON0 (CRU_BASE + 0x00u)
+#define CRU_PLL_CON1 (CRU_BASE + 0x04u)
+#define CRU_MODE (CRU_BASE + 0x10u)
+#define CRU_MODE_PLL 0x1u
+#define SD_FAST_SOURCE 0x009F0000u
+#define EMMC_FAST_SOURCE 0x9F000000u
 
 enum {
     CMD_STOP_TRANSMISSION = 12,
     CMD_SEND_STATUS = 13,
     CMD_SET_BLOCK_COUNT = 23,
     CMD_APP = 55,
+    CMD_SWITCH = 6,
+    CMD_SEND_EXT_CSD = 8,
+    EXT_CSD_CARD_TYPE = 196,
+    SD_SWITCH_BYTES = 64,
+    SD_SUPPORT_BYTE = 13,
+    SD_RESULT_BYTE = 16,
+    SD_WIDE_BUS = 4,
+    EMMC_DIVIDER_SHIFT = 8,
+    FAST_SOURCE_LIMIT_HZ = 200000000,
+    FAST_DIVIDER = 4,
     BLOCK_BYTES = 512,
     COMMAND_TIMEOUT_MS = 100,
     DATA_TIMEOUT_MS = 500,
@@ -40,9 +63,11 @@ typedef struct UsbCard {
     CardStream stream;
     bool sd;
     bool stalled;
+    bool fast;
 } UsbCard;
 
 static UsbCard cards[USB_CARD_COUNT];
+static uint8_t fallbacks;
 static const EmmcLayout *layout;
 
 static uint32_t read_mmc(const UsbCard *card, uint32_t offset)
@@ -82,9 +107,8 @@ static bool pre_count(void *context, uint32_t count)
     return command(card, CMD_SET_BLOCK_COUNT, count);
 }
 
-static bool begin(void *context, uint8_t index, uint32_t address, uint32_t count)
+static bool start_data(const UsbCard *card, uint32_t command, uint32_t argument, uint32_t bytes)
 {
-    UsbCard *card = context;
     if (!settled(card, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
         return false;
     }
@@ -92,13 +116,19 @@ static bool begin(void *context, uint8_t index, uint32_t address, uint32_t count
     if (!settled(card, MMC_CTRL, CTRL_FIFO_RESET, COMMAND_TIMEOUT_MS)) {
         return false;
     }
-    write_mmc(card, MMC_BLKSIZ, BLOCK_BYTES);
-    write_mmc(card, MMC_BYTCNT, BLOCK_BYTES * count);
+    write_mmc(card, MMC_BLKSIZ, bytes < BLOCK_BYTES ? bytes : BLOCK_BYTES);
+    write_mmc(card, MMC_BYTCNT, bytes);
     write_mmc(card, MMC_RINTSTS, INT_ALL);
-    write_mmc(card, MMC_CMDARG, address);
-    write_mmc(card, MMC_CMD, CMD_BASE | CMD_DATA_READ | CMD_WRITE | index);
-    card->stalled = false;
+    write_mmc(card, MMC_CMDARG, argument);
+    write_mmc(card, MMC_CMD, CMD_BASE | CMD_DATA_READ | command);
     return settled(card, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS);
+}
+
+static bool begin(void *context, uint8_t index, uint32_t address, uint32_t count)
+{
+    UsbCard *card = context;
+    card->stalled = false;
+    return start_data(card, CMD_WRITE | index, address, BLOCK_BYTES * count);
 }
 
 static bool feed(void *context, const uint32_t *words, uint32_t count, uint32_t *accepted)
@@ -161,9 +191,8 @@ static bool stop(void *context)
     return settled(card, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS) && answered;
 }
 
-static bool wait_ready(void *context)
+static uint32_t ready_status(const UsbCard *card)
 {
-    const UsbCard *card = context;
     uint32_t response[4] = {0, 0, 0, 0};
     SdCommand status = {CMD_SEND_STATUS, card->rca, SD_RESPONSE_SHORT, false};
     uint32_t start = hal_clock_milliseconds();
@@ -171,10 +200,36 @@ static bool wait_ready(void *context)
         if (mmc_command(card->host, status, response) &&
             (response[0] & STATUS_READY_FOR_DATA) != 0 &&
             ((response[0] >> STATUS_STATE_SHIFT) & STATUS_STATE_MASK) == STATE_TRANSFER) {
-            return true;
+            return response[0];
         }
     }
-    return false;
+    return 0;
+}
+
+static bool wait_ready(void *context)
+{
+    return ready_status(context) != 0;
+}
+
+static bool fetch(UsbCard *card, uint32_t command, uint32_t argument, uint32_t bytes,
+                  uint32_t *words)
+{
+    if (!start_data(card, command, argument, bytes)) {
+        return false;
+    }
+    uint32_t start = hal_clock_milliseconds();
+    for (uint32_t taken = 0; taken < bytes / 4;) {
+        if ((read_mmc(card, MMC_RINTSTS) & INT_WRITE_FAILED) != 0 ||
+            hal_clock_milliseconds() - start > DATA_TIMEOUT_MS) {
+            return false;
+        }
+        uint32_t level =
+            (read_mmc(card, MMC_STATUS) >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
+        for (; level > 0 && taken < bytes / 4; level--) {
+            words[taken++] = read_mmc(card, MMC_FIFO);
+        }
+    }
+    return end(card);
 }
 
 static const CardStreamOps SD_OPS = {pre_count,           begin, feed, end, stop, wait_ready,
@@ -221,7 +276,11 @@ static bool feed_stream(void *context, const uint32_t *words, uint32_t count, ui
 static bool close_stream(void *context, bool complete)
 {
     UsbCard *card = &cards[(uintptr_t)context];
-    return card->stream.ops != NULL && card_stream_close(&card->stream, complete);
+    bool closed = card->stream.ops != NULL && card_stream_close(&card->stream, complete);
+    if (!closed) {
+        usb_card_slow_down((uint8_t)(uintptr_t)context);
+    }
+    return closed;
 }
 
 const MscStream USB_CARD_STREAM = {open_stream, feed_stream, close_stream};
@@ -231,4 +290,94 @@ void usb_card_prepare(const EmmcLayout *internal)
     layout = internal;
     cards[USB_CARD_INTERNAL] = (UsbCard){.host = &EMMC_HOST, .rca = EMMC_RCA_ARGUMENT};
     cards[USB_CARD_SD] = (UsbCard){.host = &SD_MMC_HOST, .sd = true};
+}
+
+static bool source_fits(void)
+{
+    if ((register_read(CRU_MODE) & CRU_MODE_PLL) == 0) {
+        return false;
+    }
+    uint32_t hz = pll_output_hz(register_read(CRU_PLL_CON0), register_read(CRU_PLL_CON1));
+    return hz != 0 && hz <= FAST_SOURCE_LIMIT_HZ;
+}
+
+static void set_speed(UsbCard *card, bool fast)
+{
+    MmcHost host = *card->host;
+    if (fast) {
+        host.cru_transfer = card->sd ? SD_FAST_SOURCE | (FAST_DIVIDER - 1u)
+                                     : EMMC_FAST_SOURCE | (FAST_DIVIDER - 1u) << EMMC_DIVIDER_SHIFT;
+    }
+    mmc_set_clock(&host, SD_CLOCK_TRANSFER);
+    card->fast = fast;
+}
+
+static bool emmc_switched(UsbCard *card, uint32_t *scratch)
+{
+    uint32_t response[4];
+    SdCommand timing = {CMD_SWITCH, SWITCH_HIGH_SPEED_TIMING, SD_RESPONSE_SHORT_BUSY, false};
+    if (!fetch(card, CMD_SEND_EXT_CSD, 0, BLOCK_BYTES, scratch) ||
+        (((const uint8_t *)scratch)[EXT_CSD_CARD_TYPE] & CARD_TYPE_52_MHZ) == 0 ||
+        !mmc_command(card->host, timing, response)) {
+        return false;
+    }
+    uint32_t status = ready_status(card);
+    return status != 0 && (status & STATUS_SWITCH_ERROR) == 0;
+}
+
+static bool sd_switched(UsbCard *card, uint32_t *scratch)
+{
+    const SdCard *info = sd_card_info();
+    const uint8_t *bytes = (const uint8_t *)scratch;
+    if (!sd_card_ready() || info->bus_width != SD_WIDE_BUS ||
+        !fetch(card, CMD_SWITCH, SD_CHECK_HIGH_SPEED, SD_SWITCH_BYTES, scratch) ||
+        (bytes[SD_SUPPORT_BYTE] & SD_GROUP_1_HIGH_SPEED) == 0) {
+        return false;
+    }
+    card->rca = sd_card_rca_argument(info);
+    return fetch(card, CMD_SWITCH, SD_SWITCH_HIGH_SPEED, SD_SWITCH_BYTES, scratch) &&
+           (bytes[SD_RESULT_BYTE] & 0x0Fu) == 1u;
+}
+
+void usb_card_speed_up(bool internal_ready, uint32_t *scratch)
+{
+    fallbacks = 0;
+    if (!source_fits()) {
+        return;
+    }
+    UsbCard *internal = &cards[USB_CARD_INTERNAL];
+    UsbCard *card = &cards[USB_CARD_SD];
+    if (internal_ready && emmc_switched(internal, scratch)) {
+        set_speed(internal, true);
+    }
+    if (sd_switched(card, scratch)) {
+        set_speed(card, true);
+    }
+}
+
+bool usb_card_slow_down(uint8_t lun)
+{
+    UsbCard *card = &cards[lun];
+    if (!card->fast) {
+        return false;
+    }
+    set_speed(card, false);
+    fallbacks = (uint8_t)(fallbacks < UINT8_MAX ? fallbacks + 1 : fallbacks);
+    return true;
+}
+
+void usb_card_speed_down(void)
+{
+    for (uint8_t lun = 0; lun < USB_CARD_COUNT; lun++) {
+        if (cards[lun].fast) {
+            set_speed(&cards[lun], false);
+        }
+    }
+}
+
+UsbCardSpeed usb_card_speed(void)
+{
+    uint8_t fast =
+        (uint8_t)((cards[USB_CARD_INTERNAL].fast ? 1u : 0u) | (cards[USB_CARD_SD].fast ? 2u : 0u));
+    return (UsbCardSpeed){fast, fallbacks};
 }

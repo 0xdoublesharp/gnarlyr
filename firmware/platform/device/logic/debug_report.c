@@ -399,6 +399,10 @@ static void put_writes(Writer *writer, const HalUsbWrites *writes)
     string_builder_append_unsigned(&writer->text, writes->card_ms);
     string_builder_append(&writer->text, " idle_ms=");
     string_builder_append_unsigned(&writer->text, writes->idle_ms);
+    string_builder_append(&writer->text, " fast=");
+    string_builder_append_unsigned(&writer->text, writes->fast_cards);
+    string_builder_append(&writer->text, " fallbacks=");
+    string_builder_append_unsigned(&writer->text, writes->fallbacks);
     finish(writer);
 }
 

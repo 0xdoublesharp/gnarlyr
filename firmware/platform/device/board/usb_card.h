@@ -14,4 +14,13 @@ enum {
 
 extern const MscStream USB_CARD_STREAM;
 
+typedef struct UsbCardSpeed {
+    uint8_t fast;
+    uint8_t fallbacks;
+} UsbCardSpeed;
+
 void usb_card_prepare(const EmmcLayout *internal);
+void usb_card_speed_up(bool internal_ready, uint32_t *scratch);
+void usb_card_speed_down(void);
+bool usb_card_slow_down(uint8_t lun);
+UsbCardSpeed usb_card_speed(void);

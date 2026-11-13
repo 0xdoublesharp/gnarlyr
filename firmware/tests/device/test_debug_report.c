@@ -996,11 +996,16 @@ static void the_last_usb_session_splits_its_write_time(void)
     DebugReportInput input = plain_input();
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(strstr(text, "usb.timing") == NULL);
-    input.usb = (HalUsbLast){
-        .end = HAL_USB_END_EJECTED,
-        .writes = {.commands = 812, .receive_ms = 9400, .card_ms = 2100, .idle_ms = 350}};
+    input.usb = (HalUsbLast){.end = HAL_USB_END_EJECTED,
+                             .writes = {.commands = 812,
+                                        .receive_ms = 9400,
+                                        .card_ms = 2100,
+                                        .idle_ms = 350,
+                                        .fast_cards = 3,
+                                        .fallbacks = 1}};
     format(&input, DEBUG_REPORT_BYTES);
-    CHECK(has_line("usb.timing: writes=812 receive_ms=9400 card_ms=2100 idle_ms=350"));
+    CHECK(has_line("usb.timing: writes=812 receive_ms=9400 card_ms=2100 idle_ms=350 fast=3 "
+                   "fallbacks=1"));
 }
 
 static void the_card_start_reports_detection_power_and_the_failing_command(void)
