@@ -380,6 +380,41 @@ static void flourish_ends_foreign_shapes_and_non_title_cards(void)
     CHECK(!motion.running);
 }
 
+static void period_and_hour_labels_cover_every_clock_style(void)
+{
+    start(true, now_utc(), 60);
+    open_period(LISTENING_ALL_TIME);
+    draw();
+    CHECK(saw_whole(STR_RECAP_EVERY_PLAY));
+
+    start(true, now_utc(), 60);
+    open_period(LISTENING_THIS_YEAR);
+    draw();
+    CHECK(saw("2026"));
+
+    start(true, now_utc(), 60);
+    open_period(LISTENING_THIS_MONTH);
+    RecapWork *mutable = &listening_module_work.as.recap;
+    mutable->job.recap.hour = 0;
+    mutable->job.recap.streak_days = 1;
+    settings.clock_24h = false;
+    screen.card = 5;
+    draw();
+    CHECK(saw("12 AM"));
+    CHECK(saw_whole(STR_RECAP_ONE_DAY));
+    mutable->job.recap.hour = 13;
+    draw();
+    CHECK(saw("1 PM"));
+    settings.clock_24h = true;
+    mutable->job.recap.hour = 3;
+    draw();
+    CHECK(saw("03:00"));
+    recap_cards_bind(&covers, NULL);
+    draw();
+    CHECK(saw("03:00"));
+    recap_cards_bind(&covers, &settings);
+}
+
 static void a_failed_history_read_is_reported(void)
 {
     start(true, now_utc(), 60);
@@ -481,6 +516,7 @@ int main(void)
         TEST_CASE(a_recap_rebuilds_after_another_screen_reuses_the_work_buffer),
         TEST_CASE(sparse_recap_data_hides_only_the_empty_cards),
         TEST_CASE(flourish_ends_foreign_shapes_and_non_title_cards),
+        TEST_CASE(period_and_hour_labels_cover_every_clock_style),
         TEST_CASE(a_failed_history_read_is_reported),
         TEST_CASE(a_log_on_the_card_is_read_through_one_open_file_per_update),
         TEST_CASE(every_card_renders_whole_at_every_size_and_orientation),

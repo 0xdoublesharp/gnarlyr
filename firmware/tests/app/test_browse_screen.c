@@ -121,6 +121,23 @@ static void missing_and_spoken_folders_have_no_false_ranges(void)
     CHECK_EQUAL(0, browse_sections_range(folders, 100000).end);
 }
 
+static void invalid_levels_and_missing_favorites_return_no_screen(void)
+{
+    const Library *library = fixture_library_open(&fixture);
+    BrowsePoolConfig config = {.library = library, .theme = &BOARD_THEME};
+    browse_pool_init(&pool, config);
+    BrowseQuery query = browse_root_query(BROWSE_ALBUMS);
+    CHECK(browse_pool_open(&pool, -1, query) == NULL);
+    CHECK(browse_pool_open(&pool, BROWSE_DEPTH, query) == NULL);
+    CHECK(browse_pool_open_favorites(&pool, 0) == NULL);
+
+    FavoritesStore favorites = {.library = library};
+    config.favorites = &favorites;
+    browse_pool_init(&pool, config);
+    CHECK(browse_pool_open_favorites(&pool, -1) == NULL);
+    CHECK(browse_pool_open_shelf(&pool, BROWSE_DEPTH, SPOKEN_AUDIOBOOK) == NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -132,6 +149,7 @@ int main(void)
         TEST_CASE(missing_and_spoken_folders_have_no_false_ranges),
         TEST_CASE(lettered_lists_never_go_backwards),
         TEST_CASE(album_tracks_have_no_letters),
+        TEST_CASE(invalid_levels_and_missing_favorites_return_no_screen),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

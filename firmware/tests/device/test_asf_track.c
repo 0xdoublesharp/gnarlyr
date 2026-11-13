@@ -87,6 +87,25 @@ static bool read_unstamped(void *context, uint32_t offset, void *buffer, uint32_
     return true;
 }
 
+static AsfTrack unstamped_track(void)
+{
+    return (AsfTrack){.data_end = sizeof unstamped_packets,
+                      .packets = 64,
+                      .packet_bytes = 256,
+                      .rate = 16000,
+                      .bitrate = 32000,
+                      .duration_ms = 2048,
+                      .samples = 32256,
+                      .preroll_ms = 3100,
+                      .frame_samples = 512,
+                      .codec = 0x160,
+                      .channels = 1,
+                      .block_align = 128,
+                      .extra_bytes = 4,
+                      .stream = 1,
+                      .extra = {0, 0, 1, 0}};
+}
+
 static void seeking_without_object_timestamps_decodes_from_the_beginning(void)
 {
     static AsfStream stream;
@@ -105,21 +124,7 @@ static void seeking_without_object_timestamps_decodes_from_the_beginning(void)
         packet[13] = 1;
         packet[14] = (uint8_t)index;
     }
-    AsfTrack track = {.data_end = sizeof unstamped_packets,
-                      .packets = 64,
-                      .packet_bytes = 256,
-                      .rate = 16000,
-                      .bitrate = 32000,
-                      .duration_ms = 2048,
-                      .samples = 32256,
-                      .preroll_ms = 3100,
-                      .frame_samples = 512,
-                      .codec = 0x160,
-                      .channels = 1,
-                      .block_align = 128,
-                      .extra_bytes = 4,
-                      .stream = 1,
-                      .extra = {0, 0, 1, 0}};
+    AsfTrack track = unstamped_track();
     CHECK(asf_stream_start_at(&stream, (FlacInput){read_unstamped, NULL, sizeof unstamped_packets},
                               &track, 1300));
     CHECK_EQUAL(1, stream.packet_index);
@@ -127,11 +132,67 @@ static void seeking_without_object_timestamps_decodes_from_the_beginning(void)
     CHECK_EQUAL(0, stream.first_sample);
 }
 
+static bool refuse_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    (void)offset;
+    (void)buffer;
+    (void)length;
+    return false;
+}
+
+static void stream_contracts_and_seek_failures_are_rejected(void)
+{
+    static AsfStream stream;
+    uint8_t output[8];
+    FlacInput input = {read_unstamped, NULL, sizeof unstamped_packets};
+    AsfTrack track = unstamped_track();
+
+    CHECK(!asf_stream_start_at(NULL, input, &track, 0));
+    CHECK(!asf_stream_start_at(&stream, input, NULL, 0));
+    track.block_align = 0;
+    CHECK(!asf_stream_start_at(&stream, input, &track, 0));
+    track = unstamped_track();
+    track.block_align = WMA_PACKET_BYTES + 1;
+    CHECK(!asf_stream_start_at(&stream, input, &track, 0));
+    track = unstamped_track();
+    track.packet_bytes = ASF_PACKET_BYTES + 1;
+    CHECK(!asf_stream_start_at(&stream, input, &track, 0));
+
+    track = unstamped_track();
+    track.packet_bytes = 31;
+    track.packets = 4;
+    CHECK(!asf_stream_start_at(&stream, input, &track, 1000));
+    track = unstamped_track();
+    CHECK(!asf_stream_start_at(&stream, (FlacInput){refuse_read, NULL, input.size}, &track, 1000));
+
+    memset(unstamped_packets, 0, sizeof unstamped_packets);
+    unstamped_packets[0] = 0x81;
+    CHECK(!asf_stream_start(&stream, input, &track));
+    seeking_without_object_timestamps_decodes_from_the_beginning();
+    CHECK(asf_stream_start(&stream, input, &track));
+
+    CHECK(!asf_stream_read(NULL, 0, output, 1));
+    AsfStream invalid = stream;
+    invalid.failed = true;
+    CHECK(!asf_stream_read(&invalid, 0, output, 1));
+    CHECK(!asf_stream_read(&stream, 1, output, 1));
+    invalid = stream;
+    invalid.position = WMA_VIRTUAL_END + 1u;
+    CHECK(!asf_stream_read(&invalid, invalid.position, output, 1));
+    invalid = stream;
+    invalid.position = WMA_VIRTUAL_END;
+    CHECK(!asf_stream_read(&invalid, invalid.position, output, 1));
+    CHECK(!asf_stream_read(&stream, 0, NULL, 1));
+    CHECK(asf_stream_read(&stream, 0, NULL, 0));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(compressed_payloads_keep_their_presentation_timestamp),
         TEST_CASE(seeking_without_object_timestamps_decodes_from_the_beginning),
+        TEST_CASE(stream_contracts_and_seek_failures_are_rejected),
         TEST_CASE(standard_v1_v2_are_probed_with_bounded_packets_and_playable_timing),
         TEST_CASE(truncated_objects_and_nonstandard_codecs_are_refused),
     };
