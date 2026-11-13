@@ -79,6 +79,12 @@ static const UsbOverlayEntry *load_usb_code(void)
     return NULL;
 }
 
+static void plug_in_again(void)
+{
+    usb_session_shared()->show_modes = false;
+    usb_plug_retry(&usb_plug);
+}
+
 static void run_usb_session(void)
 {
     board_stall_pause(true);
@@ -88,8 +94,8 @@ static void run_usb_session(void)
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
     board_trial_snapshot(1);
-    if (usb != NULL) {
-        board_trial_session_ended();
+    if (usb != NULL && board_trial_session_ended() && usb_vbus_present()) {
+        plug_in_again();
     }
     if (storage_changed || hal_system_restart_pending()) {
         storage_reset();

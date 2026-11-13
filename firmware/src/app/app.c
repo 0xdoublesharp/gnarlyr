@@ -1793,7 +1793,7 @@ static void open_usb_chooser(bool prompt)
     }
 }
 
-void app_open_usb_modes(void)
+CORE_SEAM void app_open_usb_modes(void)
 {
     open_usb_chooser(false);
 }

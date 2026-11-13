@@ -215,15 +215,17 @@ void board_trial_session_starting(void)
     trial->charged = false;
 }
 
-void board_trial_session_ended(void)
+bool board_trial_session_ended(void)
 {
     UsbShared *shared = usb_session_shared();
     bool confirmed = shared->trial.running && shared->last_session.end == HAL_USB_END_EJECTED &&
                      shared->last_session.internal_write_ok;
     const TrialBootModuleEntry *entry = confirmed || shared->trial.promoting ? boot_module() : NULL;
-    if (entry != NULL) {
-        entry->session_end(shared, copy_buffer());
+    if (entry == NULL) {
+        return false;
     }
+    entry->session_end(shared, copy_buffer());
+    return !shared->trial.running && !shared->trial.promoting;
 }
 
 static bool escape_held(void)
