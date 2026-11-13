@@ -6,6 +6,7 @@
 #include "check.h"
 #include "core/bytes.h"
 #include "device/fat.h"
+#include "fat_layout.h"
 #include "sparse_card.h"
 
 static const char LONG_NAME_PATH[] =
@@ -23,6 +24,37 @@ typedef struct Card {
     SparseCard sparse;
     FatVolume volume;
 } Card;
+
+typedef struct FaultDevice {
+    BlockDevice inner;
+    uint32_t reads;
+    uint32_t writes;
+    uint32_t fail_read;
+    uint32_t fail_write;
+} FaultDevice;
+
+static bool fault_read(void *context, uint32_t lba, uint32_t count, void *buffer)
+{
+    FaultDevice *fault = context;
+    fault->reads++;
+    return fault->reads != fault->fail_read &&
+           fault->inner.read(fault->inner.context, lba, count, buffer);
+}
+
+static bool fault_write(void *context, uint32_t lba, uint32_t count, const void *buffer)
+{
+    FaultDevice *fault = context;
+    fault->writes++;
+    return fault->writes != fault->fail_write && fault->inner.write != NULL &&
+           fault->inner.write(fault->inner.context, lba, count, buffer);
+}
+
+static BlockDevice failing_device(FaultDevice *fault, BlockDevice inner, uint32_t fail_read,
+                                  uint32_t fail_write)
+{
+    *fault = (FaultDevice){.inner = inner, .fail_read = fail_read, .fail_write = fail_write};
+    return (BlockDevice){fault_read, fault, fault_write};
+}
 
 static Card *mounted(const char *name)
 {
@@ -183,6 +215,123 @@ static void a_blank_device_does_not_mount(void)
     SparseCard sparse = {.bytes = blank, .sector_count = 64, .reads = 0};
     FatVolume volume;
     CHECK(!fat_mount(&volume, sparse_card_device(&sparse)));
+}
+
+static void malformed_layouts_and_device_failures_do_not_mount(void)
+{
+    enum {
+        SECTORS = 2,
+        SECTOR_BYTES = 512,
+        PARTITION_ENTRY = 0x1BE
+    };
+    static uint8_t bytes[SECTORS * SECTOR_BYTES];
+    SparseCard sparse = {.bytes = bytes, .sector_count = SECTORS};
+    FatVolume volume;
+    FaultDevice fault;
+
+    memset(bytes, 0, sizeof bytes);
+    CHECK(!fat_mount(&volume, failing_device(&fault, sparse_card_device(&sparse), 1, 0)));
+
+    memset(bytes, 0, sizeof bytes);
+    bytes[510] = 0x55;
+    bytes[511] = 0xAA;
+    bytes[PARTITION_ENTRY] = 0x7f;
+    bytes[PARTITION_ENTRY + 4] = 0x0b;
+    bytes_put_le32(bytes + PARTITION_ENTRY + 8, 1);
+    CHECK(!fat_mount(&volume, sparse_card_device(&sparse)));
+
+    bytes[PARTITION_ENTRY] = 0;
+    CHECK(!fat_mount(&volume, failing_device(&fault, sparse_card_device(&sparse), 2, 0)));
+
+    memset(bytes, 0, sizeof bytes);
+    bytes[0] = 0xeb;
+    bytes_put_le16(bytes + 11, SECTOR_BYTES);
+    bytes[13] = 1;
+    bytes_put_le16(bytes + 14, 1);
+    bytes[16] = 1;
+    bytes_put_le16(bytes + 17, 16);
+    bytes_put_le16(bytes + 19, 1);
+    bytes_put_le16(bytes + 22, 1);
+    bytes[510] = 0x55;
+    bytes[511] = 0xaa;
+    CHECK(!fat_mount(&volume, sparse_card_device(&sparse)));
+    bytes[0] = 0xe9;
+    CHECK(!fat_mount(&volume, sparse_card_device(&sparse)));
+
+    memset(bytes, 0, sizeof bytes);
+    memcpy(bytes + 3, "EXFAT   ", 8);
+    bytes[510] = 0x55;
+    bytes[511] = 0xaa;
+    bytes_put_le32(bytes + 80, 1);
+    bytes_put_le32(bytes + 84, 1);
+    bytes_put_le32(bytes + 88, 1);
+    bytes_put_le32(bytes + 92, 1);
+    bytes_put_le32(bytes + 96, 2);
+    bytes[108] = 9;
+    bytes[109] = 17;
+    bytes[110] = 1;
+    CHECK(!fat_mount(&volume, sparse_card_device(&sparse)));
+}
+
+static void layout_helpers_fail_closed_on_invalid_ranges_and_io(void)
+{
+    static uint8_t bytes[16 * 512];
+    SparseCard sparse = {.bytes = bytes, .sector_count = 16};
+    FaultDevice fault;
+    FatVolume volume = {
+        .device = failing_device(&fault, sparse_card_device(&sparse), 1, 0),
+        .type = FAT_TYPE_16,
+        .fat_start = 2,
+        .fat_sectors = 0,
+        .data_start = 3,
+        .cluster_count = 1,
+    };
+    CHECK(!fat_read_run(&volume, 1, 1));
+    CHECK(!fat_commit_sector(&volume, 1));
+
+    uint32_t next = 0;
+    CHECK(!fat_chain_next(&volume, 2, &next));
+    volume.fat_sectors = 1;
+    volume.device = failing_device(&fault, sparse_card_device(&sparse), 1, 0);
+    CHECK(!fat_chain_next(&volume, 2, &next));
+
+    FatFile file = {.first_cluster = 2, .size = 512, .contiguous = true};
+    uint32_t lba = 0;
+    CHECK(!fat_file_sector(&volume, &file, 1, &lba));
+    CHECK_EQUAL(0u, fat_run_length(&volume, &file, 1, 2));
+
+    FatFile empty = {.first_cluster = 0, .size = 0, .directory = true};
+    CHECK(fat_read_entry(&volume, &empty, 0) == NULL);
+
+    volume = (FatVolume){.device = sparse_card_device(&sparse),
+                         .type = FAT_TYPE_16,
+                         .data_start = 0,
+                         .cluster_count = 16,
+                         .cluster_shift = 0};
+    FatFile long_directory = {
+        .first_cluster = 2, .size = 9 * 512, .directory = true, .contiguous = true};
+    CHECK(fat_read_entry(&volume, &long_directory, 0) != NULL);
+}
+
+static void an_unknown_free_count_stays_unknown(void)
+{
+    enum {
+        INFO_STRUCT_OFFSET = 484,
+        INFO_FREE_OFFSET = 488,
+        INFO_NEXT_OFFSET = 492
+    };
+    Card *card = mounted("fat32_mbr");
+    CHECK(card->volume.info_sector != 0);
+    uint8_t *info = card->sparse.bytes + (size_t)card->volume.info_sector * 512;
+    bytes_put_le32(info, 0x41615252u);
+    bytes_put_le32(info + INFO_STRUCT_OFFSET, 0x61417272u);
+    bytes_put_le32(info + INFO_FREE_OFFSET, UINT32_MAX);
+    bytes_put_le32(info + INFO_NEXT_OFFSET, 2);
+    card->volume.cache_count = 0;
+    CHECK(fat_info_record(&card->volume, 3, 4, false));
+    CHECK_EQUAL(UINT32_MAX, bytes_le32(info + INFO_FREE_OFFSET));
+    CHECK_EQUAL(3u, bytes_le32(info + INFO_NEXT_OFFSET));
+    sparse_card_free(&card->sparse);
 }
 
 static uint8_t *looped_volume(SparseCard *sparse)
@@ -824,6 +973,80 @@ static void a_fat16_label_and_its_boot_label_take_the_mixed_case_name(void)
     sparse_card_free(&card->sparse);
 }
 
+static uint8_t *exfat_root_label(Card *card)
+{
+    uint8_t *entry = card_sector(card, cluster_sector(&card->volume, card->volume.root_cluster));
+    while (entry[0] != 0 && entry[0] != 0x83) {
+        entry += 32;
+    }
+    CHECK_EQUAL(0x83, entry[0]);
+    return entry;
+}
+
+static void malformed_label_metadata_is_not_rewritten(void)
+{
+    Card *card = mounted("exfat_mbr");
+    uint8_t *label = exfat_root_label(card);
+    label[3] = 1;
+    uint32_t writes = card->sparse.writes;
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL));
+    CHECK_EQUAL(writes, card->sparse.writes);
+    sparse_card_free(&card->sparse);
+
+    card = mounted("fat32_mbr");
+    uint8_t *primary = card_sector(card, card->volume.volume_start);
+    uint32_t backup = bytes_le16(primary + 50);
+    card_sector(card, card->volume.volume_start + backup)[510] = 0;
+    CHECK(!fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL));
+    sparse_card_free(&card->sparse);
+
+    card = mounted("fat32_mbr");
+    primary = card_sector(card, card->volume.volume_start);
+    backup = bytes_le16(primary + 50);
+    card_sector(card, card->volume.volume_start + backup)[0] ^= 1;
+    CHECK(!fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL));
+    sparse_card_free(&card->sparse);
+
+    card = mounted("fat32_mbr");
+    primary = card_sector(card, card->volume.volume_start);
+    primary[71 - 5] = 0;
+    CHECK(!fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL));
+    sparse_card_free(&card->sparse);
+
+    card = mounted("fat32_mbr");
+    primary = card_sector(card, card->volume.volume_start);
+    bytes_put_le16(primary + 50, bytes_le16(primary + 14));
+    CHECK(fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL));
+    sparse_card_free(&card->sparse);
+}
+
+static void label_updates_propagate_read_and_write_failures(void)
+{
+    uint32_t read_failures = 0;
+    uint32_t write_failures = 0;
+    for (uint32_t failure = 1; failure <= 16; failure++) {
+        Card *card = mounted("fat32_mbr");
+        fat32_root_label(card)[0] = 0xe5;
+        FaultDevice fault;
+        card->volume.device = failing_device(&fault, sparse_card_device(&card->sparse), failure, 0);
+        card->volume.cache_count = 0;
+        card->volume.fat_sector_valid = false;
+        read_failures += !fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL);
+        sparse_card_free(&card->sparse);
+    }
+    for (uint32_t failure = 1; failure <= 4; failure++) {
+        Card *card = mounted("fat32_mbr");
+        FaultDevice fault;
+        card->volume.device = failing_device(&fault, sparse_card_device(&card->sparse), 0, failure);
+        card->volume.cache_count = 0;
+        card->volume.fat_sector_valid = false;
+        write_failures += !fat_fix_label(&card->volume, MIXED_NAME, MAC_LABEL);
+        sparse_card_free(&card->sparse);
+    }
+    CHECK(read_failures > 0);
+    CHECK(write_failures > 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -841,6 +1064,9 @@ int main(void)
         TEST_CASE(the_fat16_card_mounts_without_a_partition_table),
         TEST_CASE(fat16_files_read_back_from_the_root_and_subfolders),
         TEST_CASE(a_blank_device_does_not_mount),
+        TEST_CASE(malformed_layouts_and_device_failures_do_not_mount),
+        TEST_CASE(layout_helpers_fail_closed_on_invalid_ranges_and_io),
+        TEST_CASE(an_unknown_free_count_stays_unknown),
         TEST_CASE(a_folder_whose_clusters_loop_ends_the_search),
         TEST_CASE(the_exfat_card_mounts_from_its_mbr_partition),
         TEST_CASE(exfat_files_read_back_their_bytes),
@@ -872,6 +1098,8 @@ int main(void)
         TEST_CASE(a_root_without_a_label_entry_fixes_the_boot_labels),
         TEST_CASE(a_label_after_long_names_in_a_later_root_cluster_is_found),
         TEST_CASE(a_fat16_label_and_its_boot_label_take_the_mixed_case_name),
+        TEST_CASE(malformed_label_metadata_is_not_rewritten),
+        TEST_CASE(label_updates_propagate_read_and_write_failures),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

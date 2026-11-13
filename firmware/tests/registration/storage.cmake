@@ -1,6 +1,7 @@
 echo_add_unit_test(NAME test_fat
     SOURCES device/test_fat.c device/sparse_card.c
     LIBRARIES echo_device_logic
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/platform/device/logic
 )
 target_compile_definitions(test_fat PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
 set_tests_properties(test_fat PROPERTIES TIMEOUT 20)
