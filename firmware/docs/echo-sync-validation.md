@@ -25,3 +25,17 @@ python3 tools/firmware.py test --regex '^tools_unit_tests$' --jobs 2
 ```
 
 Focused echo-sync tests can also run as standard-library unittest tests with the tools dependencies installed. Temporary files and reports belong on Scratch. The platform tests substitute mount and Windows API calls; they do not access a connected player or establish Windows/Linux hardware acceptance.
+
+## Coverage gate
+
+With the tools runtime requirements installed, add the pinned test dependency from `tools/requirements-test.txt` to the Python 3.14 tools environment. Run from the repository root:
+
+```sh
+python3 firmware/tools/echo_sync_coverage.py --output /Volumes/Scratch/SnowskyEcho/reports/echo-sync-coverage
+```
+
+The command runs the echo-sync, library, cover, CUE, ReplayGain, metadata-skimming and MP4 chapter tests. It enforces 100% lines and branches independently for all ten runtime modules: `echo_sync`, `library_index`, `cover_export`, `cue_sheet`, `replay_gain`, `fnv`, `identity`, `tag_skim`, `mp4_chapters` and `dsd_metadata`. Unimported modules count as gaps; no production code is excluded. `--measure` writes reports without enforcing the threshold. Output must be outside the source checkout.
+
+Malformed metadata tests include corrupt declared lengths at physical EOF, invalid DSD chunks, MP4 chapter clocks and sample tables, plus deterministic byte corruption and every truncation of generated chapter fixtures. They assert bounded chapter counts, titles and times and unchanged source bytes. CLI tests execute the actual entrypoints against disposable music folders and verify incomplete inputs, unreadable tags, unresolved playlist entries and failure status.
+
+The companion's `pnpm test:echo-sync CHECKOUT --python PYTHON` invokes this gate against a separate checkout without bundling the Python implementation. Its reports remain separate from companion TypeScript coverage.
