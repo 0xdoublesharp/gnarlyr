@@ -646,6 +646,7 @@ static bool follow_card(void)
     bool changed = ready != card_present;
     if (changed) {
         msc_set_media(&msc, CARD_LUN, ready, ready ? sd_sector_count() : 0);
+        scene.usage[CARD_LUN].free_sectors = free_at_connect(ready, CARD_LUN);
     }
     card_present = ready;
     return changed;

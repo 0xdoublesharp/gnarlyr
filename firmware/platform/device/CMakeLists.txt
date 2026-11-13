@@ -351,6 +351,7 @@ set(ECHO_OVERLAY_IMPORTS
     sd_read
     sd_sector_count
     sd_start
+    sd_start_log
     sd_write
     usb_connect
     usb_flush_fifos

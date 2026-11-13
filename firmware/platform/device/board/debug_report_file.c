@@ -10,6 +10,7 @@
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "sd.h"
 #include "usb.h"
 #include "usb_registers.h"
 #include "usb_session.h"
@@ -102,6 +103,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .dac = dac_path_diagnostics(),
                               .frames = app_debug_frames(),
                               .loop = board_debug_loop(),
+                              .card = sd_start_log(),
                               .script = debug_runner_script(),
                               .interrupted_line = board_debug_interrupted_line(),
                               .log = debug_loop_log(),

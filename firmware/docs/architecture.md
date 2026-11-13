@@ -887,6 +887,28 @@ to start is tried again by later `sd_start` calls, at most once a second and ten
 times per insertion (`card_start_due`); a removal, an eject or `sd_forget` starts
 the count again. Before, one failed start stood until the card was taken out.
 
+Every card start runs the full power-up sequence: the controller's clocks and pin
+mux are set, the card clock is stopped and card power (`PWREN`) switched off for
+20 ms, the controller is reset (which switches power back on), the card gets
+20 ms to come up before the identify clock and then CMD0, CMD8 and ACMD41. On the
+owner's player a warm restart left the card unable to start, even after it was
+pulled and reinserted, until the player was powered off; whether `PWREN` switches
+the card's supply on this board is not established, so the sequence is the
+firmware's best available power cycle. `board_restart_clean` now also puts the
+card back to idle (CMD0) and switches its power off before the restart
+(`sd_quiesce`); the 10 s Power restart and the loader keys run from SysTick and do
+not, as for the eMMC. `sd_start` follows the debounced card-detect state, so a
+glitch shorter than 30 ms no longer withdraws the card from a USB host; reads and
+writes still check the raw pin. Card initialisation gives up after three
+unanswered ACMD41 tries instead of a second of retries, and refuses a card whose
+CSD says high capacity but that was not started in high-capacity mode (it missed
+CMD8), rather than addressing it by bytes. The debug report carries one
+`card.start` line when a card start took more than one try or failed: the
+detect pin now, the debounced state, eject, ready, whether it was detected and
+already powered at the last start, the tries, the last attempt's duration, the
+last command and its response, the last failed command with the controller's
+interrupt bits, and the counts of failed commands and response timeouts.
+
 Settings places Eject card and Mount card beside Format card. Eject pauses through
 the existing DAC fade, saves playback and listening state, cancels edit jobs and
 releases audio before disabling SD I/O. The main loop then invalidates all volume

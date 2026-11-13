@@ -48,6 +48,9 @@ CARD_LUN = 1
 CARD_LATE_MS = 1000
 CARD_RETRY_MS = 1000
 CARD_FOLLOW_SLACK_MS = 100
+CARD_SETTLE_SLACK_MS = 150
+CARD_LATER_MS = 2000
+DETECT_GLITCH_MS = 20
 
 
 def string_id(name):
@@ -474,6 +477,70 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
         print("\n[late card] the card drive appeared %d ms after the card answered"
               % (changed_ms - answered))
+
+    def card_session(self, answering):
+        from unicorn.arm_const import UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        session = self.session(vbus=True)
+        machine = session.machine
+        disk = SparseDisk(1024 * 1024)
+        Fat32Volume(fsinfo=True).write_to(disk, 0)
+        card = SdCard(disk, machine)
+        machine.card_present = True
+        machine.sd_controller.card = card if answering else None
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda machine: 0)
+        machine.stub_symbol("usb_activity_quiet", lambda machine: 1)
+        media, notes = [], []
+        machine.hook_symbol("msc_set_media", lambda: media.append(
+            (machine.milliseconds(), machine.reg(UC_ARM_REG_R1), machine.reg(UC_ARM_REG_R2),
+             machine.reg(UC_ARM_REG_R3))))
+        machine.hook_symbol("i18n_format_text", lambda: notes.append(
+            (machine.milliseconds(), machine.reg(UC_ARM_REG_R1))))
+        machine.note("usb_activity_start")
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: "usb_activity_start" in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        return session, machine, card, disk, media, notes
+
+    def test_a_card_ready_two_seconds_into_the_session_shows_with_its_free_space(self):
+        session, machine, card, disk, media, notes = self.card_session(answering=False)
+        machine.run(until_ms=machine.milliseconds() + CARD_LATER_MS)
+        self.assertEqual(media, [])
+        self.assertIn(string_id("STR_USB_NO_CARD"), [text for _, text in notes])
+        answered = machine.milliseconds()
+        machine.sd_controller.card = card
+        self.assertEqual(machine.run(until=lambda: bool(media),
+                                     until_ms=answered + 2 * CARD_RETRY_MS), "condition met")
+        changed_ms, lun, present, sectors = media[0]
+        self.assertEqual((lun, present, sectors), (CARD_LUN, 1, disk.sector_count))
+        self.assertLessEqual(changed_ms - answered, CARD_RETRY_MS + CARD_SETTLE_SLACK_MS)
+        machine.run(until_ms=machine.milliseconds() + 300)
+        shown = [text for when, text in notes if when >= changed_ms]
+        self.assertIn(string_id("STR_USB_FREE"), shown)
+        self.assertNotIn(string_id("STR_USB_NO_CARD"), shown)
+        self.assertEqual(len(media), 1)
+        self.assert_healthy(session)
+
+    def test_a_card_detect_glitch_shorter_than_the_debounce_keeps_the_card_offered(self):
+        session, machine, card, disk, media, notes = self.card_session(answering=True)
+        machine.run(until_ms=machine.milliseconds() + 500)
+        self.assertEqual(media, [])
+        start = machine.milliseconds() + 50
+
+        def pull():
+            machine.card_present = False
+
+        def push():
+            machine.card_present = True
+
+        machine.at_ms(start, pull)
+        machine.at_ms(start + DETECT_GLITCH_MS, push)
+        machine.run(until_ms=start + 1000)
+        self.assertEqual(media, [])
+        self.assertNotIn(string_id("STR_USB_NO_CARD"), [text for _, text in notes])
+        self.assert_healthy(session)
 
 
 if __name__ == "__main__":

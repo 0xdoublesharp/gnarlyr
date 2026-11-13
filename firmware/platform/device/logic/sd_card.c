@@ -20,6 +20,7 @@ enum {
     IF_COND_PATTERN = 0x1AA,
     IF_COND_MASK = 0xFFF,
     READY_TRIES = 100,
+    SILENT_TRIES = 3,
     READY_RETRY_MS = 10,
     RCA_ATTEMPTS = 4,
     BLOCK_LENGTH = 512,
@@ -63,11 +64,17 @@ static bool interface_condition(const SdHost *host, bool *version_2)
 static bool wait_until_ready(const SdHost *host, SdCard *card, bool version_2)
 {
     uint32_t argument = VOLTAGE_WINDOW | (version_2 ? HIGH_CAPACITY_REQUEST : 0);
+    int silent = 0;
     for (int attempt = 0; attempt < READY_TRIES && host->card_present(host->context); attempt++) {
         uint32_t ocr = 0;
-        if (send_app(host, card, ACMD_SEND_OP_COND, argument, &ocr) && (ocr & CARD_READY) != 0) {
+        bool answered = send_app(host, card, ACMD_SEND_OP_COND, argument, &ocr);
+        if (answered && (ocr & CARD_READY) != 0) {
             card->high_capacity = version_2 && (ocr & CARD_HIGH_CAPACITY) != 0;
             return true;
+        }
+        silent = answered ? 0 : silent + 1;
+        if (silent >= SILENT_TRIES) {
+            return false;
         }
         host->delay_ms(host->context, READY_RETRY_MS);
     }
@@ -117,6 +124,9 @@ static bool identify(const SdHost *host, SdCard *card)
     }
     SdCommand csd = {CMD_SEND_CSD, sd_card_rca_argument(card), SD_RESPONSE_LONG, false};
     if (!send(host, csd, words)) {
+        return false;
+    }
+    if (csd_bits(words, 126, 2) == 1 && !card->high_capacity) {
         return false;
     }
     card->sector_count = csd_sectors(words);

@@ -3,6 +3,7 @@
 #include "board.h"
 #include "emmc.h"
 #include "registers.h"
+#include "sd.h"
 
 #define PMU_BASE 0x50020000u
 #define PMU_BOOT_FLAG (PMU_BASE + 0x4Cu)
@@ -90,6 +91,7 @@ void board_loader_reboot(void)
 void board_restart_clean(void)
 {
     emmc_quiesce();
+    sd_quiesce();
     board_restart();
 }
 

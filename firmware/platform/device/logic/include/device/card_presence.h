@@ -9,6 +9,23 @@ enum {
     CARD_START_TRIES = 10
 };
 
+typedef struct CardStartLog {
+    uint32_t init_ms;
+    uint32_t last_response;
+    uint32_t failed_interrupts;
+    uint16_t failures;
+    uint16_t timeouts;
+    uint8_t attempts;
+    uint8_t last_command;
+    uint8_t failed_command;
+    bool detected;
+    bool powered_before;
+    bool ready;
+    bool raw_now;
+    bool present_now;
+    bool ejected_now;
+} CardStartLog;
+
 typedef struct CardStart {
     uint32_t tried_ms;
     uint8_t tries;
