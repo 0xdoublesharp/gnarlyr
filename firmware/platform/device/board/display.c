@@ -109,6 +109,11 @@ static void apply_backlight(void)
     }
 }
 
+bool board_display_lit(void)
+{
+    return backlight_on;
+}
+
 void board_backlight_full(void)
 {
     ramping = false;
