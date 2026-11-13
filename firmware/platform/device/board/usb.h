@@ -69,6 +69,7 @@ typedef struct UsbPort {
     uint16_t control_data_length;
     uint8_t control_data[4];
     uint16_t bulk_packet;
+    uint8_t resets;
     uint32_t setup[2];
     bool control_out_pending;
     UsbSetup control_out;

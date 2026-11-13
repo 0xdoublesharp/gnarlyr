@@ -114,7 +114,8 @@ _Static_assert(sizeof PLAYER_NAMES / sizeof PLAYER_NAMES[0] == DEBUG_PLAYER_STAN
                "the report names the standby state the event log records");
 static const char *const AUDIO_NAMES[] = {"stopped", "playing", "paused"};
 static const char *const USB_END_NAMES[] = {"none", "ejected", "unplugged", "no_host"};
-static const char *const SPEED_FALLBACK_NAMES[] = {"none", "not_configured", "few_commands"};
+static const char *const SPEED_FALLBACK_NAMES[] = {"none", "not_configured", "few_commands",
+                                                   "resets"};
 static const char *const STEP_NAMES[HAL_START_STEP_COUNT] = {
     "none",       "backlight_on", "backlight_off", "clock_switch", "core1_start",
     "core1_stop", "card_write",   "watchdog_test", "loader"};

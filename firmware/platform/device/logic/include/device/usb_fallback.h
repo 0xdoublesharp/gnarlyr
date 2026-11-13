@@ -5,17 +5,20 @@
 
 enum {
     USB_FALLBACK_MS = 10000,
-    USB_FALLBACK_COMMANDS = 2
+    USB_FALLBACK_COMMANDS = 2,
+    USB_FALLBACK_RESETS = 6
 };
 
 typedef enum UsbFallbackCause {
     USB_FALLBACK_NONE,
     USB_FALLBACK_NOT_CONFIGURED,
-    USB_FALLBACK_FEW_COMMANDS
+    USB_FALLBACK_FEW_COMMANDS,
+    USB_FALLBACK_RESETS_ONLY
 } UsbFallbackCause;
 
 typedef struct UsbFallbackSigns {
     bool configured;
+    uint8_t resets;
     uint32_t commands;
 } UsbFallbackSigns;
 

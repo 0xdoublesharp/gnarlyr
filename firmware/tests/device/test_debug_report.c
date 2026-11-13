@@ -1046,6 +1046,10 @@ static void a_full_speed_fallback_reports_why_it_fired(void)
     input.usb.fallback_commands = 0;
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("usb.speed_fallback: not_configured commands=0 setups=0"));
+    input.usb.speed_fallback = 3;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.speed_fallback: resets commands=0 setups=0"));
+    input.usb.speed_fallback = 1;
     for (uint8_t index = 0; index < 10; index++) {
         input.usb.fallback_setups.setups[index % HAL_USB_SETUP_TRACE] =
             (HalUsbSetup){0x80, 6, HAL_USB_SETUP_ANSWERED, (uint16_t)(0x0100 + index), 64};
