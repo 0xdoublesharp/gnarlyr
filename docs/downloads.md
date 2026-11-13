@@ -4,7 +4,9 @@ Public firmware and desktop installers are distributed as assets in [Gnarlyr Git
 
 ## Firmware
 
-Every successful CI run packages its image with `tools/release_package.py` and uploads `GNARLYR.IMG`, `ECHOECHO.IMG` (the same bytes under the name FiiO's updater installs), `gnarlyr-source.tar.gz`, `firmware.json` and `SHA256SUMS` as an Actions artifact. CI does not write to a player or publish a release.
+Every successful CI run packages its image with `tools/release_package.py` and uploads `GNARLYR.IMG`, `ECHOECHO.img` (the same bytes under the name FiiO's updater installs), `gnarlyr-source.tar.gz`, `firmware.json` and `SHA256SUMS` as an Actions artifact. CI does not write to a player or publish a release.
+
+Point first-time users directly to `ECHOECHO.img`: download, copy to internal storage, eject both drives, unplug and restart. Keep this filename so no rename is needed. After Gnarlyr starts, the companion app can prepare later updates. If FiiO briefly shows Updating and returns to stock, use [first-install troubleshooting](../firmware/docs/device-install.md#briefly-shows-updating-then-returns-to-fiio); the macOS helper handles contiguous allocation and readback as an optional fallback.
 
 A tag is `v` plus the version in `firmware/identity.json` (`v1.0.0`), or that plus a pre-release label of up to eight characters (`v1.0.0-beta.1`). When CI runs on a pre-release tag, the label replaces the commit in the image's 8-byte build field, so Settings → About → Firmware shows `1.0.0-beta.1` and debug reports give `firmware.build: beta.1`; a local build gets the same with `ECHO_BUILD_TAG=beta.1`. A pre-release ships the `device` preset, the build installed on the owner's player during development, which writes debug reports to `/.gnarlyr/debug` for testers to send. A release without a label ships the `release` preset, keeps the commit as its build and must be on `main`; a pre-release may be cut from an integration branch.
 
@@ -25,7 +27,7 @@ https://github.com/0xdoublesharp/gnarlyr/releases/latest/download/firmware.json
 https://github.com/0xdoublesharp/gnarlyr/releases/latest/download/SHA256SUMS
 ```
 
-For a pinned download, replace `latest/download` with `download/<tag>`. A pre-release is reached only by its pinned URL, for example `https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/ECHOECHO.IMG`. Installers should verify the image hash against the manifest, validate the image/model, and preserve the existing review and update checks. Hashes alone do not authenticate a publisher.
+For a pinned download, replace `latest/download` with `download/<tag>`. A pre-release is reached only by its pinned URL, for example `https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/ECHOECHO.img`. Installers should verify the image hash against the manifest, validate the image/model, and preserve the existing review and update checks. Hashes alone do not authenticate a publisher.
 
 ## Desktop
 

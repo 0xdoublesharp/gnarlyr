@@ -7,8 +7,10 @@ failure prints {"ok": false, "error": {"code", "message"}} and exits with status
 
 The tool finds the player by its USB identity and its internal drive by name and size. It
 writes only the update file at the drive's top level, files inside the debug folder, the
-continuity mark that asks for a settings restore and, just before every eject, the time file
-that sets the player's clock. It never formats or opens a raw
+continuity mark that asks for a settings restore and, before a custom-firmware eject, the time file
+that sets the player's clock. First-install preparation identifies a stock full-size ECHO,
+copies a contiguous image under its stock update filename, verifies it and ejects both drives.
+It never formats or opens a raw
 device. Language commands separately permit validated packs
 inside the active music volume's language folder, bound to the installed clean build.
 Other commands only eject the card, because every drive must be ejected to end a USB session.
@@ -37,7 +39,8 @@ IDENTITY = json.loads((ROOT / "firmware" / "identity.json").read_text(encoding="
 DATA_DIRECTORY = IDENTITY["data_directory"]
 IDENTITY_NOTE = (f"This checkout's firmware is {IDENTITY['name']} {IDENTITY['version']}: the player is the USB "
                  f"device of that name, its folder is {IDENTITY['data_directory']}, and an image must carry "
-                 f"the brand {IDENTITY['id']} and is copied as {IDENTITY['update_file']}.")
+                 f"the brand {IDENTITY['id']} and is copied as {IDENTITY['update_file']}. "
+                 "first-install instead identifies stock FiiO and uses ECHOECHO.img.")
 DEBUG_DIRECTORY = "debug"
 REPORT_FILES = tuple("report%d.txt" % slot for slot in range(3))
 COLD_START_ADVICE = ("the newest report was written just after a cold start and holds nothing from before it: "
@@ -125,6 +128,10 @@ class MacHost:
         if result.returncode != 0:
             raise DebugError("usb_listing_failed", result.stderr.strip() or "system_profiler failed")
         return json.loads(result.stdout)
+
+    def first_install_io(self):
+        import echo_first_install
+        return echo_first_install.MacInstallIO()
 
     def eject(self, mount_point):
         result = subprocess.run(["diskutil", "eject", str(mount_point)], check=False,
@@ -770,6 +777,10 @@ class Tool:
             result.update(waited=True, running_build=running, running_the_image=running == build)
         return result
 
+    def first_install(self, image):
+        import echo_first_install
+        return echo_first_install.prepare(self, image)
+
     def check_run(self, sent, parsed):
         """The report's script section, if it is the run of the script that was sent."""
         echoed = [line["text"] for line in parsed["script"]["lines"]]
@@ -932,6 +943,8 @@ def build_parser():
                          help="ask a developer build to restart by itself after the install, and wait for it")
     install.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT,
                          help="seconds to wait for the player to come back (default %(default)s)")
+    first = commands.add_parser("first-install", help="prepare a contiguous image on stock FiiO firmware, verify and eject (macOS)")
+    first.add_argument("image", type=Path)
     run = commands.add_parser("run", help="copy a script, eject, wait for the player and collect the results")
     run.add_argument("script", type=Path)
     run.add_argument("--timeout", type=float, default=None,
@@ -1003,6 +1016,8 @@ def dispatch(tool, arguments):
         return tool.report()
     if arguments.command == "install":
         return tool.install(arguments.image, arguments.restart, arguments.timeout)
+    if arguments.command == "first-install":
+        return tool.first_install(arguments.image)
     if arguments.command == "run":
         return tool.run(arguments.script, arguments.timeout)
     if arguments.command == "wait":

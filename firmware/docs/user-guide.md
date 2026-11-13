@@ -18,10 +18,14 @@ Gnarlyr 1.0.0 is not released. This guide describes the current developer firmwa
 
 ## Install
 
-1. Download `ECHOECHO.IMG` from the release and check its SHA-256 against the one published with it.
-2. Connect the player to your computer and copy `ECHOECHO.IMG` to the top level of its internal drive, not into a folder.
-3. Eject the drives and unplug, or restart the player.
-4. The player installs Gnarlyr and starts it.
+1. Download `ECHOECHO.img` from the release and check its SHA-256 against the one published with it.
+2. Connect the player, choose USB storage if asked, and copy `ECHOECHO.img` to the top level of its internal drive, outside any folders. Keep the downloaded filename.
+3. Eject both player drives, unplug USB, and turn the player fully off and on with Power. Leave it powered while it updates.
+4. Wait for Gnarlyr to start and check Settings → About.
+
+If Updating appears briefly and the player returns to FiiO, follow [first-install troubleshooting](device-install.md#briefly-shows-updating-then-returns-to-fiio).
+
+Once installed, use the companion app for music, settings, languages and later firmware updates. Its current beta asks you to choose the player drive and eject it yourself. You can also keep copying files over USB.
 
 FiiO's firmware installs the file itself, the same way it installs other custom firmware for this player. [`device-install.md`](device-install.md) explains why the file has this name and what FiiO's updater checks. If the player ever stops starting, maskrom recovery ([`device-recovery.md`](device-recovery.md)) puts firmware back from a computer. Later versions install the same way, under Gnarlyr's own updater (see [Updating Gnarlyr](#updating-gnarlyr)).
 

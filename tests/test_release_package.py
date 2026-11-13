@@ -61,6 +61,7 @@ class PackageTests(unittest.TestCase):
 
     def test_a_pre_release_package_names_its_release_and_verifies(self):
         manifest = self.package()
+        self.assertIn("ECHOECHO.img", manifest["files"])
         self.assertEqual((manifest["version"], manifest["release"], manifest["build"], manifest["preset"]),
                          (VERSION, VERSION + "-beta.1", "beta.1", "device"))
         self.assertEqual(self.dist.joinpath(STOCK).read_bytes(), self.dist.joinpath(release.IMAGE).read_bytes())

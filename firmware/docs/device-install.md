@@ -6,18 +6,34 @@ Gnarlyr installs the way other custom firmware for this player does: copy one fi
 
 From FiiO's firmware (2.0.0):
 
-1. Download `ECHOECHO.IMG` from the release, or build it: `python3 tools/firmware.py build --preset release` writes `firmware/build/release/GNARLYR.IMG`; copy it as `ECHOECHO.IMG`. Check its SHA-256 against the one published with the release.
-2. Connect the player to the computer and copy `ECHOECHO.IMG` to the top level of its internal drive, not into a folder. On macOS use `cp -X` and delete any `._ECHOECHO.IMG` beside it.
-3. Eject the drives and unplug, or restart the player.
-4. The player installs Gnarlyr and starts it. FiiO's updater deletes the file afterwards.
+1. Download `ECHOECHO.img` from the release, or build it: `python3 tools/firmware.py build --preset release` writes `firmware/build/release/GNARLYR.IMG`; copy it as `ECHOECHO.img`. Check its SHA-256 against the one published with the release.
+2. Connect the player, choose USB storage if asked, and copy `ECHOECHO.img` to the top level of its internal drive, outside any folders. Keep the downloaded filename.
+3. Eject both player drives, unplug USB, and fully turn the player off and on with Power. Leave it powered while it updates.
+4. Wait for Gnarlyr to start and check Settings → About. Let the first library scan finish before reconnecting USB.
+
+After this first install, the companion app can copy music, change settings, load languages and prepare later firmware updates. Its current beta uses manual drive selection and ejection. Ordinary USB copying also remains available.
+
+### Briefly shows Updating, then returns to FiiO
+
+Use a fresh copy of the image. On macOS, the helper below makes the copy in one contiguous allocation, checks its checksum before and after remounting, and ejects both drives:
+
+```sh
+python3 tools/echo_debug.py first-install /path/to/ECHOECHO.img
+```
+
+Run it from a source checkout with the stock full-size ECHO connected in USB storage mode. Remove any other pending update image first. When it reports `ready_for_restart`, unplug and fully power off/on normally. If contiguous allocation fails, free some space and try again. The helper preserves other files and does not format storage. It is optional; the normal installation needs only the downloaded image.
 
 ### Why this name
 
 FiiO's 2.0.0 looks for `ECHOECHO.IMG` at the top level of internal storage first, at every start (`0x0307ec4e`). Only when it is absent does it try `ECHOV100.IMG` to `ECHOV498.IMG`, where the highest number present wins. `ECHOECHO.IMG` is therefore always the file it takes, whatever other `ECHOVnnn.IMG` files are on the drive, and the name claims no FiiO version number.
 
+The filename is fixed by FiiO's updater. `ECHOECHO.img` works on the player's case-insensitive filesystem; `ECHO2GNAR.img` is not a recognized update name. Release downloads keep `ECHOECHO.img` so users can copy them directly.
+
 FiiO's installer (module 8, `0x0307f79c`) checks two things: `RKnanoFW` at offset `0x1F8`, and a copy of the first 512 bytes at the offset in the fw-size word (`0x1F4`). It checks no CRC, brand, version or model. It then copies `(fw size + 0x104000)` rounded down to a whole MiB into slot 2, header sector last, and copies slot 2 into slot 1 the same way. For a Gnarlyr image that is exactly the first `0x500000` bytes, the same 5 MiB slot contents and the same slots (sector 81920, then sector 0) that maskrom writes. The image header is laid out like Podium's, which installs the same way. `firmware/tools/tests/test_make_image.py` checks these properties on every build.
 
-The release's `ECHOECHO.IMG` and `GNARLYR.IMG` are the same file. Gnarlyr's own updater reads both names and tells its own images from FiiO's by their contents, so either name works for a later update.
+The release's `ECHOECHO.img` and `GNARLYR.IMG` are the same file. Gnarlyr's own updater reads both names and tells its own images from FiiO's by their contents, so either name works for a later update.
+
+FiiO's FAT seek path can treat a fragmented file as contiguous when a file descriptor retains its contiguous-file flag through reset and open. A contiguous copy avoids that failing seek. FiiO deletes the update file after failures too, so a missing image alone does not confirm installation; check the running firmware.
 
 ## Later updates: Gnarlyr's own updater
 

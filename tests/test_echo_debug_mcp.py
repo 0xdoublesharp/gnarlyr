@@ -39,7 +39,7 @@ class McpServer(LoopCase):
     def test_the_tools_are_the_command_lines_operations(self):
         tools = self.exchange({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})[0]["result"]["tools"]
         self.assertEqual([tool["name"] for tool in tools],
-                         ["echo_status", "echo_report", "echo_profile", "echo_install", "echo_run",
+                         ["echo_status", "echo_report", "echo_profile", "echo_install", "echo_first_install", "echo_run",
                           "echo_wait", "echo_screenshots", "echo_language_inspect", "echo_language_list",
                           "echo_language_install", "echo_language_select", "echo_settings_list", "echo_settings_set",
                           "echo_set_time", "echo_settings_backup", "echo_settings_restore"])

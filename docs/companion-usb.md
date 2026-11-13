@@ -18,9 +18,23 @@ A missing or damaged settings file requires a normal settings save on the player
 
 `settings-backup` lists the player's saved-state backups; `--out DIR` also copies them and the current state to the computer. `settings-restore newest|older|1|2|<build>` asks the player to restore one and ejects its drives. Settings → Backups offers the same restore on the player. The MCP operations `echo_settings_backup` and `echo_settings_restore` share these implementations; see [settings continuity](formats.md#settings-continuity).
 
+## First install from FiiO
+
+The usual first install is download `ECHOECHO.img`, copy it to the internal drive, eject both drives and restart normally. After Gnarlyr starts, the desktop companion can manage music, supported settings, languages and later firmware images; its current beta uses manual drive selection and ejection.
+
+If FiiO briefly shows Updating then returns to stock, macOS has an optional copy helper:
+
+```sh
+python3 tools/echo_debug.py first-install /path/to/ECHOECHO.img
+```
+
+It identifies one stock full-size ECHO by USB identity and internal storage unit, validates the Gnarlyr image, requires a contiguous allocation, verifies uncached SHA-256 before and after a clean remount, and ejects both drives. It refuses existing pending updates and does not accept `--volume`. It writes no time file or restart request. When the JSON result says `ready_for_restart`, unplug USB and fully power off/on; verify Gnarlyr in Settings → About. This result confirms the copy, not the installation.
+
+The MCP operation `echo_first_install` takes `image` and calls the same implementation. All other player commands expect Gnarlyr. See [the installation guide](../firmware/docs/device-install.md) for the checked stock route and filename rules.
+
 ## Clock
 
-Every command that ejects the player's drives (`install`, `run`, `settings-set` and the language commands) first writes this computer's time, in UTC with the local offset from UTC, as `.gnarlyr/time.bin` on the internal drive. The player sets its clock from that file when the drive is ejected and then deletes it. To set the clock on its own:
+Every Gnarlyr command that ejects the player's drives (`install`, `run`, `settings-set` and the language commands) first writes this computer's time, in UTC with the local offset from UTC, as `.gnarlyr/time.bin` on the internal drive. The player sets its clock from that file when the drive is ejected and then deletes it. To set the clock on its own:
 
 ```sh
 python3 tools/echo_debug.py set-time

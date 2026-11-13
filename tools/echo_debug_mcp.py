@@ -56,6 +56,13 @@ TOOLS = {
         "call": lambda tool, arguments: tool.install(arguments["image"], arguments.get("restart", False),
                                                      arguments.get("timeout", echo_debug.DEFAULT_TIMEOUT)),
     },
+    "echo_first_install": {
+        "description": "Prepare first install from stock FiiO on a full-size ECHO (macOS): allocate a contiguous "
+                       "image, verify uncached before and after remount, then eject both drives. The owner must "
+                       f"unplug and restart normally, then verify {echo_debug.IDENTITY['name']} started. No recovery mode is used.",
+        "inputSchema": schema({"image": {"type": "string"}}, ["image"]),
+        "call": lambda tool, arguments: tool.first_install(arguments["image"]),
+    },
     "echo_run": {
         "description": "Send a debug script (a file, or its text), eject, wait for the player to come back "
                        "and return the script's results. Without a timeout the wait is the default plus "
