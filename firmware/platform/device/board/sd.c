@@ -36,6 +36,9 @@ enum {
     STATUS_TRIES = 1000,
     TRANSFER_READY_TIMEOUT_MS = 1000,
     POWER_SETTLE_MS = 1,
+    CARD_OFF_MS = 20,
+    POWER_UP_MS = 20,
+    CMD_GO_IDLE = 0,
     RESET_PULSE_US = 10,
     DETECT_SETTLE_MS = 1
 };
@@ -47,14 +50,31 @@ const MmcHost SD_MMC_HOST = {SD_BASE, CRU_SD_IDENTIFY, CRU_SD_TRANSFER, &sd_fifo
 static SdCard card;
 static bool ready;
 static CardStart attempts;
+static CardStartLog start_log;
+static bool controller_on;
 static bool detect_started;
 static CardPresence presence;
 static uint32_t generation;
 
+static void log_failure(uint8_t index)
+{
+    uint32_t interrupts = mmc_interrupts(&SD_MMC_HOST);
+    start_log.failures++;
+    start_log.failed_command = index;
+    start_log.failed_interrupts = interrupts;
+    start_log.timeouts += (interrupts & MMC_INT_RESPONSE_TIMEOUT) != 0 ? 1u : 0u;
+}
+
 static bool host_command(void *context, SdCommand command, uint32_t response[4])
 {
     (void)context;
-    return mmc_command(&SD_MMC_HOST, command, response);
+    bool done = mmc_command(&SD_MMC_HOST, command, response);
+    start_log.last_command = command.index;
+    start_log.last_response = done ? response[0] : 0;
+    if (!done) {
+        log_failure(command.index);
+    }
+    return done;
 }
 
 static void host_set_clock(void *context, SdClock clock)
@@ -116,7 +136,7 @@ void sd_reset_controller(void)
     cru_reset(RESET_SD, false);
 }
 
-static void power_controller(void)
+static void clock_controller(void)
 {
     cru_gate(GATE_SD_BUS, true);
     cru_gate(GATE_SD_CARD_CLOCK, true);
@@ -125,9 +145,39 @@ static void power_controller(void)
     register_write(GRF_BASE + GRF_SD_MUX_LOW, GRF_SD_MUX_LOW_VALUE);
     register_write(GRF_BASE + GRF_SD_MUX_HIGH, GRF_SD_MUX_HIGH_VALUE);
     board_delay_ms(POWER_SETTLE_MS);
+    controller_on = true;
+}
+
+static void power_card_off(void)
+{
+    mmc_stop_clock(&SD_MMC_HOST);
+    mmc_set_power(&SD_MMC_HOST, false);
+}
+
+static void power_up_card(void)
+{
+    clock_controller();
+    start_log.powered_before = mmc_powered(&SD_MMC_HOST);
+    power_card_off();
+    board_delay_ms(CARD_OFF_MS);
     mmc_reset_controller(&SD_MMC_HOST);
+    board_delay_ms(POWER_UP_MS);
     mmc_set_clock(&SD_MMC_HOST, SD_CLOCK_IDENTIFY);
     board_delay_ms(POWER_SETTLE_MS);
+}
+
+void sd_quiesce(void)
+{
+    if (!controller_on) {
+        return;
+    }
+    clock_controller();
+    if (ready) {
+        uint32_t none[4] = {0, 0, 0, 0};
+        mmc_command(&SD_MMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, false}, none);
+    }
+    power_card_off();
+    ready = false;
 }
 
 bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer)
@@ -144,17 +194,23 @@ bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer)
 static bool start_card(void)
 {
     start_card_detect();
-    if (!host_card_present(NULL)) {
+    start_log.detected = host_card_present(NULL);
+    if (!start_log.detected) {
         return false;
     }
-    power_controller();
-    return sd_card_init(&card, &HOST);
+    power_up_card();
+    uint32_t started_ms = hal_clock_milliseconds();
+    start_log.attempts++;
+    start_log.ready = sd_card_init(&card, &HOST);
+    start_log.init_ms = hal_clock_milliseconds() - started_ms;
+    return start_log.ready;
 }
 
 bool sd_start(BlockDevice *device)
 {
     *device = (BlockDevice){sd_read, NULL, sd_write};
-    if (!sd_present() || presence.ejected) {
+    sd_present();
+    if (!presence.present || presence.ejected) {
         return false;
     }
     if (!ready && card_start_due(&attempts, hal_clock_milliseconds())) {
@@ -268,4 +324,13 @@ const SdCard *sd_card_info(void)
 bool sd_card_ready(void)
 {
     return ready;
+}
+
+CardStartLog sd_start_log(void)
+{
+    CardStartLog log = start_log;
+    log.raw_now = detect_started && host_card_present(NULL);
+    log.present_now = presence.present;
+    log.ejected_now = presence.ejected;
+    return log;
 }

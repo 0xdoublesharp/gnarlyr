@@ -82,11 +82,11 @@ CORE_SEAM void usb_screen_draw_fallback(Canvas *canvas, const Theme *theme, HalB
     Rect area = {pad, theme->metrics.header_height + pad, screen.width - 2 * pad, line};
     char text[TEXT_CAPACITY];
     charge_screen_text(battery, text, sizeof text);
-    TextStyle style = {theme->fonts.body, theme->colors.text};
+    TextStyle style = {theme->fonts.body, theme->colors.text, false};
     label_draw(canvas, style, (Label){area, text});
     area.y += line + pad;
     area.height = screen.height - area.y - pad;
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){area, status.detail});
 }
 

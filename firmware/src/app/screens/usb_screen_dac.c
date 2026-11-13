@@ -68,7 +68,7 @@ static void draw_meter(const UsbPainter *painter)
         }
         Rect name = label_centered_area(font, (Rect){row.x, row.y, label, row.height},
                                         i18n_text(SIDES[side]));
-        usb_screen_text(painter, name, (TextStyle){font, theme->colors.text_secondary},
+        usb_screen_text(painter, name, (TextStyle){font, theme->colors.text_secondary, false},
                         i18n_text(SIDES[side]));
         Rect segments = {row.x + label + gap, row.y, row.width - label - gap, row.height};
         draw_bar(painter, segments, painter->scene->dac.level[side]);
@@ -159,7 +159,7 @@ static int draw_badge(const UsbPainter *painter, Rect area)
     canvas_fill_rect(painter->canvas, inside, colors->backdrop_top);
     Rect words = {inside.x + inset - 2, inside.y, inside.width - 2 * inset + 4, inside.height};
     usb_screen_text(painter, label_centered_area(font, words, text),
-                    (TextStyle){font, usb_screen_tint(colors->accent, colors->text)}, text);
+                    (TextStyle){font, usb_screen_tint(colors->accent, colors->text), false}, text);
     return frame.y + frame.height;
 }
 
@@ -186,7 +186,7 @@ static void draw_output_row(const UsbPainter *painter, Rect row)
     const char *jack = i18n_text(jack_text(painter->scene->dac.jack));
     int jack_width = text_width(theme->fonts.small, jack);
     usb_screen_text(painter, (Rect){rest.x, rest.y, jack_width, rest.height},
-                    (TextStyle){theme->fonts.small, theme->colors.text}, jack);
+                    (TextStyle){theme->fonts.small, theme->colors.text, false}, jack);
     rest.x += jack_width + theme->metrics.padding;
     rest.width -= jack_width + theme->metrics.padding;
     usb_screen_row(painter, rest, i18n_text(STR_USB_DAC_HOST), host);
@@ -202,7 +202,7 @@ static void draw_breath(const UsbPainter *painter, Rect row)
     usb_screen_format_one(value, STR_USB_DAC_MS, number);
     const Font *font = theme->fonts.small;
     int name = text_width(font, i18n_text(STR_USB_DAC_BUFFER));
-    int note = text_width(font, value);
+    int note = text_style_width((TextStyle){font, theme->colors.text, true}, value);
     int gap = theme->metrics.padding / 2;
     usb_screen_row(painter, row, i18n_text(STR_USB_DAC_BUFFER), value);
     Rect bar = {row.x + name + gap, row.y + row.height / 2 - BAR_HALF, 0, 2 * BAR_HALF};

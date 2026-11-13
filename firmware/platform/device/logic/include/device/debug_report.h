@@ -7,6 +7,7 @@
 
 #include "core/debug_log.h"
 #include "core/debug_script.h"
+#include "device/card_presence.h"
 #include "device/dac_sequence.h"
 #include "device/pc_profile.h"
 #include "device/power_history.h"
@@ -112,6 +113,7 @@ typedef struct DebugReportInput {
     DacDiagnostics dac;
     DebugFrames frames;
     DebugReportLoop loop;
+    CardStartLog card;
     const DebugScriptRun *script;
     uint32_t interrupted_line;
     const DebugLog *log;

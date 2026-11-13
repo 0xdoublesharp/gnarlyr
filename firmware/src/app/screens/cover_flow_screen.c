@@ -590,7 +590,7 @@ static void draw_section(const CoverFlowScreen *flow, Canvas *canvas)
     Rect badge = {padding, padding, height + 2 * padding, height + padding};
     const char *letter = list_section_label(scroll_section(flow, flow->target));
     canvas_fill_rect(canvas, badge, theme->colors.selection_background);
-    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.selection_text},
+    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.selection_text, false},
                (Label){label_centered_area(theme->fonts.title, badge, letter), letter});
 }
 

@@ -85,8 +85,8 @@ static void draw_names(Canvas *canvas, const Theme *theme, const CalendarLayout 
     for (int day = 0; day < CALENDAR_WEEK_DAYS; day++) {
         Rect cell = {layout->names.x + day * layout->cell_width, layout->names.y,
                      layout->cell_width, layout->names.height};
-        draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary}, cell,
-                      i18n_text((StringId)(STR_MONDAY_SHORT + day)));
+        draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
+                      cell, i18n_text((StringId)(STR_MONDAY_SHORT + day)));
     }
 }
 
@@ -104,7 +104,7 @@ static void draw_day(Canvas *canvas, const Theme *theme, Rect cell, const Calend
             (Rect){cell.x + (cell.width - side) / 2, cell.y + (cell.height - side) / 2, side, side},
             theme->colors.selection_background);
     }
-    draw_centered(canvas, (TextStyle){layout->font, ink}, cell, number);
+    draw_centered(canvas, (TextStyle){layout->font, ink, false}, cell, number);
 }
 
 static int today_in(CalendarMonth month)
@@ -125,8 +125,8 @@ static void draw_month(Canvas *canvas, const CalendarScreen *calendar)
         Rect cell = calendar_screen_cell(&layout, grid.first_column + day - 1);
         draw_day(canvas, theme, cell, &layout, day, day == today);
     }
-    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary}, layout.hint,
-                  i18n_text(STR_CALENDAR_HINT));
+    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
+                  layout.hint, i18n_text(STR_CALENDAR_HINT));
 }
 
 static void draw(void *context, Canvas *canvas)

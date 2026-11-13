@@ -38,7 +38,7 @@
 #define INT_COMMAND_DONE (1u << 2)
 #define INT_DATA_OVER (1u << 3)
 #define INT_RESPONSE_CRC (1u << 6)
-#define INT_RESPONSE_TIMEOUT (1u << 8)
+#define INT_RESPONSE_TIMEOUT MMC_INT_RESPONSE_TIMEOUT
 #define INT_HARDWARE_LOCKED (1u << 12)
 #define INT_DATA_ABORT 0xAF82u
 #define INT_DATA_FINISHED 0xAE88u
@@ -168,6 +168,21 @@ void mmc_set_clock(const MmcHost *host, SdClock clock)
 bool mmc_wait_not_busy(const MmcHost *host)
 {
     return wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS);
+}
+
+void mmc_set_power(const MmcHost *host, bool on)
+{
+    write_register(host, MMC_PWREN, on ? 1u : 0u);
+}
+
+uint32_t mmc_interrupts(const MmcHost *host)
+{
+    return read_register(host, MMC_RINTSTS);
+}
+
+bool mmc_powered(const MmcHost *host)
+{
+    return (read_register(host, MMC_PWREN) & 1u) != 0;
 }
 
 void mmc_power_cycle(const MmcHost *host)

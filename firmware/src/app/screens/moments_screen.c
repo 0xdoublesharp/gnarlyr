@@ -347,7 +347,8 @@ static void draw(void *context, Canvas *canvas)
                     : work->moments.count == 0                             ? STR_MOMENTS_EMPTY
                                                                            : STR_MOMENTS_HINT;
     if (screen->mode != MODE_CONFIRM) {
-        label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+        label_draw_wrapped(canvas,
+                           (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                            (Label){hint, i18n_text(text)});
     }
 }

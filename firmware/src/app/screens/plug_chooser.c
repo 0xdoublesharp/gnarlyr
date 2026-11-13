@@ -184,11 +184,11 @@ static void draw_footer(const PlugChooser *chooser, Canvas *canvas, Rect area)
     int small = font_line_height(theme->fonts.small);
     bool stacked = theme_is_portrait(theme);
     const char *hint = i18n_text(STR_PLUG_ALWAYS_HINT);
-    TextStyle hint_style = {theme->fonts.small, theme->colors.text_tertiary};
+    TextStyle hint_style = {theme->fonts.small, theme->colors.text_tertiary, false};
     Rect row = {area.x, area.y, area.width, small};
     if (chooser->timed) {
         Rect count = stacked ? row : (Rect){row.x, row.y, row.width / 2, small};
-        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent},
+        label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent, false},
                    (Label){count, chooser->countdown});
         row.y += stacked ? small : 0;
     }
@@ -217,10 +217,10 @@ static void draw(void *context, Canvas *canvas)
     PlugChooserLayout layout = chooser_layout(chooser);
     plug_art_draw(canvas, theme, layout.art, selected_mode(chooser));
     if (layout.name.height > 0) {
-        label_draw_wrapped(canvas, (TextStyle){theme->fonts.title, theme->colors.text},
+        label_draw_wrapped(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false},
                            (Label){layout.name, i18n_text(plug_mode_name(selected_mode(chooser)))});
     }
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){layout.line, plug_chooser_line(chooser)});
     draw_footer(chooser, canvas, layout.footer);
     list_view_draw(&chooser->list, canvas, layout.list, chooser->now_ms);

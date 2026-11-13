@@ -659,8 +659,7 @@ static void draw(void *context, Canvas *canvas)
     canvas_fill_rect(canvas, header, theme->colors.header_background);
     canvas_fill_rect(canvas, (Rect){0, header.height - 1, header.width, 1}, theme->colors.divider);
     TextStyle heading = {.font = theme->fonts.small, .color = theme->colors.header_text};
-    Rect title =
-        label_centered_area(heading.font, header_title_bounds(theme), now_playing->screen.title);
+    Rect title = header_title_area(theme, heading.font, now_playing->screen.title);
     label_draw(canvas, heading, (Label){title, now_playing->screen.title});
     if (!now_playing->status.has_track) {
         draw_nothing_playing(theme, canvas);

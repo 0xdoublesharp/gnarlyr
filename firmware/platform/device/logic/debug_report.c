@@ -452,6 +452,42 @@ static void put_loop(Writer *writer, const DebugReportInput *input)
     put_known(writer, "loop.cable_bit_at_connect", loop->attempts != 0, loop->cable_at_connect);
 }
 
+static void append_card_field(StringBuilder *text, const char *name, uint32_t value)
+{
+    string_builder_append(text, name);
+    string_builder_append_unsigned(text, value);
+}
+
+static void append_card_command(StringBuilder *text, const char *name, uint8_t index, uint32_t word)
+{
+    append_card_field(text, name, index);
+    string_builder_append_char(text, '=');
+    append_hex(text, word, HEX_DIGITS);
+}
+
+static void put_card(Writer *writer, const CardStartLog *card)
+{
+    bool clean = card->ready && card->failures == 0 && card->attempts <= 1;
+    if (card->attempts == 0 || clean) {
+        return;
+    }
+    begin(writer, "card.start");
+    StringBuilder *text = &writer->text;
+    append_card_field(text, "raw", card->raw_now);
+    append_card_field(text, " present", card->present_now);
+    append_card_field(text, " ejected", card->ejected_now);
+    append_card_field(text, " ready", card->ready);
+    append_card_field(text, " detected", card->detected);
+    append_card_field(text, " powered", card->powered_before);
+    append_card_field(text, " tries", card->attempts);
+    append_card_field(text, " ms", card->init_ms);
+    append_card_command(text, " last", card->last_command, card->last_response);
+    append_card_command(text, " failed", card->failed_command, card->failed_interrupts);
+    append_card_field(text, " errors", card->failures);
+    append_card_field(text, " timeouts", card->timeouts);
+    finish(writer);
+}
+
 static void put_average(Writer *writer, const char *key, uint32_t total, uint32_t count)
 {
     put_known(writer, key, count != 0, count != 0 ? total / count : 0);
@@ -1050,6 +1086,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_usb(&writer, input->usb, input->power.usb_kept_on);
     put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);
+    put_card(&writer, &input->card);
     put_audio(&writer, &input->audio);
     put_bluetooth(&writer, input->bluetooth);
     put_unsigned(&writer, "dac.up", input->dac.up);

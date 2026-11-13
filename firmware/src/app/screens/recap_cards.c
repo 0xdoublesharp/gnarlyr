@@ -477,9 +477,10 @@ static void draw_title_words(ListeningScreen *screen, Pane pane, Rect area)
     Rect heading = {area.x, top, area.width, title};
     Rect detail = {area.x, top + title + GAP, area.width, body};
     const char *name = i18n_text(PERIOD_TITLES[screen->period]);
-    TextStyle strong = {narrowest(theme, theme->fonts.title, name, area.width), theme->colors.text};
+    TextStyle strong = {narrowest(theme, theme->fonts.title, name, area.width), theme->colors.text,
+                        false};
     TextStyle accent = {narrowest(theme, theme->fonts.body, period, area.width),
-                        theme->colors.accent};
+                        theme->colors.accent, false};
     int align = theme_is_portrait(theme) ? 1 : 0;
     draw_aligned(pane, strong, heading, name, align);
     draw_aligned(pane, accent, detail, period, align);
@@ -504,7 +505,7 @@ static void draw_title_card(ListeningScreen *screen, Pane pane)
                                    inner.width - figure.width - GAP, inner.height};
     draw_figure(screen, pane, figure);
     draw_title_words(screen, pane, words);
-    draw_aligned(pane, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    draw_aligned(pane, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                  (Rect){inner.x, inner.y + inner.height, inner.width, hint},
                  i18n_text(STR_RECAP_HINT), 1);
 }
@@ -523,11 +524,11 @@ static void draw_tile(Pane pane, Rect area, Tile tile)
     const Font *font = theme->fonts.title;
     int top = area.y + (area.height - small - line_of(font)) / 2;
     Rect text = {area.x + GAP + RULE, top, area.width - 2 * GAP - RULE, small};
-    draw_text(pane, (TextStyle){theme->fonts.small, theme->colors.text_secondary}, text,
+    draw_text(pane, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false}, text,
               i18n_text(tile.label));
     text.y += small;
     text.height = line_of(font);
-    draw_text(pane, (TextStyle){font, theme->colors.text}, text, tile.value);
+    draw_text(pane, (TextStyle){font, theme->colors.text, false}, text, tile.value);
 }
 
 static void draw_tiles(Pane pane, const Tile *tiles, int count, int columns)
@@ -554,7 +555,8 @@ static void draw_time_card(Pane pane)
     bool portrait = theme_is_portrait(theme);
     int title = line_of(theme->fonts.title);
     Rect hero = {pane.area.x, pane.area.y, pane.area.width, title + 2 * GAP};
-    draw_aligned(pane, (TextStyle){theme->fonts.title, theme->colors.accent}, hero, values[0], 1);
+    draw_aligned(pane, (TextStyle){theme->fonts.title, theme->colors.accent, false}, hero,
+                 values[0], 1);
     Tile tiles[] = {{STR_LISTENING_PLAYS, values[1]},
                     {STR_LISTENING_SKIPS, values[2]},
                     {STR_ARTISTS, values[3]}};
@@ -587,7 +589,7 @@ static int draw_rank_number(Pane pane, Rect area, uint8_t index)
     char number[4];
     format_count(number, sizeof number, index + 1u);
     int column = text_width(theme->fonts.title, "5") + GAP;
-    draw_text(pane, (TextStyle){theme->fonts.title, theme->colors.accent_alt},
+    draw_text(pane, (TextStyle){theme->fonts.title, theme->colors.accent_alt, false},
               (Rect){area.x, area.y, column, area.height}, number);
     return column;
 }
@@ -596,8 +598,8 @@ static void draw_rank_words(Pane pane, Rect area, RankRow row, const char *time)
 {
     const Theme *theme = pane.theme;
     const char *artist = row.group > 0 ? work->artists[row.group - 1][row.index] : NULL;
-    TextStyle name = {theme->fonts.body, theme->colors.text};
-    TextStyle quiet = {theme->fonts.small, theme->colors.text_secondary};
+    TextStyle name = {theme->fonts.body, theme->colors.text, false};
+    TextStyle quiet = {theme->fonts.small, theme->colors.text_secondary, false};
     int body = line_of(theme->fonts.body);
     int small = line_of(theme->fonts.small);
     if (!row.stacked) {
@@ -615,7 +617,7 @@ static void draw_rank_words(Pane pane, Rect area, RankRow row, const char *time)
         draw_text(pane, quiet, line, artist);
         line.y += small;
     }
-    draw_text(pane, (TextStyle){theme->fonts.small, theme->colors.accent}, line, time);
+    draw_text(pane, (TextStyle){theme->fonts.small, theme->colors.accent, false}, line, time);
 }
 
 static void draw_rank_row(Pane pane, RankRow row)
@@ -689,8 +691,10 @@ static void draw_share(Pane pane, Rect area, StringId label, uint32_t percent)
     int small = line_of(theme->fonts.small);
     int top = area.y + (area.height - small - GAP / 2 - BAR) / 2;
     Rect words = {area.x, top, area.width, small};
-    draw_text(pane, (TextStyle){theme->fonts.small, theme->colors.text}, words, i18n_text(label));
-    draw_aligned(pane, (TextStyle){theme->fonts.small, theme->colors.accent}, words, value, 2);
+    draw_text(pane, (TextStyle){theme->fonts.small, theme->colors.text, false}, words,
+              i18n_text(label));
+    draw_aligned(pane, (TextStyle){theme->fonts.small, theme->colors.accent, false}, words, value,
+                 2);
     Rect track = {area.x, top + small + GAP / 2, area.width, BAR};
     canvas_fill_rect(pane.canvas, track, theme->colors.divider);
     canvas_fill_rect(pane.canvas,

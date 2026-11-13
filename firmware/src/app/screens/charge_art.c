@@ -174,9 +174,9 @@ static void draw_header(const ChargeArt *art)
         title.x += name.width - title.width;
     }
     Color ink = theme->colors.header_text;
-    label_draw(art->canvas, (TextStyle){theme->fonts.header, ink},
+    label_draw(art->canvas, (TextStyle){theme->fonts.header, ink, false},
                (Label){name, FIRMWARE_SHORT_NAME});
-    label_draw(art->canvas, (TextStyle){theme->fonts.small, tint(theme->colors.accent, ink)},
+    label_draw(art->canvas, (TextStyle){theme->fonts.small, tint(theme->colors.accent, ink), false},
                (Label){title, text});
 }
 
@@ -306,7 +306,7 @@ static void draw_scaled(const ChargeArt *art, Rect area, const char *text)
         const Glyph *glyph = font_find_glyph(font, codepoint);
         if (glyph != NULL) {
             int advance = glyph->advance * scale;
-            text_draw_glyph_scaled(&clipped, (TextStyle){font, art->theme->colors.text},
+            text_draw_glyph_scaled(&clipped, (TextStyle){font, art->theme->colors.text, false},
                                    (Rect){x, area.y, advance, area.height}, codepoint, scale);
             x += advance;
         }
@@ -323,7 +323,7 @@ static void draw_percent(const ChargeArt *art)
     }
     const Theme *theme = art->theme;
     draw_label(art, art->layout.percent,
-               (TextStyle){theme->fonts.title, theme->colors.text_secondary}, text);
+               (TextStyle){theme->fonts.title, theme->colors.text_secondary, false}, text);
 }
 
 static Color state_color(const ChargeArt *art)
@@ -343,7 +343,7 @@ static void draw_state(const ChargeArt *art)
     if (text_width(font, text) > art->layout.status.width) {
         font = art->theme->fonts.small;
     }
-    draw_label(art, art->layout.status, (TextStyle){font, state_color(art)}, text);
+    draw_label(art, art->layout.status, (TextStyle){font, state_color(art), false}, text);
     IconId sign = sign_of(art->battery);
     if (flowing(art->battery) || sign == ICON_PLUG) {
         Rect area = art->layout.status;
@@ -406,7 +406,7 @@ static void draw_trend(const ChargeArt *art)
                                                : STR_CHARGE_CHARGER;
     const char *arguments[] = {i18n_text(source), rate};
     i18n_format(&text, STR_CHARGE_SUMMARY, arguments, 2);
-    TextStyle style = {art->theme->fonts.small, art->theme->colors.text_secondary};
+    TextStyle style = {art->theme->fonts.small, art->theme->colors.text_secondary, false};
     Rect label = area;
     label.width -= charging_rate.rate != 0 ? 26 : 0;
     label_draw(art->canvas, style, (Label){label, summary});

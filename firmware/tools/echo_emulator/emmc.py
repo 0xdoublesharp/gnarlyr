@@ -20,6 +20,8 @@ SLOT_2_OFFSET = 0x2800
 EXT_CSD_SECTOR_COUNT = 212
 READY_TRANSFER_STATUS = 0x900
 OCR_READY_SECTOR_MODE = 0xC0FF8080
+OCR_BUSY = 0x00FF8000
+HIGH_CAPACITY_REQUEST = 0x40000000
 
 READ_COMMAND_US = 250
 READ_EXTRA_BLOCK_US = 25
@@ -29,6 +31,8 @@ STATUS_COMMAND_US = 15
 POLL_JUMP_CYCLES = 240
 STATUS_CARD_BUSY = 1 << 9
 MMC_CLKENA = 0x10
+MMC_PWREN = 0x04
+CARD_POWER_OFF_MS = 5
 CLKENA_CARD_CLOCK = 0x1
 
 CTRL_RESET_BITS = 0x7
@@ -182,6 +186,11 @@ class DwMmc(RegisterFile):
             self.regs[offset] = value & ~CMD_START
             if value & CMD_START:
                 self.execute(value)
+        elif offset == MMC_PWREN:
+            self.regs[offset] = value
+            power = getattr(self.card, "power", None)
+            if power is not None:
+                power(bool(value & 1), self.machine.milliseconds())
         else:
             super().write_word(offset, value)
 
@@ -197,6 +206,9 @@ class DwMmc(RegisterFile):
             self.raise_status(INT_COMMAND_DONE | INT_RESPONSE_TIMEOUT)
             return
         response = self.card.command(index, argument)
+        if response is None:
+            self.raise_status(INT_COMMAND_DONE | INT_RESPONSE_TIMEOUT)
+            return
         self.busy_until = self.machine.cycles() + self.latency_cycles(index, value)
         for position in range(4):
             self.regs[MMC_RESP0 + 4 * position] = response[position] if position < len(response) else 0
@@ -263,14 +275,29 @@ def synthetic_emmc(machine, image, volume, system_mib=96):
 
 
 class SdCard(EmmcCard):
+    stuck = False
+    off_since_ms = None
+    power_cycles = 0
+
+    def power(self, on, now_ms):
+        if not on:
+            self.off_since_ms = now_ms if self.off_since_ms is None else self.off_since_ms
+            return
+        if self.off_since_ms is not None and now_ms - self.off_since_ms >= CARD_POWER_OFF_MS:
+            self.stuck = False
+            self.power_cycles += 1
+        self.off_since_ms = None
+
     def command(self, index, argument):
         self.commands.append((self.machine.cycles(), index, argument))
+        if self.stuck:
+            return None
         if index == 0:
             return ()
         if index == 8:
             return (0x1AA, 0, 0, 0)
         if index == 41:
-            return (OCR_READY_SECTOR_MODE, 0, 0, 0)
+            return (OCR_READY_SECTOR_MODE if argument & HIGH_CAPACITY_REQUEST else OCR_BUSY, 0, 0, 0)
         if index == 3:
             return (0x12340000, 0, 0, 0)
         if index == 9:

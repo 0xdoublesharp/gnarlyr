@@ -40,6 +40,31 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(writes, len(card.writes))
         self.assert_healthy(rig.session)
 
+    def test_a_card_left_stuck_by_a_warm_restart_starts_after_a_power_cycle(self):
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        disk = SparseDisk(1024 * 1024)
+        Fat32Volume().write_to(disk, 0)
+        cards = []
+
+        def prepare(machine):
+            card = SdCard(disk, machine)
+            card.stuck = True
+            cards.append(card)
+            machine.sd_controller.card = card
+            machine.card_present = True
+
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
+        rig.settle()
+        card = cards[0]
+        self.assertFalse(card.stuck)
+        self.assertGreaterEqual(card.power_cycles, 1)
+        self.assertTrue(any(index == 41 for _, index, _ in card.commands))
+        self.assertTrue(card.reads)
+        self.assert_healthy(rig.session)
+
     def test_eject_keeps_the_card_idle_until_physical_reinsertion(self):
         from echo_emulator.emmc import SdCard, SparseDisk
         from echo_emulator.fat_volume import Fat32Volume

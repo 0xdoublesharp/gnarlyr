@@ -4,8 +4,11 @@
 #include <stdint.h>
 
 #include "device/block_device.h"
+#include "device/card_presence.h"
 
 void sd_reset_controller(void);
+void sd_quiesce(void);
+CardStartLog sd_start_log(void);
 bool sd_start(BlockDevice *device);
 uint32_t sd_sector_count(void);
 bool sd_read(void *context, uint32_t lba, uint32_t count, void *buffer);

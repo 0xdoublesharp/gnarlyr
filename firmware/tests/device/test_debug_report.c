@@ -991,6 +991,28 @@ static void the_last_usb_session_is_reported_once_there_was_one(void)
     CHECK(strstr(text, "usb.speed_fallback") == NULL);
 }
 
+static void the_card_start_reports_detection_power_and_the_failing_command(void)
+{
+    DebugReportInput input = plain_input();
+    input.card = (CardStartLog){.init_ms = 1043,
+                                .last_response = 0,
+                                .failed_interrupts = 0x104,
+                                .failures = 101,
+                                .timeouts = 100,
+                                .attempts = 2,
+                                .last_command = 41,
+                                .failed_command = 41,
+                                .detected = true,
+                                .raw_now = true,
+                                .present_now = true};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("card.start: raw1 present1 ejected0 ready0 detected1 powered0 tries2 ms1043 "
+                   "last41=00000000 failed41=00000104 errors101 timeouts100"));
+    input.card = (CardStartLog){.attempts = 1, .ready = true, .detected = true};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "card.start") == NULL);
+}
+
 static void a_full_speed_fallback_reports_why_it_fired(void)
 {
     DebugReportInput input = plain_input();
@@ -1396,6 +1418,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(bluetooth_timeline_is_reported_in_milliseconds),
+        TEST_CASE(the_card_start_reports_detection_power_and_the_failing_command),
         TEST_CASE(dac_diagnostics_report_cached_reads_and_sequence_durations),
         TEST_CASE(standby_reports_the_drain_window_and_wake_latency),
         TEST_CASE(the_schema_version_is_the_first_line),

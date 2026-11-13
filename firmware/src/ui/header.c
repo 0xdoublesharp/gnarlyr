@@ -14,6 +14,16 @@ Rect header_title_bounds(const Theme *theme)
     return (Rect){row.x + inset, row.y, row.width - 2 * inset, row.height - DIVIDER_HEIGHT};
 }
 
+Rect header_title_area(const Theme *theme, const Font *font, const char *title)
+{
+    Rect bounds = header_title_bounds(theme);
+    Rect area = label_centered_area(font, bounds, title);
+    if (theme->metrics.status_height > 0) {
+        area.x = bounds.x;
+    }
+    return area;
+}
+
 void header_draw(Canvas *canvas, const Theme *theme, const char *title)
 {
     Rect area = theme_header_area(theme);
@@ -25,7 +35,7 @@ void header_draw(Canvas *canvas, const Theme *theme, const char *title)
     canvas_fill_rect(canvas, divider,
                      theme->header_rule ? theme->colors.accent : theme->colors.divider);
     if (title_bounds.height > 0) {
-        Rect title_area = label_centered_area(style.font, title_bounds, title);
+        Rect title_area = header_title_area(theme, style.font, title);
         label_draw(canvas, style, (Label){.area = title_area, .text = title});
     }
 }

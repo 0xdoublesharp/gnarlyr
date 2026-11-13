@@ -282,6 +282,8 @@ set(ECHO_OVERLAY_IMPORTS
     label_centered_area
     label_wrap_count
     text_width
+    text_style_width
+    text_cell_width
     status_bar_draw
     text_draw_glyph_scaled
     utf8_next
@@ -351,6 +353,7 @@ set(ECHO_OVERLAY_IMPORTS
     sd_read
     sd_sector_count
     sd_start
+    sd_start_log
     sd_write
     usb_connect
     usb_flush_fifos

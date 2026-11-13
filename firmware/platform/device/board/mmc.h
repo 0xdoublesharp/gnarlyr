@@ -5,6 +5,8 @@
 
 #include "device/sd_card.h"
 
+#define MMC_INT_RESPONSE_TIMEOUT (1u << 8)
+
 typedef enum MmcStep {
     MMC_STEP_NONE,
     MMC_STEP_BUSY_BEFORE,
@@ -33,6 +35,9 @@ typedef struct MmcHost {
 
 void mmc_reset_controller(const MmcHost *host);
 void mmc_power_cycle(const MmcHost *host);
+void mmc_set_power(const MmcHost *host, bool on);
+bool mmc_powered(const MmcHost *host);
+uint32_t mmc_interrupts(const MmcHost *host);
 bool mmc_command(const MmcHost *host, SdCommand command, uint32_t response[4]);
 bool mmc_read_block(const MmcHost *host, uint8_t index, uint32_t address, uint32_t *words);
 bool mmc_read_blocks(const MmcHost *host, uint32_t address, uint32_t count, uint32_t stop_argument,

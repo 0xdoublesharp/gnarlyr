@@ -137,7 +137,7 @@ static void draw_reels(const NowPlayingScreen *screen, Canvas *canvas)
 
 static void label_line(Canvas *canvas, const Theme *theme, Label label, const Font *font)
 {
-    label_draw(canvas, (TextStyle){font, theme->colors.text}, label);
+    label_draw(canvas, (TextStyle){font, theme->colors.text, false}, label);
 }
 
 static void draw_shell(Canvas *canvas, CassetteNowPlayingLayout layout, const Theme *theme)

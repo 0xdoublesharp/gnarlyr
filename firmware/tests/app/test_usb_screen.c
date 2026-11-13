@@ -1038,6 +1038,86 @@ static void the_hold_reminder_changes_only_the_hint_line(void)
     }
 }
 
+static int rate_frame(const Theme *theme, UsbScene *scene, uint32_t rate, int orientation)
+{
+    scene->rate = rate;
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = scene;
+    draw_text_of(theme, status, scene);
+    screen_snapshot_write(
+        &(Canvas){pixels,
+                  {0, 0, theme->metrics.screen_width, theme->metrics.screen_height},
+                  {0, 0, theme->metrics.screen_width, theme->metrics.screen_height}},
+        "rate", orientation * 100000 + (int)rate);
+    return theme->metrics.screen_width;
+}
+
+static bool same_columns(int stride, Rect area)
+{
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            if (pixels[y * stride + x] != before[y * stride + x]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+static void the_rate_keeps_its_decimal_point_in_one_place(void)
+{
+    static const uint32_t RATES[] = {0, 8800, 38400};
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = storage_scene(USB_SCENE_WRITING);
+        AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+        status.scene = &scene;
+        Rect box = usb_screen_rate_box(&theme, status);
+        const Font *font = theme.fonts.title;
+        int scale = box.height / font->ascent;
+        int cell = text_digit_width(font) * scale;
+        int dot = font_find_glyph(font, '.')->advance * scale;
+        Rect point = {box.x + box.width - cell - dot, box.y, dot, box.height};
+        int stride = rate_frame(&theme, &scene, RATES[0], orientation);
+        CHECK(pixels_of(&theme, point, theme.colors.text) > 0);
+        memcpy(before, pixels, sizeof pixels);
+        for (size_t index = 1; index < sizeof RATES / sizeof RATES[0]; index++) {
+            rate_frame(&theme, &scene, RATES[index], orientation);
+            CHECK(same_columns(stride, point));
+        }
+    }
+}
+
+static int rightmost_ink(const Theme *theme, Rect area, Color color)
+{
+    int right = -1;
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            right = pixels[y * theme->metrics.screen_width + x] == color && x > right ? x : right;
+        }
+    }
+    return right;
+}
+
+static void portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_right_margin(void)
+{
+    Theme theme = medium(ORIENTATION_PORTRAIT);
+    AppUsbStatus statuses[] = {storage_status(STR_USB_EJECT_DRIVES),
+                               {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)}};
+    UsbScene scenes[] = {storage_scene(USB_SCENE_WRITING), dac_scene(USB_SCENE_DAC_PLAYING)};
+    for (int index = 0; index < 2; index++) {
+        scenes[index].high_speed = true;
+        speed_shot(&theme, statuses[index], &scenes[index], 30 + index);
+        statuses[index].scene = &scenes[index];
+        Rect header = usb_screen_layout(&theme, statuses[index]).header;
+        int line = font_line_height(theme.fonts.header);
+        Rect second = {header.x, header.y + line, header.width, header.height - line - 1};
+        int right = rightmost_ink(&theme, second, theme.colors.header_text);
+        CHECK(right >= header.x + header.width - 3);
+        CHECK(right < header.x + header.width);
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -1157,6 +1237,8 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_right_margin),
+        TEST_CASE(the_rate_keeps_its_decimal_point_in_one_place),
         TEST_CASE(the_hold_reminder_changes_only_the_hint_line),
         TEST_CASE(no_backdrop_grid_shows_around_the_terrain),
         TEST_CASE(the_header_marks_the_link_speed_with_an_icon),

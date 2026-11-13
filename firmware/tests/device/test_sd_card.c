@@ -22,6 +22,7 @@ typedef struct FakeCard {
     uint8_t bus_width;
     uint32_t delays_ms;
     bool stopped;
+    bool silent;
 } FakeCard;
 
 static bool answer(FakeCard *card, SdCommand command, uint32_t response[4])
@@ -30,7 +31,12 @@ static bool answer(FakeCard *card, SdCommand command, uint32_t response[4])
     case 8:
         response[0] = card->cmd8_echo != 0 ? card->cmd8_echo : command.argument & 0xFFF;
         return card->answers_cmd8;
+    case 55:
+        return !card->silent;
     case 41:
+        if (card->silent) {
+            return false;
+        }
         if (card->busy_tries > 0) {
             card->busy_tries--;
             response[0] = 0x00FF8000;
@@ -258,6 +264,28 @@ static void a_card_that_stays_busy_fails_after_100_tries(void)
     CHECK(card.stopped);
 }
 
+static void a_silent_card_gives_up_after_three_unanswered_tries(void)
+{
+    FakeCard card = sdhc_card(100);
+    card.silent = true;
+    SdHost host = host_for(&card);
+    SdCard sd;
+    CHECK(!sd_card_init(&sd, &host));
+    CHECK(find_command(&card, 55, 2) != NULL);
+    CHECK(find_command(&card, 55, 3) == NULL);
+    CHECK(card.delays_ms < 50);
+}
+
+static void a_high_capacity_card_that_missed_cmd8_is_refused_not_byte_addressed(void)
+{
+    FakeCard card = sdhc_card(100);
+    card.answers_cmd8 = false;
+    SdHost host = host_for(&card);
+    SdCard sd;
+    CHECK(!sd_card_init(&sd, &host));
+    CHECK(card.stopped);
+}
+
 static void no_card_fails_without_sending_commands(void)
 {
     FakeCard card = sdhc_card(100);
@@ -351,6 +379,8 @@ int main(void)
         TEST_CASE(a_card_without_a_wide_bus_stays_at_1_bit),
         TEST_CASE(a_card_that_stays_busy_fails_after_100_tries),
         TEST_CASE(no_card_fails_without_sending_commands),
+        TEST_CASE(a_silent_card_gives_up_after_three_unanswered_tries),
+        TEST_CASE(a_high_capacity_card_that_missed_cmd8_is_refused_not_byte_addressed),
         TEST_CASE(a_wrong_cmd8_echo_fails),
         TEST_CASE(the_csd_erase_unit_is_available_when_sd_status_is_unknown),
     };

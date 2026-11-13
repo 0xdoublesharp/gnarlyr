@@ -101,6 +101,38 @@ static void a_scaled_glyph_is_centred_in_its_box(void)
     }
 }
 
+static const uint8_t DIGIT_BITMAP[] = {0x80, 0xF0, 0x0F, 0x4F};
+
+static const Glyph DIGIT_GLYPHS[] = {
+    {'.', 0, 1, 1, 0, 1, 1},
+    {'1', 0, 1, 1, 0, 1, 2},
+    {'8', 0, 1, 1, 0, 1, 4},
+};
+
+static const Font DIGIT_FONT = {
+    .glyphs = DIGIT_GLYPHS,
+    .bitmap = DIGIT_BITMAP,
+    .glyph_count = 3,
+    .bitmap_size = sizeof DIGIT_BITMAP,
+    .ascent = 2,
+    .descent = 1,
+};
+
+static void tabular_digits_take_the_widest_digit_and_sit_centred(void)
+{
+    TextStyle plain = {&DIGIT_FONT, INK, false};
+    TextStyle tabular = {&DIGIT_FONT, INK, true};
+    CHECK_EQUAL(4, text_digit_width(&DIGIT_FONT));
+    CHECK_EQUAL(5, text_style_width(plain, "1.1"));
+    CHECK_EQUAL(text_style_width(tabular, "8.8"), text_style_width(tabular, "1.1"));
+    CHECK_EQUAL(9, text_style_width(tabular, "1.1"));
+    CHECK_EQUAL(1, text_cell_width(tabular, '.', 1));
+    Canvas canvas = blank_canvas();
+    CHECK_EQUAL(4, text_draw(&canvas, tabular, (Point){0, 2}, "1"));
+    CHECK(pixels[1 * WIDTH + 1] != BACKGROUND);
+    CHECK_EQUAL(BACKGROUND, pixels[1 * WIDTH + 0]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -113,6 +145,7 @@ int main(void)
         TEST_CASE(drawing_respects_the_clip),
         TEST_CASE(text_outside_the_canvas_changes_nothing),
         TEST_CASE(a_span_draws_only_its_bytes),
+        TEST_CASE(tabular_digits_take_the_widest_digit_and_sit_centred),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

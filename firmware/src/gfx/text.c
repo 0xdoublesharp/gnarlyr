@@ -79,17 +79,46 @@ int text_draw(Canvas *canvas, TextStyle style, Point pen, const char *text)
     return text_draw_span(canvas, style, pen, (TextSpan){text, byte_length(text)});
 }
 
+int text_digit_width(const Font *font)
+{
+    int widest = 0;
+    for (uint32_t digit = '0'; digit <= '9'; digit++) {
+        const Glyph *glyph = font_find_glyph(font, digit);
+        widest = glyph != NULL && glyph->advance > widest ? glyph->advance : widest;
+    }
+    return widest;
+}
+
+int text_cell_width(TextStyle style, uint32_t codepoint, int advance)
+{
+    bool digit = codepoint >= '0' && codepoint <= '9';
+    return style.tabular && digit ? text_digit_width(style.font) : advance;
+}
+
+int text_style_width(TextStyle style, const char *text)
+{
+    int width = 0;
+    const char *cursor = text;
+    for (uint32_t codepoint = utf8_next(&cursor); codepoint != 0; codepoint = utf8_next(&cursor)) {
+        const Glyph *glyph = font_find_glyph(style.font, codepoint);
+        width += glyph != NULL ? text_cell_width(style, codepoint, glyph->advance) : 0;
+    }
+    return width;
+}
+
 int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
 {
     const char *cursor = span.start;
     const char *end = span.start + span.byte_count;
     while (cursor < end) {
-        const Glyph *glyph = font_find_glyph(style.font, utf8_next(&cursor));
+        uint32_t codepoint = utf8_next(&cursor);
+        const Glyph *glyph = font_find_glyph(style.font, codepoint);
         if (glyph == NULL) {
             continue;
         }
-        draw_glyph(canvas, style, glyph, pen);
-        pen.x += glyph->advance;
+        int cell = text_cell_width(style, codepoint, glyph->advance);
+        draw_glyph(canvas, style, glyph, (Point){pen.x + (cell - glyph->advance) / 2, pen.y});
+        pen.x += cell;
     }
     return pen.x;
 }

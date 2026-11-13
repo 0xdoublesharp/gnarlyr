@@ -203,7 +203,7 @@ static void draw(void *context, Canvas *canvas)
     hint.x += theme->metrics.padding;
     hint.width -= 2 * theme->metrics.padding;
     canvas_fill_rect(canvas, hint, theme->colors.background);
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary},
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                (Label){hint, i18n_text(STR_QUICK_SETTINGS_HINT)});
 }
 

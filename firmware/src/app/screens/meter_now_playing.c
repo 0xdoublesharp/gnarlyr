@@ -98,7 +98,7 @@ static void dial(const NowPlayingScreen *screen, Canvas *canvas, int channel)
                     : theme->colors.divider;
     canvas_fill_rect(&clipped, dot, color_between(theme->colors.backdrop_top, led, 1, 3));
     canvas_fill_rect(&clipped, (Rect){dot.x + 1, dot.y + 1, 4, 4}, led);
-    TextStyle label = {theme->fonts.small, theme->colors.text_secondary};
+    TextStyle label = {theme->fonts.small, theme->colors.text_secondary, false};
     label_draw(&clipped, label,
                (Label){{area.x + 2, area.y + 2, 32, font_line_height(label.font)},
                        i18n_text(channel == 0 ? STR_METER_LEFT : STR_METER_RIGHT)});
@@ -181,9 +181,9 @@ void meter_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
     MeterNowPlayingLayout layout = meter_now_playing_layout(theme);
     playing_work_styles();
     drawing(screen, canvas);
-    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text},
+    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false},
                (Label){layout.text[0], screen->title});
-    label_draw(canvas, (TextStyle){theme->fonts.body, theme->colors.text_secondary},
+    label_draw(canvas, (TextStyle){theme->fonts.body, theme->colors.text_secondary, false},
                (Label){layout.text[1], screen->artist});
 }
 
