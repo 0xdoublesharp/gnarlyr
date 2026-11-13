@@ -7,6 +7,8 @@ add_library(echo_core STATIC
     deadline.c
     debug_log.c
     debug_script.c
+    debug_script_parse.c
+    debug_span.c
     format.c
     frame_pacer.c
     frame_stats.c

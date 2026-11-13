@@ -385,6 +385,14 @@ static DebugRequest advance(uint32_t now_ms)
 
 static DebugRequest start(uint32_t now_ms)
 {
+    DebugScriptHost host = {hal_system_version(), hal_system_restart_pending()};
+    debug_script_compile(&debug_runner.run, host);
+    if (debug_runner.run.state != DEBUG_SCRIPT_PENDING) {
+        debug_runner_note_state((DebugScriptState)debug_runner.run.state);
+        debug_runner.reconnect_due = true;
+        debug_runner.until_ms = now_ms + DEBUG_SCRIPT_END_MS;
+        return (DebugRequest){.kind = DEBUG_REQUEST_NONE};
+    }
     debug_runner.run.started_ms = now_ms;
     debug_runner_note_state(DEBUG_SCRIPT_RUNNING);
     return (DebugRequest){.kind = DEBUG_REQUEST_START};

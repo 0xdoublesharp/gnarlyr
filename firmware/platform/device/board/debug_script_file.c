@@ -30,7 +30,7 @@ static bool take_script(FatVolume *volume)
     uint32_t length = file.size < DEBUG_SCRIPT_BYTES ? file.size : DEBUG_SCRIPT_BYTES;
     bool read = fat_read(volume, &file, 0, run->text, length);
     fat_delete(volume, RUN_PATH);
-    debug_script_load(run, read ? file.size : 0, host);
+    debug_script_stage(run, read ? file.size : 0, host);
     debug_runner_begin();
     return true;
 }

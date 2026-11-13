@@ -259,4 +259,6 @@ DebugSpan debug_script_next_line(const char *text, size_t length, size_t *offset
 uint32_t debug_script_line_count(const char *text, size_t length);
 DebugCommand debug_script_parse(DebugSpan line);
 bool debug_span_matches(DebugSpan span, const char *text);
+void debug_script_stage(DebugScriptRun *run, uint32_t length, DebugScriptHost host);
+void debug_script_compile(DebugScriptRun *run, DebugScriptHost host);
 void debug_script_load(DebugScriptRun *run, uint32_t length, DebugScriptHost host);

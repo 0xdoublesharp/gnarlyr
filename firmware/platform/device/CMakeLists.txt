@@ -420,6 +420,9 @@ if(NOT ECHO_RELEASE)
         debug_runner
         debug_runner_note_state
         debug_runner_script
+        debug_script_line_count
+        debug_script_next_line
+        debug_script_parse
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
@@ -559,7 +562,8 @@ add_executable(echo_usb_overlay
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
-        ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c)
+        ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script.c)
     if(ECHO_USB_SCREEN_CAPTURES)
         target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)
     endif()
