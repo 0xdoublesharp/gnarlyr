@@ -4,6 +4,9 @@
 #include "core/utf8.h"
 #include "ui/label.h"
 
+static const char NOTE_TEMPLATE[] = "888.8";
+static const char PLACEHOLDER[] = "{0}";
+
 enum {
     HERO_SCALE = 2,
     ARROW_SHARE = 3,
@@ -11,7 +14,8 @@ enum {
     BAR_HEIGHT = 6,
     INLINE_WIDTH = 260,
     DIM_STEPS = 5,
-    LED_SHARE = 2
+    LED_SHARE = 2,
+    ARROW_GAP = 2
 };
 
 typedef struct TrafficLayout {
@@ -104,7 +108,7 @@ static TrafficLayout traffic_layout(const UsbPainter *painter)
     int line = font_line_height(theme->fonts.title);
     int gap = theme->metrics.padding / 2;
     TrafficLayout layout = {.inline_bars = column.width >= INLINE_WIDTH};
-    int drive = layout.inline_bars ? small : small + BAR_HEIGHT + gap;
+    int drive = layout.inline_bars ? small : 2 * small + BAR_HEIGHT + gap;
     int caption = layout.inline_bars ? small : 2 * small;
     int room = column.height - caption - 2 * drive - 2 * gap;
     int ascent = theme->fonts.title->ascent;
@@ -227,15 +231,19 @@ static void drive_note(char *text, DriveView view)
     }
 }
 
-static int widest_note(const UsbPainter *painter)
+static int placed_width(TextStyle style, StringId id, int argument)
 {
-    char text[USB_SCREEN_TEXT_CAPACITY];
-    int widest = 0;
-    for (int lun = 0; lun < USB_SCENE_DRIVES; lun++) {
-        drive_note(text, view_of(painter, lun));
-        widest = larger(widest, text_width(painter->theme->fonts.small, text));
-    }
-    return widest;
+    return text_style_width(style, i18n_text(id)) - text_style_width(style, PLACEHOLDER) + argument;
+}
+
+static int note_width(const Theme *theme)
+{
+    TextStyle figures = {theme->fonts.small, theme->colors.text_secondary, true};
+    int size = placed_width(figures, STR_USB_GB, text_style_width(figures, NOTE_TEMPLATE));
+    int widest = larger(placed_width(figures, STR_USB_FREE, size),
+                        placed_width(figures, STR_USB_TOTAL, size));
+    widest = larger(widest, text_style_width(figures, i18n_text(STR_USB_NO_CARD)));
+    return larger(widest, text_style_width(figures, i18n_text(STR_USB_EJECTED)));
 }
 
 static int widest_name(const Theme *theme)
@@ -252,18 +260,19 @@ static DriveRow drive_row(const UsbPainter *painter, const TrafficLayout *layout
     int gap = theme->metrics.padding / 2;
     int led = line / LED_SHARE;
     int name = widest_name(theme);
-    int note = widest_note(painter);
-    int arrow = led + 2;
+    int note = note_width(theme);
+    int arrow = (line - ARROW_GAP) / 2;
+    int column = (arrow * ARROW_WIDTH_HALVES / 2) | 1;
     DriveRow row = {.led = {area.x, area.y + (line - led) / 2, led, led},
                     .name = {area.x + led + gap, area.y, name, line},
+                    .arrows = {area.x + led + gap + name + gap, area.y, column, line},
                     .note = {area.x + area.width - note, area.y, note, line}};
-    row.arrows =
-        (Rect){row.name.x + name + gap, area.y + (line - arrow) / 2, 2 * arrow + gap / 2, arrow};
     int left = row.arrows.x + row.arrows.width + gap;
     row.bar = (Rect){left, area.y + (line - BAR_HEIGHT) / 2, row.note.x - gap - left, BAR_HEIGHT};
     if (!layout->inline_bars) {
-        row.bar = (Rect){row.name.x, area.y + line + gap / 2, area.x + area.width - row.name.x,
-                         BAR_HEIGHT};
+        int below = area.y + line + gap / 2;
+        row.bar = (Rect){row.name.x, below, area.x + area.width - row.name.x, BAR_HEIGHT};
+        row.note.y = below + BAR_HEIGHT + gap / 2;
     }
     return row;
 }
@@ -287,13 +296,14 @@ static void draw_lights(const UsbPainter *painter, const DriveRow *row, DriveVie
     canvas_fill_rect(painter->canvas, row->led,
                      used ? theme->colors.success
                           : glow_color(theme, theme->colors.success, 0, mounted));
-    Rect down = {row->arrows.x, row->arrows.y, row->arrows.height, row->arrows.height};
-    Rect up = {row->arrows.x + row->arrows.width - row->arrows.height, row->arrows.y,
-               row->arrows.height, row->arrows.height};
-    draw_arrow(painter, down, true,
-               glow_color(theme, theme->colors.success, view.usage.write_glow, mounted));
+    Rect column = row->arrows;
+    int arrow = (column.height - ARROW_GAP) / 2;
+    Rect up = {column.x, column.y, column.width, arrow};
+    Rect down = {column.x, column.y + column.height - arrow, column.width, arrow};
     draw_arrow(painter, up, false,
                glow_color(theme, theme->colors.accent, view.usage.read_glow, mounted));
+    draw_arrow(painter, down, true,
+               glow_color(theme, theme->colors.success, view.usage.write_glow, mounted));
 }
 
 static void draw_tank(const UsbPainter *painter, Rect bar, DriveView view)
@@ -333,10 +343,11 @@ static void draw_drive(const UsbPainter *painter, const TrafficLayout *layout, i
     if (row.bar.width > 0) {
         draw_tank(painter, row.bar, drive);
     }
-    Rect right = label_centered_area(theme->fonts.small, row.note, note);
-    right.x = row.note.x + row.note.width - right.width;
-    usb_screen_text(painter, right,
-                    (TextStyle){theme->fonts.small, theme->colors.text_secondary, false}, note);
+    TextStyle figures = {theme->fonts.small, theme->colors.text_secondary, true};
+    int width = text_style_width(figures, note);
+    width = width < row.note.width ? width : row.note.width;
+    Rect right = {row.note.x + row.note.width - width, row.note.y, width, row.note.height};
+    usb_screen_text(painter, right, figures, note);
 }
 
 void usb_screen_draw_traffic(const UsbPainter *painter)

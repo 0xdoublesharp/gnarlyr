@@ -26,7 +26,10 @@ enum {
     DAC_RATE = 44100,
     STORAGE_DETAIL_PAGES = 2,
     DAC_DETAIL_PAGES = 2,
-    VARIANTS = 26
+    VARIANTS = 26,
+    CARD_256_GB_SECTORS = 500000000,
+    CARD_LONG_FREE_SECTORS = 461718750,
+    CARD_SHORT_FREE_SECTORS = 2343750
 };
 
 typedef struct Variant {
@@ -1118,6 +1121,41 @@ static void portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_rig
     }
 }
 
+static void drive_shot(const Theme *theme, UsbScene *scene, uint32_t free_sectors, int shot)
+{
+    scene->drives[1].sectors = CARD_256_GB_SECTORS;
+    scene->usage[1].free_sectors = free_sectors;
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = scene;
+    Canvas canvas = canvas_for(theme);
+    text_spy_reset();
+    usb_screen_draw(&canvas, theme, (HalBattery){.known = true, .percent = 64}, status);
+    screen_snapshot_write(&canvas, "drives", shot);
+}
+
+static void drive_rows_keep_their_places_and_show_a_long_free_size_whole(void)
+{
+    static const int APPEARANCES[] = {APPEARANCE_GRAPHITE, APPEARANCE_CLASSIC};
+    for (int index = 0; index < 2; index++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = theme_for(APPEARANCES[index], orientation, size);
+                UsbScene scene = storage_scene(USB_SCENE_WRITING);
+                AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+                status.scene = &scene;
+                int shot = index * 100 + orientation * 10 + size;
+                drive_shot(&theme, &scene, CARD_LONG_FREE_SECTORS, shot);
+                CHECK(saw("236 GB free"));
+                Rect lights = usb_screen_drive_lights(&theme, status, 1);
+                drive_shot(&theme, &scene, CARD_SHORT_FREE_SECTORS, shot + 1000);
+                CHECK(saw("1.2 GB free"));
+                Rect again = usb_screen_drive_lights(&theme, status, 1);
+                CHECK(lights.x == again.x && lights.y == again.y && lights.width == again.width);
+            }
+        }
+    }
+}
+
 static void a_page_past_the_last_shows_the_overview(void)
 {
     UsbScene scene = storage_scene(USB_SCENE_WRITING);
@@ -1237,6 +1275,7 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(drive_rows_keep_their_places_and_show_a_long_free_size_whole),
         TEST_CASE(portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_right_margin),
         TEST_CASE(the_rate_keeps_its_decimal_point_in_one_place),
         TEST_CASE(the_hold_reminder_changes_only_the_hint_line),
