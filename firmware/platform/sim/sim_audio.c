@@ -600,7 +600,7 @@ AudioVisualBuffer hal_audio_visual_buffer(void)
         if (audio.virtual_output) {
             uint32_t channel =
                 sample % STEREO == 0 ? audio.headphones.left : audio.headphones.right;
-            value *= audio.gain * track->replay_gain * ((float)channel / REPLAY_GAIN_UNITY);
+            value *= audio.gain * track->replay_gain * ((float)channel / (float)REPLAY_GAIN_UNITY);
         }
         value = value > 1 ? 1 : value < -1 ? -1 : value;
         words[sample] = (uint32_t)(int32_t)(value * 32767) << 16;

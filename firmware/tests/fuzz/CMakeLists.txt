@@ -98,6 +98,11 @@ echo_add_fuzzer(library_builder
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/tests/library
 )
 echo_add_fuzzer(cover_image LIBRARIES echo_image)
+echo_add_fuzzer(theme_pack
+    SOURCES ../app/fake_hal.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_fuzzer(placeholder_art LIBRARIES echo_ui echo_fonts)
 echo_add_fuzzer(play_queue
     SOURCES ../library/memory_source.c ../library/fixture_library.c
@@ -113,5 +118,8 @@ echo_add_fuzzer(wav_source LIBRARIES echo_device_logic)
 echo_add_fuzzer(vorbis_decoder LIBRARIES echo_device_logic)
 echo_add_fuzzer(opus_decode LIBRARIES echo_device_logic)
 echo_add_fuzzer(audio_engine LIBRARIES echo_device_logic)
+echo_add_fuzzer(asf_track LIBRARIES echo_device_logic)
+echo_add_fuzzer(ape_track LIBRARIES echo_device_logic)
+echo_add_fuzzer(dsd_track LIBRARIES echo_device_logic)
 echo_add_fuzzer(card_format LIBRARIES echo_device_logic)
 echo_add_fuzzer(fat_volume LIBRARIES echo_device_logic)

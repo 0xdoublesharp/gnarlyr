@@ -43,7 +43,7 @@ static void exercise_helpers(const uint8_t *data, size_t size)
                            .adjusting_volume = (second & 2u) != 0,
                            .skip = (SkipGesture)(second % SKIP_GESTURE_COUNT)};
     NowPlayingCommand command = now_playing_command_for(event, keys);
-    fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_LYRICS);
+    fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_REPEAT_MARK);
     uint32_t position = get32(data, size, 2);
     uint32_t duration = get32(data, size, 6);
     int32_t delta = (int32_t)get32(data, size, 10);
@@ -126,7 +126,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                                                                  .settings = &settings,
                                                                  .library = &fixture.library,
                                                                  .theme = &theme,
-                                                                 .up_next = up_next_screen,
                                                                  .lyrics = &placeholder});
     up_next_screen->enter(up_next_screen->context, 0);
     now_playing_screen->enter(now_playing_screen->context, 0);

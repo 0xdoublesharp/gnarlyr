@@ -1054,6 +1054,15 @@ static void a_source_that_is_not_ready_leaves_the_ring_alone(void)
     CHECK(frame_is(15, 16, -16, 16));
 }
 
+static void pumping_before_the_first_track_leaves_the_engine_stopped(void)
+{
+    start_scripted_engine(0, 0);
+    audio_engine_pump(&engine, 0);
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, audio_engine_status(&engine).state);
+    CHECK_EQUAL(RING_FRAMES, audio_engine_buffered(&engine, 0));
+    CHECK(audio_engine_current_path(&engine) == NULL);
+}
+
 static void a_frame_is_released_once_its_samples_are_in_the_ring(void)
 {
     start_scripted_engine(0, 2);
@@ -1564,6 +1573,7 @@ int main(void)
         TEST_CASE(an_equalizer_shapes_sixteen_and_twenty_four_bit_audio),
         TEST_CASE(the_equalizer_stands_aside_above_96_khz),
         TEST_CASE(the_current_path_is_the_track_being_played),
+        TEST_CASE(pumping_before_the_first_track_leaves_the_engine_stopped),
         TEST_CASE(a_source_that_is_not_ready_leaves_the_ring_alone),
         TEST_CASE(a_frame_is_released_once_its_samples_are_in_the_ring),
         TEST_CASE(observing_the_dma_position_never_decodes),
