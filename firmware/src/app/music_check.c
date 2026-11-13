@@ -66,6 +66,12 @@ bool music_check_unchanged(MusicFingerprint current)
            stored.entries == current.entries;
 }
 
+uint32_t music_check_entries(void)
+{
+    MusicFingerprint stored;
+    return read_record(&stored) && stored.complete ? stored.entries : 0;
+}
+
 static void put_version(uint8_t *bytes)
 {
     const char *version = hal_system_version();

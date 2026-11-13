@@ -84,6 +84,10 @@ def scan_table(title, run):
     for step in run.get("build_progress") or []:
         lines.append("  shown \"%s\" for %.1f ms: %d updates, last %d%%, longest gap %.1f ms" % (
             step["phase"], step["ms"], step["updates"], step["last_percent"], step["longest_gap_ms"]))
+    hand = run.get("hand_over")
+    if hand:
+        lines.append("  after saving: %.1f ms to the player, %d notices, last \"%s\", longest gap %.1f ms" % (
+            hand["ms"], hand["notices"], hand["last"], hand["longest_gap_ms"]))
     lines.append("  %-30s %9s %8s %8s %8s %9s %8s %8s" % (
         "phase", "ms", "M instr", "wait ms", "rd cmds", "rd sect", "wr cmds", "wr sect"))
     hz = max(run["core_hz"]) if run["core_hz"] else 1

@@ -17,22 +17,19 @@ typedef struct MusicWalk {
     uint32_t shown_ms;
     uint32_t folders;
     uint32_t files;
-    bool progress;
+    uint32_t counted;
+    uint32_t expected;
 } MusicWalk;
+
+enum {
+    NOTICE_PERCENT_TEXT = 64
+};
 
 static MusicWalk walk;
 static FingerprintWork work;
 
-static void show_progress(MusicWalk *state)
+static void show_counts(const MusicWalk *state, uint32_t now)
 {
-    if (!state->progress) {
-        return;
-    }
-    uint32_t now = hal_clock_milliseconds();
-    if (now - state->shown_ms < 150) {
-        return;
-    }
-    state->shown_ms = now;
     char text[160];
     StringBuilder builder = string_builder_make(text, sizeof text);
     i18n_format_counts(&builder, STR_CHECK_COUNTS, state->folders, state->files);
@@ -41,6 +38,32 @@ static void show_progress(MusicWalk *state)
         i18n_format_counts(&builder, STR_CHECK_ELAPSED, (now - state->started_ms) / 1000, 0);
     }
     app_show_notice(i18n_text(STR_MUSIC), text);
+}
+
+static void show_finishing(const MusicWalk *state)
+{
+    uint32_t percent = state->counted * 100u / state->expected;
+    char text[NOTICE_PERCENT_TEXT];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    i18n_format_counts(&builder, STR_SCAN_FINISHING, percent > 99 ? 99 : percent, 0);
+    app_show_notice(i18n_text(STR_SCANNING), text);
+}
+
+static void show_progress(MusicWalk *state)
+{
+    if (state->expected == MUSIC_WALK_QUIET) {
+        return;
+    }
+    uint32_t now = hal_clock_milliseconds();
+    if (now - state->shown_ms < 150) {
+        return;
+    }
+    state->shown_ms = now;
+    if (state->expected == MUSIC_WALK_CHECK) {
+        show_counts(state, now);
+    } else {
+        show_finishing(state);
+    }
 }
 
 static bool open_dir(void *context, uint32_t level, const char *path)
@@ -63,6 +86,9 @@ static bool next_entry(void *context, uint32_t level, FingerprintEntry *entry)
     if (!state->entry.directory) {
         state->files++;
     }
+    bool counts = state->entry.name[0] != '.' &&
+                  music_fingerprint_counts(state->entry.name, state->entry.directory);
+    state->counted += counts ? 1u : 0u;
     if ((state->files & 15u) == 0) {
         show_progress(state);
     }
@@ -81,11 +107,12 @@ static void close_dir(void *context, uint32_t level)
     hal_dir_close(&state->dirs[level]);
 }
 
-MusicFingerprint music_walk_fingerprint(bool progress)
+MusicFingerprint music_walk_fingerprint(uint32_t expected)
 {
-    walk.progress = progress;
+    walk.expected = expected;
     walk.folders = 0;
     walk.files = 0;
+    walk.counted = 0;
     walk.started_ms = hal_clock_milliseconds();
     walk.shown_ms = walk.started_ms;
     FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};

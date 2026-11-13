@@ -76,6 +76,8 @@ AIRCR_SYSRESETREQ = 0x4
 SYSTICK_TICKINT = 0x2
 
 PMU_BOOT_FLAG = 0x4C
+PMU_POWER = 0x0C
+PMU_STATUS = 0x10
 
 SYSTICK_POLL_JUMP_CYCLES = 240
 
@@ -280,7 +282,15 @@ class Pmu(RegisterFile):
         super().__init__(masked=True)
         self.machine = machine
 
+    def read_word(self, offset):
+        if offset == PMU_STATUS:
+            return self.regs.get(PMU_POWER, 0)
+        return super().read_word(offset)
+
     def write_word(self, offset, value):
+        if offset == PMU_POWER:
+            self.regs[offset] = value
+            return
         super().write_word(offset, value)
         if offset == PMU_BOOT_FLAG:
             self.machine.pmu_flag_writes.append((self.machine.stamp(), value))
