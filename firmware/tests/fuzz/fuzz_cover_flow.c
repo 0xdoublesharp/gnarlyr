@@ -46,7 +46,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     default_theme_set_orientation(&theme, (Orientation)(first % ORIENTATION_COUNT));
     default_theme_set_text_size(&theme, (TextSize)((first / 2u) % TEXT_SIZE_COUNT));
     default_theme_set_appearance(&theme, (AppearanceTheme)((first / 4u) % APPEARANCE_THEME_COUNT));
-    CoverCache covers;
+    CoverCache covers = {0};
     cover_cache_open(&covers, library);
     FavoritesStore favorites;
     favorites_store_load(&favorites, library);
