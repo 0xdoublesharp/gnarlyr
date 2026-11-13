@@ -196,7 +196,7 @@ bool player_save(Player *player);
 void player_release_output(Player *player);
 void player_hold_standby(Player *player, bool held);
 bool player_in_standby(const Player *player);
-bool player_restore(Player *player);
+bool player_restore(Player *player, bool cold_start);
 PlayerStatus player_status(const Player *player);
 
 void player_set_replay_gain(Player *player, ReplayGainMode mode, bool prevent_clipping);

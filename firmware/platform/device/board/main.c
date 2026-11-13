@@ -101,7 +101,7 @@ static void run_usb_session(void)
     }
     if (storage_changed || hal_system_restart_pending()) {
         storage_reset();
-        app_start();
+        app_start_after_storage();
         app_request_rescan_if_music_changed();
     }
     app_wake();
@@ -327,7 +327,7 @@ static void follow_card(uint32_t *generation)
     }
     hal_audio_release();
     storage_reset();
-    app_start();
+    app_start_after_storage();
     app_request_rescan_if_music_changed();
     if (sd_ejected()) {
         app_show_notice(i18n_text(STR_CARD_EJECT), i18n_text(STR_CARD_SAFE));

@@ -40,6 +40,7 @@ typedef void (*AppUsbRenderer)(struct Canvas *canvas, const struct Theme *theme,
                                AppUsbStatus status);
 
 void app_start(void);
+void app_start_after_storage(void);
 int16_t app_clock_offset(void);
 bool app_store_clock_offset(int16_t offset);
 void app_step(void);

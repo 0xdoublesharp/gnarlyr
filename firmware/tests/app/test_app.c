@@ -2805,6 +2805,53 @@ static void saved_volume_wins_over_an_older_cards_resume_volume(void)
     CHECK_EQUAL(21, fake_hal_audio_volume());
 }
 
+static void reloading_settings_keeps_the_paused_position_without_a_cold_rewind(void)
+{
+    static const uint32_t positions[] = {42000, 8000};
+    for (size_t index = 0; index < sizeof positions / sizeof positions[0]; index++) {
+        start_app_with_library();
+        play_first_album_track();
+        fake_hal_audio_set_position(positions[index]);
+        tap(KEY_PLAY);
+        app_reload(STR_SETTINGS_RESTORED);
+        step();
+        CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+        CHECK_EQUAL(positions[index], app_player_status().position_ms);
+        headset(HAL_HEADSET_TOGGLE_PAUSE);
+        CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+        CHECK_EQUAL(positions[index], fake_hal_audio_play_start());
+    }
+}
+
+static void returning_from_storage_keeps_the_paused_position_without_a_cold_rewind(void)
+{
+    static const uint32_t positions[] = {42000, 8000};
+    for (size_t index = 0; index < sizeof positions / sizeof positions[0]; index++) {
+        start_app_with_library();
+        play_first_album_track();
+        fake_hal_audio_set_position(positions[index]);
+        tap(KEY_PLAY);
+        app_release_audio();
+        hal_audio_release();
+        app_start_after_storage();
+        CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+        CHECK_EQUAL(positions[index], app_player_status().position_ms);
+        headset(HAL_HEADSET_TOGGLE_PAUSE);
+        CHECK_EQUAL(positions[index], fake_hal_audio_play_start());
+    }
+}
+
+static void powering_on_still_applies_the_configured_cold_rewind(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_audio_set_position(42000);
+    tap(KEY_PLAY);
+    restart_app();
+    headset(HAL_HEADSET_TOGGLE_PAUSE);
+    CHECK_EQUAL(22000, fake_hal_audio_play_start());
+}
+
 static void turning_off_while_playing_silences_the_music_before_cutting_power(void)
 {
     start_app_with_library();
@@ -6643,6 +6690,9 @@ int main(void)
         TEST_CASE(headset_buttons_work_without_waking_the_screen),
         TEST_CASE(holding_power_saves_and_turns_the_player_off),
         TEST_CASE(saved_volume_wins_over_an_older_cards_resume_volume),
+        TEST_CASE(reloading_settings_keeps_the_paused_position_without_a_cold_rewind),
+        TEST_CASE(returning_from_storage_keeps_the_paused_position_without_a_cold_rewind),
+        TEST_CASE(powering_on_still_applies_the_configured_cold_rewind),
         TEST_CASE(turning_off_while_playing_silences_the_music_before_cutting_power),
         TEST_CASE(the_sleep_timer_silences_the_music_before_cutting_power),
         TEST_CASE(end_of_track_sleep_does_not_start_the_queued_song),

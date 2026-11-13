@@ -33,7 +33,7 @@ static void attach(void)
     listening_store_attach(&store, &fixture.library, listening_disk_file(&disk, sizeof disk.bytes));
     favorites = (FavoritesStore){.library = &fixture.library};
     player_init(&player, &fixture.library);
-    player_restore(&player);
+    player_restore(&player, true);
     browse_pool_init(&pool, (BrowsePoolConfig){.library = &fixture.library,
                                                .theme = &theme,
                                                .player = &player,

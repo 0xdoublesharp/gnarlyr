@@ -99,7 +99,7 @@ static void saved_mixtapes_load_as_editable_queues_and_resume_after_restart(void
     CHECK(player.queue.stored_order != NULL);
     CHECK_EQUAL(2, player.queue.count);
     player_init(&player, &fixture.library);
-    CHECK(player_restore(&player));
+    CHECK(player_restore(&player, true));
     CHECK_EQUAL(0, player.track);
     CHECK_EQUAL(2, player.queue.count);
     CHECK_EQUAL(PLAYER_PAUSED, player.state);
@@ -142,7 +142,7 @@ static void a_failed_root_commit_preserves_the_old_queue_and_releases_scratch(vo
     CHECK_EQUAL(4321, player_status(&player).position_ms);
     fake_hal_fail_file_writes(NULL);
     player_init(&player, &fixture.library);
-    CHECK(player_restore(&player));
+    CHECK(player_restore(&player, true));
     CHECK_EQUAL(previous, player.track);
     CHECK_EQUAL(4321, player_status(&player).position_ms);
 }
@@ -291,7 +291,7 @@ static void editing_and_replacing_a_mixtape_preserves_duplicates_across_a_rescan
     CHECK_EQUAL(LIBRARY_OK,
                 library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
     player_init(&player, &fixture.library);
-    CHECK(!player_restore(&player));
+    CHECK(!player_restore(&player, true));
     open_ui();
     choose(2);
     choose(1);

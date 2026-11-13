@@ -985,7 +985,7 @@ static void playing_a_discovery_result_starts_the_selected_track(void)
     start();
     fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
     player_init(&playback_player, &fixture.library);
-    player_restore(&playback_player);
+    player_restore(&playback_player, true);
     discovery.config.player = &playback_player;
     explore();
     TrackOrderSource source = discovery_screen_order(&discovery);
@@ -1010,7 +1010,7 @@ static void cancelling_a_stored_order_write_allows_a_later_retry(void)
     start();
     fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
     player_init(&playback_player, &fixture.library);
-    player_restore(&playback_player);
+    player_restore(&playback_player, true);
     discovery.config.player = &playback_player;
     explore();
     key(KEY_PLAY, KEY_GESTURE_PRESS);
@@ -1035,7 +1035,7 @@ static void a_failed_order_write_keeps_the_current_track_playing(void)
     start();
     fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
     player_init(&playback_player, &fixture.library);
-    player_restore(&playback_player);
+    player_restore(&playback_player, true);
     CHECK(player_play_list(&playback_player, browse_root_query(BROWSE_ALL_SONGS), 0, 7));
     PlayerStatus before = player_status(&playback_player);
     CHECK(before.has_track);
@@ -1074,7 +1074,7 @@ static void play_all_stores_album_order_and_restores_the_same_queue(void)
     start();
     fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
     player_init(&playback_player, &fixture.library);
-    player_restore(&playback_player);
+    player_restore(&playback_player, true);
     player_set_shuffle(&playback_player, SHUFFLE_SONGS, 17);
     discovery.config.player = &playback_player;
     BrowseQuery source = browse_root_query(BROWSE_GROUP_ALBUMS);
@@ -1091,7 +1091,7 @@ static void play_all_stores_album_order_and_restores_the_same_queue(void)
     CHECK_EQUAL(5, player_status(&playback_player).track);
     CHECK(player_save(&playback_player));
     player_init(&playback_player, &fixture.library);
-    CHECK(player_restore(&playback_player));
+    CHECK(player_restore(&playback_player, true));
     CHECK_EQUAL(5, player_status(&playback_player).track);
     uint16_t tracks[4] = {0};
     CHECK(track_order_read(&playback_player.storage.order, 0, 4, tracks));
@@ -1106,7 +1106,7 @@ static void cancelling_album_preparation_keeps_the_current_queue(void)
     start();
     fake_hal_add_file(PLAYER_SESSION_PATH, NULL, 4096);
     player_init(&playback_player, &fixture.library);
-    player_restore(&playback_player);
+    player_restore(&playback_player, true);
     CHECK(player_play_list(&playback_player, browse_root_query(BROWSE_ALL_SONGS), 0, 7));
     PlayerStatus before = player_status(&playback_player);
     discovery.config.player = &playback_player;

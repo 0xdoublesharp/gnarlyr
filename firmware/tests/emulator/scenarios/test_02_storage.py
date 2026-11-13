@@ -24,7 +24,7 @@ class EchoImageTest(EchoImageHarness):
         disk = SparseDisk(1024 * 1024)
         Fat32Volume().write_to(disk, 0)
         card = SdCard(disk, rig.machine)
-        starts = rig.machine.trace("app_start")
+        starts = rig.machine.trace("app_start_after_storage")
         rig.machine.sd_controller.card = card
         rig.machine.card_present = True
         rig.machine.run(until=lambda: bool(starts))

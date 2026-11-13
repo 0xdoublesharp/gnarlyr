@@ -187,7 +187,7 @@ static void seeking_a_resumed_track_moves_where_it_will_start(void)
     CHECK(player_save(started));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     player_seek(&resumed, 9000);
     CHECK_EQUAL(9000, player_status(&resumed).position_ms);
     player_toggle_pause(&resumed);
@@ -431,7 +431,7 @@ static void a_saved_session_resumes_paused_at_its_position(void)
     int plays_before = fake_hal_audio_play_count();
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     PlayerStatus status = player_status(&resumed);
     CHECK_EQUAL(PLAYER_PAUSED, status.state);
     CHECK_EQUAL(SHOOT_TO_THRILL, status.track);
@@ -450,7 +450,7 @@ static void the_session_is_saved_regularly_while_playing(void)
     player_update(started, 1000 + PLAYER_SAVE_INTERVAL_MS);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(12345, player_status(&resumed).position_ms);
 }
 
@@ -573,7 +573,7 @@ static void up_next_survives_a_restart(void)
     player_add_to_up_next(started, ARMY_OF_ME);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(2, resumed.up_next.count);
     CHECK_EQUAL(HELP, resumed.up_next.tracks[0]);
     CHECK_EQUAL(ARMY_OF_ME, resumed.up_next.tracks[1]);
@@ -588,7 +588,7 @@ static void a_session_resumes_inside_an_added_song(void)
     CHECK(player_save(started));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(HELP, player_status(&resumed).track);
     player_toggle_pause(&resumed);
     CHECK(path_is(fake_hal_audio_playing_path(), HELP_PATH));
@@ -654,7 +654,7 @@ static void moving_a_song_preserves_playback_and_survives_a_restart(void)
     CHECK(path_is(fake_hal_audio_queued_path(), ARMY_OF_ME_PATH));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(ARMY_OF_ME, resumed.up_next.tracks[0]);
     CHECK_EQUAL(HELP, resumed.up_next.tracks[1]);
 }
@@ -682,7 +682,7 @@ static void clearing_added_songs_returns_to_the_album_and_persists(void)
     CHECK(path_is(fake_hal_audio_queued_path(), SHOOT_TO_THRILL_PATH));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(0, resumed.up_next.count);
 }
 
@@ -700,7 +700,7 @@ static void removing_an_added_song_preserves_a_paused_track(void)
     CHECK(path_is(fake_hal_audio_queued_path(), ARMY_OF_ME_PATH));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(1, resumed.up_next.count);
     CHECK_EQUAL(ARMY_OF_ME, resumed.up_next.tracks[0]);
 }
@@ -726,7 +726,7 @@ static void a_failed_queue_save_leaves_ram_disk_and_playback_unchanged(void)
     CHECK(path_is(fake_hal_audio_queued_path(), HELP_PATH));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(HELP, resumed.up_next.tracks[0]);
     CHECK_EQUAL(2, resumed.up_next.count);
 }
@@ -822,7 +822,7 @@ static void removing_a_generated_song_preserves_current_audio_and_survives_resta
     CHECK(fake_hal_audio_queued_path() == NULL);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(1, resumed.queue.count);
     CHECK_EQUAL(HELLS_BELLS, resumed.track);
     CHECK_EQUAL(1234, player_status(&resumed).position_ms);
@@ -865,7 +865,7 @@ static void snapshot_merges_added_songs_and_supports_more_inserts_and_edits(void
     expect_stored(started, (uint16_t[]){0, 2, 1, 2, 3, 3}, 6, 0);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     expect_stored(&resumed, (uint16_t[]){0, 2, 1, 2, 3, 3}, 6, 0);
 }
 
@@ -920,7 +920,7 @@ static void cancelling_an_edit_keeps_the_old_order_and_resumes_audio(void)
     CHECK(started->queue.stored_order == NULL);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK(resumed.queue.stored_order == NULL);
     CHECK_EQUAL(2, resumed.queue.count);
 }
@@ -940,7 +940,7 @@ static void a_failed_root_save_leaves_an_orphan_that_restore_and_retry_ignore(vo
     CHECK_EQUAL(generation, started->queue.stored_generation);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     expect_stored(&resumed, (uint16_t[]){0, 1}, 2, 0);
     fake_hal_fail_file_writes(NULL);
     CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING,
@@ -963,7 +963,7 @@ static void a_damaged_new_data_bank_falls_back_to_the_previous_session(void)
     CHECK(hal_file_write_at(PLAYER_ORDER_PATH, offset, &bad, 1));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     expect_stored(&resumed, (uint16_t[]){0, 1}, 2, 0);
 }
 
@@ -975,7 +975,7 @@ static void an_empty_base_queue_can_resume_and_become_an_editable_queue(void)
     CHECK(player_save(started));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(HELP, resumed.track);
     CHECK_EQUAL(1, resumed.up_next.count);
     CHECK_EQUAL(PLAYER_QUEUE_EDIT_WORKING, player_snapshot_queue(started));
@@ -1026,7 +1026,7 @@ static void edited_queue_shuffle_preferences_survive_restart_without_reordering(
     player_set_shuffle(started, SHUFFLE_SONGS, 55);
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(SHUFFLE_SONGS, resumed.shuffle);
     expect_stored(&resumed, (uint16_t[]){0, 1}, 2, 0);
 }
@@ -1092,7 +1092,7 @@ static void a_semantically_invalid_session_does_not_prevent_starting_a_new_song(
     CHECK_EQUAL(STORE_DONE, session_journal_save(journal, &state));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(!player_restore(&resumed));
+    CHECK(!player_restore(&resumed, true));
     CHECK_EQUAL(PLAYER_UP_NEXT_STARTED, player_add_to_up_next(&resumed, HELP));
     CHECK_EQUAL(HELP, resumed.track);
     CHECK(resumed.queue.stored_order == NULL);
@@ -1100,7 +1100,7 @@ static void a_semantically_invalid_session_does_not_prevent_starting_a_new_song(
     CHECK(player_save(&resumed));
     Player again;
     player_init(&again, &fixture.library);
-    CHECK(player_restore(&again));
+    CHECK(player_restore(&again, true));
     CHECK_EQUAL(HELP, again.track);
     CHECK_EQUAL(1, again.up_next.count);
 }
@@ -1127,7 +1127,7 @@ static void a_same_layout_rescan_cannot_restore_ids_for_different_songs(void)
                     library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
         Player resumed;
         player_init(&resumed, &fixture.library);
-        CHECK(!player_restore(&resumed));
+        CHECK(!player_restore(&resumed, true));
         CHECK(!resumed.has_track);
         CHECK_EQUAL(0, resumed.up_next.count);
     }
@@ -1145,7 +1145,7 @@ static void changed_cue_boundaries_do_not_reuse_the_old_saved_position(void)
                 library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(!player_restore(&resumed));
+    CHECK(!player_restore(&resumed, true));
     CHECK(!resumed.has_track);
 }
 
@@ -1208,7 +1208,7 @@ static void a_result_order_survives_restart_at_the_selected_row(void)
     CHECK(player_use_order(started, &order, 2));
     Player restored;
     player_init(&restored, &fixture.library);
-    CHECK(player_restore(&restored));
+    CHECK(player_restore(&restored, true));
     CHECK_EQUAL(ARMY_OF_ME, player_status(&restored).track);
     CHECK_EQUAL(2, restored.queue.cursor.position);
     CHECK_EQUAL(4, restored.queue.count);
@@ -1433,7 +1433,7 @@ static Player *restored_with_rewind(bool rewind, Player *resumed)
     CHECK(player_save(started));
     player_init(resumed, &fixture.library);
     player_set_rewind(resumed, rewind);
-    CHECK(player_restore(resumed));
+    CHECK(player_restore(resumed, true));
     return resumed;
 }
 

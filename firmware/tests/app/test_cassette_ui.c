@@ -120,7 +120,7 @@ static void a_full_side_is_refused_without_publishing_a_new_generation(void)
 static void a_session_created_after_the_initial_restore_can_start_a_tape(void)
 {
     create();
-    CHECK(!player_restore(&player));
+    CHECK(!player_restore(&player, true));
     static uint8_t blank[4096];
     fake_hal_add_file(PLAYER_SESSION_PATH, blank, sizeof blank);
     add(0, 0);

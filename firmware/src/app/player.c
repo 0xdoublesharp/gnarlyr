@@ -888,7 +888,7 @@ static bool restore_session_queue(Player *player, const SessionState *session)
     return play_queue_current(&player->queue, &track) && track == state->track;
 }
 
-static void restore_position(Player *player, const ResumeState *state)
+static void restore_position(Player *player, const ResumeState *state, bool cold_start)
 {
     player->track = state->track;
     player->from_up_next = state->from_up_next;
@@ -897,12 +897,12 @@ static void restore_position(Player *player, const ResumeState *state)
     player->shuffle = state->plan.shuffle;
     player->state = PLAYER_PAUSED;
     player->paused_position_ms = state->position_ms;
-    player->rewind_pause = RESUME_REWIND_COLD;
+    player->rewind_pause = cold_start ? RESUME_REWIND_COLD : RESUME_REWIND_NONE;
     note_spoken(player, player->track);
     player_set_volume(player, PLAYER_OUTPUT_WIRED, state->volume);
 }
 
-bool player_restore(Player *player)
+bool player_restore(Player *player, bool cold_start)
 {
     SessionState session;
     StoreLoad result =
@@ -916,7 +916,7 @@ bool player_restore(Player *player)
                 }
                 player->up_next = session.up_next;
                 player->up_next_revision++;
-                restore_position(player, &session.resume);
+                restore_position(player, &session.resume, cold_start);
                 player->cassette = session.cassette;
                 if (player->cassette.active) {
                     player->rewind_pause = RESUME_REWIND_NONE;

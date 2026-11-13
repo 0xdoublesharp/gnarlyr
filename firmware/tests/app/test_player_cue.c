@@ -123,7 +123,7 @@ static void a_saved_cue_session_resumes_inside_its_track(void)
     CHECK(player_save(started));
     Player resumed;
     player_init(&resumed, &fixture.library);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     CHECK_EQUAL(MIDDLE, player_status(&resumed).track);
     CHECK_EQUAL(600, player_status(&resumed).position_ms);
     player_toggle_pause(&resumed);
@@ -183,7 +183,7 @@ static void a_cold_resume_stops_at_the_start_of_the_cue_track(void)
     Player resumed;
     player_init(&resumed, &fixture.library);
     player_set_rewind(&resumed, true);
-    CHECK(player_restore(&resumed));
+    CHECK(player_restore(&resumed, true));
     player_toggle_pause(&resumed);
     CHECK_EQUAL(MIDDLE_START, fake_hal_audio_play_start());
     CHECK_EQUAL(MIDDLE_END, fake_hal_audio_play_end());

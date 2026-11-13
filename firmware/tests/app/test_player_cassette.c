@@ -48,7 +48,7 @@ static void side_a_never_prefetches_side_b_and_requires_a_flip(void)
     CHECK_EQUAL(PLAYER_PAUSED, player.state);
     CHECK(player_save(&player));
     player_init(&player, &fixture.library);
-    CHECK(player_restore(&player));
+    CHECK(player_restore(&player, true));
     CHECK(player.cassette.active);
     CHECK(player.cassette.flip);
     player_toggle_pause(&player);
@@ -68,7 +68,7 @@ static void side_b_resumes_its_entry_and_exact_position_after_restart(void)
     CHECK(player_save(&player));
     player_init(&player, &fixture.library);
     player_set_rewind(&player, true);
-    CHECK(player_restore(&player));
+    CHECK(player_restore(&player, true));
     CHECK_EQUAL(1, player.cassette.side);
     CHECK_EQUAL(1, player.queue.cursor.position);
     CHECK_EQUAL(12345, player_status(&player).position_ms);
@@ -116,7 +116,7 @@ static void flipping_and_cold_resume_at_zero_do_not_apply_spoken_bookmarks(void)
     CHECK(player_save(&player));
     player_init(&player, &fixture.library);
     player_set_resume(&player, (PlayerResume){spoken_position, NULL});
-    CHECK(player_restore(&player));
+    CHECK(player_restore(&player, true));
     player_toggle_pause(&player);
     CHECK_EQUAL(0, fake_hal_audio_play_start());
 }

@@ -1416,14 +1416,14 @@ static void show_working_notice(StringId title, const char *message, WireShape s
     app_show_notice(i18n_text(title), message);
 }
 
-static void start_playback(void)
+static void start_playback(bool cold_start)
 {
     flush_listening();
     app.listening_loaded = false;
     library_store_open(&app.library);
     player_init(&app.player, &app.library.library);
     settings_store_restore_playback(&app.settings, &app.player, hal_clock_microseconds());
-    player_restore(&app.player);
+    player_restore(&app.player, cold_start);
     player_set_volume(&app.player, PLAYER_OUTPUT_WIRED, app.settings.settings.volume);
     favorites_store_load(&app.favorites, &app.library.library);
     spoken_store_load(&app.spoken, &app.library.library);
@@ -1596,7 +1596,7 @@ static void start_app(bool power_on)
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
     follow_appearance();
-    start_playback();
+    start_playback(power_on);
     start_hardware(now_ms);
     if (!power_on) {
         bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);
@@ -1629,6 +1629,11 @@ CORE_COLD bool app_store_clock_offset(int16_t offset)
 CORE_SEAM void app_start(void)
 {
     start_app(true);
+}
+
+CORE_SEAM void app_start_after_storage(void)
+{
+    start_app(false);
 }
 
 void app_reset_for_test(void)
