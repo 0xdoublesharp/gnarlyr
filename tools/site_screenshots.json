@@ -1964,13 +1964,13 @@
       "name": "usb-dac-overview",
       "file": "usb-dac-overview.png",
       "expected_title": "USB",
-      "native_snapshot": "dac-playing-715.ppm"
+      "native_snapshot": "dac-playing-717.ppm"
     },
     {
       "name": "usb-dac-details",
       "file": "usb-dac-details.png",
       "expected_title": "USB",
-      "native_snapshot": "dac-details-718.ppm"
+      "native_snapshot": "dac-details-720.ppm"
     },
     {
       "name": "track-actions",
