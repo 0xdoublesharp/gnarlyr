@@ -96,7 +96,7 @@ static void run_pwm(BacklightPwm pwm)
     gpio_mux(BACKLIGHT, GPIO_FUNCTION_ALTERNATE);
 }
 
-static void apply_backlight(void)
+CORE_COLD static void apply_backlight(void)
 {
     if (!backlight_on) {
         drive_backlight(false);

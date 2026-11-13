@@ -999,7 +999,7 @@ void board_audio_after_clock_change(void)
     seek_to(position_before_clock_change, paused_before_clock_change);
 }
 
-void board_audio_shut_down(void)
+CORE_COLD void board_audio_shut_down(void)
 {
     if (engine_ready) {
         audio_engine_stop(&engine);
@@ -1157,7 +1157,7 @@ bool board_audio_workspace_lent(void)
     return !workspace_loan_claimable(&workspace_loan);
 }
 
-CORE_SEAM bool board_audio_bluetooth_start(void)
+CORE_SEAM CORE_COLD bool board_audio_bluetooth_start(void)
 {
     if (!engine_ready || !transferring || tone_active || stream_service != NULL) {
         return false;
