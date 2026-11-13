@@ -76,7 +76,7 @@ try {
   await writeFile(join(card, `${identity.data_directory}/lang/es.pack`), packBytes());
   await writeFile(join(profile, "library.json"), JSON.stringify({ version: 1, selected: [], theme: "dark" }));
   app = await _electron.launch({ executablePath: electron, args: [join(source, ".build/app")],
-    env: { ...env, GNARLYR_TEST_MODE: "1", [`${identity.id}_USER_DATA_DIR`]: profile, [`${identity.id}_BACKUP_DIR`]: join(work, "backups") }, timeout: 30000 });
+    env: { ...env, [`${identity.id}_TEST_MODE`]: "1", [`${identity.id}_USER_DATA_DIR`]: profile, [`${identity.id}_BACKUP_DIR`]: join(work, "backups") }, timeout: 30000 });
   const page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   const errors = [];
@@ -118,10 +118,10 @@ try {
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Your Echo", exact: true }).click();
-  await page.getByRole("button", { name: "Installing Gnarlyr for the first time?" }).click();
+  await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
   await page.locator(".stock-install").evaluate((element) => element.scrollIntoView({ block: "center" }));
   await shot("first-install");
-  await page.getByRole("button", { name: "Installing Gnarlyr for the first time?" }).click();
+  await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
   await pick(device.volume);
   await page.getByRole("button", { name: "Choose player drive" }).click();
   await page.getByLabel("Brightness", { exact: false }).waitFor();
