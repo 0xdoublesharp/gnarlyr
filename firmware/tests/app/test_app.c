@@ -2783,6 +2783,28 @@ static void holding_power_saves_and_turns_the_player_off(void)
     CHECK_EQUAL(1, fake_hal_power_off_count());
 }
 
+static void saved_volume_wins_over_an_older_cards_resume_volume(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    for (int level = 0; level < SETTINGS_VOLUME_MAX; level++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    CHECK_EQUAL(0, app_player_status().wired_volume);
+    tap(KEY_PLAY);
+    uint16_t track = app_player_status().track;
+    Settings chosen = settings_defaults();
+    chosen.volume = 21;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    restart_app();
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK_EQUAL(21, app_player_status().wired_volume);
+    CHECK_EQUAL(21, fake_hal_audio_volume());
+}
+
 static void turning_off_while_playing_silences_the_music_before_cutting_power(void)
 {
     start_app_with_library();
@@ -6620,6 +6642,7 @@ int main(void)
         TEST_CASE(headset_buttons_control_the_player_from_any_screen),
         TEST_CASE(headset_buttons_work_without_waking_the_screen),
         TEST_CASE(holding_power_saves_and_turns_the_player_off),
+        TEST_CASE(saved_volume_wins_over_an_older_cards_resume_volume),
         TEST_CASE(turning_off_while_playing_silences_the_music_before_cutting_power),
         TEST_CASE(the_sleep_timer_silences_the_music_before_cutting_power),
         TEST_CASE(end_of_track_sleep_does_not_start_the_queued_song),

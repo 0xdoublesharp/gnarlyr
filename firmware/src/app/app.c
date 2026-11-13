@@ -1424,6 +1424,7 @@ static void start_playback(void)
     player_init(&app.player, &app.library.library);
     settings_store_restore_playback(&app.settings, &app.player, hal_clock_microseconds());
     player_restore(&app.player);
+    player_set_volume(&app.player, PLAYER_OUTPUT_WIRED, app.settings.settings.volume);
     favorites_store_load(&app.favorites, &app.library.library);
     spoken_store_load(&app.spoken, &app.library.library);
     player_set_resume(&app.player, spoken_store_resume(&app.spoken));
