@@ -13,6 +13,37 @@ PARTS = ("covers", "reflections", "text", "backdrop", "hash", "audio")
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_builtin_ascii_glyph_lookup_has_a_bounded_instruction_cost(self):
+        from unicorn import Uc, UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB, UC_HOOK_CODE
+        from unicorn.arm_const import (UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R1,
+                                       UC_ARM_REG_PC, UC_ARM_REG_SP, UC_CPU_ARM_CORTEX_M3)
+        from echo_emulator.machine import load_symbols
+        import make_image
+        symbols = load_symbols(self.elf)
+        core = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
+        core.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M3)
+        core.mem_map(0x03000000, 0x100000)
+        core.mem_write(make_image.CODE_BASE,
+                       make_image.elf_sections(Path(self.elf).read_bytes())[".code"].content)
+        instructions = [0]
+
+        def counted(uc, address, size, context):
+            instructions[0] += 1
+
+        core.hook_add(UC_HOOK_CODE, counted)
+        returned = 0x0300F000
+        for codepoint in range(32, 127):
+            core.reg_write(UC_ARM_REG_SP, 0x030FE000)
+            core.reg_write(UC_ARM_REG_R0, symbols["FONT_INTER_REGULAR_16"])
+            core.reg_write(UC_ARM_REG_R1, codepoint)
+            core.reg_write(UC_ARM_REG_LR, returned | 1)
+            core.emu_start(symbols["font_find_glyph"] | 1, returned, count=10000)
+            self.assertEqual(core.reg_read(UC_ARM_REG_PC), returned)
+            glyph = core.reg_read(UC_ARM_REG_R0)
+            self.assertEqual(int.from_bytes(core.mem_read(glyph, 2), "little"), codepoint)
+        print("%d instructions for 95 resident ASCII glyph lookups" % instructions[0])
+        self.assertLessEqual(instructions[0], 95 * 40)
+
     def trace_fills(self, machine):
         import struct
         from unicorn.arm_const import (UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R1,

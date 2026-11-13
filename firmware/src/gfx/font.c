@@ -36,6 +36,12 @@ static const Glyph *search(const Font *font, uint32_t codepoint)
 
 const Glyph *font_find_glyph(const Font *font, uint32_t codepoint)
 {
+    if (font->glyph_count != 0) {
+        uint32_t index = codepoint - font->glyphs[0].codepoint;
+        if (index < font->glyph_count && font->glyphs[index].codepoint == codepoint) {
+            return &font->glyphs[index];
+        }
+    }
     const Glyph *glyph = search(font, codepoint);
     if (glyph == NULL && font->pack_face != 0) {
         uint32_t face = font->pack_face - 1u;
