@@ -144,9 +144,12 @@ static void draw_shell(Canvas *canvas, CassetteNowPlayingLayout layout, const Th
 {
     Rect body = layout.body;
     home_art_draw_backdrop(canvas, body, theme);
+    int label_bottom = layout.window.y - 2;
+    canvas_fill_rect(canvas,
+                     (Rect){body.x + 4, body.y + 4, body.width - 8, label_bottom - body.y - 4},
+                     theme->colors.backdrop_top);
     Rect rim = {body.x + 2, body.y + 2, body.width - 4, body.height - 4};
     neon_art_frame(canvas, rim, neon_art_ink(theme, theme->colors.accent_alt));
-    int label_bottom = layout.reels[0].y - 10;
     neon_art_line(canvas, (Point){body.x + 10, label_bottom},
                   (Point){body.x + body.width - 10, label_bottom},
                   neon_art_ink(theme, theme->colors.accent));
