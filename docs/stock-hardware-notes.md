@@ -267,7 +267,7 @@ Gnarlyr writes four words after the splash (`platform/device/board/cru.c:34`, `m
    - Battery check `0x0307f060`: 18 samples. Below 3400 mV with no USB, it waits 200 ms and powers off.
    - Profile 3.
    - With no USB, the splash `0x030546b4`: 200 ms, backlight on, 34 frames with 30 ms after each, then a 36 × 30 ms hold. That is about 2.3 s of fixed busy-waiting before frame decoding is counted.
-4. `0x0307ec4e`: open `ECHOECHO.IMG`; when it is absent, try `ECHOV100.IMG` up to `ECHOV498.IMG` one name at a time, up to 399 root-directory lookups on every boot. Then load the library and settings (`0x03057c0a`, `0x0305d1d8`).
+4. `0x0307ec4e`: open `ECHOECHO.IMG`; when it is absent, try `ECHOV100.IMG` up to `ECHOV498.IMG` one name at a time, up to 399 root-directory lookups on every boot; the highest number present wins, and a found `ECHOECHO.IMG` skips the scan. The installer in module 8 (`0x0307f79c`) then checks only `RKnanoFW` at `0x1F8` and the header copy at the fw-size offset, writes `(fw size + 0x104000)` rounded down to a MiB into slot 2 and copies it into slot 1. Then load the library and settings (`0x03057c0a`, `0x0305d1d8`).
 5. Message dispatch and release of profile 2.
 6. Clock-chip read, with one retry; when the time is invalid, write 2026-01-03 12:00.
 7. Watchdog, state restore, the jack pins (GPIO2.8, GPIO0.13), then the main loop.

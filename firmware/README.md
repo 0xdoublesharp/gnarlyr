@@ -26,7 +26,7 @@ The source supports the capabilities below. The known-issues document distinguis
 - **Controls:** a button lock, three ways to skip songs, and buttons on wired 3.5 mm headsets.
 - **Bluetooth headphones:** pair, remember six, reconnect.
 - **USB:** mass storage for internal storage and the microSD card, or a USB Audio Class 1.0 sound card (Settings → USB mode).
-- **Updates:** the player installs `GNARLYR.IMG` from the top level of internal storage. It also installs FiiO's own image under FiiO's `ECHOVnnn.IMG` names, which is the way back to FiiO's firmware. It refuses the images of Podium, EchoPod and any other brand.
+- **Install and updates:** the first install is a file copy: FiiO's updater installs `ECHOECHO.IMG` from the top level of internal storage. Gnarlyr's updater then installs `GNARLYR.IMG` or the same file as `ECHOECHO.IMG`, and FiiO's own image under FiiO's `ECHOVnnn.IMG` names, which is the way back to FiiO's firmware; it tells them apart by their contents. It refuses the images of Podium, EchoPod and any other brand.
 - **Data:** the player keeps its files in a hidden `/.gnarlyr` folder (about 110 MB on the music storage). Deleting it rebuilds the library.
 
 The name (Gnarlyr: the USB product name, the start-up splash and the Home title), the maker's name (Doublesharp: the USB manufacturer name), the identifier (`GNARLYR`: the image brand and the USB storage vendor), the version and the names of the data folder, the update file and the playlist directive live in one file, [`identity.json`](identity.json), which the build, the C code and the tools read.
@@ -38,7 +38,7 @@ The name (Gnarlyr: the USB product name, the start-up splash and the Home title)
 | [`docs/user-guide.md`](docs/user-guide.md) | Using the player: music layout, buttons, settings, updating, going back to FiiO's firmware |
 | [`docs/known-issues.md`](docs/known-issues.md) | Safety, what is unproven on a player, limits |
 | [`docs/release-notes.md`](docs/release-notes.md) | What differs from Podium 4.5.9 |
-| [`docs/device-install.md`](docs/device-install.md) | Installing a build through maskrom, and through the updater |
+| [`docs/device-install.md`](docs/device-install.md) | Installing by file copy, later updates, and maskrom for a player that won't start |
 | [`docs/device-recovery.md`](docs/device-recovery.md) | Writing FiiO's firmware back through maskrom |
 | [`docs/architecture.md`](docs/architecture.md) | Layers, rules, device platform, tests |
 | [`docs/hardware.md`](docs/hardware.md) | The hardware the drivers talk to |

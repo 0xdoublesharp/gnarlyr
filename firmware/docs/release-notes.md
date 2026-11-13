@@ -2,6 +2,44 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
 
+## 1.0.0-beta.1 (public beta)
+
+Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music player. It is built on Podium and EchoPod. This is a public beta for people who want to try it and tell us what breaks. It has been tested on the developer's player, but not yet on many others.
+
+### Install
+
+- **Coming from FiiO's firmware:** download `ECHOECHO.IMG` and check it against `SHA256SUMS`. Connect the player, copy the file to the top of its internal drive (not into a folder), eject and unplug. The player installs Gnarlyr and starts it.
+- **Updating Gnarlyr:** copy `GNARLYR.IMG` to the top of the internal drive and eject. Confirm the new version with one more connection (step 4 of the update guide).
+- **Going back to FiiO:** copy FiiO's `ECHOV200.IMG` to the internal drive and eject.
+- Full steps, and what to do if the player won't start: <https://gnarlyr.com/install.html>.
+
+### What's new
+
+- **Faster USB copying.** The player connects at High Speed (480 Mbit/s) and copies about twice as fast as before: 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
+- **New USB screens.** Connect to computer draws the last 10 seconds of reads and writes as a wireframe landscape. It shows the link speed as a USB symbol (with a lightning bolt at High Speed) and a row for each drive with its free space and activity. Press Menu for detailed stats. The USB DAC screen shows the level, the format, both volumes and the buffer, and tapping Back opens its details.
+- **Safe updates.** A new version starts on trial and the previous one is kept as a backup. If the new one fails to start properly, the player puts the backup back and says "Update rolled back".
+- **Card eject and hot-insert.** Settings → Eject card makes the microSD card safe to remove. Insert or remove a card while the player runs, and the library follows it.
+- **Fast library scans with progress.** The player shows what it is doing while it checks for changes, sorts and saves. You can browse and play as soon as the tracks are ready, and album covers fill in later.
+- **Recap.** See your listening time, plays, skips and top songs, albums and artists. Recap → Highlights shows a month, a year or all time as a short run of cards.
+- **Wireframe start-up and shutdown.** Turn them off in Settings → Power → Start and stop animation.
+- **Make it yours.** Choose from five themes or add `.gtheme` packs. Settings → Orientation offers portrait mode, and Settings → Home screen chooses and orders the items on Home.
+- **Formats.** FLAC, MP3, WAV, AIFF, AAC and Apple Lossless (`.m4a`, `.m4b` audiobooks with chapters), Ogg Vorbis, Opus, APE, WMA, and DSD (DSF/DFF, played as PCM). Also CUE sheets and M3U playlists, at up to 192 kHz.
+- **Parametric EQ and sound controls.** Use up to ten filters, or import AutoEQ files. Sound shaping offers seven simple controls. Also crossfeed, playback speed from 0.5× to 3× at the same pitch, fades between shuffled songs, and Skip silence and Speech boost for audiobooks and podcasts.
+- **Bluetooth headphones,** with their own volume, as well as the 3.5 mm and 4.4 mm jacks.
+- **ReplayGain** (Track, Album or Auto) and four **headphone profiles**, each with trim, balance and a volume limit.
+- **Language packs.** English is built in. Make a pack for your language at <https://gnarlyr.com/languages.html> and copy it to the player.
+
+### Known issues
+
+- With the player connected, macOS System Information (`system_profiler`) can hang. Finder is not affected.
+- Copy speed is still being improved.
+- Battery life hasn't been measured yet.
+- Two safety nets haven't been tried on a player since their latest fixes: recovery mode by holding Power and Vol+, and the automatic rollback of a broken update.
+- Settings reset to their defaults if you come from a Gnarlyr development build.
+- Ogg, Opus, APE, WMA and DSD playback, and Bluetooth, have had the least listening on a player. Reports on them are especially welcome.
+
+To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues>. Include the version from Settings → About → Firmware, what you did and what happened. Attach the report files from the hidden `.gnarlyr/debug` folder on the player's internal drive. The full list is in [known issues](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/known-issues.md#beta-testers).
+
 ## Unreleased: safe updates and recovery
 
 - An update installs on trial into slot 1; slot 2 keeps the build that was running. The trial ends, and the new build is copied into slot 2 ("Saving this version as the backup"), after a USB session in which the computer wrote to internal storage and then ejected the drives. Copy any small file before ejecting: a session whose drives opened read-only, or that wrote nothing, leaves the trial running.
@@ -82,7 +120,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 ## Library and navigation
 
-- Home defaults to Music, Mixtapes, Recap, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept. The settings v15 layout is unchanged.
+- Home defaults to Music, Mixtapes, Recap, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept.
 - The library opens as soon as its tracks are sorted; album covers fill in afterwards while the player is idle and not playing, pause for a key press, playback or a USB cable, and resume where they stopped, also after a restart. In the emulator, a generated 4,003-track card is browsable after 29.6 s and has all 303 covers after 135.8 s; the same card took 160.9 s, all of it before the library opened, at the start of this work. Not yet timed on a player.
 - Settings → Rescan library says "Library is up to date" instead of rebuilding when the music, the firmware and the last scan are unchanged (1.5 s on 4,003 tracks in the emulator; it rebuilt for 34.7 s before).
 - Album art: Ogg and Opus pictures, CMYK and YCCK JPEGs and JPEG EXIF orientation are shown; ID3 tags with unsynchronisation are read correctly; embedded art that can't be decoded gives way to the folder image. echo-sync picks the same picture as the player for every case of a 55-album test corpus.
@@ -121,7 +159,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
 - Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage apart from the settings file. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
-- The USB screens are redesigned in the theme's style: a wireframe cassette whose reels turn while the computer reads or writes, a state light, the amount copied, each drive's size or ejected state, the USB speed and the battery. The DAC screen adds a level meter, the format, both volumes, the jack, buffer, clock correction, underruns and time connected.
+- The USB screens are redesigned in the theme's style: a wireframe landscape of the last 10 seconds of reads and writes, the transfer rate, the amount read and written, a gauge for each drive with its free space or ejected state, the USB speed and the battery. A turning cassette shows while the player waits for writes to finish or disconnects. The DAC screen adds a level meter, the format, both volumes, the jack, buffer, clock correction, underruns and time connected.
 - Connect to computer can be ended from the player: hold Back for a second. The player waits until the computer has stopped writing for 3 seconds, tells it the drives are gone and finishes as after an eject; holding on for 3 more seconds disconnects at once with a warning.
 - The DAC menu (Menu in DAC mode) changes volume, gain, output and the headphone profile, or switches to Connect to computer or Charge & play, without leaving DAC mode.
 - Crossfeed (Off, Low, Medium, High) blends each channel into the other ear for headphones, as a Settings default and per headphone profile. Stereo music and spoken word only; USB DAC output is unchanged.

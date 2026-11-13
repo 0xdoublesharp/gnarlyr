@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `67bf9df3ebd9fbe020d69acf582e8246b2825a43e662bb425f326d5fe2e99c91` |
-| Rollback content release | `1de51abd4150be3630f5b0680de4c7e6d50159f6f109d044762ee1023955a21c` |
+| Current content release | `82afe8ee84ed9f339049670159861de213d327f049f16ba3f9fc6f2fad273977` |
+| Rollback content release | `259a2ca909eced627a7281f67cd13ab74a56289c2fdda043f54adab6fcdcb1b5` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
@@ -52,7 +52,7 @@ normal service configuration/start operations. Website publication is manual, wi
 
 The publisher includes only `index.html`, `firmware.html`, `hardware.html`,
 `docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
-`sitemap.xml`, `languages.html`, `companion.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
+`sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. The publisher versions local stylesheet, script and image URLs in each HTML page
 with the SHA-256 prefix of the referenced asset. Social-preview PNGs under
@@ -82,13 +82,13 @@ Do not restart the shared proxy for an ordinary site release.
 
 ## Verify and recover
 
-Require HTTP 200 for `/`, `/companion.html`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
+Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
 `/languages.html`, `/language-catalog.js`, `/language-packs.js` and
-`/healthz`; compare all sixteen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
+`/healthz`; compare all fifteen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
-`/README.md`, `/deploy/compose.yaml` and an unknown path. Verify origin TLS
+`/README.md`, `/deploy/compose.yaml`, `/companion.html`, its image assets and an unknown path. Companion source remains in the checkout but is excluded from publication. Verify origin TLS
 separately with `curl --resolve HOST:443:159.89.222.183 https://HOST/`;
 Cloudflare edge HTTPS alone does not verify the origin certificate.
 
@@ -172,7 +172,7 @@ Published release:
 `0780845239168e3f334ee513025e9607a7762b422c09bb20504b61fccf83abbb`.
 Rollback: `e50c9feb9d6a9ca5250173eda0c5ff921be9c90ad2f84ed4b5c916bd4de8b556`.
 The installation guide identifies Gnarlyr 1.0 as the first future public release,
-using `GNARLYR.img`, and removes the development commit marker. The updated
+using `GNARLYR.IMG`, and removes the development commit marker. The updated
 page matches local source over HTTPS; health remains 200.
 
 ## Hardware and firmware guides — 2026-11-10
@@ -184,7 +184,7 @@ Rollback release:
 
 The home page links dedicated firmware, hardware and installation guides.
 Content follows fresh-base through `c45f854`; the active firmware task owns
-the user-selected `GNARLYR.img` identity change. The independent writing and
+the user-selected `GNARLYR.IMG` identity change. The independent writing and
 accuracy review led to corrections for listening statistics, mixtape editing,
 language support, inherited fixes, first-install order and legacy updaters.
 

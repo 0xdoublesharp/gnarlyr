@@ -4,9 +4,18 @@ Public firmware and desktop installers are distributed as assets in [Gnarlyr Git
 
 ## Firmware
 
-Every successful CI run uploads `GNARLYR.IMG`, `gnarlyr-source.tar.gz`, `firmware.json`, and `SHA256SUMS` as an Actions artifact. The image is a release-preset build for the full-size ECHO. CI does not write to a player or publish a release.
+Every successful CI run packages its image with `tools/release_package.py` and uploads `GNARLYR.IMG`, `ECHOECHO.IMG` (the same bytes under the name FiiO's updater installs), `gnarlyr-source.tar.gz`, `firmware.json` and `SHA256SUMS` as an Actions artifact. CI does not write to a player or publish a release.
 
-After the release checks in `AGENTS.md` pass on the player and the owner approves that exact release, tag its commit `vMAJOR.MINOR.PATCH`, matching `firmware/identity.json`. Dispatch **Firmware release** using that tag as the workflow ref, supply the same tag and the successful CI run ID whose image was tested, and confirm owner approval. The workflow checks the trusted ref, version, and successful CI result, then publishes that run's exact image with matching source and hashes. It does not rebuild the approved image. CI artifacts expire after seven days, so complete device checks and publication within that window.
+A tag is `v` plus the version in `firmware/identity.json` (`v1.0.0`), or that plus a pre-release label of up to eight characters (`v1.0.0-beta.1`). When CI runs on a pre-release tag, the label replaces the commit in the image's 8-byte build field, so Settings → About → Firmware shows `1.0.0-beta.1` and debug reports give `firmware.build: beta.1`; a local build gets the same with `ECHO_BUILD_TAG=beta.1`. A pre-release ships the `device` preset, the build installed on the owner's player during development, which writes debug reports to `/.gnarlyr/debug` for testers to send. A release without a label ships the `release` preset, keeps the commit as its build and must be on `main`; a pre-release may be cut from an integration branch.
+
+After the release checks in `AGENTS.md` pass on the player and the owner approves that exact build:
+
+1. Add a `## <version>` section (`## 1.0.0-beta.1`) to `firmware/docs/release-notes.md`; it becomes the release body. `python3 tools/release_package.py notes <tag>` prints it.
+2. Tag the commit and push the tag.
+3. Run **CI** with the tag as its ref. Its preflight sets the label, builds, and packages the image.
+4. Dispatch **Firmware release** with the same tag as the workflow ref, the tag, that CI run's ID and owner approval. It checks the tag, the CI run and every hash with `tools/release_package.py verify`, then publishes that run's exact files. It does not rebuild the image. A pre-release is published as a GitHub pre-release and does not become `latest`.
+
+CI artifacts expire after seven days, so finish the device checks and publication within that time.
 
 The first published firmware release makes these URLs available:
 
@@ -16,7 +25,7 @@ https://github.com/0xdoublesharp/gnarlyr/releases/latest/download/firmware.json
 https://github.com/0xdoublesharp/gnarlyr/releases/latest/download/SHA256SUMS
 ```
 
-For a pinned download, replace `latest/download` with `download/vMAJOR.MINOR.PATCH`. Installers should verify the image hash against the manifest, validate the image/model, and preserve the existing review and update checks. Hashes alone do not authenticate a publisher.
+For a pinned download, replace `latest/download` with `download/<tag>`. A pre-release is reached only by its pinned URL, for example `https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/ECHOECHO.IMG`. Installers should verify the image hash against the manifest, validate the image/model, and preserve the existing review and update checks. Hashes alone do not authenticate a publisher.
 
 ## Desktop
 

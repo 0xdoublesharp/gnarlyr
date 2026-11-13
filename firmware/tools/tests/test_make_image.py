@@ -173,6 +173,14 @@ class LayoutTest(unittest.TestCase):
     def test_the_built_image_passes_the_updater_checks(self):
         self.assertEqual([], make_image.validate_image(self.image))
 
+    def test_fiio_s_installer_accepts_the_image_and_copies_exactly_the_slot(self):
+        fw_size = word(self.image, 0x1F4)
+        copied = (fw_size + 0x104000) & ~0xFFFFF
+        self.assertEqual(b"RKnanoFW", self.image[0x1F8:0x200])
+        self.assertEqual(self.image[:0x200], self.image[fw_size:fw_size + 0x200])
+        self.assertEqual(0x500000, copied)
+        self.assertLessEqual(copied, len(self.image))
+
 
 class HeaderFieldTest(unittest.TestCase):
     def test_the_date_is_bcd_month_day_year(self):
@@ -304,6 +312,18 @@ class DefaultsTest(unittest.TestCase):
     def test_the_default_build_tag_is_the_short_commit_with_a_plus_when_dirty(self):
         tag = make_image.default_build_tag(TOOLS_DIRECTORY.parent)
         self.assertRegex(tag, r"^[0-9a-f]{7}\+?$")
+
+    def test_the_build_tag_variable_replaces_the_commit(self):
+        environment = {make_image.BUILD_TAG_VARIABLE: "beta.1"}
+        self.assertEqual("beta.1", make_image.chosen_build_tag(None, environment, TOOLS_DIRECTORY.parent))
+
+    def test_an_explicit_build_tag_wins_over_the_variable(self):
+        environment = {make_image.BUILD_TAG_VARIABLE: "beta.1"}
+        self.assertEqual("rc.2", make_image.chosen_build_tag("rc.2", environment, TOOLS_DIRECTORY.parent))
+
+    def test_without_the_variable_the_build_tag_is_the_commit(self):
+        tag = make_image.chosen_build_tag(None, {}, TOOLS_DIRECTORY.parent)
+        self.assertEqual(make_image.default_build_tag(TOOLS_DIRECTORY.parent), tag)
 
     def test_a_directory_outside_git_gets_an_unknown_tag(self):
         with tempfile.TemporaryDirectory() as directory:
