@@ -12,9 +12,6 @@ enum {
     LOG_UNIT_BITS = 15
 };
 
-const uint16_t SETTINGS_EQUALIZER_BAND_HZ[SETTINGS_EQUALIZER_BANDS] = {
-    31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000};
-
 void equalizer_fit_start(EqualizerFit *fit)
 {
     *fit = (EqualizerFit){.line_start = true};

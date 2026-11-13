@@ -5,6 +5,111 @@
 
 const BoardCoverLayout BOARD_COVER_LAYOUT = {
     .up_next_detail_max_width = 150,
+    .now_playing =
+        {
+            [TEXT_SIZE_SMALL] =
+                {
+                    .cover_size = 140,
+                    .cover_top = 42,
+                    .cover_gap = 20,
+                    .title_top = 43,
+                    .artist_top = 76,
+                    .album_top = 110,
+                    .text_line_height = 24,
+                    .format_top = 134,
+                    .detail_top = 154,
+                    .modes_top = 174,
+                    .small_line_height = 18,
+                    .progress_top = 196,
+                    .progress_height = 3,
+                    .times_top = 202,
+                },
+            [TEXT_SIZE_MEDIUM] =
+                {
+                    .cover_size = 140,
+                    .cover_top = 42,
+                    .cover_gap = 20,
+                    .title_top = 39,
+                    .artist_top = 72,
+                    .album_top = 110,
+                    .text_line_height = 28,
+                    .format_top = 134,
+                    .detail_top = 154,
+                    .modes_top = 174,
+                    .small_line_height = 18,
+                    .progress_top = 196,
+                    .progress_height = 3,
+                    .times_top = 202,
+                },
+            [TEXT_SIZE_LARGE] =
+                {
+                    .cover_size = 140,
+                    .cover_top = 42,
+                    .cover_gap = 20,
+                    .title_top = 35,
+                    .artist_top = 72,
+                    .album_top = 110,
+                    .text_line_height = 35,
+                    .format_top = 134,
+                    .detail_top = 154,
+                    .modes_top = 174,
+                    .small_line_height = 18,
+                    .progress_top = 196,
+                    .progress_height = 3,
+                    .times_top = 202,
+                },
+        },
+    .now_playing_portrait =
+        {
+            [TEXT_SIZE_SMALL] =
+                {
+                    .cover_size = 160,
+                    .cover_top = 64,
+                    .title_top = 250,
+                    .artist_top = 306,
+                    .album_top = 346,
+                    .text_line_height = 24,
+                    .format_top = 367,
+                    .detail_top = 389,
+                    .modes_top = 411,
+                    .small_line_height = 18,
+                    .progress_top = 440,
+                    .progress_height = 3,
+                    .times_top = 449,
+                },
+            [TEXT_SIZE_MEDIUM] =
+                {
+                    .cover_size = 160,
+                    .cover_top = 64,
+                    .title_top = 244,
+                    .artist_top = 306,
+                    .album_top = 346,
+                    .text_line_height = 28,
+                    .format_top = 367,
+                    .detail_top = 389,
+                    .modes_top = 411,
+                    .small_line_height = 18,
+                    .progress_top = 440,
+                    .progress_height = 3,
+                    .times_top = 449,
+                },
+            [TEXT_SIZE_LARGE] =
+                {
+                    .cover_size = 160,
+                    .cover_top = 64,
+                    .title_top = 232,
+                    .artist_top = 306,
+                    .album_top = 346,
+                    .text_line_height = 35,
+                    .format_top = 367,
+                    .detail_top = 389,
+                    .modes_top = 411,
+                    .small_line_height = 18,
+                    .progress_top = 440,
+                    .progress_height = 3,
+                    .times_top = 449,
+                },
+        },
     .cover_flow =
         {
             .center_x = 240,
@@ -52,5 +157,13 @@ const CoverFlowTextLayout *board_cover_flow_text_layout(const Theme *theme)
     const CoverFlowTextLayout *table = theme_is_portrait(theme)
                                            ? BOARD_COVER_LAYOUT.cover_stack_text
                                            : BOARD_COVER_LAYOUT.cover_flow_text;
+    return &table[board_text_size(theme)];
+}
+
+const NowPlayingLayout *board_now_playing_layout(const Theme *theme)
+{
+    const NowPlayingLayout *table = theme_is_portrait(theme)
+                                        ? BOARD_COVER_LAYOUT.now_playing_portrait
+                                        : BOARD_COVER_LAYOUT.now_playing;
     return &table[board_text_size(theme)];
 }
