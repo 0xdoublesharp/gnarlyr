@@ -124,7 +124,10 @@ if(ARM_GCC)
         COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DPRESET=device
             -P ${PROJECT_SOURCE_DIR}/cmake/check_device_build.cmake
     )
-    set_tests_properties(device_build PROPERTIES FIXTURES_SETUP device_image)
+    set_tests_properties(device_build PROPERTIES
+        FIXTURES_SETUP device_image
+        RESOURCE_LOCK firmware_images
+    )
     add_executable(check_device_image device/check_device_image.c)
     target_link_libraries(check_device_image PRIVATE echo_device_logic echo_options)
     add_test(NAME device_image_passes_the_updater_check
@@ -255,6 +258,7 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
     add_test(NAME tools_unit_tests
         COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
     )
+    set_tests_properties(tools_unit_tests PROPERTIES RESOURCE_LOCK firmware_images)
     add_test(NAME cover_decode_matches_pillow
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/check_cover_decode.py
             --tool $<TARGET_FILE:cover_decode_tool>
