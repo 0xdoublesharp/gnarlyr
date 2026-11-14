@@ -217,6 +217,27 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(session.fat().read(path), data)
         self.assert_healthy(session)
 
+    def test_deferred_headphone_load_preserves_safe_start_and_profile_limits(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        for comfort, ceiling, expected in ((2, 18, 13), (0, 18, 18), (2, 6, 6)):
+            with self.subTest(comfort=comfort, ceiling=ceiling):
+                volume = self.debug_volume()
+                folder = image_tests.IDENTITY.data_directory
+                volume.add_file("settings.bin",
+                                image_tests.settings_file(0, 4096, b13=50, b38=comfort, b39=13),
+                                directory=folder)
+                volume.add_file("headphones.bin", headphone_bank(1, 0, ceiling) + bytes(512),
+                                directory=folder)
+                session = self.session(volume=volume)
+                machine = session.machine
+                levels = []
+                machine.hook_symbol("hal_audio_set_volume",
+                                    lambda: levels.append(machine.reg(UC_ARM_REG_R0)))
+                self.assertEqual(session.run_to_home_screen(), "condition met")
+                machine.run(until_ms=machine.milliseconds() + image_tests.STARTUP_WORK_MS)
+                self.assertEqual(levels[-1], expected)
+                self.assert_healthy(session)
+
     def test_missing_extension_cannot_bypass_a_saved_headphone_volume_ceiling(self):
         self.damaged_extension_slots = ("slot_1", "slot_2")
         session, applied, data = self.headphone_boot()

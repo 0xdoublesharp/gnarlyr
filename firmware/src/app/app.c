@@ -463,19 +463,24 @@ static void start_charging(uint32_t now_ms)
     debug_loop_save_report();
 }
 
-static void lower_start_volume(PlayerOutput output)
+__attribute__((noinline)) static CORE_COLD void set_start_volume(PlayerOutput output,
+                                                                 uint8_t volume)
 {
-    uint8_t volume = player_volume(&app.player, output);
     const Settings *settings = &app.settings.settings;
     uint8_t safe = output == PLAYER_OUTPUT_BLUETOOTH
                        ? settings_safe_start_bluetooth_volume(settings, volume)
                        : settings_safe_start_volume(settings, volume);
     if (safe < volume) {
-        player_set_volume(&app.player, output, safe);
         app.volume_lowered = true;
         app.lowered_volume = safe;
         app.lowered_output = output;
     }
+    player_set_volume(&app.player, output, safe);
+}
+
+static void lower_start_volume(PlayerOutput output)
+{
+    set_start_volume(output, player_volume(&app.player, output));
 }
 
 static void note_listeners(void)
@@ -1723,8 +1728,7 @@ static void continue_covers(uint32_t now_ms)
 
 static void run_rescan(void)
 {
-    cancel_edits();
-    flush_listening();
+    save_session();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
     RescanProgress progress = {show_rescan_progress, show_build_progress};
     debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_START, 0));
@@ -1980,6 +1984,7 @@ static bool prepare_step(void)
     app.prepare_pending = false;
     if (app.headphones.load == STORE_UNREADABLE) {
         headphone_store_load(&app.headphones);
+        set_start_volume(PLAYER_OUTPUT_WIRED, app.settings.settings.volume);
     }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;

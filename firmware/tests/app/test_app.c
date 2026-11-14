@@ -2783,6 +2783,34 @@ static void holding_power_saves_and_turns_the_player_off(void)
     CHECK_EQUAL(1, fake_hal_power_off_count());
 }
 
+static void a_paused_volume_change_survives_power_off_and_cold_start(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_PLAY);
+    for (int level = 0; level < SETTINGS_VOLUME_MAX; level++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    app_stop();
+    restart_app();
+    tap(KEY_PLAY);
+    for (int level = 0; level < 3; level++) {
+        tap(KEY_VOLUME_UP);
+    }
+    CHECK_EQUAL(3, app_player_status().wired_volume);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+    SettingsStore stored;
+    settings_store_load(&stored);
+    CHECK_EQUAL(3, stored.settings.volume);
+    restart_app();
+    CHECK_EQUAL(3, app_player_status().wired_volume);
+    tap(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(4, app_player_status().wired_volume);
+}
+
 static void saved_volume_wins_over_an_older_cards_resume_volume(void)
 {
     start_app_with_library();
@@ -6693,6 +6721,7 @@ int main(void)
         TEST_CASE(headset_buttons_control_the_player_from_any_screen),
         TEST_CASE(headset_buttons_work_without_waking_the_screen),
         TEST_CASE(holding_power_saves_and_turns_the_player_off),
+        TEST_CASE(a_paused_volume_change_survives_power_off_and_cold_start),
         TEST_CASE(saved_volume_wins_over_an_older_cards_resume_volume),
         TEST_CASE(reloading_settings_keeps_the_paused_position_without_a_cold_rewind),
         TEST_CASE(returning_from_storage_keeps_the_paused_position_without_a_cold_rewind),

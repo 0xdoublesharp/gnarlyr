@@ -18,6 +18,43 @@ from echo_image_harness import (
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_a_paused_volume_change_is_saved_before_power_cut(self):
+        from echo_image_harness import settings_file, KEY_PLAY, KEY_NEXT
+        from echo_emulator.playback import Rig
+        from echo_emulator.real_volume import real_volume
+        from unicorn.arm_const import UC_ARM_REG_R0
+        volume = real_volume(playable=True, album_count=1)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", settings_file(0, 4096, b13=0),
+                        directory=IDENTITY.data_directory)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        session, machine = rig.session, rig.machine
+        levels = []
+        machine.hook_symbol("hal_audio_set_volume", lambda: levels.append(machine.reg(UC_ARM_REG_R0)))
+        rig.open_songs()
+        rig.play_song(1)
+        rig.press("play")
+        rig.press_many("next", 3)
+        self.assertEqual(levels[-1], 3)
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
+                         "firmware reached hal_power_off")
+        self.assertEqual(session.fat().read("/" + IDENTITY.data_directory + "/settings.bin")[13], 3)
+        machine.continue_past_stop()
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 5000),
+                         "firmware reached board_power_cut")
+        self.assertEqual(session.fat().read("/" + IDENTITY.data_directory + "/settings.bin")[13], 3)
+        cold = session.reboot()
+        levels = []
+        cold.machine.hook_symbol("hal_audio_set_volume",
+                                 lambda: levels.append(cold.machine.reg(UC_ARM_REG_R0)))
+        cold.run_to_home_screen()
+        self.assertEqual(levels[-1], 3)
+        self.press(cold.machine, KEY_PLAY)
+        self.press(cold.machine, KEY_NEXT)
+        self.assertEqual(levels[-1], 4)
+
     def test_a_long_power_press_saves_a_report_before_the_power_is_cut(self):
         session = self.session()
         machine = session.machine
