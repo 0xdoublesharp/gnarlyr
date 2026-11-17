@@ -94,7 +94,7 @@ uint32_t hal_clock_microseconds(void)
 bool hal_clock_set_wall(HalWallTime time)
 {
     if (hal_system_rtc_set(time.utc_s).status != HAL_RTC_OK ||
-        !app_store_clock_offset(time.offset_minutes)) {
+        !app_store_clock_offset(time.offset_minutes, false)) {
         return false;
     }
     sim_clock_set_wall(SIM_CLOCK_FIXED, time.utc_s, time.offset_minutes);

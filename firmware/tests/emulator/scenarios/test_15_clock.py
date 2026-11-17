@@ -10,6 +10,7 @@ from echo_image_harness import (
     NOVEMBER_2026,
     TIME_PATH,
     SETTINGS_PATH,
+    settings_file,
     struct,
 )
 
@@ -250,6 +251,21 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(session.fat().exists(TIME_PATH))
         self.assert_healthy(session)
 
+
+    def test_usb_time_sync_preserves_settings_changed_by_the_host(self):
+        volume = self.debug_volume()
+        volume.add_file("settings.bin", settings_file(0, 4096, b13=3), directory=IDENTITY.data_directory)
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), directory=IDENTITY.data_directory)
+        session, machine = self.ejecting_session(volume, before_start=lambda machine: machine.stub_symbol(
+            "board_wall_time_forget_file", lambda machine: 0))
+        host_settings = settings_file(0, 4096, b13=7)
+        sector = session.file_sectors(SETTINGS_PATH).start
+        machine.hook_symbol("time_file_take", lambda: session.disk.write(sector, host_settings))
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        saved = session.fat().read(SETTINGS_PATH)
+        self.assertEqual(struct.unpack_from("<h", saved, 49)[0], -480)
+        self.assertEqual(saved[13], 7)
+        self.assert_healthy(session)
 
     def test_a_damaged_time_file_is_removed_without_setting_the_clock(self):
         damaged = bytearray(self.time_file(NOVEMBER_2026, 60))

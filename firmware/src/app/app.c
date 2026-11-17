@@ -431,11 +431,16 @@ static void continue_mixtape(uint32_t now_ms)
     }
 }
 
-static void save_session(void)
+__attribute__((noinline)) static CORE_COLD void flush_session_edits(void)
 {
     cancel_edits();
     flush_listening();
     spoken_store_flush(&app.spoken, player_playback_status(&app.player), hal_clock_milliseconds());
+}
+
+static void save_session(void)
+{
+    flush_session_edits();
     player_save(&app.player);
     save_settings();
 }
@@ -1629,9 +1634,13 @@ int16_t app_clock_offset(void)
     return app.settings.settings.clock_offset_minutes;
 }
 
-CORE_COLD bool app_store_clock_offset(int16_t offset)
+CORE_COLD bool app_store_clock_offset(int16_t offset, bool from_storage)
 {
-    capture_settings();
+    if (from_storage) {
+        settings_store_load(&app.settings);
+    } else {
+        capture_settings();
+    }
     bool saved = settings_store_set_clock_offset(&app.settings, offset);
     if (!saved) {
         toast_show(&app.toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
@@ -1764,9 +1773,7 @@ static void run_rescan(void)
 
 void app_release_audio(void)
 {
-    cancel_edits();
-    flush_listening();
-    spoken_store_flush(&app.spoken, player_playback_status(&app.player), hal_clock_milliseconds());
+    flush_session_edits();
     save_settings();
     player_release_output(&app.player);
 }

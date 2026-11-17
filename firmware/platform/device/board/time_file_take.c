@@ -23,7 +23,7 @@ CORE_SEAM void time_file_take(bool apply)
         apply && file.size == TIME_FILE_BYTES && fat_read(volume, &file, 0, bytes, sizeof bytes);
     fat_delete(volume, TIME_FILE_PATH);
     if (read && time_file_parse(bytes, &time)) {
-        (void)app_store_clock_offset(time.offset_minutes);
+        (void)app_store_clock_offset(time.offset_minutes, true);
         board_wall_time_set(time);
     }
 }

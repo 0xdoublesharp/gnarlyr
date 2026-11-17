@@ -218,7 +218,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
 
     def test_clock_sync_before_profile_restore_keeps_the_saved_volume(self):
-        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0
+        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
         volume = self.debug_volume()
         volume.add_file("settings.bin", image_tests.settings_file(0, 4096, b13=3),
                         directory=image_tests.IDENTITY.data_directory)
@@ -230,6 +230,7 @@ class EchoImageTest(EchoImageHarness):
         def sync():
             synced.append(1)
             machine.uc.reg_write(UC_ARM_REG_R0, 60)
+            machine.uc.reg_write(UC_ARM_REG_R1, 0)
             machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["app_store_clock_offset"] | 1)
 
         machine.hook_symbol("board_wall_time_forget_file", sync)
