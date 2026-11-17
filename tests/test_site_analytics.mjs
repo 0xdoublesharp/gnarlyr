@@ -4,6 +4,12 @@ import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('../site/analytics.js', import.meta.url), 'utf8');
+const identity = JSON.parse(readFileSync(new URL('../firmware/identity.json', import.meta.url), 'utf8'));
+const brand = identity.name.toLowerCase();
+const maker = identity.manufacturer.toLowerCase();
+const domain = `${brand}.com`;
+const site = `https://${domain}`;
+const docsTitle = `${identity.name} Docs`;
 const websiteId = '7776169d-25f5-4420-bed8-810b4fbacdc7';
 const pages = ['index', 'firmware', 'docs', 'hardware', 'companion', 'install', 'build', 'recovery', 'languages'];
 const paths = ['/', ...pages.map((page) => `/${page}.html`)];
@@ -11,12 +17,12 @@ const paths = ['/', ...pages.map((page) => `/${page}.html`)];
 function visit(overrides = {}) {
   const calls = [];
   const environment = {
-    location: new URL('https://gnarlyr.com/docs.html?token=private#secret'),
+    location: new URL(`${site}/docs.html?token=private#secret`),
     navigator: { language: 'en-US' },
     localStorage: { getItem: () => null },
     document: {
-      title: 'Gnarlyr Docs',
-      currentScript: { dataset: { domain: 'gnarlyr.com', websiteId, paths: paths.join(',') } },
+      title: docsTitle,
+      currentScript: { dataset: { domain, websiteId, paths: paths.join(',') } },
       referrer: 'https://search.example/results?q=private#secret',
     },
     URL, AbortSignal,
@@ -37,7 +43,7 @@ test('each public page loads one deferred tracker with the same website and rout
     assert.equal(tags.length, 1, page);
     assert.match(tags[0], /\bdefer\b/);
     assert.ok(tags[0].includes(`data-website-id="${websiteId}"`));
-    assert.ok(tags[0].includes('data-domain="gnarlyr.com"'));
+    assert.ok(tags[0].includes(`data-domain="${domain}"`));
     assert.ok(tags[0].includes(`data-paths="${paths.join(',')}"`));
   }
 });
@@ -45,25 +51,25 @@ test('each public page loads one deferred tracker with the same website and rout
 test('a production navigation sends one pageview without URL details or credentials', () => {
   const calls = visit();
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, 'https://umami.apps.doublesharp.com/api/send');
+  assert.equal(calls[0].url, `https://umami.apps.${maker}.com/api/send`);
   assert.equal(calls[0].body.type, 'event');
   assert.equal(calls[0].body.payload.website, websiteId);
   assert.equal(calls[0].body.payload.url, '/docs.html');
-  assert.equal(calls[0].body.payload.title, 'Gnarlyr Docs');
+  assert.equal(calls[0].body.payload.title, docsTitle);
   assert.equal(calls[0].body.payload.referrer, 'https://search.example/');
   assert.equal(calls[0].credentials, 'omit');
   assert.equal(calls[0].referrerPolicy, 'no-referrer');
   assert.doesNotMatch(JSON.stringify(calls), /private|secret|token/);
   for (const pathname of paths) {
-    assert.equal(visit({ location: new URL(`https://gnarlyr.com${pathname}`) }).length, 1);
+    assert.equal(visit({ location: new URL(`${site}${pathname}`) }).length, 1);
   }
 });
 
 test('validation hosts, local files, health probes, and unknown pages do not collect', () => {
   for (const url of [
-    'https://gnarlyr.apps.doublesharp.com/', 'http://gnarlyr.com/',
-    'http://localhost/', 'file:///site/index.html', 'https://gnarlyr.com/healthz',
-    'https://gnarlyr.com/not-a-page', 'https://gnarlyr.com/assets/screens/home.png',
+    `https://${brand}.apps.${maker}.com/`, `http://${domain}/`,
+    'http://localhost/', 'file:///site/index.html', `${site}/healthz`,
+    `${site}/not-a-page`, `${site}/assets/screens/home.png`,
   ]) assert.equal(visit({ location: new URL(url) }).length, 0, url);
 });
 
