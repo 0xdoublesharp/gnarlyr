@@ -1161,6 +1161,7 @@ def parse_arguments(argv):
     parser.add_argument("--image", type=Path, default=DEFAULT_IMAGE)
     parser.add_argument("--elf", type=Path, default=DEFAULT_ELF)
     parser.add_argument("--usb-overlay-elf", type=Path, default=DEFAULT_USB_OVERLAY_ELF)
+    parser.add_argument("--tempo-tool", type=Path, default=PROJECT / "build/dev/tests/audio_tempo_tool")
     parser.add_argument("tests", nargs="*")
     return parser.parse_args(argv)
 
@@ -1170,6 +1171,7 @@ def main(test_case, argv=None):
     CONFIG["image"] = arguments.image
     CONFIG["elf"] = arguments.elf
     CONFIG["usb_overlay_elf"] = arguments.usb_overlay_elf
+    CONFIG["tempo_tool"] = arguments.tempo_tool
     reason = prerequisites_missing()
     if reason:
         print("SKIP: " + reason)

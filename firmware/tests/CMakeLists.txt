@@ -147,13 +147,17 @@ if(ARM_GCC)
             foreach(case_line IN LISTS echo_image_cases)
                 string(REGEX REPLACE "^    def (test_[A-Za-z0-9_]+).*" "\\1" case_name "${case_line}")
                 set(test_name device_image_boot_${case_name})
+                set(scenario_args)
+                if(case_name STREQUAL "test_integer_tempo_matches_native_pcm_in_the_processing_slot")
+                    list(APPEND scenario_args --tempo-tool $<TARGET_FILE:audio_tempo_tool>)
+                endif()
                 add_test(NAME ${test_name}
                     COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
                         --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
                         --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
                         --usb-overlay-elf
                         ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
-                        EchoImageTest.${case_name}
+                        ${scenario_args} EchoImageTest.${case_name}
                 )
                 set_tests_properties(${test_name} PROPERTIES
                     FIXTURES_REQUIRED device_image

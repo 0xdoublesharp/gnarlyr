@@ -5,7 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
-    PROJECT,
+    CONFIG,
     main,
     make_image,
     struct,
@@ -205,7 +205,7 @@ class EchoImageTest(EchoImageHarness):
                 source = Path(temporary) / "input.pcm"
                 target = Path(temporary) / "output.pcm"
                 source.write_bytes(b"".join(struct.pack("<ii", *frame) for frame in pcm))
-                subprocess.run([str(PROJECT / "build/dev/tests/audio_tempo_tool"), str(rate),
+                subprocess.run([str(CONFIG["tempo_tool"]), str(rate),
                                 str(speed), str(source), str(target)], check=True)
                 expected = target.read_bytes()
             actual = bytearray()
