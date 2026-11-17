@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `8a4ec64908315cb51248c3c074e0fcc76da2b9af4e4a3e0ad3b03f49b58c82ca` |
-| Rollback content release | `7f22e4e5e6c1a0a94e886fba28066379034bf247b853fea20add0ce2b8afb9f2` |
+| Current content release | `387384db41806130dafcbff1c632a2370c3ab82a16f2d57f11282d6b439ec120` |
+| Rollback content release | `8a4ec64908315cb51248c3c074e0fcc76da2b9af4e4a3e0ad3b03f49b58c82ca` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
@@ -33,6 +33,28 @@ runs as 101:101, with a read-only root, dropped capabilities,
 no-new-privileges, a 16 MiB writable tmpfs, 64 MiB memory and 0.25 CPU.
 It mounts only this site’s frontend and nginx configuration, both read-only.
 There is no database, cache, migration, background worker, or runtime secret.
+
+## Analytics
+
+Gnarlyr uses the existing shared Umami service at
+`https://umami.apps.doublesharp.com` (Service `cxu2hk9g1pqblfxpp4ylnxi4`).
+The website record is **Gnarlyr**, domain `gnarlyr.com`, public website ID
+`7776169d-25f5-4420-bed8-810b4fbacdc7`. It uses the same administrator ownership
+as the other registered sites; session recording stays disabled.
+
+Every public HTML page defers `analytics.js`, which sends one pageview to
+`/api/send` on the Umami origin. Only the canonical production HTTPS hostname
+and the nine public page routes collect. Query strings and fragments are omitted,
+referrers contain only their origin, and Do Not Track, Global Privacy Control,
+and the `umami.disabled` browser preference suppress collection. The validation
+hostname, local previews, health probes, and unknown routes do not collect.
+
+Run `node --test tests/test_site_analytics.mjs` for page integration and behavior.
+After publication, require a real browser pageview with collector HTTP 200 and
+confirm storage through authenticated reporting. Umami v3 path metrics use
+`GET /api/websites/WEBSITE_ID/metrics?startAt=MS&endAt=MS&type=path`.
+Credentials follow the platform's `docs/umami.md` encrypted-credential contract;
+no administrator credentials belong in site source or browser code.
 
 ## Publish content
 
@@ -51,7 +73,7 @@ values are never stored here or printed. The connected `double-paas` MCP owns
 normal service configuration/start operations. Website publication is manual, with no automatic push deployment. Firmware and companion release workflows are separate.
 
 The publisher includes only `index.html`, `companion.html`, `firmware.html`, `hardware.html`,
-`docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `favicon.svg`, `robots.txt`,
+`docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `analytics.js`, `favicon.svg`, `robots.txt`,
 `sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
 64 MiB total. Firmware, README files, deployment files and hidden files are
 excluded. The publisher versions local stylesheet, script and image URLs in each HTML page
@@ -83,9 +105,9 @@ Do not restart the shared proxy for an ordinary site release.
 ## Verify and recover
 
 Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
-`/styles.css`, `/site.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
+`/styles.css`, `/site.js`, `/analytics.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
 `/languages.html`, `/companion.html`, `/language-catalog.js`, `/language-packs.js`, and
-`/healthz`; compare all sixteen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
+`/healthz`; compare all seventeen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
 `/README.md`, `/deploy/compose.yaml`, and an unknown path. Companion HTML, screenshots, and social artwork are included in the public release. Verify origin TLS
