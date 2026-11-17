@@ -122,10 +122,10 @@ bool music_check_firmware_is_new(void)
 void music_check_note_firmware(void)
 {
     uint8_t bytes[RECORD_BYTES];
-    MusicFingerprint stored;
-    if (read_bytes(bytes) && decode_print(bytes, &stored) &&
+    if (read_bytes(bytes) && bytes_le32(bytes) == RECORD_MAGIC &&
         !version_matches(bytes + PRINT_BYTES)) {
-        write_record(stored);
+        put_version(bytes + PRINT_BYTES);
+        (void)hal_file_write_at(MUSIC_CHECK_PATH, PRINT_BYTES, bytes + PRINT_BYTES, VERSION_BYTES);
     }
 }
 

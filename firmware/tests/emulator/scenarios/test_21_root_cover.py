@@ -1,4 +1,5 @@
 import io
+import struct
 import sys
 from pathlib import Path
 
@@ -6,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
+    fnv1a,
     main,
     IDENTITY,
     PROJECT,
@@ -34,7 +36,7 @@ def baseline_jpeg():
     return output.getvalue()
 
 
-def untagged_root_track():
+def root_track_tags():
     from echo_emulator.music_library import id3_frame, syncsafe
     frames = [id3_frame("TSSE", b"\x01\xff\xfe" + "Lavf59.16.100".encode("utf-16-le"), 3),
               id3_frame("TIT2", b"\x00Priceless 2023", 3),
@@ -42,14 +44,33 @@ def untagged_root_track():
               id3_frame("TCON", b"\x00Trap", 3),
               id3_frame("APIC", b"\x00image/jpeg\x00\x03\x00" + baseline_jpeg(), 3)]
     body = b"".join(frames) + bytes(PADDING)
-    return b"ID3\x03\x00\x00" + syncsafe(len(body)) + body + TRACK
+    return b"ID3\x03\x00\x00" + syncsafe(len(body)) + body
 
 
 def root_volume():
     from echo_emulator.fat_volume import Fat32Volume
     volume = Fat32Volume()
     volume.add_file("Another.mp3", TRACK, None, long_name=True)
-    volume.add_file(ROOT_NAME, untagged_root_track(), None, long_name=True)
+    volume.add_file(ROOT_NAME, root_track_tags() + TRACK, None, long_name=True)
+    volume.add_directory(IDENTITY.data_directory)
+    return volume
+
+
+def wav_track(tags=b""):
+    rate = 8000
+    pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * (rate * 12 // 8)
+    wave = b"WAVE" + struct.pack("<4sIHHIIHH4sI", b"fmt ", 16, 1, 1, rate, rate * 2, 2, 16,
+                                b"data", len(pcm)) + pcm
+    if tags:
+        wave += struct.pack("<4sI", b"id3 ", len(tags)) + tags + bytes(len(tags) % 2)
+    return struct.pack("<4sI", b"RIFF", len(wave)) + wave
+
+
+def playable_root_volume():
+    from echo_emulator.fat_volume import Fat32Volume
+    volume = Fat32Volume()
+    volume.add_file("Another.wav", wav_track(), None, long_name=True)
+    volume.add_file("Priceless 2023.wav", wav_track(root_track_tags()), None, long_name=True)
     volume.add_directory(IDENTITY.data_directory)
     return volume
 
@@ -70,6 +91,7 @@ class EchoImageTest(EchoImageHarness):
         covers = session.fat().read(COVERS_PATH)
         self.assertEqual(covers[:4], b"DSCV")
         self.assertEqual(int.from_bytes(covers[6:8], "little"), 1)
+        self.assertEqual(int.from_bytes(covers[16:20], "little"), fnv1a(b"\0" + ROOT_NAME.encode()))
         self.assert_healthy(session)
 
     def test_now_playing_finds_the_cover_of_an_untagged_root_track(self):
@@ -85,14 +107,18 @@ class EchoImageTest(EchoImageHarness):
             machine.hook_symbol("debug_loop_event", recorded)
 
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  volume=root_volume(), module_elfs=self.module_elfs, prepare=watch)
+                  volume=playable_root_volume(), module_elfs=self.module_elfs, prepare=watch)
         done = (EVENT_SCAN, SCAN_COVERS_DONE << SCAN_PHASE_SHIFT | 1)
         rig.machine.run(until=lambda: done in events,
                         until_ms=rig.machine.milliseconds() + self.session_module.FRAME_LIMIT_MS)
         self.assertIn(done, events)
         rig.settle(1000)
         rig.open_songs()
-        rig.play_song(2)
+        rig.play_song(1)
+        rig.run_for(1000)
+        self.assertTrue(rig.audio.audible)
+        self.assertNotIn((EVENT_COVER, COVER_FULL | COVER_FOUND), events)
+        rig.skip("next")
         rig.run_for(1500)
         covers = [value for kind, value in events if kind == EVENT_COVER]
         self.assertIn(COVER_FULL | COVER_FOUND, covers)

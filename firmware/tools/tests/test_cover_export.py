@@ -378,6 +378,24 @@ class EncodeStampedTest(unittest.TestCase):
 
 
 class AlbumCoversTest(unittest.TestCase):
+    def test_untagged_files_keep_only_their_own_embedded_pictures(self):
+        pictured, bare = "A.flac", "B.flac"
+        red = image_bytes((255, 0, 0))
+        green = image_bytes((0, 255, 0))
+        title = library_index.UNKNOWN_ALBUM
+        source = cover_export.AlbumSource(cover_export.album_key("Artist", title), title,
+                                          "Artist", [pictured, bare, pictured])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for path in (pictured, bare):
+                write_silent_flac(root / path, 1)
+            add_picture(root / pictured, red, 3)
+            (root / "cover.png").write_bytes(green)
+            covers = cover_export.collect_covers(root, [source], lambda image: image.tobytes())
+            self.assertEqual({cover_export.track_key(pictured): Image.open(io.BytesIO(red)).tobytes()}, covers.records)
+            self.assertEqual(cover_export.fnv1a(b"\0A.flac"), cover_export.track_key(pictured))
+            self.assertEqual(["Artist - B.flac"], covers.missing)
+
     def test_every_album_gets_its_key_from_the_library_names(self):
         model = library_index.build_library(FIXTURE_TRACKS)
         albums = cover_export.album_sources(model)

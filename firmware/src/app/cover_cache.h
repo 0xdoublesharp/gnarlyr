@@ -34,6 +34,7 @@ typedef struct CoverCache {
     bool available;
     CoverSlot halves[COVER_CACHE_SLOTS];
     uint16_t full_album;
+    uint16_t full_track;
     CoverState full_state;
     Color full[COVER_FULL_PIXELS];
 } CoverCache;

@@ -308,13 +308,63 @@ static void drop_unclaimed(CoverState *state)
     state->count = count;
 }
 
+static bool separate_tracks(const Library *library, const LibraryAlbum *album)
+{
+    char title[sizeof LIBRARY_UNKNOWN_ALBUM + 4];
+    return library_read_string(library, album->title, title, sizeof title) &&
+           covers_tracks_separate(title, album->track_count);
+}
+
+static uint32_t source_count(const Library *library, uint32_t albums)
+{
+    uint32_t count = albums;
+    for (uint32_t index = 0; index < albums; index++) {
+        LibraryAlbum album;
+        if (library_read_album(library, index, &album) && separate_tracks(library, &album)) {
+            count += album.track_count - 1u;
+        }
+    }
+    return count;
+}
+
+static bool read_track_path(CoverState *state, uint32_t track_index, LibraryTrack *track)
+{
+    state->path[0] = '/';
+    return library_read_track(&state->library, track_index, track) &&
+           library_read_string(&state->library, track->path, state->path + 1,
+                               sizeof state->path - 1);
+}
+
+static void keep_key(CoverState *state, uint32_t key)
+{
+    uint32_t position;
+    if (find_kept(state, key, &position)) {
+        set_bit(state->claimed, position);
+    }
+}
+
+static void keep_album(CoverState *state, uint32_t index)
+{
+    LibraryAlbum album;
+    if (!library_read_album(&state->library, index, &album)) {
+        return;
+    }
+    if (!separate_tracks(&state->library, &album)) {
+        keep_key(state, library_album_key(&state->library, index));
+        return;
+    }
+    for (uint32_t track = 0; track < album.track_count; track++) {
+        LibraryTrack info;
+        if (read_track_path(state, album.first_track + track, &info)) {
+            keep_key(state, covers_track_key(state->path + 1));
+        }
+    }
+}
+
 static void keep_present(CoverState *state, uint32_t albums)
 {
     for (uint32_t album_index = 0; album_index < albums && state->kept > 0; album_index++) {
-        uint32_t position = 0;
-        if (find_kept(state, library_album_key(&state->library, album_index), &position)) {
-            set_bit(state->claimed, position);
-        }
+        keep_album(state, album_index);
     }
     drop_unclaimed(state);
     state->kept = state->count;
@@ -333,21 +383,11 @@ static void unclaim(CoverState *state, uint32_t key)
     }
 }
 
-static bool read_track_path(CoverState *state, uint32_t track_index, LibraryTrack *track)
+static bool open_embedded(CoverState *state, const CoverJob *job, ArtFile *art)
 {
-    state->path[0] = '/';
-    return library_read_track(&state->library, track_index, track) &&
-           library_read_string(&state->library, track->path, state->path + 1,
-                               sizeof state->path - 1);
-}
-
-static bool open_embedded(CoverState *state, const CoverJob *job, uint32_t index, ArtFile *art)
-{
-    LibraryTrack track;
     ByteSource source;
     uint32_t size = 0;
-    if (!read_track_path(state, state->album.first_track + index, &track) ||
-        !job->files.open_file(job->files.context, state->path, &source, &size)) {
+    if (!job->files.open_file(job->files.context, state->path, &source, &size)) {
         return false;
     }
     TagFormat format = track_tags_format_for_name(state->path);
@@ -620,7 +660,9 @@ static ScanResult cover_album(CoverState *state, const CoverJob *job, CoverStats
     for (uint32_t index = 0;
          index < state->album.track_count && placement == PLACE_UNREADABLE && !stop_requested(job);
          index++) {
-        if (open_embedded(state, job, index, &art)) {
+        LibraryTrack track;
+        if (read_track_path(state, state->album.first_track + index, &track) &&
+            open_embedded(state, job, &art)) {
             placement = place_opened(state, job, &art, stats);
         }
     }
@@ -647,6 +689,27 @@ static bool already_placed(const CoverState *state, uint32_t key)
         }
     }
     return false;
+}
+
+static void cover_tracks(CoverState *state, const CoverJob *job, CoverStats *stats)
+{
+    for (uint32_t index = 0; index < state->album.track_count && !stop_requested(job); index++) {
+        LibraryTrack track;
+        if (!read_track_path(state, state->album.first_track + index, &track)) {
+            continue;
+        }
+        state->key = covers_track_key(state->path + 1);
+        if (already_placed(state, state->key)) {
+            continue;
+        }
+        ArtFile art;
+        if (!open_embedded(state, job, &art) || place_opened(state, job, &art, stats) != PLACED) {
+            if (!stop_requested(job)) {
+                unclaim(state, state->key);
+            }
+            stats->missing++;
+        }
+    }
 }
 
 static void sort_index(CoverState *state)
@@ -723,9 +786,18 @@ static ScanResult build_albums(CoverState *state, const CoverJob *job, CoverStat
         if (stop_requested(job)) {
             return SCAN_STOPPED;
         }
+        if (!library_read_album(&state->library, album_index, &state->album)) {
+            continue;
+        }
+        if (separate_tracks(&state->library, &state->album)) {
+            cover_tracks(state, job, stats);
+            if (stop_requested(job)) {
+                return SCAN_STOPPED;
+            }
+            continue;
+        }
         state->key = library_album_key(&state->library, album_index);
-        if (!library_read_album(&state->library, album_index, &state->album) ||
-            already_placed(state, state->key)) {
+        if (already_placed(state, state->key)) {
             continue;
         }
         ScanResult result = cover_album(state, job, stats);
@@ -775,7 +847,7 @@ ScanResult cover_build(const CoverJob *job, CoverStats *stats)
     }
     stats->albums = library_count(&probe, LIBRARY_ALBUMS);
     CoverLayout layout = layout_for(job->capacity);
-    CoverState *state = start(job, stats->albums, layout);
+    CoverState *state = start(job, source_count(&probe, stats->albums), layout);
     if (state == NULL) {
         return SCAN_OUT_OF_MEMORY;
     }

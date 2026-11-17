@@ -196,7 +196,9 @@ Each bookmark is `u32 key`, `u32 track key`, `u32 position_ms`, `u16 chapter`, `
 
 ## Covers file
 
-The player builds `/.gnarlyr/covers.bin` after every rescan (see `docs/architecture.md`, Covers on the device); `tools/cover_export.py` writes the same format on a PC. It's separate from the database, keyed by album key, so either file can be rebuilt on its own.
+The player builds `/.gnarlyr/covers.bin` after every rescan (see `docs/architecture.md`, Covers on the device); `tools/cover_export.py` writes the same format on a PC. It's separate from the database, so either file can be rebuilt on its own. Named albums use the album key. When several tracks share the fallback `Unknown Album` title, each file uses the FNV-1a hash of a zero byte followed by its path relative to the music root. Chapters or CUE tracks from the same file share its key.
+
+For this fallback group, Now Playing uses the current file's embedded picture when available and shows the cassette when there is none. An older group cover still belongs to its old key and becomes unused after the next cover scan. Firmware updates recheck covers in the background and reuse unchanged records.
 
 | Offset | Type | Field |
 |---|---|---|
@@ -206,15 +208,15 @@ The player builds `/.gnarlyr/covers.bin` after every rescan (see `docs/architect
 | 8 | `u16` | full size = 112 |
 | 10 | `u16` | half size = 56 |
 | 12 | `u32` | stamp table offset, or 0 for none |
-| 16 | count × 8 B | index: `u32 album key`, `u32 record offset`, sorted by key |
+| 16 | count × 8 B | index: `u32 cover key`, `u32 record offset`, sorted by key |
 
-Each record is the full cover (112 × 112 pixels) followed by the half cover (56 × 56), as little-endian RGB565 rows, top to bottom. That's 31,360 bytes per album, so about 6.8 MB for 217 albums. Readers follow the record offsets, so records may start after a larger index: the player reserves index room for every album that fits the file before it knows how many have art.
+Each record is the full cover (112 × 112 pixels) followed by the half cover (56 × 56), as little-endian RGB565 rows, top to bottom. That's 31,360 bytes per cover, so about 6.8 MB for 217 albums. Readers follow the record offsets, so records may start after a larger index: the player reserves index room for every album or separately keyed file that fits before it knows how many have art.
 
 The player also keeps a stamp per cover so a rescan can reuse it (see `docs/architecture.md`, Covers on the device). For a file of `capacity` bytes it has room for `slots = (capacity − 16) / (8 + 4 + 31,360)` covers: the index area holds `slots` entries, the stamp table follows at `16 + slots × 8` with a `u32` stamp for each index entry in the same order, and record `n` starts at `16 + slots × 12 + n × 31,360`. Readers that don't use stamps ignore the table. A stamp of 0 means unknown: the player decodes that album again. `docs/architecture.md` (Covers on the device) defines the stamp.
 
 echo-sync (`encode_stamped`) writes this layout for the card's `covers.bin` size, with the stamps the player would compute: for embedded art from the track's size and the picture's length (the same bytes mutagen returns), for a cover file from its size and the card's modification stamp (`card_stamp`, as for the music fingerprint). It writes 0 for a cover file when the card isn't FAT or exFAT, since the time can't be matched. `tools/cover_export.py` on its own (`--output`) still writes the packed layout, with 0 at offset 12 and records right after the index; the player reads such a file normally and rebuilds every cover on its next rescan.
 
-The exporter takes, for each album:
+For a multi-track `Unknown Album` group, the exporter uses only each file’s own embedded picture. For other albums it selects art in this order:
 1. the first usable embedded picture in album track order: each track's front cover (picture type 3), or its first embedded picture of any type (FLAC PICTURE blocks, ID3 APIC, MP4 `covr`, APE and WMA pictures, Ogg and Opus `METADATA_BLOCK_PICTURE` comments)
 2. when there is none, or it is not a picture the player decodes (a PNG, or a baseline, extended or progressive 8-bit JPEG with 1, 3 or 4 components) or Pillow can't open it, `cover`, `folder`, `front` or `albumart` (`.jpg`, `.jpeg` or `.png`, any case) in a folder holding its tracks
 

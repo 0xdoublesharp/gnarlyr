@@ -48,6 +48,7 @@ class AlbumSource:
     title: str
     artist: str
     paths: list = field(default_factory=list)
+    embedded_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,19 @@ def album_key(album_artist, title):
     value = fnv1a(album_artist.encode("utf-8")[:KEY_NAME_LIMIT])
     value = fnv1a(KEY_SEPARATOR, value)
     return fnv1a(title.encode("utf-8")[:KEY_NAME_LIMIT], value)
+
+
+def track_key(path):
+    return fnv1a(b"\0" + path.encode("utf-8"))
+
+
+def artwork_sources(sources):
+    for source in sources:
+        if source.title != library_index.UNKNOWN_ALBUM or len(source.paths) < 2:
+            yield source
+            continue
+        for path in dict.fromkeys(source.paths):
+            yield AlbumSource(track_key(path), posixpath.basename(path), source.artist, [path], True)
 
 
 def rgb565(red, green, blue):
@@ -260,14 +274,14 @@ def embedded_art(root, first):
     return None if picture is None else Art(picture, root / first, first, len(picture))
 
 
-def locate_art(root, relative_paths):
+def locate_art(root, relative_paths, embedded_only=False):
     if not relative_paths:
         return None
     for relative in relative_paths:
         art = usable(embedded_art(root, relative))
         if art is not None:
             return art
-    return usable(folder_art(root, relative_paths))
+    return None if embedded_only else usable(folder_art(root, relative_paths))
 
 
 def find_art(root, relative_paths):
@@ -414,10 +428,10 @@ def converted(art, convert):
 
 def collect_covers(root, sources, convert=unchanged, describe=None):
     covers = CoverSet()
-    for source in sources:
+    for source in artwork_sources(sources):
         if source.key in covers.records:
             continue
-        art = locate_art(root, source.paths)
+        art = locate_art(root, source.paths, source.embedded_only)
         image = converted(art, convert)
         if image is None:
             covers.missing.append(f"{source.artist} - {source.title}")

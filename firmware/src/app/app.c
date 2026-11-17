@@ -1550,6 +1550,7 @@ static void request_start_scan(bool library_created)
         app.rescan_requested = true;
         app.rescan_stops = resume ? (uint8_t)stopped : 0;
     } else if (stopped == 0 && music_check_firmware_is_new()) {
+        app.covers_pending = true;
         app.music_check_requested = true;
     }
 }
@@ -1732,11 +1733,14 @@ static void continue_covers(uint32_t now_ms)
     RescanOutcome outcome = library_rescan_covers(app.covers_album);
     use_wanted_clock();
     app.covers_album = (uint16_t)outcome.covers.next_album;
-    app.covers_pending = outcome.cover_result == SCAN_STOPPED;
+    bool stopped = outcome.cover_result == SCAN_STOPPED;
+    app.covers_pending = stopped;
+    if (!stopped) {
+        music_check_note_firmware();
+    }
     debug_loop_event(DEBUG_EVENT_SCAN,
-                     app.covers_pending
-                         ? scan_event(DEBUG_SCAN_COVERS_STOPPED, app.covers_album)
-                         : scan_event(DEBUG_SCAN_COVERS_DONE, outcome.covers.covers));
+                     stopped ? scan_event(DEBUG_SCAN_COVERS_STOPPED, app.covers_album)
+                             : scan_event(DEBUG_SCAN_COVERS_DONE, outcome.covers.covers));
     cover_cache_open(&app.covers, &app.library.library);
     settle_screens(now_ms);
     app.render_wanted = true;
@@ -2205,9 +2209,6 @@ CORE_SEAM void app_step(void)
                 show_working_notice(STR_MUSIC, i18n_text(STR_CHECKING_MUSIC), WIRE_SHAPE_DISC);
                 changed = !music_check_unchanged(walk_music(MUSIC_WALK_CHECK)) ||
                           !library_store_open(&app.library);
-            }
-            if (!changed) {
-                music_check_note_firmware();
             }
             if (!changed && app.rescan_manual) {
                 debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_UP_TO_DATE, 0));

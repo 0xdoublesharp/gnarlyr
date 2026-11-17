@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "app/debug_loop.h"
 #include "board_layout.h"
 #include "cassette_art.h"
 #include "core/format.h"
@@ -273,6 +274,9 @@ static void load_texts(NowPlayingScreen *now_playing, uint16_t track_index)
     now_playing->album_index = track.album;
     if (library_read_album(library, track.album, &album)) {
         library_read_string(library, album.title, now_playing->album, NOW_PLAYING_TEXT_CAPACITY);
+        if (covers_tracks_separate(now_playing->album, album.track_count)) {
+            now_playing->album_index = LIBRARY_NONE;
+        }
     }
 }
 
@@ -331,6 +335,29 @@ static bool showing(const NowPlayingScreen *now_playing, NowPlayingFeedback feed
                                         now_playing->now_ms);
 }
 
+static void load_track_cover(CoverCache *cache, uint16_t track)
+{
+    if (cache->full_state != COVER_EMPTY && cache->full_album == LIBRARY_NONE &&
+        cache->full_track == track) {
+        return;
+    }
+    char path[PLAYER_PATH_CAPACITY];
+    LibraryTrack row;
+    uint32_t record;
+    cache->full_album = LIBRARY_NONE;
+    cache->full_track = track;
+    cache->full_state = COVER_MISSING;
+    if (cache->available && library_read_track(cache->library, track, &row) &&
+        library_read_string(cache->library, row.path, path, sizeof path) &&
+        covers_find(&cache->covers, covers_track_key(path), &record) &&
+        covers_read(&cache->covers, record, COVER_FULL, cache->full)) {
+        cache->full_state = COVER_LOADED;
+    }
+    debug_loop_event(DEBUG_EVENT_COVER,
+                     DEBUG_COVER_FULL |
+                         (cache->full_state == COVER_LOADED ? DEBUG_COVER_FOUND : 0u));
+}
+
 static void update(void *context, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
@@ -342,7 +369,11 @@ static void update(void *context, uint32_t now_ms)
         now_playing->destination = now_playing->config.flip;
     }
     if (now_playing->config.covers != NULL && now_playing->status.has_track) {
-        cover_cache_load_full(now_playing->config.covers, now_playing->album_index);
+        if (now_playing->album_index == LIBRARY_NONE) {
+            load_track_cover(now_playing->config.covers, now_playing->text_track);
+        } else {
+            cover_cache_load_full(now_playing->config.covers, now_playing->album_index);
+        }
     }
 }
 
@@ -350,6 +381,8 @@ static bool current_cover(const NowPlayingScreen *now_playing, Image *image)
 {
     const CoverCache *covers = now_playing->config.covers;
     return covers != NULL && now_playing->has_text &&
+           (now_playing->album_index != LIBRARY_NONE ||
+            covers->full_track == now_playing->text_track) &&
            cover_cache_full(covers, now_playing->album_index, image) == COVER_LOADED;
 }
 
