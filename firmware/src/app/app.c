@@ -340,9 +340,16 @@ static void set_display(bool on)
     }
 }
 
+__attribute__((noinline)) static CORE_COLD void capture_settings(void)
+{
+    if (!app.prepare_pending || app.headphones.active.ceiling != 0) {
+        settings_store_capture(&app.settings, player_status(&app.player));
+    }
+}
+
 static void save_settings(void)
 {
-    settings_store_capture(&app.settings, player_status(&app.player));
+    capture_settings();
     settings_store_save(&app.settings);
 }
 
@@ -1624,7 +1631,7 @@ int16_t app_clock_offset(void)
 
 CORE_COLD bool app_store_clock_offset(int16_t offset)
 {
-    settings_store_capture(&app.settings, player_status(&app.player));
+    capture_settings();
     bool saved = settings_store_set_clock_offset(&app.settings, offset);
     if (!saved) {
         toast_show(&app.toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
@@ -1760,6 +1767,7 @@ void app_release_audio(void)
     cancel_edits();
     flush_listening();
     spoken_store_flush(&app.spoken, player_playback_status(&app.player), hal_clock_milliseconds());
+    save_settings();
     player_release_output(&app.player);
 }
 

@@ -217,6 +217,33 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(session.fat().read(path), data)
         self.assert_healthy(session)
 
+    def test_clock_sync_before_profile_restore_keeps_the_saved_volume(self):
+        from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0
+        volume = self.debug_volume()
+        volume.add_file("settings.bin", image_tests.settings_file(0, 4096, b13=3),
+                        directory=image_tests.IDENTITY.data_directory)
+        session = self.session(volume=volume)
+        machine = session.machine
+        synced = []
+        levels = []
+
+        def sync():
+            synced.append(1)
+            machine.uc.reg_write(UC_ARM_REG_R0, 60)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["app_store_clock_offset"] | 1)
+
+        machine.hook_symbol("board_wall_time_forget_file", sync)
+        machine.hook_symbol("hal_audio_set_volume",
+                            lambda: levels.append(machine.reg(UC_ARM_REG_R0)))
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        machine.run(until_ms=machine.milliseconds() + image_tests.STARTUP_WORK_MS)
+        self.assertEqual(synced, [1])
+        saved = session.fat().read("/" + image_tests.IDENTITY.data_directory + "/settings.bin")
+        self.assertEqual(int.from_bytes(saved[49:51], "little", signed=True), 60)
+        self.assertEqual(saved[13], 3)
+        self.assertEqual(levels[-1], 3)
+        self.assert_healthy(session)
+
     def test_deferred_headphone_load_preserves_safe_start_and_profile_limits(self):
         from unicorn.arm_const import UC_ARM_REG_R0
         for comfort, ceiling, expected in ((2, 18, 13), (0, 18, 18), (2, 6, 6)):
