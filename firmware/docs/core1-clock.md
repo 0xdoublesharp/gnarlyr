@@ -77,8 +77,9 @@ DSD admits a rate/channel combination only when both measured steady mean and
 normalized full-block peak are below 80% of the selected ideal instruction
 budget. This reserves at least 20% for costs absent from instruction counting;
 it does not establish physical real-time support. Stereo DSD256 peaks at about
-3.77 million instructions per 20 ms and is refused by the file opener before
-publishing a stream generation. DSD and Vorbis measurements are recorded in
+2.46 million instructions per 20 ms, inside that screen, but the file opener
+still refuses it before publishing a stream generation until it is checked on
+the player. DSD and Vorbis measurements are recorded in
 [DSD](dsd.md) and [Vorbis](ogg-vorbis.md); Opus retains its normal clock and its
 [budget](opus.md) is two million cycles per 20 ms.
 
