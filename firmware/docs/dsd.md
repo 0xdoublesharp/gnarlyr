@@ -179,8 +179,9 @@ The weighted figure applies Cortex-M3 timings to the emulator's per-instruction
 profile: 2 cycles per load or store, 3 per `LDRD`/`STRD`, 1 + n per n-register
 `LDM`/`POP`, 6 per `SMLAL`, 4 per `SMULL`, 3 per taken branch, 1 otherwise.
 The 64 long multiply-accumulates per stereo frame and their loads remain, so
-cycles fall less than instructions. Scaling the player's
-953 permille by the weighted change predicts about 680 permille at 200 MHz.
-That is an estimate; the rewritten converter has not been measured on the
-player. `-O3` for `core1_dsd.c` measured 60.91 million instructions per second
+cycles fall less than instructions. The player's 953 permille is about 2,160
+cycles per output frame, some 190 more than the weighted baseline. Scaling it by
+the weighted change gives about 685 permille; if those extra cycles are a fixed
+cost that the rewrite does not touch, about 705. These are estimates; the
+rewritten converter has not been measured on the player. `-O3` for `core1_dsd.c` measured 60.91 million instructions per second
 against 61.11 million at `-O2`, so the file keeps the project's `-O2`.
