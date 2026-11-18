@@ -182,7 +182,7 @@ static void clear_results(DebugScriptRun *run)
     }
 }
 
-void debug_script_stage(DebugScriptRun *run, uint32_t length, DebugScriptHost host)
+static void stage(DebugScriptRun *run, uint32_t length, DebugScriptHost host)
 {
     clear_results(run);
     run->length = (uint16_t)(length < DEBUG_SCRIPT_BYTES ? length : DEBUG_SCRIPT_BYTES);
@@ -195,7 +195,7 @@ void debug_script_stage(DebugScriptRun *run, uint32_t length, DebugScriptHost ho
     }
 }
 
-void debug_script_compile(DebugScriptRun *run, DebugScriptHost host)
+static void compile_pending(DebugScriptRun *run, DebugScriptHost host)
 {
     if (run->state == DEBUG_SCRIPT_PENDING) {
         clear_results(run);
@@ -208,6 +208,6 @@ void debug_script_compile(DebugScriptRun *run, DebugScriptHost host)
 
 void debug_script_load(DebugScriptRun *run, uint32_t length, DebugScriptHost host)
 {
-    debug_script_stage(run, length, host);
-    debug_script_compile(run, host);
+    stage(run, length, host);
+    compile_pending(run, host);
 }

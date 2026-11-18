@@ -425,9 +425,7 @@ if(NOT ECHO_RELEASE)
         debug_runner
         debug_runner_note_state
         debug_runner_script
-        debug_script_line_count
-        debug_script_next_line
-        debug_script_parse
+        debug_span_matches
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
@@ -575,7 +573,28 @@ if(NOT ECHO_RELEASE)
         logic/rtc_registers.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
-        ${PROJECT_SOURCE_DIR}/src/core/debug_script.c)
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c)
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
+        ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
+        ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c
+        ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
+        ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
+        ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
+        ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
+        ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
+        board/time_file_take.c
+        logic/fat_delete.c
+        PROPERTIES COMPILE_OPTIONS -Os)
     if(ECHO_USB_SCREEN_CAPTURES)
         target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)
     endif()
