@@ -28,6 +28,7 @@ typedef struct ApeTrack {
     uint16_t level;
     uint16_t bits;
     uint16_t channels;
+    bool unsupported;
 } ApeTrack;
 
 typedef struct ApeFrame {

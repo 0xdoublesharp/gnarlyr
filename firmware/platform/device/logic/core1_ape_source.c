@@ -30,9 +30,10 @@ bool core1_open_ape(void *context, const char *path, uint32_t start_ms, AudioTra
         return false;
     }
     source->file_open = true;
-    ApeTrack ape;
-    if (source->ring_capacity < APE_RING_BYTES || !ape_track_probe(source->input, &ape) ||
-        !ape_track_realtime(&ape, source->clock_mhz)) {
+    ApeTrack ape = {0};
+    bool probed = source->ring_capacity >= APE_RING_BYTES && ape_track_probe(source->input, &ape);
+    if (!probed || !ape_track_realtime(&ape, source->clock_mhz)) {
+        source->unsupported = probed || ape.unsupported;
         core1_source_stop(source);
         return false;
     }

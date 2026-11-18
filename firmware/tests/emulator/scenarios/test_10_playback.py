@@ -259,6 +259,26 @@ class EchoImageTest(EchoImageHarness):
         self.assertLessEqual(control[7], 57330 - 22050)
         self.assert_healthy(rig.session)
 
+    def test_a_damaged_wma_file_says_it_cannot_be_read(self):
+        from echo_emulator.core1_bridge import CORE1_WMA, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        data = bytearray((PROJECT / "tests/fixtures/wma/v2seek.wma").read_bytes())
+        data[struct.unpack_from("<Q", data, 16)[0]] ^= 0xFF
+        volume = Fat32Volume()
+        volume.add_file("A.wma", bytes(data))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        Core1Bridge(rig.audio, {CORE1_WMA: self.elf.with_name("core1_wma.bin").read_bytes()})
+        toasts = self.collect_toasts(rig.machine)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(1000)
+        self.assertIn("Couldn't read track", toasts)
+        self.assertNotIn("Only WMA Standard (v1/v2) plays", toasts)
+        self.assertEqual([], rig.audio.audible)
+        self.assert_healthy(rig.session)
+
     def test_ape_player_runs_both_arm_cores_and_resumes_at_the_saved_sample(self):
         from echo_emulator.core1_bridge import CORE1_APE, Core1Bridge
         from echo_emulator.fat_volume import Fat32Volume

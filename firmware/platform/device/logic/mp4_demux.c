@@ -237,12 +237,14 @@ static bool has_sbr(const uint8_t *asc, uint32_t size)
 static bool decode_aac_config(Mp4Track *track)
 {
     const uint8_t *asc = track->config;
-    if (track->config_size < 2 || asc[0] >> 3 != AAC_LC || (asc[1] & 6u) != 0) {
+    if (track->config_size < 2) {
         return false;
     }
     uint32_t index = (uint32_t)(asc[0] & 7) << 1 | asc[1] >> 7;
     uint32_t channels = (asc[1] >> 3) & 15u;
-    if (index >= SAMPLE_RATES || channels < 1 || channels > 2 || has_sbr(asc, track->config_size)) {
+    track->unsupported = asc[0] >> 3 != AAC_LC || (asc[1] & 6u) != 0 || index >= SAMPLE_RATES ||
+                         channels < 1 || channels > 2 || has_sbr(asc, track->config_size);
+    if (track->unsupported) {
         return false;
     }
     track->config_size = AAC_PLAIN_CONFIG;
@@ -275,7 +277,8 @@ static bool read_alac(FlacInput input, const Mp4Box *entry, Mp4Track *track)
                          .bit_depth = track->config[5],
                          .kb = track->config[8],
                          .channels = track->config[9]};
-    if (track->config[4] != 0 || !alac_config_supported(&config)) {
+    track->unsupported = track->config[4] != 0 || !alac_config_supported(&config);
+    if (track->unsupported) {
         return false;
     }
     track->config_size = ALAC_COOKIE;
@@ -295,7 +298,11 @@ static bool read_codec(FlacInput input, const Mp4Box *stsd, Mp4Track *track)
     if (entry.type == MP4A) {
         return read_aac(input, &entry, track);
     }
-    return entry.type == ALAC && read_alac(input, &entry, track);
+    if (entry.type == ALAC) {
+        return read_alac(input, &entry, track);
+    }
+    track->unsupported = true;
+    return false;
 }
 
 static bool sample_units(uint64_t time, uint32_t scale, uint32_t rate, uint32_t *samples)

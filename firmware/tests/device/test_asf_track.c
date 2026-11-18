@@ -58,6 +58,31 @@ static void truncated_objects_and_nonstandard_codecs_are_refused(void)
     m4a_file_free(&file);
 }
 
+static void only_a_nonstandard_wma_is_marked_unsupported(void)
+{
+    M4aFile file = m4a_file_load("wma/v2stereo.wma");
+    FlacInput input = m4a_file_input(&file);
+    uint32_t header = 0;
+    for (uint32_t index = 0; index < 4; index++) {
+        header |= (uint32_t)file.bytes[16 + index] << (8 * index);
+    }
+    AsfTrack track = {0};
+    file.bytes[header] ^= 0xFF;
+    CHECK(!asf_track_probe(input, &track));
+    CHECK(!track.unsupported);
+    file.bytes[header] ^= 0xFF;
+    for (uint32_t index = 0; index + 18 < header; index++) {
+        if (file.bytes[index] == 0x61 && file.bytes[index + 1] == 1 && file.bytes[index + 2] == 2 &&
+            file.bytes[index + 3] == 0) {
+            file.bytes[index] = 0x62;
+            break;
+        }
+    }
+    CHECK(!asf_track_probe(input, &track));
+    CHECK(track.unsupported);
+    m4a_file_free(&file);
+}
+
 static void compressed_payloads_keep_their_presentation_timestamp(void)
 {
     static AsfStream stream;
@@ -194,6 +219,7 @@ int main(void)
         TEST_CASE(seeking_without_object_timestamps_decodes_from_the_beginning),
         TEST_CASE(stream_contracts_and_seek_failures_are_rejected),
         TEST_CASE(standard_v1_v2_are_probed_with_bounded_packets_and_playable_timing),
+        TEST_CASE(only_a_nonstandard_wma_is_marked_unsupported),
         TEST_CASE(truncated_objects_and_nonstandard_codecs_are_refused),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

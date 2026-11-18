@@ -100,8 +100,11 @@ bool ape_track_probe(FlacInput input, ApeTrack *track)
         return false;
     }
     candidate.version = little16(head + 4);
-    if (candidate.version < 3970 || candidate.version > 3990 ||
-        !(candidate.version >= 3980 ? modern(input, head, &candidate)
+    if (candidate.version < 3970 || candidate.version > 3990) {
+        track->unsupported = true;
+        return false;
+    }
+    if (!(candidate.version >= 3980 ? modern(input, head, &candidate)
                                     : legacy(input, head, &candidate)) ||
         !ape_track_allowed(&candidate) || candidate.frames == 0 || candidate.frame_samples == 0 ||
         candidate.frame_samples > 73728 * 16 || candidate.final_samples == 0 ||

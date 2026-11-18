@@ -76,6 +76,7 @@ bool core1_open_m4a(void *context, const char *path, uint32_t start_ms, AudioTra
     source->file_open = true;
     Mp4Track mp4;
     if (!mp4_probe(source->input, &mp4)) {
+        source->unsupported = mp4.unsupported;
         core1_source_stop(source);
         return false;
     }

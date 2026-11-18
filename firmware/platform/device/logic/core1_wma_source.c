@@ -34,9 +34,10 @@ bool core1_open_wma(void *context, const char *path, uint32_t start_ms, AudioTra
         return false;
     }
     source->file_open = true;
-    AsfTrack wma;
+    AsfTrack wma = {0};
     if (source->ring_capacity < WMA_RING_BYTES || !asf_track_probe(source->input, &wma) ||
         !asf_stream_start_at(source->asf, source->input, &wma, start_ms)) {
+        source->unsupported = wma.unsupported;
         core1_source_stop(source);
         return false;
     }
