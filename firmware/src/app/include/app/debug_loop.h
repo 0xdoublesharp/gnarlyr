@@ -25,6 +25,7 @@ uint32_t debug_loop_take_shutdown(void);
 DebugScriptRun *debug_runner_script(void);
 void debug_runner_begin(void);
 void debug_runner_abort(void);
+bool debug_runner_active(void);
 
 #else
 
