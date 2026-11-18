@@ -153,7 +153,7 @@ static void line(ParametricImport *parser)
         int32_t value;
         parser->recognized = true;
         bool valid =
-            number(&tokens, &value) && value >= -6000 && value <= 1200 && keyword(&tokens, "DB");
+            number(&tokens, &value) && value >= -6000 && value <= 0 && keyword(&tokens, "DB");
         if (valid) {
             parser->eq.preamp = (int16_t)((value + (value < 0 ? -5 : 5)) / 10);
             valid = !next(&tokens) || tokens.word[0] == '#';

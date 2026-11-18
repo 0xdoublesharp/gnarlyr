@@ -12,7 +12,7 @@ enum {
     PARAMETRIC_MAX_Q = 1000,
     PARAMETRIC_MAX_GAIN = 120,
     PARAMETRIC_MIN_PREAMP = -600,
-    PARAMETRIC_MAX_PREAMP = 120
+    PARAMETRIC_MAX_PREAMP = 0
 };
 
 typedef enum ParametricType {

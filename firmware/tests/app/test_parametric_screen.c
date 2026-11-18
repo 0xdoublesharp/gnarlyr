@@ -79,6 +79,19 @@ static void add_edit_cancel_keep_and_remove_work_with_buttons(void)
     CHECK_EQUAL(-1, editor.filter);
 }
 
+static void the_requested_preamp_stops_at_zero_db(void)
+{
+    start();
+    CHECK_EQUAL(0, editor.working.preamp);
+    key(KEY_VOLUME_UP);
+    key(KEY_PLAY);
+    CHECK(editor.adjusting);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(0, editor.working.preamp);
+    key(KEY_VOLUME_DOWN);
+    CHECK_EQUAL(-1, editor.working.preamp);
+}
+
 static void failed_publication_keeps_the_saved_curve_and_slot_selection_works(void)
 {
     start();
@@ -299,6 +312,7 @@ int main(void)
         TEST_CASE(failed_publication_keeps_the_saved_curve_and_slot_selection_works),
         TEST_CASE(every_native_layout_draws_the_editor_and_graph),
         TEST_CASE(adjusting_keeps_the_full_preamp_caption_visible_in_every_layout),
+        TEST_CASE(the_requested_preamp_stops_at_zero_db),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

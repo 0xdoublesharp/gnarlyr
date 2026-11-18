@@ -139,6 +139,20 @@ static void shaping_positions_survive_custom_and_slots_and_the_spare_bytes_stay_
     CHECK(!parametric_bank_decode(bytes, &restored));
 }
 
+static void a_saved_requested_preamp_above_zero_db_loads_as_zero(void)
+{
+    ParametricBank bank = sample();
+    uint8_t bytes[PARAMETRIC_PAYLOAD_BYTES];
+    CHECK(parametric_bank_encode(&bank, bytes));
+    store_put16(bytes + 4 + 2, 120);
+    store_put16(bytes + 4 + PARAMETRIC_RECORD_BYTES + 2, 60);
+    ParametricBank loaded;
+    CHECK(parametric_bank_decode(bytes, &loaded));
+    CHECK_EQUAL(0, loaded.custom.preamp);
+    CHECK_EQUAL(0, loaded.slots[0].preamp);
+    CHECK_EQUAL(1, loaded.custom.count);
+}
+
 static void a_bank_without_the_shaping_records_is_corrupt(void)
 {
     memset(disk, 0, sizeof disk);
@@ -162,6 +176,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_bank_without_the_shaping_records_is_corrupt),
+        TEST_CASE(a_saved_requested_preamp_above_zero_db_loads_as_zero),
         TEST_CASE(bank_round_trips_and_a_torn_write_keeps_the_previous_copy),
         TEST_CASE(canonical_encoding_rejects_invalid_filters_and_padding),
         TEST_CASE(shaping_positions_survive_custom_and_slots_and_the_spare_bytes_stay_zero),
