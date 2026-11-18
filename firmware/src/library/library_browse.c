@@ -1,5 +1,6 @@
 #include "library/library_browse.h"
 
+#include "core/drive_path.h"
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
@@ -550,11 +551,28 @@ static bool fixed_title(StringId title, char *buffer, size_t capacity)
     return true;
 }
 
+void browse_drive_label(char *label, size_t capacity)
+{
+    if (label[0] == DRIVE_PATH_INTERNAL && label[1] == '\0') {
+        (void)fixed_title(STR_FOLDER_INTERNAL, label, capacity);
+    }
+}
+
+static bool folder_title(const Library *library, uint16_t index, char *buffer, size_t capacity)
+{
+    LibraryFolder folder;
+    if (!library_read_folder(library, index, &folder) ||
+        !library_read_string(library, folder.name, buffer, capacity)) {
+        return false;
+    }
+    browse_drive_label(buffer, capacity);
+    return true;
+}
+
 static bool subject_title(const Library *library, BrowseQuery query, char *buffer, size_t capacity)
 {
     LibraryGroup group;
     LibraryAlbum album;
-    LibraryFolder folder;
     LibraryTrack track;
     switch (query.kind) {
     case BROWSE_GROUP_ALBUMS:
@@ -568,8 +586,7 @@ static bool subject_title(const Library *library, BrowseQuery query, char *buffe
         return library_read_track(library, query.subject, &track) &&
                library_read_string(library, track.title, buffer, capacity);
     case BROWSE_FOLDER:
-        return library_read_folder(library, query.subject, &folder) &&
-               library_read_string(library, folder.name, buffer, capacity);
+        return folder_title(library, query.subject, buffer, capacity);
     case BROWSE_ARTISTS:
     case BROWSE_ALBUM_ARTISTS:
     case BROWSE_GENRES:

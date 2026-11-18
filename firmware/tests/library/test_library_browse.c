@@ -3,6 +3,7 @@
 #include "check.h"
 #include "fixture_library.h"
 #include "library/library_browse.h"
+#include "spoken_library.h"
 
 enum {
     TEXT_CAPACITY = 64,
@@ -551,10 +552,40 @@ static void a_hidden_cue_song_leaves_its_sheet_and_the_file_row(void)
     library->hidden = NULL;
 }
 
+static void the_internal_storage_folder_is_named_for_people_and_listed_first(void)
+{
+    SpokenLibrary spoken;
+    Library *library = spoken_library_open_internal(&spoken);
+    BrowseQuery root = browse_root_query(BROWSE_FOLDER);
+    BrowseItem item = item_at(library, root, 0);
+    CHECK_EQUAL(BROWSE_ITEM_FOLDER, item.kind);
+    char label[64];
+    char detail[32];
+    CHECK(browse_item_text(library, root, item,
+                           (BrowseText){label, sizeof label, detail, sizeof detail}));
+    browse_drive_label(label, sizeof label);
+    CHECK(strcmp(label, "Internal storage") == 0);
+    BrowseQuery inside;
+    CHECK(browse_child(root, item, &inside));
+    char title[64];
+    CHECK(browse_title(library, inside, title, sizeof title));
+    CHECK(strcmp(title, "Internal storage") == 0);
+    spoken_library_close(&spoken);
+}
+
+static void other_names_keep_their_own_label(void)
+{
+    char label[16] = "\"Quoted";
+    browse_drive_label(label, sizeof label);
+    CHECK(strcmp(label, "\"Quoted") == 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_hidden_track_leaves_songs_folders_playlists_and_trees),
+        TEST_CASE(the_internal_storage_folder_is_named_for_people_and_listed_first),
+        TEST_CASE(other_names_keep_their_own_label),
         TEST_CASE(a_hidden_cue_song_leaves_its_sheet_and_the_file_row),
         TEST_CASE(top_level_views_count_their_tables),
         TEST_CASE(failed_record_and_text_reads_are_reported_and_can_be_retried),

@@ -8,6 +8,7 @@
 #include "check.h"
 #include "cover_cache.h"
 #include "default_theme.h"
+#include "diagnostics_rows.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "hal/storage.h"
@@ -562,6 +563,15 @@ static void a_music_check_that_cannot_walk_the_card_rescans_instead(void)
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
 }
 
+static void about_music_says_card_and_internal_for_a_combined_library(void)
+{
+    start_on_a_fresh_card();
+    CHECK(strcmp(diagnostics_row_music(NULL), "Card") == 0);
+    fake_hal_set_combined(true);
+    CHECK(strcmp(diagnostics_row_music(NULL), "Card and internal") == 0);
+    fake_hal_set_combined(false);
+}
+
 static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
 {
     AppScreens screens = {0};
@@ -581,6 +591,7 @@ static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(about_music_says_card_and_internal_for_a_combined_library),
         TEST_CASE(about_omits_the_old_usb_controls_and_raw_dac_rows),
         TEST_CASE(discovery_screen_memory_belongs_to_the_library_module),
         TEST_CASE(search_is_the_first_music_entry_and_loads_the_library_module),

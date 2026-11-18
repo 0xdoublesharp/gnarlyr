@@ -212,6 +212,11 @@ HalVolume hal_file_volume(void)
     return HAL_VOLUME_CARD;
 }
 
+bool hal_file_combined(void)
+{
+    return storage.internal_directory != NULL;
+}
+
 HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     char resolved[PATH_CAPACITY];

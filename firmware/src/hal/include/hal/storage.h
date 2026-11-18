@@ -15,6 +15,7 @@ typedef enum HalVolume {
 } HalVolume;
 
 HalVolume hal_file_volume(void);
+bool hal_file_combined(void);
 
 bool hal_file_open(HalFile *file, const char *path);
 bool hal_file_read(HalFile file, uint32_t offset, void *buffer, uint32_t length);

@@ -135,6 +135,9 @@ static void load_row(BrowseScreen *browse, BrowseRows *rows, int row, int index)
         return;
     }
     rows->opens[row] = item.kind != BROWSE_ITEM_TRACK;
+    if (item.kind == BROWSE_ITEM_FOLDER) {
+        browse_drive_label(rows->labels[row], BROWSE_LABEL_CAPACITY);
+    }
     if (is_favorite(browse, item)) {
         mark_favorite(rows->details[row]);
     }

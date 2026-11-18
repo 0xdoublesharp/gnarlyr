@@ -49,6 +49,11 @@ CORE_COLD HalVolume hal_file_volume(void)
     return mounted_kind == STORAGE_CARD ? HAL_VOLUME_CARD : HAL_VOLUME_INTERNAL;
 }
 
+CORE_COLD bool hal_file_combined(void)
+{
+    return hal_file_volume() == HAL_VOLUME_CARD && internal_volume_mount() != NULL;
+}
+
 static int free_slot(void)
 {
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {

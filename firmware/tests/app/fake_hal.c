@@ -186,6 +186,7 @@ typedef struct FakeHal {
     int reserve_count;
     int scratch_borrows;
     bool empty_card;
+    bool combined;
     int dir_opens;
     int presents_at_dir_open;
     int library_writes;
@@ -1863,6 +1864,16 @@ void fake_hal_set_reserve_result(HalReserveResult result)
 HalVolume hal_file_volume(void)
 {
     return HAL_VOLUME_CARD;
+}
+
+bool hal_file_combined(void)
+{
+    return fake.combined;
+}
+
+void fake_hal_set_combined(bool combined)
+{
+    fake.combined = combined;
 }
 
 HalReserveResult hal_file_reserve(const char *path, uint32_t size)

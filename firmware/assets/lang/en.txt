@@ -33,6 +33,8 @@ STR_ALBUM_ARTISTS = Album Artists
 STR_ALBUMS = Albums
 STR_GENRES = Genres
 STR_FOLDERS = Folders
+# The folder holding the music on the player's own storage, shown at the top of Folders when a card is in
+STR_FOLDER_INTERNAL = Internal storage
 STR_ALL_SONGS = All Songs
 STR_PLAYLISTS = Playlists
 STR_FAVORITES = Favorites
@@ -247,6 +249,7 @@ STR_ABOUT_TAPS_NORMAL = Normal
 STR_ABOUT_PROFILE_FULL = Full
 STR_ABOUT_CARD = Card
 STR_ABOUT_INTERNAL = Internal
+STR_ABOUT_COMBINED = Card and internal
 STR_ABOUT_NONE = None
 STR_ABOUT_NO_READING = No reading
 STR_ABOUT_CHARGING = {0} mV charging

@@ -55,3 +55,4 @@ bool browse_child(BrowseQuery parent, BrowseItem item, BrowseQuery *child);
 bool browse_item_text(const Library *library, BrowseQuery query, BrowseItem item, BrowseText text);
 BrowseQuery browse_play_source(const Library *library, BrowseQuery query, uint32_t *position);
 bool browse_title(const Library *library, BrowseQuery query, char *buffer, size_t capacity);
+void browse_drive_label(char *label, size_t capacity);

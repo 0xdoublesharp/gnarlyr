@@ -21,7 +21,7 @@ const char *diagnostics_row_music(const void *context)
     (void)context;
     switch (hal_file_volume()) {
     case HAL_VOLUME_CARD:
-        return i18n_text(STR_ABOUT_CARD);
+        return i18n_text(hal_file_combined() ? STR_ABOUT_COMBINED : STR_ABOUT_CARD);
     case HAL_VOLUME_INTERNAL:
         return i18n_text(STR_ABOUT_INTERNAL);
     case HAL_VOLUME_NONE:
