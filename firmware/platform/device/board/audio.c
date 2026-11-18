@@ -887,6 +887,7 @@ static void poll_jack(void)
 void hal_audio_service(void)
 {
     poll_jack();
+    dac_path_service();
     sample_output_underrun();
     if (stream_service != NULL) {
         stream_service();

@@ -872,12 +872,66 @@ static void a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target(void)
     CHECK_EQUAL(0x30, dac_ramp_next(0x30, 0x30));
 }
 
+static uint8_t last_volume_written(void)
+{
+    for (int index = fake.count - 1; index >= 0; index--) {
+        if (fake.ops[index].kind == OP_WRITE && fake.ops[index].map == 0x090002) {
+            return (uint8_t)fake.ops[index].value;
+        }
+    }
+    return 0;
+}
+
+static void a_volume_fade_records_each_level_the_chips_took(void)
+{
+    DacBus bus = fresh_bus();
+    DacLevel level = {.applied = 100};
+    CHECK(dac_fade_volume(&bus, &level, 120, 50));
+    CHECK_EQUAL(120, level.applied);
+    CHECK(!level.stale);
+    CHECK_EQUAL(120, last_volume_written());
+}
+
+static void a_dropped_final_volume_write_keeps_the_last_level_and_rewrites_it(void)
+{
+    DacBus bus = fresh_bus();
+    DacLevel level = {.applied = 200};
+    fake.fail_transfer = 3 * 4 + 1;
+    CHECK(!dac_fade_volume(&bus, &level, 176, 50));
+    CHECK(level.stale);
+    CHECK_EQUAL(182, level.applied);
+    fake.fail_transfer = 0;
+    int before = fake.count;
+    CHECK(dac_fade_volume(&bus, &level, 176, 50));
+    CHECK(fake.count > before);
+    CHECK_EQUAL(176, level.applied);
+    CHECK(!level.stale);
+    CHECK_EQUAL(176, last_volume_written());
+}
+
+static void a_silent_bus_leaves_the_level_stale_until_a_request_gets_through(void)
+{
+    DacBus bus = fresh_bus();
+    DacLevel level = {.applied = 255};
+    fake.silent = true;
+    CHECK(!dac_fade_volume(&bus, &level, 249, 50));
+    CHECK(level.stale);
+    CHECK_EQUAL(255, level.applied);
+    fake.silent = false;
+    CHECK(dac_fade_volume(&bus, &level, 255, 50));
+    CHECK(!level.stale);
+    CHECK_EQUAL(255, last_volume_written());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_power_pins_pulse_reset_as_in_the_facts),
         TEST_CASE(the_probe_writes_map_zero_to_both_chips),
         TEST_CASE(a_silent_bus_fails_the_probe),
+        TEST_CASE(a_volume_fade_records_each_level_the_chips_took),
+        TEST_CASE(a_dropped_final_volume_write_keeps_the_last_level_and_rewrites_it),
+        TEST_CASE(a_silent_bus_leaves_the_level_stale_until_a_request_gets_through),
         TEST_CASE(identification_only_reads_the_five_identity_registers_of_each_chip),
         TEST_CASE(identification_leaves_a_chip_at_its_first_failed_register),
         TEST_CASE(a_chip_that_does_not_answer_is_asked_once_and_keeps_no_bytes),

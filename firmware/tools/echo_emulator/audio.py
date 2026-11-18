@@ -92,6 +92,7 @@ class AudioPath:
 
     def set_volume(self, machine):
         self.volumes.append((machine.milliseconds(), machine.reg(UC_ARM_REG_R1)))
+        return 1
 
     def start(self, machine):
         self.rate = machine.reg(UC_ARM_REG_R0)

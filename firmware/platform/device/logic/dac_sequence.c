@@ -1,5 +1,6 @@
 #include "device/dac_sequence.h"
 
+#include "core/seam.h"
 #include <stddef.h>
 
 enum {
@@ -258,10 +259,9 @@ DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog)
     return set_up_blocks(bus, analog) && release_outputs(bus, rate_byte) ? DAC_READY : DAC_NO_REPLY;
 }
 
-void dac_set_volume(const DacBus *bus, uint8_t volume)
+CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
 {
-    write_both(bus, PCM_VOLUME_B, volume);
-    write_both(bus, PCM_VOLUME_A, volume);
+    return write_both(bus, PCM_VOLUME_B, volume) && write_both(bus, PCM_VOLUME_A, volume);
 }
 
 static bool change_analog(const DacBus *bus, DacAnalog after)
@@ -385,4 +385,22 @@ uint8_t dac_ramp_next(uint8_t current, uint8_t target)
         return target - current > RAMP_STEP ? (uint8_t)(current + RAMP_STEP) : target;
     }
     return current - target > RAMP_STEP ? (uint8_t)(current - RAMP_STEP) : target;
+}
+
+bool dac_fade_volume(const DacBus *bus, DacLevel *level, uint8_t target, uint32_t step_us)
+{
+    if (level->stale && !dac_set_volume(bus, level->applied)) {
+        return false;
+    }
+    level->stale = false;
+    while (level->applied != target) {
+        uint8_t next = dac_ramp_next(level->applied, target);
+        if (!dac_set_volume(bus, next)) {
+            level->stale = true;
+            return false;
+        }
+        level->applied = next;
+        bus->delay_us(bus->context, step_us);
+    }
+    return true;
 }

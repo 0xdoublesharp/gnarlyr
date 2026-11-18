@@ -82,7 +82,7 @@ class Layers:
                 "path_up": self.byte("path_up"),
                 "dac_up": self.byte("dac_up"),
                 "muted": self.byte("muted"),
-                "applied": self.byte("applied_volume"),
+                "applied": self.byte("chip_volume"),
                 "wanted": self.byte("volume_value"),
                 "transferring": self.byte("transferring")}
 

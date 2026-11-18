@@ -60,9 +60,16 @@ bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after);
 void dac_output_on(const DacBus *bus, uint8_t volume);
 void dac_output_off(const DacBus *bus);
 void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume);
-void dac_set_volume(const DacBus *bus, uint8_t volume);
+bool dac_set_volume(const DacBus *bus, uint8_t volume);
 uint8_t dac_volume_value(uint8_t level, DacCurve curve);
 uint8_t dac_ramp_next(uint8_t current, uint8_t target);
+
+typedef struct DacLevel {
+    uint8_t applied;
+    bool stale;
+} DacLevel;
+
+bool dac_fade_volume(const DacBus *bus, DacLevel *level, uint8_t target, uint32_t step_us);
 
 bool dac_sequence_power_down(const DacBus *bus);
 bool dac_sequence_power_up(const DacBus *bus);
