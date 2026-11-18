@@ -408,8 +408,12 @@ def drive_root(path):
     return INTERNAL_MARKER if path.split("/", 1)[0] == INTERNAL_MARKER else ""
 
 
+FAVORITE_PLAYLIST = "Favorite Tracks"
+
+
 def top_playlist_key(raw, folder):
-    return (ascii_fold(raw.name),) if raw.folder == folder else ()
+    favorite = ascii_fold(raw.name) == ascii_fold(FAVORITE_PLAYLIST)
+    return (ascii_fold(raw.name),) if raw.folder == folder and favorite else ()
 
 
 def resolve_playlist(paths, raw, playlist):

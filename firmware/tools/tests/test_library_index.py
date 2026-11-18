@@ -727,20 +727,32 @@ class CombinedLibraryTest(unittest.TestCase):
             ("Favorite Tracks", ["Card/01 Card.flac", "\"/Inside/01 Inside.flac"]),
             ("Favorite Tracks", ["\"/Inside/01 Inside.flac"])]))
 
-    def test_an_internal_top_playlist_joins_only_the_first_matching_card_playlist(self):
+    def test_an_internal_favorite_list_joins_only_the_first_matching_card_one(self):
         self.song(self.card, "Card/01 First.flac")
         self.song(self.card, "Card/02 Second.flac")
         self.song(self.internal, "Inside/01 Inside.flac")
-        self.playlist(self.card, "Road.m3u", "Card/01 First.flac")
-        self.playlist(self.card, "road.m3u8", "Card/02 Second.flac")
-        self.playlist(self.internal, "ROAD.m3u", "Inside/01 Inside.flac")
+        self.playlist(self.card, "Favorite Tracks.m3u", "Card/01 First.flac")
+        self.playlist(self.card, "favorite tracks.m3u8", "Card/02 Second.flac")
+        self.playlist(self.internal, "FAVORITE TRACKS.m3u", "Inside/01 Inside.flac")
         tracks, playlists = self.scanned()
         model = library_index.build_library(tracks, playlists)
         named = sorted((playlist.name, [model.tracks[index].path for index in playlist.tracks])
                        for playlist in model.playlists)
-        self.assertEqual(named, [("Road", ["Card/01 First.flac", "\"/Inside/01 Inside.flac"]),
-                                 ("road", ["Card/02 Second.flac"])])
+        self.assertEqual(named, [("Favorite Tracks", ["Card/01 First.flac",
+                                                      "\"/Inside/01 Inside.flac"]),
+                                 ("favorite tracks", ["Card/02 Second.flac"])])
 
+    def test_other_same_named_top_playlists_stay_separate(self):
+        self.song(self.card, "Card/01 First.flac")
+        self.song(self.internal, "Inside/01 Inside.flac")
+        self.playlist(self.card, "Road.m3u", "Card/01 First.flac")
+        self.playlist(self.internal, "Road.m3u", "Inside/01 Inside.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        named = sorted((playlist.name, [model.tracks[index].path for index in playlist.tracks])
+                       for playlist in model.playlists)
+        self.assertEqual(named, [("Road", ["\"/Inside/01 Inside.flac"]),
+                                 ("Road", ["Card/01 First.flac"])])
     def test_a_parent_entry_cannot_leave_internal_storage_for_the_card(self):
         self.song(self.card, "Song.flac")
         self.song(self.internal, "Music/Song.flac")

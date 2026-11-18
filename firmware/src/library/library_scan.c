@@ -666,82 +666,80 @@ static uint32_t noted_playlist(const ScanState *state, uint32_t index)
     return offset;
 }
 
-static bool at_top(const uint8_t *record, bool internal)
-{
-    const char *path = (const char *)record + 4;
-    return record_parent(record) == (internal ? 3u : 1u) &&
-           (path[1] == DRIVE_PATH_INTERNAL) == internal;
-}
+static const char FAVORITE_STEM[] = "favorite tracks";
 
 static char fold(char letter)
 {
     return letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
 }
 
-static bool same_top_name(const uint8_t *card, const uint8_t *internal)
+static bool favorite_stem(const uint8_t *record)
 {
-    const char *left = (const char *)card + 4 + record_parent(card);
-    const char *right = (const char *)internal + 4 + record_parent(internal);
-    uint32_t length = stem_end(card) - record_parent(card);
-    if (length != stem_end(internal) - record_parent(internal)) {
+    const char *name = (const char *)record + 4 + record_parent(record);
+    uint32_t length = stem_end(record) - record_parent(record);
+    if (length != sizeof FAVORITE_STEM - 1) {
         return false;
     }
     for (uint32_t index = 0; index < length; index++) {
-        if (fold(left[index]) != fold(right[index])) {
+        if (fold(name[index]) != FAVORITE_STEM[index]) {
             return false;
         }
     }
     return true;
 }
 
-static bool has_card_partner(const ScanState *state, const uint8_t *record)
+static bool at_top(const uint8_t *record, bool internal)
+{
+    const char *path = (const char *)record + 4;
+    return record_parent(record) == (internal ? 3u : 1u) &&
+           (path[1] == DRIVE_PATH_INTERNAL) == internal && favorite_stem(record);
+}
+
+static bool has_card_partner(const ScanState *state)
 {
     uint32_t offset = state->playlist_floor;
     for (uint32_t index = 0; index < state->playlist_count; index++) {
-        const uint8_t *other = state->listing + offset;
-        if (at_top(other, false) && same_top_name(other, record)) {
+        if (at_top(state->listing + offset, false)) {
             return true;
         }
         offset += record_length(state, offset);
     }
     return false;
 }
-
-static ScanResult read_partners(ScanState *state, const ScanJob *job, const uint8_t *card)
+static ScanResult read_partners(ScanState *state, const ScanJob *job)
 {
     ScanResult result = SCAN_OK;
-    uint32_t offset = state->playlist_floor;
     for (uint32_t index = 0; result == SCAN_OK && index < state->playlist_count; index++) {
-        const uint8_t *other = state->listing + offset;
-        if (at_top(other, true) && same_top_name(card, other)) {
+        const uint8_t *other = state->listing + noted_playlist(state, index);
+        if (at_top(other, true)) {
             result = read_playlist(state, job, other, true);
         }
-        offset += record_length(state, offset);
     }
     return result;
 }
-
 static bool first_card_top(const ScanState *state, uint32_t index, const uint8_t *record)
 {
+    if (!at_top(record, false)) {
+        return false;
+    }
     for (uint32_t earlier = 0; earlier < index; earlier++) {
         const uint8_t *other = state->listing + noted_playlist(state, earlier);
-        if (at_top(other, false) && same_top_name(other, record)) {
+        if (at_top(other, false)) {
             return false;
         }
     }
-    return at_top(record, false);
+    return true;
 }
 
 static ScanResult read_noted(ScanState *state, const ScanJob *job, uint32_t index)
 {
     const uint8_t *record = state->listing + noted_playlist(state, index);
-    if (at_top(record, true) && has_card_partner(state, record)) {
+    if (at_top(record, true) && has_card_partner(state)) {
         return SCAN_OK;
     }
     ScanResult result = read_playlist(state, job, record, false);
-    return result == SCAN_OK && first_card_top(state, index, record)
-               ? read_partners(state, job, record)
-               : result;
+    return result == SCAN_OK && first_card_top(state, index, record) ? read_partners(state, job)
+                                                                     : result;
 }
 
 static ScanResult read_playlists(ScanState *state, const ScanJob *job)
