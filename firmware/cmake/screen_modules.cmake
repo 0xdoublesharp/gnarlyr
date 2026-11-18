@@ -182,6 +182,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/library/lyrics.c
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
+    src/app/about_layout.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
     src/app/mixtape_ui.c

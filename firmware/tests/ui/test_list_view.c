@@ -314,6 +314,22 @@ static void a_portrait_detail_leaves_the_label_its_room(void)
     CHECK(ui_test_area_has_color(&canvas, detail, theme.colors.text_secondary));
 }
 
+static void a_row_taller_than_one_line_draws_its_detail_under_the_label(void)
+{
+    ListView view = list_of(2);
+    items.detail_at_one = "B";
+    Canvas canvas = ui_test_canvas();
+    Rect content = theme_content_area(&TEST_THEME);
+    int height = 2 * TEST_ROW_HEIGHT;
+    list_view_draw_row(&view, &canvas, 1, (Rect){0, content.y, TEST_SCREEN_WIDTH, height}, 100);
+    Rect first_line = {TEST_SCREEN_WIDTH / 2, content.y, TEST_SCREEN_WIDTH / 2, TEST_ROW_HEIGHT};
+    Rect under = {0, content.y + TEST_ROW_HEIGHT, TEST_SCREEN_WIDTH, TEST_ROW_HEIGHT};
+    CHECK(!ui_test_area_has_color(&canvas, first_line, TEST_THEME.colors.text_secondary));
+    CHECK(ui_test_area_has_color(&canvas, under, TEST_THEME.colors.text_secondary));
+    Rect label = {TEST_THEME.metrics.padding, content.y, 3, TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, label, TEST_THEME.colors.text));
+}
+
 static IconId fake_icon(const void *context, int index)
 {
     (void)context;
@@ -439,6 +455,7 @@ int main(void)
         TEST_CASE(optional_row_icons_use_the_themes_accent_ink),
         TEST_CASE(selected_icons_use_only_the_selected_text_ink),
         TEST_CASE(a_long_detail_cannot_paint_over_the_icon),
+        TEST_CASE(a_row_taller_than_one_line_draws_its_detail_under_the_label),
         TEST_CASE(a_marquee_cannot_scroll_text_through_the_icon),
         TEST_CASE(a_selected_label_at_rest_is_cut_with_an_ellipsis_like_the_others),
         TEST_CASE(fitting_taller_rows_keeps_the_selection_on_screen),

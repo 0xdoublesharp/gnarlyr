@@ -64,6 +64,7 @@ add_library(echo_app STATIC
     favorites_store.c
     diagnostics_values.c
     diagnostics_rows.c
+    about_layout.c
     draw_profile.c
     equalizer_presets.c
     equalizer_ui.c

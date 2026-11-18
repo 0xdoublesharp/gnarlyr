@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "about_layout.h"
 #include "diagnostics_rows.h"
 #include "diagnostics_values.h"
 #include "hal/power.h"
@@ -181,4 +182,5 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     build_rows(screens, options);
     app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
+    about_layout_attach(&own->diagnostics);
 }

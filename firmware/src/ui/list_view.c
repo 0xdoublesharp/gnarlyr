@@ -12,10 +12,10 @@ enum {
     PERCENT = 100,
     ICON_BOX = 20,
     ICON_MIN_GAP = 4,
-    DETAIL_LINE_GAP = 2
+    DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP
 };
 
-static const char CHEVRON[] = "\xE2\x80\xBA";
+const char LIST_VIEW_CHEVRON[] = "\xE2\x80\xBA";
 static const char SECTION_LABELS[][2] = {"#", "A", "B", "C", "D", "E", "F", "G", "H", "I",
                                          "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
                                          "T", "U", "V", "W", "X", "Y", "Z", "#"};
@@ -266,9 +266,9 @@ static Row draw_chevron(const ListView *view, Canvas *canvas, Row row)
     }
     Color color = row.selected ? view->theme->colors.selection_text : view->theme->colors.chevron;
     TextStyle style = {.font = view->theme->fonts.title, .color = color};
-    int width = text_width(style.font, CHEVRON);
+    int width = text_width(style.font, LIST_VIEW_CHEVRON);
     Rect area = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
-    label_draw(canvas, style, (Label){.area = area, .text = CHEVRON});
+    label_draw(canvas, style, (Label){.area = area, .text = LIST_VIEW_CHEVRON});
     row.text.width -= width + view->theme->metrics.detail_gap;
     if (model->icon != NULL) {
         row.text.width = max_of(0, row.text.width);
@@ -318,9 +318,9 @@ static void draw_detail_below(const ListView *view, Canvas *canvas, Row row)
     Rect area = {row.text.x, row.area.y + theme->metrics.row_height + DETAIL_LINE_GAP,
                  row.text.width, font_line_height(style.font)};
     if (model->opens != NULL && model->opens(model->context, row.index)) {
-        int width = text_width(style.font, CHEVRON);
+        int width = text_width(style.font, LIST_VIEW_CHEVRON);
         Rect arrow = {area.x + area.width - width, area.y, width, area.height};
-        label_draw(canvas, style, (Label){arrow, CHEVRON});
+        label_draw(canvas, style, (Label){arrow, LIST_VIEW_CHEVRON});
         area.width = max_of(0, area.width - width - theme->metrics.detail_gap);
     }
     const char *detail = model->detail != NULL ? model->detail(model->context, row.index) : NULL;
@@ -363,7 +363,7 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
                          colors->accent_alt);
     }
     row = draw_icon(view, canvas, row);
-    if (details_below(view)) {
+    if (details_below(view) || row.area.height > list_view_row_height(view)) {
         draw_detail_below(view, canvas, row);
         draw_label(view, canvas, row, now_ms);
     } else {
@@ -372,29 +372,31 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
     }
 }
 
-static void draw_scrollbar(const ListView *view, Canvas *canvas, Rect area)
+void list_view_draw_scrollbar(const ListView *view, Canvas *canvas, Rect area, int hidden)
 {
     const Theme *theme = view->theme;
-    int hidden = item_count(view) - view->visible_rows;
+    int count = item_count(view);
     int inset = theme->metrics.scrollbar_inset;
     Rect track = {area.x + area.width - inset - theme->metrics.scrollbar_width, area.y + inset,
                   theme->metrics.scrollbar_width, area.height - 2 * inset};
-    int thumb_height =
-        max_of(MIN_THUMB_HEIGHT, track.height * view->visible_rows / item_count(view));
-    int thumb_top = track.y + (track.height - thumb_height) * view->top / hidden;
+    int thumb_height = max_of(MIN_THUMB_HEIGHT, track.height * (count - hidden) / count);
+    int thumb_top =
+        track.y + (track.height - thumb_height) * min_of(view->top, hidden) / max_of(1, hidden);
     canvas_fill_rect(canvas, (Rect){track.x, thumb_top, track.width, thumb_height},
                      theme->colors.scrollbar_thumb);
 }
 
-static Row make_row(const ListView *view, Rect rows, int position)
+static Row row_at(const ListView *view, int index, Rect area)
 {
     const ThemeMetrics *metrics = &view->theme->metrics;
-    int index = view->top + position;
-    int height = list_view_row_height(view);
-    Rect area = {rows.x, rows.y + position * height, rows.width, height};
     Rect text = {area.x + metrics->padding, area.y, area.width - 2 * metrics->padding,
                  metrics->row_height};
     return (Row){.index = index, .area = area, .text = text, .selected = index == view->selected};
+}
+
+void list_view_draw_row(const ListView *view, Canvas *canvas, int index, Rect area, uint32_t now_ms)
+{
+    draw_row(view, canvas, row_at(view, index, area), now_ms);
 }
 
 static void draw_section(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms)
@@ -424,15 +426,17 @@ CORE_SEAM void list_view_draw(const ListView *view, Canvas *canvas, Rect area, u
     Rect rows = area;
     if (item_count(view) > view->visible_rows) {
         rows.width -= view->theme->metrics.scrollbar_width + view->theme->metrics.scrollbar_inset;
-        draw_scrollbar(view, canvas, area);
+        list_view_draw_scrollbar(view, canvas, area, item_count(view) - view->visible_rows);
     }
+    int height = list_view_row_height(view);
     for (int position = 0; position < view->visible_rows; position++) {
-        Row row = make_row(view, rows, position);
-        if (row.index >= item_count(view)) {
+        int index = view->top + position;
+        Rect row = {rows.x, rows.y + position * height, rows.width, height};
+        if (index >= item_count(view)) {
             break;
         }
-        if (!rect_is_empty(rect_intersection(row.area, canvas->clip))) {
-            draw_row(view, canvas, row, now_ms);
+        if (!rect_is_empty(rect_intersection(row, canvas->clip))) {
+            list_view_draw_row(view, canvas, index, row, now_ms);
         }
     }
     draw_section(view, canvas, area, now_ms);

@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "app/app.h"
 #include "app/debug_loop.h"
 #include "app/extension.h"
 #include "app_internal.h"
+#include "app_screens.h"
 #include "board_layout.h"
 #include "card_files.h"
 #include "check.h"
@@ -5290,6 +5292,43 @@ static void the_key_test_takes_every_ladder_key_until_power_leaves(void)
     CHECK(title_is("About"));
 }
 
+static bool nothing_drawn_cut_off(void)
+{
+    for (int index = 0; index < text_spy_count(); index++) {
+        const TextSpyEntry *entry = text_spy_entry(index);
+        if (strcmp(entry->shown, entry->rest) != 0) {
+            fprintf(stderr, "cut off: \"%s\" of \"%s\"\n", entry->shown, entry->rest);
+            return false;
+        }
+    }
+    return true;
+}
+
+static void every_about_row_is_drawn_whole_in_portrait_at_large_text(void)
+{
+    start_app_with_library();
+    fake_hal_set_combined(true);
+    choose_text_size(TEXT_SIZE_LARGE);
+    restart_app();
+    wait_ms(1000);
+    fake_hal_set_combined(true);
+    choose_orientation(ORIENTATION_PORTRAIT);
+    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+    bool saw_music = false;
+    for (int row = 0; row < DIAGNOSTICS_ITEM_COUNT; row++) {
+        text_spy_reset();
+        settle();
+        CHECK(nothing_drawn_cut_off());
+        saw_music |= text_shown("Card + internal");
+        portrait_down(1);
+    }
+    CHECK(saw_music);
+    CHECK(text_shown("Keys"));
+}
+
 static void in_portrait_the_key_test_names_the_physical_key(void)
 {
     start_app_with_library();
@@ -7116,6 +7155,7 @@ int main(void)
         TEST_CASE(waking_while_paused_keeps_the_screen),
         TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
         TEST_CASE(in_portrait_the_key_test_names_the_physical_key),
+        TEST_CASE(every_about_row_is_drawn_whole_in_portrait_at_large_text),
         TEST_CASE(the_stall_question_always_opens_on_cancel),
         TEST_CASE(power_leaves_the_key_test_even_with_power_taps_ignored),
         TEST_CASE(testing_keys_keeps_the_screen_on),

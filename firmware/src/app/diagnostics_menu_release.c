@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "about_layout.h"
 #include "diagnostics_rows.h"
 
 enum {
@@ -26,4 +27,5 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     items[6] = value_item(STR_ABOUT_CPU_CLOCK, diagnostics_row_cpu_clock);
     app_screens_build_menu(&screens->modules.views.diagnostics, STR_ABOUT, items,
                            RELEASE_DIAGNOSTICS_COUNT, theme);
+    about_layout_attach(&screens->modules.views.diagnostics);
 }
