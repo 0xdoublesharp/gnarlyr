@@ -311,7 +311,7 @@ Settings → Gain picks Low (the default) or High for both jacks. High gives har
 
 Settings → DAC filter chooses how the DAC smooths the sound: Fast, low latency (the default, as on FiiO's firmware), Fast, phase compensated, Slow, low latency, Slow, phase compensated, or Non-oversampling. Fast filters keep the treble flat almost to the top of the range and cut sharply above it; slow ones begin to roll off a little earlier and more gently. Low latency filters delay the sound less; phase compensated ones keep every frequency in step. Non-oversampling skips the smoothing and softens the highest treble a little at 44.1 and 48 kHz.
 
-Gain and DAC filter apply when you press ▶, not while you scroll. During playback the sound mutes for a moment while the player changes them. Both are kept across restarts.
+Gain and DAC filter apply when you press ▶, not while you scroll. During playback the sound mutes for a moment while the player changes them. Both are kept across restarts. If the DAC doesn't take a change, the player says "Couldn't change gain" or "Couldn't change the filter", keeps the previous setting and stays silent until the DAC answers again; choose it again, or pause and play, to retry.
 
 ## Headphone profiles
 
@@ -413,7 +413,7 @@ Negative steps reverse the filter change. These are tone adjustments; Punch chan
 
 **Reset shaping** returns all seven controls to zero and keeps the correction underneath. **Save to slot** stores both the sound and the control positions in one of the eight EQ slots. Choosing that slot opens Sound shaping again. The Equalizer row describes the first two nonzero controls in control order, for example **Warm · Bright**; a fully neutral shape reads **Neutral**. Opening Settings → Parametric EQ exposes the resulting filters. Keeping a manual filter edit turns that Custom curve into an ordinary parametric sound; a saved shaping slot keeps its positions.
 
-**On top of** adds shaping to a saved parametric correction. Import an AutoEQ file through Equalizer, save it to a slot, then open Sound shaping and select that slot under On top of. Each nonzero shaping control takes one filter. The correction and shaping together must fit ten filters: a seven-filter correction leaves room for three nonzero controls. A change that would exceed ten is refused with a message and leaves the previous sound intact. Empty and graphic slots are refused. Select No correction for shaping alone.
+**On top of** adds shaping to a saved parametric correction. Import an AutoEQ file through Equalizer, save it to a slot, then open Sound shaping and select that slot under On top of. Each nonzero shaping control takes one filter. The correction and shaping together must fit ten filters: a seven-filter correction leaves room for three nonzero controls. A change that would exceed ten is refused with a message and leaves the previous sound intact. Empty and graphic slots, and slots saved from Sound shaping, are refused. Select No correction for shaping alone.
 
 The saved sound contains a copy of the correction, so changing the source slot later does not change it. On reopening, a copied correction is labelled Parametric EQ. Reset removes only the shaping filters. Leaving an adjustment for Home, another module or USB restores the kept sound. The existing music-rate and USB DAC limits apply.
 

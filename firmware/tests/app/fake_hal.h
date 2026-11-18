@@ -150,6 +150,7 @@ void fake_hal_set_cable(bool cable);
 int fake_hal_power_off_count(void);
 int fake_hal_audio_state_at_power_off(void);
 void fake_hal_set_usb_start(bool started);
+void fake_hal_fail_analog(bool fails);
 int fake_hal_audio_gain(void);
 int fake_hal_audio_filter(void);
 uint8_t fake_hal_volume_at_gain(void);

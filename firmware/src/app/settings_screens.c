@@ -90,10 +90,13 @@ static Settings *editable_settings(void *context)
     return &settings->store->settings;
 }
 
-static void report_unsaved(SettingsContext *context, bool saved)
+static void report(SettingsContext *context, AudioSettingsResult result, StringId not_applied)
 {
-    if (!saved) {
-        toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    if (result != AUDIO_SETTINGS_SAVED) {
+        toast_show(
+            context->toast,
+            i18n_text(result == AUDIO_SETTINGS_NOT_SAVED ? STR_SETTINGS_NOT_SAVED : not_applied),
+            hal_clock_milliseconds());
     }
 }
 
@@ -283,8 +286,8 @@ static int current_gain(const void *context)
 static void choose_gain(void *context, int index)
 {
     SettingsContext *settings = context;
-    report_unsaved(settings,
-                   audio_settings_set_gain(settings->store, settings->player, (GainLevel)index));
+    report(settings, audio_settings_set_gain(settings->store, settings->player, (GainLevel)index),
+           STR_GAIN_NOT_CHANGED);
 }
 
 static int current_filter(const void *context)
@@ -295,8 +298,8 @@ static int current_filter(const void *context)
 static void choose_filter(void *context, int index)
 {
     SettingsContext *settings = context;
-    report_unsaved(settings,
-                   audio_settings_set_filter(settings->store, settings->player, (DacFilter)index));
+    report(settings, audio_settings_set_filter(settings->store, settings->player, (DacFilter)index),
+           STR_FILTER_NOT_CHANGED);
 }
 
 static int current_output(const void *context)

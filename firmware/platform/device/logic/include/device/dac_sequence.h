@@ -45,6 +45,7 @@ typedef struct DacAnalog {
 
 enum {
     DAC_ANALOG_FILTERS = 5,
+    DAC_ANALOG_UNKNOWN = DAC_ANALOG_FILTERS,
     DAC_LEFT_ADDRESS = 0x60,
     DAC_RIGHT_ADDRESS = 0x66,
     DAC_VOLUME_LEVELS = 60,

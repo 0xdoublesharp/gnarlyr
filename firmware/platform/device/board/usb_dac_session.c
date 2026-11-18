@@ -437,12 +437,20 @@ static void step_volume(int step)
 
 static void set_gain(uint8_t gain)
 {
-    if (gain == GAIN_HIGH && settings.gain != GAIN_HIGH) {
-        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), shared->dac_volume,
+    uint8_t volume = shared->dac_volume;
+    bool rising = gain == GAIN_HIGH && settings.gain != GAIN_HIGH;
+    if (rising) {
+        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), volume,
                                                HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB));
     }
+    if (!hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW)) {
+        if (rising) {
+            set_volume(volume);
+        }
+        menu.settings.gain = settings.gain;
+        return;
+    }
     settings.gain = gain;
-    hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW);
 }
 
 static void apply_choice(UsbDacAction action)
