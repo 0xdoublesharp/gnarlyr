@@ -740,3 +740,12 @@ class CombinedLibraryTest(unittest.TestCase):
                        for playlist in model.playlists)
         self.assertEqual(named, [("Road", ["Card/01 First.flac", "\"/Inside/01 Inside.flac"]),
                                  ("road", ["Card/02 Second.flac"])])
+
+    def test_a_parent_entry_cannot_leave_internal_storage_for_the_card(self):
+        self.song(self.card, "Song.flac")
+        self.song(self.internal, "Music/Song.flac")
+        self.playlist(self.internal, "Up.m3u", "../Song.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        up = next(playlist for playlist in model.playlists if playlist.name == "Up")
+        self.assertEqual([model.tracks[index].path for index in up.tracks], ["\"/Music/Song.flac"])

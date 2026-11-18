@@ -380,6 +380,8 @@ class PathIndex:
             normalized = root + normalized
         rooted = normalized if not root or drive_root(normalized) else root + "/" + normalized
         for candidate in (posixpath.join(playlist_folder, normalized), rooted):
+            if leaves_drive(candidate):
+                continue
             index = self.exact.get(posixpath.normpath(candidate).casefold())
             if index is not None:
                 return index
@@ -395,6 +397,11 @@ class PathIndex:
         tied = [index for score, index in scored if score == scored[0][0]]
         own = [index for index in tied if drive_root(self.paths[index]) == root]
         return tied[0] if len(tied) == 1 else own[0] if len(own) == 1 else None
+
+
+def leaves_drive(path):
+    inner = path[len(INTERNAL_MARKER) + 1:] if drive_root(path) else path
+    return posixpath.normpath(inner).split("/")[0] == ".."
 
 
 def drive_root(path):

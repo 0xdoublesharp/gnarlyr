@@ -263,7 +263,7 @@ static void scanning_both_drives_matches_the_pc_indexer(void)
     ScanStats stats;
     CHECK_EQUAL(SCAN_OK, library_scan(&job, &stats));
     sim_storage_configure_internal(NULL);
-    CHECK_EQUAL(18u, stats.tracks);
+    CHECK_EQUAL(20u, stats.tracks);
     CHECK_EQUAL(0u, stats.skipped);
     uint32_t expected_size = 0;
     uint8_t *expected = read_fixture("combined_music.db", &expected_size);

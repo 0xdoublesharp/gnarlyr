@@ -492,6 +492,32 @@ static uint32_t pick_part(BuilderState *state, Prepared *prepared, uint32_t posi
     return found != BUILDER_UNSET ? found : position;
 }
 
+static bool leaves_drive(const char *path, uint32_t length)
+{
+    uint32_t index = on_internal(path) ? 2u : 0u;
+    int depth = 0;
+    if (index < length && path[index] == '/') {
+        return false;
+    }
+    while (index < length && depth >= 0) {
+        uint32_t end = index;
+        while (end < length && path[end] != '/') {
+            end++;
+        }
+        bool dot = end - index == 1 && path[index] == '.';
+        bool parent = end - index == 2 && path[index] == '.' && path[index + 1] == '.';
+        depth += parent ? -1 : (end > index && !dot ? 1 : 0);
+        index = end + 1;
+    }
+    return depth < 0;
+}
+
+static uint32_t find_inside(BuilderState *state, Prepared *prepared, const char *path,
+                            uint32_t length)
+{
+    return leaves_drive(path, length) ? BUILDER_UNSET : find_exact(state, prepared, path, length);
+}
+
 static uint32_t root_entry(bool internal, const char *entry, uint32_t length, char *out)
 {
     uint32_t used = 0;
@@ -521,10 +547,10 @@ static uint32_t resolve_path(BuilderState *state, Prepared *prepared, const char
     }
     scratch->entry[length] = '\0';
     uint32_t joined = join(folder, scratch->entry, length, scratch->joined);
-    uint32_t found = find_exact(state, prepared, scratch->joined, joined);
+    uint32_t found = find_inside(state, prepared, scratch->joined, joined);
     if (found == BUILDER_UNSET) {
         joined = root_entry(internal, scratch->entry, length, scratch->joined);
-        found = find_exact(state, prepared, scratch->joined, joined);
+        found = find_inside(state, prepared, scratch->joined, joined);
     }
     if (found != BUILDER_UNSET) {
         return found;
