@@ -900,11 +900,13 @@ static void restore_position(Player *player, const ResumeState *state, bool cold
     player->from_up_next = state->from_up_next;
     player->has_track = true;
     player->repeat = state->repeat;
-    player->shuffle = state->plan.shuffle;
     player->state = PLAYER_PAUSED;
     player->paused_position_ms = state->position_ms;
     player->rewind_pause = cold_start ? RESUME_REWIND_COLD : RESUME_REWIND_NONE;
     note_spoken(player, player->track);
+    if (!player->spoken) {
+        player->shuffle = state->plan.shuffle;
+    }
     player_set_volume(player, PLAYER_OUTPUT_WIRED, state->volume);
 }
 

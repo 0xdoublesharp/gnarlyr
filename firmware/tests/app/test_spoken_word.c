@@ -85,6 +85,22 @@ static void a_book_opened_from_folders_plays_in_order_with_shuffle_on(void)
     }
 }
 
+static void a_restored_book_keeps_the_music_shuffle_setting(void)
+{
+    static Player resumed;
+    start();
+    player_set_shuffle(&player, SHUFFLE_SONGS, SEED);
+    uint32_t position = 0;
+    BrowseQuery source = folder_of(SPOKEN_CHAPTER_ONE_PATH, &position);
+    CHECK(player_play_list(&player, source, position, SEED));
+    player_init(&resumed, library);
+    player_set_shuffle(&resumed, SHUFFLE_SONGS, SEED);
+    CHECK(player_restore(&resumed, true));
+    CHECK(resumed.spoken);
+    CHECK_EQUAL(SHUFFLE_SONGS, resumed.shuffle);
+    CHECK_EQUAL(SHUFFLE_OFF, resumed.queue.plan.shuffle);
+}
+
 static void holding_volume_jumps_within_a_chapter(void)
 {
     start();
@@ -865,6 +881,7 @@ int main(void)
         TEST_CASE(descriptions_handle_invalid_zero_and_finished_rows),
         TEST_CASE(books_play_in_order_even_with_shuffle_on),
         TEST_CASE(a_book_opened_from_folders_plays_in_order_with_shuffle_on),
+        TEST_CASE(a_restored_book_keeps_the_music_shuffle_setting),
         TEST_CASE(holding_volume_jumps_within_a_chapter),
         TEST_CASE(jumping_past_the_end_starts_the_next_chapter),
         TEST_CASE(music_still_skips_tracks),
