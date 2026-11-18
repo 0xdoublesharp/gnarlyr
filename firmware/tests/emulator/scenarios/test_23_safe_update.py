@@ -21,7 +21,7 @@ from echo_image_harness import (
     struct,
     summary,
 )
-from echo_emulator.machine import VOLUME_UP_KEY_ADC
+from echo_emulator.machine import ADC_NO_KEY, VOLUME_UP_KEY_ADC
 import make_image
 import prove_upgrade
 
@@ -43,6 +43,8 @@ CHARGE_ANSWER = 2
 POWER_LONG_EVENT = 0x105
 POWER_FIRST_MS = 300
 SETTLE_ON_CABLE_MS = 1000
+BRUSH_MS = 150
+POWER_LONG_MS = 2000
 
 
 class EchoImageTest(EchoImageHarness):
@@ -472,6 +474,24 @@ class EchoImageTest(EchoImageHarness):
         self.reach_loader_reboot(session, self.hold_escape_keys(machine))
         self.assertEqual(longs, [])
         self.assert_dark(machine)
+
+    def test_a_brushed_volume_up_leaves_a_held_power_switching_off(self):
+        session = self.session(usb_answer=CHARGE_ANSWER)
+        machine = session.machine
+        session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + SETTLE_ON_CABLE_MS)
+        self.plug_in_charging(machine)
+        longs = self.watch_power_long(machine)
+        pressed = machine.milliseconds()
+        brushed = pressed + POWER_FIRST_MS
+        machine.hold_power(pressed, ESCAPE_KEYS_MS)
+        machine.at_ms(brushed, lambda: setattr(machine, "adc_key_value", VOLUME_UP_KEY_ADC))
+        machine.at_ms(brushed + BRUSH_MS, lambda: setattr(machine, "adc_key_value", ADC_NO_KEY))
+        self.assertEqual(machine.run(until=lambda: longs, until_ms=pressed + ESCAPE_KEYS_MS),
+                         "condition met")
+        self.assertGreaterEqual(longs[0], brushed + BRUSH_MS + POWER_LONG_MS)
+        self.assertIsNone(machine.reset_requested)
+        self.assert_healthy(session)
 
     def test_the_escape_keys_on_now_playing_neither_switch_off_nor_skip(self):
         from echo_emulator.playback import Rig

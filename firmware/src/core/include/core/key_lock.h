@@ -28,3 +28,4 @@ typedef struct KeyLock {
 
 KeyLockVerdict key_lock_transition(KeyLock *lock, Key key, bool pressed, uint32_t now_ms);
 bool key_lock_update(KeyLock *lock, uint32_t now_ms);
+void key_lock_interrupt(KeyLock *lock);
