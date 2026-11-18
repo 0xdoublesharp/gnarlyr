@@ -224,16 +224,16 @@ static void first_pair(const Core1Dsd *dsd, int32_t *values)
     uint32_t newest = dsd->byte_position - 1 - dsd->lane_start;
     const uint8_t *left = lane(dsd, 0) + newest;
     const uint8_t *right = lane(dsd, 1) + newest;
-    const int32_t *row = dsd->work->table[0];
+    int32_t (*row)[256] = dsd->work->table;
     int32_t a = 0;
     int32_t b = 0;
 #if defined(__arm__)
 #pragma GCC unroll 10
 #endif
     for (uint32_t group = 0; group < dsd->rows; group++) {
-        a += row[*left--];
-        b += row[*right--];
-        row += 256;
+        a += (*row)[*left--];
+        b += (*row)[*right--];
+        row++;
     }
     values[0] = a;
     values[1] = b;
@@ -242,14 +242,14 @@ static void first_pair(const Core1Dsd *dsd, int32_t *values)
 static int32_t first_one(const Core1Dsd *dsd)
 {
     const uint8_t *bytes = lane(dsd, 0) + (dsd->byte_position - 1 - dsd->lane_start);
-    const int32_t *row = dsd->work->table[0];
+    int32_t (*row)[256] = dsd->work->table;
     int32_t sum = 0;
 #if defined(__arm__)
 #pragma GCC unroll 10
 #endif
     for (uint32_t group = 0; group < dsd->rows; group++) {
-        sum += row[*bytes--];
-        row += 256;
+        sum += (*row)[*bytes--];
+        row++;
     }
     return sum;
 }
