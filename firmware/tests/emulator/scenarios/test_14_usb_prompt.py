@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
+    english,
     main,
     BACKLIGHT_PIN,
     CABLE_STEADY_MS,
@@ -236,8 +237,14 @@ class EchoImageTest(EchoImageHarness):
             gains.append(level())
             return 0
         machine.stub_symbol("hal_audio_set_gain", refuse)
-        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY, KEY_MENU):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        details = []
+        machine.hook_symbol("app_show_usb_status", lambda: details.append(
+            machine.read_cstring(machine.reg(UC_ARM_REG_R1)).decode("utf-8", "replace")))
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY,):
             self.press(machine, key)
+        self.assertEqual(english("STR_GAIN_NOT_CHANGED"), details[-1])
+        self.press(machine, KEY_MENU)
         self.assertEqual([before - HIGH_GAIN_RISE_LEVELS], gains)
         self.assertEqual(before, level())
         self.hold_back(machine, LEAVE_HOLD_MS)

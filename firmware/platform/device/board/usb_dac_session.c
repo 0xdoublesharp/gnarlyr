@@ -73,6 +73,7 @@ static DacTally tally;
 static char *const hint = usb_session_screen.hint;
 static int hinted_page;
 static int hint_pages;
+static bool gain_refused;
 static UsbScene *const scene = &usb_session_screen.scene;
 static UsbDacMenu menu;
 static AppDacSettings settings;
@@ -269,7 +270,9 @@ static AppUsbStatus dac_status(void)
     scene->menu = menu_open ? &menu.view : NULL;
     const char *detail = paged_hint();
     if (menu_open) {
-        detail = i18n_text(menu.adjusting ? STR_USB_DAC_ADJUST_HINT : STR_QUICK_SETTINGS_HINT);
+        detail = i18n_text(gain_refused     ? STR_GAIN_NOT_CHANGED
+                           : menu.adjusting ? STR_USB_DAC_ADJUST_HINT
+                                            : STR_QUICK_SETTINGS_HINT);
     }
     return (AppUsbStatus){.view = APP_USB_DAC, .detail = detail, .scene = scene};
 }
@@ -448,6 +451,7 @@ static void set_gain(uint8_t gain)
             set_volume(volume);
         }
         menu.settings.gain = settings.gain;
+        gain_refused = true;
         return;
     }
     settings.gain = gain;
@@ -475,6 +479,7 @@ static void follow_menu(UsbDacAction action)
     if (action == USB_DAC_ACTION_NONE) {
         return;
     }
+    gain_refused = false;
     if (action == USB_DAC_ACTION_CLOSE) {
         menu_open = false;
     } else if (action == USB_DAC_ACTION_COMPUTER) {
@@ -493,6 +498,7 @@ static void open_menu(uint32_t now_ms)
     usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
                       now_ms);
     menu_open = true;
+    gain_refused = false;
     port->hid.held = 0;
     port->hid.skipped = 0;
     show_state();
