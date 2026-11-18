@@ -3,6 +3,8 @@ from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0
 
 import make_image
 
+from . import direct
+
 SLOT_FIRST = make_image.MODULE_BASE
 SLOT_LAST = make_image.MODULE_BASE + make_image.MODULE_CAPACITY - 1
 LOADER = "hal_system_load_module"
@@ -31,7 +33,7 @@ class ModuleWatch:
         self.executed = 0
         self.count_after = None
         self.machine.hook_symbol(LOADER, self.entered)
-        self.machine.uc.hook_add(UC_HOOK_MEM_WRITE, self.slot_written, None, SLOT_FIRST, SLOT_LAST)
+        direct.hook_add(self.machine.uc, UC_HOOK_MEM_WRITE, self.slot_written, None, SLOT_FIRST, SLOT_LAST)
 
     def count_slot_code(self, after_module=None):
         if after_module is not None:
@@ -40,7 +42,7 @@ class ModuleWatch:
         def hook(uc, where, size, user):
             self.executed += 1
 
-        self.machine.uc.hook_add(UC_HOOK_CODE, hook, None, SLOT_FIRST, SLOT_LAST)
+        direct.hook_add(self.machine.uc, UC_HOOK_CODE, hook, None, SLOT_FIRST, SLOT_LAST)
         self.machine.uc.ctl_remove_cache(SLOT_FIRST, SLOT_LAST + 1)
 
     def entered(self):

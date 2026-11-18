@@ -362,6 +362,12 @@ class Budget:
 
 BUDGET_PRESETS = ("release", "device")
 RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
+BUDGET_FLOORS = {
+    "release": {"static": 4096, "workspace": 256, "module": 64, "overlay": 512,
+                "core1": 1024, "language": 1024},
+    "device": {"static": 1024, "workspace": 128, "module": 8, "overlay": 256,
+               "core1": 512, "language": 512},
+}
 BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension",
                   "playing", "effects", "source", "dsd",
                   "equalizer", "ape_wma", "trial"}
@@ -380,14 +386,16 @@ def resident_rows(device, preset):
     return [Budget(preset, "resident code", sizes[".code"], regions[CODE_REGION][1],
                    RESIDENT_CODE_FLOORS[preset]),
             Budget(preset, "static RAM", symbols[DATA_END_SYMBOL] - origin,
-                   symbols.get(DATA_LIMIT_SYMBOL, origin + capacity) - origin),
-            Budget(preset, "decoder workspace", sizes[WORKSPACE_SECTION], regions[WORKSPACE_REGION][1])]
+                   symbols.get(DATA_LIMIT_SYMBOL, origin + capacity) - origin,
+                   BUDGET_FLOORS[preset]["static"]),
+            Budget(preset, "decoder workspace", sizes[WORKSPACE_SECTION],
+                   regions[WORKSPACE_REGION][1], BUDGET_FLOORS[preset]["workspace"])]
 
 
 def overlay_rows(path, text, preset):
     memory = memory_regions(text)
     rows = [Budget(preset, path.stem.removeprefix("echo_"), sum(module_extent(text)),
-                   memory[OVERLAY_REGION][1])]
+                   memory[OVERLAY_REGION][1], BUDGET_FLOORS[preset]["overlay"])]
     if USB_IMAGE_REGION in memory:
         rows.append(Budget(preset, "USB image slot", output_sizes(text)[".overlay"],
                            memory[USB_IMAGE_REGION][1]))
@@ -406,12 +414,14 @@ def core1_rows(path, text, preset):
     static_limit = int(match[1], 16) - memory_regions(text)["CORE1_DATA"][0]
     code_limit = {"core1_vorbis": make_image.CORE1_VORBIS_CAPACITY,
                   "core1_m4a": make_image.CORE1_M4A_CAPACITY}.get(name, make_image.CORE1_MODULE_CAPACITY)
-    rows = [Budget(preset, f"{name} image bank", sections[".text"], code_limit),
+    rows = [Budget(preset, f"{name} image bank", sections[".text"], code_limit,
+                   BUDGET_FLOORS[preset]["core1"]),
             Budget(preset, f"{name} static RAM", sections.get(".bss", 0) + sections.get(".data", 0),
-                   static_limit)]
+                   static_limit, BUDGET_FLOORS[preset]["core1"])]
     if name == "core1_wma":
         rows.append(Budget(preset, "core1_wma workspace", sections.get(".workspace", 0),
-                           memory_regions(text)["CORE1_WORK"][1]))
+                           memory_regions(text)["CORE1_WORK"][1],
+                           BUDGET_FLOORS[preset]["core1"]))
     return rows
 
 
@@ -437,7 +447,8 @@ def budget_rows(build, preset):
             name = path.stem.removeprefix("echo_module_")
             modules.append((name, text))
             rows.append(Budget(preset, f"module {name}", sum(module_extent(text)),
-                               memory_regions(text)[MODULE_REGION][1]))
+                               memory_regions(text)[MODULE_REGION][1],
+                               BUDGET_FLOORS[preset]["module"]))
         elif path.stem in ("echo_rescan_overlay", "echo_usb_overlay"):
             rows += overlay_rows(path, text, preset)
         elif path.stem.startswith("echo_core1"):
@@ -447,7 +458,8 @@ def budget_rows(build, preset):
     if not packs:
         raise ValueError(f"Missing language packs in {build}")
     language = memory_regions(device)[LANGUAGE_REGION][1]
-    return rows + [Budget(preset, f"language {path.stem}", pack_memory(path), language) for path in packs]
+    return rows + [Budget(preset, f"language {path.stem}", pack_memory(path), language,
+                          BUDGET_FLOORS[preset]["language"]) for path in packs]
 
 
 def budget_table(rows):

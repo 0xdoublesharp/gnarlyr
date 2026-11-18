@@ -2,6 +2,8 @@ import struct
 
 import make_image
 
+from . import direct
+
 from unicorn import UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
 
@@ -68,8 +70,8 @@ class AudioPath:
         machine.hook_symbol("dac_set_muted", self.note_mute)
         machine.hook_symbol("hal_audio_play", self.note_play)
         machine.hook_symbol("audio_engine_pump", self.sample_level)
-        machine.uc.hook_add(UC_HOOK_MEM_WRITE, self.ring_write, None, self.ring,
-                            self.ring + RING_BYTES - 1)
+        direct.hook_add(machine.uc, UC_HOOK_MEM_WRITE, self.ring_write, None, self.ring,
+                        self.ring + RING_BYTES - 1)
 
     def note_program(self):
         self.requested_program = self.machine.reg(UC_ARM_REG_R0)

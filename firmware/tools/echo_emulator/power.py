@@ -4,6 +4,7 @@ from collections import Counter
 from unicorn import UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_PC
 
+from . import direct
 from .core1 import CONTROL, RING, SAMPLES, Core1
 from .core1_bridge import CONTROL_BYTES, RING_BYTES, SAMPLE_BYTES
 from .machine import load_symbols
@@ -149,12 +150,12 @@ class DecoderLoad:
             elif value & 0x70000000:
                 self.mhz = PLL_MHZ // ((value >> 12 & 7) + 1)
 
-        uc.hook_add(UC_HOOK_BLOCK, block)
-        uc.hook_add(UC_HOOK_CODE, wfi, None, self.wfi, self.wfi)
-        uc.hook_add(UC_HOOK_MEM_READ, read_current, None, SYSTICK_CURRENT, SYSTICK_CURRENT)
-        uc.hook_add(UC_HOOK_MEM_WRITE, write, None, SYSTICK_RELOAD, SYSTICK_CURRENT)
-        uc.hook_add(UC_HOOK_MEM_WRITE, write, None, CRU_CLOCK_SELECT, CRU_CLOCK_SELECT)
-        uc.hook_add(UC_HOOK_MEM_WRITE, store, None, CONTROL, CONTROL + CONTROL_BYTES - 1)
+        direct.hook_add(uc, UC_HOOK_BLOCK, block)
+        direct.hook_add(uc, UC_HOOK_CODE, wfi, None, self.wfi, self.wfi)
+        direct.hook_add(uc, UC_HOOK_MEM_READ, read_current, None, SYSTICK_CURRENT, SYSTICK_CURRENT)
+        direct.hook_add(uc, UC_HOOK_MEM_WRITE, write, None, SYSTICK_RELOAD, SYSTICK_CURRENT)
+        direct.hook_add(uc, UC_HOOK_MEM_WRITE, write, None, CRU_CLOCK_SELECT, CRU_CLOCK_SELECT)
+        direct.hook_add(uc, UC_HOOK_MEM_WRITE, store, None, CONTROL, CONTROL + CONTROL_BYTES - 1)
 
     def period_us(self):
         return (self.reload + 1) / self.mhz

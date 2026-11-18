@@ -51,6 +51,8 @@ python3 tools/firmware.py fuzz
 
 Without `--target`, the wrapper builds and runs every target for 10,000 executions with seed 1. Repeat `--target` to select several targets. A crash must be reproducible from its Scratch artifact and converted into an ordinary focused unit test before fixing production code. Hand off the regression, fix and passing focused fuzz campaign as one small commit; do not commit the corpus or artifact.
 
+CI compiles every registered fuzzer with AddressSanitizer and UndefinedBehaviorSanitizer and runs a deterministic 1,000-input smoke campaign. A root unit test keeps the wrapper target and seed inventories equal to CMake's fuzzer inventory, so a newly registered harness cannot be silently skipped.
+
 ## Edit and check one component
 
 ```sh
