@@ -104,6 +104,7 @@ static LargeStore large_stores[2];
 
 typedef struct FakeHal {
     uint16_t key_adc;
+    bool loader_keys;
     KeyLadderModel ladder;
     AudioVisualBuffer visual_buffer;
     int visual_reads;
@@ -134,6 +135,9 @@ typedef struct FakeHal {
     int file_count;
     bool fail_music_writes;
     const char *fail_file_writes;
+    const char *damaged_writes;
+    uint32_t damaged_offset;
+    uint8_t damaged_value;
     const char *fail_internal_writes;
     const char *fail_file_opens;
     const char *fail_file_reads;
@@ -322,6 +326,7 @@ void fake_hal_reset(void)
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
     fake.key_adc = FAKE_KEY_IDLE_READING;
+    fake.loader_keys = false;
     key_ladder_model_init(&fake.ladder);
 }
 
@@ -572,6 +577,16 @@ HalHeadsetReading hal_input_headset_reading(void)
 bool hal_input_waiting(void)
 {
     return fake.next_transition != fake.transition_count;
+}
+
+bool hal_input_loader_keys_held(void)
+{
+    return fake.loader_keys;
+}
+
+void fake_hal_set_loader_keys(bool held)
+{
+    fake.loader_keys = held;
 }
 
 bool hal_input_next_transition(HalKeyTransition *transition)
@@ -1838,6 +1853,10 @@ bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uin
     if (store != NULL && offset + length <= file->stored) {
         memcpy(store + offset, bytes, length);
     }
+    if (store != NULL && fake.damaged_writes != NULL && strcmp(path, fake.damaged_writes) == 0 &&
+        fake.damaged_offset < file->stored) {
+        store[fake.damaged_offset] = fake.damaged_value;
+    }
     fake.library_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/library.db") == 0;
     fake.covers_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/covers.bin") == 0;
     return true;
@@ -2149,6 +2168,13 @@ void fake_hal_fail_music_writes(bool fail)
 void fake_hal_fail_file_writes(const char *path)
 {
     fake.fail_file_writes = path;
+}
+
+void fake_hal_damage_file_writes(const char *path, uint32_t offset, uint8_t value)
+{
+    fake.damaged_writes = path;
+    fake.damaged_offset = offset;
+    fake.damaged_value = value;
 }
 
 void fake_hal_fail_file_opens(const char *path)

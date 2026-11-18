@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "app/debug_loop.h"
+#include "core/bytes.h"
 #include "core/drive_path.h"
 #include "cover_cache.h"
 #include "hal/clock.h"
@@ -317,6 +318,24 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
     return outcome;
 }
 
+static void note_firmware(void)
+{
+    uint8_t stored[MUSIC_CHECK_RECORD_BYTES];
+    uint8_t current[MUSIC_CHECK_VERSION_BYTES];
+    if (!music_check_read_at(0, stored, sizeof stored) ||
+        bytes_le32(stored) != MUSIC_CHECK_RECORD_MAGIC) {
+        return;
+    }
+    music_check_put_version(current);
+    bool differs = false;
+    for (uint32_t index = 0; index < MUSIC_CHECK_VERSION_BYTES; index++) {
+        differs |= stored[MUSIC_CHECK_PRINT_BYTES + index] != current[index];
+    }
+    if (differs) {
+        (void)hal_file_write_at(MUSIC_CHECK_PATH, MUSIC_CHECK_PRINT_BYTES, current, sizeof current);
+    }
+}
+
 static RescanOutcome covers_run(uint32_t stops, uint32_t first_album)
 {
     RescanOutcome outcome = {.result = SCAN_OK, .cover_result = SCAN_NO_SCRATCH};
@@ -339,6 +358,9 @@ static RescanOutcome covers_run(uint32_t stops, uint32_t first_album)
     }
     guard.covers_pending = outcome.cover_result == SCAN_STOPPED ? 1 : 0;
     end_guard();
+    if (outcome.cover_result != SCAN_STOPPED) {
+        note_firmware();
+    }
     return outcome;
 }
 

@@ -162,7 +162,7 @@ static void music_check_records_survive_versions_and_scan_interruptions(void)
     CHECK(!music_check_firmware_is_new());
     fake_hal_set_version("two");
     CHECK(music_check_firmware_is_new());
-    music_check_note_firmware();
+    music_record_write(&written);
     CHECK(!music_check_firmware_is_new());
     CHECK(music_record_read(&read));
     CHECK(music_record_same_music(&read, &written, 0));
@@ -170,19 +170,19 @@ static void music_check_records_survive_versions_and_scan_interruptions(void)
     CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
     CHECK_EQUAL(3, music_check_interrupted_scans());
     CHECK(music_check_covers_pending());
-    CHECK(!music_check_settled());
+    CHECK(!music_record_settled());
     guard.running = 0;
     guard.attempts = 1;
     guard.covers_pending = 0;
     CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
     CHECK_EQUAL(0, music_check_interrupted_scans());
     CHECK(!music_check_covers_pending());
-    CHECK(music_check_settled());
+    CHECK(music_record_settled());
     guard.magic ^= 1;
     CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
     CHECK_EQUAL(0, music_check_interrupted_scans());
     CHECK(!music_check_covers_pending());
-    CHECK(music_check_settled());
+    CHECK(music_record_settled());
 }
 
 static void without_a_file_the_defaults_are_used(void)

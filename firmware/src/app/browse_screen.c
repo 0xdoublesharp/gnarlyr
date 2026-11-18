@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include "core/i18n.h"
+#include "core/seam.h"
 #include "core/string_builder.h"
 #include "favorite_playlist.h"
 #include "hal/audio.h"
@@ -447,8 +448,40 @@ static ScreenAction manage_song(void *context)
     return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
 }
 
-Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
-                                 uint32_t now_ms)
+enum {
+    ACTION_ALWAYS,
+    ACTION_INFO,
+    ACTION_TAGS,
+    ACTION_MANAGE
+};
+
+typedef struct SongAction {
+    StringId label;
+    ScreenAction (*select)(void *context);
+    uint8_t needs;
+    bool opens;
+} SongAction;
+
+static const SongAction SONG_ACTIONS[] = {
+    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false},
+    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false},
+    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_ALWAYS, false},
+    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true},
+    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true},
+    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true},
+    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false},
+    {STR_DELETE_FILE, manage_song, ACTION_MANAGE, false},
+};
+
+static bool action_offered(const BrowsePool *pool, uint8_t needs)
+{
+    const bool offered[] = {true, pool->config.info != NULL, pool->config.tags != NULL,
+                            pool->config.manage != NULL};
+    return offered[needs];
+}
+
+CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
+                                           uint32_t now_ms)
 {
     SongActions *actions = &pool->song_actions;
     actions->track = track;
@@ -456,37 +489,15 @@ Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *n
     actions->now_ms = now_ms;
     StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
     string_builder_append(&title, name);
-    actions->items[0] =
-        (MenuItem){.label = i18n_text(STR_PLAY_NEXT), .select = play_song_next, .context = pool};
-    actions->items[1] = (MenuItem){
-        .label = i18n_text(STR_ADD_TO_UP_NEXT), .select = add_song_to_up_next, .context = pool};
-    actions->items[2] = (MenuItem){.label = i18n_text(STR_ADD_TO_FAVORITE_PLAYLIST),
-                                   .select = add_song_to_favorites,
-                                   .context = pool};
-    int count = 3;
-    if (pool->config.info != NULL) {
-        actions->items[count++] = (MenuItem){.label = i18n_text(STR_TRACK_INFO),
-                                             .select = open_track_info,
-                                             .context = pool,
-                                             .opens = true};
-    }
-    if (pool->config.tags != NULL) {
-        actions->items[count++] = (MenuItem){.label = i18n_text(STR_PERSONAL_TAGS),
-                                             .select = open_track_tags,
-                                             .context = pool,
-                                             .opens = true};
-    }
-    if (pool->config.manage != NULL) {
-        actions->items[count++] = (MenuItem){.label = i18n_text(STR_ADD_TO_TAPE),
-                                             .select = add_to_tape,
-                                             .context = pool,
-                                             .opens = true};
-    }
-    for (int index = 0; pool->config.manage != NULL && index < 2; index++) {
-        actions->items[count++] =
-            (MenuItem){.label = i18n_text(index == 0 ? STR_HIDE_TRACK : STR_DELETE_FILE),
-                       .select = manage_song,
-                       .context = pool};
+    int count = 0;
+    for (size_t index = 0; index < sizeof SONG_ACTIONS / sizeof SONG_ACTIONS[0]; index++) {
+        const SongAction *action = &SONG_ACTIONS[index];
+        if (action_offered(pool, action->needs)) {
+            actions->items[count++] = (MenuItem){.label = i18n_text(action->label),
+                                                 .select = action->select,
+                                                 .context = pool,
+                                                 .opens = action->opens};
+        }
     }
     MenuConfig config = {.title = actions->title,
                          .items = actions->items,

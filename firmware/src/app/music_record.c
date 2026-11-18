@@ -3,6 +3,7 @@
 #include "core/bytes.h"
 #include "hal/storage.h"
 #include "music_check.h"
+#include "scan_guard.h"
 
 enum {
     CARD_AT = 4,
@@ -76,4 +77,13 @@ bool music_record_same_music(const MusicRecord *stored, const MusicRecord *curre
 {
     return music_fingerprints_match(stored->card, current->card) &&
            internal_matches(stored, current, internal_songs);
+}
+
+bool music_record_settled(void)
+{
+    uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
+    bool recorded = music_check_read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
+                    bytes_le32(bytes) == SCAN_GUARD_MAGIC;
+    return !recorded ||
+           (bytes[SCAN_GUARD_RUNNING_BYTE] == 0 && bytes[SCAN_GUARD_ATTEMPTS_BYTE] <= 1);
 }

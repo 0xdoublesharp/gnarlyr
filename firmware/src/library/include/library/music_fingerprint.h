@@ -46,3 +46,4 @@ bool music_fingerprint_counts(const char *name, bool directory);
 
 #define MUSIC_WALK_QUIET 0u
 #define MUSIC_WALK_CHECK UINT32_MAX
+#define MUSIC_WALK_MANUAL (UINT32_MAX - 1u)

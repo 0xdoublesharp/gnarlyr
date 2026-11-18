@@ -3652,17 +3652,154 @@ static void a_new_firmware_rescans_music_that_changed(void)
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
 }
 
-static void a_new_firmware_rebuilds_a_library_it_cannot_read(void)
+static uint16_t stored_library_version(void)
+{
+    HalFile file;
+    uint8_t bytes[2] = {0, 0};
+    CHECK(hal_file_open(&file, "/" FIRMWARE_DATA_DIRECTORY "/library.db"));
+    CHECK(hal_file_read(file, 4, bytes, sizeof bytes));
+    hal_file_close(&file);
+    return (uint16_t)(bytes[0] | bytes[1] << 8);
+}
+
+static void a_new_firmware_rebuilds_a_version_one_library(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
-    static const uint8_t OLD_VERSION[2] = {2, 0};
+    static const uint8_t OLD_VERSION[2] = {1, 0};
     CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/library.db", 4, OLD_VERSION,
                             sizeof OLD_VERSION));
     fake_hal_set_version("newer");
     restart_app();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void write_library_header(uint32_t offset, const uint8_t *bytes, uint32_t size)
+{
+    CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/library.db", offset, bytes, size));
+}
+
+static void a_version_one_library_is_rebuilt_at_start_by_the_same_firmware(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_damaged_library_is_rebuilt_at_start_by_the_same_firmware(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t DAMAGED[4] = {'X', 'X', 'X', 'X'};
+    write_library_header(0, DAMAGED, sizeof DAMAGED);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_rebuilt_library_that_still_cannot_be_read_is_not_rebuilt_again(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    fake_hal_damage_file_writes("/" FIRMWARE_DATA_DIRECTORY "/library.db", 4, 9);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(9, stored_library_version());
+    int writes = fake_hal_library_writes();
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(writes, fake_hal_library_writes());
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+}
+
+static void a_refused_library_on_a_changed_card_is_rebuilt_after_an_earlier_rebuild(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    app_start_after_storage();
+    app_request_rescan_if_music_changed();
+    while (app_preparing()) {
+        step();
+    }
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_new_firmware_rebuilds_a_library_no_build_finished(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t NO_MAGIC[4] = {0, 0, 0, 0};
+    write_library_header(0, NO_MAGIC, sizeof NO_MAGIC);
+    fake_hal_set_version("newer");
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_library_no_build_finished_waits_for_new_music(void)
+{
+    start_app();
+    step();
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
+}
+
+static void a_start_rebuild_that_fails_waits_for_the_next_start(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    fake_hal_refuse_scratch(true);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    fake_hal_refuse_scratch(false);
+    restart_app();
+    step();
+    CHECK_EQUAL(3, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_rebuild_that_cannot_record_the_music_is_not_repeated(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    fake_hal_set_version("newer");
+    fake_hal_break_module(SCREEN_MODULE_EQUALIZER, true);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    int writes = fake_hal_library_writes();
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(writes, fake_hal_library_writes());
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    fake_hal_break_module(SCREEN_MODULE_EQUALIZER, false);
 }
 
 static void a_different_stored_fingerprint_is_rescanned_after_usb(void)
@@ -4050,6 +4187,127 @@ static void switching_off_on_usb_power_shows_the_charge_screen(void)
     CHECK(app_charging());
     CHECK(fake_hal_display_on());
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void hold_loader_keys(Key first, Key second)
+{
+    if (first == KEY_POWER) {
+        fake_hal_queue_transition(first, true, now_ms);
+        keep_holding(300);
+    }
+    fake_hal_set_loader_keys(true);
+    if (first != KEY_POWER) {
+        fake_hal_queue_transition(first, true, now_ms);
+    }
+    fake_hal_queue_transition(second, true, now_ms);
+    keep_holding(3000);
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    keep_holding(100);
+}
+
+static void power_and_volume_up_held_for_the_loader_neither_switch_off_nor_skip(void)
+{
+    const Key orders[][2] = {{KEY_VOLUME_UP, KEY_POWER}, {KEY_POWER, KEY_VOLUME_UP}};
+    for (int order = 0; order < 2; order++) {
+        start_app_with_library();
+        play_first_album_track();
+        fake_hal_set_battery(ON_USB);
+        uint16_t track = app_player_status().track;
+        uint8_t volume = fake_hal_audio_volume();
+        hold_loader_keys(orders[order][0], orders[order][1]);
+        wait_ms(GOODBYE_MS);
+        CHECK(!app_charging());
+        CHECK_EQUAL(0, fake_hal_power_off_count());
+        CHECK_EQUAL(track, app_player_status().track);
+        CHECK_EQUAL(volume, fake_hal_audio_volume());
+        CHECK(fake_hal_display_on());
+        hold_power();
+        wait_ms(GOODBYE_MS);
+        CHECK(app_charging());
+    }
+}
+
+static void brush_volume_up_while_power_is_held(void)
+{
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    keep_holding(300);
+    fake_hal_set_loader_keys(true);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    keep_holding(100);
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    keep_holding(100);
+}
+
+static void a_brushed_volume_up_leaves_a_held_power_switching_off(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery(ON_USB);
+    uint16_t track = app_player_status().track;
+    brush_volume_up_while_power_is_held();
+    keep_holding(2100);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    CHECK_EQUAL(track, app_player_status().track);
+}
+
+static void a_brushed_volume_up_leaves_a_held_power_waking_the_charge_screen(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    brush_volume_up_while_power_is_held();
+    keep_holding(2100);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    wait_ms(100);
+    CHECK(!app_charging());
+}
+
+static void rolling_from_the_lock_chord_to_the_loader_keys_does_not_lock(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    keep_holding(300);
+    fake_hal_set_loader_keys(true);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    keep_holding(1500);
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    keep_holding(100);
+    CHECK(app_toast_text() == NULL || strcmp(app_toast_text(), "Buttons locked") != 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void a_volume_up_held_before_power_stops_when_the_loader_keys_start(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    keep_holding(50);
+    uint8_t volume = fake_hal_audio_volume();
+    fake_hal_set_loader_keys(true);
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    keep_holding(3000);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK(!app_charging());
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    keep_holding(100);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
 }
 
 static void the_charge_screen_goes_dark_and_a_key_lights_it(void)
@@ -7348,7 +7606,15 @@ int main(void)
         TEST_CASE(the_music_check_after_usb_says_so_before_walking_the_card),
         TEST_CASE(a_new_firmware_rescans_music_that_changed),
         TEST_CASE(a_scan_notice_redraws_the_text_it_was_given),
-        TEST_CASE(a_new_firmware_rebuilds_a_library_it_cannot_read),
+        TEST_CASE(a_new_firmware_rebuilds_a_version_one_library),
+        TEST_CASE(a_version_one_library_is_rebuilt_at_start_by_the_same_firmware),
+        TEST_CASE(a_damaged_library_is_rebuilt_at_start_by_the_same_firmware),
+        TEST_CASE(a_rebuilt_library_that_still_cannot_be_read_is_not_rebuilt_again),
+        TEST_CASE(a_library_no_build_finished_waits_for_new_music),
+        TEST_CASE(a_refused_library_on_a_changed_card_is_rebuilt_after_an_earlier_rebuild),
+        TEST_CASE(a_new_firmware_rebuilds_a_library_no_build_finished),
+        TEST_CASE(a_start_rebuild_that_fails_waits_for_the_next_start),
+        TEST_CASE(a_rebuild_that_cannot_record_the_music_is_not_repeated),
         TEST_CASE(a_card_that_cannot_be_walked_is_rescanned_after_usb),
         TEST_CASE(a_scan_cut_short_runs_again_at_the_next_start),
         TEST_CASE(after_three_scans_cut_short_the_next_start_scans_without_covers),
@@ -7361,6 +7627,11 @@ int main(void)
         TEST_CASE(an_empty_battery_saves_and_turns_the_player_off),
         TEST_CASE(an_empty_battery_on_usb_power_keeps_playing),
         TEST_CASE(switching_off_on_usb_power_shows_the_charge_screen),
+        TEST_CASE(power_and_volume_up_held_for_the_loader_neither_switch_off_nor_skip),
+        TEST_CASE(a_brushed_volume_up_leaves_a_held_power_switching_off),
+        TEST_CASE(a_brushed_volume_up_leaves_a_held_power_waking_the_charge_screen),
+        TEST_CASE(rolling_from_the_lock_chord_to_the_loader_keys_does_not_lock),
+        TEST_CASE(a_volume_up_held_before_power_stops_when_the_loader_keys_start),
         TEST_CASE(the_charge_screen_goes_dark_and_a_key_lights_it),
         TEST_CASE(charging_motion_waits_for_its_next_frame_and_stops_in_the_dark),
         TEST_CASE(charging_keeps_its_renderer_loaded_until_the_player_wakes),

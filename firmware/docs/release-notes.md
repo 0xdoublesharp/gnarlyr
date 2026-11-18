@@ -70,7 +70,7 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 
 ## Unreleased: formats start at version 1
 
-- Every Gnarlyr file and pack format is version 1, using its current layout: settings, language packs, theme packs, the library, the stores and the small files ([formats](../../docs/formats.md)). Files written by earlier development builds are refused and replaced by defaults or rebuilt; settings reset once.
+- Every Gnarlyr file and pack format is version 1, using its current layout: settings, language packs, theme packs, the stores and the small files ([formats](../../docs/formats.md)). The library is version 2, so a library written before folders of untagged files were sorted by name is rebuilt at the next start. Files written by earlier development builds are refused and replaced by defaults or rebuilt; settings reset once.
 - Language packs are segmented: text used by one screen group loads with that group, so a pack needs only its shared text and its largest group in the player's 18 KiB of language memory.
 - A pack file with a damaged part is not offered in Settings → Language. If the card holding the chosen pack is removed, screens opened afterwards show English until the card is back.
 - Checked in host tests, the tool and browser tests and the emulator; not yet seen on a player.
@@ -87,12 +87,15 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
   transitions, ID3 artwork and DFF DIIN artist/title fallback in both scanners.
 - Core 1 requests 200 MHz for stereo DSD64, DSD128 and mono DSD256, and for
   Vorbis above 96 kHz. Idle work and other streams retain 100 MHz. Stereo
-  DSD256 is refused with a 20% instruction reserve; DST and multichannel DSD
-  remain unsupported. Stock/hardware clock limits and software transitions
+  DSD256 is refused; DST and multichannel DSD remain unsupported. Stock/hardware clock limits and software transitions
   are documented in [the clock reference](core1-clock.md).
 - Generated native reference tests, filter-response checks and ARM decoder
   comparisons cover software behavior. Physical playback and real-time margin
   have not been checked on the player.
+- The converter now needs about a third fewer core-1 instructions for the same
+  output (stereo DSD64: 1.91 to 1.22 million per 20 ms in the emulator). Its
+  load on the player has not been measured yet. Stereo DSD256 now fits the
+  instruction screen too but stays refused until it is checked on the player.
 
 ## Unreleased: AIFF playback
 

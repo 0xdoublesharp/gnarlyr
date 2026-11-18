@@ -5,6 +5,7 @@
 
 #include "core/format.h"
 #include "core/i18n.h"
+#include "core/seam.h"
 #include "core/string_builder.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
@@ -481,7 +482,7 @@ void player_jump(Player *player, int32_t delta_ms)
     player_seek(player, target);
 }
 
-void player_skip(Player *player, int direction)
+CORE_SEAM void player_skip(Player *player, int direction)
 {
     player_queue_cancel(player);
     if (!player->has_track) {

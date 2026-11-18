@@ -67,3 +67,12 @@ bool key_lock_update(KeyLock *lock, uint32_t now_ms)
     lock->locked = !lock->locked;
     return true;
 }
+
+void key_lock_interrupt(KeyLock *lock)
+{
+    lock->combo = false;
+    lock->shortcut = 0;
+    lock->held[KEY_POWER] = false;
+    lock->held[KEY_VOLUME_UP] = false;
+    lock->held[KEY_VOLUME_DOWN] = false;
+}

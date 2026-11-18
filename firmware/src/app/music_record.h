@@ -20,5 +20,6 @@ typedef struct MusicRecord {
 
 bool music_record_read(MusicRecord *record);
 void music_record_write(const MusicRecord *record);
+bool music_record_settled(void);
 bool music_record_same_music(const MusicRecord *stored, const MusicRecord *current,
                              uint32_t internal_songs);

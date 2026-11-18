@@ -130,6 +130,7 @@ typedef struct AppState {
     uint32_t battery_check_ms;
     bool usb_power;
     bool rescan_requested;
+    bool library_rebuilt;
     uint8_t rescan_stops;
     bool covers_pending;
     bool rescan_manual;
@@ -178,6 +179,8 @@ typedef struct AppState {
     uint32_t charge_lit_until_ms;
     KeyLock lock;
     KeyChord chord;
+    uint8_t raw_held;
+    bool loader_keys;
     HalBattery charge_battery;
     HalAudioJack listener_jack;
     bool listener_bluetooth;
@@ -272,11 +275,8 @@ static bool pass_through_chord(Key key, HalKeyTransition transition)
     return action == KEY_CHORD_START;
 }
 
-static void take_transition(HalKeyTransition transition, bool scripted)
+static void dispatch_transition(HalKeyTransition transition, Key key, bool scripted)
 {
-    hal_system_coast(false);
-    app.render_urgent = true;
-    Key key = oriented_key(transition);
     KeyLockVerdict verdict =
         key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
     bool chord = verdict == KEY_LOCK_PASS && pass_through_chord(key, transition);
@@ -309,9 +309,61 @@ static void take_transition(HalKeyTransition transition, bool scripted)
     }
 }
 
+enum {
+    LOADER_KEYS = 1u << KEY_POWER | 1u << KEY_VOLUME_UP
+};
+
+static bool loader_gesture_key(Key key)
+{
+    return key == KEY_POWER || key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN;
+}
+
+static void start_loader_keys(void)
+{
+    key_tracker_cancel(&app.keys, KEY_POWER);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_UP);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_DOWN);
+    key_lock_interrupt(&app.lock);
+}
+
+static bool follow_loader_keys(uint32_t time_ms)
+{
+    bool was = app.loader_keys;
+    app.loader_keys = (app.raw_held & ~LOADER_KEYS) == 0 && hal_input_loader_keys_held();
+    if (app.loader_keys && !was) {
+        start_loader_keys();
+    } else if (was && !app.loader_keys && (app.raw_held & 1u << KEY_POWER) != 0 &&
+               key_lock_transition(&app.lock, KEY_POWER, true, time_ms) == KEY_LOCK_PASS) {
+        key_tracker_resume(&app.keys, KEY_POWER, time_ms);
+    }
+    return was || app.loader_keys;
+}
+
+static bool loader_keys_take(HalKeyTransition transition, Key key)
+{
+    uint8_t bit = (uint8_t)(1u << transition.key);
+    app.raw_held = transition.pressed ? app.raw_held | bit : app.raw_held & (uint8_t)~bit;
+    return follow_loader_keys(transition.time_ms) && loader_gesture_key(key);
+}
+
+static void take_transition(HalKeyTransition transition, bool scripted)
+{
+    hal_system_coast(false);
+    app.render_urgent = true;
+    Key key = oriented_key(transition);
+    if (!scripted && loader_keys_take(transition, key)) {
+        debug_loop_ladder(transition, false);
+        return;
+    }
+    dispatch_transition(transition, key, scripted);
+}
+
 static void read_input(void)
 {
     HalKeyTransition transition;
+    if (!app.loader_keys) {
+        follow_loader_keys(hal_clock_milliseconds());
+    }
     while (hal_input_next_transition(&transition)) {
         if (transition.pressed) {
             debug_runner_key_pressed();
@@ -1517,23 +1569,35 @@ static void change_language(uint32_t now_ms)
     }
 }
 
-static void request_start_scan(bool library_created)
+CORE_COLD static bool library_refused(void)
+{
+    HalFile file;
+    uint8_t magic[4] = {0, 0, 0, 0};
+    if (app.library.available || app.library_rebuilt || !hal_file_open(&file, LIBRARY_STORE_PATH)) {
+        return false;
+    }
+    bool read = hal_file_read(file, 0, magic, sizeof magic);
+    hal_file_close(&file);
+    return read && (magic[0] | magic[1] | magic[2] | magic[3]) != 0;
+}
+
+CORE_COLD static void request_start_scan(bool library_created)
 {
     app.covers_pending = music_check_covers_pending();
     uint32_t stopped = music_check_interrupted_scans();
     bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
-    if (library_created || resume) {
+    if (library_created || resume || (stopped == 0 && library_refused())) {
         app.rescan_requested = true;
         app.rescan_stops = resume ? (uint8_t)stopped : 0;
-    } else if (stopped == 0 && music_check_firmware_is_new()) {
+    } else if (stopped == 0 && !app.library_rebuilt && music_check_firmware_is_new()) {
         app.covers_pending = true;
         app.music_check_requested = true;
-    } else if (stopped == 0 && music_check_generation_moved()) {
+    } else if (stopped == 0 && !app.library_rebuilt && music_check_generation_moved()) {
         app.music_check_requested = true;
     }
 }
 
-static void report_card_files(CardFilesReport files, uint32_t now_ms)
+CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
@@ -1629,6 +1693,7 @@ CORE_COLD bool app_store_clock_offset(int16_t offset, bool from_storage)
 
 CORE_SEAM void app_start(void)
 {
+    app.library_rebuilt = false;
     start_app(true);
 }
 
@@ -1681,7 +1746,7 @@ static void explain_refusals(uint32_t now_ms)
     }
 }
 
-static bool walk_music(uint32_t files)
+CORE_COLD static bool walk_music(uint32_t files)
 {
     const ParametricModuleEntry *module =
         (const ParametricModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_EQUALIZER);
@@ -1712,9 +1777,6 @@ static void continue_covers(uint32_t now_ms)
     app.covers_album = (uint16_t)outcome.covers.next_album;
     bool stopped = outcome.cover_result == SCAN_STOPPED;
     app.covers_pending = stopped;
-    if (!stopped) {
-        music_check_note_firmware();
-    }
     debug_loop_event(DEBUG_EVENT_SCAN,
                      stopped ? scan_event(DEBUG_SCAN_COVERS_STOPPED, app.covers_album)
                              : scan_event(DEBUG_SCAN_COVERS_DONE, outcome.covers.covers));
@@ -1723,7 +1785,7 @@ static void continue_covers(uint32_t now_ms)
     app.render_wanted = true;
 }
 
-static void run_rescan(void)
+CORE_COLD static void run_rescan(void)
 {
     save_session();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
@@ -1735,6 +1797,7 @@ static void run_rescan(void)
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
         (void)walk_music(outcome.stats.files);
+        app.library_rebuilt = true;
         bool charging = app.charging;
         start_app(false);
         if (charging) {
@@ -2194,9 +2257,8 @@ CORE_SEAM void app_step(void)
         }
         if (app.music_check_requested || app.rescan_manual) {
             app.music_check_requested = false;
-            bool changed =
-                hal_system_restart_pending() ||
-                (app.rescan_manual && (music_check_firmware_is_new() || !music_check_settled()));
+            bool changed = hal_system_restart_pending() ||
+                           (app.rescan_manual && walk_music(MUSIC_WALK_MANUAL));
             if (!changed) {
                 show_working_notice(STR_MUSIC, i18n_text(STR_CHECKING_MUSIC), WIRE_SHAPE_DISC);
                 changed = walk_music(MUSIC_WALK_CHECK) || !library_store_open(&app.library);
@@ -2455,6 +2517,8 @@ void app_resume_after_usb(void)
     bool locked = app.lock.locked;
     key_tracker_release_all(&app.keys);
     app.lock = (KeyLock){.locked = locked};
+    app.raw_held = 0;
+    app.loader_keys = false;
     app.chord = (KeyChord){.allowed = false};
     app_wake();
 }

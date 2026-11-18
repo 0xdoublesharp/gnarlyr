@@ -176,6 +176,9 @@ static void remember(const MusicRecord *current)
 
 bool music_walk_run(uint32_t files)
 {
+    if (files == MUSIC_WALK_MANUAL) {
+        return music_check_firmware_is_new() || !music_record_settled();
+    }
     MusicRecord stored = {.internal_state = MUSIC_DRIVE_NONE};
     bool known = music_record_read(&stored);
     bool check = files == MUSIC_WALK_CHECK;

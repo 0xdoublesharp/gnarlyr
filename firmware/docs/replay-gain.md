@@ -48,7 +48,7 @@ These limits cover the declared source peak. Later EQ or other processing needs 
 
 ## Library cache
 
-The version 1 library header, its ten sections and its 32-byte track records stay unchanged. An optional extension begins immediately after the greatest section end, without extra alignment. Its data is excluded from the library content fingerprint, so adding or changing gains preserves queue and personal-label identities when the base library is otherwise identical. The existing device and desktop writers have different string-deduplication layouts; an extension binds to the fingerprint of the base that its writer produced.
+The version 2 library header, its ten sections and its 32-byte track records stay unchanged. An optional extension begins immediately after the greatest section end, without extra alignment. Its data is excluded from the library content fingerprint, so adding or changing gains preserves queue and personal-label identities when the base library is otherwise identical. The existing device and desktop writers have different string-deduplication layouts; an extension binds to the fingerprint of the base that its writer produced.
 
 The extension header is 20 bytes, little-endian:
 

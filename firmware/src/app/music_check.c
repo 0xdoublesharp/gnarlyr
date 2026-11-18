@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/bytes.h"
+#include "core/seam.h"
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "scan_guard.h"
@@ -11,7 +12,7 @@
 const char MUSIC_CHECK_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/scan.bin";
 const char MUSIC_GENERATION_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/music_gen.bin";
 
-bool music_check_read_at(uint32_t offset, uint8_t *bytes, uint32_t length)
+CORE_COLD bool music_check_read_at(uint32_t offset, uint8_t *bytes, uint32_t length)
 {
     HalFile file;
     if (!hal_file_open(&file, MUSIC_CHECK_PATH)) {
@@ -27,7 +28,7 @@ static bool read_bytes(uint8_t *bytes)
     return music_check_read_at(0, bytes, MUSIC_CHECK_RECORD_BYTES);
 }
 
-void music_check_put_version(uint8_t *bytes)
+CORE_COLD void music_check_put_version(uint8_t *bytes)
 {
     const char *version = hal_system_version();
     for (size_t index = 0; index < MUSIC_CHECK_VERSION_BYTES; index++) {
@@ -51,40 +52,20 @@ static bool version_matches(const uint8_t *bytes)
     return true;
 }
 
-bool music_check_firmware_is_new(void)
+CORE_COLD bool music_check_firmware_is_new(void)
 {
     uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
     return read_bytes(bytes) && !version_matches(bytes + MUSIC_CHECK_PRINT_BYTES);
 }
 
-void music_check_note_firmware(void)
-{
-    uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
-    if (read_bytes(bytes) && bytes_le32(bytes) == MUSIC_CHECK_RECORD_MAGIC &&
-        !version_matches(bytes + MUSIC_CHECK_PRINT_BYTES)) {
-        music_check_put_version(bytes + MUSIC_CHECK_PRINT_BYTES);
-        (void)hal_file_write_at(MUSIC_CHECK_PATH, MUSIC_CHECK_PRINT_BYTES,
-                                bytes + MUSIC_CHECK_PRINT_BYTES, MUSIC_CHECK_VERSION_BYTES);
-    }
-}
-
-bool music_check_settled(void)
-{
-    uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
-    bool recorded = music_check_read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
-                    bytes_le32(bytes) == SCAN_GUARD_MAGIC;
-    return !recorded ||
-           (bytes[SCAN_GUARD_RUNNING_BYTE] == 0 && bytes[SCAN_GUARD_ATTEMPTS_BYTE] <= 1);
-}
-
-bool music_check_covers_pending(void)
+CORE_COLD bool music_check_covers_pending(void)
 {
     uint8_t bytes[SCAN_GUARD_COVERS_BYTE + 1];
     return music_check_read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
            bytes_le32(bytes) == SCAN_GUARD_MAGIC && bytes[SCAN_GUARD_COVERS_BYTE] != 0;
 }
 
-uint32_t music_check_interrupted_scans(void)
+CORE_COLD uint32_t music_check_interrupted_scans(void)
 {
     uint8_t bytes[SCAN_GUARD_ATTEMPTS_BYTE + 1];
     bool running = music_check_read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
@@ -92,14 +73,14 @@ uint32_t music_check_interrupted_scans(void)
     return running ? bytes[SCAN_GUARD_ATTEMPTS_BYTE] : 0;
 }
 
-uint32_t music_check_generation(void)
+CORE_COLD uint32_t music_check_generation(void)
 {
     uint8_t bytes[4];
     return hal_internal_file_read(MUSIC_GENERATION_PATH, bytes, sizeof bytes) ? bytes_le32(bytes)
                                                                               : 0;
 }
 
-void music_check_bump_generation(void)
+CORE_COLD void music_check_bump_generation(void)
 {
     uint32_t next = music_check_generation() + 1u;
     uint8_t bytes[4] = {(uint8_t)next, (uint8_t)(next >> 8), (uint8_t)(next >> 16),
@@ -107,7 +88,7 @@ void music_check_bump_generation(void)
     (void)hal_internal_file_write_at(MUSIC_GENERATION_PATH, 0, bytes, sizeof bytes);
 }
 
-bool music_check_generation_moved(void)
+CORE_COLD bool music_check_generation_moved(void)
 {
     uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
     return read_bytes(bytes) && bytes_le32(bytes) == MUSIC_CHECK_RECORD_MAGIC &&

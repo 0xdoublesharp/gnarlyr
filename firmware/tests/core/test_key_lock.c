@@ -11,6 +11,24 @@ static KeyLock hold_combo(KeyLock lock, uint32_t start_ms)
     return lock;
 }
 
+static void an_interruption_ends_a_combination_and_power_shortcuts(void)
+{
+    KeyLock lock = {0};
+    key_lock_transition(&lock, KEY_PLAY, true, 0);
+    key_lock_transition(&lock, KEY_POWER, true, 10);
+    key_lock_interrupt(&lock);
+    CHECK(!key_lock_update(&lock, 10 + KEY_LOCK_HOLD_MS));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_PLAY, false, 1500));
+    CHECK(!key_lock_update(&lock, 2000));
+    CHECK(!lock.locked);
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_VOLUME_UP, true, 2100));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 2200));
+    key_lock_interrupt(&lock);
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_VOLUME_DOWN, true, 2300));
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_POWER, true, 2400));
+    CHECK_EQUAL(KEY_LOCK_SHORTCUT, key_lock_transition(&lock, KEY_VOLUME_UP, true, 2500));
+}
+
 static void holding_play_and_power_locks_and_unlocks(void)
 {
     KeyLock lock = hold_combo((KeyLock){0}, 0);
@@ -151,6 +169,7 @@ int main(void)
         TEST_CASE(shortcuts_fire_once_and_drain_both_release_orders),
         TEST_CASE(power_rocker_is_available_while_locked),
         TEST_CASE(holding_play_and_power_locks_and_unlocks),
+        TEST_CASE(an_interruption_ends_a_combination_and_power_shortcuts),
         TEST_CASE(the_combination_starts_on_the_second_key_and_swallows_both),
         TEST_CASE(a_short_combination_changes_nothing),
         TEST_CASE(a_long_combination_toggles_only_once),

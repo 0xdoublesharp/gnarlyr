@@ -326,6 +326,8 @@ set(ECHO_OVERLAY_IMPORTS
     hal_dir_open
     drive_path_internal
     hal_file_combined
+    music_check_read_at
+    music_check_put_version
     storage_listing_begin
     fat_collect_long_name
     fat_entry_file

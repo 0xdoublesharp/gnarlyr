@@ -65,6 +65,19 @@ uint32_t music_check_generation(void)
     return generation;
 }
 
+static bool firmware_new;
+static bool settled = true;
+
+bool music_check_firmware_is_new(void)
+{
+    return firmware_new;
+}
+
+bool music_record_settled(void)
+{
+    return settled;
+}
+
 bool hal_file_combined(void)
 {
     return combined;
@@ -203,6 +216,19 @@ static void a_combined_library_also_walks_internal_storage_from_its_root(void)
     combined = false;
 }
 
+static void a_manual_rescan_is_a_change_after_new_firmware_or_an_unfinished_scan(void)
+{
+    now = entries = frames = last_frame = 0;
+    CHECK(!music_walk_run(MUSIC_WALK_MANUAL));
+    CHECK_EQUAL(0, (int)entries);
+    firmware_new = true;
+    CHECK(music_walk_run(MUSIC_WALK_MANUAL));
+    firmware_new = false;
+    settled = false;
+    CHECK(music_walk_run(MUSIC_WALK_MANUAL));
+    settled = true;
+}
+
 static void finishing_after_a_scan_shows_the_share_of_the_last_walk(void)
 {
     now = entries = frames = last_frame = 0;
@@ -233,6 +259,7 @@ int main(void)
         TEST_CASE(remembering_without_a_record_expects_a_quarter_more_than_the_scanned_files),
         TEST_CASE(an_unchanged_check_records_a_moved_generation_and_otherwise_writes_nothing),
         TEST_CASE(a_combined_library_also_walks_internal_storage_from_its_root),
+        TEST_CASE(a_manual_rescan_is_a_change_after_new_firmware_or_an_unfinished_scan),
         TEST_CASE(finishing_after_a_scan_shows_the_share_of_the_last_walk),
         TEST_CASE(finishing_stops_below_one_hundred_when_the_card_grew),
     };

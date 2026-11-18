@@ -97,6 +97,7 @@ const HalBluetoothDevice *fake_hal_bluetooth_connect_target(void);
 int fake_hal_bluetooth_disconnect_count(void);
 void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms);
 void fake_hal_set_key_adc(uint16_t reading);
+void fake_hal_set_loader_keys(bool held);
 void fake_hal_queue_reading_sample(uint16_t reading, uint32_t time_ms);
 void fake_hal_drop_transitions(void);
 void fake_hal_queue_headset_command(HalHeadsetCommand command);
@@ -171,6 +172,7 @@ const uint8_t *fake_hal_file_bytes(const char *path, uint32_t *size);
 
 void fake_hal_fail_music_writes(bool fail);
 void fake_hal_fail_file_writes(const char *path);
+void fake_hal_damage_file_writes(const char *path, uint32_t offset, uint8_t value);
 void fake_hal_fail_file_opens(const char *path);
 
 void fake_hal_fail_file_reads(const char *path);
