@@ -154,6 +154,19 @@ static void only_an_unsupported_ape_variant_is_marked_unsupported(void)
     CHECK(track.unsupported);
 }
 
+static void a_damaged_ape_after_an_unsupported_one_is_not_reported_as_unsupported(void)
+{
+    ApeTrack track;
+    FlacInput input = fixture();
+    put(4, 3960);
+    CHECK(!ape_track_probe(input, &track));
+    CHECK(track.unsupported);
+    input = fixture();
+    put(80, UINT32_MAX);
+    CHECK(!ape_track_probe(input, &track));
+    CHECK(!track.unsupported);
+}
+
 static void accepts_supported_depths_channels_and_rates(void)
 {
     for (uint32_t bits = 16; bits <= 24; bits += 8) {
@@ -212,6 +225,7 @@ int main(void)
         TEST_CASE(legacy_headers_reject_unsupported_and_short_seek_tables),
         TEST_CASE(refuses_damaged_bounds_without_replacing_the_result),
         TEST_CASE(only_an_unsupported_ape_variant_is_marked_unsupported),
+        TEST_CASE(a_damaged_ape_after_an_unsupported_one_is_not_reported_as_unsupported),
         TEST_CASE(accepts_supported_depths_channels_and_rates),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

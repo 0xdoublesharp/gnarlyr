@@ -95,7 +95,11 @@ bool ape_track_probe(FlacInput input, ApeTrack *track)
 {
     uint8_t head[52];
     ApeTrack candidate = {0};
-    if (track == NULL || input.read == NULL || input.size < sizeof head ||
+    if (track == NULL) {
+        return false;
+    }
+    track->unsupported = false;
+    if (input.read == NULL || input.size < sizeof head ||
         !input.read(input.context, 0, head, sizeof head) || little32(head) != 0x2043414Du) {
         return false;
     }

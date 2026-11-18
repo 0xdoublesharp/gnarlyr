@@ -19,6 +19,9 @@ from echo_image_harness import (
     struct,
 )
 
+MP4_TRACK_BYTES = 92
+MP4_TRACK_UNSUPPORTED_AT = 89
+
 
 class EchoImageTest(EchoImageHarness):
     def test_analog_seek_clears_old_pcm_and_output_changes_fade(self):
@@ -278,6 +281,32 @@ class EchoImageTest(EchoImageHarness):
         self.assertNotIn("Only WMA Standard (v1/v2) plays", toasts)
         self.assertEqual([], rig.audio.audible)
         self.assert_healthy(rig.session)
+
+    def test_an_m4a_probe_without_its_audio_module_reports_nothing_unsupported(self):
+        from echo_emulator.machine import TRAMPOLINE, STUB_RETURN, PAGE
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
+        session = self.session()
+        machine = session.machine
+        number, dsp = self.module(machine, "dsp")
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, number, 32, lambda byte: byte ^ 1)
+        session.run_to_first_frame()
+        session.run_to_home_screen()
+        self.assertFalse(dsp.loaded(machine))
+        track = TRAMPOLINE + PAGE
+        machine.uc.mem_map(track, PAGE)
+        machine.uc.mem_write(track, b"\xff" * MP4_TRACK_BYTES)
+        returned = TRAMPOLINE + 0x904
+        machine.add_address_hook(returned, lambda: machine.stop("probe returned"))
+        for register, value in zip((UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3),
+                                   (STUB_RETURN | 1, 0, 4096, track)):
+            machine.uc.reg_write(register, value)
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["mp4_probe"] | 1)
+        self.assertEqual("probe returned", machine.run(until_ms=machine.milliseconds() + 2000))
+        self.assertEqual(0, machine.reg(UC_ARM_REG_R0))
+        self.assertEqual(0, machine.read_memory(track + MP4_TRACK_UNSUPPORTED_AT, 1)[0])
 
     def test_ape_player_runs_both_arm_cores_and_resumes_at_the_saved_sample(self):
         from echo_emulator.core1_bridge import CORE1_APE, Core1Bridge

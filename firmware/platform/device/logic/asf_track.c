@@ -93,9 +93,10 @@ static bool audio_stream(FlacInput input, uint32_t at, uint32_t size, AsfTrack *
     for (uint32_t index = 0; index < track->extra_bytes; index++) {
         track->extra[index] = bytes[72 + index];
     }
-    track->unsupported = (track->codec != 0x160 && track->codec != 0x161) || track->channels < 1 ||
-                         track->channels > 2 || track->rate < 8000 || track->rate > 48000;
-    return !track->unsupported && track->block_align > 0 && track->block_align <= WMA_PACKET_BYTES;
+    track->unsupported = (track->codec != 0x160 && track->codec != 0x161) || track->channels > 2 ||
+                         track->rate > 48000;
+    return !track->unsupported && track->channels >= 1 && track->rate >= 8000 &&
+           track->block_align > 0 && track->block_align <= WMA_PACKET_BYTES;
 }
 
 static bool object(FlacInput input, uint32_t *offset, uint32_t limit, AsfTrack *track)
@@ -175,7 +176,7 @@ bool asf_track_probe(FlacInput input, AsfTrack *track)
         return false;
     }
     if (!probe(input, &found)) {
-        track->unsupported = track->unsupported || found.unsupported;
+        track->unsupported = found.unsupported;
         return false;
     }
     *track = found;

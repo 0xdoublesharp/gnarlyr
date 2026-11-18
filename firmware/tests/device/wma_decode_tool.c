@@ -42,7 +42,7 @@ int main(int argc, char **argv)
         return 3;
     }
     long length = ftell(file);
-    AsfTrack track;
+    AsfTrack track = {0};
     uint32_t start_ms = argc >= 3 ? (uint32_t)strtoul(argv[2], NULL, 10) : 0;
     if (length < 0 || (uint64_t)length > UINT32_MAX ||
         !asf_track_probe((FlacInput){read_file, file, (uint32_t)length}, &track) ||
