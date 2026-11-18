@@ -349,6 +349,155 @@ static void container(uint32_t ratio, uint32_t layout, uint32_t channels)
     }
 }
 
+enum {
+    PINNED_BITS = 300003,
+    PINNED_BYTES = (PINNED_BITS + 7) / 8,
+    PINNED_BLOCKS = (PINNED_BYTES + 4095) / 4096
+};
+
+typedef struct PinnedInput {
+    uint32_t calls;
+    bool flaky;
+} PinnedInput;
+
+static uint8_t pinned_signal[2][PINNED_BLOCKS * 4096];
+
+static bool pinned_read(void *context, uint32_t offset, void *out, uint32_t count)
+{
+    PinnedInput *pinned = context;
+    if (pinned->flaky && pinned->calls++ % 3 == 1) {
+        return false;
+    }
+    return read_file(NULL, offset, out, count);
+}
+
+static void pinned_make(uint32_t kind, uint32_t ratio)
+{
+    uint32_t state = 0x2545f491u * (kind + 1) + ratio;
+    for (uint32_t channel = 0; channel < 2; channel++) {
+        int32_t error = 0;
+        uint32_t phase = 0;
+        uint32_t step = (uint32_t)(((uint64_t)(997 + 1234 * channel) << 32) / (2822400u * ratio));
+        memset(pinned_signal[channel], kind == 3 ? 0xff : 0x69, sizeof pinned_signal[channel]);
+        for (uint32_t bit = 0; bit < PINNED_BITS && kind < 2; bit++) {
+            int32_t turn = (int32_t)phase >> 16;
+            int32_t wanted = turn * (32768 - abs(turn)) / 18204;
+            phase += step;
+            state = state * 1664525u + 1013904223u;
+            error += wanted;
+            bool one = kind == 0 ? error >= 0 : (state >> 31) != 0;
+            error -= one ? 32768 : -32768;
+            uint8_t *byte = &pinned_signal[channel][bit / 8];
+            *byte = (uint8_t)((*byte & ~(1u << (bit % 8))) | (one ? 1u : 0u) << (bit % 8));
+        }
+    }
+}
+
+static void pinned_virtual(uint32_t ratio, uint32_t layout, uint32_t channels, uint32_t bits)
+{
+    uint32_t count = (bits + 7) / 8;
+    uint32_t stored = layout == 0 ? count : (count + 4095) / 4096 * 4096;
+    memset(bytes, 0, 32);
+    memcpy(bytes, "DSDP", 4);
+    number(4, 2822400 * ratio, 4, true);
+    number(8, channels, 4, true);
+    number(12, layout, 4, true);
+    number(16, bits, 8, true);
+    number(28, layout == 0 ? 0 : 4096, 4, true);
+    for (uint32_t index = 0; index < stored; index++) {
+        for (uint32_t channel = 0; channel < channels; channel++) {
+            uint32_t at = layout == 0
+                              ? index * channels + channel
+                              : (index / 4096) * 4096 * channels + channel * 4096 + index % 4096;
+            uint8_t value = pinned_signal[channel][index];
+            bytes[32 + at] = layout == 1 ? value : reversed(value);
+        }
+    }
+    length = 32 + stored * channels;
+}
+
+typedef struct PinnedHashes {
+    uint64_t samples;
+    uint64_t blocks;
+} PinnedHashes;
+
+static uint64_t pinned_mix(uint64_t hash, uint32_t value)
+{
+    for (uint32_t shift = 0; shift < 32; shift += 8) {
+        hash = (hash ^ ((value >> shift) & 0xffu)) * 0x100000001b3u;
+    }
+    return hash;
+}
+
+static void pinned_block(PinnedHashes *hashes, const Core1Block *block, uint32_t channels)
+{
+    hashes->blocks = pinned_mix(hashes->blocks, block->samples);
+    hashes->blocks = pinned_mix(hashes->blocks, block->first_sample);
+    hashes->blocks = pinned_mix(hashes->blocks, block->position);
+    for (uint32_t at = 0; at < block->samples; at++) {
+        for (uint32_t channel = 0; channel < channels; channel++) {
+            hashes->samples = pinned_mix(hashes->samples, (uint32_t)block->channels[channel][at]);
+        }
+    }
+}
+
+static PinnedHashes pinned_decode(uint32_t channels, bool flaky)
+{
+    PinnedInput pinned = {.flaky = flaky};
+    control = (StreamControl){.generation = 1};
+    StreamRegion region = {
+        .control = &control, .samples = output, .ring = ring, .ring_bytes = DSD_RING_BYTES};
+    Core1Decoder core = core1_dsd_decoder(&decoder, region);
+    core.start(core.context, (FlacInput){pinned_read, &pinned, length}, (FlacInfo){0}, 0, NULL);
+    PinnedHashes hashes = {0xcbf29ce484222325u, 0xcbf29ce484222325u};
+    Core1Block block;
+    Core1DecodeResult result;
+    while ((result = core.decode(core.context, &block)) != CORE1_FINISHED) {
+        if (result == CORE1_DECODED) {
+            pinned_block(&hashes, &block, channels);
+        } else {
+            CHECK_EQUAL(CORE1_STARVED, result);
+        }
+    }
+    return hashes;
+}
+
+static uint64_t pinned_layouts(uint32_t ratio, uint32_t channels, uint32_t bits, uint64_t total)
+{
+    uint64_t samples = 0;
+    for (uint32_t layout = 0; layout < 3; layout++) {
+        pinned_virtual(ratio, layout, channels, bits);
+        PinnedHashes steady = pinned_decode(channels, false);
+        PinnedHashes starved = pinned_decode(channels, true);
+        CHECK_EQUAL(steady.samples, starved.samples);
+        CHECK_EQUAL(steady.blocks, starved.blocks);
+        CHECK_EQUAL(layout == 0 ? steady.samples : samples, steady.samples);
+        samples = steady.samples;
+        total = pinned_mix(pinned_mix(total, (uint32_t)steady.blocks), (uint32_t)samples);
+        total = pinned_mix(pinned_mix(total, (uint32_t)(steady.blocks >> 32)),
+                           (uint32_t)(samples >> 32));
+    }
+    return total;
+}
+
+static void dsd_conversion_is_pinned_bit_for_bit_across_layouts_and_starved_reads(void)
+{
+    static const uint32_t LENGTHS[] = {
+        1, 8, 9, 79, 80, 81, 159, 160, 161, 319, 320, 321, 700, PINNED_BITS - 3, PINNED_BITS};
+    uint64_t total = 0xcbf29ce484222325u;
+    for (uint32_t ratio = 1; ratio <= 4; ratio *= 2) {
+        for (uint32_t kind = 0; kind < 4; kind++) {
+            pinned_make(kind, ratio);
+            for (uint32_t channels = 1; channels <= 2; channels++) {
+                for (uint32_t index = 0; index < sizeof LENGTHS / sizeof LENGTHS[0]; index++) {
+                    total = pinned_layouts(ratio, channels, LENGTHS[index], total);
+                }
+            }
+        }
+    }
+    CHECK_EQUAL(0x48cba0905050b210u, total);
+}
+
 static Core1Source producer;
 static DsdStream adapter;
 static Core1Stream consumer;
@@ -491,6 +640,7 @@ int main(void)
         TEST_CASE(damaged_dsf_is_refused),
         TEST_CASE(dff_properties_and_damage_are_checked),
         TEST_CASE(containers_play_seek_and_reopen_through_the_shared_ring),
+        TEST_CASE(dsd_conversion_is_pinned_bit_for_bit_across_layouts_and_starved_reads),
         TEST_CASE(failed_dsd_opens_and_reads_release_the_source),
         TEST_CASE(rates_above_the_core1_instruction_floor_are_refused_before_streaming),
     };
