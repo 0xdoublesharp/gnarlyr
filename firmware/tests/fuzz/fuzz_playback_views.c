@@ -39,10 +39,9 @@ static void exercise_helpers(const uint8_t *data, size_t size)
     uint8_t first = size > 0 ? data[0] : 0;
     uint8_t second = size > 1 ? data[1] : 0;
     KeyEvent event = event_for(first);
-    NowPlayingKeys keys = {.scrubbing = (second & 1u) != 0};
-    event.chord = (second & 2u) != 0;
-    NowPlayingCommand command = now_playing_command_for(event, keys);
-    fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_SCRUB_TAP_BACK);
+    event.chord = (uint8_t)((second >> 1) % (KEY_CHORD_MENU + 1));
+    NowPlayingCommand command = now_playing_command_for(event);
+    fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_REPEAT_MARK);
     uint32_t position = get32(data, size, 2);
     uint32_t duration = get32(data, size, 6);
     int32_t delta = (int32_t)get32(data, size, 10);

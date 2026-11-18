@@ -140,8 +140,6 @@ static void motion_is_capped_and_stops_when_paused_hidden_or_seeking(void)
     CHECK(rect_is_empty(diff.masked));
     screen.status.state = PLAYER_PLAYING;
     cassette_now_playing_animate(&screen, &diff, false);
-    screen.scrubbing = true;
-    cassette_now_playing_animate(&screen, &diff, true);
     CHECK_EQUAL(written, fake_hal_pixels_written());
 }
 

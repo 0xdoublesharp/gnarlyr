@@ -71,7 +71,7 @@ void key_tracker_set_behavior(KeyTracker *tracker, Key key, KeyBehavior behavior
     tracker->config.behaviors[key] = behavior;
 }
 
-static void press(KeyTracker *tracker, Key key, uint32_t now_ms, bool chord)
+static void press(KeyTracker *tracker, Key key, uint32_t now_ms, uint8_t chord)
 {
     KeyState *state = &tracker->states[key];
     if (state->held) {
@@ -80,8 +80,8 @@ static void press(KeyTracker *tracker, Key key, uint32_t now_ms, bool chord)
     *state = (KeyState){
         .held = true,
         .chord = chord,
-        .behavior =
-            (uint8_t)(chord ? KEY_BEHAVIOR_TAP_HOLD_REPEAT : tracker->config.behaviors[key]),
+        .behavior = (uint8_t)(chord != KEY_CHORD_NONE ? KEY_BEHAVIOR_TAP_HOLD_REPEAT
+                                                      : tracker->config.behaviors[key]),
         .pressed_at_ms = now_ms,
         .next_repeat_at_ms = now_ms + tracker->config.timing.repeat_delay_ms,
     };
@@ -92,17 +92,17 @@ static void press(KeyTracker *tracker, Key key, uint32_t now_ms, bool chord)
 
 void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms)
 {
-    press(tracker, key, now_ms, false);
+    press(tracker, key, now_ms, KEY_CHORD_NONE);
 }
 
-void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms)
+void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms, uint8_t chord)
 {
-    press(tracker, key, now_ms, true);
+    press(tracker, key, now_ms, chord);
 }
 
 void key_tracker_resume(KeyTracker *tracker, Key key, uint32_t now_ms)
 {
-    press(tracker, key, now_ms, false);
+    press(tracker, key, now_ms, KEY_CHORD_NONE);
     tracker->states[key].hold_only = true;
 }
 
@@ -182,7 +182,7 @@ void key_tracker_update(KeyTracker *tracker, uint32_t now_ms)
                          (repeats_after_hold(tracker, key) && tracker->states[key].long_press_sent);
         if (repeating) {
             update_repeat(tracker, key, now_ms);
-        } else {
+        } else if (behavior_of(tracker, key) != KEY_BEHAVIOR_HOLD_AT_RELEASE) {
             update_long_press(tracker, key, now_ms);
         }
     }

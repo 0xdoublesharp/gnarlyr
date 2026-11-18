@@ -16,11 +16,15 @@ from echo_image_harness import (
 PATTERN = (0, 8485, 12000, 8485, 0, -8485, -12000, -8485)
 TRACKS = (("01 First.wav", 44100, 30), ("02 Second.wav", 48000, 20), ("03 Third.wav", 44100, 25),
           ("04 Fourth.wav", 48000, 20), ("05 Fifth.wav", 44100, 30), ("06 Sixth.wav", 48000, 25))
+LONG_TRACKS = (("01 First.wav", 44100, 200), ("02 Second.wav", 44100, 200),
+               ("03 Third.wav", 44100, 200))
 REFUSED_TRACKS = (("01 First.wav", 44100, 30), ("02 Refused.wav", 7000, 30),
                   ("03 Third.wav", 44100, 30))
 PLAY = 250
+MENU = 350
 VOLUME_KEYS = (35, 100)
 TAP_MS = 150
+LONG_HOLD_MS = 1300
 ENGINE_STATE_OFFSET = 44
 PLAYER_STATE_OFFSET = 48 * 16 + 8
 PLAYER_PLAYING = 1
@@ -152,7 +156,7 @@ class Gestures:
         return self.random.choice(VOLUME_KEYS)
 
     def act(self):
-        pick = self.random.randrange(11)
+        pick = self.random.randrange(14)
         volume = self.volume()
         held = 300 + self.random.randrange(1500)
         if pick in (0, 1):
@@ -172,6 +176,13 @@ class Gestures:
         if pick == 8:
             return "long play then volume", self.ladder(
                 [(PLAY, 700 + self.random.randrange(600)), (volume, TAP_MS), (PLAY, TAP_MS)])
+        if pick == 11:
+            return "menu chord tap", self.ladder([(MENU, TAP_MS), (volume, TAP_MS), (MENU, TAP_MS)])
+        if pick == 12:
+            return "menu chord hold", self.ladder([(MENU, TAP_MS), (volume, held), (MENU, TAP_MS)])
+        if pick == 13:
+            return "long menu then volume", self.ladder(
+                [(MENU, 700 + self.random.randrange(600)), (volume, TAP_MS), (MENU, TAP_MS)])
         if pick == 9:
             start = self.machine.milliseconds() + 20
             self.machine.hold_power(start, TAP_MS)
@@ -221,17 +232,58 @@ class EchoImageTest(EchoImageHarness):
                 self.assertIsNone(problem, "seed %d gesture %d %s" % (seed, index, name))
             self.assert_healthy(rig.session)
 
+    def test_long_play_or_menu_holds_before_a_volume_tap_skip_or_scrub_and_leave_the_volume(self):
+        rig = self.gesture_rig(LONG_TRACKS)
+        layers = Layers(rig)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        machine = rig.machine
+        seeks = []
+        machine.hook_symbol("hal_audio_seek", lambda: seeks.append(machine.milliseconds()))
+
+        def track():
+            return layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8
+
+        def screens():
+            return layers.events(EVENT_CAPACITY).count(" screen ")
+
+        volume = layers.byte("volume_value")
+        first = track()
+        gestures = Gestures(rig, 0)
+        gestures.ladder([(PLAY, LONG_HOLD_MS), (VOLUME_KEYS[1], TAP_MS), (PLAY, TAP_MS)])
+        rig.run_for(SETTLE_MS)
+        self.assertNotEqual(first, track(), layers.events())
+        self.assertEqual(volume, layers.byte("volume_value"), layers.events())
+        skipped = track()
+        shown = screens()
+        gestures.ladder([(MENU, LONG_HOLD_MS), (VOLUME_KEYS[1], TAP_MS), (MENU, TAP_MS)])
+        rig.run_for(SETTLE_MS)
+        self.assertEqual(1, len(seeks), layers.events())
+        self.assertEqual(skipped, track(), layers.events())
+        self.assertEqual(volume, layers.byte("volume_value"), layers.events())
+        self.assertEqual(shown, screens(), layers.events(EVENT_CAPACITY))
+        self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
+        gestures.ladder([(PLAY, LONG_HOLD_MS)])
+        gestures.ladder([(VOLUME_KEYS[1], TAP_MS)])
+        rig.run_for(SETTLE_MS)
+        self.assertNotEqual(volume, layers.byte("volume_value"), layers.events())
+        self.assertEqual(1, len(seeks), layers.events())
+        self.assertEqual(skipped, track(), layers.events())
+        self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
+        self.assert_healthy(rig.session)
+
     def seek_until_the_track_changes(self, rig, layers):
         from echo_emulator.machine import ADC_NO_KEY
         machine = rig.machine
         playing = layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8
-        machine.adc_key_value = PLAY
+        machine.adc_key_value = MENU
         machine.run(until_ms=machine.milliseconds() + TAP_MS)
         machine.adc_key_value = VOLUME_KEYS[1]
         self.assertEqual("condition met", machine.run(
             until=lambda: layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8 != playing,
             until_ms=machine.milliseconds() + END_SEEK_LIMIT_MS), layers.events())
-        machine.adc_key_value = PLAY
+        machine.adc_key_value = MENU
         machine.run(until_ms=machine.milliseconds() + TAP_MS)
         machine.adc_key_value = ADC_NO_KEY
         return machine.milliseconds()

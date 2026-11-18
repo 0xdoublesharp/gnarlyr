@@ -92,14 +92,22 @@ static void draw_reading(Canvas *canvas, const Theme *theme, Rect *area, uint16_
     area->height -= height;
 }
 
+void key_test_event_text(KeyEvent event, StringBuilder *builder)
+{
+    const char *parts[] = {key_name(event.chord == KEY_CHORD_MENU ? KEY_MENU : KEY_PLAY),
+                           key_name(event.key),
+                           i18n_text((StringId)((int)STR_KEY_TAP + (int)event.gesture))};
+    bool chord = event.chord != KEY_CHORD_NONE;
+    i18n_format(builder, chord ? STR_KEY_TEST_CHORD : STR_KEY_TEST_EVENT, parts + (chord ? 0 : 1),
+                chord ? 3 : 2);
+}
+
 static void draw_event(Canvas *canvas, const KeyTestScreen *test, const Theme *theme, Rect *area)
 {
     char text[KEY_TEST_TEXT_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
     if (test->has_last) {
-        const char *parts[] = {key_name(test->last.key),
-                               i18n_text((StringId)((int)STR_KEY_TAP + (int)test->last.gesture))};
-        i18n_format(&builder, test->last.chord ? STR_KEY_TEST_CHORD : STR_KEY_TEST_EVENT, parts, 2);
+        key_test_event_text(test->last, &builder);
     }
     const Font *font =
         text_width(theme->fonts.body, text) <= area->width ? theme->fonts.body : theme->fonts.small;

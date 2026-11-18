@@ -3,11 +3,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, struct
+from echo_image_harness import (
+    BUTTON_ACTION_AB_REPEAT,
+    IDENTITY,
+    PLAYBACK_MENU_HOLD,
+    EchoImageHarness,
+    buttons_file,
+    main,
+    struct,
+)
+
+MENU_HOLD_MS = 900
 
 
 class EchoImageTest(EchoImageHarness):
-    def test_ab_gesture_loops_the_same_pcm_range_until_cleared(self):
+    def test_a_mapped_menu_hold_loops_the_same_pcm_range_until_cleared(self):
         from echo_emulator.playback import Rig
         rate = 48000
         wav = bytearray(self.tagged_wav("Loop", "Loop", rate, 160, 1000))
@@ -16,6 +26,8 @@ class EchoImageTest(EchoImageHarness):
             struct.pack_into("<hh", wav, first + frame * 4,
                              (frame & 32767) - 16384, (frame >> 15) - 16)
         volume = self.transition_volume([("Loop.wav", bytes(wav))], 5)
+        volume.add_file("buttons.bin", buttons_file({PLAYBACK_MENU_HOLD: BUTTON_ACTION_AB_REPEAT}),
+                        directory=IDENTITY.data_directory)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         samples = self.capture_output(rig, rate * 6)
@@ -37,8 +49,7 @@ class EchoImageTest(EchoImageHarness):
         rig.open_songs()
         rig.play_song(1)
         for _ in range(2):
-            rig.press("play", hold=1300)
-            rig.press("menu")
+            rig.press("menu", hold=MENU_HOLD_MS)
         self.assertEqual(len(marks), 2)
         rig.machine.run(until=lambda: len(samples) >= rate * 5,
                         until_ms=rig.machine.milliseconds() + 9000)
@@ -52,8 +63,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(positions[wraps[0]], positions[wraps[1]])
         for at in range(1, len(positions)):
             self.assertEqual(positions[at], positions[at - 1] + 1 if at not in wraps else positions[0])
-        rig.press("play", hold=1300)
-        rig.press("menu")
+        rig.press("menu", hold=MENU_HOLD_MS)
         self.assertEqual(len(marks), 3)
         self.assertEqual(len(rig.audio.plays), 1)
         self.assert_healthy(rig.session)

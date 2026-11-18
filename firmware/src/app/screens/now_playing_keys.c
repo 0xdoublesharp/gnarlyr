@@ -41,57 +41,30 @@ int32_t now_playing_seek_delta(uint32_t move, uint32_t duration_ms)
     return move < NOW_PLAYING_SEEK_COMMANDS / 2 ? step : -step;
 }
 
-static NowPlayingCommand held_command_for(KeyEvent event, NowPlayingCommand forward)
-{
-    uint32_t fast = event.repeats >= NOW_PLAYING_SEEK_FAST_AFTER_REPEATS ? 1u : 0u;
-    uint32_t back = event.key == KEY_VOLUME_UP ? 0u : 2u;
-    return (NowPlayingCommand)((uint32_t)forward + back + fast);
-}
-
-static NowPlayingCommand scrub_command_for(KeyEvent event)
-{
-    switch (event.key) {
-    case KEY_VOLUME_UP:
-    case KEY_VOLUME_DOWN:
-        if (event.gesture != KEY_GESTURE_PRESS) {
-            return held_command_for(event, NOW_PLAYING_SCRUB_FORWARD);
-        }
-        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_SCRUB_TAP_FORWARD
-                                          : NOW_PLAYING_SCRUB_TAP_BACK;
-    case KEY_PLAY:
-        return by_gesture(event.gesture, NOW_PLAYING_SCRUB_COMMIT, NOW_PLAYING_NONE);
-    case KEY_BACK:
-        return by_gesture(event.gesture, NOW_PLAYING_SCRUB_CANCEL, NOW_PLAYING_HOME);
-    case KEY_MENU:
-        return by_gesture(event.gesture, NOW_PLAYING_REPEAT_MARK, NOW_PLAYING_NONE);
-    case KEY_POWER:
-        return NOW_PLAYING_NONE;
-    }
-    return NOW_PLAYING_NONE;
-}
-
 static NowPlayingCommand chord_command_for(KeyEvent event)
 {
-    if (event.gesture == KEY_GESTURE_PRESS) {
-        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_NEXT : NOW_PLAYING_PREVIOUS;
+    uint32_t back = event.key == KEY_VOLUME_UP ? 0u : 1u;
+    if (event.chord == KEY_CHORD_MENU) {
+        uint32_t fast = event.repeats >= NOW_PLAYING_SEEK_FAST_AFTER_REPEATS ? 1u : 0u;
+        return (NowPlayingCommand)((uint32_t)NOW_PLAYING_SEEK_FORWARD + back * 2u + fast);
     }
-    return held_command_for(event, NOW_PLAYING_SEEK_FORWARD);
+    if (event.gesture == KEY_GESTURE_REPEAT) {
+        return NOW_PLAYING_NONE;
+    }
+    return (NowPlayingCommand)((uint32_t)NOW_PLAYING_NEXT + back);
 }
 
-NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
+NowPlayingCommand now_playing_command_for(KeyEvent event)
 {
-    if (event.chord) {
+    if (event.chord != KEY_CHORD_NONE) {
         return chord_command_for(event);
-    }
-    if (keys.scrubbing) {
-        return scrub_command_for(event);
     }
     switch (event.key) {
     case KEY_VOLUME_UP:
     case KEY_VOLUME_DOWN:
         return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
     case KEY_PLAY:
-        return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_SCRUB_START);
+        return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_NONE);
     case KEY_BACK:
         return by_gesture(event.gesture, NOW_PLAYING_LEAVE, NOW_PLAYING_HOME);
     case KEY_MENU:
@@ -127,6 +100,9 @@ void now_playing_player_command(Player *player, NowPlayingCommand command)
     case NOW_PLAYING_VOLUME_UP:
     case NOW_PLAYING_VOLUME_DOWN:
         player_change_volume(player, command == NOW_PLAYING_VOLUME_UP ? 1 : -1);
+        return;
+    case NOW_PLAYING_REPEAT_MARK:
+        player_repeat_mark(player);
         return;
     default:
         break;
