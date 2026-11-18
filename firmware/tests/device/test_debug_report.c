@@ -1159,6 +1159,19 @@ static void ladder_transitions_name_the_key_the_reading_and_a_chord(void)
     CHECK(has_line("event: 1003 ladder play release 1023"));
 }
 
+static void a_refusal_names_its_problem_and_track_in_the_ring_and_outside_it(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "\nrefusals: ") == NULL);
+    record(DEBUG_EVENT_REFUSAL, HAL_AUDIO_PROBLEM_UNREADABLE | 177u << 8, NULL);
+    input.refusals = (DebugRefusals){
+        .count = 3, .time_ms = 2909294, .value = HAL_AUDIO_PROBLEM_UNREADABLE | 177u << 8};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 refusal 1 track 177"));
+    CHECK(has_line("refusals: 3 last 2909294 1 track 177"));
+}
+
 static void a_paused_player_with_its_output_powered_down_is_named_standby(void)
 {
     DebugReportInput input = plain_input();
@@ -1333,6 +1346,21 @@ static void a_full_report_with_a_busy_histogram_fits_the_file(void)
     CHECK(strstr(text, "\nscript.soak: line=255 minutes=0 end=low_battery ") != NULL);
     CHECK(strstr(text, "; 65535 4200 100 11111\n") != NULL);
     CHECK(has_line("profile.row: 4c0 fffe 0 0 0 0 0 0 0 fffe"));
+}
+
+static void a_refusal_line_survives_a_full_report_ahead_of_the_profile(void)
+{
+    DebugReportInput input = plugged_in_at_97_percent();
+    fill_everything(0);
+    fill_script();
+    for (int index = 0; index < BUCKETS; index++) {
+        buckets[index] = 0xfffe;
+    }
+    input.refusals =
+        (DebugRefusals){.count = UINT32_MAX, .time_ms = UINT32_MAX, .value = UINT32_MAX};
+    CHECK(format(&input, DEBUG_REPORT_BYTES) <= DEBUG_REPORT_BYTES);
+    CHECK(has_line("refusals: 4294967295 last 4294967295 255 track 16777215"));
+    CHECK(has_line("truncated: 1"));
 }
 
 static void the_fullest_report_is_cut_inside_the_histogram_which_comes_last(void)
@@ -1522,6 +1550,8 @@ int main(void)
         TEST_CASE(frame_figures_are_unknown_until_a_frame_was_drawn),
         TEST_CASE(events_are_listed_oldest_first_with_names),
         TEST_CASE(ladder_transitions_name_the_key_the_reading_and_a_chord),
+        TEST_CASE(a_refusal_names_its_problem_and_track_in_the_ring_and_outside_it),
+        TEST_CASE(a_refusal_line_survives_a_full_report_ahead_of_the_profile),
         TEST_CASE(a_paused_player_with_its_output_powered_down_is_named_standby),
         TEST_CASE(event_text_outside_plain_ascii_is_replaced),
         TEST_CASE(an_unknown_event_kind_is_named_as_such),

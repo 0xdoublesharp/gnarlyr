@@ -420,6 +420,7 @@ if(NOT ECHO_RELEASE)
         board_restart
         debug_loop_event
         debug_loop_log
+        debug_loop_refusals
         debug_loop_boot_times
         debug_runner
         debug_runner_note_state

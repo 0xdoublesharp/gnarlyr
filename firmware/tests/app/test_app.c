@@ -2562,6 +2562,150 @@ static void a_play_release_drained_by_a_usb_session_leaves_no_chord_behind(void)
     CHECK(playing_path_is(HELLS_BELLS_PATH));
 }
 
+static void play_the_first_cue_part_on_now_playing(void)
+{
+    open_cue_album_folder();
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    CHECK_EQUAL(1000, fake_hal_audio_queued_start());
+}
+
+static void a_chord_skip_as_the_next_part_begins_moves_past_that_part(void)
+{
+    play_the_first_cue_part_on_now_playing();
+    press_key(KEY_PLAY);
+    fake_hal_audio_finish_track();
+    tap(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK_EQUAL(2493, fake_hal_audio_play_start());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void a_chord_seek_as_the_next_part_begins_seeks_within_that_part(void)
+{
+    play_the_first_cue_part_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    int seeks = fake_hal_audio_seek_count();
+    now_ms += 700;
+    fake_hal_audio_finish_track();
+    step();
+    CHECK_EQUAL(seeks + 1, fake_hal_audio_seek_count());
+    CHECK_EQUAL(2493, fake_hal_audio_last_seek());
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+}
+
+static uint32_t gesture_seed;
+
+static uint32_t gesture_next(uint32_t range)
+{
+    gesture_seed = gesture_seed * 1664525u + 1013904223u;
+    return (gesture_seed >> 8) % range;
+}
+
+static Key gesture_volume_key(void)
+{
+    return gesture_next(2) == 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN;
+}
+
+static void gesture_split_chord(Key volume)
+{
+    press_key(KEY_PLAY);
+    press_key(volume);
+    release_key(KEY_PLAY);
+    keep_holding(gesture_next(900));
+    release_key(volume);
+}
+
+static void gesture_long_play_then_volume(Key volume)
+{
+    press_key(KEY_PLAY);
+    keep_holding(600 + gesture_next(600));
+    tap(volume);
+    release_key(KEY_PLAY);
+}
+
+static void gesture_act(void)
+{
+    Key volume = gesture_volume_key();
+    switch (gesture_next(14)) {
+    case 0:
+    case 1:
+        tap(KEY_PLAY);
+        break;
+    case 2:
+        hold_for(KEY_PLAY, 700 + gesture_next(600));
+        break;
+    case 3:
+        tap(volume);
+        break;
+    case 4:
+        hold_for(volume, 300 + gesture_next(1500));
+        break;
+    case 5:
+        chord_tap(volume);
+        break;
+    case 6:
+        chord_hold(volume, 300 + gesture_next(1500));
+        break;
+    case 7:
+        gesture_split_chord(volume);
+        break;
+    case 8:
+        gesture_long_play_then_volume(volume);
+        break;
+    case 9:
+        tap(KEY_POWER);
+        break;
+    case 10:
+        fake_hal_audio_set_position(fake_hal_audio_play_start() + gesture_next(200000));
+        wait_ms(50 + gesture_next(400));
+        break;
+    case 11:
+        fake_hal_audio_refuse_plays(1 + (int)gesture_next(3));
+        break;
+    case 12:
+        fake_hal_audio_fail_track();
+        wait_ms(50);
+        break;
+    default:
+        fake_hal_audio_finish_track();
+        wait_ms(50);
+        break;
+    }
+}
+
+static bool gesture_states_agree(void)
+{
+    PlayerStatus status = app_player_status();
+    HalAudioState engine = (HalAudioState)fake_hal_audio_state();
+    bool app_playing = status.state == PLAYER_PLAYING;
+    return app_playing == (engine == HAL_AUDIO_PLAYING) &&
+           fake_hal_audio_volume() == status.wired_volume;
+}
+
+static void random_play_and_volume_gestures_keep_the_player_and_engine_together(void)
+{
+    for (uint32_t run = 0; run < 24; run++) {
+        play_on_now_playing();
+        gesture_seed = 0x5eed0000u + run;
+        for (int action = 0; action < 60; action++) {
+            gesture_act();
+            wait_ms(20);
+            if (!gesture_states_agree()) {
+                printf("seed %u action %d app %d engine %d volume %u/%u\n", (unsigned)run, action,
+                       (int)app_player_status().state, fake_hal_audio_state(),
+                       (unsigned)app_player_status().wired_volume,
+                       (unsigned)fake_hal_audio_volume());
+            }
+            CHECK(gesture_states_agree());
+        }
+    }
+}
+
 static void a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards(void)
 {
     play_on_now_playing();
@@ -3451,6 +3595,51 @@ static void a_refused_track_says_why_it_was_skipped(void)
     play_first_album_track();
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     CHECK(toast_is("192 kHz isn't supported"));
+}
+
+static uint32_t events_of(DebugEventKind kind, uint32_t since);
+
+static void a_refused_track_is_logged_with_its_problem_and_track_and_kept_outside_the_ring(void)
+{
+    start_app_with_library();
+    uint32_t before = debug_loop_log()->recorded;
+    uint32_t kept = debug_loop_refusals()->count;
+    fake_hal_audio_set_refusal((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_UNREADABLE});
+    fake_hal_audio_refuse_plays(1);
+    play_first_album_track();
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_REFUSAL, before));
+    uint32_t refused = app_player_status().track - 1;
+    uint32_t value = HAL_AUDIO_PROBLEM_UNREADABLE | refused << 8;
+    CHECK_EQUAL(kept + 1, debug_loop_refusals()->count);
+    CHECK_EQUAL(value, debug_loop_refusals()->value);
+    app_release_audio();
+    hal_audio_release();
+    app_start_after_storage();
+    step();
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_REFUSAL, before));
+    CHECK_EQUAL(kept + 1, debug_loop_refusals()->count);
+}
+
+static void a_refused_track_after_a_storage_restart_still_says_why(void)
+{
+    start_app_with_library();
+    fake_hal_audio_set_refusal(
+        (HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_RATE, .sample_rate = 192000});
+    fake_hal_audio_refuse_plays(1);
+    play_first_album_track();
+    CHECK(toast_is("192 kHz isn't supported"));
+    wait_ms(TOAST_DURATION_MS + 100);
+    app_release_audio();
+    hal_audio_release();
+    app_start_after_storage();
+    step();
+    fake_hal_audio_set_refusal((HalAudioRefusal){.problem = HAL_AUDIO_PROBLEM_UNREADABLE});
+    fake_hal_audio_refuse_plays(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_PLAY);
+    CHECK(toast_is("Couldn't read track"));
 }
 
 static void formatting_a_paused_card_clears_the_library_and_saved_playback_state(void)
@@ -5804,6 +5993,24 @@ static void a_key_gesture_is_logged_with_its_key_and_time(void)
     CHECK_EQUAL(now_ms, last_event()->time_ms);
 }
 
+static void ladder_readings_are_logged_only_while_the_key_test_is_open(void)
+{
+    start_app_with_library();
+    uint32_t before = debug_loop_log()->recorded;
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK_EQUAL(0, events_of(DEBUG_EVENT_LADDER, before));
+    CHECK_EQUAL(2, events_of(DEBUG_EVENT_KEY, before));
+    open_diagnostics_row(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    before = debug_loop_log()->recorded;
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(2, events_of(DEBUG_EVENT_LADDER, before));
+    CHECK_EQUAL(1, events_of(DEBUG_EVENT_KEY, before));
+}
+
 static void key_repeats_are_left_out_of_the_log(void)
 {
     start_app();
@@ -7520,6 +7727,9 @@ int main(void)
         TEST_CASE(a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap),
         TEST_CASE(a_play_release_drained_by_a_usb_session_leaves_no_chord_behind),
         TEST_CASE(a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards),
+        TEST_CASE(random_play_and_volume_gestures_keep_the_player_and_engine_together),
+        TEST_CASE(a_chord_skip_as_the_next_part_begins_moves_past_that_part),
+        TEST_CASE(a_chord_seek_as_the_next_part_begins_seeks_within_that_part),
         TEST_CASE(a_chord_back_late_in_a_song_says_it_went_back_to_the_start),
         TEST_CASE(a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track),
         TEST_CASE(the_fallback_now_playing_skips_on_a_chord),
@@ -7597,6 +7807,8 @@ int main(void)
         TEST_CASE(leaving_the_charge_screen_keeps_the_plain_splash),
         TEST_CASE(the_sleep_timer_turns_the_player_off),
         TEST_CASE(a_refused_track_says_why_it_was_skipped),
+        TEST_CASE(a_refused_track_after_a_storage_restart_still_says_why),
+        TEST_CASE(a_refused_track_is_logged_with_its_problem_and_track_and_kept_outside_the_ring),
         TEST_CASE(formatting_a_paused_card_clears_the_library_and_saved_playback_state),
         TEST_CASE(rescanning_without_a_card_says_so),
         TEST_CASE(a_rescan_of_an_empty_card_writes_an_empty_library),
@@ -7717,6 +7929,7 @@ int main(void)
         TEST_CASE(a_key_gesture_is_logged_with_its_key_and_time),
         TEST_CASE(a_script_opens_cover_flow_logging_its_covers_and_starts_a_rescan),
         TEST_CASE(key_repeats_are_left_out_of_the_log),
+        TEST_CASE(ladder_readings_are_logged_only_while_the_key_test_is_open),
         TEST_CASE(a_screen_change_is_logged_with_its_depth_and_title),
         TEST_CASE(starting_and_pausing_a_track_is_logged_with_its_number),
         TEST_CASE(new_underruns_are_logged_once_with_their_count),

@@ -959,6 +959,13 @@ static void append_named_pair(StringBuilder *text, const char *name, uint32_t nu
     string_builder_append_unsigned(text, number);
 }
 
+static void append_refusal(StringBuilder *text, uint32_t value)
+{
+    string_builder_append_unsigned(text, value & STATE_MASK);
+    string_builder_append(text, " track ");
+    string_builder_append_unsigned(text, value >> TRACK_SHIFT);
+}
+
 static void append_event_value(StringBuilder *text, const DebugEvent *event)
 {
     uint32_t value = event->value;
@@ -975,6 +982,8 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
         string_builder_append(text, (value & LADDER_CHORD) != 0 ? " chord" : "");
     } else if (event->kind == DEBUG_EVENT_PLAYER) {
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
+    } else if (event->kind == DEBUG_EVENT_REFUSAL) {
+        append_refusal(text, value);
     } else if (event->kind == DEBUG_EVENT_USB_END) {
         string_builder_append(text, NAME_IN(USB_END_NAMES, value));
     } else if (event->kind == DEBUG_EVENT_SCRIPT && value >= DEBUG_SCRIPT_EVENT_STATE) {
@@ -1005,6 +1014,20 @@ static void put_event(Writer *writer, const DebugEvent *event)
     string_builder_append_char(&writer->text, ' ');
     append_event_value(&writer->text, event);
     append_event_text(&writer->text, event);
+    finish(writer);
+}
+
+static void put_refusals(Writer *writer, const DebugRefusals *refusals)
+{
+    if (refusals->count == 0) {
+        return;
+    }
+    begin(writer, "refusals");
+    string_builder_append_unsigned(&writer->text, refusals->count);
+    string_builder_append(&writer->text, " last ");
+    string_builder_append_unsigned(&writer->text, refusals->time_ms);
+    string_builder_append_char(&writer->text, ' ');
+    append_refusal(&writer->text, refusals->value);
     finish(writer);
 }
 
@@ -1118,6 +1141,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_loop(&writer, input);
     put_card(&writer, &input->card);
     put_audio(&writer, &input->audio);
+    put_refusals(&writer, &input->refusals);
     put_bluetooth(&writer, input->bluetooth);
     put_unsigned(&writer, "dac.up", input->dac.up);
     put_known(&writer, "dac.power_left", (input->dac.valid & 1) != 0, input->dac.power[0]);

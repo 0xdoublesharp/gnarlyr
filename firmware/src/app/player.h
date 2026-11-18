@@ -156,6 +156,7 @@ typedef struct Player {
     HalAudioJack jack;
     uint32_t refusal_count;
     HalAudioRefusal refusal;
+    uint16_t refused_track;
     uint8_t ab_repeat;
     bool spoken;
     PlayerResume resume;
@@ -191,6 +192,7 @@ PlayerQueueEditResult player_snapshot_queue(Player *player);
 bool player_queue_busy(const Player *player);
 void player_queue_cancel(Player *player);
 void player_update(Player *player, uint32_t now_ms);
+void player_catch_up(Player *player);
 void player_refusal_text(HalAudioRefusal refusal, char *text, size_t capacity);
 bool player_save(Player *player);
 void player_release_output(Player *player);

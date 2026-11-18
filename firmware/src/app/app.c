@@ -281,7 +281,7 @@ static void dispatch_transition(HalKeyTransition transition, Key key, bool scrip
     KeyLockVerdict verdict =
         key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
     bool chord = verdict == KEY_LOCK_PASS && pass_through_chord(key, transition);
-    if (!scripted) {
+    if (!scripted && top_screen()->keys == SCREEN_KEYS_TEST) {
         debug_loop_ladder(transition, chord);
     }
     switch (verdict) {
@@ -2300,6 +2300,7 @@ CORE_SEAM void app_step(void)
     uint32_t now_ms = hal_clock_milliseconds();
     app.now_ms = now_ms;
     hal_audio_service();
+    player_catch_up(&app.player);
     hal_bluetooth_service();
     run_debug_script(now_ms);
     if (!app.charging && !app.power.standby_active) {

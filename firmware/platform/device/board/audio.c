@@ -109,6 +109,7 @@ static bool paused_before_clock_change;
 static uint32_t position_before_clock_change;
 static AudioEngine engine;
 _Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the audio ring cursor");
+_Static_assert(offsetof(AudioEngine, state) == 44, "the emulator follows the engine state");
 _Static_assert((STRETCH_WORDS + BLOCK_WORDS - 1) / BLOCK_WORDS == STRETCH_BLOCKS,
                "the stretched ring keeps its five DMA items");
 _Static_assert((RING_WORDS - STRETCH_WORDS) * sizeof(uint32_t) / AUDIO_TEMPO_FRAME_BYTES >=
@@ -481,7 +482,7 @@ CORE_COLD static bool start_output(bool audible)
     uint32_t started_ms = hal_clock_milliseconds();
     uint32_t prefill = audio_engine_rate(&engine) / PREFILL_DIVISOR;
     prefill = prefill < RING_FRAMES * 3 / 4 ? prefill : RING_FRAMES * 3 / 4;
-    while (audio_engine_buffered(&engine, 0) < prefill &&
+    while (audio_engine_buffered(&engine, 0) < prefill && !engine.rate_pending &&
            hal_clock_milliseconds() - started_ms < PREFILL_TIMEOUT_MS) {
         pump(0);
     }
@@ -489,6 +490,19 @@ CORE_COLD static bool start_output(bool audible)
     output_started_us = hal_clock_microseconds();
     stopped_waiting = false;
     return start_transfer(engine.config.ring_words, audible);
+}
+
+CORE_COLD static void restart_output(bool ready, bool paused)
+{
+    if (!ready || !start_output(!paused)) {
+        audio_engine_stop(&engine);
+        return;
+    }
+    if (paused) {
+        audio_engine_pause(&engine);
+        dac_path_set_muted(true);
+        dmac_suspend();
+    }
 }
 
 static void stop_tone(void)
@@ -553,17 +567,8 @@ void hal_audio_queue_next(const HalAudioTrack *track)
         stop_transfer();
     }
     audio_engine_queue_next(&engine, track != NULL ? &request : NULL);
-    if (!restart) {
-        return;
-    }
-    if (audio_engine_status(&engine).state == AUDIO_ENGINE_STOPPED || !start_output(!paused)) {
-        audio_engine_stop(&engine);
-        return;
-    }
-    if (paused) {
-        audio_engine_pause(&engine);
-        dac_path_set_muted(true);
-        dmac_suspend();
+    if (restart) {
+        restart_output(audio_engine_status(&engine).state != AUDIO_ENGINE_STOPPED, paused);
     }
 }
 
@@ -604,15 +609,7 @@ CORE_COLD static void seek_to(uint32_t position_ms, bool paused)
     ensure_engine();
     ensure_audio_clock();
     restart_transfer();
-    if (!audio_engine_seek(&engine, position_ms) || !start_output(!paused)) {
-        audio_engine_stop(&engine);
-        return;
-    }
-    if (paused) {
-        audio_engine_pause(&engine);
-        dac_path_set_muted(true);
-        dmac_suspend();
-    }
+    restart_output(audio_engine_seek(&engine, position_ms), paused);
 }
 
 CORE_SEAM CORE_COLD void hal_audio_seek(uint32_t position_ms)
@@ -849,11 +846,10 @@ static void change_rate(void)
     if (!audio_engine_wants_rate(&engine, &rate)) {
         return;
     }
+    bool paused = engine.state == AUDIO_ENGINE_PAUSED;
     restart_transfer();
     audio_engine_restart(&engine);
-    if (!start_output(true)) {
-        audio_engine_stop(&engine);
-    }
+    restart_output(true, paused);
 }
 
 static void shut_down_when_idle(void)
@@ -1218,14 +1214,8 @@ CORE_SEAM CORE_COLD uint8_t hal_audio_repeat_mark(bool clear)
         stop_transfer();
     }
     uint8_t state = audio_engine_repeat_mark(&engine, clear);
-    if (restart && !start_output(!paused)) {
-        audio_engine_stop(&engine);
-        return 0;
+    if (restart) {
+        restart_output(true, paused);
     }
-    if (paused) {
-        audio_engine_pause(&engine);
-        dac_path_set_muted(true);
-        dmac_suspend();
-    }
-    return state;
+    return engine.state == AUDIO_ENGINE_STOPPED ? 0 : state;
 }

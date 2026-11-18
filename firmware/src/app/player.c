@@ -245,6 +245,7 @@ static bool start_track(Player *player, uint32_t start_ms, bool from_bookmark)
     player->loaded = hal_audio_play(&audio.track, start_ms, queued ? &next.track : NULL);
     if (!player->loaded) {
         player->refusal = hal_audio_refusal();
+        player->refused_track = track;
         player->refusal_count++;
         become_idle(player);
         return false;
@@ -804,6 +805,14 @@ static void release_long_pause(Player *player, uint32_t now_ms)
     }
 }
 
+void player_catch_up(Player *player)
+{
+    if (player->loaded && player->has_next && !player_queue_busy(player) &&
+        hal_audio_status().token == player->next_token) {
+        advance_to_next(player);
+    }
+}
+
 void player_update(Player *player, uint32_t now_ms)
 {
     follow_jack(player);
@@ -814,10 +823,9 @@ void player_update(Player *player, uint32_t now_ms)
     if (!player->loaded) {
         return;
     }
+    player_catch_up(player);
     HalAudioStatus status = hal_audio_status();
-    if (player->has_next && status.token == player->next_token) {
-        advance_to_next(player);
-    } else if (status.state == HAL_AUDIO_STOPPED && status.token == player->current_token) {
+    if (status.state == HAL_AUDIO_STOPPED && status.token == player->current_token) {
         finish_track(player, status.failed);
     }
     save_periodically(player, now_ms);

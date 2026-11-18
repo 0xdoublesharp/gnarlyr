@@ -85,6 +85,12 @@ typedef struct DebugLog {
     uint32_t next_slot;
 } DebugLog;
 
+typedef struct DebugRefusals {
+    uint32_t count;
+    uint32_t time_ms;
+    uint32_t value;
+} DebugRefusals;
+
 typedef struct DebugFrames {
     uint32_t count;
     uint32_t total_us;

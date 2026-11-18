@@ -22,6 +22,7 @@ typedef struct DebugLoop {
     DebugLog log;
     uint32_t player_state;
     uint32_t refusals;
+    DebugRefusals refused;
     uint32_t underruns;
     uint32_t output_underruns;
     uint32_t display_fallbacks;
@@ -30,6 +31,7 @@ typedef struct DebugLoop {
 } DebugLoop;
 
 static DebugLoop loop;
+_Static_assert(offsetof(DebugLoop, player_state) == 776, "the emulator follows the player state");
 static uint32_t boot_us[DEBUG_BOOT_COUNT];
 
 void debug_loop_boot(DebugBootStep step)
@@ -84,8 +86,14 @@ static void follow_player(const Player *player)
     if (state != loop.player_state) {
         record(DEBUG_EVENT_PLAYER, state, NULL);
     }
-    if (player->refusal_count != loop.refusals) {
-        record(DEBUG_EVENT_REFUSAL, (uint32_t)player->refusal.problem, NULL);
+    if (player->refusal_count > loop.refusals) {
+        uint32_t value = (uint32_t)player->refusal.problem | (uint32_t)player->refused_track
+                                                                 << TRACK_SHIFT;
+        record(DEBUG_EVENT_REFUSAL, value, NULL);
+        loop.refused =
+            (DebugRefusals){.count = loop.refused.count + player->refusal_count - loop.refusals,
+                            .time_ms = hal_clock_milliseconds(),
+                            .value = value};
     }
     loop.player_state = state;
     loop.refusals = player->refusal_count;
@@ -147,4 +155,9 @@ bool debug_loop_playing(void)
 const DebugLog *debug_loop_log(void)
 {
     return &loop.log;
+}
+
+const DebugRefusals *debug_loop_refusals(void)
+{
+    return &loop.refused;
 }

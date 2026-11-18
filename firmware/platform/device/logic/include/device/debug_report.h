@@ -117,6 +117,7 @@ typedef struct DebugReportInput {
     const DebugScriptRun *script;
     uint32_t interrupted_line;
     const DebugLog *log;
+    DebugRefusals refusals;
     const PcProfile *profile;
 } DebugReportInput;
 
