@@ -598,7 +598,7 @@ Hold Play on a song in a Music list, choose **Add to tape**, choose your cassett
 
 Open the tape for **Resume tape**, **Play Side A** or **Play Side B**. It plays in the saved order. Side A stops at its end and shows a cassette and offers to flip to Side B; press Play to flip, or Back to stay stopped. Side B stops at its end too; Play rewinds the tape to Side A. Repeat does not cross a side boundary. The player remembers the side, song and exact position across restarts, including a side waiting to be flipped.
 
-Rename and Delete work as for other mixtapes. To play a different queue, select another song or mixtape. Ordinary single-sided mixtapes keep their existing actions. A song that is hidden or no longer on the card is skipped when the tape plays (the player says "Some songs unavailable") and stays on the tape for when it is back; songs can still be added. A side with no song left says "Songs unavailable".
+Rename and Delete work as for other mixtapes. To play a different queue, select another song or mixtape. Ordinary single-sided mixtapes keep their existing actions. A song that is hidden or no longer on the card is skipped when the tape plays (the player says "Some songs unavailable") and stays on the tape for when it is back. A side holding such a song takes no new songs until it is back; the other side still does. A tape with a side that has no song left says "Songs unavailable".
 
 ## Status bar
 

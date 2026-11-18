@@ -58,7 +58,10 @@ bool mixtape_ui_append(MixtapeUi *ui)
     uint16_t side_count = ui->selected_side == 0
                               ? ui->side_a_count
                               : (uint16_t)(ui->store.tape.count - ui->side_a_count);
-    if (side_count >= CASSETTE_SIDE_CAPACITY || !durations_fit(ui)) {
+    uint16_t missing_a = (uint16_t)(ui->side_a_count - ui->resolver.split);
+    uint16_t missing =
+        ui->selected_side == 0 ? missing_a : (uint16_t)(ui->resolver.missing - missing_a);
+    if (missing != 0 || side_count >= CASSETTE_SIDE_CAPACITY || !durations_fit(ui)) {
         return false;
     }
     ui->append_file = ui->store.data_file;

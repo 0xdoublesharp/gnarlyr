@@ -221,6 +221,21 @@ static void a_song_can_join_a_tape_that_holds_a_missing_song(void)
     hidden.count = 0;
 }
 
+static void a_side_holding_a_missing_song_takes_no_new_song(void)
+{
+    create();
+    add(0, 0);
+    add(1, 1);
+    hide(0);
+    add(2, 0);
+    CHECK(strcmp(toast.text, i18n_text(STR_TAPE_ADD_FAILED)) == 0);
+    MixEntry entry;
+    CHECK(mixtape_store_read(&ui.store, 0, &entry));
+    CHECK_EQUAL(2, entry.count);
+    CHECK_EQUAL(1, entry.side_a_count);
+    hidden.count = 0;
+}
+
 static void a_c90_tape_keeps_its_forty_five_minute_budget(void)
 {
     fake_hal_reset();
@@ -257,6 +272,7 @@ int main(void)
         TEST_CASE(a_two_sided_tape_skips_a_missing_song_on_either_side),
         TEST_CASE(a_tape_side_with_no_song_left_says_the_songs_are_unavailable),
         TEST_CASE(a_song_can_join_a_tape_that_holds_a_missing_song),
+        TEST_CASE(a_side_holding_a_missing_song_takes_no_new_song),
         TEST_CASE(leaving_the_picker_for_home_does_not_keep_an_old_add_request),
         TEST_CASE(a_session_created_after_the_initial_restore_can_start_a_tape),
         TEST_CASE(a_c90_tape_keeps_its_forty_five_minute_budget),
