@@ -7,6 +7,7 @@
 #include "fake_hal.h"
 #include "gfx/text.h"
 #include "hal/display.h"
+#include "settings_choose.h"
 #include "settings_screens.h"
 #include "ui/label.h"
 
@@ -16,6 +17,17 @@ static Theme theme;
 static SettingsStore store;
 static ButtonSettings buttons;
 static int changed_count;
+
+static bool choose_setting(SettingsScreens *screens, DebugSpan title, DebugSpan option)
+{
+    SettingsChooseTarget target = {screens, &SETTINGS_CHOOSE_TABLES};
+    return settings_choose(&target, title, option);
+}
+
+static bool choose_control(DebugSpan title, DebugSpan option)
+{
+    return settings_choose_button(&BUTTON_CHOICES, &buttons, title, option);
+}
 
 static void settings_changed(void *context)
 {
@@ -199,18 +211,18 @@ static void status_bar_choices_fit_every_size_and_orientation_and_save_independe
             title.length = strlen(title.text);
             DebugSpan option = {i18n_text(STR_ON), 0};
             option.length = strlen(option.text);
-            CHECK(settings_screens_choose(&screens, title, option));
+            CHECK(choose_setting(&screens, title, option));
             CHECK_EQUAL(0xD0 | SETTINGS_STATUS_VOLUME, store.settings.status_items);
             title = (DebugSpan){i18n_text(STR_STATUS_LAYOUT), 0};
             title.length = strlen(title.text);
             option = (DebugSpan){i18n_text(STR_STATUS_COMPACT), 0};
             option.length = strlen(option.text);
-            CHECK(settings_screens_choose(&screens, title, option));
+            CHECK(choose_setting(&screens, title, option));
             CHECK(store.settings.status_bar_compact);
             CHECK_EQUAL(0xD0 | SETTINGS_STATUS_VOLUME, store.settings.status_items);
             option = (DebugSpan){i18n_text(STR_STATUS_STANDARD), 0};
             option.length = strlen(option.text);
-            CHECK(settings_screens_choose(&screens, title, option));
+            CHECK(choose_setting(&screens, title, option));
             CHECK(!store.settings.status_bar_compact);
         }
     }
@@ -231,20 +243,18 @@ static void control_choices_validate_names_and_report_each_change(void)
     buttons.config.changed = settings_changed;
     buttons.config.context = &changed_count;
 
-    CHECK(button_settings_choose(&buttons, span_of(i18n_text(STR_MENU_LONG_ACTION)),
-                                 span_of(i18n_text(STR_SLEEP_TIMER))));
+    CHECK(choose_control(span_of(i18n_text(STR_MENU_LONG_ACTION)),
+                         span_of(i18n_text(STR_SLEEP_TIMER))));
     CHECK_EQUAL(5, store.settings.long_press_action);
     CHECK_EQUAL(1, changed_count);
 
-    CHECK(button_settings_choose(&buttons, span_of(i18n_text(STR_BUTTON_VOLUME_UP_TAP)),
-                                 span_of(i18n_text(STR_BUTTON_HOME))));
+    CHECK(choose_control(span_of(i18n_text(STR_BUTTON_VOLUME_UP_TAP)),
+                         span_of(i18n_text(STR_BUTTON_HOME))));
     CHECK_EQUAL(BUTTON_ACTION_HOME, store.settings.button_actions[PLAYBACK_VOLUME_UP_TAP]);
     CHECK_EQUAL(2, changed_count);
 
-    CHECK(!button_settings_choose(&buttons, span_of(i18n_text(STR_MENU_LONG_ACTION)),
-                                  span_of("Not an action")));
-    CHECK(!button_settings_choose(&buttons, span_of("Not a button"),
-                                  span_of(i18n_text(STR_BUTTON_HOME))));
+    CHECK(!choose_control(span_of(i18n_text(STR_MENU_LONG_ACTION)), span_of("Not an action")));
+    CHECK(!choose_control(span_of("Not a button"), span_of(i18n_text(STR_BUTTON_HOME))));
     CHECK_EQUAL(2, changed_count);
 }
 

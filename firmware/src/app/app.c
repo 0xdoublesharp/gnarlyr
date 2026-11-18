@@ -48,6 +48,7 @@
 #include "scan_guard.h"
 #include "screens/charge_screen.h"
 #include "settings/rocker.h"
+#include "settings_choose.h"
 #include "settings_store.h"
 #include "standby.h"
 #include "ui/fade.h"
@@ -2052,8 +2053,11 @@ static void combo_screenshot(void)
 static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
 {
     const SettingsModuleEntry *module = settings_module();
-    bool chosen = module != NULL && module->choose != NULL &&
-                  module->choose(&app.screens, request->argument, request->value);
+    const DebugCodeEntry *code = hal_system_load_debug_code();
+    SettingsChooseTarget target = {&app.screens.modules.settings.settings,
+                                   module != NULL ? module->choose_tables : NULL};
+    bool chosen = target.tables != NULL && code != NULL &&
+                  code->choose_setting(&target, request->argument, request->value);
     settle_screens(now_ms);
     return chosen;
 }

@@ -12,7 +12,20 @@ typedef struct ButtonSettingsConfig {
     void *context;
 } ButtonSettingsConfig;
 
+enum {
+    BUTTON_LONG_ACTION_COUNT = 6
+};
+
 typedef struct ButtonSettings ButtonSettings;
+
+typedef struct ButtonChoices {
+    const StringId *buttons;
+    const StringId *actions;
+    const StringId *long_actions;
+    StringId long_title;
+    void (*choose)(void *entry, int action);
+    void (*long_choose)(void *buttons, int action);
+} ButtonChoices;
 
 typedef struct ButtonEntry {
     ButtonSettings *owner;
@@ -29,4 +42,6 @@ struct ButtonSettings {
 
 Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig config);
 
-bool button_settings_choose(ButtonSettings *buttons, DebugSpan title, DebugSpan option);
+#ifdef ECHO_DEBUG_LOOP
+extern const ButtonChoices BUTTON_CHOICES;
+#endif

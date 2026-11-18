@@ -91,6 +91,11 @@ typedef struct SettingChoice {
     void (*extend)(SettingsScreens *screens, ChoiceConfig *config);
 } SettingChoice;
 
+typedef struct SettingsChooseTables {
+    const SettingChoice *choices;
+    const ButtonChoices *buttons;
+} SettingsChooseTables;
+
 typedef struct SettingsEntry {
     const SettingChoice *choice;
     SettingsScreens *owner;
@@ -132,7 +137,9 @@ struct SettingsScreens {
 
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                               const Theme *theme);
-bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option);
+#ifdef ECHO_DEBUG_LOOP
+extern const SettingsChooseTables SETTINGS_CHOOSE_TABLES;
+#endif
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt);
 
 ScreenAction settings_screens_sleep(SettingsScreens *screens);
