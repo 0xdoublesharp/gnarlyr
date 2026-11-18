@@ -26,9 +26,10 @@ typedef struct Output {
     uint32_t length;
 } Output;
 
-static bool open_dir(void *context, const char *path)
+static bool open_dir(void *context, const char *path, const ScanPlace *place)
 {
     HostFiles *files = context;
+    (void)place;
     return hal_dir_open(&files->dir, path);
 }
 

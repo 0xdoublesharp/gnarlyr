@@ -467,7 +467,7 @@ static void list_folder(CoverState *state, const CoverJob *job)
     for (uint32_t stem = 0; stem < STEM_COUNT; stem++) {
         state->matches[stem].name[0] = '\0';
     }
-    if (!job->files.open_dir(job->files.context, state->path)) {
+    if (!job->files.open_dir(job->files.context, state->path, NULL)) {
         return;
     }
     while (job->files.next_entry(job->files.context, &state->entry)) {

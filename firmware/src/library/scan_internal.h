@@ -23,6 +23,7 @@ typedef struct Level {
     uint32_t count;
     uint32_t next;
     uint32_t path_length;
+    ScanPlace place;
     bool partial;
 } Level;
 

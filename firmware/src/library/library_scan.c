@@ -14,7 +14,8 @@ enum {
     RESUME_BYTES = (2 + SCAN_NAME_CAPACITY + 3) & ~3,
     NO_RESUME = 0xFFFF,
     MINIMUM_BATCH = 2,
-    ENTRY_OVERHEAD = 8
+    ENTRY_OVERHEAD = 8,
+    PLACE_BYTES = sizeof(ScanPlace)
 };
 
 typedef struct Listing {
@@ -39,6 +40,12 @@ const char *scan_entry_name(const ScanState *state, uint32_t offset)
 static bool entry_is_directory(const ScanState *state, uint32_t offset)
 {
     return state->listing[offset] == ENTRY_DIRECTORY;
+}
+
+static uint32_t entry_bytes(const ScanState *state, uint32_t offset)
+{
+    uint32_t place = entry_is_directory(state, offset) ? PLACE_BYTES : 0;
+    return 2 + scan_text_length(scan_entry_name(state, offset)) + place;
 }
 
 static int compare_texts(const char *left, const char *right)
@@ -91,7 +98,8 @@ static void sort_names(const ScanState *state, uint32_t *items, uint32_t *scratc
 static bool store_entry(ScanState *state, const ScanEntry *entry)
 {
     uint32_t length = scan_text_length(entry->name);
-    if (length + 2 > state->playlist_floor - state->listing_used) {
+    uint32_t place = entry->directory ? PLACE_BYTES : 0;
+    if (length + 2 + place > state->playlist_floor - state->listing_used) {
         return false;
     }
     uint8_t *record = state->listing + state->listing_used;
@@ -99,7 +107,11 @@ static bool store_entry(ScanState *state, const ScanEntry *entry)
     for (uint32_t index = 0; index <= length; index++) {
         record[1 + index] = (uint8_t)entry->name[index];
     }
-    state->listing_used += length + 2;
+    const uint8_t *bytes = (const uint8_t *)&entry->place;
+    for (uint32_t index = 0; index < place; index++) {
+        record[2 + length + index] = bytes[index];
+    }
+    state->listing_used += length + 2 + place;
     return true;
 }
 
@@ -115,7 +127,7 @@ static uint32_t *sorted_offsets(ScanState *state, uint32_t start, uint32_t count
     uint32_t cursor = start;
     for (uint32_t index = 0; index < count; index++) {
         offsets[index] = cursor;
-        cursor += 2 + scan_text_length(scan_entry_name(state, cursor));
+        cursor += entry_bytes(state, cursor);
     }
     sort_names(state, offsets, offsets + count, count);
     return offsets;
@@ -139,7 +151,7 @@ static ScanResult index_listing(ScanState *state, uint32_t start, uint32_t count
 static ScanResult read_whole(ScanState *state, const ScanFileSystem *files, Level *level,
                              bool *fits)
 {
-    if (!files->open_dir(files->context, state->path)) {
+    if (!files->open_dir(files->context, state->path, &level->place)) {
         return SCAN_NO_MUSIC_ROOT;
     }
     uint32_t start = state->listing_used;
@@ -189,7 +201,7 @@ static void keep_smaller_half(ScanState *state, Batch *batch)
     }
     uint32_t write = batch->start;
     for (uint32_t read = batch->start; read < state->listing_used;) {
-        uint32_t size = 2 + scan_text_length(scan_entry_name(state, read));
+        uint32_t size = entry_bytes(state, read);
         if (compare_texts(scan_entry_name(state, read), state->cutoff) < 0) {
             for (uint32_t index = 0; index < size; index++) {
                 state->listing[write + index] = state->listing[read + index];
@@ -211,7 +223,8 @@ static bool wanted(const ScanState *state, const Batch *batch, const char *name)
 
 static ScanResult add_to_batch(ScanState *state, Batch *batch)
 {
-    uint32_t length = scan_text_length(state->entry.name);
+    uint32_t length =
+        scan_text_length(state->entry.name) + (state->entry.directory ? PLACE_BYTES : 0);
     while (!batch_fits(state, batch, length)) {
         if (batch->count < MINIMUM_BATCH) {
             return SCAN_FOLDER_TOO_BIG;
@@ -243,7 +256,7 @@ static ScanResult read_batch(ScanState *state, const ScanFileSystem *files, Leve
     if (batch.end < batch.start + 2 * (RESUME_BYTES + ENTRY_OVERHEAD)) {
         return SCAN_FOLDER_TOO_BIG;
     }
-    if (!files->open_dir(files->context, state->path)) {
+    if (!files->open_dir(files->context, state->path, &level->place)) {
         return SCAN_NO_MUSIC_ROOT;
     }
     state->listing_used = batch.start;
@@ -454,7 +467,13 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
     if (state->depth >= SCAN_MAX_DEPTH) {
         return SCAN_PATH_TOO_LONG;
     }
-    ScanResult result = read_listing(state, &job->files, &state->levels[state->depth]);
+    Level *child = &state->levels[state->depth];
+    uint8_t *place = (uint8_t *)&child->place;
+    const uint8_t *listed = state->listing + offset + entry_bytes(state, offset) - PLACE_BYTES;
+    for (uint32_t index = 0; index < PLACE_BYTES; index++) {
+        place[index] = listed[index];
+    }
+    ScanResult result = read_listing(state, &job->files, child);
     state->depth += result == SCAN_OK;
     return result == SCAN_NO_MUSIC_ROOT ? SCAN_OK : result;
 }
@@ -601,6 +620,7 @@ ScanResult library_scan(const ScanJob *job, ScanStats *stats)
     library_builder_watch(&state->builder,
                           (BuilderProgress){job->progress.phase, job->progress.context});
     scan_truncate_path(state, 1);
+    state->levels[0].place = (ScanPlace){.flags = 0};
     ScanResult result = walk(state, job, stats);
     stats->tracks -= state->hidden;
     if (result == SCAN_OK) {

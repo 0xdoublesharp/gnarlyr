@@ -50,11 +50,15 @@ typedef struct RescanFiles {
 
 static RescanFiles rescan_files;
 
-static bool open_dir(void *context, const char *path)
+static bool open_dir(void *context, const char *path, const ScanPlace *place)
 {
     RescanFiles *files = context;
     uint32_t since = hal_clock_microseconds();
-    bool opened = hal_dir_open(&files->dir, path);
+    HalDirPlace at = {.flags = 0};
+    if (place != NULL) {
+        at = (HalDirPlace){.start = place->start, .size = place->size, .flags = place->flags};
+    }
+    bool opened = hal_dir_open_place(&files->dir, path, at);
     spend(TIME_LIST, since);
     return opened;
 }
@@ -71,6 +75,10 @@ static bool next_entry(void *context, ScanEntry *entry)
     }
     entry->directory = files->entry.directory;
     entry->modified = files->entry.modified;
+    if (entry->directory) {
+        HalDirPlace at = hal_dir_place(&files->dir);
+        entry->place = (ScanPlace){.start = at.start, .size = at.size, .flags = at.flags};
+    }
     for (size_t index = 0; index < sizeof entry->name; index++) {
         entry->name[index] = files->entry.name[index];
     }

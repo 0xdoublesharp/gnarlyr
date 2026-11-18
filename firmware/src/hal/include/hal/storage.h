@@ -59,7 +59,15 @@ typedef struct HalDirEntry {
     char name[HAL_NAME_CAPACITY];
 } HalDirEntry;
 
+typedef struct HalDirPlace {
+    uint32_t start;
+    uint32_t size;
+    uint32_t flags;
+} HalDirPlace;
+
 bool hal_dir_open(HalDir *dir, const char *path);
+HalDirPlace hal_dir_place(const HalDir *dir);
+bool hal_dir_open_place(HalDir *dir, const char *path, HalDirPlace place);
 void hal_storage_lend_cache(uint32_t *window, uint32_t sectors);
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry);
 void hal_dir_close(HalDir *dir);

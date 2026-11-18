@@ -1601,6 +1601,18 @@ bool hal_dir_open(HalDir *dir, const char *path)
     return fake.empty_card;
 }
 
+HalDirPlace hal_dir_place(const HalDir *dir)
+{
+    (void)dir;
+    return (HalDirPlace){.flags = 0};
+}
+
+bool hal_dir_open_place(HalDir *dir, const char *path, HalDirPlace place)
+{
+    (void)place;
+    return hal_dir_open(dir, path);
+}
+
 void fake_hal_set_empty_card(bool empty)
 {
     fake.empty_card = empty;

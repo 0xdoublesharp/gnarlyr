@@ -12,6 +12,7 @@ from echo_image_harness import (
 ARTISTS = 600
 FOLDERS = ARTISTS * 2 + 1
 READS_PER_FOLDER = 3
+OPENS_PER_READ = 20
 FRAME = bytes.fromhex("fffb9064") + bytes(413)
 
 
@@ -38,6 +39,20 @@ class EchoImageTest(EchoImageHarness):
         print("\n[music check] %d folders: %s" % (FOLDERS, walk))
         self.assertIsNotNone(walk)
         self.assertLess(walk["read_commands"], FOLDERS * READS_PER_FOLDER)
+
+    def test_the_scan_opens_each_folder_from_its_listing_on_a_card_of_many_folders(self):
+        from echo_emulator import bench
+        artifacts = bench.Artifacts(Path(CONFIG["elf"]).parents[2])
+        session = artifacts.session(many_folders())
+        run = bench.ScanRun(session, artifacts, lambda text: None, covers=False)
+        opens = bench.Calls(session, "open_dir", run.profiler.overlay.symbols["open_dir"])
+        run.machine.answer_waits_for_key(4)
+        run.run()
+        scan = [call for call in opens.since(run.started["us"]) if call["end_us"] <= run.ended["us"]]
+        reads = sum(call["read_commands"] for call in scan)
+        print("\n[scan] %d folder opens, %d read commands" % (len(scan), reads))
+        self.assertGreaterEqual(len(scan), FOLDERS)
+        self.assertLess(reads, FOLDERS // OPENS_PER_READ)
 
 
 if __name__ == "__main__":
