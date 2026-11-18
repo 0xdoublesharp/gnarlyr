@@ -21,7 +21,8 @@ int marquee_offset(MarqueeTiming timing, int text_width, int view_width, uint32_
     if (phase_ms < timing.pause_ms) {
         return 0;
     }
-    uint64_t travelled = (phase_ms - timing.pause_ms) * timing.speed_px_per_s;
+    uint64_t moving_ms = phase_ms - timing.pause_ms;
+    uint64_t travelled = (moving_ms - moving_ms % MARQUEE_STEP_MS) * timing.speed_px_per_s;
     uint64_t offset = travelled / MILLISECONDS_PER_SECOND;
     return offset < INT32_MAX ? (int)offset : INT32_MAX;
 }

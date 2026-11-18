@@ -538,6 +538,7 @@ typedef struct FakeDecoder {
     uint32_t block;
     uint32_t blocks_left;
     uint32_t jump_at;
+    bool in_place;
     int32_t pcm[FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
 } FakeDecoder;
 
@@ -564,10 +565,11 @@ static Core1DecodeResult fake_decode(void *context, Core1Block *block)
         decoder->next += 1000;
     }
     for (int channel = 0; channel < FLAC_MAX_CHANNELS; channel++) {
+        int32_t *to = decoder->in_place ? block->out[channel] : decoder->pcm[channel];
         for (uint32_t index = 0; index < decoder->block; index++) {
-            decoder->pcm[channel][index] = (int32_t)(decoder->next + index);
+            to[index] = (int32_t)(decoder->next + index);
         }
-        block->channels[channel] = decoder->pcm[channel];
+        block->channels[channel] = to;
     }
     block->first_sample = decoder->next;
     block->samples = decoder->block;
@@ -661,6 +663,24 @@ static void a_block_that_does_not_follow_starts_the_next_hand_off(void)
     CHECK(slot_counts_up(0));
 }
 
+static void a_jump_written_in_place_moves_the_gathered_slot_to_end_with_it(void)
+{
+    start_fake(512, 100);
+    fake.in_place = true;
+    fake.jump_at = 3 * 512;
+    step_until_full(0);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    control.slots[0].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
+    CHECK_EQUAL(4u * 512u, control.slots[1].samples);
+    CHECK_EQUAL(5u * 512u + 1000u, control.slots[1].first_sample + control.slots[1].samples);
+    CHECK_EQUAL(512, samples[1][0][0]);
+    CHECK_EQUAL((int32_t)(3u * 512u + 1000u), samples[1][1][2u * 512u]);
+}
+
 static void the_end_after_a_gathered_slot_waits_for_a_free_slot(void)
 {
     start_fake(512, 3);
@@ -723,6 +743,7 @@ int main(void)
         TEST_CASE(small_blocks_are_gathered_while_core_0_holds_the_other_slot),
         TEST_CASE(a_gathering_slot_is_handed_over_once_core_0_empties_the_other),
         TEST_CASE(a_block_that_does_not_follow_starts_the_next_hand_off),
+        TEST_CASE(a_jump_written_in_place_moves_the_gathered_slot_to_end_with_it),
         TEST_CASE(the_end_after_a_gathered_slot_waits_for_a_free_slot),
         TEST_CASE(large_blocks_keep_one_block_per_hand_off),
         TEST_CASE(a_full_hand_off_holds_at_least_the_bound_core_0_rests_on),

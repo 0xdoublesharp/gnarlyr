@@ -14,6 +14,7 @@ enum {
 
 typedef struct FramePacer {
     uint32_t last_ms;
+    uint32_t changed_ms;
     uint32_t quiet_frames;
     uint8_t fast_frames;
     uint8_t changed_run;

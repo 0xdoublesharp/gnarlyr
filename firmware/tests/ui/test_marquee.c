@@ -43,6 +43,15 @@ static void the_offset_stays_within_one_text_and_gap(void)
     CHECK(offset < LONG_TEXT + GAP);
 }
 
+static void the_offset_moves_in_steps_of_the_marquee_pace(void)
+{
+    int step = SPEED * MARQUEE_STEP_MS / 1000;
+    CHECK_EQUAL(0, marquee_offset(TIMING, LONG_TEXT, VIEW, PAUSE_MS + MARQUEE_STEP_MS - 1));
+    CHECK_EQUAL(step, marquee_offset(TIMING, LONG_TEXT, VIEW, PAUSE_MS + MARQUEE_STEP_MS));
+    CHECK_EQUAL(step, marquee_offset(TIMING, LONG_TEXT, VIEW, PAUSE_MS + 2 * MARQUEE_STEP_MS - 1));
+    CHECK_EQUAL(2 * step, marquee_offset(TIMING, LONG_TEXT, VIEW, PAUSE_MS + 2 * MARQUEE_STEP_MS));
+}
+
 static void a_zero_speed_never_scrolls(void)
 {
     MarqueeTiming still = {.pause_ms = PAUSE_MS, .speed_px_per_s = 0, .gap_px = GAP};
@@ -52,13 +61,13 @@ static void a_zero_speed_never_scrolls(void)
 static void very_wide_text_does_not_overflow_its_scroll_duration(void)
 {
     MarqueeTiming timing = {.pause_ms = 0, .speed_px_per_s = 1000, .gap_px = 0};
-    CHECK_EQUAL(705032, marquee_offset(timing, 5000000, 1, 705032));
+    CHECK_EQUAL(705000, marquee_offset(timing, 5000000, 1, 705032));
 }
 
 static void text_and_gap_widths_are_added_without_signed_overflow(void)
 {
     MarqueeTiming timing = {.pause_ms = 0, .speed_px_per_s = 1000, .gap_px = 1};
-    CHECK_EQUAL(1, marquee_offset(timing, INT32_MAX, 1, 1));
+    CHECK_EQUAL(MARQUEE_STEP_MS, marquee_offset(timing, INT32_MAX, 1, MARQUEE_STEP_MS));
 }
 
 static void a_long_pause_and_short_scroll_never_make_a_zero_cycle(void)
@@ -75,6 +84,7 @@ int main(void)
         TEST_CASE(scrolling_moves_at_the_configured_speed),
         TEST_CASE(a_full_cycle_returns_to_the_start_and_pauses_again),
         TEST_CASE(the_offset_stays_within_one_text_and_gap),
+        TEST_CASE(the_offset_moves_in_steps_of_the_marquee_pace),
         TEST_CASE(a_zero_speed_never_scrolls),
         TEST_CASE(very_wide_text_does_not_overflow_its_scroll_duration),
         TEST_CASE(text_and_gap_widths_are_added_without_signed_overflow),

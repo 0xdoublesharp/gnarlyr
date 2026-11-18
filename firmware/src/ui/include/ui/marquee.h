@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+enum {
+    MARQUEE_STEP_MS = 100
+};
+
 typedef struct MarqueeTiming {
     uint32_t pause_ms;
     uint32_t speed_px_per_s;
