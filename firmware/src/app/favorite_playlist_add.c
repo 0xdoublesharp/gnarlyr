@@ -4,6 +4,7 @@
 #include "core/string_builder.h"
 #include "hal/storage.h"
 #include "library/playlist_reader.h"
+#include "music_check.h"
 #include "player.h"
 
 enum {
@@ -151,6 +152,9 @@ FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t tr
     hal_file_close(&file);
     if (result != FAVORITE_PLAYLIST_FAILED) {
         favorite_playlist_remember(library, track);
+    }
+    if (result == FAVORITE_PLAYLIST_ADDED) {
+        music_check_note_change(block.playlist + 1);
     }
     return result;
 }

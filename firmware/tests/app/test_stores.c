@@ -429,6 +429,31 @@ static void an_internal_song_goes_to_the_favorite_tracks_file_of_internal_storag
     spoken_library_close(&internal);
 }
 
+static uint32_t generation_after_adding(bool internal_volume, bool marked)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    fake_hal_set_internal_volume(internal_volume);
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 512) == HAL_RESERVE_CREATED);
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    SpokenLibrary spoken;
+    Library *library =
+        marked ? spoken_library_open_internal(&spoken) : spoken_library_open(&spoken);
+    char path[300];
+    snprintf(path, sizeof path, "%s%s", marked ? "\"/" : "", SPOKEN_CHAPTER_ONE_PATH);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED,
+                favorite_playlist_add(library, spoken_library_track(library, path)));
+    spoken_library_close(&spoken);
+    return music_check_generation();
+}
+
+static void a_favorite_written_to_internal_storage_moves_the_internal_music_generation(void)
+{
+    CHECK_EQUAL(1, generation_after_adding(false, true));
+    CHECK_EQUAL(1, generation_after_adding(true, false));
+    CHECK_EQUAL(0, generation_after_adding(false, false));
+}
+
 static void adding_a_song_creates_the_playlist_with_a_header(void)
 {
     fake_hal_reset();
@@ -749,6 +774,7 @@ int main(void)
         TEST_CASE(favorites_are_loaded_again),
         TEST_CASE(adding_a_song_creates_the_playlist_with_a_header),
         TEST_CASE(an_internal_song_goes_to_the_favorite_tracks_file_of_internal_storage),
+        TEST_CASE(a_favorite_written_to_internal_storage_moves_the_internal_music_generation),
         TEST_CASE(adding_more_songs_appends_one_line_each),
         TEST_CASE(a_song_already_in_the_playlist_is_not_added_again),
         TEST_CASE(a_hand_edited_playlist_is_read_and_extended),

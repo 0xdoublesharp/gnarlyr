@@ -23,4 +23,5 @@ uint32_t music_check_interrupted_scans(void);
 bool music_check_covers_pending(void);
 uint32_t music_check_generation(void);
 void music_check_bump_generation(void);
+void music_check_note_change(const char *path);
 bool music_check_generation_moved(void);

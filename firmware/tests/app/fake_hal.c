@@ -191,6 +191,7 @@ typedef struct FakeHal {
     int scratch_borrows;
     bool empty_card;
     bool combined;
+    bool internal_volume;
     int dir_opens;
     int presents_at_dir_open;
     int library_writes;
@@ -1882,7 +1883,12 @@ void fake_hal_set_reserve_result(HalReserveResult result)
 
 HalVolume hal_file_volume(void)
 {
-    return HAL_VOLUME_CARD;
+    return fake.internal_volume ? HAL_VOLUME_INTERNAL : HAL_VOLUME_CARD;
+}
+
+void fake_hal_set_internal_volume(bool internal)
+{
+    fake.internal_volume = internal;
 }
 
 bool hal_file_combined(void)

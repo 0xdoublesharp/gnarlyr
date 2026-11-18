@@ -78,6 +78,7 @@ void fake_hal_refuse_scratch(bool refused);
 int fake_hal_listing_borrow_count(void);
 void fake_hal_set_empty_card(bool empty);
 void fake_hal_set_combined(bool combined);
+void fake_hal_set_internal_volume(bool internal);
 int fake_hal_dir_open_count(void);
 int fake_hal_presents_at_last_dir_open(void);
 int fake_hal_library_writes(void);

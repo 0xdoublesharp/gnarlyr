@@ -2,7 +2,6 @@
 
 #include <stddef.h>
 
-#include "core/drive_path.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/audio.h"
@@ -129,9 +128,8 @@ HiddenResult track_removal_delete(HiddenTracks tracks, uint16_t track)
         hidden_tracks_replan(tracks.player, anchor);
         result = HIDDEN_FAILED;
     }
-    if (result == HIDDEN_DONE && identity.path[0] == DRIVE_PATH_INTERNAL &&
-        identity.path[1] == '/') {
-        music_check_bump_generation();
+    if (result == HIDDEN_DONE) {
+        music_check_note_change(identity.path);
     }
     return result;
 }

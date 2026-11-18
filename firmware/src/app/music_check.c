@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/bytes.h"
+#include "core/drive_path.h"
 #include "core/seam.h"
 #include "hal/storage.h"
 #include "hal/system.h"
@@ -94,4 +95,12 @@ CORE_COLD bool music_check_generation_moved(void)
     return read_bytes(bytes) && bytes_le32(bytes) == MUSIC_CHECK_RECORD_MAGIC &&
            (bytes_le32(bytes + MUSIC_CHECK_GENERATION_AT) != music_check_generation() ||
             bytes_le32(bytes + MUSIC_CHECK_STATE_AT) == MUSIC_CHECK_STATE_UNKNOWN);
+}
+
+CORE_COLD void music_check_note_change(const char *path)
+{
+    if ((path[0] == DRIVE_PATH_INTERNAL && path[1] == '/') ||
+        hal_file_volume() == HAL_VOLUME_INTERNAL) {
+        music_check_bump_generation();
+    }
 }

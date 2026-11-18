@@ -290,6 +290,16 @@ static void deleting_a_card_file_keeps_the_internal_music_generation(void)
     CHECK_EQUAL(0, music_check_generation());
 }
 
+static void deleting_from_the_internal_only_library_moves_the_internal_music_generation(void)
+{
+    start();
+    fake_hal_set_internal_volume(true);
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 512) == HAL_RESERVE_CREATED);
+    fake_hal_add_file(HELLS_BELLS_PATH, NULL, 100);
+    CHECK_EQUAL(HIDDEN_DONE, track_removal_delete(tracks(), HELLS_BELLS));
+    CHECK_EQUAL(1, music_check_generation());
+}
+
 static void deleting_a_queued_track_takes_it_out_of_the_queue(void)
 {
     start();
@@ -424,6 +434,7 @@ int main(void)
         TEST_CASE(deleting_a_queued_track_takes_it_out_of_the_queue),
         TEST_CASE(deleting_an_internal_file_moves_the_internal_music_generation),
         TEST_CASE(deleting_a_card_file_keeps_the_internal_music_generation),
+        TEST_CASE(deleting_from_the_internal_only_library_moves_the_internal_music_generation),
         TEST_CASE(a_file_that_cannot_be_removed_stays_listed),
         TEST_CASE(part_of_a_cue_file_is_not_deleted),
         TEST_CASE(deleting_after_twelve_removals_since_the_rescan_asks_for_a_rescan),
