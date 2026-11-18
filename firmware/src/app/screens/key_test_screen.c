@@ -25,7 +25,8 @@ Key key_test_band(uint16_t reading)
 
 static const char *key_name(Key key)
 {
-    return i18n_text((int)key < KEY_COUNT ? (StringId)(STR_KEY_VOLUME_UP + key) : STR_ABOUT_NONE);
+    return i18n_text((int)key < KEY_COUNT ? (StringId)((int)STR_KEY_VOLUME_UP + (int)key)
+                                          : STR_ABOUT_NONE);
 }
 
 static void remember(KeyTestScreen *test, uint16_t reading, uint32_t now_ms)
@@ -95,7 +96,7 @@ static void draw_event(Canvas *canvas, const KeyTestScreen *test, const Theme *t
     StringBuilder builder = string_builder_make(text, sizeof text);
     if (test->has_last) {
         const char *parts[] = {key_name(test->last.key),
-                               i18n_text((StringId)(STR_KEY_TAP + test->last.gesture))};
+                               i18n_text((StringId)((int)STR_KEY_TAP + (int)test->last.gesture))};
         i18n_format(&builder, STR_KEY_TEST_EVENT, parts, 2);
     }
     const Font *font =
