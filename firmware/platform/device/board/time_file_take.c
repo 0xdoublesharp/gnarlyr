@@ -6,8 +6,17 @@
 #include "core/seam.h"
 #include "device/time_file.h"
 #include "emmc.h"
+#include "extension_entry.h"
 #include "internal_volume.h"
 #include "usb_session.h"
+
+static void keep_in_clock_chip(uint32_t utc_s)
+{
+    const ExtensionModuleEntry *code = hal_system_extension_code();
+    if (code != NULL) {
+        (void)code->rtc_set(utc_s);
+    }
+}
 
 CORE_SEAM void time_file_take(bool apply)
 {
@@ -25,5 +34,6 @@ CORE_SEAM void time_file_take(bool apply)
     if (read && time_file_parse(bytes, &time)) {
         (void)app_store_clock_offset(time.offset_minutes, true);
         board_wall_time_set(time);
+        keep_in_clock_chip(time.utc_s);
     }
 }

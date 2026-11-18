@@ -34,9 +34,9 @@ typedef struct ExtensionModuleEntry {
     bool (*clock_restore)(int16_t offset_minutes);
     FavoritePlaylistResult (*favorite_add)(const Library *library, uint16_t track);
     const void *trial;
+    HalRtcRead (*rtc_set)(uint32_t utc_s);
 #ifdef ECHO_DEBUG_LOOP
     HalRtcRead (*rtc_read)(void);
-    HalRtcRead (*rtc_set)(uint32_t utc_s);
 #endif
 } ExtensionModuleEntry;
 

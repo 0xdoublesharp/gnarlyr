@@ -252,6 +252,26 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
 
 
+    def test_a_time_file_from_an_ejected_session_survives_a_cold_restart(self):
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
+        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, -480), rtc_valid=False)
+        self.assertEqual([utc for utc, _ in sets], [NOVEMBER_2026])
+        self.assertEqual(machine.rtc_bus.registers[2] & 0x80, 0)
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        second = session.reboot()
+        machine = second.machine
+        restored = []
+        machine.hook_symbol("board_wall_time_set", lambda: restored.append(
+            (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1))))
+        self.assertEqual(second.run_to_home_screen(), "condition met")
+        machine.run(until=lambda: bool(restored), until_ms=machine.milliseconds() + 5000)
+        self.assertEqual(len(restored), 1)
+        utc, packed = restored[0]
+        self.assertTrue(NOVEMBER_2026 <= utc <= NOVEMBER_2026 + 2, utc)
+        self.assertEqual(struct.unpack("<hBx", struct.pack("<I", packed)), (-480, 2))
+        self.assert_healthy(second)
+
+
     def test_usb_time_sync_preserves_settings_changed_by_the_host(self):
         volume = self.debug_volume()
         volume.add_file("settings.bin", settings_file(0, 4096, b13=3), directory=IDENTITY.data_directory)
