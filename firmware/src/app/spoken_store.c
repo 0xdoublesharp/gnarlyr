@@ -64,7 +64,8 @@ static void put(SpokenStore *store, Bookmark bookmark, uint32_t now_ms)
 static void leave(SpokenStore *store, uint32_t now_ms)
 {
     Bookmark bookmark = store->follow.bookmark;
-    if (spoken_near_end(bookmark.position_ms, store->follow.duration_ms)) {
+    if (store->follow.finishes &&
+        spoken_near_end(bookmark.position_ms, store->follow.duration_ms)) {
         bookmark.flags = BOOKMARK_FINISHED;
         bookmark.position_ms = 0;
     }
@@ -82,11 +83,16 @@ static void begin(SpokenStore *store, uint16_t track)
         return;
     }
     spoken_chapter_of(store->library, track, &chapter);
+    uint32_t key = spoken_record_key(path, &record);
+    LibraryFolder folder;
+    bool last = key == spoken_track_key(path) ||
+                (library_read_folder(store->library, record.folder, &folder) &&
+                 chapter + 1 >= folder.track_count);
     store->follow.active = true;
+    store->follow.finishes = record.end_ms == 0 && last;
     store->follow.duration_ms = record.duration_ms;
-    store->follow.bookmark = (Bookmark){.key = spoken_record_key(path, &record),
-                                        .track_key = spoken_part_key(path, record.start_ms),
-                                        .chapter = chapter};
+    store->follow.bookmark = (Bookmark){
+        .key = key, .track_key = spoken_part_key(path, record.start_ms), .chapter = chapter};
 }
 
 static void record(SpokenStore *store, PlayerStatus status, uint32_t now_ms)

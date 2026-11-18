@@ -502,7 +502,7 @@ Podcasts/
 - Every book and every episode remembers its own place, even when you play music in between or turn the player off. The places are saved in `/.gnarlyr/bookmarks.bin` (the last 128 books and episodes).
 - Books and shows always play in order: shuffle doesn't apply to them, and your shuffle setting for music stays as it was.
 - On Now Playing, holding Vol+ jumps 30 s forward and holding Vol− jumps 15 s back. Jumping past the end of a chapter goes to the next one. To pick another chapter, use the book's chapter list.
-- An episode or book counts as finished once it played to its last tenth (at most its last 30 s).
+- An episode or book counts as finished once it played to its last tenth (at most its last 30 s); for a book in chapters or several files, that means the last tenth of its last chapter.
 - These folders still appear under Music (Albums, Artists, Folders and so on), as all tracks on the card do. Give them a genre such as "Audiobook" if you want to find them there.
 - **Skip silence** (Settings → Skip silence) shortens long pauses in books and episodes. A pause that lasts more than a quarter of a second is cut to a quarter of a second, with a short fade, so speech carries on sooner. Pauses shorter than that play as recorded. Music isn't affected. Positions, bookmarks, chapters and the time shown on Now Playing stay in the recording's own time, so a book resumes exactly where it was even after skipped pauses.
 - **Speech boost** (Settings → Speech boost) evens out the volume of books and episodes: quiet voices are raised by up to 12 dB and loud passages are brought down, so you don't have to keep changing the volume. Room noise below the voices isn't raised, and the output never goes above full scale. Music isn't affected.
