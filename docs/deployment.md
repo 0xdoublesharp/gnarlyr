@@ -19,8 +19,10 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `e188adee5abe4278f1566aec1464dfbaaa4784e56d8a13ba400e58988c4b5266` |
+| Current content release | `157ea616e79d3400d864b0ced2488bcb59ee1613417a71ab7c0e1db38eb4f05b` |
 | Rollback content release | `387384db41806130dafcbff1c632a2370c3ab82a16f2d57f11282d6b439ec120` |
+
+The rollback above predates the commercial album-cover captures and retains the original demonstration artwork.
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,

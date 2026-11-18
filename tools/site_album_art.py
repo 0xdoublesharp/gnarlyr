@@ -1,4 +1,4 @@
-"""Fetch the pinned real album covers used by website screenshot fixtures."""
+"""Fetch the pinned royalty-free artwork used by website screenshot fixtures."""
 import hashlib
 import json
 from pathlib import Path

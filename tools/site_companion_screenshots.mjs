@@ -19,7 +19,7 @@ function option(name, fallback) {
 const source = option("--source-root", resolve(root, `../${identity.name.toLowerCase()}-companion`));
 const configPath = option("--config", join(root, "tools/site_companion_screenshots.json"));
 const config = JSON.parse(await readFile(configPath, "utf8"));
-if (config.real_albums) {
+if (config.licensed_artwork) {
   const result = spawnSync("python3", [join(root, "tools/site_album_art.py")], {
     encoding: "utf8", timeout: 180000, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
   });
@@ -180,7 +180,8 @@ try {
   await page.getByLabel("Mixtape name", { exact: true }).fill("Night drive");
   await page.getByLabel("Mixtape format", { exact: true }).selectOption("45");
   for (const album of config.albums.slice(0, 3)) {
-    await page.getByRole("button", { name: `Add ${album.tracks[0]}`, exact: true }).click();
+    await page.locator(".mix-source-tracks > div").filter({ hasText: `${album.artist} · ${album.title}` })
+      .getByRole("button", { name: `Add ${album.tracks[0]}`, exact: true }).click();
   }
   await page.getByLabel("Side for track 3", { exact: true }).selectOption("B");
   await page.locator(".mix-drive").evaluate((element) => element.scrollIntoView({ block: "start" }));
