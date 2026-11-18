@@ -597,7 +597,7 @@ static void about_music_says_card_and_internal_for_a_combined_library(void)
     start_on_a_fresh_card();
     CHECK(strcmp(diagnostics_row_music(NULL), "Card") == 0);
     fake_hal_set_combined(true);
-    CHECK(strcmp(diagnostics_row_music(NULL), "Card and internal") == 0);
+    CHECK(strcmp(diagnostics_row_music(NULL), "Card + internal") == 0);
     fake_hal_set_combined(false);
 }
 
