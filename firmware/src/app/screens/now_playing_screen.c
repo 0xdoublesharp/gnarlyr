@@ -172,21 +172,20 @@ static void commit_scrub(NowPlayingScreen *now_playing)
 
 static ScreenAction run_scrub_command(NowPlayingScreen *now_playing, NowPlayingCommand command)
 {
+    uint32_t move = (uint32_t)command - NOW_PLAYING_SCRUB_FORWARD;
+    if (move < NOW_PLAYING_SEEK_COMMANDS) {
+        move_scrub(now_playing, now_playing_seek_delta(move, now_playing->status.duration_ms));
+        return screen_action_none();
+    }
     switch (command) {
     case NOW_PLAYING_SCRUB_START:
         start_scrub(now_playing);
         break;
-    case NOW_PLAYING_SCRUB_FORWARD:
-        move_scrub(now_playing, NOW_PLAYING_SCRUB_STEP_MS);
-        break;
-    case NOW_PLAYING_SCRUB_FORWARD_FAST:
-        move_scrub(now_playing, NOW_PLAYING_SCRUB_FAST_STEP_MS);
-        break;
-    case NOW_PLAYING_SCRUB_BACK:
-        move_scrub(now_playing, -NOW_PLAYING_SCRUB_STEP_MS);
-        break;
-    case NOW_PLAYING_SCRUB_BACK_FAST:
-        move_scrub(now_playing, -NOW_PLAYING_SCRUB_FAST_STEP_MS);
+    case NOW_PLAYING_SCRUB_TAP_FORWARD:
+    case NOW_PLAYING_SCRUB_TAP_BACK:
+        move_scrub(now_playing, command == NOW_PLAYING_SCRUB_TAP_FORWARD
+                                    ? NOW_PLAYING_SCRUB_TAP_MS
+                                    : -NOW_PLAYING_SCRUB_TAP_MS);
         break;
     case NOW_PLAYING_SCRUB_COMMIT:
         commit_scrub(now_playing);
@@ -226,6 +225,8 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
     case NOW_PLAYING_SCRUB_BACK_FAST:
     case NOW_PLAYING_SCRUB_COMMIT:
     case NOW_PLAYING_SCRUB_CANCEL:
+    case NOW_PLAYING_SCRUB_TAP_FORWARD:
+    case NOW_PLAYING_SCRUB_TAP_BACK:
         return run_scrub_command(now_playing, command);
     default:
         now_playing_player_command(player, command);

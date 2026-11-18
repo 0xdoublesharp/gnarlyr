@@ -48,9 +48,9 @@ static NowPlayingCommand chord_command(Key key, KeyGesture gesture, uint8_t repe
         (NowPlayingKeys){0});
 }
 
-static NowPlayingCommand scrub_command(Key key, KeyGesture gesture)
+static NowPlayingCommand scrub_command(Key key, KeyGesture gesture, uint8_t repeats)
 {
-    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture},
+    return now_playing_command_for((KeyEvent){.key = key, .gesture = gesture, .repeats = repeats},
                                    (NowPlayingKeys){.scrubbing = true});
 }
 
@@ -74,6 +74,7 @@ static void holding_play_and_holding_volume_seeks_and_speeds_up(void)
 {
     CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD, chord_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0));
     CHECK_EQUAL(NOW_PLAYING_SEEK_BACK, chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 2));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD, chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 12));
     CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD_FAST, chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT,
                                                              NOW_PLAYING_SEEK_FAST_AFTER_REPEATS));
     CHECK_EQUAL(NOW_PLAYING_SEEK_BACK_FAST,
@@ -124,31 +125,89 @@ static void play_toggles_pause_and_a_long_play_starts_seeking(void)
     CHECK_EQUAL(NOW_PLAYING_SCRUB_START, command(KEY_PLAY, KEY_GESTURE_LONG_PRESS));
 }
 
-static void while_seeking_volume_keys_move_the_target(void)
+static void while_seeking_a_volume_tap_moves_the_target_five_seconds(void)
 {
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_FORWARD, scrub_command(KEY_VOLUME_UP, KEY_GESTURE_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_TAP_FORWARD, scrub_command(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 0));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_TAP_BACK, scrub_command(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 0));
+    CHECK_EQUAL(5000, NOW_PLAYING_SCRUB_TAP_MS);
+}
+
+static void while_seeking_a_held_volume_key_steps_and_speeds_up(void)
+{
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_FORWARD, scrub_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_FORWARD, scrub_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 12));
     CHECK_EQUAL(NOW_PLAYING_SCRUB_FORWARD_FAST,
-                scrub_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_FORWARD_FAST, scrub_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT));
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_BACK, scrub_command(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS));
+                scrub_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 13));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_BACK, scrub_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 1));
     CHECK_EQUAL(NOW_PLAYING_SCRUB_BACK_FAST,
-                scrub_command(KEY_VOLUME_DOWN, KEY_GESTURE_LONG_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_BACK_FAST, scrub_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT));
+                scrub_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 200));
 }
 
 static void while_seeking_play_commits_and_back_cancels(void)
 {
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_COMMIT, scrub_command(KEY_PLAY, KEY_GESTURE_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_CANCEL, scrub_command(KEY_BACK, KEY_GESTURE_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_HOME, scrub_command(KEY_BACK, KEY_GESTURE_LONG_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_REPEAT_MARK, scrub_command(KEY_MENU, KEY_GESTURE_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_COMMIT, scrub_command(KEY_PLAY, KEY_GESTURE_PRESS, 0));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_CANCEL, scrub_command(KEY_BACK, KEY_GESTURE_PRESS, 0));
+    CHECK_EQUAL(NOW_PLAYING_HOME, scrub_command(KEY_BACK, KEY_GESTURE_LONG_PRESS, 0));
+    CHECK_EQUAL(NOW_PLAYING_REPEAT_MARK, scrub_command(KEY_MENU, KEY_GESTURE_PRESS, 0));
 }
 
 static void the_seek_target_stays_inside_the_track(void)
 {
-    CHECK_EQUAL(65000, now_playing_scrub_target(60000, 200000, NOW_PLAYING_SCRUB_STEP_MS));
-    CHECK_EQUAL(0, now_playing_scrub_target(3000, 200000, -NOW_PLAYING_SCRUB_STEP_MS));
-    CHECK_EQUAL(200000, now_playing_scrub_target(198000, 200000, NOW_PLAYING_SCRUB_FAST_STEP_MS));
+    CHECK_EQUAL(65000, now_playing_scrub_target(60000, 200000, 5000));
+    CHECK_EQUAL(0, now_playing_scrub_target(3000, 200000, -5000));
+    CHECK_EQUAL(200000, now_playing_scrub_target(198000, 200000, 15000));
+}
+
+static void the_seek_target_of_an_unknown_length_only_stops_at_the_start(void)
+{
+    CHECK_EQUAL(5000, now_playing_scrub_target(3000, 0, 2000));
+    CHECK_EQUAL(0, now_playing_scrub_target(3000, 0, -6000));
+}
+
+static void a_seek_step_is_one_percent_of_the_length(void)
+{
+    CHECK_EQUAL(2000, now_playing_seek_step(200000, false));
+    CHECK_EQUAL(3120, now_playing_seek_step(312000, false));
+    CHECK_EQUAL(12345, now_playing_seek_step(1234567, false));
+}
+
+static void after_about_two_seconds_a_seek_step_is_three_percent_of_the_length(void)
+{
+    CHECK_EQUAL(6000, now_playing_seek_step(200000, true));
+    CHECK_EQUAL(9360, now_playing_seek_step(312000, true));
+    CHECK_EQUAL(13, NOW_PLAYING_SEEK_FAST_AFTER_REPEATS);
+}
+
+static void a_seek_step_stays_between_one_and_thirty_seconds(void)
+{
+    CHECK_EQUAL(1000, now_playing_seek_step(1, false));
+    CHECK_EQUAL(1000, now_playing_seek_step(45000, false));
+    CHECK_EQUAL(1000, now_playing_seek_step(100099, false));
+    CHECK_EQUAL(30000, now_playing_seek_step(3000000, false));
+    CHECK_EQUAL(30000, now_playing_seek_step(14400000, false));
+}
+
+static void a_fast_seek_step_stays_between_three_seconds_and_two_minutes(void)
+{
+    CHECK_EQUAL(3000, now_playing_seek_step(1, true));
+    CHECK_EQUAL(3000, now_playing_seek_step(45000, true));
+    CHECK_EQUAL(120000, now_playing_seek_step(4000000, true));
+    CHECK_EQUAL(120000, now_playing_seek_step(14400000, true));
+    CHECK_EQUAL(120000, now_playing_seek_step(UINT32_MAX, true));
+}
+
+static void an_unknown_length_steps_two_seconds_then_six(void)
+{
+    CHECK_EQUAL(2000, now_playing_seek_step(0, false));
+    CHECK_EQUAL(6000, now_playing_seek_step(0, true));
+}
+
+static void a_seek_delta_follows_the_direction_and_speed_of_the_move(void)
+{
+    CHECK_EQUAL(2000, now_playing_seek_delta(0, 200000));
+    CHECK_EQUAL(6000, now_playing_seek_delta(1, 200000));
+    CHECK_EQUAL(-2000, now_playing_seek_delta(2, 200000));
+    CHECK_EQUAL(-6000, now_playing_seek_delta(3, 200000));
 }
 
 static void menu_opens_quick_settings(void)
@@ -266,7 +325,7 @@ static void the_detail_line_leaves_out_what_is_unknown(void)
 static void holding_menu_opens_lyrics_but_does_not_leave_seek_mode(void)
 {
     CHECK_EQUAL(NOW_PLAYING_LYRICS, command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
-    CHECK_EQUAL(NOW_PLAYING_NONE, scrub_command(KEY_MENU, KEY_GESTURE_LONG_PRESS));
+    CHECK_EQUAL(NOW_PLAYING_NONE, scrub_command(KEY_MENU, KEY_GESTURE_LONG_PRESS, 0));
     CHECK_EQUAL(NOW_PLAYING_QUICK_SETTINGS, command(KEY_MENU, KEY_GESTURE_PRESS));
 }
 
@@ -483,9 +542,17 @@ int main(void)
         TEST_CASE(the_skip_toasts_name_the_direction),
         TEST_CASE(skip_toasts_say_what_the_skip_did),
         TEST_CASE(play_toggles_pause_and_a_long_play_starts_seeking),
-        TEST_CASE(while_seeking_volume_keys_move_the_target),
+        TEST_CASE(while_seeking_a_volume_tap_moves_the_target_five_seconds),
+        TEST_CASE(while_seeking_a_held_volume_key_steps_and_speeds_up),
         TEST_CASE(while_seeking_play_commits_and_back_cancels),
         TEST_CASE(the_seek_target_stays_inside_the_track),
+        TEST_CASE(the_seek_target_of_an_unknown_length_only_stops_at_the_start),
+        TEST_CASE(a_seek_step_is_one_percent_of_the_length),
+        TEST_CASE(after_about_two_seconds_a_seek_step_is_three_percent_of_the_length),
+        TEST_CASE(a_seek_step_stays_between_one_and_thirty_seconds),
+        TEST_CASE(a_fast_seek_step_stays_between_three_seconds_and_two_minutes),
+        TEST_CASE(an_unknown_length_steps_two_seconds_then_six),
+        TEST_CASE(a_seek_delta_follows_the_direction_and_speed_of_the_move),
         TEST_CASE(menu_opens_quick_settings),
         TEST_CASE(back_leaves_and_a_long_back_goes_home),
         TEST_CASE(power_is_left_to_the_system),

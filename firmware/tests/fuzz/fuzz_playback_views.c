@@ -42,11 +42,14 @@ static void exercise_helpers(const uint8_t *data, size_t size)
     NowPlayingKeys keys = {.scrubbing = (second & 1u) != 0};
     event.chord = (second & 2u) != 0;
     NowPlayingCommand command = now_playing_command_for(event, keys);
-    fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_REPEAT_MARK);
+    fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_SCRUB_TAP_BACK);
     uint32_t position = get32(data, size, 2);
     uint32_t duration = get32(data, size, 6);
     int32_t delta = (int32_t)get32(data, size, 10);
-    fuzz_require(now_playing_scrub_target(position, duration, delta) <= duration);
+    uint32_t target = now_playing_scrub_target(position, duration, delta);
+    fuzz_require(duration == 0 || target <= duration);
+    fuzz_require(now_playing_seek_step(duration, (second & 4u) != 0) <=
+                 NOW_PLAYING_SEEK_FAST_MAX_MS);
     now_playing_progress_width(position, duration, first);
     now_playing_volume_width(first, second);
     NowPlayingFeedback feedback =

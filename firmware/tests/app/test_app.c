@@ -2305,20 +2305,28 @@ static void releasing_play_after_a_chord_does_not_pause(void)
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
 }
 
+static uint32_t seek_step(bool fast)
+{
+    return now_playing_seek_step(app_player_status().duration_ms, fast);
+}
+
 static void holding_play_and_holding_volume_seeks_faster_the_longer_it_is_held(void)
 {
     play_on_now_playing();
     fake_hal_audio_set_position(0);
     step();
     uint8_t volume = fake_hal_audio_volume();
+    uint32_t normal = seek_step(false);
+    uint32_t fast = seek_step(true);
     press_key(KEY_PLAY);
     press_key(KEY_VOLUME_UP);
+    uint32_t pressed_ms = now_ms - 40;
     int seeks = fake_hal_audio_seek_count();
     uint32_t last = 0;
     uint32_t first_step = 0;
-    uint32_t largest_step = 0;
-    for (int count = 0; count < 52 && last < NOW_PLAYING_SEEK_FAST_AFTER_REPEATS * 6000; count++) {
-        now_ms += 50;
+    uint32_t fast_at_ms = 0;
+    for (int count = 0; count < 300 && fast_at_ms == 0; count++) {
+        now_ms += 10;
         step();
         if (fake_hal_audio_seek_count() == seeks) {
             continue;
@@ -2326,19 +2334,45 @@ static void holding_play_and_holding_volume_seeks_faster_the_longer_it_is_held(v
         seeks = fake_hal_audio_seek_count();
         uint32_t moved = fake_hal_audio_last_seek() - last;
         first_step = first_step == 0 ? moved : first_step;
-        largest_step = moved > largest_step ? moved : largest_step;
+        fast_at_ms = moved == fast ? now_ms - pressed_ms : 0;
         last = fake_hal_audio_last_seek();
     }
     release_key(KEY_VOLUME_UP);
     release_key(KEY_PLAY);
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_STEP_MS, first_step);
-    CHECK_EQUAL(NOW_PLAYING_SCRUB_FAST_STEP_MS, largest_step);
+    CHECK_EQUAL(normal, first_step);
+    CHECK(fast_at_ms >= 2000 && fast_at_ms <= 2300);
     CHECK(playing_path_is(HELLS_BELLS_PATH));
     CHECK_EQUAL(volume, fake_hal_audio_volume());
     CHECK(app_toast_text() == NULL);
     uint32_t forward = app_player_status().position_ms;
     chord_hold(KEY_VOLUME_DOWN, 900);
-    CHECK(app_player_status().position_ms + NOW_PLAYING_SCRUB_STEP_MS <= forward);
+    CHECK(app_player_status().position_ms + normal <= forward);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static uint32_t seek_mode_hold(Key volume, uint32_t duration_ms)
+{
+    fake_hal_audio_set_position(0);
+    step();
+    hold(KEY_PLAY);
+    fake_hal_queue_transition(volume, true, now_ms);
+    uint32_t release_ms = now_ms + duration_ms;
+    while (now_ms < release_ms) {
+        now_ms += 10;
+        step();
+    }
+    release_key(volume);
+    tap(KEY_PLAY);
+    return fake_hal_audio_last_seek();
+}
+
+static void holding_volume_in_seek_mode_steps_by_the_length_and_speeds_up(void)
+{
+    play_on_now_playing();
+    uint32_t normal = seek_step(false);
+    uint32_t fast = seek_step(true);
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_TAP_MS + 12 * normal, seek_mode_hold(KEY_VOLUME_UP, 1800));
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_TAP_MS + 12 * normal + fast, seek_mode_hold(KEY_VOLUME_UP, 1900));
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
@@ -2374,7 +2408,7 @@ static void the_play_chord_works_the_same_with_the_screen_off(void)
     fake_hal_audio_set_position(0);
     step();
     chord_hold(KEY_VOLUME_UP, 1200);
-    CHECK(app_player_status().position_ms > NOW_PLAYING_SCRUB_STEP_MS);
+    CHECK(app_player_status().position_ms > seek_step(false));
     tap(KEY_VOLUME_UP);
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
@@ -2405,7 +2439,7 @@ static void holding_play_alone_still_opens_seek_mode_for_a_b_repeat(void)
     hold(KEY_PLAY);
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
-    CHECK_EQUAL(PLAYING_POSITION_MS / 2 + NOW_PLAYING_SCRUB_STEP_MS, fake_hal_audio_last_seek());
+    CHECK_EQUAL(PLAYING_POSITION_MS / 2 + NOW_PLAYING_SCRUB_TAP_MS, fake_hal_audio_last_seek());
     CHECK_EQUAL(volume, fake_hal_audio_volume());
 }
 
@@ -7535,6 +7569,7 @@ int main(void)
         TEST_CASE(the_play_chord_works_the_same_with_the_screen_off),
         TEST_CASE(the_play_chord_is_refused_while_locked),
         TEST_CASE(holding_play_alone_still_opens_seek_mode_for_a_b_repeat),
+        TEST_CASE(holding_volume_in_seek_mode_steps_by_the_length_and_speeds_up),
         TEST_CASE(a_chord_after_seek_mode_opened_leaves_seek_mode),
         TEST_CASE(play_and_volume_together_do_not_skip_in_lists),
         TEST_CASE(holding_play_and_tapping_volume_jumps_in_a_book),
