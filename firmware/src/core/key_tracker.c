@@ -100,13 +100,19 @@ void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms)
     press(tracker, key, now_ms, true);
 }
 
+void key_tracker_resume(KeyTracker *tracker, Key key, uint32_t now_ms)
+{
+    press(tracker, key, now_ms, false);
+    tracker->states[key].hold_only = true;
+}
+
 void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms)
 {
     KeyState *state = &tracker->states[key];
     if (!state->held) {
         return;
     }
-    if (!repeats(tracker, key) && !state->long_press_sent) {
+    if (!repeats(tracker, key) && !state->long_press_sent && !state->hold_only) {
         uint32_t queued = tracker->queue_length;
         push_event(tracker, key,
                    long_press_due(tracker, key, now_ms) ? KEY_GESTURE_LONG_PRESS

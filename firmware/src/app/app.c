@@ -178,6 +178,8 @@ typedef struct AppState {
     uint32_t charge_lit_until_ms;
     KeyLock lock;
     KeyChord chord;
+    uint8_t raw_held;
+    bool loader_keys;
     HalBattery charge_battery;
     HalAudioJack listener_jack;
     bool listener_bluetooth;
@@ -272,25 +274,8 @@ static bool pass_through_chord(Key key, HalKeyTransition transition)
     return action == KEY_CHORD_START;
 }
 
-static bool loader_keys_take(Key key)
+static void dispatch_transition(HalKeyTransition transition, Key key, bool scripted)
 {
-    if (!hal_input_loader_keys_held()) {
-        return false;
-    }
-    key_tracker_cancel(&app.keys, KEY_POWER);
-    key_tracker_cancel(&app.keys, key);
-    return true;
-}
-
-static void take_transition(HalKeyTransition transition, bool scripted)
-{
-    hal_system_coast(false);
-    app.render_urgent = true;
-    Key key = oriented_key(transition);
-    if (!scripted && loader_keys_take(key)) {
-        debug_loop_ladder(transition, false);
-        return;
-    }
     KeyLockVerdict verdict =
         key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
     bool chord = verdict == KEY_LOCK_PASS && pass_through_chord(key, transition);
@@ -323,9 +308,61 @@ static void take_transition(HalKeyTransition transition, bool scripted)
     }
 }
 
+enum {
+    LOADER_KEYS = 1u << KEY_POWER | 1u << KEY_VOLUME_UP
+};
+
+static bool loader_gesture_key(Key key)
+{
+    return key == KEY_POWER || key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN;
+}
+
+static void start_loader_keys(void)
+{
+    key_tracker_cancel(&app.keys, KEY_POWER);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_UP);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_DOWN);
+    key_lock_interrupt(&app.lock);
+}
+
+static bool follow_loader_keys(uint32_t time_ms)
+{
+    bool was = app.loader_keys;
+    app.loader_keys = (app.raw_held & ~LOADER_KEYS) == 0 && hal_input_loader_keys_held();
+    if (app.loader_keys && !was) {
+        start_loader_keys();
+    } else if (was && !app.loader_keys && (app.raw_held & 1u << KEY_POWER) != 0 &&
+               key_lock_transition(&app.lock, KEY_POWER, true, time_ms) == KEY_LOCK_PASS) {
+        key_tracker_resume(&app.keys, KEY_POWER, time_ms);
+    }
+    return was || app.loader_keys;
+}
+
+static bool loader_keys_take(HalKeyTransition transition, Key key)
+{
+    uint8_t bit = (uint8_t)(1u << transition.key);
+    app.raw_held = transition.pressed ? app.raw_held | bit : app.raw_held & (uint8_t)~bit;
+    return follow_loader_keys(transition.time_ms) && loader_gesture_key(key);
+}
+
+static void take_transition(HalKeyTransition transition, bool scripted)
+{
+    hal_system_coast(false);
+    app.render_urgent = true;
+    Key key = oriented_key(transition);
+    if (!scripted && loader_keys_take(transition, key)) {
+        debug_loop_ladder(transition, false);
+        return;
+    }
+    dispatch_transition(transition, key, scripted);
+}
+
 static void read_input(void)
 {
     HalKeyTransition transition;
+    if (!app.loader_keys) {
+        follow_loader_keys(hal_clock_milliseconds());
+    }
     while (hal_input_next_transition(&transition)) {
         if (transition.pressed) {
             debug_runner_key_pressed();
@@ -2466,6 +2503,8 @@ void app_resume_after_usb(void)
     bool locked = app.lock.locked;
     key_tracker_release_all(&app.keys);
     app.lock = (KeyLock){.locked = locked};
+    app.raw_held = 0;
+    app.loader_keys = false;
     app.chord = (KeyChord){.allowed = false};
     app_wake();
 }

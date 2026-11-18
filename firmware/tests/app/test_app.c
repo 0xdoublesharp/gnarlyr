@@ -4089,6 +4089,87 @@ static void power_and_volume_up_held_for_the_loader_neither_switch_off_nor_skip(
     }
 }
 
+static void brush_volume_up_while_power_is_held(void)
+{
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    keep_holding(300);
+    fake_hal_set_loader_keys(true);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    keep_holding(100);
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    keep_holding(100);
+}
+
+static void a_brushed_volume_up_leaves_a_held_power_switching_off(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery(ON_USB);
+    uint16_t track = app_player_status().track;
+    brush_volume_up_while_power_is_held();
+    keep_holding(2100);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    CHECK_EQUAL(track, app_player_status().track);
+}
+
+static void a_brushed_volume_up_leaves_a_held_power_waking_the_charge_screen(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery(ON_USB);
+    hold_power();
+    wait_ms(GOODBYE_MS);
+    CHECK(app_charging());
+    brush_volume_up_while_power_is_held();
+    keep_holding(2100);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    wait_ms(100);
+    CHECK(!app_charging());
+}
+
+static void rolling_from_the_lock_chord_to_the_loader_keys_does_not_lock(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    keep_holding(300);
+    fake_hal_set_loader_keys(true);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    keep_holding(1500);
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    keep_holding(100);
+    CHECK(app_toast_text() == NULL || strcmp(app_toast_text(), "Buttons locked") != 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void a_volume_up_held_before_power_stops_when_the_loader_keys_start(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_set_battery(ON_USB);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    keep_holding(50);
+    uint8_t volume = fake_hal_audio_volume();
+    fake_hal_set_loader_keys(true);
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    keep_holding(3000);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK(!app_charging());
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    keep_holding(100);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+}
+
 static void the_charge_screen_goes_dark_and_a_key_lights_it(void)
 {
     start_app_with_library();
@@ -7343,6 +7424,10 @@ int main(void)
         TEST_CASE(an_empty_battery_on_usb_power_keeps_playing),
         TEST_CASE(switching_off_on_usb_power_shows_the_charge_screen),
         TEST_CASE(power_and_volume_up_held_for_the_loader_neither_switch_off_nor_skip),
+        TEST_CASE(a_brushed_volume_up_leaves_a_held_power_switching_off),
+        TEST_CASE(a_brushed_volume_up_leaves_a_held_power_waking_the_charge_screen),
+        TEST_CASE(rolling_from_the_lock_chord_to_the_loader_keys_does_not_lock),
+        TEST_CASE(a_volume_up_held_before_power_stops_when_the_loader_keys_start),
         TEST_CASE(the_charge_screen_goes_dark_and_a_key_lights_it),
         TEST_CASE(charging_motion_waits_for_its_next_frame_and_stops_in_the_dark),
         TEST_CASE(charging_keeps_its_renderer_loaded_until_the_player_wakes),

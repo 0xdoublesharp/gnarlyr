@@ -49,6 +49,24 @@ static void tap_emits_press_on_release(void)
     CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
 }
 
+static void a_resumed_hold_gives_only_its_long_press(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_resume(&tracker, KEY_POWER, 1000);
+    key_tracker_update(&tracker, 2999);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_POWER));
+    key_tracker_key_up(&tracker, KEY_POWER, 2500);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_POWER));
+    key_tracker_resume(&tracker, KEY_POWER, 4000);
+    key_tracker_update(&tracker, 6000);
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_POWER));
+    key_tracker_key_up(&tracker, KEY_POWER, 6100);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_POWER));
+    key_tracker_key_down(&tracker, KEY_POWER, 7000);
+    key_tracker_key_up(&tracker, KEY_POWER, 7100);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_POWER));
+}
+
 static void holding_past_threshold_emits_one_long_press(void)
 {
     KeyTracker tracker = make_tracker();
@@ -427,6 +445,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_key_with_its_own_long_press_time_waits_for_it),
+        TEST_CASE(a_resumed_hold_gives_only_its_long_press),
         TEST_CASE(a_release_before_its_own_long_press_time_is_a_tap),
         TEST_CASE(keys_without_their_own_time_use_the_shared_one),
         TEST_CASE(tap_emits_press_on_release),
