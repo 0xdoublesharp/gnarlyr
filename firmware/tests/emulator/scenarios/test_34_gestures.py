@@ -39,6 +39,9 @@ MP3_REPEATS = 24
 LISTEN_MS = 2500
 END_SEEK_LIMIT_MS = 10000
 RESUMED_LISTEN_MS = 1200
+DARK_LISTEN_MS = 4000
+CORE1_INSTRUCTIONS_PER_US = 100
+OGG_LISTEN_MS = 1200
 PREFILL_WAIT_MS = 1500
 GESTURES = int(os.environ.get("ECHO_GESTURES", "36"))
 SEEDS = tuple(int(seed) for seed in os.environ.get("ECHO_GESTURE_SEEDS", "1").split(","))
@@ -59,6 +62,28 @@ def follow_dac_power(machine):
     address = machine.symbols["dac_up"]
     machine.hook_symbol("dac_path_start", lambda: machine.uc.mem_write(address, b"\x01"))
     machine.hook_symbol("dac_path_stop", lambda: machine.uc.mem_write(address, b"\x00"))
+
+
+def small_block_flac(rate_code, rate, block_code, block, seconds):
+    from echo_emulator.flac_image import crc8, crc16, utf8_number
+    samples = bytearray()
+    for index in range(block):
+        samples += struct.pack(">h", PATTERN[index % len(PATTERN)])
+    body = (bytes([0x02]) + bytes(samples)) * 2
+    frames = bytearray()
+    count = rate * seconds // block
+    sizes = set()
+    for number in range(count):
+        header = bytes([0xFF, 0xF8, block_code << 4 | rate_code, 0x10]) + utf8_number(number)
+        header += bytes([crc8(header)])
+        frame = header + body
+        frame += struct.pack(">H", crc16(frame))
+        sizes.add(len(frame))
+        frames += frame
+    packed = rate << 44 | 1 << 41 | 15 << 36 | count * block
+    info = (struct.pack(">HH", block, block) + min(sizes).to_bytes(3, "big")
+            + max(sizes).to_bytes(3, "big") + packed.to_bytes(8, "big") + bytes(16))
+    return b"fLaC" + bytes([0x80, 0, 0, 34]) + info + bytes(frames)
 
 
 class Layers:
@@ -275,6 +300,72 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(ENGINE_STOPPED, state["engine"], state)
         self.assertNotEqual(PLAYER_PLAYING, state["app"], "%s\n%s" % (state, layers.events()))
         self.assertIsNone(Layers.problem(state), state)
+
+    def test_screen_off_playback_keeps_a_96_khz_flac_with_512_sample_blocks_fed(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        volume = Fat32Volume()
+        volume.add_file("Small blocks.flac", small_block_flac(0xB, 96000, 0x9, 512, 12))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        follow_dac_power(rig.machine)
+        rig.audio.core1.instructions_per_us = CORE1_INSTRUCTIONS_PER_US
+        layers = Layers(rig)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        self.assertEqual(96000, rig.audio.rate)
+        start = rig.machine.milliseconds() + 20
+        rig.machine.hold_power(start, TAP_MS)
+        rig.machine.run(until_ms=start + TAP_MS + SETTLE_MS)
+        dark = rig.machine.milliseconds()
+        self.assertFalse(rig.machine.read_memory(rig.machine.symbols["display_lit"], 1)[0]
+                         if "display_lit" in rig.machine.symbols else False)
+        rig.run_for(DARK_LISTEN_MS)
+        state = layers.snapshot()
+        self.assertEqual(PLAYER_PLAYING, state["app"], "%s\n%s" % (state, layers.events()))
+        starved = [stamp for stamp, level in rig.audio.levels if stamp >= dark and level < 0]
+        self.assertEqual([], starved[:5], "%d starved samples" % len(starved))
+        self.assert_healthy(rig.session)
+
+    def dark_starvation(self, rig, since, until):
+        return [stamp for stamp, level in rig.audio.levels if since <= stamp < until and level < 0]
+
+    def test_screen_off_playback_keeps_vorbis_and_opus_fed(self):
+        from echo_emulator.core1_bridge import CORE1_FLAC, CORE1_OPUS, CORE1_VORBIS, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        fixtures = PROJECT / "tests" / "fixtures"
+        volume = Fat32Volume()
+        volume.add_file("01 Vorbis.ogg", (fixtures / "vorbis" / "cropped44.ogg").read_bytes())
+        volume.add_file("02 Opus.opus", (fixtures / "opus" / "stereo48.opus").read_bytes())
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        follow_dac_power(rig.machine)
+        programs = {program: self.elf.with_name("core1_%s.bin" % name).read_bytes()
+                    for program, name in ((CORE1_VORBIS, "vorbis"), (CORE1_OPUS, "opus"))}
+        programs[CORE1_FLAC] = rig.audio.core1.programs[CORE1_FLAC]
+        Core1Bridge(rig.audio, programs, CORE1_INSTRUCTIONS_PER_US)
+        layers = Layers(rig)
+        rig.open_songs()
+        rig.play_song(1)
+        start = rig.machine.milliseconds() + 20
+        rig.machine.hold_power(start, TAP_MS)
+        rig.machine.run(until_ms=start + TAP_MS + SETTLE_MS)
+        dark = rig.machine.milliseconds()
+        rig.run_for(OGG_LISTEN_MS)
+        self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"], layers.events())
+        self.assertEqual([], self.dark_starvation(rig, dark, rig.machine.milliseconds())[:5])
+        released = rig.machine.press_ladder([(PLAY, TAP_MS), (VOLUME_KEYS[1], TAP_MS),
+                                             (PLAY, TAP_MS)])
+        rig.machine.run(until_ms=released + SETTLE_MS)
+        skipped = rig.machine.milliseconds()
+        self.assertEqual(1, layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8,
+                         layers.events())
+        rig.run_for(OGG_LISTEN_MS)
+        self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"], layers.events())
+        self.assertEqual([], self.dark_starvation(rig, skipped, rig.machine.milliseconds())[:5])
+        self.assert_healthy(rig.session)
 
     def remount_rig(self):
         from echo_emulator.fat_volume import Fat32Volume

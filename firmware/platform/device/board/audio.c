@@ -47,7 +47,6 @@ enum {
     PREFILL_TIMEOUT_MS = 1000,
     FILL_BUDGET_BYTES = 8192,
     FILL_BURST_BYTES = 65536,
-    BUDGET_PASS_MS = 10,
     LONGEST_REST_MS = 40,
     RING_SERVICES = 4,
     RESTING_PUMPS = 4,
@@ -171,7 +170,7 @@ static void pump(uint32_t consumed_frames)
         core1_source.fill_budget = board_display_lit() ? FILL_BUDGET_BYTES : FILL_BURST_BYTES;
         core1_source_fill(&core1_source);
     }
-    uint32_t pumps = rest_ms > BUDGET_PASS_MS ? RESTING_PUMPS : 1;
+    uint32_t pumps = rest_ms != 0 ? RESTING_PUMPS : 1;
     for (uint32_t pump_index = 0; pump_index < pumps; pump_index++) {
         uint32_t produced = engine.produced;
         audio_engine_pump(&engine, consumed_frames);

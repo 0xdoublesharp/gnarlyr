@@ -299,7 +299,7 @@ static uint32_t pass_interval_ms(void)
     bool dark = interval_ms >= DARK_PASS_MS && !board_display_lit() &&
                 usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
     uint32_t rest_ms = board_audio_plan_rest(dark);
-    return rest_ms > interval_ms ? rest_ms : interval_ms;
+    return rest_ms != 0 ? rest_ms : interval_ms;
 }
 
 static void sleep_until_next_pass(void)
