@@ -87,5 +87,3 @@ uint32_t audio_boost_target(uint32_t level);
 
 void audio_effects_design(AudioEffects *effects, uint32_t rate);
 uint32_t audio_effects_run(AudioEffects *effects, const AudioEffectsBlock *block);
-void audio_effects_settle(AudioEffects *effects, AudioSegment *segments, int count,
-                          uint32_t consumed);

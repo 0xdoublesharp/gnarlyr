@@ -65,9 +65,3 @@ CORE_SEAM uint32_t audio_effects_run(AudioEffects *effects, const AudioEffectsBl
     }
     return frames;
 }
-
-CORE_SEAM void audio_effects_settle(AudioEffects *effects, AudioSegment *segments, int count,
-                                    uint32_t consumed)
-{
-    audio_skip_settle(&effects->skip, segments, count, consumed);
-}
