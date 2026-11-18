@@ -31,7 +31,6 @@ typedef struct ListeningStore {
     uint32_t pending_sequence;
     uint32_t last_ms;
     uint32_t retry_ms;
-    uint8_t speed_rest;
     bool observed;
     bool following;
     bool waiting;

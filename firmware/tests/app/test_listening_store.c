@@ -418,6 +418,32 @@ static void a_song_played_to_the_end_counts_as_listened_at_every_speed(void)
     }
 }
 
+static ListeningSeen played_at_normal_speed_while_asking_for(uint16_t speed, uint32_t until_ms)
+{
+    reset();
+    ListeningObservation play = observed(10, 0, PLAYER_PLAYING);
+    play.status.speed = speed;
+    listening_store_follow(&store, play, 0);
+    for (uint32_t now = 100; now <= until_ms; now += 100) {
+        play.status.position_ms = now;
+        listening_store_follow(&store, play, now);
+    }
+    listening_store_follow(&store, (ListeningObservation){0}, until_ms);
+    ListeningSeen seen;
+    CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
+    return seen;
+}
+
+static void a_listen_counts_the_track_time_the_audio_really_played(void)
+{
+    ListeningSeen seen = played_at_normal_speed_while_asking_for(300, 25000);
+    CHECK_EQUAL(25000, seen.listened_ms);
+    CHECK(!listening_play_listened(&seen.first.play));
+    seen = played_at_normal_speed_while_asking_for(50, 40000);
+    CHECK_EQUAL(40000, seen.listened_ms);
+    CHECK(listening_play_listened(&seen.first.play));
+}
+
 static void the_player_reports_the_speed_it_asked_the_audio_to_use(void)
 {
     start_real_playback();
@@ -471,6 +497,7 @@ int main(void)
         TEST_CASE(stepped_observations_at_every_speed_count_track_time),
         TEST_CASE(a_track_change_closes_at_the_source_end_and_counts_track_time),
         TEST_CASE(a_song_played_to_the_end_counts_as_listened_at_every_speed),
+        TEST_CASE(a_listen_counts_the_track_time_the_audio_really_played),
         TEST_CASE(the_player_reports_the_speed_it_asked_the_audio_to_use),
         TEST_CASE(the_real_last_track_is_recorded_finished_when_the_player_becomes_idle),
         TEST_CASE(an_idle_remembered_track_does_not_start_a_new_history_play),

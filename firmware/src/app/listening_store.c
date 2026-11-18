@@ -140,7 +140,6 @@ static void begin(ListeningStore *store, ListeningObservation observation, uint3
                                          status->format.bits_per_sample),
     };
     store->following = true;
-    store->speed_rest = 0;
 }
 
 static bool same_play(ListeningObservation first, ListeningObservation second)
@@ -181,11 +180,12 @@ static uint32_t closing_position(const ListeningStore *store, uint32_t elapsed)
     return length != 0 && end > length ? length : end;
 }
 
-static uint32_t heard_ms(ListeningStore *store, uint32_t elapsed)
+static uint32_t heard_ms(const ListeningStore *store, uint32_t elapsed, uint32_t position)
 {
-    uint32_t scaled = elapsed * playing_speed(store) + store->speed_rest;
-    store->speed_rest = (uint8_t)(scaled % PLAYER_NORMAL_SPEED);
-    return scaled / PLAYER_NORMAL_SPEED;
+    uint32_t before = store->previous.status.position_ms;
+    uint32_t usual = elapsed * playing_speed(store) / PLAYER_NORMAL_SPEED;
+    uint32_t moved = position - before;
+    return position > before && moved <= usual + elapsed ? moved : usual;
 }
 
 static ListeningEnd changed_end(const ListeningStore *store)
@@ -216,7 +216,9 @@ void listening_store_follow(ListeningStore *store, ListeningObservation observat
             same ? observation.status.position_ms : closing_position(store, elapsed);
         uint32_t before = store->previous.status.position_ms;
         uint32_t closed = store->active.end_ms;
-        uint32_t heard = same ? heard_ms(store, elapsed) : closed > before ? closed - before : 0;
+        uint32_t heard = same              ? heard_ms(store, elapsed, closed)
+                         : closed > before ? closed - before
+                                           : 0;
         uint32_t room = UINT32_MAX - store->active.listened_ms;
         store->active.listened_ms += heard < room ? heard : room;
         if (!same) {
