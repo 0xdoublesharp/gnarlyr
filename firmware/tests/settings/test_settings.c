@@ -13,7 +13,7 @@ enum {
     EQUALIZER_FIELD = 18,
     LANGUAGE_FIELD = 19,
     TEXT_SIZE_FIELD = 24,
-    SKIP_GESTURE_FIELD = 25,
+    RETIRED_SKIP_FIELD = 25,
     ORIENTATION_FIELD = 26,
     HALF_DB_GAINS_FIELD = 28,
     CURRENT_VERSION = 1,
@@ -47,7 +47,6 @@ static Settings custom_settings(void)
     settings.equalizer_gains[4] = 20;
     settings.equalizer_gains[9] = -3;
     settings.text_size = TEXT_SIZE_LARGE;
-    settings.skip_gesture = SKIP_GESTURE_PLAY_CLICKS;
     settings.orientation = ORIENTATION_PORTRAIT_FLIPPED;
     return settings;
 }
@@ -80,7 +79,6 @@ static void defaults_are_comfortable(void)
         CHECK_EQUAL(0, settings.equalizer_gains[band]);
     }
     CHECK_EQUAL(TEXT_SIZE_MEDIUM, settings.text_size);
-    CHECK_EQUAL(SKIP_GESTURE_HOLD, settings.skip_gesture);
     CHECK_EQUAL(ORIENTATION_LANDSCAPE, settings.orientation);
 }
 
@@ -258,15 +256,12 @@ static void an_unknown_text_size_is_rejected(void)
     CHECK(!settings_decode(bytes, sizeof bytes, &settings));
 }
 
-static void the_skip_gesture_is_saved_at_byte_twenty_five(void)
+static void the_retired_skip_byte_is_written_as_zero(void)
 {
     Settings settings = custom_settings();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
-    CHECK_EQUAL(SKIP_GESTURE_PLAY_CLICKS, bytes[SKIP_GESTURE_FIELD]);
-    settings.skip_gesture = SKIP_GESTURE_DOUBLE_VOLUME;
-    settings_encode(&settings, bytes);
-    CHECK_EQUAL(SKIP_GESTURE_DOUBLE_VOLUME, bytes[SKIP_GESTURE_FIELD]);
+    CHECK_EQUAL(0, bytes[RETIRED_SKIP_FIELD]);
 }
 
 static void a_volume_above_the_top_is_rejected(void)
@@ -292,14 +287,22 @@ static void a_current_volume_up_to_sixty_is_kept(void)
     CHECK_EQUAL(1, decoded.dac_volume);
 }
 
-static void an_unknown_skip_gesture_is_rejected(void)
+static void a_saved_skip_songs_choice_still_loads_the_other_settings(void)
 {
-    Settings settings = custom_settings();
-    uint8_t bytes[SETTINGS_FILE_SIZE];
-    settings_encode(&settings, bytes);
-    bytes[SKIP_GESTURE_FIELD] = SKIP_GESTURE_COUNT;
-    rewrite_checksum(bytes);
-    CHECK(!settings_decode(bytes, sizeof bytes, &settings));
+    Settings original = custom_settings();
+    for (uint8_t saved = 0; saved < 3; saved++) {
+        uint8_t bytes[SETTINGS_FILE_SIZE];
+        settings_encode(&original, bytes);
+        bytes[RETIRED_SKIP_FIELD] = saved;
+        rewrite_checksum(bytes);
+        Settings decoded;
+        CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+        CHECK_EQUAL(original.text_size, decoded.text_size);
+        CHECK_EQUAL(original.orientation, decoded.orientation);
+        uint8_t again[SETTINGS_FILE_SIZE];
+        settings_encode(&decoded, again);
+        CHECK_EQUAL(0, again[RETIRED_SKIP_FIELD]);
+    }
 }
 
 static void the_orientation_is_saved_at_byte_twenty_six(void)
@@ -566,7 +569,6 @@ static void settings_survive_a_round_trip(void)
         CHECK_EQUAL(original.equalizer_gains[band], decoded.equalizer_gains[band]);
     }
     CHECK_EQUAL(original.text_size, decoded.text_size);
-    CHECK_EQUAL(original.skip_gesture, decoded.skip_gesture);
     CHECK_EQUAL(original.orientation, decoded.orientation);
 }
 
@@ -1352,8 +1354,8 @@ int main(void)
         TEST_CASE(a_language_code_with_text_after_its_end_is_rejected),
         TEST_CASE(the_text_size_is_saved_at_byte_twenty_four),
         TEST_CASE(an_unknown_text_size_is_rejected),
-        TEST_CASE(the_skip_gesture_is_saved_at_byte_twenty_five),
-        TEST_CASE(an_unknown_skip_gesture_is_rejected),
+        TEST_CASE(the_retired_skip_byte_is_written_as_zero),
+        TEST_CASE(a_saved_skip_songs_choice_still_loads_the_other_settings),
         TEST_CASE(the_orientation_is_saved_at_byte_twenty_six),
         TEST_CASE(an_unknown_orientation_is_rejected),
         TEST_CASE(an_unknown_equalizer_preset_is_rejected),

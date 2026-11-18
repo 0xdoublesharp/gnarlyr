@@ -1,6 +1,8 @@
 #include "device/key_scanner.h"
 
 static const uint8_t POWER_MASK = 1u << KEY_POWER;
+static const uint8_t PLAY_MASK = 1u << KEY_PLAY;
+static const uint8_t VOLUME_MASK = (1u << KEY_VOLUME_UP) | (1u << KEY_VOLUME_DOWN);
 
 void key_scanner_init(KeyScanner *scanner)
 {
@@ -37,12 +39,23 @@ static void emit_changes(KeyScanner *scanner, uint8_t mask, uint32_t time_ms)
             }
         }
     }
+    scanner->play_unbroken |= (changed & mask & PLAY_MASK) != 0;
     scanner->stable = mask;
+}
+
+static uint8_t keep_play_under_volume(KeyScanner *scanner, uint8_t mask)
+{
+    uint8_t ladder = (uint8_t)(mask & ~POWER_MASK);
+    if (ladder == 0) {
+        scanner->play_unbroken = false;
+    }
+    return scanner->play_unbroken && (ladder & VOLUME_MASK) != 0 ? (uint8_t)(mask | PLAY_MASK)
+                                                                 : mask;
 }
 
 void key_scanner_sample(KeyScanner *scanner, uint8_t pressed_mask, uint32_t time_ms)
 {
-    uint8_t mask = gate_power(scanner, pressed_mask);
+    uint8_t mask = keep_play_under_volume(scanner, gate_power(scanner, pressed_mask));
     scanner->run = mask == scanner->last_sample && scanner->run < UINT8_MAX ? scanner->run + 1 : 1;
     scanner->last_sample = mask;
     bool pressing = (mask & ~scanner->stable) != 0;

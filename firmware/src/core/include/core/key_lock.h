@@ -14,16 +14,19 @@ typedef enum KeyLockVerdict {
     KEY_LOCK_SWALLOW,
     KEY_LOCK_COMBO_STARTED,
     KEY_LOCK_REFUSED,
-    KEY_LOCK_SHORTCUT
+    KEY_LOCK_SHORTCUT,
+    KEY_LOCK_CHORD
 } KeyLockVerdict;
 
 typedef struct KeyLock {
     bool locked;
     bool combo;
     bool combo_done;
+    bool chords;
     uint8_t shortcut;
     uint32_t combo_since_ms;
     bool held[KEY_COUNT];
+    bool chorded[KEY_COUNT];
 } KeyLock;
 
 KeyLockVerdict key_lock_transition(KeyLock *lock, Key key, bool pressed, uint32_t now_ms);

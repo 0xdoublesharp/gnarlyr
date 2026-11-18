@@ -31,6 +31,17 @@ uint8_t key_ladder_mask(uint16_t reading)
     return key_ladder_decode(reading, &key) ? (uint8_t)(1u << key) : 0;
 }
 
+uint16_t key_ladder_reading(uint8_t held)
+{
+    static const uint16_t TYPICAL[] = {1, 122, 242, 365, 500};
+    for (size_t index = 0; index < sizeof LADDER_BANDS / sizeof LADDER_BANDS[0]; index++) {
+        if ((held & (1u << LADDER_BANDS[index].key)) != 0) {
+            return TYPICAL[index];
+        }
+    }
+    return KEY_LADDER_IDLE_READING;
+}
+
 uint8_t key_ladder_held_mask(uint16_t reading, uint8_t previous)
 {
     uint8_t mask = key_ladder_mask(reading);

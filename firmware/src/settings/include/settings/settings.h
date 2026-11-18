@@ -118,12 +118,6 @@ typedef enum TextSize {
     TEXT_SIZE_LARGE
 } TextSize;
 
-typedef enum SkipGesture {
-    SKIP_GESTURE_HOLD,
-    SKIP_GESTURE_DOUBLE_VOLUME,
-    SKIP_GESTURE_PLAY_CLICKS
-} SkipGesture;
-
 typedef enum Orientation {
     ORIENTATION_LANDSCAPE,
     ORIENTATION_PORTRAIT,
@@ -150,7 +144,6 @@ enum {
     ACCENT_COLOR_COUNT = ACCENT_GRAPHITE + 1,
     EQUALIZER_PRESET_COUNT = EQUALIZER_PARAMETRIC + 1,
     TEXT_SIZE_COUNT = TEXT_SIZE_LARGE + 1,
-    SKIP_GESTURE_COUNT = SKIP_GESTURE_PLAY_CLICKS + 1,
     ORIENTATION_COUNT = ORIENTATION_PORTRAIT_FLIPPED + 1,
     TRACK_TRANSITION_COUNT = TRACK_TRANSITION_CROSSFADE + 1,
     SETTINGS_EQUALIZER_BANDS = 10,
@@ -214,7 +207,6 @@ typedef struct Settings {
     int8_t equalizer_gains[SETTINGS_EQUALIZER_BANDS];
     ParametricEq parametric;
     TextSize text_size;
-    SkipGesture skip_gesture;
     Orientation orientation;
     char language[SETTINGS_LANGUAGE_CAPACITY];
     uint8_t replay_gain_mode;

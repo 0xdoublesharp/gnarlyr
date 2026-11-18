@@ -43,6 +43,7 @@ typedef enum DebugEventKind {
     DEBUG_EVENT_SCAN,
     DEBUG_EVENT_COVER,
     DEBUG_EVENT_DISPLAY_FALLBACK,
+    DEBUG_EVENT_LADDER,
     DEBUG_EVENT_KIND_COUNT
 } DebugEventKind;
 

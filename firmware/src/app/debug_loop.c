@@ -11,6 +11,8 @@
 
 enum {
     FOLLOW_INTERVAL_MS = 100,
+    LADDER_PRESSED = 1u << 8,
+    LADDER_CHORD = 1u << 9,
     GESTURE_SHIFT = 8,
     TRACK_SHIFT = 8,
     STATE_MASK = 0xFF
@@ -59,6 +61,13 @@ void debug_loop_key(KeyEvent event)
         uint32_t value = (uint32_t)event.key | (uint32_t)event.gesture << GESTURE_SHIFT;
         record(DEBUG_EVENT_KEY, value | (uint32_t)hal_input_key_adc() << 16, NULL);
     }
+}
+
+void debug_loop_ladder(HalKeyTransition transition, bool chord)
+{
+    uint32_t value = (uint32_t)transition.key | (transition.pressed ? LADDER_PRESSED : 0u) |
+                     (chord ? LADDER_CHORD : 0u);
+    record(DEBUG_EVENT_LADDER, value | (uint32_t)hal_input_key_adc() << 16, NULL);
 }
 
 void debug_loop_screen(const char *title, int depth)

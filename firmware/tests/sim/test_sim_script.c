@@ -66,9 +66,31 @@ static void a_held_suffix_holds_for_seconds(void)
     CHECK_EQUAL(SIM_SCRIPT_HELD_FRAMES, events[1].frame);
 }
 
+static void a_play_prefix_holds_play_around_the_step(void)
+{
+    SimScript script;
+    CHECK(sim_script_parse("play+down,up", &script));
+    CHECK_EQUAL(2, script.count);
+    CHECK(script.with_play[0]);
+    CHECK(!script.with_play[1]);
+    SimScriptEvent events[SIM_SCRIPT_MAX_EVENTS];
+    CHECK_EQUAL(6, sim_script_schedule(&script, 0, events));
+    CHECK_EQUAL(KEY_PLAY, events[0].key);
+    CHECK(events[0].pressed);
+    CHECK_EQUAL(KEY_VOLUME_UP, events[1].key);
+    CHECK_EQUAL(SIM_SCRIPT_GAP_FRAMES, events[1].frame);
+    CHECK(!events[2].pressed);
+    CHECK_EQUAL(KEY_PLAY, events[3].key);
+    CHECK(!events[3].pressed);
+    CHECK(events[3].frame > events[2].frame);
+    CHECK(!sim_script_parse("play+", &script));
+    CHECK(!sim_script_parse("play+jump", &script));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_play_prefix_holds_play_around_the_step),
         TEST_CASE(a_key_list_becomes_steps),
         TEST_CASE(a_bad_list_is_rejected),
         TEST_CASE(too_many_steps_are_rejected),

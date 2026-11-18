@@ -97,8 +97,6 @@ static const KeyConfig KEY_CONFIG = {
         },
     .long_press_ms =
         {
-            [KEY_VOLUME_UP] = 1000,
-            [KEY_VOLUME_DOWN] = 1000,
             [KEY_POWER] = 2000,
         },
 };
@@ -177,9 +175,7 @@ typedef struct AppState {
     bool usb_chooser_charging;
     Screen *usb_chooser;
     uint32_t charge_lit_until_ms;
-    bool volume_changed;
     KeyLock lock;
-    uint32_t volume_changed_ms;
     HalBattery charge_battery;
     HalAudioJack listener_jack;
     bool listener_bluetooth;
@@ -244,15 +240,31 @@ static Key oriented_key(HalKeyTransition transition)
 
 static void run_player_command(NowPlayingCommand command);
 static void combo_screenshot(void);
+static void use_screen_key_behaviors(void);
 
 static void take_transition(HalKeyTransition transition)
 {
     hal_system_coast(false);
     app.render_urgent = true;
     Key key = oriented_key(transition);
-    switch (key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms)) {
+    app.lock.chords =
+        !app.charging && (!app.display_on || top_screen() == &app.screens.now_playing.screen ||
+                          top_screen()->keys == SCREEN_KEYS_TEST);
+    KeyLockVerdict verdict =
+        key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
+    debug_loop_ladder(transition, verdict == KEY_LOCK_CHORD);
+    switch (verdict) {
+    case KEY_LOCK_CHORD:
+        key_tracker_cancel(&app.keys, KEY_PLAY);
+        app.screens.now_playing.scrubbing = false;
+        key_tracker_set_behavior(&app.keys, key, KEY_BEHAVIOR_TAP_HOLD_REPEAT);
+        key_tracker_key_down(&app.keys, key, transition.time_ms);
+        break;
     case KEY_LOCK_PASS:
         if (transition.pressed) {
+            if (key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN) {
+                use_screen_key_behaviors();
+            }
             key_tracker_key_down(&app.keys, key, transition.time_ms);
         } else {
             key_tracker_key_up(&app.keys, key, transition.time_ms);
@@ -294,8 +306,6 @@ static void read_input(void)
         take_transition(transition);
     }
 }
-
-static void use_screen_key_behaviors(void);
 
 static uint32_t wanted_clock_mhz(void)
 {
@@ -594,21 +604,9 @@ static void set_key_behaviors(KeyBehavior volume, KeyBehavior play)
 
 static void use_screen_key_behaviors(void)
 {
-    bool skipping = !app.display_on || top_screen()->hold_volume_keys;
-    if (!skipping) {
-        set_key_behaviors(KEY_BEHAVIOR_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
+    set_key_behaviors(KEY_BEHAVIOR_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
+    if (app.display_on && !top_screen()->hold_volume_keys) {
         return;
-    }
-    switch (app.settings.settings.skip_gesture) {
-    case SKIP_GESTURE_HOLD:
-        set_key_behaviors(KEY_BEHAVIOR_TAP_HOLD_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
-        break;
-    case SKIP_GESTURE_DOUBLE_VOLUME:
-        set_key_behaviors(KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT, KEY_BEHAVIOR_TAP_OR_HOLD);
-        break;
-    case SKIP_GESTURE_PLAY_CLICKS:
-        set_key_behaviors(KEY_BEHAVIOR_REPEAT, KEY_BEHAVIOR_TRIPLE_CLICK_OR_HOLD);
-        break;
     }
     const Settings *settings = &app.settings.settings;
     for (int index = 0; index < 2; index++) {
@@ -618,10 +616,6 @@ static void use_screen_key_behaviors(void)
             key_tracker_set_behavior(&app.keys, index == 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN,
                                      KEY_BEHAVIOR_TAP_HOLD_REPEAT);
         }
-    }
-    if (settings->button_actions[PLAYBACK_PLAY_TAP] != BUTTON_ACTION_DEFAULT ||
-        settings->button_actions[PLAYBACK_PLAY_HOLD] != BUTTON_ACTION_DEFAULT) {
-        key_tracker_set_behavior(&app.keys, KEY_PLAY, KEY_BEHAVIOR_TAP_OR_HOLD);
     }
 }
 
@@ -814,49 +808,12 @@ static void run_player_command(NowPlayingCommand command)
     if (mixtape_busy()) {
         cancel_edits();
     }
-    if (command != NOW_PLAYING_NONE) {
-        app.volume_changed = false;
-    }
-    switch (command) {
-    case NOW_PLAYING_TOGGLE_PAUSE:
-        player_toggle_pause(&app.player);
-        break;
-    case NOW_PLAYING_NEXT:
-        player_skip(&app.player, 1);
-        break;
-    case NOW_PLAYING_PREVIOUS:
-        player_skip(&app.player, -1);
-        break;
-    case NOW_PLAYING_VOLUME_UP:
-    case NOW_PLAYING_VOLUME_DOWN:
-        player_change_volume(&app.player, command == NOW_PLAYING_VOLUME_UP ? 1 : -1);
-        app.volume_changed = true;
-        app.volume_changed_ms = app.now_ms;
-        break;
-    case NOW_PLAYING_SEEK_FORWARD:
-        now_playing_seek_by(&app.player, NOW_PLAYING_SCRUB_STEP_MS);
-        break;
-    case NOW_PLAYING_SEEK_FORWARD_FAST:
-        now_playing_seek_by(&app.player, NOW_PLAYING_SCRUB_FAST_STEP_MS);
-        break;
-    case NOW_PLAYING_SEEK_BACK:
-        now_playing_seek_by(&app.player, -NOW_PLAYING_SCRUB_STEP_MS);
-        break;
-    case NOW_PLAYING_SEEK_BACK_FAST:
-        now_playing_seek_by(&app.player, -NOW_PLAYING_SCRUB_FAST_STEP_MS);
-        break;
-    default:
-        break;
-    }
+    now_playing_player_command(&app.player, command);
 }
 
 static void run_background(KeyEvent event)
 {
-    bool adjusting =
-        app.volume_changed && now_playing_adjusting_volume(app.volume_changed_ms, app.now_ms);
-    run_player_command(now_playing_command_for(
-        event, (NowPlayingKeys){.adjusting_volume = adjusting,
-                                .skip = app.settings.settings.skip_gesture}));
+    run_player_command(now_playing_command_for(event, (NowPlayingKeys){.scrubbing = false}));
 }
 
 static const NowPlayingCommand HEADSET_COMMANDS[] = {
@@ -994,6 +951,8 @@ static void dispatch_key_events(uint32_t now_ms)
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
         app.render_urgent = true;
         debug_loop_key(event);
+        event.chord = (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN) &&
+                      app.lock.chorded[event.key];
         if ((app.power.standby_active && event.key != KEY_POWER) || ignored_power_tap(event)) {
             continue;
         }
@@ -1009,7 +968,8 @@ static void dispatch_key_events(uint32_t now_ms)
         } else if (event.key == KEY_BACK && event.gesture == KEY_GESTURE_LONG_PRESS) {
             wake_navigation();
             go_home(now_ms);
-        } else if (configured_menu_hold(event) || mapped_playback(event, now_ms)) {
+        } else if (!event.chord &&
+                   (configured_menu_hold(event) || mapped_playback(event, now_ms))) {
             continue;
         } else if (outcome.background && app.screens.now_playing.scrubbing) {
             wake_navigation();

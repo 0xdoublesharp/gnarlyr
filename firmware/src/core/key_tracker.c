@@ -162,6 +162,9 @@ static void update_repeat(KeyTracker *tracker, Key key, uint32_t now_ms)
     if (!deadline_reached(now_ms, state->next_repeat_at_ms)) {
         return;
     }
+    if (state->repeats < UINT8_MAX) {
+        state->repeats++;
+    }
     push_event(tracker, key, KEY_GESTURE_REPEAT);
     state->next_repeat_at_ms = now_ms + tracker->config.timing.repeat_interval_ms;
 }

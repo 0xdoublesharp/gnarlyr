@@ -145,6 +145,49 @@ static void shortcuts_fire_once_and_drain_both_release_orders(void)
     }
 }
 
+static void holding_play_then_pressing_volume_starts_a_chord(void)
+{
+    KeyLock lock = {.chords = true};
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_PLAY, true, 0));
+    CHECK_EQUAL(KEY_LOCK_CHORD, key_lock_transition(&lock, KEY_VOLUME_UP, true, 100));
+    CHECK(lock.chorded[KEY_VOLUME_UP]);
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_VOLUME_UP, false, 150));
+    CHECK_EQUAL(KEY_LOCK_CHORD, key_lock_transition(&lock, KEY_VOLUME_DOWN, true, 200));
+    CHECK(lock.chorded[KEY_VOLUME_DOWN]);
+}
+
+static void volume_without_play_is_not_a_chord(void)
+{
+    KeyLock lock = {.chords = true};
+    key_lock_transition(&lock, KEY_PLAY, true, 0);
+    key_lock_transition(&lock, KEY_VOLUME_UP, true, 100);
+    key_lock_transition(&lock, KEY_VOLUME_UP, false, 150);
+    key_lock_transition(&lock, KEY_PLAY, false, 200);
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_VOLUME_UP, true, 300));
+    CHECK(!lock.chorded[KEY_VOLUME_UP]);
+}
+
+static void chords_only_start_where_they_are_allowed(void)
+{
+    KeyLock lock = {0};
+    key_lock_transition(&lock, KEY_PLAY, true, 0);
+    CHECK_EQUAL(KEY_LOCK_PASS, key_lock_transition(&lock, KEY_VOLUME_UP, true, 100));
+    CHECK(!lock.chorded[KEY_VOLUME_UP]);
+}
+
+static void locked_keys_refuse_the_play_chord_but_keep_the_power_shortcut(void)
+{
+    KeyLock lock = hold_combo((KeyLock){0}, 0);
+    lock.chords = true;
+    CHECK_EQUAL(KEY_LOCK_REFUSED, key_lock_transition(&lock, KEY_PLAY, true, 3000));
+    CHECK_EQUAL(KEY_LOCK_REFUSED, key_lock_transition(&lock, KEY_VOLUME_UP, true, 3100));
+    CHECK(!lock.chorded[KEY_VOLUME_UP]);
+    key_lock_transition(&lock, KEY_VOLUME_UP, false, 3200);
+    key_lock_transition(&lock, KEY_PLAY, false, 3300);
+    key_lock_transition(&lock, KEY_POWER, true, 4000);
+    CHECK_EQUAL(KEY_LOCK_SHORTCUT, key_lock_transition(&lock, KEY_VOLUME_UP, true, 4100));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -159,6 +202,10 @@ int main(void)
         TEST_CASE(a_hold_crossing_the_clock_wrap_toggles_at_the_deadline),
         TEST_CASE(releasing_one_combo_key_requires_both_keys_to_be_released),
         TEST_CASE(a_released_and_repressed_key_must_be_held_for_the_full_interval),
+        TEST_CASE(holding_play_then_pressing_volume_starts_a_chord),
+        TEST_CASE(volume_without_play_is_not_a_chord),
+        TEST_CASE(chords_only_start_where_they_are_allowed),
+        TEST_CASE(locked_keys_refuse_the_play_chord_but_keep_the_power_shortcut),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

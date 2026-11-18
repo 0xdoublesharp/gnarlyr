@@ -2,7 +2,7 @@ from .audio import AudioPath
 from .real_volume import real_volume
 
 KEYS = {"play": 250, "menu": 350, "back": 500, "previous": 35, "next": 100}
-LONG_PRESS_MS = 1300
+CHORD_STEP_MS = 150
 QUIET_MS = 300
 SETTLE_LIMIT_MS = 4000
 MUSIC_ENTRIES_BEFORE_SONGS = 7
@@ -59,8 +59,10 @@ class Rig:
 
     def skip(self, name):
         start = self.machine.milliseconds()
-        self.machine.press_key(KEYS[name], delay_ms=20, hold_ms=LONG_PRESS_MS)
-        self.machine.run(until_ms=start + 20 + LONG_PRESS_MS + 100)
+        steps = [(KEYS["play"], CHORD_STEP_MS), (KEYS[name], CHORD_STEP_MS),
+                 (KEYS["play"], CHORD_STEP_MS)]
+        released = self.machine.press_ladder(steps)
+        self.machine.run(until_ms=released + 100)
         self.settle()
         return start + 20
 

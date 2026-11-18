@@ -97,7 +97,7 @@ static void draw_event(Canvas *canvas, const KeyTestScreen *test, const Theme *t
     if (test->has_last) {
         const char *parts[] = {key_name(test->last.key),
                                i18n_text((StringId)((int)STR_KEY_TAP + (int)test->last.gesture))};
-        i18n_format(&builder, STR_KEY_TEST_EVENT, parts, 2);
+        i18n_format(&builder, test->last.chord ? STR_KEY_TEST_CHORD : STR_KEY_TEST_EVENT, parts, 2);
     }
     const Font *font =
         text_width(theme->fonts.body, text) <= area->width ? theme->fonts.body : theme->fonts.small;

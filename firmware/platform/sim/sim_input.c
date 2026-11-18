@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include "device/key_ladder.h"
+#include "device/key_ladder_model.h"
 #include "hal/input.h"
 
 enum {
@@ -28,6 +29,8 @@ static const KeyBinding KEY_BINDINGS[] = {
 };
 
 static TransitionQueue queue;
+static KeyLadderModel ladder;
+static bool ladder_ready;
 
 static bool find_binding(SDL_Keycode keycode, Key *key)
 {
@@ -59,16 +62,20 @@ void sim_input_handle_event(const SDL_Event *event)
     if (!find_binding(event->key.keysym.sym, &key)) {
         return;
     }
-    enqueue((HalKeyTransition){
-        .key = key,
-        .pressed = event->type == SDL_KEYDOWN,
-        .time_ms = event->key.timestamp,
-    });
+    sim_input_inject(key, event->type == SDL_KEYDOWN, event->key.timestamp);
 }
 
 void sim_input_inject(Key key, bool pressed, uint32_t time_ms)
 {
-    enqueue((HalKeyTransition){.key = key, .pressed = pressed, .time_ms = time_ms});
+    if (!ladder_ready) {
+        key_ladder_model_init(&ladder);
+        ladder_ready = true;
+    }
+    key_ladder_model_set(&ladder, key, pressed, time_ms);
+    HalKeyTransition transition;
+    while (key_ladder_model_next(&ladder, &transition)) {
+        enqueue(transition);
+    }
 }
 
 bool hal_input_next_transition(HalKeyTransition *transition)
@@ -100,7 +107,7 @@ HalHeadsetReading hal_input_headset_reading(void)
 
 uint16_t hal_input_key_adc(void)
 {
-    return 1023;
+    return ladder_ready ? ladder.reading : KEY_LADDER_IDLE_READING;
 }
 
 bool hal_input_decode_key(uint16_t reading, Key *key)

@@ -212,35 +212,39 @@ static void reset_buttons_restores_the_live_controls_and_saved_defaults(void)
     CHECK_EQUAL(volume, fake_hal_audio_volume());
 }
 
-static void configuring_one_rocker_key_keeps_the_other_keys_double_skip(void)
+static void chord_tap(Key volume)
 {
-    Settings settings = settings_defaults();
-    settings.skip_gesture = SKIP_GESTURE_DOUBLE_VOLUME;
-    settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = BUTTON_ACTION_VOLUME_UP;
-    start_with(settings);
-    uint16_t first = app_player_status().track;
-    fake_hal_queue_headset_command(HAL_HEADSET_NEXT);
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
     wait_ms(40);
-    CHECK(app_player_status().track != first);
-    tap(KEY_VOLUME_DOWN);
-    tap(KEY_VOLUME_DOWN);
-    wait_ms(400);
-    CHECK_EQUAL(first, app_player_status().track);
+    tap(volume);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    wait_ms(40);
 }
 
-static void a_custom_rocker_keeps_the_default_play_multi_click_gesture(void)
+static void a_custom_volume_tap_keeps_the_play_chord_skip(void)
 {
     Settings settings = settings_defaults();
-    settings.skip_gesture = SKIP_GESTURE_PLAY_CLICKS;
-    settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = BUTTON_ACTION_VOLUME_UP;
+    settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = BUTTON_ACTION_PLAY_PAUSE;
     start_with(settings);
     uint16_t first = app_player_status().track;
-    int plays = fake_hal_audio_play_count();
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    wait_ms(400);
+    int volume = fake_hal_audio_volume();
+    chord_tap(KEY_VOLUME_UP);
     CHECK(app_player_status().track != first);
-    CHECK_EQUAL(plays + 1, fake_hal_audio_play_count());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void a_custom_play_tap_does_not_run_after_a_chord(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_UP_NEXT;
+    start_with(settings);
+    uint16_t first = app_player_status().track;
+    chord_tap(KEY_VOLUME_UP);
+    CHECK(app_player_status().track != first);
+    CHECK(strcmp(app_screen_title(), "Now Playing") == 0);
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
@@ -290,8 +294,8 @@ int main(void)
         TEST_CASE(a_navigation_mapping_wakes_the_screen_and_opens_its_destination),
         TEST_CASE(a_home_mapping_wakes_the_screen_before_showing_home),
         TEST_CASE(reset_buttons_restores_the_live_controls_and_saved_defaults),
-        TEST_CASE(configuring_one_rocker_key_keeps_the_other_keys_double_skip),
-        TEST_CASE(a_custom_rocker_keeps_the_default_play_multi_click_gesture),
+        TEST_CASE(a_custom_volume_tap_keeps_the_play_chord_skip),
+        TEST_CASE(a_custom_play_tap_does_not_run_after_a_chord),
         TEST_CASE(a_mapped_seek_owns_the_rocker_and_play_until_it_commits),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

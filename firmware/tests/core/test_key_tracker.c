@@ -224,6 +224,28 @@ static void a_held_hold_repeat_key_long_presses_then_repeats(void)
     CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
 }
 
+static void hold_repeats_count_up_from_the_long_press(void)
+{
+    KeyTracker tracker = hold_repeat_tracker();
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_update(&tracker, 1000 + LONG_PRESS_MS);
+    KeyEvent event;
+    CHECK(key_tracker_next_event(&tracker, &event));
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, event.gesture);
+    CHECK_EQUAL(0, event.repeats);
+    for (int count = 1; count <= 3; count++) {
+        key_tracker_update(&tracker, 1000 + LONG_PRESS_MS + (uint32_t)count * REPEAT_INTERVAL_MS);
+        CHECK(key_tracker_next_event(&tracker, &event));
+        CHECK_EQUAL(KEY_GESTURE_REPEAT, event.gesture);
+        CHECK_EQUAL(count, event.repeats);
+    }
+    key_tracker_key_up(&tracker, KEY_VOLUME_UP, 2000);
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 3000);
+    key_tracker_update(&tracker, 3000 + LONG_PRESS_MS);
+    CHECK(key_tracker_next_event(&tracker, &event));
+    CHECK_EQUAL(0, event.repeats);
+}
+
 static void changing_a_behavior_leaves_other_keys_alone(void)
 {
     KeyTracker tracker = hold_repeat_tracker();
@@ -459,6 +481,7 @@ int main(void)
         TEST_CASE(tap_emits_press_on_release),
         TEST_CASE(slow_consumers_receive_only_the_newest_volume_repeat),
         TEST_CASE(released_volume_keys_do_not_deliver_stale_repeats),
+        TEST_CASE(hold_repeats_count_up_from_the_long_press),
         TEST_CASE(holding_past_threshold_emits_one_long_press),
         TEST_CASE(release_after_long_press_emits_nothing),
         TEST_CASE(late_release_without_update_emits_long_press),

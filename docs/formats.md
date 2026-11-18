@@ -26,7 +26,7 @@ The file is 78 bytes, inside a 4 KB reserved file. Only the copy on internal sto
 | 18 | equalizer preset | 0–8 |
 | 19–23 | language code, ASCII letters, digits or `-`, zero-padded; all zero means the image default | |
 | 24 | text size | 0–2 |
-| 25 | skip gesture | 0–2 |
+| 25 | reserved: written as 0 and ignored when read (it held the retired Skip songs choice, 0–2) | |
 | 26 | orientation | 0–2 |
 | 27 | theme | 0–4 |
 | 28–37 | ten equalizer gains, half-decibels + 20 | 0–40 |

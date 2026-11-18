@@ -1145,6 +1145,20 @@ static void events_are_listed_oldest_first_with_names(void)
     CHECK(strstr(text, "event: 1000") < strstr(text, "event: 1004"));
 }
 
+static void ladder_transitions_name_the_key_the_reading_and_a_chord(void)
+{
+    DebugReportInput input = plain_input();
+    record(DEBUG_EVENT_LADDER, KEY_PLAY | 1u << 8 | 242u << 16, NULL);
+    record(DEBUG_EVENT_LADDER, KEY_VOLUME_DOWN | 1u << 8 | 1u << 9 | 1u << 16, NULL);
+    record(DEBUG_EVENT_LADDER, KEY_VOLUME_DOWN | 242u << 16, NULL);
+    record(DEBUG_EVENT_LADDER, KEY_PLAY | 1023u << 16, NULL);
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("event: 1000 ladder play press 242"));
+    CHECK(has_line("event: 1001 ladder up press 1 chord"));
+    CHECK(has_line("event: 1002 ladder up release 242"));
+    CHECK(has_line("event: 1003 ladder play release 1023"));
+}
+
 static void a_paused_player_with_its_output_powered_down_is_named_standby(void)
 {
     DebugReportInput input = plain_input();
@@ -1507,6 +1521,7 @@ int main(void)
         TEST_CASE(running_audio_reports_averages_worst_times_and_the_busy_share),
         TEST_CASE(frame_figures_are_unknown_until_a_frame_was_drawn),
         TEST_CASE(events_are_listed_oldest_first_with_names),
+        TEST_CASE(ladder_transitions_name_the_key_the_reading_and_a_chord),
         TEST_CASE(a_paused_player_with_its_output_powered_down_is_named_standby),
         TEST_CASE(event_text_outside_plain_ascii_is_replaced),
         TEST_CASE(an_unknown_event_kind_is_named_as_such),

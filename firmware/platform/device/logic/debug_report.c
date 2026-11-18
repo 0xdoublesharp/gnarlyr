@@ -14,6 +14,8 @@ enum {
     PERMILLE = 1000,
     WRAP_FREE_UPTIME_MS = 4294967,
     KEY_MASK = 0xFF,
+    LADDER_PRESSED = 1u << 8,
+    LADDER_CHORD = 1u << 9,
     GESTURE_SHIFT = 8,
     TRACK_SHIFT = 8,
     STATE_MASK = 0xFF,
@@ -52,6 +54,7 @@ static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
     [DEBUG_EVENT_SCAN] = "scan",
     [DEBUG_EVENT_COVER] = "cover",
     [DEBUG_EVENT_DISPLAY_FALLBACK] = "display_fallback",
+    [DEBUG_EVENT_LADDER] = "ladder",
 };
 static const char *const SCAN_PHASES[DEBUG_SCAN_PHASE_COUNT] = {
     [DEBUG_SCAN_START] = "start",
@@ -965,6 +968,11 @@ static void append_event_value(StringBuilder *text, const DebugEvent *event)
         string_builder_append(text, NAME_IN(GESTURE_NAMES, (value >> GESTURE_SHIFT) & 0xFFu));
         string_builder_append_char(text, ' ');
         string_builder_append_unsigned(text, value >> 16);
+    } else if (event->kind == DEBUG_EVENT_LADDER) {
+        string_builder_append(text, key_script_key_name((Key)(value & KEY_MASK)));
+        string_builder_append(text, (value & LADDER_PRESSED) != 0 ? " press " : " release ");
+        string_builder_append_unsigned(text, value >> 16);
+        string_builder_append(text, (value & LADDER_CHORD) != 0 ? " chord" : "");
     } else if (event->kind == DEBUG_EVENT_PLAYER) {
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
     } else if (event->kind == DEBUG_EVENT_USB_END) {

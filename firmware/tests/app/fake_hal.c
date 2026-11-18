@@ -8,6 +8,7 @@
 #include "app/rescan_module.h"
 #include "core/i18n.h"
 #include "device/key_ladder.h"
+#include "device/key_ladder_model.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
@@ -22,7 +23,7 @@
 #include <string.h>
 
 enum {
-    FAKE_KEY_IDLE_READING = 1023,
+    FAKE_KEY_IDLE_READING = KEY_LADDER_IDLE_READING,
     TRANSITION_CAPACITY = 16,
     FILE_CAPACITY = 64,
     PROBE_CALL_CAPACITY = 32,
@@ -102,6 +103,7 @@ static LargeStore large_stores[2];
 
 typedef struct FakeHal {
     uint16_t key_adc;
+    KeyLadderModel ladder;
     AudioVisualBuffer visual_buffer;
     int visual_reads;
     uint8_t battery_care_mode;
@@ -318,6 +320,7 @@ void fake_hal_reset(void)
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
     fake.key_adc = FAKE_KEY_IDLE_READING;
+    key_ladder_model_init(&fake.ladder);
 }
 
 void fake_hal_set_version(const char *version)
@@ -375,11 +378,14 @@ void fake_hal_set_microseconds_per_read(uint32_t step_us)
 
 void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms)
 {
-    if (fake.transition_count == TRANSITION_CAPACITY) {
-        return;
+    key_ladder_model_set(&fake.ladder, key, pressed, time_ms);
+    fake.key_adc = fake.ladder.reading;
+    HalKeyTransition transition;
+    while (key_ladder_model_next(&fake.ladder, &transition)) {
+        if (fake.transition_count < TRANSITION_CAPACITY) {
+            fake.transitions[fake.transition_count++] = transition;
+        }
     }
-    fake.transitions[fake.transition_count++] =
-        (HalKeyTransition){.key = key, .pressed = pressed, .time_ms = time_ms};
 }
 
 static int panel_width(void)

@@ -29,6 +29,7 @@ typedef struct KeyEvent {
     Key key;
     KeyGesture gesture;
     uint8_t repeats;
+    bool chord;
 } KeyEvent;
 
 typedef struct KeyTiming {

@@ -529,6 +529,15 @@ class Machine:
         self.at_ms(start, lambda: setattr(self, "adc_key_value", adc_value))
         self.at_ms(start + hold_ms, lambda: setattr(self, "adc_key_value", ADC_NO_KEY))
 
+    def press_ladder(self, steps, delay_ms=20):
+        """Hold ladder readings back to back, as one hand moving between keys, then let go."""
+        at = self.milliseconds() + delay_ms
+        for adc_value, hold_ms in steps:
+            self.at_ms(at, lambda value=adc_value: setattr(self, "adc_key_value", value))
+            at += hold_ms
+        self.at_ms(at, lambda: setattr(self, "adc_key_value", ADC_NO_KEY))
+        return at
+
     def answer_waits_for_key(self, presses):
         def waiting():
             self.reached["board_wait_for_key"] = self.reached.get("board_wait_for_key", 0) + 1

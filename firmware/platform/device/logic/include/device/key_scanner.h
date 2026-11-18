@@ -16,6 +16,7 @@ typedef struct KeyScanner {
     uint8_t run;
     uint8_t stable;
     bool power_armed;
+    bool play_unbroken;
     uint8_t head;
     uint8_t count;
     HalKeyTransition queue[KEY_SCANNER_QUEUE_CAPACITY];

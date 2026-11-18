@@ -73,6 +73,7 @@ STR_RANDOM_ALBUM = Random album
 STR_RANDOM_ALBUM_HINT = Play any album
 
 # Now Playing and Up Next. {0} of {1} is the place in the queue; {0}-bit is the sample size.
+# STR_SKIPPED_TO_NEXT and STR_SKIPPED_TO_PREVIOUS are the toasts after holding Play and tapping Vol+ or Vol- skips a song.
 STR_NOTHING_PLAYING = Nothing playing
 STR_NOTHING_IS_PLAYING = Nothing is playing
 STR_REPEAT_ONE = Repeat One
@@ -81,6 +82,8 @@ STR_BIT_DEPTH = {0}-bit
 STR_PLACE = {0} of {1}
 STR_VOLUME = Volume
 STR_SEEKING = Menu: A-B, Play: seek
+STR_SKIPPED_TO_NEXT = Next track
+STR_SKIPPED_TO_PREVIOUS = Previous track
 STR_RATE_UNSUPPORTED = {0} isn't supported
 STR_TYPE_UNSUPPORTED = File type not supported
 STR_M4A_UNSUPPORTED = Only AAC-LC and ALAC M4A play
@@ -98,7 +101,6 @@ STR_COLOR = Accent Color
 STR_TEXT_SIZE = Text size
 STR_ORIENTATION = Orientation
 STR_LANGUAGE = Language
-STR_SKIP_SONGS = Skip songs
 STR_GAIN = Gain
 STR_DAC_FILTER = DAC filter
 STR_OUTPUT = Output
@@ -148,9 +150,6 @@ STR_SIZE_LARGE = Large
 STR_LANDSCAPE = Landscape
 STR_PORTRAIT = Portrait
 STR_PORTRAIT_FLIPPED = Portrait, flipped
-STR_SKIP_HOLD = Hold vol±
-STR_SKIP_DOUBLE = Double vol±
-STR_SKIP_PLAY = Double/triple Play
 STR_GAIN_LOW = Low
 STR_GAIN_HIGH = High
 STR_FILTER_FAST_LOW_LATENCY = Fast, low latency
@@ -885,7 +884,7 @@ STR_ABOUT_KEYS = Keys
 
 # Key test in developer builds (Settings > About > Keys). The key names follow the player's keys
 # in order; the gestures are a tap, a hold, a repeat while held, and double and triple clicks.
-# In STR_KEY_TEST_EVENT {0} is a key and {1} a gesture; in STR_KEY_TEST_ENTRY {0} is a time in
+# In STR_KEY_TEST_EVENT and STR_KEY_TEST_CHORD {0} is a key and {1} a gesture (the chord is Play held, then that key); in STR_KEY_TEST_ENTRY {0} is a time in
 # milliseconds, {1} the key reading and {2} the key that reading stands for.
 STR_KEY_VOLUME_UP = Vol+
 STR_KEY_VOLUME_DOWN = Vol-
@@ -899,6 +898,7 @@ STR_KEY_REPEAT = repeat
 STR_KEY_DOUBLE = double
 STR_KEY_TRIPLE = triple
 STR_KEY_TEST_EVENT = {0} {1}
+STR_KEY_TEST_CHORD = Play + {0} {1}
 STR_KEY_TEST_ENTRY = {0} ms · {1} · {2}
 STR_KEY_TEST_HINT = Power: exit
 STR_KEY_TEST_CAUTION = Holding Power and Vol+ for 3 s with a computer cable starts recovery mode.

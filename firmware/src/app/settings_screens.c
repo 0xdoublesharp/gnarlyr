@@ -54,8 +54,6 @@ static const StringId TEXT_SIZE_OPTIONS[TEXT_SIZE_COUNT] = {STR_SIZE_SMALL, STR_
                                                             STR_SIZE_LARGE};
 static const StringId ORIENTATION_OPTIONS[ORIENTATION_COUNT] = {STR_LANDSCAPE, STR_PORTRAIT,
                                                                 STR_PORTRAIT_FLIPPED};
-static const StringId SKIP_OPTIONS[SKIP_GESTURE_COUNT] = {STR_SKIP_HOLD, STR_SKIP_DOUBLE,
-                                                          STR_SKIP_PLAY};
 static const StringId GAIN_OPTIONS[GAIN_LEVEL_COUNT] = {STR_GAIN_LOW, STR_GAIN_HIGH};
 static const StringId FILTER_OPTIONS[DAC_FILTER_COUNT] = {
     STR_FILTER_FAST_LOW_LATENCY, STR_FILTER_FAST_PHASE_COMPENSATED, STR_FILTER_SLOW_LOW_LATENCY,
@@ -262,17 +260,6 @@ static bool language_shown(const void *context)
 {
     const LanguageList *languages = context;
     return languages->count > 1;
-}
-
-static int current_skip(const void *context)
-{
-    return (int)settings_of(context)->skip_gesture;
-}
-
-static void choose_skip(void *context, int index)
-{
-    editable_settings(context)->skip_gesture = (SkipGesture)index;
-    settings_action_save(context);
 }
 
 static int current_gain(const void *context)
@@ -709,7 +696,6 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      choose_orientation, NULL, NULL},
     [SETTINGS_LANGUAGE_CHOICE] = {STR_LANGUAGE, NULL, 0, current_language, choose_language,
                                   describe_language, extend_language},
-    {STR_SKIP_SONGS, SKIP_OPTIONS, SKIP_GESTURE_COUNT, current_skip, choose_skip, NULL, NULL},
     {STR_GAIN, GAIN_OPTIONS, GAIN_LEVEL_COUNT, current_gain, choose_gain, NULL, NULL},
     {STR_DAC_FILTER, FILTER_OPTIONS, DAC_FILTER_COUNT, current_filter, choose_filter, NULL, NULL},
     {STR_OUTPUT, OUTPUT_OPTIONS, OUTPUT_JACK_COUNT, current_output, choose_output, describe_output,

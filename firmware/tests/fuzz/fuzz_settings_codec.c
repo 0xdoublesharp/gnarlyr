@@ -54,7 +54,6 @@ static void fill_tail(FuzzInput *input, Settings *settings)
 {
     settings->appearance = (AppearanceTheme)(next_byte(input) % APPEARANCE_THEME_COUNT);
     settings->text_size = (TextSize)(next_byte(input) % TEXT_SIZE_COUNT);
-    settings->skip_gesture = (SkipGesture)(next_byte(input) % SKIP_GESTURE_COUNT);
     settings->orientation = (Orientation)(next_byte(input) % ORIENTATION_COUNT);
     settings->replay_gain_mode = next_byte(input) % REPLAY_GAIN_MODE_COUNT;
     settings->prevent_clipping = (next_byte(input) & 1u) != 0;
@@ -104,7 +103,7 @@ static bool same_primary(const Settings *first, const Settings *second)
 static bool same_tail(const Settings *first, const Settings *second)
 {
     if (first->equalizer != second->equalizer || first->text_size != second->text_size ||
-        first->skip_gesture != second->skip_gesture || first->orientation != second->orientation ||
+        first->orientation != second->orientation ||
         first->replay_gain_mode != second->replay_gain_mode ||
         first->prevent_clipping != second->prevent_clipping ||
         memcmp(first->language, second->language, SETTINGS_LANGUAGE_CAPACITY) != 0) {
@@ -172,8 +171,7 @@ static void check_ranges(const Settings *settings)
                  settings->appearance < APPEARANCE_THEME_COUNT);
     fuzz_require(settings->equalizer < EQUALIZER_PRESET_COUNT &&
                  settings->text_size < TEXT_SIZE_COUNT);
-    fuzz_require(settings->skip_gesture < SKIP_GESTURE_COUNT &&
-                 settings->orientation < ORIENTATION_COUNT);
+    fuzz_require(settings->orientation < ORIENTATION_COUNT);
     fuzz_require(settings->replay_gain_mode < REPLAY_GAIN_MODE_COUNT);
     check_language(settings);
     check_gains(settings);
