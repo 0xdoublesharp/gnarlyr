@@ -293,6 +293,23 @@ static void part_of_a_cue_file_is_not_deleted(void)
     CHECK(!library_hidden(&store.library, CUE_MIDDLE));
 }
 
+static void deleting_after_twelve_removals_since_the_rescan_asks_for_a_rescan(void)
+{
+    start();
+    fake_hal_add_file(HELLS_BELLS_PATH, NULL, 100);
+    store.hidden.count = LIBRARY_HIDDEN_CAPACITY;
+    store.library.hidden = &store.hidden;
+    for (uint16_t index = 0; index < LIBRARY_HIDDEN_CAPACITY; index++) {
+        store.hidden.tracks[index] = (uint16_t)(ARMY_OF_ME + 1 + index);
+    }
+    toast = (Toast){0};
+    TrackRemoval removal = {.tracks = tracks(), .toast = &toast};
+    CHECK(track_removal_manage(removal, HELLS_BELLS, SONG_MANAGE_DELETE) == NULL);
+    CHECK(strcmp("Rescan the library first", toast.text) == 0);
+    HalFile file;
+    CHECK(hal_file_open(&file, HELLS_BELLS_PATH));
+}
+
 static Screen *no_screen(void *context, uint16_t track, SongManage manage)
 {
     (void)context;
@@ -374,6 +391,7 @@ int main(void)
         TEST_CASE(deleting_a_queued_track_takes_it_out_of_the_queue),
         TEST_CASE(a_file_that_cannot_be_removed_stays_listed),
         TEST_CASE(part_of_a_cue_file_is_not_deleted),
+        TEST_CASE(deleting_after_twelve_removals_since_the_rescan_asks_for_a_rescan),
         TEST_CASE(the_delete_question_names_the_file_and_starts_on_cancel),
         TEST_CASE(the_hidden_list_names_each_file_and_play_shows_it_again),
     };
