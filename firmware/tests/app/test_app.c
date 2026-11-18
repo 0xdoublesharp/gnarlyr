@@ -4927,13 +4927,33 @@ static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
     CHECK_EQUAL(200, hal_system_clock_mhz());
 }
 
-static void the_stall_test_row_freezes_the_main_loop_on_purpose(void)
+static void the_stall_test_asks_before_it_freezes_the_main_loop(void)
 {
     start_app();
     open_diagnostics_row(DIAGNOSTICS_STALL_TEST_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Freeze the player?"));
     CHECK_EQUAL(0, fake_hal_stall_test_count());
     tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK_EQUAL(0, fake_hal_stall_test_count());
+    CHECK(title_is("About"));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(1);
+    tap(KEY_PLAY);
     CHECK_EQUAL(1, fake_hal_stall_test_count());
+}
+
+static void stray_presses_in_about_do_not_freeze_the_player(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_STALL_TEST_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_stall_test_count());
 }
 
 static void the_watchdog_test_row_stops_everything_on_purpose(void)
@@ -6658,7 +6678,8 @@ int main(void)
         TEST_CASE(waking_while_paused_keeps_the_screen),
         TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
         TEST_CASE(the_cpu_clock_cycles_through_24_96_and_200_mhz),
-        TEST_CASE(the_stall_test_row_freezes_the_main_loop_on_purpose),
+        TEST_CASE(the_stall_test_asks_before_it_freezes_the_main_loop),
+        TEST_CASE(stray_presses_in_about_do_not_freeze_the_player),
         TEST_CASE(the_watchdog_test_row_stops_everything_on_purpose),
         TEST_CASE(ignored_power_taps_leave_the_screen_on_but_a_hold_still_switches_off),
         TEST_CASE(a_clock_that_does_not_lock_stays_where_it_was),

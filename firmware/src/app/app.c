@@ -152,7 +152,6 @@ typedef struct AppState {
     char volume_text[4];
     char position_text[24];
     AppUsbRenderer usb_renderer;
-    AppScreens screens;
     MessageScreen notice;
     char notice_message[NOTICE_MESSAGE_CAPACITY];
     WireMotion motion;
@@ -188,6 +187,7 @@ typedef struct AppState {
     bool startup_pending;
     uint8_t lowered_volume;
     PlayerOutput lowered_output;
+    AppScreens screens;
 } AppState;
 
 static AppState app;

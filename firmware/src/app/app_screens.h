@@ -131,6 +131,10 @@ typedef struct ViewsModuleScreens {
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
     LyricsScreen lyrics;
     ThemePicker themes;
+#ifdef ECHO_DEBUG_LOOP
+    MenuScreen stall_question;
+    MenuItem stall_items[2];
+#endif
 } ViewsModuleScreens;
 
 typedef struct SettingsModuleScreens {
