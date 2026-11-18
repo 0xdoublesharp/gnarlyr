@@ -42,9 +42,9 @@ static bool entry_is_directory(const ScanState *state, uint32_t offset)
     return state->listing[offset] == ENTRY_DIRECTORY;
 }
 
-static uint32_t entry_bytes(const ScanState *state, uint32_t offset)
+static uint32_t entry_bytes(const ScanState *state, uint32_t offset, bool placed)
 {
-    uint32_t place = entry_is_directory(state, offset) ? PLACE_BYTES : 0;
+    uint32_t place = placed && entry_is_directory(state, offset) ? PLACE_BYTES : 0;
     return 2 + scan_text_length(scan_entry_name(state, offset)) + place;
 }
 
@@ -98,7 +98,7 @@ static void sort_names(const ScanState *state, uint32_t *items, uint32_t *scratc
 static bool store_entry(ScanState *state, const ScanEntry *entry)
 {
     uint32_t length = scan_text_length(entry->name);
-    uint32_t place = entry->directory ? PLACE_BYTES : 0;
+    uint32_t place = entry->directory && state->placing ? PLACE_BYTES : 0;
     if (length + 2 + place > state->playlist_floor - state->listing_used) {
         return false;
     }
@@ -127,7 +127,7 @@ static uint32_t *sorted_offsets(ScanState *state, uint32_t start, uint32_t count
     uint32_t cursor = start;
     for (uint32_t index = 0; index < count; index++) {
         offsets[index] = cursor;
-        cursor += entry_bytes(state, cursor);
+        cursor += entry_bytes(state, cursor, state->placing);
     }
     sort_names(state, offsets, offsets + count, count);
     return offsets;
@@ -145,6 +145,7 @@ static ScanResult index_listing(ScanState *state, uint32_t start, uint32_t count
     level->count = count;
     level->next = 0;
     level->path_length = state->path_length;
+    level->placed = state->placing;
     return SCAN_OK;
 }
 
@@ -201,7 +202,7 @@ static void keep_smaller_half(ScanState *state, Batch *batch)
     }
     uint32_t write = batch->start;
     for (uint32_t read = batch->start; read < state->listing_used;) {
-        uint32_t size = entry_bytes(state, read);
+        uint32_t size = entry_bytes(state, read, state->placing);
         if (compare_texts(scan_entry_name(state, read), state->cutoff) < 0) {
             for (uint32_t index = 0; index < size; index++) {
                 state->listing[write + index] = state->listing[read + index];
@@ -223,8 +224,7 @@ static bool wanted(const ScanState *state, const Batch *batch, const char *name)
 
 static ScanResult add_to_batch(ScanState *state, Batch *batch)
 {
-    uint32_t length =
-        scan_text_length(state->entry.name) + (state->entry.directory ? PLACE_BYTES : 0);
+    uint32_t length = scan_text_length(state->entry.name);
     while (!batch_fits(state, batch, length)) {
         if (batch->count < MINIMUM_BATCH) {
             return SCAN_FOLDER_TOO_BIG;
@@ -259,6 +259,7 @@ static ScanResult read_batch(ScanState *state, const ScanFileSystem *files, Leve
     if (!files->open_dir(files->context, state->path, &level->place)) {
         return SCAN_NO_MUSIC_ROOT;
     }
+    state->placing = false;
     state->listing_used = batch.start;
     ScanResult result = SCAN_OK;
     while (result == SCAN_OK && files->next_entry(files->context, &state->entry)) {
@@ -277,9 +278,13 @@ static ScanResult read_batch(ScanState *state, const ScanFileSystem *files, Leve
 
 static ScanResult read_entries(ScanState *state, const ScanFileSystem *files, Level *level)
 {
-    bool fits = true;
+    bool fits = false;
     uint32_t start = state->listing_used;
-    ScanResult result = read_whole(state, files, level, &fits);
+    ScanResult result = SCAN_OK;
+    for (uint32_t pass = 0; result == SCAN_OK && !fits && pass < 2; pass++) {
+        state->placing = pass == 0;
+        result = read_whole(state, files, level, &fits);
+    }
     if (result != SCAN_OK || fits) {
         return result;
     }
@@ -468,10 +473,14 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
         return SCAN_PATH_TOO_LONG;
     }
     Level *child = &state->levels[state->depth];
-    uint8_t *place = (uint8_t *)&child->place;
-    const uint8_t *listed = state->listing + offset + entry_bytes(state, offset) - PLACE_BYTES;
-    for (uint32_t index = 0; index < PLACE_BYTES; index++) {
-        place[index] = listed[index];
+    child->place.flags = 0;
+    if (state->levels[state->depth - 1].placed) {
+        uint8_t *place = (uint8_t *)&child->place;
+        const uint8_t *listed =
+            state->listing + offset + entry_bytes(state, offset, true) - PLACE_BYTES;
+        for (uint32_t index = 0; index < PLACE_BYTES; index++) {
+            place[index] = listed[index];
+        }
     }
     ScanResult result = read_listing(state, &job->files, child);
     state->depth += result == SCAN_OK;

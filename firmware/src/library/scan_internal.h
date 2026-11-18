@@ -25,6 +25,7 @@ typedef struct Level {
     uint32_t path_length;
     ScanPlace place;
     bool partial;
+    bool placed;
 } Level;
 
 typedef struct ScanState {
@@ -43,6 +44,7 @@ typedef struct ScanState {
     uint32_t listing_used;
     uint32_t playlist_floor;
     uint32_t playlist_count;
+    bool placing;
     PlaylistReader playlist;
     CueSheet cue;
     Mp4Chapters chapters;

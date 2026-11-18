@@ -310,7 +310,7 @@ static void a_missing_music_root_says_so(void)
 }
 
 enum {
-    TREE_CAPACITY = 4096,
+    TREE_CAPACITY = 4096 + 64,
     TREE_PATH = 96,
     FRAME_BYTES = 417,
     FRAMES = 3
@@ -434,15 +434,30 @@ static bool tree_read(void *context, uint32_t offset, void *buffer, uint32_t len
     return true;
 }
 
+static const char TREE_CUE[] = "FILE \"Z.mp3\" MP3\r\n"
+                               "  TRACK 01 AUDIO\r\n    TITLE \"One\"\r\n    INDEX 01 00:00:00\r\n"
+                               "  TRACK 02 AUDIO\r\n    TITLE \"Two\"\r\n    INDEX 01 00:00:02\r\n";
+
+static bool tree_read_cue(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    if (offset > sizeof TREE_CUE - 1 || length > sizeof TREE_CUE - 1 - offset) {
+        return false;
+    }
+    memcpy(buffer, TREE_CUE + offset, length);
+    return true;
+}
+
 static bool tree_open_file(void *context, const char *path, ByteSource *source, uint32_t *size)
 {
     (void)context;
-    (void)path;
     if (!tree.files_open) {
         return false;
     }
-    *source = (ByteSource){.read = tree_read, .context = NULL};
-    *size = sizeof tree.blob;
+    size_t length = strlen(path);
+    bool cue = length > 4 && strcmp(path + length - 4, ".cue") == 0;
+    *source = (ByteSource){.read = cue ? tree_read_cue : tree_read, .context = NULL};
+    *size = cue ? (uint32_t)(sizeof TREE_CUE - 1) : (uint32_t)sizeof tree.blob;
     return true;
 }
 
@@ -686,12 +701,12 @@ static void batches_build_the_same_library_as_one_whole_read(void)
     CHECK(library_compare(whole.bytes, whole.length, batched.bytes, batched.length));
 }
 
-static void every_folder_below_the_root_is_opened_from_its_listed_place(void)
+static void subfolders_are_opened_from_the_place_their_listing_gave(void)
 {
     static Output output;
     start_tree();
     char path[TREE_PATH];
-    for (uint32_t index = 0; index < 700; index++) {
+    for (uint32_t index = 0; index < 300; index++) {
         snprintf(path, sizeof path, "/Library/Artist %03u/Album %u/01 - One.mp3", index, index % 3);
         tree_add(path);
     }
@@ -701,11 +716,28 @@ static void every_folder_below_the_root_is_opened_from_its_listed_place(void)
     }
     ScanStats stats;
     CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &output, &stats));
-    CHECK_EQUAL(1600u, stats.tracks);
+    CHECK_EQUAL(1200u, stats.tracks);
     CHECK(library_holds_every_path(&output));
     CHECK_EQUAL(0u, tree.misplaced_opens);
-    CHECK(tree.opens >= 1405u);
+    CHECK(tree.opens >= 604u);
     CHECK_EQUAL(1u, tree.opens - tree.placed_opens);
+}
+
+static void a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/A.cue");
+    tree_add("/Z.mp3");
+    char path[TREE_PATH];
+    for (uint32_t index = 0; index < 3600; index++) {
+        snprintf(path, sizeof path, "/D%07u/a.mp3", index);
+        tree_add(path);
+    }
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(96 * 1024, &output, &stats));
+    CHECK_EQUAL(3602u, stats.tracks);
+    CHECK_EQUAL(0u, tree.placed_opens);
 }
 
 static void playlist_extensions_are_case_insensitive_and_exact(void)
@@ -1113,7 +1145,8 @@ int main(int argc, char **argv)
         TEST_CASE(a_big_folder_nested_in_big_folders_is_read_in_batches),
         TEST_CASE(batches_build_the_same_library_as_one_whole_read),
         TEST_CASE(playlist_extensions_are_case_insensitive_and_exact),
-        TEST_CASE(every_folder_below_the_root_is_opened_from_its_listed_place),
+        TEST_CASE(subfolders_are_opened_from_the_place_their_listing_gave),
+        TEST_CASE(a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
