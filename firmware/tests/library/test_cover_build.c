@@ -110,9 +110,10 @@ static void list_child(const char *name, bool directory, uint32_t modified)
     snprintf(entry->name, sizeof entry->name, "%s", name);
 }
 
-static bool card_open_dir(void *context, const char *path)
+static bool card_open_dir(void *context, const char *path, const ScanPlace *place)
 {
     (void)context;
+    (void)place;
     dir_opens++;
     card.listed = 0;
     card.cursor = 0;

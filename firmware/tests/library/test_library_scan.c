@@ -27,9 +27,10 @@ typedef struct Output {
     uint32_t length;
 } Output;
 
-static bool open_dir(void *context, const char *path)
+static bool open_dir(void *context, const char *path, const ScanPlace *place)
 {
     HostFiles *files = context;
+    (void)place;
     return hal_dir_open(&files->dir, path);
 }
 
@@ -309,7 +310,7 @@ static void a_missing_music_root_says_so(void)
 }
 
 enum {
-    TREE_CAPACITY = 4096,
+    TREE_CAPACITY = 4096 + 64,
     TREE_PATH = 96,
     FRAME_BYTES = 417,
     FRAMES = 3
@@ -318,6 +319,7 @@ enum {
 typedef struct TreeEntry {
     char name[TREE_PATH];
     bool directory;
+    uint32_t place;
 } TreeEntry;
 
 typedef struct Tree {
@@ -327,6 +329,9 @@ typedef struct Tree {
     uint32_t listed;
     uint32_t cursor;
     uint32_t opens;
+    uint32_t placed_opens;
+    uint32_t misplaced_opens;
+    char open_path[TREE_PATH];
     bool files_open;
     uint8_t blob[FRAMES * FRAME_BYTES];
 } Tree;
@@ -338,13 +343,42 @@ static void tree_add(const char *path)
     snprintf(tree.paths[tree.count++], TREE_PATH, "%s", path);
 }
 
-static bool tree_open_dir(void *context, const char *path)
+static uint32_t tree_place(const char *folder, const char *name)
+{
+    uint32_t hash = 2166136261u;
+    for (const char *text = folder; *text != '\0'; text++) {
+        hash = (hash ^ (uint8_t)*text) * 16777619u;
+    }
+    for (const char *text = name; *text != '\0'; text++) {
+        hash = (hash ^ (uint8_t)*text) * 16777619u;
+    }
+    return hash | 1u;
+}
+
+static void note_place(const char *path, const ScanPlace *place)
+{
+    if (place == NULL || place->flags == 0) {
+        return;
+    }
+    char folder[TREE_PATH];
+    size_t length = strlen(path);
+    snprintf(folder, sizeof folder, "%.*s", (int)(length > 0 ? length - 1 : 0), path);
+    char *slash = strrchr(folder, '/');
+    bool right = slash != NULL && place->start == tree_place(path, "") &&
+                 place->size == (uint32_t)strlen(slash + 1);
+    tree.placed_opens += right ? 1u : 0u;
+    tree.misplaced_opens += right ? 0u : 1u;
+}
+
+static bool tree_open_dir(void *context, const char *path, const ScanPlace *place)
 {
     (void)context;
     size_t prefix = strlen(path);
     tree.listed = 0;
     tree.cursor = 0;
     tree.opens++;
+    note_place(path, place);
+    snprintf(tree.open_path, sizeof tree.open_path, "%s", path);
     for (uint32_t index = 0; index < tree.count; index++) {
         const char *file = tree.paths[index];
         if (strncmp(file, path, prefix) != 0) {
@@ -376,6 +410,12 @@ static bool tree_next_entry(void *context, ScanEntry *entry)
     const TreeEntry *next = &tree.listing[tree.listed - 1 - tree.cursor++];
     entry->directory = next->directory;
     snprintf(entry->name, sizeof entry->name, "%s", next->name);
+    char folder[TREE_PATH * 2];
+    snprintf(folder, sizeof folder, "%s%s/", tree.open_path, next->name);
+    entry->place = next->directory ? (ScanPlace){.start = tree_place(folder, ""),
+                                                 .size = (uint32_t)strlen(next->name),
+                                                 .flags = 1}
+                                   : (ScanPlace){.flags = 0};
     return true;
 }
 
@@ -394,15 +434,30 @@ static bool tree_read(void *context, uint32_t offset, void *buffer, uint32_t len
     return true;
 }
 
+static const char TREE_CUE[] = "FILE \"Z.mp3\" MP3\r\n"
+                               "  TRACK 01 AUDIO\r\n    TITLE \"One\"\r\n    INDEX 01 00:00:00\r\n"
+                               "  TRACK 02 AUDIO\r\n    TITLE \"Two\"\r\n    INDEX 01 00:00:02\r\n";
+
+static bool tree_read_cue(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    if (offset > sizeof TREE_CUE - 1 || length > sizeof TREE_CUE - 1 - offset) {
+        return false;
+    }
+    memcpy(buffer, TREE_CUE + offset, length);
+    return true;
+}
+
 static bool tree_open_file(void *context, const char *path, ByteSource *source, uint32_t *size)
 {
     (void)context;
-    (void)path;
     if (!tree.files_open) {
         return false;
     }
-    *source = (ByteSource){.read = tree_read, .context = NULL};
-    *size = sizeof tree.blob;
+    size_t length = strlen(path);
+    bool cue = length > 4 && strcmp(path + length - 4, ".cue") == 0;
+    *source = (ByteSource){.read = cue ? tree_read_cue : tree_read, .context = NULL};
+    *size = cue ? (uint32_t)(sizeof TREE_CUE - 1) : (uint32_t)sizeof tree.blob;
     return true;
 }
 
@@ -415,6 +470,8 @@ static void start_tree(void)
 {
     tree.count = 0;
     tree.opens = 0;
+    tree.placed_opens = 0;
+    tree.misplaced_opens = 0;
     tree.files_open = true;
     memset(tree.blob, 0, sizeof tree.blob);
     for (uint32_t frame = 0; frame < FRAMES; frame++) {
@@ -642,6 +699,45 @@ static void batches_build_the_same_library_as_one_whole_read(void)
     CHECK_EQUAL(SCAN_OK, scan_tree(96 * 1024, &whole, &stats));
     CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &batched, &stats));
     CHECK(library_compare(whole.bytes, whole.length, batched.bytes, batched.length));
+}
+
+static void subfolders_are_opened_from_the_place_their_listing_gave(void)
+{
+    static Output output;
+    start_tree();
+    char path[TREE_PATH];
+    for (uint32_t index = 0; index < 300; index++) {
+        snprintf(path, sizeof path, "/Library/Artist %03u/Album %u/01 - One.mp3", index, index % 3);
+        tree_add(path);
+    }
+    for (uint32_t index = 0; index < 900; index++) {
+        snprintf(path, sizeof path, "/Library/Artist 005/Album 2/Disc/%04u - Song.mp3", index);
+        tree_add(path);
+    }
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &output, &stats));
+    CHECK_EQUAL(1200u, stats.tracks);
+    CHECK(library_holds_every_path(&output));
+    CHECK_EQUAL(0u, tree.misplaced_opens);
+    CHECK(tree.opens >= 604u);
+    CHECK_EQUAL(1u, tree.opens - tree.placed_opens);
+}
+
+static void a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/A.cue");
+    tree_add("/Z.mp3");
+    char path[TREE_PATH];
+    for (uint32_t index = 0; index < 3600; index++) {
+        snprintf(path, sizeof path, "/D%07u/a.mp3", index);
+        tree_add(path);
+    }
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(96 * 1024, &output, &stats));
+    CHECK_EQUAL(3602u, stats.tracks);
+    CHECK_EQUAL(0u, tree.placed_opens);
 }
 
 static void playlist_extensions_are_case_insensitive_and_exact(void)
@@ -1049,6 +1145,8 @@ int main(int argc, char **argv)
         TEST_CASE(a_big_folder_nested_in_big_folders_is_read_in_batches),
         TEST_CASE(batches_build_the_same_library_as_one_whole_read),
         TEST_CASE(playlist_extensions_are_case_insensitive_and_exact),
+        TEST_CASE(subfolders_are_opened_from_the_place_their_listing_gave),
+        TEST_CASE(a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

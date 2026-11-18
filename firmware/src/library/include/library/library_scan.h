@@ -12,14 +12,21 @@ enum {
     SCAN_MAX_DEPTH = 32
 };
 
+typedef struct ScanPlace {
+    uint32_t start;
+    uint32_t size;
+    uint32_t flags;
+} ScanPlace;
+
 typedef struct ScanEntry {
     bool directory;
     uint32_t modified;
+    ScanPlace place;
     char name[SCAN_NAME_CAPACITY];
 } ScanEntry;
 
 typedef struct ScanFileSystem {
-    bool (*open_dir)(void *context, const char *path);
+    bool (*open_dir)(void *context, const char *path, const ScanPlace *place);
     bool (*next_entry)(void *context, ScanEntry *entry);
     void (*close_dir)(void *context);
     bool (*open_file)(void *context, const char *path, ByteSource *source, uint32_t *size);

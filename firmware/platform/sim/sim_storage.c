@@ -293,6 +293,18 @@ bool hal_dir_open(HalDir *dir, const char *path)
     return true;
 }
 
+HalDirPlace hal_dir_place(const HalDir *dir)
+{
+    (void)dir;
+    return (HalDirPlace){.flags = 0};
+}
+
+bool hal_dir_open_place(HalDir *dir, const char *path, HalDirPlace place)
+{
+    (void)place;
+    return hal_dir_open(dir, path);
+}
+
 static bool is_dot_name(const char *name)
 {
     return strcmp(name, ".") == 0 || strcmp(name, "..") == 0;
