@@ -973,6 +973,9 @@ static void dispatch_key_events(uint32_t now_ms)
             continue;
         }
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);
+        if (event.chord && !outcome.background && top_screen() != &app.screens.now_playing.screen) {
+            continue;
+        }
         if (outcome.shutdown) {
             debug_loop_shutdown(DEBUG_REPORT_SHUTDOWN);
             shut_down(STR_GOODBYE);

@@ -7,6 +7,9 @@ static bool volume_key(Key key)
 
 KeyChordAction key_chord_take(KeyChord *chord, Key key, bool pressed, uint32_t time_ms)
 {
+    if (key == KEY_POWER) {
+        return KEY_CHORD_PASS;
+    }
     bool same = time_ms == chord->time_ms;
     uint8_t last = chord->last;
     chord->last = KEY_CHORD_LAST_OTHER;
