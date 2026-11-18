@@ -476,6 +476,7 @@ static uint32_t track_duration(const Player *player)
 void player_jump(Player *player, int32_t delta_ms)
 {
     player_queue_cancel(player);
+    player_catch_up(player);
     if (!player->has_track) {
         return;
     }
@@ -497,6 +498,7 @@ void player_jump(Player *player, int32_t delta_ms)
 CORE_SEAM void player_skip(Player *player, int direction)
 {
     player_queue_cancel(player);
+    player_catch_up(player);
     if (!player->has_track) {
         return;
     }
@@ -517,6 +519,7 @@ CORE_SEAM void player_skip(Player *player, int direction)
 void player_seek(Player *player, uint32_t position_ms)
 {
     player_queue_cancel(player);
+    player_catch_up(player);
     if (!player->has_track) {
         return;
     }

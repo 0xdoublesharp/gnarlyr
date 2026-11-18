@@ -104,6 +104,7 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
 
 static void seek_by(Player *player, uint32_t move)
 {
+    player_catch_up(player);
     PlayerStatus status = player_status(player);
     if (!status.has_track || status.duration_ms == 0) {
         return;

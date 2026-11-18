@@ -76,6 +76,35 @@ static void the_following_cue_track_is_queued_for_a_gapless_hand_over(void)
     CHECK_EQUAL(0, fake_hal_audio_queued_end());
 }
 
+static void a_skip_right_after_a_hand_over_moves_past_the_part_already_playing(void)
+{
+    Player *started = playing(0);
+    fake_hal_audio_finish_track();
+    player_skip(started, 1);
+    CHECK_EQUAL(MIDDLE_END, fake_hal_audio_play_start());
+    CHECK_EQUAL(CLOSING, player_status(started).track);
+}
+
+static void a_skip_back_right_after_a_hand_over_returns_to_the_part_before(void)
+{
+    Player *started = playing(0);
+    fake_hal_audio_finish_track();
+    int plays = fake_hal_audio_play_count();
+    player_skip(started, -1);
+    CHECK_EQUAL(plays + 1, fake_hal_audio_play_count());
+    CHECK_EQUAL(0, fake_hal_audio_play_start());
+    CHECK_EQUAL(OPENING, player_status(started).track);
+}
+
+static void a_seek_right_after_a_hand_over_seeks_within_the_new_part(void)
+{
+    Player *started = playing(0);
+    fake_hal_audio_finish_track();
+    player_seek(started, 300);
+    CHECK_EQUAL(MIDDLE_START + 300, fake_hal_audio_last_seek());
+    CHECK_EQUAL(MIDDLE, player_status(started).track);
+}
+
 static void a_hand_over_to_the_next_cue_track_restarts_its_clock(void)
 {
     Player *started = playing(0);
@@ -197,6 +226,9 @@ int main(void)
         TEST_CASE(the_status_counts_from_the_start_of_the_cue_track),
         TEST_CASE(the_following_cue_track_is_queued_for_a_gapless_hand_over),
         TEST_CASE(a_hand_over_to_the_next_cue_track_restarts_its_clock),
+        TEST_CASE(a_skip_right_after_a_hand_over_moves_past_the_part_already_playing),
+        TEST_CASE(a_skip_back_right_after_a_hand_over_returns_to_the_part_before),
+        TEST_CASE(a_seek_right_after_a_hand_over_seeks_within_the_new_part),
         TEST_CASE(seeking_moves_inside_the_cue_track_not_the_file),
         TEST_CASE(skipping_back_late_restarts_at_the_start_of_the_cue_track),
         TEST_CASE(jumping_past_the_end_of_the_cue_track_starts_the_next_one),
