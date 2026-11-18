@@ -761,3 +761,8 @@ class CombinedLibraryTest(unittest.TestCase):
         model = library_index.build_library(tracks, playlists)
         up = next(playlist for playlist in model.playlists if playlist.name == "Up")
         self.assertEqual([model.tracks[index].path for index in up.tracks], ["\"/Music/Song.flac"])
+
+    def test_a_card_folder_named_like_the_marker_is_refused(self):
+        self.song(self.card, '"/Song.flac')
+        with self.assertRaises(ValueError):
+            library_index.scan(self.card, self.internal)

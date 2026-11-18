@@ -11,6 +11,7 @@
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "library/sort_key.h"
+#include "library/spoken_path.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/message_screen.h"
@@ -445,6 +446,8 @@ static void append_info(DiscoveryScreen *screen, int index, StringBuilder *build
         format_duration(track.duration_ms, text, sizeof text);
     } else if (index == 8) {
         library_read_string(library, track.path, text, sizeof text);
+        string_builder_append(builder, spoken_on_drive(text));
+        return;
     }
     string_builder_append(builder, text);
 }

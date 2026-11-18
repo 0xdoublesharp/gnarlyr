@@ -861,6 +861,8 @@ def walk_order(root, prefix, path):
 
 
 def scan(root, internal=None):
+    if (root / INTERNAL_MARKER).is_dir():
+        raise ValueError(f"{root} has a folder named {INTERNAL_MARKER}, which marks internal storage")
     drives = [(root, "", set())]
     if internal is not None:
         drives.append((internal, INTERNAL_MARKER + "/", card_files(root)))

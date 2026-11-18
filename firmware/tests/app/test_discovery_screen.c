@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -10,6 +11,7 @@
 #include "gfx/text.h"
 #include "player_storage.h"
 #include "settings/settings.h"
+#include "spoken_library.h"
 #include "ui/label.h"
 
 static FixtureLibrary fixture;
@@ -344,6 +346,24 @@ static void metadata_rows_expose_fields_and_a_full_width_path(void)
     tick();
     CHECK(strstr(discovery.model.label(&discovery, 8), i18n_text(STR_FILE_PATH)) != NULL);
     CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+}
+
+static void the_path_of_an_internal_song_is_shown_without_the_drive_marker(void)
+{
+    start();
+    SpokenLibrary internal;
+    Library *library = spoken_library_open_internal(&internal);
+    discovery.config.library = library;
+    char marked[300];
+    snprintf(marked, sizeof marked, "\"/%s", SPOKEN_CHAPTER_ONE_PATH);
+    discovery_screen_info(&discovery, spoken_library_track(library, marked));
+    tick();
+    discovery.list.top = 8;
+    tick();
+    const char *row = discovery.model.label(&discovery, 8);
+    CHECK(strstr(row, SPOKEN_CHAPTER_ONE_PATH) != NULL);
+    CHECK(strchr(row, '"') == NULL);
+    spoken_library_close(&internal);
 }
 
 static void personal_tag_management_does_not_assign_a_nonexistent_track(void)
@@ -1167,6 +1187,7 @@ int main(void)
         TEST_CASE(personal_tag_filters_are_intersected_with_the_source_scope),
         TEST_CASE(a_view_save_failure_is_visible_without_disabling_results),
         TEST_CASE(metadata_rows_expose_fields_and_a_full_width_path),
+        TEST_CASE(the_path_of_an_internal_song_is_shown_without_the_drive_marker),
         TEST_CASE(personal_tag_management_does_not_assign_a_nonexistent_track),
         TEST_CASE(reinitializing_the_same_screen_discards_the_previous_volume_work),
         TEST_CASE(cancelling_a_search_entry_returns_to_its_caller),
