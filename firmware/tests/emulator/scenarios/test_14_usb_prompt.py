@@ -225,6 +225,33 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(music - HIGH_GAIN_RISE_LEVELS, saved[SETTINGS_VOLUME_FIELD])
         self.assert_healthy(session)
 
+    def test_a_high_gain_the_dac_menu_cannot_apply_puts_the_volume_back_and_is_not_saved(self):
+        session, machine, _ = self.dac_session()
+        music = session.fat().read(SETTINGS_PATH)[SETTINGS_VOLUME_FIELD]
+        def level():
+            return machine.read_memory(machine.symbols["volume_level"], 1)[0]
+        before = level()
+        gains = []
+        def refuse(machine):
+            gains.append(level())
+            return 0
+        machine.stub_symbol("hal_audio_set_gain", refuse)
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY, KEY_MENU):
+            self.press(machine, key)
+        self.assertEqual([before - HIGH_GAIN_RISE_LEVELS], gains)
+        self.assertEqual(before, level())
+        self.hold_back(machine, LEAVE_HOLD_MS)
+        machine.note("usb_modes")
+        self.assertEqual(machine.run(until=lambda: "usb_modes" in machine.reached,
+                                     until_ms=machine.milliseconds() + LEAVE_HOLD_MS + 2000),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        saved = session.fat().read(SETTINGS_PATH)
+        self.assertEqual(0, saved[SETTINGS_GAIN_FIELD])
+        self.assertEqual(before, saved[SETTINGS_DAC_VOLUME_FIELD])
+        self.assertEqual(music, saved[SETTINGS_VOLUME_FIELD])
+        self.assert_healthy(session)
+
     def test_the_dac_level_meter_keeps_the_usb_audio_loop_fed(self):
         session, machine, path = self.dac_session()
         polls = self.poll_stamps(machine)
