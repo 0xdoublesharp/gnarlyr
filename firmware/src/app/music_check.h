@@ -3,13 +3,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "library/music_fingerprint.h"
-
 extern const char MUSIC_CHECK_PATH[];
 
-bool music_check_unchanged(MusicFingerprint current);
-uint32_t music_check_entries(void);
-void music_check_remember(MusicFingerprint print);
+enum {
+    MUSIC_CHECK_PRINT_BYTES = 16,
+    MUSIC_CHECK_VERSION_BYTES = 16,
+    MUSIC_CHECK_RECORD_BYTES = MUSIC_CHECK_PRINT_BYTES + MUSIC_CHECK_VERSION_BYTES,
+    MUSIC_CHECK_RECORD_MAGIC = 0x43535344
+};
+
+bool music_check_read_at(uint32_t offset, uint8_t *bytes, uint32_t length);
+void music_check_put_version(uint8_t *bytes);
 bool music_check_firmware_is_new(void);
 void music_check_note_firmware(void);
 uint32_t music_check_interrupted_scans(void);

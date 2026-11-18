@@ -161,8 +161,7 @@ static void build_rows(AppScreens *screens, AppOptions *options)
     void *contexts[CONTEXT_COUNT] = {[CONTEXT_OPTIONS] = options,
                                      [CONTEXT_CLOCK] = &screens->modules.views.diagnostic_clock,
                                      [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth,
-                                     [CONTEXT_KEY_TEST] =
-                                         &screens->modules.equalizer.key_test.screen,
+                                     [CONTEXT_KEY_TEST] = &screens->modules.views.key_test.screen,
                                      [CONTEXT_SCREENS] = screens};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];

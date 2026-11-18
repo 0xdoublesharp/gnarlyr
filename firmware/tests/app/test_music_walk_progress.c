@@ -6,25 +6,17 @@
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "music_record.h"
 #include "music_walk.h"
-#include "screens/lyrics_lend.h"
 
 static uint32_t now;
 static uint32_t entries;
 static uint32_t frames;
 static uint32_t last_frame;
 static char last_text[160];
-static uint32_t lyrics_words[LYRICS_LENT_SECTORS * 128];
-static int lyrics_lends;
 static uint32_t *lent_window;
 static uint32_t lent_sectors;
 static int returns;
-
-uint32_t *lyrics_screen_lend_work(void)
-{
-    lyrics_lends++;
-    return lyrics_words;
-}
 
 void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
 {
@@ -36,6 +28,23 @@ void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
     lent_sectors = sectors;
 }
 static const char *expected_title = "Music";
+static uint32_t recorded_entries;
+static MusicFingerprint remembered;
+
+bool music_record_unchanged(MusicFingerprint current)
+{
+    return current.complete && current.entries == recorded_entries;
+}
+
+uint32_t music_record_entries(void)
+{
+    return recorded_entries;
+}
+
+void music_record_remember(MusicFingerprint print)
+{
+    remembered = print;
+}
 
 uint32_t hal_clock_milliseconds(void)
 {
@@ -102,16 +111,39 @@ static void a_silent_walk_keeps_the_same_fingerprint_without_drawing(void)
     CHECK_EQUAL(0, frames);
 }
 
-static void the_walk_lends_the_lyrics_work_to_the_storage_cache_and_takes_it_back(void)
+static void the_walk_lends_its_own_five_sectors_to_the_storage_cache_and_takes_them_back(void)
 {
     now = entries = frames = last_frame = 0;
-    lyrics_lends = returns = 0;
+    returns = 0;
     lent_window = NULL;
     music_walk_fingerprint(MUSIC_WALK_QUIET);
-    CHECK(lent_window == lyrics_words);
-    CHECK_EQUAL(LYRICS_LENT_SECTORS, lent_sectors);
+    CHECK(lent_window != NULL);
+    CHECK_EQUAL(5, lent_sectors);
     CHECK_EQUAL(1, returns);
-    CHECK_EQUAL(2, lyrics_lends);
+}
+
+static void the_check_reports_a_change_only_when_the_walk_differs_from_the_record(void)
+{
+    now = entries = frames = last_frame = 0;
+    recorded_entries = 600;
+    CHECK(!music_walk_run(MUSIC_WALK_CHECK));
+    now = entries = frames = last_frame = 0;
+    recorded_entries = 599;
+    CHECK(music_walk_run(MUSIC_WALK_CHECK));
+    recorded_entries = 0;
+}
+
+static void remembering_without_a_record_expects_a_quarter_more_than_the_scanned_files(void)
+{
+    now = entries = frames = last_frame = 0;
+    expected_title = "Scanning library";
+    recorded_entries = 0;
+    remembered = (MusicFingerprint){.complete = false};
+    CHECK(!music_walk_run(960));
+    expected_title = "Music";
+    CHECK(remembered.complete);
+    CHECK_EQUAL(600, remembered.entries);
+    CHECK(strcmp(last_text, "Finishing... 49%") == 0);
 }
 
 static void finishing_after_a_scan_shows_the_share_of_the_last_walk(void)
@@ -139,7 +171,9 @@ int main(void)
     const TestCase cases[] = {
         TEST_CASE(the_walk_reports_counts_at_most_every_150_ms_and_elapsed_after_five_seconds),
         TEST_CASE(a_silent_walk_keeps_the_same_fingerprint_without_drawing),
-        TEST_CASE(the_walk_lends_the_lyrics_work_to_the_storage_cache_and_takes_it_back),
+        TEST_CASE(the_walk_lends_its_own_five_sectors_to_the_storage_cache_and_takes_them_back),
+        TEST_CASE(the_check_reports_a_change_only_when_the_walk_differs_from_the_record),
+        TEST_CASE(remembering_without_a_record_expects_a_quarter_more_than_the_scanned_files),
         TEST_CASE(finishing_after_a_scan_shows_the_share_of_the_last_walk),
         TEST_CASE(finishing_stops_below_one_hundred_when_the_card_grew),
     };

@@ -1679,12 +1679,11 @@ static void explain_refusals(uint32_t now_ms)
     }
 }
 
-static MusicFingerprint walk_music(uint32_t expected)
+static bool walk_music(uint32_t files)
 {
-    const ViewsModuleEntry *module =
-        (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
-    return module != NULL ? module->music_fingerprint(expected)
-                          : (MusicFingerprint){.complete = false};
+    const ParametricModuleEntry *module =
+        (const ParametricModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_EQUALIZER);
+    return module == NULL || module->music_walk(files);
 }
 
 static uint32_t scan_event(DebugScanPhase phase, uint32_t number)
@@ -1733,9 +1732,7 @@ static void run_rescan(void)
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
-        uint32_t expected = music_check_entries();
-        expected = expected > 0 ? expected : outcome.stats.files + outcome.stats.files / 4u + 1u;
-        music_check_remember(walk_music(expected));
+        (void)walk_music(outcome.stats.files);
         bool charging = app.charging;
         start_app(false);
         if (charging) {
@@ -2195,8 +2192,7 @@ CORE_SEAM void app_step(void)
                 (app.rescan_manual && (music_check_firmware_is_new() || !music_check_settled()));
             if (!changed) {
                 show_working_notice(STR_MUSIC, i18n_text(STR_CHECKING_MUSIC), WIRE_SHAPE_DISC);
-                changed = !music_check_unchanged(walk_music(MUSIC_WALK_CHECK)) ||
-                          !library_store_open(&app.library);
+                changed = walk_music(MUSIC_WALK_CHECK) || !library_store_open(&app.library);
             }
             if (!changed && app.rescan_manual) {
                 debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_UP_TO_DATE, 0));

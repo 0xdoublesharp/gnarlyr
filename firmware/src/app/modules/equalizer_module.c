@@ -1,4 +1,5 @@
 #include "modules/modules.h"
+#include "music_walk.h"
 #include "settings_actions.h"
 
 static void bind(AppScreens *screens)
@@ -19,12 +20,10 @@ static void bind(AppScreens *screens)
                                            .value = settings_action_speed_text,
                                            .cycle = settings_action_cycle_speed}};
     quick_settings_screen_init(&own->quick_settings, quick);
-#ifdef ECHO_DEBUG_LOOP
-    key_test_screen_init(&own->key_test, context->theme);
-#endif
 }
 
 const ParametricModuleEntry EQUALIZER_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_EQUALIZER, bind),
     .load = parametric_store_read,
-    .matching = parametric_store_slot};
+    .matching = parametric_store_slot,
+    .music_walk = music_walk_run};

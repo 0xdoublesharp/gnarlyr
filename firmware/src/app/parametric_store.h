@@ -16,6 +16,7 @@ typedef struct ParametricModuleEntry {
     ScreenModuleEntry module;
     void (*load)(ParametricStore *store, ParametricEq *custom);
     int (*matching)(const Settings *settings);
+    bool (*music_walk)(uint32_t files);
 } ParametricModuleEntry;
 
 void parametric_store_load(ParametricStore *store, ParametricEq *custom);

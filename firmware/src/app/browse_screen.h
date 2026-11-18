@@ -29,7 +29,8 @@ typedef enum SongManage {
     SONG_MANAGE_ASK,
     SONG_MANAGE_KEEP,
     SONG_MANAGE_DELETE,
-    SONG_MANAGE_TAPE
+    SONG_MANAGE_TAPE,
+    SONG_MANAGE_FAVORITE
 } SongManage;
 
 typedef struct BrowseRows {

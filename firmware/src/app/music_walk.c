@@ -8,7 +8,7 @@
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
-#include "screens/lyrics_lend.h"
+#include "music_record.h"
 
 typedef struct MusicWalk {
     HalDir dirs[FINGERPRINT_MAX_DEPTH];
@@ -22,11 +22,14 @@ typedef struct MusicWalk {
 } MusicWalk;
 
 enum {
-    NOTICE_PERCENT_TEXT = 64
+    NOTICE_PERCENT_TEXT = 64,
+    LENT_SECTORS = 5,
+    SECTOR_WORDS = 128
 };
 
 static MusicWalk walk;
 static FingerprintWork work;
+static uint32_t lent[LENT_SECTORS * SECTOR_WORDS];
 
 static void show_counts(const MusicWalk *state, uint32_t now)
 {
@@ -116,9 +119,19 @@ MusicFingerprint music_walk_fingerprint(uint32_t expected)
     walk.started_ms = hal_clock_milliseconds();
     walk.shown_ms = walk.started_ms;
     FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};
-    hal_storage_lend_cache(lyrics_screen_lend_work(), LYRICS_LENT_SECTORS);
+    hal_storage_lend_cache(lent, LENT_SECTORS);
     MusicFingerprint print = music_fingerprint(&files, &work);
     hal_storage_lend_cache(NULL, 0);
-    lyrics_screen_lend_work();
     return print;
+}
+
+bool music_walk_run(uint32_t files)
+{
+    if (files == MUSIC_WALK_CHECK) {
+        return !music_record_unchanged(music_walk_fingerprint(MUSIC_WALK_CHECK));
+    }
+    uint32_t expected = music_record_entries();
+    expected = expected > 0 ? expected : files + files / 4u + 1u;
+    music_record_remember(music_walk_fingerprint(expected));
+    return false;
 }

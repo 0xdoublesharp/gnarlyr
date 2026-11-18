@@ -407,11 +407,8 @@ static ScreenAction add_song_to_up_next(void *context)
 static ScreenAction add_song_to_favorites(void *context)
 {
     BrowsePool *pool = context;
-    SongActions *actions = &pool->song_actions;
-    FavoritePlaylistResult result = favorite_playlist_add(pool->config.library, actions->track);
-    if (pool->config.toast != NULL) {
-        toast_show(pool->config.toast, favorite_playlist_message(result), actions->now_ms);
-    }
+    (void)pool->config.manage(pool->config.tools_context, pool->song_actions.track,
+                              SONG_MANAGE_FAVORITE);
     return screen_action_pop();
 }
 

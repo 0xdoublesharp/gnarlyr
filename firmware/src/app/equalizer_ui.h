@@ -3,7 +3,6 @@
 #include "equalizer_presets.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
-#include "screens/key_test_screen.h"
 #include "screens/parametric_screen.h"
 #include "screens/quick_settings_screen.h"
 #include "settings_store.h"
@@ -23,9 +22,6 @@ typedef struct EqualizerUi {
     void (*enter_parametric)(void *context, uint32_t now_ms);
     void (*enter_browser)(void *context, uint32_t now_ms);
     QuickSettingsScreen quick_settings;
-#ifdef ECHO_DEBUG_LOOP
-    KeyTestScreen key_test;
-#endif
 } EqualizerUi;
 
 void equalizer_ui_init(EqualizerUi *ui, SettingsStore *store, Player *player, Toast *toast,

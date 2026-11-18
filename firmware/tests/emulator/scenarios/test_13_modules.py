@@ -284,7 +284,7 @@ class EchoImageTest(EchoImageHarness):
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")
         playing_number, _ = self.module(machine, "playing")
-        views_number, _ = self.module(machine, "views")
+        equalizer_number, _ = self.module(machine, "equalizer")
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertTrue(settings.loaded(machine))
@@ -297,8 +297,8 @@ class EchoImageTest(EchoImageHarness):
                                               {"slot": 1, "name": "settings"}])
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(views_number, True), (playing_number, True), (playing_number, True),
-                          (views_number, True), (playing_number, True),
+                         [(equalizer_number, True), (playing_number, True), (playing_number, True),
+                          (equalizer_number, True), (playing_number, True),
                           (settings_number, True), (playing_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         screens = [event["detail"] for event in report["events"] if event["kind"] == "screen"]

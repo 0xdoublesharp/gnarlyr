@@ -14,6 +14,7 @@
 #include "home_art.h"
 #include "modules/modules.h"
 #include "music_check.h"
+#include "music_record.h"
 #include "settings_store.h"
 #include "spoken_library.h"
 #include "ui/slide.h"
@@ -333,7 +334,7 @@ static void add_player_files(void)
         }
     }
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
-    music_check_remember((MusicFingerprint){.complete = true});
+    music_record_remember((MusicFingerprint){.complete = true});
 }
 
 static void start_app(void)

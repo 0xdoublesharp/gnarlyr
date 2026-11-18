@@ -62,6 +62,7 @@ if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         cover_build.c
         cue_sheet.c
+        library_builder_encode.c
         library_builder_paths.c
         library_scan.c
         library_scan_chapters.c

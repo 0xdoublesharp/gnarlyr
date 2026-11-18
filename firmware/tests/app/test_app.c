@@ -32,6 +32,7 @@
 #include "library/playlist_reader.h"
 #include "library_rescan.h"
 #include "music_check.h"
+#include "music_record.h"
 #include "playback/spoken.h"
 #include "plug_modes.h"
 #include "scan_guard.h"
@@ -153,7 +154,7 @@ static void prefill_player_files(void)
         }
     }
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
-    music_check_remember((MusicFingerprint){.complete = true});
+    music_record_remember((MusicFingerprint){.complete = true});
 }
 
 static void start_app(void)

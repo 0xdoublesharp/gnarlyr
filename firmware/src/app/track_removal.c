@@ -176,6 +176,7 @@ Screen *track_removal_manage(TrackRemoval removal, uint16_t track, SongManage ma
         return NULL;
     case SONG_MANAGE_KEEP:
     case SONG_MANAGE_TAPE:
+    case SONG_MANAGE_FAVORITE:
         break;
     }
     return NULL;

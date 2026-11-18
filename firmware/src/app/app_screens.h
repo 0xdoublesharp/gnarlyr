@@ -24,6 +24,7 @@
 #include "screens/cassette_flip_screen.h"
 #include "screens/clock_screen.h"
 #include "screens/cover_flow_screen.h"
+#include "screens/key_test_screen.h"
 #include "screens/listening_screen.h"
 #include "screens/lyrics_screen.h"
 #include "screens/moments_screen.h"
@@ -134,6 +135,7 @@ typedef struct ViewsModuleScreens {
 #ifdef ECHO_DEBUG_LOOP
     MenuScreen stall_question;
     MenuItem stall_items[2];
+    KeyTestScreen key_test;
 #endif
 } ViewsModuleScreens;
 

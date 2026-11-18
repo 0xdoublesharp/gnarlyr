@@ -16,6 +16,7 @@
 #include "hal/system.h"
 #include "library/playlist_reader.h"
 #include "music_check.h"
+#include "music_record.h"
 #include "scan_guard.h"
 #include "settings_screens.h"
 #include "settings_store.h"
@@ -99,15 +100,15 @@ static void music_check_records_survive_versions_and_scan_interruptions(void)
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 1024);
     fake_hal_set_version("one");
     MusicFingerprint print = {.complete = true, .first = 1, .second = 2, .entries = 3};
-    music_check_remember(print);
-    CHECK(music_check_unchanged(print));
-    CHECK(!music_check_unchanged((MusicFingerprint){.complete = false}));
+    music_record_remember(print);
+    CHECK(music_record_unchanged(print));
+    CHECK(!music_record_unchanged((MusicFingerprint){.complete = false}));
     CHECK(!music_check_firmware_is_new());
     fake_hal_set_version("two");
     CHECK(music_check_firmware_is_new());
     music_check_note_firmware();
     CHECK(!music_check_firmware_is_new());
-    CHECK(music_check_unchanged(print));
+    CHECK(music_record_unchanged(print));
     ScanGuard guard = {.magic = SCAN_GUARD_MAGIC, .running = 1, .attempts = 3, .covers_pending = 1};
     CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
     CHECK_EQUAL(3, music_check_interrupted_scans());

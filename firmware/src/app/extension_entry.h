@@ -4,7 +4,6 @@
 #include <stdint.h>
 
 #include "app/extension.h"
-#include "favorite_playlist.h"
 #include "hal/clock.h"
 #include "hal/system.h"
 #include "headphone_store.h"
@@ -32,7 +31,6 @@ typedef struct ExtensionModuleEntry {
     void (*headphones_load)(HeadphoneStore *store);
     bool (*clock_set)(HalWallTime time);
     bool (*clock_restore)(int16_t offset_minutes);
-    FavoritePlaylistResult (*favorite_add)(const Library *library, uint16_t track);
     const void *trial;
     HalRtcRead (*rtc_set)(uint32_t utc_s);
 #ifdef ECHO_DEBUG_LOOP

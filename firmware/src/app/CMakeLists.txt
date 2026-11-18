@@ -77,6 +77,7 @@ add_library(echo_app STATIC
     library_rescan.c
     music_check.c
     music_walk.c
+    music_record.c
     library_store.c
     modules/extension_module.c
     menu_hold.c

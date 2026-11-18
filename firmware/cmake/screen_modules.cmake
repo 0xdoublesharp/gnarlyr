@@ -71,7 +71,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
     src/app/modules/extension_module.c
-    src/app/favorite_playlist_add.c
     src/app/menu_hold.c
     src/app/headphone_store.c
     src/app/headphone_parameters.c
@@ -123,6 +122,9 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     platform/device/logic/fat_list.c
     platform/device/logic/exfat_list.c
     platform/device/logic/fat_utf8.c
+    src/app/music_walk.c
+    src/app/music_record.c
+    src/library/music_fingerprint.c
     src/settings/sound_shaping.c
     src/app/parametric_store.c
     src/settings/parametric_file.c
@@ -169,8 +171,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     platform/device/logic/fat_list.c
     platform/device/logic/exfat_list.c
     platform/device/logic/fat_utf8.c
-    src/app/music_walk.c
-    src/library/music_fingerprint.c
+    src/app/favorite_playlist_add.c
     src/app/modules/views_module.c
     platform/device/board/headset_reading.c
     platform/device/logic/headset_dips_view.c
@@ -289,7 +290,7 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_equalizer src/app/screens/key_test_screen.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/screens/key_test_screen.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
         src/app/debug_steps.c

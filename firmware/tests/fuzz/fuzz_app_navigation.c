@@ -8,6 +8,7 @@
 #include "fixture_library.h"
 #include "fuzz_source.h"
 #include "music_check.h"
+#include "music_record.h"
 #include "player.h"
 
 enum {
@@ -42,7 +43,7 @@ static void add_library_files(uint8_t control)
         }
     }
     if ((control & 64u) == 0) {
-        music_check_remember((MusicFingerprint){.complete = true});
+        music_record_remember((MusicFingerprint){.complete = true});
     }
     fake_hal_fail_music_writes((control & 128u) != 0);
 }
