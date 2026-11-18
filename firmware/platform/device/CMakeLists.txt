@@ -325,6 +325,7 @@ set(ECHO_OVERLAY_IMPORTS
     hal_dir_close
     hal_dir_open
     drive_path_internal
+    hal_file_combined
     storage_listing_begin
     fat_collect_long_name
     fat_entry_file

@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "app/debug_loop.h"
+#include "core/drive_path.h"
 #include "cover_cache.h"
 #include "hal/clock.h"
 #include "hal/input.h"
@@ -45,6 +46,8 @@ typedef struct RescanFiles {
     HalFile scratch;
     RescanProgress progress;
     uint32_t first_album;
+    bool combined;
+    bool at_root;
 } RescanFiles;
 
 static RescanFiles rescan_files;
@@ -58,8 +61,23 @@ static bool open_dir(void *context, const char *path, const ScanPlace *place)
         at = (HalDirPlace){.start = place->start, .size = place->size, .flags = place->flags};
     }
     bool opened = hal_dir_open_place(&files->dir, path, at);
+    files->at_root = files->combined && path[0] == '/' && path[1] == '\0';
     spend(TIME_LIST, since);
     return opened;
+}
+
+static bool list_internal_root(RescanFiles *files, ScanEntry *entry)
+{
+    if (!files->at_root) {
+        return false;
+    }
+    files->at_root = false;
+    entry->directory = true;
+    entry->modified = 0;
+    entry->place = (ScanPlace){.flags = 0};
+    entry->name[0] = DRIVE_PATH_INTERNAL;
+    entry->name[1] = '\0';
+    return true;
 }
 
 static bool next_entry(void *context, ScanEntry *entry)
@@ -71,7 +89,7 @@ static bool next_entry(void *context, ScanEntry *entry)
     bool listed = hal_dir_next(&files->dir, &listed_entry);
     spend(TIME_LIST, since);
     if (!listed) {
-        return false;
+        return list_internal_root(files, entry);
     }
     entry->directory = listed_entry.directory;
     entry->modified = listed_entry.modified;
@@ -271,6 +289,7 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
     start_guard(stops);
     rescan_files.scratch = scratch;
     rescan_files.progress = progress;
+    rescan_files.combined = hal_file_combined();
     uint32_t size = 0;
     void *memory = hal_system_borrow_scratch(&size);
     uint32_t listing_size = 0;
