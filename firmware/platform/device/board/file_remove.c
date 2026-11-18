@@ -10,7 +10,7 @@
 
 bool hal_file_remove(const char *path)
 {
-    FatVolume *volume = board_music_volume();
+    FatVolume *volume = board_route_volume(&path);
     return volume != NULL && fat_delete(volume, path);
 }
 

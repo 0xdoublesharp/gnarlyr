@@ -66,21 +66,12 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_eject_keeps_the_card_idle_until_physical_reinsertion(self):
-        from echo_emulator.emmc import SdCard, SparseDisk
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        volume = Fat32Volume()
-        disk = SparseDisk(1024 * 1024)
-        volume.write_to(disk, 0)
-        cards = []
-
-        def prepare(machine):
-            cards.append(SdCard(disk, machine))
-            machine.sd_controller.card = cards[0]
-            machine.card_present = True
-
+        slot = self.with_card()
+        cards = slot.cards
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
+                  volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=slot.insert)
         notices = rig.machine.collect_notices()
         rig.press("previous")
         rig.press("play")

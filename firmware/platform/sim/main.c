@@ -41,6 +41,7 @@ static void print_usage(void)
     fputs("usage: echo_sim [--scale N] [--frames N] [--headless] [--screenshot FILE.bmp]\n"
           "                [--keys up,down,play,menu,back,power[:long],...]\n"
           "                [--card MUSIC_DIR] [--system-dir DIR_WITH_LIBRARY_DB]\n"
+          "                [--internal INTERNAL_MUSIC_DIR]\n"
           "                [--battery PERCENT] [--charging] [--usb-host FRAME]\n"
           "                [--notice TITLE --notice-text MESSAGE]\n"
           "                [--clock now | --clock UTC_SECONDS [--utc-offset MINUTES]]\n",
@@ -201,6 +202,7 @@ int main(int argument_count, char **arguments)
         return EXIT_FAILURE;
     }
     sim_storage_configure(session.options.card_directory, session.options.system_directory);
+    sim_storage_configure_internal(session.options.internal_directory);
     sim_audio_start(session.options.headless);
     sim_power_configure(session.options.battery_percent, session.options.battery_charging);
     sim_clock_set_wall(session.options.clock_mode, session.options.clock_utc_s,

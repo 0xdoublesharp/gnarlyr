@@ -230,6 +230,40 @@ def summary(name, session):
               len(machine.unknown_mmio)))
 
 
+class CardSlot:
+    """A microSD card for a scenario: a FAT32 volume holding `files` on a sparse disk,
+    inserted into a machine with `insert` (usable as a `prepare` callback) and read back
+    with `fat`."""
+
+    SECTORS = 1024 * 1024
+
+    def __init__(self, files=(), volume=None):
+        from echo_emulator.emmc import SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        self.volume = volume or Fat32Volume()
+        for name, data, size in files:
+            self.volume.add_file(name, data, size)
+        self.disk = SparseDisk(self.SECTORS)
+        self.volume.write_to(self.disk, 0)
+        self.cards = []
+
+    def insert(self, machine):
+        from echo_emulator.emmc import SdCard
+        card = SdCard(self.disk, machine)
+        self.cards.append(card)
+        machine.sd_controller.card = card
+        machine.card_present = True
+        return card
+
+    def remove(self, machine):
+        machine.card_present = False
+        machine.sd_controller.card = None
+
+    def fat(self):
+        from echo_emulator.fat_reader import FatReader
+        return FatReader(self.disk, 0)
+
+
 class EchoImageHarness(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -248,6 +282,9 @@ class EchoImageHarness(unittest.TestCase):
                                            rest_in_waits=rest_in_waits,
                                            module_elfs=self.module_elfs, usb_answer=usb_answer,
                                            vbus_at_start=vbus_at_start)
+
+    def with_card(self, files=(), volume=None):
+        return CardSlot(files, volume)
 
     def assert_healthy(self, session):
         machine = session.machine

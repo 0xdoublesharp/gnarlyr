@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/drive_path.h"
 #include "core/seam.h"
 #include "device/fat.h"
 #include "device/storage_mount.h"
@@ -23,10 +24,13 @@ static StorageKind mounted_kind;
 static FatVolume volume;
 static FatFile files[OPEN_FILE_CAPACITY];
 static FatExtents extents[OPEN_FILE_CAPACITY];
+static FatVolume *file_volumes[OPEN_FILE_CAPACITY];
 static bool in_use[OPEN_FILE_CAPACITY];
 static FatDirCursor dirs[OPEN_DIR_CAPACITY];
+static FatVolume *dir_volumes[OPEN_DIR_CAPACITY];
 static bool dir_in_use[OPEN_DIR_CAPACITY];
 static FatDirEntry listed;
+static FatVolume *listed_volume;
 
 static bool mounted(void)
 {
@@ -63,14 +67,34 @@ static FatFile *file_of(HalFile file)
     return &files[file.handle];
 }
 
+static FatVolume *player_volume(void)
+{
+    if (mounted() && mounted_kind == STORAGE_INTERNAL) {
+        return &volume;
+    }
+    return internal_volume_mount();
+}
+
+FatVolume *board_route_volume(const char **path)
+{
+    const char *internal = drive_path_internal(*path);
+    if (internal == NULL) {
+        return mounted() ? &volume : NULL;
+    }
+    *path = internal;
+    return player_volume();
+}
+
 bool hal_file_open(HalFile *file, const char *path)
 {
     *file = (HalFile){.handle = -1, .size = 0};
     int slot = free_slot();
-    if (slot < 0 || !mounted() || !fat_open(&volume, path, &files[slot])) {
+    FatVolume *target = board_route_volume(&path);
+    if (slot < 0 || target == NULL || !fat_open(target, path, &files[slot])) {
         return false;
     }
     fat_attach_extents(&files[slot], &extents[slot]);
+    file_volumes[slot] = target;
     in_use[slot] = true;
     *file = (HalFile){.handle = slot, .size = files[slot].size};
     return true;
@@ -79,7 +103,7 @@ bool hal_file_open(HalFile *file, const char *path)
 bool hal_file_read(HalFile file, uint32_t offset, void *buffer, uint32_t length)
 {
     FatFile *open = file_of(file);
-    return open != NULL && fat_read(&volume, open, offset, buffer, length);
+    return open != NULL && fat_read(file_volumes[file.handle], open, offset, buffer, length);
 }
 
 void hal_file_close(HalFile *file)
@@ -110,19 +134,21 @@ CORE_COLD static bool write_in(FatVolume *target, const char *path, uint32_t off
 
 CORE_COLD bool hal_file_write(const char *path, const void *bytes, uint32_t length)
 {
-    return write_in(mounted() ? &volume : NULL, path, 0, bytes, length);
+    FatVolume *target = board_route_volume(&path);
+    return write_in(target, path, 0, bytes, length);
 }
 
 CORE_COLD bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes,
                                  uint32_t length)
 {
-    return write_in(mounted() ? &volume : NULL, path, offset, bytes, length);
+    FatVolume *target = board_route_volume(&path);
+    return write_in(target, path, offset, bytes, length);
 }
 
 bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length)
 {
     FatFile *open = file_of(file);
-    return open != NULL && write_open_file(&volume, open, offset, bytes, length);
+    return open != NULL && write_open_file(file_volumes[file.handle], open, offset, bytes, length);
 }
 
 static BlockDevice card_device;
@@ -164,15 +190,8 @@ CORE_COLD static HalReserveResult reserve_in(FatVolume *target, const char *path
 
 CORE_COLD HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
-    return reserve_in(mounted() ? &volume : NULL, path, size);
-}
-
-static FatVolume *player_volume(void)
-{
-    if (mounted() && mounted_kind == STORAGE_INTERNAL) {
-        return &volume;
-    }
-    return internal_volume_mount();
+    FatVolume *target = board_route_volume(&path);
+    return reserve_in(target, path, size);
 }
 
 CORE_COLD bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
@@ -221,6 +240,16 @@ static int free_dir_slot(void)
     return -1;
 }
 
+static FatVolume *open_directory(int slot, const char *path)
+{
+    if (path == NULL) {
+        dirs[slot] = (FatDirCursor){.directory = listed.file};
+        return listed.file.directory ? listed_volume : NULL;
+    }
+    FatVolume *target = board_route_volume(&path);
+    return target != NULL && fat_open_directory(target, path, &dirs[slot]) ? target : NULL;
+}
+
 CORE_COLD bool hal_dir_open(HalDir *dir, const char *path)
 {
     dir->handle = -1;
@@ -228,9 +257,8 @@ CORE_COLD bool hal_dir_open(HalDir *dir, const char *path)
     if (slot < 0 || !mounted()) {
         return false;
     }
-    if (path == NULL && listed.file.directory) {
-        dirs[slot] = (FatDirCursor){.directory = listed.file};
-    } else if (path == NULL || !fat_open_directory(&volume, path, &dirs[slot])) {
+    dir_volumes[slot] = open_directory(slot, path);
+    if (dir_volumes[slot] == NULL) {
         return false;
     }
     dir_in_use[slot] = true;
@@ -249,7 +277,8 @@ FatDirEntry *storage_listing_begin(const HalDir *dir, FatVolume **mounted_volume
     if (dir->handle < 0 || dir->handle >= OPEN_DIR_CAPACITY || !dir_in_use[dir->handle]) {
         return NULL;
     }
-    *mounted_volume = &volume;
+    listed_volume = dir_volumes[dir->handle];
+    *mounted_volume = listed_volume;
     *cursor = &dirs[dir->handle];
     return &listed;
 }

@@ -410,6 +410,7 @@ def arguments():
     parser.add_argument("--runs", type=int, help="Fuzzer executions per target")
     parser.add_argument("--seed", type=int, help="Deterministic fuzzer seed")
     parser.add_argument("--card", type=Path, help="Simulator music directory")
+    parser.add_argument("--internal", type=Path, help="Simulator internal-storage music directory")
     args = parser.parse_args()
     for enabled, action, option in ((args.check, "regen", "--check"), (args.existing, "sizes", "--existing"),
                                    (args.dry_run or args.owner_approved, "install-device", "--dry-run/--owner-approved")):
@@ -489,7 +490,9 @@ def main():
         compile_targets("dev", env, ["echo_sim"])
         system = SCRATCH / "data" / BUILD_NAME / "sim-system"
         system.mkdir(parents=True, exist_ok=True)
-        run([SOURCE / "build/dev/platform/sim/echo_sim", "--card", args.card.resolve(), "--system-dir", system], env)
+        internal = ["--internal", args.internal.resolve()] if args.internal else []
+        run([SOURCE / "build/dev/platform/sim/echo_sim", "--card", args.card.resolve(), "--system-dir", system,
+             *internal], env)
     else:
         compile_targets(preset, env, args.target)
 

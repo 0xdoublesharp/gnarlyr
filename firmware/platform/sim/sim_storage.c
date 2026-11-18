@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "core/drive_path.h"
 #include "hal/storage.h"
 #include "playback/listening_export.h"
 
@@ -22,6 +23,7 @@ static const char SYSTEM_PREFIX[] = "/" FIRMWARE_DATA_DIRECTORY "/";
 typedef struct SimStorage {
     const char *card_directory;
     const char *system_directory;
+    const char *internal_directory;
     FILE *files[OPEN_FILE_CAPACITY];
     char file_paths[OPEN_FILE_CAPACITY][PATH_CAPACITY];
     DIR *dirs[OPEN_DIR_CAPACITY];
@@ -39,8 +41,25 @@ void sim_storage_configure(const char *card_directory, const char *system_direct
     storage.system_directory = system_directory;
 }
 
+void sim_storage_configure_internal(const char *internal_directory)
+{
+    storage.internal_directory = internal_directory;
+}
+
+static bool internal_host_path(const char *path, char *buffer, size_t capacity)
+{
+    int written = storage.internal_directory == NULL
+                      ? -1
+                      : snprintf(buffer, capacity, "%s%s", storage.internal_directory, path);
+    return written > 0 && (size_t)written < capacity;
+}
+
 bool sim_storage_host_path(const char *path, char *buffer, size_t capacity)
 {
+    const char *internal = drive_path_internal(path);
+    if (internal != NULL) {
+        return internal_host_path(internal, buffer, capacity);
+    }
     size_t prefix_length = sizeof SYSTEM_PREFIX - 1;
     static const char themes[] = "/" FIRMWARE_DATA_DIRECTORY "/themes";
     if (storage.card_directory != NULL && strncmp(path, themes, sizeof themes - 1) == 0 &&

@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/drive_path.h"
 #include "hal/storage.h"
 #include "playback/listening_export.h"
 #include "sim_storage.h"
@@ -116,6 +117,43 @@ static void theme_packs_follow_the_music_volume_while_selection_stays_internal(v
     CHECK(strcmp(path, "internal/themes/original.gtheme") == 0);
 }
 
+static void a_marked_path_opens_lists_and_enters_folders_on_internal_storage(void)
+{
+    sim_storage_configure(ECHO_FIXTURE_DIR "/cue_music", NULL);
+    sim_storage_configure_internal(ECHO_FIXTURE_DIR "/scan_music");
+    CHECK(find(DRIVE_PATH_INTERNAL_ROOT, "Root Song.mp3").found);
+    CHECK(find(DRIVE_PATH_INTERNAL_ROOT "/Artist A", "Album One").found);
+    CHECK(!find("/", "Root Song.mp3").found);
+    HalFile file;
+    CHECK(hal_file_open(&file, DRIVE_PATH_INTERNAL_ROOT "/Root Song.mp3"));
+    CHECK(file.size > 0);
+    hal_file_close(&file);
+    HalDir root;
+    CHECK(hal_dir_open_place(&root, DRIVE_PATH_INTERNAL_ROOT, (HalDirPlace){.flags = 0}));
+    static HalDirEntry entry;
+    bool entered = false;
+    while (!entered && hal_dir_next(&root, &entry)) {
+        HalDir folder;
+        if (entry.directory && strcmp(entry.name, "Artist A") == 0 && hal_dir_open(&folder, NULL)) {
+            entered = hal_dir_next(&folder, &entry);
+            hal_dir_close(&folder);
+        }
+    }
+    hal_dir_close(&root);
+    CHECK(entered);
+    sim_storage_configure_internal(NULL);
+}
+
+static void without_internal_storage_a_marked_path_opens_nothing(void)
+{
+    sim_storage_configure(ECHO_FIXTURE_DIR "/cue_music", NULL);
+    sim_storage_configure_internal(NULL);
+    HalDir dir;
+    CHECK(!hal_dir_open(&dir, DRIVE_PATH_INTERNAL_ROOT));
+    HalFile file;
+    CHECK(!hal_file_open(&file, DRIVE_PATH_INTERNAL_ROOT "/Favorite Tracks.m3u"));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -126,6 +164,8 @@ int main(void)
         TEST_CASE(deleting_a_system_file_keeps_the_music_files),
         TEST_CASE(the_play_export_at_the_card_root_can_be_replaced),
         TEST_CASE(theme_packs_follow_the_music_volume_while_selection_stays_internal),
+        TEST_CASE(a_marked_path_opens_lists_and_enters_folders_on_internal_storage),
+        TEST_CASE(without_internal_storage_a_marked_path_opens_nothing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

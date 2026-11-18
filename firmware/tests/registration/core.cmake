@@ -1,3 +1,4 @@
+echo_add_unit_test(NAME test_drive_path SOURCES core/test_drive_path.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_deadline SOURCES core/test_deadline.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_headphone_audio SOURCES core/test_headphone_audio.c LIBRARIES echo_core)
 if(UNIX)

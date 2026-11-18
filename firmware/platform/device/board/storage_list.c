@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "core/drive_path.h"
 #include "device/fat.h"
 #include "hal/storage.h"
 #include "storage_listing.h"
@@ -59,7 +60,9 @@ bool hal_dir_open_place(HalDir *dir, const char *path, HalDirPlace place)
     }
     FatVolume *volume = NULL;
     FatDirCursor *cursor = NULL;
-    if (!hal_dir_open(dir, "/") || storage_listing_begin(dir, &volume, &cursor) == NULL) {
+    const char *internal = drive_path_internal(path);
+    if (!hal_dir_open(dir, internal != NULL ? DRIVE_PATH_INTERNAL_ROOT : "/") ||
+        storage_listing_begin(dir, &volume, &cursor) == NULL) {
         return false;
     }
     FatFile folder = {.first_cluster = place.start,
@@ -67,6 +70,6 @@ bool hal_dir_open_place(HalDir *dir, const char *path, HalDirPlace place)
                       .directory = true,
                       .contiguous = (place.flags & PLACE_CONTIGUOUS) != 0};
     *cursor = (FatDirCursor){.directory = folder};
-    remember_folder(volume, path, &folder);
+    remember_folder(volume, internal != NULL ? internal : path, &folder);
     return true;
 }

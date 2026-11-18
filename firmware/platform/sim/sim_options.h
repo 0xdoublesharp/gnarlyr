@@ -29,6 +29,7 @@ typedef struct SimOptions {
     const char *key_script;
     const char *card_directory;
     const char *system_directory;
+    const char *internal_directory;
     uint8_t battery_percent;
     bool battery_charging;
     uint32_t usb_host_frame;
