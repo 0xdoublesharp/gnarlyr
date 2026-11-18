@@ -1805,7 +1805,11 @@ const HeadphoneProfiles *app_headphone_profiles(void)
 void app_remember_dac(AppDacSettings settings)
 {
     if (settings.gain == GAIN_HIGH && app.settings.settings.gain != GAIN_HIGH) {
-        player_change_volume(&app.player, -HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB);
+        uint8_t wired = app.player.volume;
+        player_set_volume(&app.player, PLAYER_OUTPUT_WIRED,
+                          wired > HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB
+                              ? (uint8_t)(wired - HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB)
+                              : 0);
         (void)player_save(&app.player);
         capture_settings();
     }

@@ -1238,6 +1238,42 @@ static void high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_sa
     CHECK_EQUAL(volume - GAIN_RISE_STEPS, app_player_status().volume);
 }
 
+static void high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_the_output(void)
+{
+    start_app_with_library();
+    uint8_t wired = app_player_status().volume;
+    CHECK(wired > GAIN_RISE_STEPS);
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    uint8_t bluetooth = app_player_status().volume;
+    AppDacSettings dac = app_dac_settings();
+    dac.gain = GAIN_HIGH;
+    app_remember_dac(dac);
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(bluetooth, saved.bluetooth_volume);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    CHECK_EQUAL(wired - GAIN_RISE_STEPS, app_player_status().volume);
+    CHECK_EQUAL(wired - GAIN_RISE_STEPS, saved.volume);
+}
+
+static void choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_output(void)
+{
+    start_app_with_library();
+    uint8_t wired = app_player_status().volume;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    uint8_t bluetooth = app_player_status().volume;
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(bluetooth, app_player_status().volume);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    CHECK_EQUAL(wired - GAIN_RISE_STEPS, app_player_status().volume);
+}
+
 static void the_dac_filter_applies_on_play_saves_and_returns_after_a_restart(void)
 {
     start_app_with_library();
@@ -6705,6 +6741,8 @@ int main(void)
         TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
         TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),
         TEST_CASE(high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved),
+        TEST_CASE(high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_the_output),
+        TEST_CASE(choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_output),
         TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
         TEST_CASE(shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
