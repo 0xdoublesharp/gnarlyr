@@ -406,9 +406,11 @@ bool player_play_from(Player *player, PlayerListStart start)
     player_queue_cancel(player);
     player->cassette = (CassetteState){0};
     player->from_up_next = false;
+    note_spoken(player, item.index);
+    bool in_order = start.in_order || player->spoken;
     PlayQueuePlan plan = {.source = start.source,
                           .anchor_track = item.index,
-                          .shuffle = start.in_order ? SHUFFLE_OFF : player->shuffle,
+                          .shuffle = in_order ? SHUFFLE_OFF : player->shuffle,
                           .seed = start.seed};
     if (!play_queue_build(&player->queue, player->library, plan) ||
         !(start.exact_position
