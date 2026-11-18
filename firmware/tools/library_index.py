@@ -544,7 +544,7 @@ def folder_tracks(node, tracks):
 
 
 def folder_order(name):
-    return ("" if name == INTERNAL_MARKER else sort_key(name)), name
+    return name != INTERNAL_MARKER, sort_key(name), name
 
 
 def add_folder(folders, node, name, parent, tracks):

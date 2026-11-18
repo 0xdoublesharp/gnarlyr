@@ -766,3 +766,11 @@ class CombinedLibraryTest(unittest.TestCase):
         self.song(self.card, '"/Song.flac')
         with self.assertRaises(ValueError):
             library_index.scan(self.card, self.internal)
+
+    def test_the_internal_folder_comes_before_a_card_folder_whose_key_is_also_empty(self):
+        self.song(self.card, " ́/01 Accent.flac")
+        self.song(self.internal, "Inside/01 Inside.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        root = model.folders[0]
+        self.assertEqual(model.folders[root.subfolders[0]].name, library_index.INTERNAL_MARKER)

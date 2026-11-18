@@ -337,8 +337,19 @@ static bool rank_field(BuilderState *state, Prepared *prepared, int field)
     return true;
 }
 
+static bool folder_is_internal(const uint8_t *record)
+{
+    uint32_t key = builder_get16(record + 4);
+    uint32_t text = builder_get16(record) - (uint32_t)FOLDER_HEADER - key;
+    return text == 1 && record[FOLDER_HEADER + key] == (uint8_t)DRIVE_PATH_INTERNAL;
+}
+
 static int compare_folder_names(const uint8_t *left, const uint8_t *right, const void *context)
 {
+    bool left_internal = folder_is_internal(left);
+    if (left_internal != folder_is_internal(right)) {
+        return left_internal ? -1 : 1;
+    }
     (void)context;
     uint32_t left_key = builder_get16(left + 4);
     uint32_t right_key = builder_get16(right + 4);
@@ -381,8 +392,7 @@ static bool collect_folders(BuilderState *state, Prepared *prepared, Region *inp
             return false;
         }
         text[row.length] = '\0';
-        bool internal = text[0] == DRIVE_PATH_INTERNAL && text[1] == '\0';
-        uint32_t key_length = internal ? 0 : (uint32_t)sort_key_make(text, key, SORT_KEY_CAPACITY);
+        uint32_t key_length = (uint32_t)sort_key_make(text, key, SORT_KEY_CAPACITY);
         uint8_t header[FOLDER_HEADER];
         builder_put16(header, FOLDER_HEADER + key_length + row.length);
         builder_put16(header + 2, node);
