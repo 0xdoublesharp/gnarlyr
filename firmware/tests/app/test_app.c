@@ -2357,6 +2357,49 @@ static void power_after_a_chord_with_play_let_go_does_not_lock_the_keys(void)
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
 }
 
+static void a_one_sample_idle_blip_under_play_still_allows_a_chord(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_PLAY);
+    fake_hal_queue_reading_sample(KEY_LADDER_IDLE_READING, now_ms);
+    now_ms += 5;
+    for (int sample = 0; sample < 4; sample++) {
+        fake_hal_queue_reading_sample(242, now_ms);
+        now_ms += 5;
+    }
+    step();
+    tap(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void a_menu_press_between_play_and_volume_is_not_a_chord(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_MENU);
+    release_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_MENU);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void play_and_volume_in_a_list_select_before_moving_as_before(void)
+{
+    start_app_with_library();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    release_key(KEY_VOLUME_UP);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Music"));
+}
+
 static void play_and_power_lock_and_unlock_the_buttons(void)
 {
     start_app_with_library();
@@ -6768,6 +6811,9 @@ int main(void)
         TEST_CASE(configured_menu_hold_toggles_shuffle),
         TEST_CASE(power_menu_saves_a_screenshot_without_a_debug_script),
         TEST_CASE(power_after_a_chord_with_play_let_go_does_not_lock_the_keys),
+        TEST_CASE(a_one_sample_idle_blip_under_play_still_allows_a_chord),
+        TEST_CASE(a_menu_press_between_play_and_volume_is_not_a_chord),
+        TEST_CASE(play_and_volume_in_a_list_select_before_moving_as_before),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),
