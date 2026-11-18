@@ -33,8 +33,8 @@ enum {
 
 typedef struct CardFile {
     const char *path;
-    uint32_t size;
-    bool internal;
+    uint32_t size : 31;
+    bool internal : 1;
 } CardFile;
 
 static const CardFile CARD_FILES[] = {
