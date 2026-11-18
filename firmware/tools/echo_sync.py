@@ -575,13 +575,18 @@ def build_library(card):
     return model, data
 
 
+def current_library(data):
+    prefix = (library_index.MAGIC, library_index.VERSION, 10)
+    return (len(data) >= library_index.HEADER_PREFIX.size and
+            library_index.HEADER_PREFIX.unpack_from(data) == prefix)
+
+
 def cached_album_sources(path):
     with open_card_file(path, writable=False) as file:
         if os.fstat(file.fileno()).st_size > MAX_LIBRARY_BYTES:
             raise ValueError("the cached library is too large")
         data = file.read()
-    prefix = (library_index.MAGIC, library_index.VERSION, 10)
-    if len(data) < library_index.HEADER_SIZE or library_index.HEADER_PREFIX.unpack_from(data) != prefix:
+    if len(data) < library_index.HEADER_SIZE or not current_library(data):
         raise ValueError("the cached library is incomplete or unsupported")
     widths = (library_index.TRACK_RECORD.size, library_index.ALBUM_RECORD.size,
               library_index.GROUP_RECORD.size, library_index.GROUP_RECORD.size,
@@ -765,7 +770,12 @@ def run_check(card, volume):
                                             SCAN_RECORD.size))
     print(f"  this computer: {describe(computed)}")
     print(f"  the player's record: {describe(stored)}")
+    library = read_prefix(card / DATA_FOLDER / LIBRARY_FILE.name, library_index.HEADER_PREFIX.size)
     if stored is not None and computed.complete and computed == stored:
+        if not current_library(library):
+            print("They match, but the card's library is missing, damaged or from another version: "
+                  "the player will rebuild it after USB.")
+            return 1
         print("They match: the player won't rescan this card.")
         return 0
     if stored is None:
@@ -807,7 +817,8 @@ def parse_arguments(argv):
                         help="leave scan.bin alone, so the player decides itself whether to "
                              "rescan")
     parser.add_argument("--check", action="store_true",
-                        help="only compare this computer's music fingerprint with the player's")
+                        help="only compare this computer's music fingerprint with the player's "
+                             "and check that the card's library is the current version")
     parser.add_argument("--dry-run", action="store_true",
                         help="do everything except writing to the card")
     parser.add_argument("--yes", action="store_true",

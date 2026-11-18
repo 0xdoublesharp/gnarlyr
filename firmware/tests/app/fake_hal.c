@@ -134,6 +134,9 @@ typedef struct FakeHal {
     int file_count;
     bool fail_music_writes;
     const char *fail_file_writes;
+    const char *damaged_writes;
+    uint32_t damaged_offset;
+    uint8_t damaged_value;
     const char *fail_internal_writes;
     const char *fail_file_opens;
     const char *fail_file_reads;
@@ -1837,6 +1840,10 @@ bool hal_file_write_at(const char *path, uint32_t offset, const void *bytes, uin
     if (store != NULL && offset + length <= file->stored) {
         memcpy(store + offset, bytes, length);
     }
+    if (store != NULL && fake.damaged_writes != NULL && strcmp(path, fake.damaged_writes) == 0 &&
+        fake.damaged_offset < file->stored) {
+        store[fake.damaged_offset] = fake.damaged_value;
+    }
     fake.library_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/library.db") == 0;
     fake.covers_writes += strcmp(path, "/" FIRMWARE_DATA_DIRECTORY "/covers.bin") == 0;
     return true;
@@ -2138,6 +2145,13 @@ void fake_hal_fail_music_writes(bool fail)
 void fake_hal_fail_file_writes(const char *path)
 {
     fake.fail_file_writes = path;
+}
+
+void fake_hal_damage_file_writes(const char *path, uint32_t offset, uint8_t value)
+{
+    fake.damaged_writes = path;
+    fake.damaged_offset = offset;
+    fake.damaged_value = value;
 }
 
 void fake_hal_fail_file_opens(const char *path)

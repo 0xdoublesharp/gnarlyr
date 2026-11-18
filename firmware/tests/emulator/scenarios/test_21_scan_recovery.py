@@ -217,6 +217,21 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.wait_for_scan_record(second, unlike="0.9.0"), current)
         self.assert_healthy(second)
 
+    def test_a_version_one_library_is_rebuilt_at_the_next_start_of_the_same_build(self):
+        first = self.session(volume=music_volume())
+        self.scan_to_the_end(first)
+        self.covers_to_the_end(first)
+        first.machine.continue_past_stop()
+        current = self.wait_for_scan_record(first)
+        self.assertIsNotNone(current)
+        self.patch_file_start(first, LIBRARY_PATH, LIBRARY_VERSION_AT, (1).to_bytes(2, "little"))
+        self.assertEqual(self.library_version(first), 1)
+        second = first.reboot()
+        self.assertEqual(self.scans_until_library_version(second, 2), 2)
+        self.assertEqual(self.built_library_tracks(second), 3)
+        self.assertEqual(self.recorded_version(second), current)
+        self.assert_healthy(second)
+
     def test_a_cover_that_faults_is_skipped_and_reported_on_the_next_start(self):
         cover = "/ALBUM1/COVER.PNG"
         first = self.session(volume=music_volume())

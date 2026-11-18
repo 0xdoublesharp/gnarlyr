@@ -212,7 +212,7 @@ It reads the whole card, as the player does, and writes `library.db`, `covers.bi
 - the card has folders more than 31 levels deep or paths longer than 1,023 bytes (the player can't fingerprint those);
 - a name was saved decomposed (for example by Linux) and read on a Mac, or only as an old DOS short name with accented letters.
 
-To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (`python3 tools/echo_sync.py /Volumes/CARD --check`). "They match" means the player won't rescan after the next sync.
+To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (`python3 tools/echo_sync.py /Volumes/CARD --check`). "They match" means the player won't rescan after the next sync. If the card's library is missing, damaged or from another version, it says the player will rebuild it.
 
 **After a firmware update** the player checks the music once when it first starts ("Checking for changes"), and rescans only if the music changed, or if it can't read the library on the card (as after an update that changes the library format). `scan.bin` remembers the firmware version; the computer keeps it. A `scan.bin` the computer had to create has no version yet, so the player checks once on its next start too.
 
@@ -222,7 +222,7 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--no-covers` | Build the library only; `covers.bin` stays as it is, so new albums show without covers until the next rescan on the player |
 | `--covers-only` | Rebuild only `covers.bin`, from the card's `library.db` (or from the music when there is none) |
 | `--no-fingerprint` | Leave `scan.bin` alone, so the player compares the music with its own last scan |
-| `--check` | Only compare the computer's fingerprint with the player's |
+| `--check` | Only compare the computer's fingerprint with the player's, and check the card's library version |
 | `--yes` | Create `/.gnarlyr` without asking |
 | `--verbose` | List the albums without art |
 
