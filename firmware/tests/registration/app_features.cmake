@@ -132,5 +132,5 @@ echo_add_unit_test(NAME test_theme_runtime
 )
 
 add_executable(theme_pack_tool app/theme_pack_tool.c app/fake_hal.c)
-target_link_libraries(theme_pack_tool PRIVATE echo_app echo_library_fixtures echo_options)
+target_link_libraries(theme_pack_tool PRIVATE echo_app echo_device_logic echo_library_fixtures echo_options)
 target_include_directories(theme_pack_tool PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
