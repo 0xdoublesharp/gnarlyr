@@ -43,7 +43,6 @@ typedef struct RescanFiles {
     HalFile library;
     HalFile covers;
     HalFile scratch;
-    HalDirEntry entry;
     RescanProgress progress;
     uint32_t first_album;
 } RescanFiles;
@@ -68,19 +67,20 @@ static bool next_entry(void *context, ScanEntry *entry)
     RescanFiles *files = context;
     hal_system_keep_alive();
     uint32_t since = hal_clock_microseconds();
-    bool listed = hal_dir_next(&files->dir, &files->entry);
+    HalDirEntry listed_entry;
+    bool listed = hal_dir_next(&files->dir, &listed_entry);
     spend(TIME_LIST, since);
     if (!listed) {
         return false;
     }
-    entry->directory = files->entry.directory;
-    entry->modified = files->entry.modified;
+    entry->directory = listed_entry.directory;
+    entry->modified = listed_entry.modified;
     if (entry->directory) {
         HalDirPlace at = hal_dir_place(&files->dir);
         entry->place = (ScanPlace){.start = at.start, .size = at.size, .flags = at.flags};
     }
     for (size_t index = 0; index < sizeof entry->name; index++) {
-        entry->name[index] = files->entry.name[index];
+        entry->name[index] = listed_entry.name[index];
     }
     return true;
 }
