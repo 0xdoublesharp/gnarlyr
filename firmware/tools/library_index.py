@@ -43,6 +43,7 @@ GROUP_RECORD = struct.Struct("<IIHH")
 FOLDER_RECORD = struct.Struct("<IHHIHH")
 FOLDER_SHEET = 1
 FOLDER_CHAPTERS = 2
+FOLDER_NAMED = 4
 INDEX_RECORD = struct.Struct("<H")
 
 START_DIRECTIVE_TEXT = f"#{IDENTITY.playlist_start_directive}:"
@@ -486,15 +487,24 @@ def build_folders(tracks):
     return folders
 
 
+def folder_named(node, tracks):
+    numbered = all(tracks[index].number for index in node["tracks"])
+    return not node["flags"] & FOLDER_SHEET and not numbered
+
+
 def folder_tracks(node, tracks):
     if node["flags"] & FOLDER_SHEET:
         return sorted(node["tracks"], key=lambda index: tracks[index].part)
+    if node["flags"] & FOLDER_NAMED:
+        return sorted(node["tracks"],
+                      key=lambda index: sort_key(PurePosixPath(tracks[index].path).name))
     return sorted(node["tracks"], key=lambda index: (
         tracks[index].disc, tracks[index].number, sort_key(PurePosixPath(tracks[index].path).name)))
 
 
 def add_folder(folders, node, name, parent, tracks):
     position = len(folders)
+    node["flags"] |= FOLDER_NAMED if folder_named(node, tracks) else 0
     folder = Folder(name, parent, flags=node["flags"])
     folders.append(folder)
     for child_name in sorted(node["children"], key=lambda child: (sort_key(child), child)):

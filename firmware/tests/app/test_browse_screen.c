@@ -86,6 +86,24 @@ static void numbered_files_do_not_become_single_item_letter_runs(void)
     CHECK_EQUAL(0, browse_sections_range(files, 0).end);
 }
 
+static void name_ordered_files_are_one_letter_run(void)
+{
+    BrowseQuery query = browse_root_query(BROWSE_FOLDER);
+    query.subject = 2;
+    BrowseScreen *files = opened(query);
+    LibrarySectionInfo folders = fixture.library.sections[LIBRARY_FOLDERS];
+    fixture.bytes[folders.offset + 2 * folders.record_size + 14] = LIBRARY_FOLDER_NAMED;
+    CHECK_EQUAL(LIBRARY_OK,
+                library_open(&fixture.library, memory_source(&fixture.memory), fixture.size));
+    LibraryFolder folder;
+    CHECK(library_read_folder(&fixture.library, 2, &folder));
+    CHECK(folder.track_count > 1);
+    int last = folder.subfolder_count + folder.track_count - 1;
+    ListSections sections = browse_sections_range(files, last);
+    CHECK_EQUAL(folder.subfolder_count, sections.first);
+    CHECK_EQUAL(last + 1, sections.end);
+}
+
 static void section_ranges_cover_each_root_list_contract(void)
 {
     static const BrowseKind WHOLE_LIST[] = {BROWSE_ARTISTS, BROWSE_ALBUM_ARTISTS, BROWSE_ALBUMS,
@@ -145,6 +163,7 @@ int main(void)
         TEST_CASE(folder_names_offer_sections_without_reordering_tracks),
         TEST_CASE(an_appended_favorite_playlist_has_its_own_sorted_run),
         TEST_CASE(numbered_files_do_not_become_single_item_letter_runs),
+        TEST_CASE(name_ordered_files_are_one_letter_run),
         TEST_CASE(section_ranges_cover_each_root_list_contract),
         TEST_CASE(missing_and_spoken_folders_have_no_false_ranges),
         TEST_CASE(lettered_lists_never_go_backwards),

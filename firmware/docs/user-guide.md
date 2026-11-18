@@ -79,9 +79,9 @@ To take the card out safely, choose Settings → Eject card. The player stops us
 
 Hold Play on a song in a Music list or a smart list for its actions.
 
-- **Hide track** takes the song out of every list, Play all, shuffle and the smart lists at once, and keeps it out after rescans. Settings → Hidden tracks (shown while something is hidden) lists hidden songs by file name; press Play on one to show it again. A song hidden before the last rescan comes back at the next rescan. Up to 16 songs can be hidden.
+- **Hide track** takes the song out of every list, Play all, shuffle and the smart lists at once, and keeps it out after rescans. Settings → Hidden tracks (shown while something is hidden) lists hidden songs by file name; press Play on one to show it again. A song hidden before the last rescan comes back at the next rescan. Up to 16 songs can be hidden at a time.
 - **Delete file** asks first, naming the file; Cancel is selected. Deleting removes the file from the card, skips to the next song if it was playing, and takes it out of the lists, the queue and Up Next without a rescan. Ordinary mixtapes skip it when they load; a two-sided tape skips it, and the side that holds it takes no new songs ("Couldn't add to tape") until the song is back (see [Side A/B tapes](#side-ab-tapes)). A song that is one part of a CUE sheet or an audiobook's chapter can't be deleted on its own.
-- Up to 12 songs can be hidden or deleted between rescans; after that the player asks for a rescan first.
+- Between rescans, up to 12 songs can be hidden or deleted in total; after that the player asks for a rescan first.
 
 ## Search, sorting and personal tags
 
@@ -261,7 +261,7 @@ Changes use the same saving and sound controls as Settings. Sleep timer runs for
 
 In Artists, Album artists, Albums, Songs, Genres, Playlists and Favorites, hold Vol+ or Vol− to move faster, then jump to the start of each letter section. The same gesture works in name-sorted search results and filter choices, genre albums, and the name-sorted folders and files on Folders, Audiobooks and Podcasts. The badge shows the current letter and disappears shortly after release. Accents and a leading “The” follow the library's sorting; digits and symbols show **#**, at their place in the sort order. Small sections are kept, and holding stops at the ends. Lists that fit on one screen keep their ordinary scrolling.
 
-Folders stay before files. Files keep disc and track-number order, with letter jumps inside each group of files having the same disc and track number. Chapters, playlist contents and artist albums keep their playback order. Audiobook files outside the named audiobook folders retain their existing album order.
+Folders stay before files. When every file in a folder has a track number, from its tags or a `01 - ` or `01. ` start to its name, the files keep disc and track-number order, with letter jumps inside each group of files having the same disc and track number. When any file in the folder has none, all of its files are sorted by name, and letter jumps cover them all. Chapters, playlist contents and artist albums keep their playback order. Audiobook files outside the named audiobook folders retain their existing album order.
 
 Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums**. Play all starts with the earliest album, then follows year and album title, with each album's tracks in disc and track order. Shuffle albums changes the album sequence and keeps each album's tracks together in order. Both include whole albums, including guest artists and CUE tracks or chapters, and replace Up Next. Back cancels preparation. The exact queue and your position are kept across restarts; the queue can contain up to 65,535 tracks.
 
@@ -490,7 +490,7 @@ Put audiobooks in a folder called `Audiobooks` and podcasts in a folder called `
 ```
 Audiobooks/
   The Long Road/          one folder per book
-    01 - Departure.mp3    chapters play in track-number order, then file-name order
+    01 - Departure.mp3    chapters play in track-number order, or by file name when one has no number
     02 - The River.mp3
   Short Story.mp3         a book in one file works too
   Dune.m4b                a book in one chaptered .m4b works too
