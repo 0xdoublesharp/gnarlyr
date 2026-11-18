@@ -190,6 +190,19 @@ static void export_lookup_rejects_an_identity_that_now_names_another_track(void)
     CHECK(!listening_store_text(&store, &identity, &text));
 }
 
+static void export_lookup_finds_a_track_by_key_when_a_rebuild_moved_it(void)
+{
+    reset();
+    ListeningTrack identity;
+    CHECK_EQUAL(STORE_READY, listening_track_read(store.library, 0, &identity));
+    ListeningText expected;
+    CHECK(listening_store_text(&store, &identity, &expected));
+    identity.index = 1;
+    ListeningText text;
+    CHECK(listening_store_text(&store, &identity, &text));
+    CHECK(strcmp(expected.title, text.title) == 0);
+}
+
 static void start_real_playback(void)
 {
     fake_hal_reset();
@@ -532,6 +545,7 @@ int main(void)
         TEST_CASE(a_detached_store_never_writes_its_waiting_play_to_the_next_drive),
         TEST_CASE(an_uncertain_commit_is_reloaded_before_a_retry),
         TEST_CASE(export_lookup_rejects_an_identity_that_now_names_another_track),
+        TEST_CASE(export_lookup_finds_a_track_by_key_when_a_rebuild_moved_it),
         TEST_CASE(incomplete_or_idle_observations_do_not_start_history),
         TEST_CASE(every_lossless_codec_is_classified_as_lossless),
     };
