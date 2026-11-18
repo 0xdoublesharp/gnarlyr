@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "library/library.h"
 #include "reference_internal.h"
 
 typedef enum TrackField {
@@ -15,6 +16,7 @@ typedef struct SortContext {
     const ReferenceBuilder *builder;
     const LibraryModel *model;
     TrackField field;
+    bool named;
 } SortContext;
 
 static uint32_t field_of(const TrackRecord *track, TrackField field)
@@ -354,6 +356,7 @@ typedef struct FolderTree {
     uint16_t *track_start_of_node;
     uint16_t *tracks;
     uint16_t *track_count_of_node;
+    uint8_t *named;
 } FolderTree;
 
 static bool collect_children(const ReferenceBuilder *builder, Work *work, FolderTree *tree,
@@ -426,7 +429,23 @@ static int by_folder_track(const void *context, uint16_t left, uint16_t right)
     const SortContext *sort = context;
     uint16_t a = sort->model->final_tracks[left];
     uint16_t b = sort->model->final_tracks[right];
+    if (sort->named) {
+        return reference_compare_keys(sort->builder, reference_track(sort->builder, a)->file_name,
+                                      reference_track(sort->builder, b)->file_name);
+    }
     return by_track_order(context, a, b);
+}
+
+static bool folder_named(const ReferenceBuilder *builder, const LibraryModel *model,
+                         const FolderTree *tree, uint32_t node)
+{
+    const uint16_t *positions = tree->tracks + tree->track_start_of_node[node];
+    for (uint32_t index = 0; index < tree->track_count_of_node[node]; index++) {
+        if (reference_track(builder, model->final_tracks[positions[index]])->number == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool collect_folder_tracks(const ReferenceBuilder *builder, Work *work, LibraryModel *model,
@@ -437,6 +456,7 @@ static bool collect_folder_tracks(const ReferenceBuilder *builder, Work *work, L
     tree->track_start_of_node = reference_work_alloc(work, nodes * 2);
     tree->track_count_of_node = reference_work_alloc(work, nodes * 2);
     tree->tracks = reference_work_alloc(work, count * 2 + 2);
+    tree->named = reference_work_alloc(work, nodes);
     if (work->failed) {
         return false;
     }
@@ -460,6 +480,8 @@ static bool collect_folder_tracks(const ReferenceBuilder *builder, Work *work, L
     }
     SortContext sort = {.builder = builder, .model = model, .field = FIELD_FILE_NAME};
     for (uint32_t node = 0; node < nodes; node++) {
+        tree->named[node] = folder_named(builder, model, tree, node);
+        sort.named = tree->named[node];
         reference_stable_sort(tree->tracks + tree->track_start_of_node[node], scratch,
                               tree->track_count_of_node[node], by_folder_track, &sort);
     }
@@ -487,6 +509,7 @@ static bool write_folder_models(const ReferenceBuilder *builder, Work *work, Lib
                           .subfolder_count = tree->child_count[node],
                           .track_count = tree->track_count_of_node[node],
                           .node = node,
+                          .flags = tree->named[node] ? LIBRARY_FOLDER_NAMED : 0,
                           .first_link = links};
         for (uint32_t child = 0; child < tree->child_count[node]; child++) {
             model->folder_links[links++] =

@@ -90,6 +90,7 @@ typedef struct FolderModel {
     uint16_t subfolder_count;
     uint16_t track_count;
     uint16_t node;
+    uint16_t flags;
     uint32_t first_link;
 } FolderModel;
 

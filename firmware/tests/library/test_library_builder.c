@@ -730,6 +730,56 @@ static void tagged_album_artists_and_other_folders_keep_their_albums(void)
     free(opened.built.output.bytes);
 }
 
+static bool folder_file_is(const Opened *opened, LibraryFolder folder, uint32_t position,
+                           const char *path)
+{
+    uint16_t id;
+    LibraryTrack added;
+    char text[96];
+    return library_read_index(&opened->library, LIBRARY_LINKS,
+                              folder.first_link + folder.subfolder_count + position, &id) &&
+           library_read_track(&opened->library, id, &added) &&
+           library_read_string(&opened->library, added.path, text, sizeof text) &&
+           strcmp(path, text) == 0;
+}
+
+static void check_folder_files(const Opened *opened, uint32_t index, const char *const *paths,
+                               uint16_t flags)
+{
+    LibraryFolder folder;
+    CHECK(library_read_folder(&opened->library, index, &folder));
+    CHECK_EQUAL(3, folder.track_count);
+    CHECK_EQUAL(flags, folder.flags);
+    for (uint32_t position = 0; position < 3; position++) {
+        CHECK(folder_file_is(opened, folder, position, paths[position]));
+    }
+}
+
+static void a_folder_with_an_unnumbered_file_lists_its_files_by_name(void)
+{
+    const BuilderTrack tracks[] = {
+        track("Beta Checks/15 AIFF.aiff", "AIFF", "A", "A", "Codec", "Pop", 0, 0),
+        track("Beta Checks/16 WMA.wma", "WMA", "A", "A", "Codec Checks", "Pop", 0, 1),
+        track("Beta Checks/17 APE.ape", "APE", "A", "A", "Codec", "Pop", 0, 0),
+        track("Numbered/a.flac", "A", "B", "B", "Numbered", "Pop", 0, 3),
+        track("Numbered/b.flac", "B", "B", "B", "Numbered", "Pop", 0, 1),
+        track("Numbered/c.flac", "C", "B", "B", "Numbered", "Pop", 0, 2),
+        track("Untagged/c.flac", "C", "C", "C", "Untagged", "Pop", 0, 0),
+        track("Untagged/a.flac", "A", "C", "C", "Untagged", "Pop", 0, 0),
+        track("Untagged/b.flac", "B", "C", "C", "Untagged", "Pop", 0, 0),
+    };
+    const char *const beta[] = {"Beta Checks/15 AIFF.aiff", "Beta Checks/16 WMA.wma",
+                                "Beta Checks/17 APE.ape"};
+    const char *const numbered[] = {"Numbered/b.flac", "Numbered/c.flac", "Numbered/a.flac"};
+    const char *const untagged[] = {"Untagged/a.flac", "Untagged/b.flac", "Untagged/c.flac"};
+    Opened opened;
+    build_tracks(tracks, sizeof tracks / sizeof tracks[0], &opened);
+    check_folder_files(&opened, 1, beta, LIBRARY_FOLDER_NAMED);
+    check_folder_files(&opened, 2, numbered, 0);
+    check_folder_files(&opened, 3, untagged, LIBRARY_FOLDER_NAMED);
+    free(opened.built.output.bytes);
+}
+
 static void check_preparation_fault(bool read, int operation)
 {
     LibraryBuilder builder;
@@ -1080,6 +1130,7 @@ int main(void)
         TEST_CASE(a_featured_artist_stays_with_the_album),
         TEST_CASE(a_tie_goes_to_the_artist_first_in_order),
         TEST_CASE(tagged_album_artists_and_other_folders_keep_their_albums),
+        TEST_CASE(a_folder_with_an_unnumbered_file_lists_its_files_by_name),
         TEST_CASE(failed_scratch_reads_during_preparation_never_publish_a_database),
         TEST_CASE(failed_scratch_writes_during_preparation_never_publish_a_database),
         TEST_CASE(a_scratch_read_failure_after_preparation_is_an_io_error),

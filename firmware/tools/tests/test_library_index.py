@@ -146,6 +146,45 @@ class BuildLibraryTest(unittest.TestCase):
                          [self.library.tracks[index].title for index in homogenic.tracks])
 
 
+def numbered_track(path, number):
+    return library_index.TrackInfo(path=path, title=path, artist="A", album_artist="A",
+                                   album=path.split("/")[0], genre="Pop", year=0, disc=1,
+                                   number=number, duration_ms=1000)
+
+
+class FolderFileOrderTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.library = library_index.build_library([
+            numbered_track("Beta Checks/15 AIFF.aiff", 0),
+            numbered_track("Beta Checks/16 WMA.wma", 1),
+            numbered_track("Beta Checks/17 APE.ape", 0),
+            numbered_track("Numbered/a.flac", 3),
+            numbered_track("Numbered/b.flac", 1),
+            numbered_track("Numbered/c.flac", 2),
+            numbered_track("Untagged/c.flac", 0),
+            numbered_track("Untagged/a.flac", 0),
+            numbered_track("Untagged/b.flac", 0),
+        ])
+
+    def files_of(self, name):
+        folder = next(folder for folder in self.library.folders if folder.name == name)
+        return [self.library.tracks[index].path for index in folder.tracks], folder.flags
+
+    def test_one_unnumbered_file_puts_the_folder_in_name_order(self):
+        self.assertEqual((["Beta Checks/15 AIFF.aiff", "Beta Checks/16 WMA.wma",
+                           "Beta Checks/17 APE.ape"], library_index.FOLDER_NAMED),
+                         self.files_of("Beta Checks"))
+
+    def test_a_folder_of_numbered_files_keeps_track_order(self):
+        self.assertEqual((["Numbered/b.flac", "Numbered/c.flac", "Numbered/a.flac"], 0),
+                         self.files_of("Numbered"))
+
+    def test_a_folder_of_unnumbered_files_is_in_name_order(self):
+        self.assertEqual((["Untagged/a.flac", "Untagged/b.flac", "Untagged/c.flac"],
+                          library_index.FOLDER_NAMED), self.files_of("Untagged"))
+
+
 def guessed_track(path, artist, album):
     return library_index.TrackInfo(path=path, title="Song", artist=artist, album_artist=artist,
                                    album=album, genre="Pop", year=2025, disc=1, number=1,

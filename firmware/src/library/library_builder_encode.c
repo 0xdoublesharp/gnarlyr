@@ -152,7 +152,7 @@ static void open_records(Encode *encode, In *in, Region region, uint32_t half)
 
 static uint32_t folder_name_length(const uint8_t *record)
 {
-    return builder_get16(record + 4) & ~(uint32_t)BUILDER_FLAG_BITS;
+    return builder_get16(record + 4) & ~(uint32_t)(BUILDER_FLAG_BITS | BUILDER_NAMED_BIT);
 }
 
 static int compare_names(const uint8_t *left, const uint8_t *right, const void *context)
@@ -474,7 +474,7 @@ static bool write_folders(Encode *encode, uint32_t first_link)
         put_u32(writer, first_link + builder_get32(record + 12));
         put_u16(writer, builder_get16(record + 10));
         uint32_t marks = builder_get16(record + 4);
-        put_u16(writer, (marks >> 15) | ((marks >> 13) & 2));
+        put_u16(writer, (marks >> 15) | ((marks >> 13) & 2) | ((marks >> 11) & 4));
     }
     return true;
 }

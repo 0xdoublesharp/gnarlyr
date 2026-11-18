@@ -16,9 +16,10 @@ static uint16_t track_sort(const Library *library, LibraryFolder folder, int pos
 {
     uint16_t id;
     LibraryTrack track;
-    return library_read_index(library, LIBRARY_LINKS,
-                              folder.first_link + folder.subfolder_count + (uint32_t)position,
-                              &id) &&
+    return (folder.flags & LIBRARY_FOLDER_NAMED) == 0 &&
+                   library_read_index(
+                       library, LIBRARY_LINKS,
+                       folder.first_link + folder.subfolder_count + (uint32_t)position, &id) &&
                    library_read_track(library, id, &track)
                ? (uint16_t)((uint16_t)track.disc * 256u + track.number)
                : 0;

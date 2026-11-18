@@ -343,7 +343,7 @@ static void write_folders(Writer *writer, const ReferenceBuilder *builder,
         put_u16(writer, record->subfolder_count);
         put_u32(writer, first_link + record->first_link);
         put_u16(writer, record->track_count);
-        put_u16(writer, 0);
+        put_u16(writer, record->flags);
     }
 }
 

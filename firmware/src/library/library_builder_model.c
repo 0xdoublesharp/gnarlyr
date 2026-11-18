@@ -58,14 +58,16 @@ static int compare_u8(const uint8_t *left, const uint8_t *right, uint32_t offset
     return (int)left[offset] - (int)right[offset];
 }
 
+static bool sort_job(BuilderState *state, SortJob job, Region *sorted)
+{
+    job.store = &state->store;
+    job.arena = &state->arena;
+    return sort_records(&job, sorted);
+}
+
 static bool sort_with(BuilderState *state, Region input, SortCompare compare, Region *sorted)
 {
-    SortJob job = {.store = &state->store,
-                   .arena = &state->arena,
-                   .input = input,
-                   .compare = compare,
-                   .context = NULL};
-    return sort_records(&job, sorted);
+    return sort_job(state, (SortJob){.input = input, .compare = compare}, sorted);
 }
 
 typedef struct Column {
@@ -714,6 +716,7 @@ typedef struct FolderPhase {
     uint16_t *node_at;
     uint16_t *subfolders;
     uint16_t *path_length;
+    uint8_t *named;
 } FolderPhase;
 
 static bool number_folders(BuilderState *state, Prepared *prepared, FolderPhase *phase)
@@ -768,12 +771,13 @@ static bool measure_folders(BuilderState *state, Prepared *prepared, FolderPhase
 
 static int by_folder_link(const uint8_t *left, const uint8_t *right, const void *context)
 {
-    (void)context;
+    const uint8_t *named = context;
     int folder = compare_u16(left, right, 2);
     if (folder != 0) {
         return folder;
     }
-    for (uint32_t offset = 4; offset <= 6; offset++) {
+    uint32_t last = named[builder_get16(left + 2)] != 0 ? 4 : 6;
+    for (uint32_t offset = 4; offset <= last; offset++) {
         int order = compare_u8(left, right, offset);
         if (order != 0) {
             return order;
@@ -807,9 +811,13 @@ typedef struct FolderLink {
 static bool put_track_links(Tail *tail, const FolderPhase *phase, const TrackRow *row,
                             FolderLink link)
 {
-    if (!row->continued && !put_link_tuple(tail, phase->new_index[row->folder], KIND_TRACK,
-                                           row->disc, row->number, link.file, link.position)) {
-        return false;
+    uint32_t folder = phase->new_index[row->folder];
+    if (!row->continued) {
+        phase->named[folder] |= row->number == 0;
+        if (!put_link_tuple(tail, folder, KIND_TRACK, row->disc, row->number, link.file,
+                            link.position)) {
+            return false;
+        }
     }
     return row->sheet == BUILDER_NONE ||
            put_link_tuple(tail, phase->new_index[row->sheet], KIND_TRACK, 0, 0, link.track,
@@ -895,7 +903,8 @@ static bool write_folder_rows(BuilderState *state, Prepared *prepared, const Fol
         }
         uint8_t record[FOLDER_FINAL];
         builder_put32(record, row.name);
-        builder_put16(record + 4, row.length | ((uint32_t)row.sheet << BUILDER_FLAG_SHIFT));
+        builder_put16(record + 4, row.length | ((uint32_t)row.sheet << BUILDER_FLAG_SHIFT) |
+                                      (phase->named[position] != 0 ? BUILDER_NAMED_BIT : 0));
         builder_put16(record + 6, node == 0 ? BUILDER_NONE : phase->new_index[row.parent]);
         builder_put16(record + 8, phase->subfolders[position]);
         builder_put16(record + 10, tracks);
@@ -929,8 +938,11 @@ static bool build_folders(BuilderState *state, Prepared *prepared, const uint16_
         !builder_write_column(state, prepared->folder_path_length, phase.path_length, count)) {
         return false;
     }
-    state->arena.used = (uint32_t)((uint8_t *)phase.path_length - state->arena.base);
+    phase.named = (uint8_t *)phase.path_length;
     phase.path_length = NULL;
+    for (uint32_t index = 0; index < count; index++) {
+        phase.named[index] = 0;
+    }
     uint32_t links_mark = state->arena.used;
     Region input;
     Region sorted;
@@ -938,8 +950,8 @@ static bool build_folders(BuilderState *state, Prepared *prepared, const uint16_
         return false;
     }
     state->arena.used = links_mark;
-    if (!sort_with(state, input, by_folder_link, &sorted) ||
-        !write_folder_rows(state, prepared, &phase, sorted) ||
+    SortJob job = {.input = input, .compare = by_folder_link, .context = phase.named};
+    if (!sort_job(state, job, &sorted) || !write_folder_rows(state, prepared, &phase, sorted) ||
         !builder_write_column(state, prepared->folder_new_index, phase.new_index, count)) {
         return false;
     }
