@@ -45,7 +45,8 @@ bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *b
 HalReserveResult hal_internal_file_reserve(const char *path, uint32_t size);
 
 enum {
-    HAL_NAME_CAPACITY = 768
+    HAL_NAME_CAPACITY = 768,
+    HAL_OPEN_DIRS = 16
 };
 
 typedef struct HalDir {

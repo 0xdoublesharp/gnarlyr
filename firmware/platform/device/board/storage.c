@@ -14,7 +14,7 @@
 
 enum {
     OPEN_FILE_CAPACITY = 8,
-    OPEN_DIR_CAPACITY = 16
+    OPEN_DIR_CAPACITY = HAL_OPEN_DIRS
 };
 
 _Static_assert((int)HAL_NAME_CAPACITY == (int)FAT_NAME_CAPACITY, "listed names fit the HAL entry");

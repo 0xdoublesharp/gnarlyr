@@ -23,6 +23,7 @@ typedef struct MusicWalk {
     uint32_t songs;
     uint32_t expected;
     bool internal;
+    bool overflowed;
 } MusicWalk;
 
 enum {
@@ -79,6 +80,10 @@ static bool open_dir(void *context, uint32_t level, const char *path)
     hal_system_keep_alive();
     state->folders++;
     show_progress(state);
+    if (level >= HAL_OPEN_DIRS) {
+        state->overflowed = true;
+        return false;
+    }
     if (level > 0 && hal_dir_open(&state->dirs[level], NULL)) {
         return true;
     }
@@ -124,10 +129,12 @@ static MusicFingerprint walk_drive(bool internal)
 {
     walk.internal = internal;
     walk.songs = 0;
+    walk.overflowed = false;
     FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};
     hal_storage_lend_cache(internal ? NULL : lent, internal ? 0 : LENT_SECTORS);
     MusicFingerprint print = music_fingerprint(&files, &work);
     hal_storage_lend_cache(NULL, 0);
+    print.complete = print.complete && !walk.overflowed;
     return print;
 }
 

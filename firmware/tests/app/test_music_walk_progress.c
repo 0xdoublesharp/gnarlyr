@@ -92,8 +92,17 @@ void hal_system_keep_alive(void)
 {
 }
 
+static int deep_levels;
+static int depth;
+static bool listed[40];
+
 bool hal_dir_open(HalDir *dir, const char *path)
 {
+    if (deep_levels > 0) {
+        dir->handle = path == NULL ? ++depth : 0;
+        listed[dir->handle] = false;
+        return true;
+    }
     (void)dir;
     CHECK(path != NULL);
     internal_opens += strcmp(path, DRIVE_PATH_INTERNAL_ROOT) == 0 ? 1 : 0;
@@ -103,7 +112,12 @@ bool hal_dir_open(HalDir *dir, const char *path)
 
 bool hal_dir_next(HalDir *dir, HalDirEntry *entry)
 {
-    (void)dir;
+    if (deep_levels > 0) {
+        bool more = !listed[dir->handle] && dir->handle < deep_levels;
+        listed[dir->handle] = true;
+        *entry = (HalDirEntry){.directory = true, .name = {'d'}};
+        return more;
+    }
     if (entries == 600) {
         return false;
     }
@@ -229,6 +243,22 @@ static void a_manual_rescan_is_a_change_after_new_firmware_or_an_unfinished_scan
     settled = true;
 }
 
+static MusicFingerprint deep_walk(int levels)
+{
+    now = entries = frames = last_frame = 0;
+    deep_levels = levels;
+    depth = 0;
+    MusicFingerprint print = music_walk_fingerprint(MUSIC_WALK_QUIET);
+    deep_levels = 0;
+    return print;
+}
+
+static void folders_deeper_than_the_open_folder_slots_leave_the_walk_incomplete(void)
+{
+    CHECK(deep_walk(10).complete);
+    CHECK(!deep_walk(20).complete);
+}
+
 static void finishing_after_a_scan_shows_the_share_of_the_last_walk(void)
 {
     now = entries = frames = last_frame = 0;
@@ -260,6 +290,7 @@ int main(void)
         TEST_CASE(an_unchanged_check_records_a_moved_generation_and_otherwise_writes_nothing),
         TEST_CASE(a_combined_library_also_walks_internal_storage_from_its_root),
         TEST_CASE(a_manual_rescan_is_a_change_after_new_firmware_or_an_unfinished_scan),
+        TEST_CASE(folders_deeper_than_the_open_folder_slots_leave_the_walk_incomplete),
         TEST_CASE(finishing_after_a_scan_shows_the_share_of_the_last_walk),
         TEST_CASE(finishing_stops_below_one_hundred_when_the_card_grew),
     };
