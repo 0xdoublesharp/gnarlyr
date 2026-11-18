@@ -26,6 +26,8 @@ typedef struct MixResolve {
     uint16_t ambiguous;
     uint16_t track_limit;
     uint16_t found;
+    uint16_t split_entries;
+    uint16_t split;
     uint8_t matches;
     uint8_t stage;
     bool active;

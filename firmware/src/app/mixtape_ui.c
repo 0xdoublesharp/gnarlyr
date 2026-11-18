@@ -157,8 +157,17 @@ static bool begin_resolve(MixtapeUi *ui)
     uint32_t size = 0;
     void *memory = hal_system_borrow_scratch(&size);
     ui->borrowed = memory != NULL;
-    return ui->borrowed && mix_resolve_begin(&ui->resolver, player->library, &ui->store.tape,
-                                             (MixMemory){memory, size});
+    if (!ui->borrowed || !mix_resolve_begin(&ui->resolver, player->library, &ui->store.tape,
+                                            (MixMemory){memory, size})) {
+        return false;
+    }
+    ui->resolver.split_entries = ui->side_a_count;
+    return true;
+}
+
+static bool sides_playable(const MixtapeUi *ui)
+{
+    return ui->resolver.split != 0 && ui->resolver.split != ui->resolver.count;
 }
 
 static void open_tape(MixtapeUi *ui)
@@ -224,7 +233,7 @@ static void resolve(MixtapeUi *ui)
             if (!mixtape_ui_append(ui)) {
                 finish(ui, i18n_text(STR_TAPE_ADD_FAILED));
             }
-        } else if (ui->side_minutes != 0 && ui->resolver.missing != 0) {
+        } else if (ui->side_minutes != 0 && !sides_playable(ui)) {
             finish(ui, i18n_text(STR_SONGS_UNAVAILABLE));
         } else if (begin_copy(ui)) {
             ui->stage = MIXTAPE_COPY;
@@ -240,16 +249,15 @@ static void resolve(MixtapeUi *ui)
 static bool publish(MixtapeUi *ui)
 {
     Player *player = ui->config.player;
-    if (ui->side_minutes != 0 && (ui->resolver.missing != 0 || ui->side_a_count == 0 ||
-                                  ui->side_a_count == ui->resolver.count)) {
+    if (ui->side_minutes != 0 && !sides_playable(ui)) {
         return false;
     }
-    uint16_t position = ui->side_minutes != 0 && ui->selected_side != 0 ? ui->side_a_count : 0;
+    uint16_t position = ui->side_minutes != 0 && ui->selected_side != 0 ? ui->resolver.split : 0;
     CassetteState cassette = {0};
     if (ui->side_minutes != 0) {
         cassette = (CassetteState){.generation = ui->store.entry.generation,
                                    .count = ui->pending.count,
-                                   .split = ui->side_a_count,
+                                   .split = ui->resolver.split,
                                    .slot = (uint8_t)ui->slot,
                                    .side = ui->selected_side,
                                    .active = true};

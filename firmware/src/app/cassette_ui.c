@@ -40,7 +40,7 @@ static bool durations_fit(const MixtapeUi *ui)
     uint32_t used[2] = {0};
     const Library *library = ui->config.player->library;
     for (uint16_t index = 0; index < ui->resolver.count; index++) {
-        uint8_t side = index < ui->side_a_count ? 0 : 1;
+        uint8_t side = index < ui->resolver.split ? 0 : 1;
         LibraryTrack track;
         if (!library_read_track(library, ui->resolver.tracks[index], &track) ||
             !cassette_budget(ui->side_minutes, used[side], track.duration_ms)) {
@@ -58,7 +58,7 @@ bool mixtape_ui_append(MixtapeUi *ui)
     uint16_t side_count = ui->selected_side == 0
                               ? ui->side_a_count
                               : (uint16_t)(ui->store.tape.count - ui->side_a_count);
-    if (ui->resolver.missing != 0 || side_count >= CASSETTE_SIDE_CAPACITY || !durations_fit(ui)) {
+    if (side_count >= CASSETTE_SIDE_CAPACITY || !durations_fit(ui)) {
         return false;
     }
     ui->append_file = ui->store.data_file;

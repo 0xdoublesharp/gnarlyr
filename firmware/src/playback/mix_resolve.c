@@ -163,6 +163,9 @@ static void finish_saved(MixResolve *job)
         job->missing++;
         job->ambiguous = (uint16_t)(job->ambiguous + (job->matches > 1 ? 1u : 0u));
     }
+    if (job->count + job->missing == job->split_entries) {
+        job->split = job->count;
+    }
     job->active = false;
 }
 

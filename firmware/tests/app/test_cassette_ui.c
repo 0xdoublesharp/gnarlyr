@@ -159,6 +159,68 @@ static void both_sides_need_a_song_before_playback(void)
     CHECK(strcmp(toast.text, i18n_text(STR_TAPE_NEEDS_SIDES)) == 0);
 }
 
+static LibraryHidden hidden;
+
+static void hide(uint16_t track)
+{
+    hidden = (LibraryHidden){.count = 1, .tracks = {track}};
+    fixture.library.hidden = &hidden;
+}
+
+static void play_side(int action)
+{
+    open_ui();
+    choose(2);
+    choose(action);
+    finish();
+}
+
+static void a_two_sided_tape_skips_a_missing_song_on_either_side(void)
+{
+    create();
+    add(0, 0);
+    add(2, 0);
+    add(1, 1);
+    hide(0);
+    play_side(1);
+    CHECK(player.cassette.active);
+    CHECK_EQUAL(1, player.cassette.split);
+    CHECK_EQUAL(2, player.cassette.count);
+    CHECK_EQUAL(2, player_status(&player).track);
+    CHECK(strcmp(toast.text, i18n_text(STR_MIXTAPE_PARTIAL)) == 0);
+    play_side(2);
+    CHECK(player.cassette.active);
+    CHECK_EQUAL(1, player_status(&player).track);
+    hidden.count = 0;
+}
+
+static void a_tape_side_with_no_song_left_says_the_songs_are_unavailable(void)
+{
+    create();
+    add(0, 0);
+    add(1, 1);
+    hide(0);
+    play_side(1);
+    CHECK(!player.cassette.active);
+    CHECK(strcmp(toast.text, i18n_text(STR_SONGS_UNAVAILABLE)) == 0);
+    hidden.count = 0;
+}
+
+static void a_song_can_join_a_tape_that_holds_a_missing_song(void)
+{
+    create();
+    add(0, 0);
+    add(1, 1);
+    hide(0);
+    add(2, 1);
+    CHECK(strcmp(toast.text, i18n_text(STR_TAPE_ADD_FAILED)) != 0);
+    MixEntry entry;
+    CHECK(mixtape_store_read(&ui.store, 0, &entry));
+    CHECK_EQUAL(3, entry.count);
+    CHECK_EQUAL(1, entry.side_a_count);
+    hidden.count = 0;
+}
+
 static void a_c90_tape_keeps_its_forty_five_minute_budget(void)
 {
     fake_hal_reset();
@@ -192,6 +254,9 @@ int main(void)
         TEST_CASE(tracks_are_inserted_on_the_chosen_side_and_playback_is_finite),
         TEST_CASE(a_full_side_is_refused_without_publishing_a_new_generation),
         TEST_CASE(both_sides_need_a_song_before_playback),
+        TEST_CASE(a_two_sided_tape_skips_a_missing_song_on_either_side),
+        TEST_CASE(a_tape_side_with_no_song_left_says_the_songs_are_unavailable),
+        TEST_CASE(a_song_can_join_a_tape_that_holds_a_missing_song),
         TEST_CASE(leaving_the_picker_for_home_does_not_keep_an_old_add_request),
         TEST_CASE(a_session_created_after_the_initial_restore_can_start_a_tape),
         TEST_CASE(a_c90_tape_keeps_its_forty_five_minute_budget),
