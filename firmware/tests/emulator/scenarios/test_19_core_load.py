@@ -59,7 +59,7 @@ class EchoImageTest(EchoImageHarness):
                 rig.press("back", hold=1300)
                 rig.press("previous")
                 rig.press("play")
-                rig.press_many("next", 17)
+                rig.press_many("next", 16)
                 rig.press("play")
                 rig.press("play")
                 self.assertEqual(8, rig.session.fat().read(SETTINGS_PATH)[18])
