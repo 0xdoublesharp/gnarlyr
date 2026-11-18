@@ -118,7 +118,7 @@ static void update(void *context, uint32_t now_ms)
     }
 }
 
-static void draw(void *context, Canvas *canvas)
+void menu_screen_draw(void *context, Canvas *canvas)
 {
     const MenuScreen *menu = context;
     const Theme *theme = menu->config.theme;
@@ -157,7 +157,7 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
         .enter = enter,
         .handle_key = handle_key,
         .update = update,
-        .draw = draw,
+        .draw = menu_screen_draw,
     };
     return &menu->screen;
 }

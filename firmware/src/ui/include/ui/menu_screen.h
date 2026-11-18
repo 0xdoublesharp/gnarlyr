@@ -44,4 +44,5 @@ typedef struct MenuScreen {
 } MenuScreen;
 
 Screen *menu_screen_init(MenuScreen *menu, MenuConfig config);
+void menu_screen_draw(void *context, Canvas *canvas);
 ScreenAction menu_open_screen(void *screen);

@@ -129,7 +129,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(internal().exists("/B.wav"))
         self.assertTrue(internal().exists("/A.wav"))
         self.assertTrue(slot.fat().exists("/C.wav"))
-        self.assertEqual(internal().read(MUSIC_GENERATION_PATH)[:4], (1).to_bytes(4, "little"))
+        self.assertEqual(internal().read(MUSIC_GENERATION_PATH)[:4], (2).to_bytes(4, "little"))
         self.assert_only_the_user_volume_changed(rig.session)
         self.assert_healthy(rig.session)
 

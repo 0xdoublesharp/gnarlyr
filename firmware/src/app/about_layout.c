@@ -9,8 +9,6 @@
 #include "ui/list_view.h"
 #include "ui/theme.h"
 
-static void (*menu_draw)(void *context, Canvas *canvas);
-
 static bool row_wraps(const ListView *list, int index, int width)
 {
     const ListModel *model = list->model;
@@ -99,7 +97,7 @@ static void draw(void *context, Canvas *canvas)
     int count = menu->config.item_count;
     int width = text_width_of(menu, content);
     if (!theme_is_portrait(theme) || !any_wraps(list, count, width)) {
-        menu_draw(context, canvas);
+        menu_screen_draw(context, canvas);
         return;
     }
     int last = last_top(list, count, width, content.height);
@@ -120,6 +118,5 @@ static void draw(void *context, Canvas *canvas)
 
 void about_layout_attach(MenuScreen *menu)
 {
-    menu_draw = menu->screen.draw;
     menu->screen.draw = draw;
 }
