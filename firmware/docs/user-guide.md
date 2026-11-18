@@ -79,9 +79,9 @@ To take the card out safely, choose Settings → Eject card. The player stops us
 
 Hold Play on a song in a Music list or a smart list for its actions.
 
-- **Hide track** takes the song out of every list, Play all, shuffle and the smart lists at once, and keeps it out after rescans. Settings → Hidden tracks (shown while something is hidden) lists hidden songs by file name; press Play on one to show it again. A song hidden before the last rescan comes back at the next rescan. Up to 16 songs can be hidden.
+- **Hide track** takes the song out of every list, Play all, shuffle and the smart lists at once, and keeps it out after rescans. Settings → Hidden tracks (shown while something is hidden) lists hidden songs by file name; press Play on one to show it again. A song hidden before the last rescan comes back at the next rescan. Up to 16 songs can be hidden at a time.
 - **Delete file** asks first, naming the file; Cancel is selected. Deleting removes the file from the card, skips to the next song if it was playing, and takes it out of the lists, the queue and Up Next without a rescan. Ordinary mixtapes skip it when they load; a two-sided tape skips it, and the side that holds it takes no new songs ("Couldn't add to tape") until the song is back (see [Side A/B tapes](#side-ab-tapes)). A song that is one part of a CUE sheet or an audiobook's chapter can't be deleted on its own.
-- Up to 12 songs can be hidden or deleted between rescans; after that the player asks for a rescan first.
+- Between rescans, up to 12 songs can be hidden or deleted in total; after that the player asks for a rescan first.
 
 ## Search, sorting and personal tags
 
