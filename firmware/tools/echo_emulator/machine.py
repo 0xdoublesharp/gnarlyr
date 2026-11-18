@@ -11,7 +11,7 @@ from unicorn.arm_const import (
     UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R12, UC_ARM_REG_SP, UC_ARM_REG_XPSR,
     UC_CPU_ARM_CORTEX_M3)
 
-from . import devices
+from . import devices, mmio
 from .panel import Panel
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -270,13 +270,7 @@ class Machine:
         return self.core_hz >> shift if self.cru.regs.get(devices.CRU_MODE, 0) & 1 else CRYSTAL_HZ
 
     def map_device(self, device, base, size):
-        def read(uc, offset, width, user):
-            return device.read(offset, width)
-
-        def write(uc, offset, width, value, user):
-            device.write(offset, width, value)
-
-        self.uc.mmio_map(base, size, read, None, write, None)
+        mmio.map_device(self.uc, base, size, device)
 
     def build_memory(self):
         self.uc.mem_map(RAM_BASE, RAM_SIZE)
