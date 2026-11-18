@@ -102,6 +102,9 @@ static void run_usb_session(void)
     }
     if (storage_changed || hal_system_restart_pending()) {
         storage_reset();
+        if (usb_session_shared()->last_session.internal_written > 0) {
+            app_note_internal_music_written();
+        }
         app_start_after_storage();
         app_request_rescan_if_music_changed();
     }

@@ -57,6 +57,7 @@ static const CardFile CARD_FILES[] = {
     {BLUETOOTH_STORE_PATH, SMALL_FILE_BYTES, false},
     {FAVORITE_ADDED_PATH, SMALL_FILE_BYTES, false},
     {TRACK_KEYS_PATH, TRACK_KEYS_FILE_BYTES, false},
+    {MUSIC_GENERATION_PATH, SMALL_FILE_BYTES, true},
 };
 
 size_t card_files_count(void)

@@ -4,6 +4,13 @@
 #include "hal/storage.h"
 #include "music_check.h"
 
+enum {
+    CARD_AT = 4,
+    INTERNAL_AT = MUSIC_CHECK_PRINT_BYTES + MUSIC_CHECK_VERSION_BYTES,
+    STATE_AT = INTERNAL_AT + 12,
+    GENERATION_AT = STATE_AT + 4
+};
+
 static void put_word(uint8_t *bytes, uint32_t value)
 {
     for (int index = 0; index < 4; index++) {
@@ -11,43 +18,62 @@ static void put_word(uint8_t *bytes, uint32_t value)
     }
 }
 
-static bool read_record(MusicFingerprint *print)
+static MusicFingerprint decode_print(const uint8_t *bytes)
 {
-    uint8_t bytes[MUSIC_CHECK_PRINT_BYTES];
+    return (MusicFingerprint){.complete = true,
+                              .first = bytes_le32(bytes),
+                              .second = bytes_le32(bytes + 4),
+                              .entries = bytes_le32(bytes + 8)};
+}
+
+static void encode_print(uint8_t *bytes, MusicFingerprint print)
+{
+    put_word(bytes, print.first);
+    put_word(bytes + 4, print.second);
+    put_word(bytes + 8, print.entries);
+}
+
+bool music_record_read(MusicRecord *record)
+{
+    uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
     if (!music_check_read_at(0, bytes, sizeof bytes) ||
         bytes_le32(bytes) != MUSIC_CHECK_RECORD_MAGIC) {
         return false;
     }
-    *print = (MusicFingerprint){.complete = true,
-                                .first = bytes_le32(bytes + 4),
-                                .second = bytes_le32(bytes + 8),
-                                .entries = bytes_le32(bytes + 12)};
+    *record = (MusicRecord){.card = decode_print(bytes + CARD_AT),
+                            .internal = decode_print(bytes + INTERNAL_AT),
+                            .internal_state = bytes_le32(bytes + STATE_AT),
+                            .generation = bytes_le32(bytes + GENERATION_AT)};
     return true;
 }
 
-bool music_record_unchanged(MusicFingerprint current)
+void music_record_write(const MusicRecord *record)
 {
-    MusicFingerprint stored;
-    return read_record(&stored) && current.complete && stored.first == current.first &&
-           stored.second == current.second && stored.entries == current.entries;
-}
-
-uint32_t music_record_entries(void)
-{
-    MusicFingerprint stored;
-    return read_record(&stored) ? stored.entries : 0;
-}
-
-void music_record_remember(MusicFingerprint print)
-{
-    if (!print.complete) {
-        return;
-    }
     uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
     put_word(bytes, MUSIC_CHECK_RECORD_MAGIC);
-    put_word(bytes + 4, print.first);
-    put_word(bytes + 8, print.second);
-    put_word(bytes + 12, print.entries);
+    encode_print(bytes + CARD_AT, record->card);
     music_check_put_version(bytes + MUSIC_CHECK_PRINT_BYTES);
+    encode_print(bytes + INTERNAL_AT, record->internal);
+    put_word(bytes + STATE_AT, record->internal_state);
+    put_word(bytes + GENERATION_AT, record->generation);
     (void)hal_file_write_at(MUSIC_CHECK_PATH, 0, bytes, sizeof bytes);
+}
+
+static bool internal_matches(const MusicRecord *stored, const MusicRecord *current,
+                             uint32_t internal_songs)
+{
+    if (stored->internal_state == MUSIC_DRIVE_UNKNOWN) {
+        return current->internal_state == MUSIC_DRIVE_KNOWN && current->internal.complete &&
+               internal_songs == 0;
+    }
+    return stored->internal_state == current->internal_state &&
+           (current->internal_state == MUSIC_DRIVE_NONE ||
+            music_fingerprints_match(stored->internal, current->internal));
+}
+
+bool music_record_same_music(const MusicRecord *stored, const MusicRecord *current,
+                             uint32_t internal_songs)
+{
+    return music_fingerprints_match(stored->card, current->card) &&
+           internal_matches(stored, current, internal_songs);
 }

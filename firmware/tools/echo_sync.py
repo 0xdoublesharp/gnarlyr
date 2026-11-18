@@ -22,9 +22,11 @@ from identity import IDENTITY
 DATA_FOLDER = IDENTITY.data_directory
 MEBIBYTE = 1024 * 1024
 WRITE_CHUNK_BYTES = MEBIBYTE
-SCAN_MAGIC = b"DSSC"
-SCAN_RECORD = struct.Struct("<4sIII16s")
+SCAN_MAGIC = b"DSS2"
+SCAN_RECORD = struct.Struct("<4sIII16sIIIII")
 SCAN_PRINT_BYTES = 16
+SCAN_VERSION_BYTES = 16
+SCAN_INTERNAL_UNKNOWN = 2
 WORD_MASK = 0xFFFFFFFF
 SECOND_SEED = FNV_OFFSET ^ 0x5BD1E995
 PATH_CAPACITY = 1024
@@ -214,20 +216,20 @@ def card_fingerprint(card, volume):
 
 def scan_record(fingerprint, version):
     return SCAN_RECORD.pack(SCAN_MAGIC, fingerprint.first, fingerprint.second,
-                            fingerprint.entries, version)
+                            fingerprint.entries, version, 0, 0, 0, SCAN_INTERNAL_UNKNOWN, 0)
 
 
 def stored_fingerprint(data):
     if len(data) < SCAN_RECORD.size:
         return None
-    magic, first, second, entries, _ = SCAN_RECORD.unpack_from(data)
+    magic, first, second, entries = SCAN_RECORD.unpack_from(data)[:4]
     return Fingerprint(True, first, second, entries) if magic == SCAN_MAGIC else None
 
 
 def stored_version(data):
-    if len(data) < SCAN_RECORD.size:
-        return bytes(SCAN_RECORD.size - SCAN_PRINT_BYTES)
-    return bytes(data[SCAN_PRINT_BYTES:SCAN_RECORD.size])
+    if len(data) < SCAN_PRINT_BYTES + SCAN_VERSION_BYTES:
+        return bytes(SCAN_VERSION_BYTES)
+    return bytes(data[SCAN_PRINT_BYTES:SCAN_PRINT_BYTES + SCAN_VERSION_BYTES])
 
 
 def read_prefix(path, length):

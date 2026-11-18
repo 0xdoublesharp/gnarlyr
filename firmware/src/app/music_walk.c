@@ -3,11 +3,13 @@
 #include <stddef.h>
 
 #include "app/app.h"
+#include "core/drive_path.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "music_check.h"
 #include "music_record.h"
 
 typedef struct MusicWalk {
@@ -18,7 +20,9 @@ typedef struct MusicWalk {
     uint32_t folders;
     uint32_t files;
     uint32_t counted;
+    uint32_t songs;
     uint32_t expected;
+    bool internal;
 } MusicWalk;
 
 enum {
@@ -75,8 +79,13 @@ static bool open_dir(void *context, uint32_t level, const char *path)
     hal_system_keep_alive();
     state->folders++;
     show_progress(state);
-    return (level > 0 && hal_dir_open(&state->dirs[level], NULL)) ||
-           hal_dir_open(&state->dirs[level], path);
+    if (level > 0 && hal_dir_open(&state->dirs[level], NULL)) {
+        return true;
+    }
+    if (state->internal) {
+        return level == 0 && hal_dir_open(&state->dirs[level], DRIVE_PATH_INTERNAL_ROOT);
+    }
+    return hal_dir_open(&state->dirs[level], path);
 }
 
 static bool next_entry(void *context, uint32_t level, FingerprintEntry *entry)
@@ -92,6 +101,7 @@ static bool next_entry(void *context, uint32_t level, FingerprintEntry *entry)
     bool counts = state->entry.name[0] != '.' &&
                   music_fingerprint_counts(state->entry.name, state->entry.directory);
     state->counted += counts ? 1u : 0u;
+    state->songs += counts && !state->entry.directory ? 1u : 0u;
     if ((state->files & 15u) == 0) {
         show_progress(state);
     }
@@ -110,7 +120,18 @@ static void close_dir(void *context, uint32_t level)
     hal_dir_close(&state->dirs[level]);
 }
 
-MusicFingerprint music_walk_fingerprint(uint32_t expected)
+static MusicFingerprint walk_drive(bool internal)
+{
+    walk.internal = internal;
+    walk.songs = 0;
+    FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};
+    hal_storage_lend_cache(internal ? NULL : lent, internal ? 0 : LENT_SECTORS);
+    MusicFingerprint print = music_fingerprint(&files, &work);
+    hal_storage_lend_cache(NULL, 0);
+    return print;
+}
+
+static void begin(uint32_t expected)
 {
     walk.expected = expected;
     walk.folders = 0;
@@ -118,20 +139,52 @@ MusicFingerprint music_walk_fingerprint(uint32_t expected)
     walk.counted = 0;
     walk.started_ms = hal_clock_milliseconds();
     walk.shown_ms = walk.started_ms;
-    FingerprintFiles files = {open_dir, next_entry, close_dir, &walk};
-    hal_storage_lend_cache(lent, LENT_SECTORS);
-    MusicFingerprint print = music_fingerprint(&files, &work);
-    hal_storage_lend_cache(NULL, 0);
-    return print;
+}
+
+MusicFingerprint music_walk_fingerprint(uint32_t expected)
+{
+    begin(expected);
+    return walk_drive(false);
+}
+
+static MusicRecord walk_drives(uint32_t expected)
+{
+    begin(expected);
+    MusicRecord current = {.card = walk_drive(false),
+                           .internal = {.complete = true},
+                           .internal_state = MUSIC_DRIVE_NONE,
+                           .generation = music_check_generation()};
+    if (hal_file_combined()) {
+        current.internal = walk_drive(true);
+        current.internal_state = MUSIC_DRIVE_KNOWN;
+    }
+    return current;
+}
+
+static uint32_t expected_entries(bool known, const MusicRecord *stored, uint32_t files)
+{
+    uint32_t entries = known ? stored->card.entries + stored->internal.entries : 0;
+    return entries > 0 ? entries : files + files / 4u + 1u;
+}
+
+static void remember(const MusicRecord *current)
+{
+    if (current->card.complete && current->internal.complete) {
+        music_record_write(current);
+    }
 }
 
 bool music_walk_run(uint32_t files)
 {
-    if (files == MUSIC_WALK_CHECK) {
-        return !music_record_unchanged(music_walk_fingerprint(MUSIC_WALK_CHECK));
+    MusicRecord stored = {.internal_state = MUSIC_DRIVE_NONE};
+    bool known = music_record_read(&stored);
+    bool check = files == MUSIC_WALK_CHECK;
+    MusicRecord current =
+        walk_drives(check ? MUSIC_WALK_CHECK : expected_entries(known, &stored, files));
+    bool same = check && known && music_record_same_music(&stored, &current, walk.songs);
+    if (!check || (same && (stored.generation != current.generation ||
+                            stored.internal_state != current.internal_state))) {
+        remember(&current);
     }
-    uint32_t expected = music_record_entries();
-    expected = expected > 0 ? expected : files + files / 4u + 1u;
-    music_record_remember(music_walk_fingerprint(expected));
-    return false;
+    return check && !same;
 }

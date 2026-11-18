@@ -3,9 +3,11 @@
 
 #include "app/app.h"
 #include "check.h"
+#include "core/drive_path.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "music_check.h"
 #include "music_record.h"
 #include "music_walk.h"
 
@@ -29,21 +31,43 @@ void hal_storage_lend_cache(uint32_t *window, uint32_t sectors)
 }
 static const char *expected_title = "Music";
 static uint32_t recorded_entries;
-static MusicFingerprint remembered;
+static uint32_t recorded_generation;
+static uint32_t generation;
+static bool combined;
+static int internal_opens;
+static int writes;
+static MusicRecord remembered;
 
-bool music_record_unchanged(MusicFingerprint current)
+bool music_record_read(MusicRecord *record)
 {
-    return current.complete && current.entries == recorded_entries;
+    *record = (MusicRecord){.card = {.complete = true, .entries = recorded_entries},
+                            .internal_state = MUSIC_DRIVE_NONE,
+                            .generation = recorded_generation};
+    return recorded_entries > 0;
 }
 
-uint32_t music_record_entries(void)
+void music_record_write(const MusicRecord *record)
 {
-    return recorded_entries;
+    remembered = *record;
+    writes++;
 }
 
-void music_record_remember(MusicFingerprint print)
+bool music_record_same_music(const MusicRecord *stored, const MusicRecord *current,
+                             uint32_t internal_songs)
 {
-    remembered = print;
+    (void)internal_songs;
+    return current->card.complete && stored->card.entries == current->card.entries &&
+           stored->internal_state == current->internal_state;
+}
+
+uint32_t music_check_generation(void)
+{
+    return generation;
+}
+
+bool hal_file_combined(void)
+{
+    return combined;
 }
 
 uint32_t hal_clock_milliseconds(void)
@@ -58,7 +82,9 @@ void hal_system_keep_alive(void)
 bool hal_dir_open(HalDir *dir, const char *path)
 {
     (void)dir;
-    CHECK(path != NULL && strcmp(path, "/") == 0);
+    CHECK(path != NULL);
+    internal_opens += strcmp(path, DRIVE_PATH_INTERNAL_ROOT) == 0 ? 1 : 0;
+    CHECK(strcmp(path, "/") == 0 || strcmp(path, DRIVE_PATH_INTERNAL_ROOT) == 0);
     return true;
 }
 
@@ -138,12 +164,43 @@ static void remembering_without_a_record_expects_a_quarter_more_than_the_scanned
     now = entries = frames = last_frame = 0;
     expected_title = "Scanning library";
     recorded_entries = 0;
-    remembered = (MusicFingerprint){.complete = false};
+    remembered = (MusicRecord){.card = {.complete = false}};
     CHECK(!music_walk_run(960));
     expected_title = "Music";
-    CHECK(remembered.complete);
-    CHECK_EQUAL(600, remembered.entries);
+    CHECK(remembered.card.complete);
+    CHECK_EQUAL(600, remembered.card.entries);
     CHECK(strcmp(last_text, "Finishing... 49%") == 0);
+}
+
+static void an_unchanged_check_records_a_moved_generation_and_otherwise_writes_nothing(void)
+{
+    now = entries = frames = last_frame = 0;
+    recorded_entries = 600;
+    recorded_generation = generation = 3;
+    writes = 0;
+    CHECK(!music_walk_run(MUSIC_WALK_CHECK));
+    CHECK_EQUAL(0, writes);
+    now = entries = frames = last_frame = 0;
+    generation = 4;
+    CHECK(!music_walk_run(MUSIC_WALK_CHECK));
+    CHECK_EQUAL(1, writes);
+    CHECK_EQUAL(4, remembered.generation);
+    recorded_entries = recorded_generation = generation = 0;
+}
+
+static void a_combined_library_also_walks_internal_storage_from_its_root(void)
+{
+    now = entries = frames = last_frame = 0;
+    recorded_entries = 0;
+    combined = true;
+    internal_opens = 0;
+    expected_title = "Scanning library";
+    CHECK(!music_walk_run(960));
+    expected_title = "Music";
+    CHECK_EQUAL(1, internal_opens);
+    CHECK_EQUAL(MUSIC_DRIVE_KNOWN, remembered.internal_state);
+    CHECK(remembered.internal.complete);
+    combined = false;
 }
 
 static void finishing_after_a_scan_shows_the_share_of_the_last_walk(void)
@@ -174,6 +231,8 @@ int main(void)
         TEST_CASE(the_walk_lends_its_own_five_sectors_to_the_storage_cache_and_takes_them_back),
         TEST_CASE(the_check_reports_a_change_only_when_the_walk_differs_from_the_record),
         TEST_CASE(remembering_without_a_record_expects_a_quarter_more_than_the_scanned_files),
+        TEST_CASE(an_unchanged_check_records_a_moved_generation_and_otherwise_writes_nothing),
+        TEST_CASE(a_combined_library_also_walks_internal_storage_from_its_root),
         TEST_CASE(finishing_after_a_scan_shows_the_share_of_the_last_walk),
         TEST_CASE(finishing_stops_below_one_hundred_when_the_card_grew),
     };

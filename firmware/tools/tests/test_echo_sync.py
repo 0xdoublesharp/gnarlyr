@@ -18,7 +18,7 @@ import library_index
 from test_cover_export import image_bytes
 from test_library_index import write_silent_flac
 
-SCAN_RECORD = struct.Struct("<4sIII16s")
+SCAN_RECORD = struct.Struct("<4sIII16sIIIII")
 MEBIBYTE = 1024 * 1024
 FIXED_UTC = echo_sync.CardVolume("FAT32", True, False, 0, "")
 EXFAT = echo_sync.CardVolume("exFAT", True, True, 0, "")
@@ -305,7 +305,7 @@ class CardFileTest(unittest.TestCase):
         self.assertEqual(data, self.path.read_bytes())
 
     def test_forgetting_the_fingerprint_clears_only_its_magic(self):
-        record = SCAN_RECORD.pack(b"DSSC", 1, 2, 3, b"v1.2.3".ljust(16, b"\0"))
+        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, b"v1.2.3".ljust(16, b"\0"), 0, 0, 0, 2, 0)
         self.path.write_bytes(record + bytes(4096 - len(record)))
         echo_sync.forget_fingerprint(self.path)
         written = self.path.read_bytes()
@@ -314,11 +314,11 @@ class CardFileTest(unittest.TestCase):
 
 
 class ScanRecordTest(unittest.TestCase):
-    def test_the_record_holds_the_magic_both_hashes_the_count_and_the_firmware_tag(self):
+    def test_the_record_holds_the_magic_both_hashes_the_count_the_firmware_tag_and_an_unknown_internal_half(self):
         tag = b"0.1.0".ljust(16, b"\0")
         record = echo_sync.scan_record(echo_sync.Fingerprint(True, 0x11223344, 5, 6), tag)
-        self.assertEqual(b"DSSC" + bytes([0x44, 0x33, 0x22, 0x11]) + struct.pack("<II", 5, 6) + tag,
-                         record)
+        self.assertEqual(b"DSS2" + bytes([0x44, 0x33, 0x22, 0x11]) + struct.pack("<II", 5, 6) + tag +
+                         struct.pack("<IIIII", 0, 0, 0, 2, 0), record)
 
     def test_a_stored_record_reads_back(self):
         fingerprint = echo_sync.Fingerprint(True, 1, 2, 3)
@@ -327,7 +327,7 @@ class ScanRecordTest(unittest.TestCase):
         self.assertIsNone(echo_sync.stored_fingerprint(bytes(32)))
 
     def test_the_firmware_tag_is_kept_or_empty(self):
-        record = SCAN_RECORD.pack(b"DSSC", 1, 2, 3, b"tag".ljust(16, b"\0"))
+        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, b"tag".ljust(16, b"\0"), 0, 0, 0, 2, 0)
         self.assertEqual(b"tag".ljust(16, b"\0"), echo_sync.stored_version(record))
         self.assertEqual(bytes(16), echo_sync.stored_version(b""))
 
@@ -399,7 +399,7 @@ class SyncTest(unittest.TestCase):
     def test_the_firmware_tag_in_scan_bin_is_kept(self):
         self.prepare_echo()
         tag = b"0.1.0-abc".ljust(16, b"\0")
-        (self.folder / "scan.bin").write_bytes(SCAN_RECORD.pack(b"DSSC", 1, 2, 3, tag) + bytes(4064))
+        (self.folder / "scan.bin").write_bytes(SCAN_RECORD.pack(b"DSS2", 1, 2, 3, tag, 0, 0, 0, 2, 0) + bytes(4044))
         self.run_sync()
         scan = (self.folder / "scan.bin").read_bytes()
         self.assertEqual(tag, scan[16:32])
@@ -414,7 +414,7 @@ class SyncTest(unittest.TestCase):
 
     def test_without_a_fingerprint_scan_bin_is_left_alone(self):
         self.prepare_echo()
-        record = SCAN_RECORD.pack(b"DSSC", 1, 2, 3, bytes(16))
+        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, bytes(16), 0, 0, 0, 2, 0)
         (self.folder / "scan.bin").write_bytes(record)
         self.run_sync("--no-fingerprint")
         self.assertEqual(record, (self.folder / "scan.bin").read_bytes())

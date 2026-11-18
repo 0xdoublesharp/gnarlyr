@@ -43,7 +43,7 @@ static void add_library_files(uint8_t control)
         }
     }
     if ((control & 64u) == 0) {
-        music_record_remember((MusicFingerprint){.complete = true});
+        music_record_write(&(MusicRecord){.card = {.complete = true}});
     }
     fake_hal_fail_music_writes((control & 128u) != 0);
 }

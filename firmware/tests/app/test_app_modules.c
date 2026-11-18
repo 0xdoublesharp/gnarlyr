@@ -57,7 +57,7 @@ static void add_player_files(void)
         }
     }
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
-    music_record_remember((MusicFingerprint){.complete = true});
+    music_record_write(&(MusicRecord){.card = {.complete = true}});
 }
 
 static void start_app(void)
@@ -563,6 +563,35 @@ static void a_music_check_that_cannot_walk_the_card_rescans_instead(void)
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
 }
 
+static int walks_after_start(bool moved)
+{
+    fake_hal_reset();
+    add_player_files();
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 4096) == HAL_RESERVE_CREATED);
+    if (moved) {
+        music_check_bump_generation();
+    }
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+    int walks = fake_hal_dir_open_count();
+    for (int index = 0; index < 20; index++) {
+        now_ms += 50;
+        step();
+    }
+    return fake_hal_dir_open_count() - walks;
+}
+
+static void a_moved_internal_music_generation_asks_for_a_music_check_at_start(void)
+{
+    CHECK(walks_after_start(true) > 0);
+}
+
+static void a_matching_internal_music_generation_asks_for_nothing_at_start(void)
+{
+    CHECK_EQUAL(0, walks_after_start(false));
+}
+
 static void about_music_says_card_and_internal_for_a_combined_library(void)
 {
     start_on_a_fresh_card();
@@ -592,6 +621,8 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(about_music_says_card_and_internal_for_a_combined_library),
+        TEST_CASE(a_moved_internal_music_generation_asks_for_a_music_check_at_start),
+        TEST_CASE(a_matching_internal_music_generation_asks_for_nothing_at_start),
         TEST_CASE(about_omits_the_old_usb_controls_and_raw_dac_rows),
         TEST_CASE(discovery_screen_memory_belongs_to_the_library_module),
         TEST_CASE(search_is_the_first_music_entry_and_loads_the_library_module),

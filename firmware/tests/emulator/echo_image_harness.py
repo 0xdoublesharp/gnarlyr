@@ -358,13 +358,13 @@ class EchoImageHarness(unittest.TestCase):
 
     def recorded_version(self, session):
         for data in self.volume_sectors(session):
-            if data[:4] == b"DSSC":
+            if data[:4] == b"DSS2":
                 return bytes(data[16:32]).rstrip(b"\0").decode("ascii")
         return None
 
     def recorded_entries(self, session):
         for data in self.volume_sectors(session):
-            if data[:4] == b"DSSC":
+            if data[:4] == b"DSS2":
                 return int.from_bytes(data[12:16], "little")
         return None
 

@@ -23,7 +23,7 @@ def library_volume(count, version):
     volume = Fat32Volume(512)
     volume.add_directory(IDENTITY.data_directory)
     volume.add_file("library.db", database, None, IDENTITY.data_directory)
-    record = b"DSSC" + bytes(12) + version.encode()[:15].ljust(16, b"\0")
+    record = b"DSS2" + bytes(12) + version.encode()[:15].ljust(16, b"\0") + bytes(20)
     volume.add_file("scan.bin", record, 4096, IDENTITY.data_directory)
     return volume
 

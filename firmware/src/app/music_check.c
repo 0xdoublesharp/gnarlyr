@@ -9,6 +9,7 @@
 #include "scan_guard.h"
 
 const char MUSIC_CHECK_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/scan.bin";
+const char MUSIC_GENERATION_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/music_gen.bin";
 
 bool music_check_read_at(uint32_t offset, uint8_t *bytes, uint32_t length)
 {
@@ -89,4 +90,26 @@ uint32_t music_check_interrupted_scans(void)
     bool running = music_check_read_at(SCAN_GUARD_OFFSET, bytes, sizeof bytes) &&
                    bytes_le32(bytes) == SCAN_GUARD_MAGIC && bytes[SCAN_GUARD_RUNNING_BYTE] != 0;
     return running ? bytes[SCAN_GUARD_ATTEMPTS_BYTE] : 0;
+}
+
+uint32_t music_check_generation(void)
+{
+    uint8_t bytes[4];
+    return hal_internal_file_read(MUSIC_GENERATION_PATH, bytes, sizeof bytes) ? bytes_le32(bytes)
+                                                                              : 0;
+}
+
+void music_check_bump_generation(void)
+{
+    uint32_t next = music_check_generation() + 1u;
+    uint8_t bytes[4] = {(uint8_t)next, (uint8_t)(next >> 8), (uint8_t)(next >> 16),
+                        (uint8_t)(next >> 24)};
+    (void)hal_internal_file_write_at(MUSIC_GENERATION_PATH, 0, bytes, sizeof bytes);
+}
+
+bool music_check_generation_moved(void)
+{
+    uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
+    return read_bytes(bytes) && bytes_le32(bytes) == MUSIC_CHECK_RECORD_MAGIC &&
+           bytes_le32(bytes + MUSIC_CHECK_GENERATION_AT) != music_check_generation();
 }

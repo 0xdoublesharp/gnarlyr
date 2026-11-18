@@ -51,7 +51,7 @@ static void add_player_files(void)
         }
     }
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
-    music_record_remember((MusicFingerprint){.complete = true});
+    music_record_write(&(MusicRecord){.card = {.complete = true}});
 }
 
 static void start_with(int built_in, bool with_file)

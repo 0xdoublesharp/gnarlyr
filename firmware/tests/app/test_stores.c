@@ -94,21 +94,78 @@ static void malformed_bluetooth_records_restore_nothing(void)
     }
 }
 
+static MusicRecord combined_record(uint32_t internal_entries, MusicDriveState state)
+{
+    return (MusicRecord){
+        .card = {.complete = true, .first = 1, .second = 2, .entries = 3},
+        .internal = {.complete = true, .first = 4, .second = 5, .entries = internal_entries},
+        .internal_state = state};
+}
+
+static void a_record_matches_only_when_both_drives_match(void)
+{
+    MusicRecord stored = combined_record(6, MUSIC_DRIVE_KNOWN);
+    MusicRecord same = combined_record(6, MUSIC_DRIVE_KNOWN);
+    same.generation = 9;
+    CHECK(music_record_same_music(&stored, &same, 0));
+    MusicRecord internal_changed = combined_record(7, MUSIC_DRIVE_KNOWN);
+    CHECK(!music_record_same_music(&stored, &internal_changed, 0));
+    MusicRecord card_only = combined_record(6, MUSIC_DRIVE_NONE);
+    CHECK(!music_record_same_music(&stored, &card_only, 0));
+    MusicRecord incomplete = same;
+    incomplete.internal.complete = false;
+    CHECK(!music_record_same_music(&stored, &incomplete, 0));
+}
+
+static void an_unknown_internal_half_is_accepted_only_without_internal_songs(void)
+{
+    MusicRecord stored = combined_record(0, MUSIC_DRIVE_UNKNOWN);
+    MusicRecord walked = combined_record(4, MUSIC_DRIVE_KNOWN);
+    CHECK(music_record_same_music(&stored, &walked, 0));
+    CHECK(!music_record_same_music(&stored, &walked, 1));
+}
+
+static void an_old_record_reads_as_missing_and_the_generation_moves_with_bumps(void)
+{
+    fake_hal_reset();
+    fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 1024);
+    uint8_t old[32] = {'D', 'S', 'S', 'C', 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0};
+    CHECK(hal_file_write_at(MUSIC_CHECK_PATH, 0, old, sizeof old));
+    MusicRecord read;
+    CHECK(!music_record_read(&read));
+    CHECK(!music_check_generation_moved());
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 512) == HAL_RESERVE_CREATED);
+    CHECK_EQUAL(0, music_check_generation());
+    MusicRecord written = combined_record(6, MUSIC_DRIVE_KNOWN);
+    written.generation = music_check_generation();
+    music_record_write(&written);
+    CHECK(!music_check_generation_moved());
+    music_check_bump_generation();
+    CHECK_EQUAL(1, music_check_generation());
+    CHECK(music_check_generation_moved());
+}
+
 static void music_check_records_survive_versions_and_scan_interruptions(void)
 {
     fake_hal_reset();
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 1024);
     fake_hal_set_version("one");
-    MusicFingerprint print = {.complete = true, .first = 1, .second = 2, .entries = 3};
-    music_record_remember(print);
-    CHECK(music_record_unchanged(print));
-    CHECK(!music_record_unchanged((MusicFingerprint){.complete = false}));
+    MusicRecord written = {.card = {.complete = true, .first = 1, .second = 2, .entries = 3},
+                           .internal = {.complete = true, .first = 4, .second = 5, .entries = 6},
+                           .internal_state = MUSIC_DRIVE_KNOWN,
+                           .generation = 7};
+    music_record_write(&written);
+    MusicRecord read;
+    CHECK(music_record_read(&read));
+    CHECK(music_record_same_music(&read, &written, 0));
+    CHECK_EQUAL(7, read.generation);
     CHECK(!music_check_firmware_is_new());
     fake_hal_set_version("two");
     CHECK(music_check_firmware_is_new());
     music_check_note_firmware();
     CHECK(!music_check_firmware_is_new());
-    CHECK(music_record_unchanged(print));
+    CHECK(music_record_read(&read));
+    CHECK(music_record_same_music(&read, &written, 0));
     ScanGuard guard = {.magic = SCAN_GUARD_MAGIC, .running = 1, .attempts = 3, .covers_pending = 1};
     CHECK(hal_file_write_at(MUSIC_CHECK_PATH, SCAN_GUARD_OFFSET, &guard, SCAN_GUARD_BYTES));
     CHECK_EQUAL(3, music_check_interrupted_scans());
@@ -645,6 +702,9 @@ int main(void)
         TEST_CASE(bluetooth_records_bound_counts_and_terminate_names),
         TEST_CASE(malformed_bluetooth_records_restore_nothing),
         TEST_CASE(music_check_records_survive_versions_and_scan_interruptions),
+        TEST_CASE(a_record_matches_only_when_both_drives_match),
+        TEST_CASE(an_unknown_internal_half_is_accepted_only_without_internal_songs),
+        TEST_CASE(an_old_record_reads_as_missing_and_the_generation_moves_with_bumps),
         TEST_CASE(shaping_words_and_positions_survive_restart_and_plain_edits_clear_them),
         TEST_CASE(matching_graphic_and_parametric_slots_survive_restart),
         TEST_CASE(without_a_file_the_defaults_are_used),

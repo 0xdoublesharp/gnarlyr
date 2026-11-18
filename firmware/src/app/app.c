@@ -1528,6 +1528,8 @@ static void request_start_scan(bool library_created)
     } else if (stopped == 0 && music_check_firmware_is_new()) {
         app.covers_pending = true;
         app.music_check_requested = true;
+    } else if (stopped == 0 && music_check_generation_moved()) {
+        app.music_check_requested = true;
     }
 }
 
@@ -1807,6 +1809,11 @@ static void commit_dac_headphones(void)
 void app_request_rescan(void)
 {
     app.rescan_manual = true;
+}
+
+void app_note_internal_music_written(void)
+{
+    music_check_bump_generation();
 }
 
 void app_request_rescan_if_music_changed(void)
