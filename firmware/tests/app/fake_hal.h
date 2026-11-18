@@ -97,6 +97,7 @@ int fake_hal_bluetooth_disconnect_count(void);
 void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms);
 void fake_hal_set_key_adc(uint16_t reading);
 void fake_hal_queue_reading_sample(uint16_t reading, uint32_t time_ms);
+void fake_hal_drop_transitions(void);
 void fake_hal_queue_headset_command(HalHeadsetCommand command);
 uint16_t fake_hal_pixel(int x, int y);
 const char *fake_hal_audio_playing_path(void);

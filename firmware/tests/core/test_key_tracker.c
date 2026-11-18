@@ -261,6 +261,18 @@ static void forgetting_a_key_drops_its_queued_events_and_its_hold(void)
     CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
 }
 
+static void releasing_every_key_forgets_holds_and_queued_events(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_key_down(&tracker, KEY_PLAY, 1000);
+    key_tracker_release_all(&tracker);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_update(&tracker, 1000 + LONG_PRESS_MS);
+    key_tracker_key_up(&tracker, KEY_PLAY, 1000 + LONG_PRESS_MS + 10);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
+}
+
 static void changing_a_behavior_while_a_key_is_held_leaves_that_press_alone(void)
 {
     KeyTracker tracker = hold_repeat_tracker();
@@ -410,6 +422,7 @@ int main(void)
         TEST_CASE(released_volume_keys_do_not_deliver_stale_repeats),
         TEST_CASE(hold_repeats_count_up_from_the_long_press),
         TEST_CASE(forgetting_a_key_drops_its_queued_events_and_its_hold),
+        TEST_CASE(releasing_every_key_forgets_holds_and_queued_events),
         TEST_CASE(changing_a_behavior_while_a_key_is_held_leaves_that_press_alone),
         TEST_CASE(a_chord_press_marks_its_own_events_only),
         TEST_CASE(holding_past_threshold_emits_one_long_press),

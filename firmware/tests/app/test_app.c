@@ -2429,6 +2429,36 @@ static void a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap(vo
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
 }
 
+static void a_play_release_drained_by_a_usb_session_leaves_no_chord_behind(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    fake_hal_drop_transitions();
+    app_resume_after_usb();
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
+static void a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    fake_hal_drop_transitions();
+    app_resume_after_usb();
+    wait_ms(1500);
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    press_key(KEY_POWER);
+    keep_holding(1300);
+    release_key(KEY_POWER);
+    CHECK(!toast_is("Buttons locked"));
+}
+
 static void play_and_power_lock_and_unlock_the_buttons(void)
 {
     start_app_with_library();
@@ -6845,6 +6875,8 @@ int main(void)
         TEST_CASE(play_and_volume_in_a_list_select_before_moving_as_before),
         TEST_CASE(a_screen_change_during_a_chord_keeps_the_chord_tap),
         TEST_CASE(a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap),
+        TEST_CASE(a_play_release_drained_by_a_usb_session_leaves_no_chord_behind),
+        TEST_CASE(a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),

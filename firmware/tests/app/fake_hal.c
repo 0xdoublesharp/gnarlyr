@@ -386,6 +386,12 @@ static void take_ladder_transitions(void)
     }
 }
 
+void fake_hal_drop_transitions(void)
+{
+    fake.transition_count = 0;
+    fake.next_transition = 0;
+}
+
 void fake_hal_queue_reading_sample(uint16_t reading, uint32_t time_ms)
 {
     key_ladder_model_sample(&fake.ladder, reading, time_ms);

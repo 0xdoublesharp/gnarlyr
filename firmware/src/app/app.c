@@ -2428,6 +2428,15 @@ void app_wake(void)
     }
 }
 
+void app_resume_after_usb(void)
+{
+    bool locked = app.lock.locked;
+    key_tracker_release_all(&app.keys);
+    app.lock = (KeyLock){.locked = locked};
+    app.chord = (KeyChord){.allowed = false};
+    app_wake();
+}
+
 const FrameStats *app_frame_stats(void)
 {
     return &app.frame_stats;

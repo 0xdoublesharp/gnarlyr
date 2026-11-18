@@ -104,7 +104,7 @@ static void run_usb_session(void)
         app_start_after_storage();
         app_request_rescan_if_music_changed();
     }
-    app_wake();
+    app_resume_after_usb();
     board_stall_pause(false);
 }
 
@@ -117,7 +117,7 @@ static void run_dac_session(void)
         usb->dac(usb_session_shared());
     }
     app_set_usb_renderer(NULL);
-    app_wake();
+    app_resume_after_usb();
     board_stall_pause(false);
 }
 
@@ -150,7 +150,7 @@ static void report_failed_start(void)
         board_stall_pause(true);
         usb_report_show(usb_session_report());
         board_stall_pause(false);
-        app_wake();
+        app_resume_after_usb();
     }
 }
 

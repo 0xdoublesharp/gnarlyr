@@ -133,6 +133,14 @@ void key_tracker_forget(KeyTracker *tracker, Key key)
     key_tracker_cancel(tracker, key);
 }
 
+void key_tracker_release_all(KeyTracker *tracker)
+{
+    for (int key = 0; key < KEY_COUNT; key++) {
+        tracker->states[key] = (KeyState){0};
+    }
+    tracker->queue_length = 0;
+}
+
 static void update_repeat(KeyTracker *tracker, Key key, uint32_t now_ms)
 {
     KeyState *state = &tracker->states[key];
