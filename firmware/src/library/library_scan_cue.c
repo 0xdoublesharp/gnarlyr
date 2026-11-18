@@ -87,8 +87,7 @@ static bool is_audio_entry(const ScanState *state, uint32_t offset)
            is_audio_name(scan_entry_name(state, offset));
 }
 
-static uint32_t find_audio(const ScanState *state, const Level *level, const char *wanted,
-                           bool by_stem)
+static uint32_t find_audio(ScanState *state, const Level *level, const char *wanted, bool by_stem)
 {
     uint32_t length = by_stem ? stem_length(wanted) : scan_text_length(wanted);
     const uint32_t *offsets = level_offsets(state, level);
@@ -96,14 +95,14 @@ static uint32_t find_audio(const ScanState *state, const Level *level, const cha
         const char *name = scan_entry_name(state, offsets[index]);
         uint32_t name_length = by_stem ? stem_length(name) : scan_text_length(name);
         if (is_audio_entry(state, offsets[index]) &&
-            names_match(name, name_length, wanted, length)) {
+            names_match(name, name_length, wanted, length) && !scan_shadowed(state, name)) {
             return offsets[index];
         }
     }
     return NO_TARGET;
 }
 
-static uint32_t resolve_target(const ScanState *state, const Level *level, const char *cue_name)
+static uint32_t resolve_target(ScanState *state, const Level *level, const char *cue_name)
 {
     uint32_t target = find_audio(state, level, base_name(state->cue.album.file), false);
     return target != NO_TARGET ? target : find_audio(state, level, cue_name, true);
@@ -143,8 +142,9 @@ ScanResult scan_mark_cue_targets(ScanState *state, const ScanFileSystem *files, 
     const uint32_t *offsets = level_offsets(state, level);
     for (uint32_t index = 0; index < level->count; index++) {
         uint32_t offset = offsets[index];
-        if (state->listing[offset] == ENTRY_DIRECTORY ||
-            !scan_is_cue_name(scan_entry_name(state, offset))) {
+        const char *name = scan_entry_name(state, offset);
+        if (state->listing[offset] == ENTRY_DIRECTORY || !scan_is_cue_name(name) ||
+            scan_shadowed(state, name)) {
             continue;
         }
         uint32_t target = cue_target(state, files, level, offset);

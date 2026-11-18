@@ -58,6 +58,7 @@ typedef struct ScanState {
 const char *scan_entry_name(const ScanState *state, uint32_t offset);
 uint32_t scan_text_length(const char *text);
 bool scan_append_path(ScanState *state, const char *name, bool directory);
+bool scan_shadowed(ScanState *state, const char *name);
 void scan_truncate_path(ScanState *state, uint32_t length);
 ScanResult scan_builder_result(BuilderResult result);
 ScanResult scan_add_track(ScanState *state, const BuilderTrack *track);

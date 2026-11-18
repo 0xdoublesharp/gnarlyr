@@ -475,23 +475,24 @@ static ScanResult unplace_path(ScanState *state, const ScanFileSystem *files, ui
     return result;
 }
 
-static bool shadowed(ScanState *state, const ScanJob *job, const char *name)
+bool scan_shadowed(ScanState *state, const char *name)
 {
-    if (job->filter.shadowed == NULL || state->path[1] != DRIVE_PATH_INTERNAL ||
+    uint32_t folder = state->path_length;
+    if (state->filter.shadowed == NULL || state->path[1] != DRIVE_PATH_INTERNAL ||
         state->path[2] != '/' || !scan_append_path(state, name, false)) {
         return false;
     }
-    bool found = job->filter.shadowed(job->filter.context, state->path + 2);
-    scan_truncate_path(state, state->levels[state->depth - 1].path_length);
+    bool found = state->filter.shadowed(state->filter.context, state->path + 2);
+    scan_truncate_path(state, folder);
     return found;
 }
 
-static bool skipped_file(ScanState *state, const ScanJob *job, uint32_t offset, bool cue)
+static bool skipped_file(ScanState *state, uint32_t offset, bool cue)
 {
     const char *name = scan_entry_name(state, offset);
     return state->listing[offset] == ENTRY_CLAIMED ||
            (!cue && track_tags_format_for_name(name) == TAG_FORMAT_UNKNOWN) ||
-           shadowed(state, job, name);
+           scan_shadowed(state, name);
 }
 
 static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *stats,
@@ -503,7 +504,7 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
         return note_playlist(state, name);
     }
     bool cue = !directory && scan_is_cue_name(name);
-    if (!directory && skipped_file(state, job, offset, cue)) {
+    if (!directory && skipped_file(state, offset, cue)) {
         return SCAN_OK;
     }
     if (cue) {
