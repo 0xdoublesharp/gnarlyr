@@ -272,11 +272,25 @@ static bool pass_through_chord(Key key, HalKeyTransition transition)
     return action == KEY_CHORD_START;
 }
 
+static bool loader_keys_take(Key key)
+{
+    if (!hal_input_loader_keys_held()) {
+        return false;
+    }
+    key_tracker_cancel(&app.keys, KEY_POWER);
+    key_tracker_cancel(&app.keys, key);
+    return true;
+}
+
 static void take_transition(HalKeyTransition transition, bool scripted)
 {
     hal_system_coast(false);
     app.render_urgent = true;
     Key key = oriented_key(transition);
+    if (!scripted && loader_keys_take(key)) {
+        debug_loop_ladder(transition, false);
+        return;
+    }
     KeyLockVerdict verdict =
         key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
     bool chord = verdict == KEY_LOCK_PASS && pass_through_chord(key, transition);

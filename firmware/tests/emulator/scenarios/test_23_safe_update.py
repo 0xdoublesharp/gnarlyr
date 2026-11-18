@@ -6,11 +6,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import (
     EchoImageHarness,
     main,
+    BACKLIGHT_PIN,
     CHUNK_SECTORS,
+    GPIO_DATA,
     IDENTITY,
     LOADER_FLAG_REGISTER,
     LOADER_FLAG_VALUE,
     MISSING_TEXT,
+    PWM_CONTROL,
     SLOT_SECTORS,
     TRIAL_ROLLED_BACK,
     TRIAL_RUNNING,
@@ -36,6 +39,10 @@ TRIAL_LIMIT = 3
 ESCAPE_HOLD_MS = 3000
 ESCAPE_KEYS_MS = 5000
 STOCK_INSTALL_NAME = "ECHOECHO.IMG"
+CHARGE_ANSWER = 2
+POWER_LONG_EVENT = 0x105
+POWER_FIRST_MS = 300
+SETTLE_ON_CABLE_MS = 1000
 
 
 class EchoImageTest(EchoImageHarness):
@@ -388,11 +395,43 @@ class EchoImageTest(EchoImageHarness):
         return session, machine
 
     def assert_loader_reboot(self, session, pressed_ms):
+        self.reach_loader_reboot(session, pressed_ms)
+        self.assert_dark(session.machine)
+
+    def reach_loader_reboot(self, session, pressed_ms):
         machine = session.machine
         self.assertEqual(machine.run(until_ms=pressed_ms + ESCAPE_KEYS_MS), "system reset requested")
         self.assert_healthy(session)
         self.assertEqual(machine.pmu.regs[LOADER_FLAG_REGISTER], LOADER_FLAG_VALUE & 0xFFFF)
         self.assertGreaterEqual(machine.milliseconds() - pressed_ms, ESCAPE_HOLD_MS - SCAN_MS)
+
+    def assert_dark(self, machine):
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 0)
+        controls = [value for _, offset, value, *_ in machine.pwm_log if offset == PWM_CONTROL]
+        self.assertIn(controls[-1:], ([], [0]))
+
+    def watch_power_long(self, machine):
+        from unicorn.arm_const import UC_ARM_REG_R1
+        longs = []
+        machine.hook_symbol("power_policy_key", lambda: longs.append(machine.milliseconds())
+                            if machine.reg(UC_ARM_REG_R1) & 0xFFFF == POWER_LONG_EVENT else None)
+        return longs
+
+    def watch_skips(self, machine):
+        skips = []
+        machine.hook_symbol("player_skip", lambda: skips.append(machine.milliseconds()))
+        return skips
+
+    def plug_in_charging(self, machine):
+        machine.vbus = True
+        machine.run(until_ms=machine.milliseconds() + SETTLE_ON_CABLE_MS)
+
+    def hold_escape_keys_power_first(self, machine):
+        pressed = machine.milliseconds()
+        machine.hold_power(pressed, ESCAPE_KEYS_MS)
+        machine.at_ms(pressed + POWER_FIRST_MS,
+                      lambda: setattr(machine, "adc_key_value", VOLUME_UP_KEY_ADC))
+        return pressed + POWER_FIRST_MS
 
     def hold_escape_keys(self, machine):
         pressed = machine.milliseconds()
@@ -422,6 +461,60 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.run(until=lambda: "board_wait_for_key" in machine.reached,
                                      until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
         self.assert_loader_reboot(session, self.hold_escape_keys(machine))
+
+    def test_the_escape_keys_on_home_beat_the_power_long_press(self):
+        session = self.session(usb_answer=CHARGE_ANSWER)
+        machine = session.machine
+        session.run_to_home_screen()
+        machine.run(until_ms=machine.milliseconds() + SETTLE_ON_CABLE_MS)
+        self.plug_in_charging(machine)
+        longs = self.watch_power_long(machine)
+        self.reach_loader_reboot(session, self.hold_escape_keys(machine))
+        self.assertEqual(longs, [])
+        self.assert_dark(machine)
+
+    def test_the_escape_keys_on_now_playing_neither_switch_off_nor_skip(self):
+        from echo_emulator.playback import Rig
+        for hold in (self.hold_escape_keys, self.hold_escape_keys_power_first):
+            rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                      module_elfs=self.module_elfs,
+                      prepare=lambda machine: setattr(machine, "usb_answer", CHARGE_ANSWER))
+            machine = rig.machine
+            rig.open_songs()
+            rig.play_song(1)
+            self.plug_in_charging(machine)
+            longs = self.watch_power_long(machine)
+            skips = self.watch_skips(machine)
+            pressed = hold(machine)
+            self.reach_loader_reboot(rig.session, pressed)
+            self.assertEqual((longs, skips), ([], []), hold.__name__)
+            self.assert_dark(machine)
+
+    def test_the_escape_keys_on_the_usb_mode_chooser_beat_the_power_long_press(self):
+        session, machine = self.ejecting_session(None)
+        machine.note("usb_modes")
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.run(until=lambda: "usb_modes" in machine.reached,
+                                     until_ms=machine.milliseconds() + 3000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        longs = self.watch_power_long(machine)
+        self.reach_loader_reboot(session, self.hold_escape_keys(machine))
+        self.assertEqual(longs, [])
+        self.assert_dark(machine)
+
+    def test_the_escape_keys_in_a_storage_session_darken_the_screen_before_the_reset(self):
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.host_leaves = lambda: None
+        machine.note("usb_storage_session")
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: "usb_storage_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 5000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 1000)
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
+        machine.note("usb_session_storage_changed")
+        self.assert_loader_reboot(session, self.hold_escape_keys(machine))
+        self.assertNotIn("usb_session_storage_changed", machine.reached)
 
     def test_after_a_loader_restart_that_came_back_the_keys_wait_for_power_to_be_let_go(self):
         session, machine = self.escape_session(power_ms=ESCAPE_KEYS_MS + 1000)

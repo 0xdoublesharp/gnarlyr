@@ -1,6 +1,7 @@
 #include "core/power_policy.h"
 
 #include "core/deadline.h"
+#include "core/seam.h"
 
 static PowerKeyOutcome outcome(bool consumed, bool shutdown, bool background)
 {
@@ -57,7 +58,7 @@ void power_policy_set_timeout(PowerPolicy *policy, uint32_t timeout_ms)
     policy->timeout_ms = supported_delay(timeout_ms);
 }
 
-PowerKeyOutcome power_policy_key(PowerPolicy *policy, KeyEvent event, uint32_t now_ms)
+CORE_SEAM PowerKeyOutcome power_policy_key(PowerPolicy *policy, KeyEvent event, uint32_t now_ms)
 {
     policy->last_activity_ms = now_ms;
     policy->awake_ms = now_ms;

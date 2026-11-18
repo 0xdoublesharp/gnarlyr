@@ -12,6 +12,7 @@
 #include "emmc.h"
 #include "extension_entry.h"
 #include "hal/clock.h"
+#include "hal/input.h"
 #include "hal/system.h"
 #include "internal_volume.h"
 #include "mmc.h"
@@ -243,6 +244,11 @@ static bool escape_held(void)
     power_released |= !power;
     return power && (power_released || !board_start_after_loader()) && usb_vbus_present() &&
            (board_input_held() & ~(1u << KEY_POWER)) == ESCAPE_LADDER_KEY;
+}
+
+bool hal_input_loader_keys_held(void)
+{
+    return escape_held();
 }
 
 void board_trial_poll_power(uint32_t now_ms)
