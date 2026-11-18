@@ -717,7 +717,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             audio_fade_out=audio_effects_fade_out
             audio_effects_design=audio_effects_module_design
             audio_effects_run=audio_effects_module_run
-            audio_effects_settle=audio_effects_module_settle
+            audio_engine_settle=audio_effects_module_settle
             hal_system_rtc_read=audio_effects_rtc_read
             hal_system_rtc_set=audio_effects_rtc_set
         )

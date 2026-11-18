@@ -4,6 +4,7 @@
 
 #include "core/seam.h"
 #include "device/audio_effects_module.h"
+#include "device/audio_engine_stage.h"
 #include "overlay.h"
 
 static bool ready;
@@ -50,11 +51,10 @@ uint32_t audio_effects_run(AudioEffects *effects, const AudioEffectsBlock *block
     return ready ? entry()->effects_run(effects, block) : block->frames;
 }
 
-void audio_effects_settle(AudioEffects *effects, AudioSegment *segments, int count,
-                          uint32_t consumed)
+void audio_engine_settle(AudioEngine *engine, uint32_t previous)
 {
     if (ready) {
-        entry()->effects_settle(effects, segments, count, consumed);
+        entry()->settle(engine, previous);
     }
 }
 

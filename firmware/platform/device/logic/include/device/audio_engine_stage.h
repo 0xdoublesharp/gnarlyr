@@ -12,6 +12,7 @@ enum {
 void audio_engine_stage_shape(AudioEngine *engine, uint32_t first, bool tail);
 uint32_t audio_engine_stage_stretch(AudioEngine *engine, const int32_t *stage, uint32_t frames);
 void audio_engine_render_resampled(AudioEngine *engine);
+void audio_engine_settle(AudioEngine *engine, uint32_t previous);
 
 static inline uint32_t audio_engine_frame_limit(uint32_t end_ms, uint32_t rate)
 {

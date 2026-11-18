@@ -426,6 +426,57 @@ static void a_next_track_at_another_rate_waits_for_the_ring_to_drain(void)
     CHECK_EQUAL(96000u, audio_engine_rate(&engine));
 }
 
+static bool output_reads_silence(uint32_t first, uint32_t count)
+{
+    uint32_t frames = engine.config.ring_words / 2;
+    bool silent = true;
+    for (uint32_t frame = first; frame < first + count; frame++) {
+        uint32_t slot = frame % frames;
+        silent = silent && ring[2 * slot] == 0 && ring[2 * slot + 1] == 0;
+    }
+    return silent;
+}
+
+static void a_rate_change_plays_silence_while_the_output_runs_past_the_last_sample(void)
+{
+    start_scripted_engine(0, 4);
+    scripted.next_rate = 96000;
+    scripted.frames_per_open = 4;
+    engine.config.ring_words = 64;
+    CHECK(play_file("first", 0, 1));
+    queue_file("second", 2);
+    pump_until_full(0);
+    for (uint32_t consumed = 8; consumed < 64; consumed += 8) {
+        audio_engine_pump(&engine, consumed);
+        CHECK(!output_reads_silence(consumed, 8));
+    }
+    for (uint32_t consumed = 64; consumed < 160; consumed += 8) {
+        audio_engine_pump(&engine, consumed);
+        CHECK(engine.rate_pending);
+        CHECK(output_reads_silence(consumed, 8));
+    }
+}
+
+static void a_starved_source_plays_silence_instead_of_the_previous_ring_lap(void)
+{
+    start_scripted_engine(0, 100);
+    engine.config.ring_words = 64;
+    CHECK(play_file("first", 0, 1));
+    for (uint32_t consumed = 0; consumed <= 64; consumed += 8) {
+        audio_engine_pump(&engine, consumed);
+    }
+    CHECK_EQUAL(96u, engine.produced);
+    scripted.waits_before_frame = 1000;
+    for (uint32_t consumed = 72; consumed <= 96; consumed += 8) {
+        audio_engine_pump(&engine, consumed);
+    }
+    for (uint32_t consumed = 96; consumed < 192; consumed += 8) {
+        audio_engine_pump(&engine, consumed);
+        CHECK(output_reads_silence(consumed, 8));
+    }
+    CHECK(audio_engine_stats(&engine).underruns > 0);
+}
+
 static void starting_part_way_skips_to_that_sample(void)
 {
     start_engine();
@@ -589,6 +640,7 @@ static void adjacent_low_rate_chapters_share_filter_history_and_keep_their_posit
     queue_range("independent_16", 50, 100, 2);
     ResampledReference reference = speech_reference(0, 100 * 22050 / 1000);
     pump_until_full(0);
+    CHECK(memcmp(reference.words, ring, reference.frames * 2 * sizeof ring[0]) == 0);
     const uint32_t boundary = 2 * (50 * 22050 / 1000);
     audio_engine_observe(&engine, boundary - 1);
     CHECK_EQUAL(1, audio_engine_status(&engine).token);
@@ -596,7 +648,6 @@ static void adjacent_low_rate_chapters_share_filter_history_and_keep_their_posit
     CHECK_EQUAL(2, audio_engine_status(&engine).token);
     CHECK_EQUAL(50, audio_engine_status(&engine).position_ms);
     CHECK_EQUAL(1, opens);
-    CHECK(memcmp(reference.words, ring, reference.frames * 2 * sizeof ring[0]) == 0);
     CHECK_EQUAL(1, opens);
     CHECK(!engine.rate_pending);
     free(reference.words);
@@ -1595,6 +1646,8 @@ int main(void)
         TEST_CASE(the_status_describes_the_playing_tracks_stream),
         TEST_CASE(the_stream_description_follows_the_audio_into_the_next_track),
         TEST_CASE(a_next_track_at_another_rate_waits_for_the_ring_to_drain),
+        TEST_CASE(a_rate_change_plays_silence_while_the_output_runs_past_the_last_sample),
+        TEST_CASE(a_starved_source_plays_silence_instead_of_the_previous_ring_lap),
         TEST_CASE(starting_part_way_skips_to_that_sample),
         TEST_CASE(seeking_restarts_the_ring_at_the_new_place),
         TEST_CASE(replacing_a_track_discards_every_old_ring_word),

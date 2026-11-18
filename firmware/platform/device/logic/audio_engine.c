@@ -786,6 +786,7 @@ static bool unfinished_audio(const AudioEngine *engine)
 
 void audio_engine_observe(AudioEngine *engine, uint32_t consumed)
 {
+    uint32_t previous = engine->consumed;
     engine->consumed = consumed;
     if ((int32_t)(engine->produced - engine->consumed) < 0) {
         if (unfinished_audio(engine)) {
@@ -793,7 +794,7 @@ void audio_engine_observe(AudioEngine *engine, uint32_t consumed)
         }
         engine->produced = engine->consumed;
     }
-    audio_effects_settle(&engine->effects, engine->segments, engine->segment_count, consumed);
+    audio_engine_settle(engine, previous);
     drop_finished_segments(engine);
     if (engine->segment_count > 0 && engine->segments[0].token != engine->repeat_token) {
         engine->repeat_state = 0;
