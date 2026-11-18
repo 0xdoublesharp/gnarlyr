@@ -5,6 +5,8 @@
 
 _Static_assert(DSD_RING_BYTES + sizeof(DsdWorkspace) <= 131072,
                "DSD input and workspace must fit core 1 ring RAM");
+_Static_assert((int)DSD_OUTPUT_FRAMES <= (int)FLAC_MAX_BLOCK,
+               "a DSD output block must fit a core 1 slot");
 
 static uint32_t little32(const uint8_t *bytes)
 {

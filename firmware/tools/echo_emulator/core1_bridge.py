@@ -1,4 +1,4 @@
-from .core1 import CONTROL, RING, SAMPLES, Core1
+from .core1 import CONTROL, RING, SAMPLES, SLICE, Core1
 
 CONTROL_BYTES = 124
 CORE1_FLAC = 0
@@ -17,8 +17,11 @@ SLICES_PER_FILL = 32
 
 
 class Core1Bridge:
-    def __init__(self, audio, programs):
+    def __init__(self, audio, programs, instructions_per_us=0):
         self.machine = audio.machine
+        self.instructions_per_us = instructions_per_us
+        self.paced_us = 0
+        self.owed = 0
         self.programs = programs
         self.ring_bytes = 0
         self.active = False
@@ -40,6 +43,8 @@ class Core1Bridge:
         self.starts += int(self.active)
         if self.active:
             self.started.append(program)
+            self.paced_us = self.machine.microseconds()
+            self.owed = 0
         return int(self.active)
 
     def step(self):
@@ -48,8 +53,18 @@ class Core1Bridge:
         machine, core = self.machine, self.core
         core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
         core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
-        for _ in range(self.slices):
+        for _ in range(self.slices_due()):
             core.run_slice()
         machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
         for offset, count in DECODER_OWNED:
             machine.uc.mem_write(CONTROL + offset, bytes(core.uc.mem_read(CONTROL + offset, count)))
+
+    def slices_due(self):
+        if not self.instructions_per_us:
+            return self.slices
+        now = self.machine.microseconds()
+        self.owed += (now - self.paced_us) * self.instructions_per_us
+        self.paced_us = now
+        slices = self.owed // SLICE
+        self.owed -= slices * SLICE
+        return slices
