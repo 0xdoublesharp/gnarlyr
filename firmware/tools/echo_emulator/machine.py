@@ -11,7 +11,7 @@ from unicorn.arm_const import (
     UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R12, UC_ARM_REG_SP, UC_ARM_REG_XPSR,
     UC_CPU_ARM_CORTEX_M3)
 
-from . import devices
+from . import devices, mmio
 from .panel import Panel
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -145,6 +145,7 @@ class Machine:
         self.card = card
         self.uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
         self.uc.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M3)
+        self.read_register = mmio.RegisterReader(self.uc)
         self.base_cycles = 0
         self.jump_cycles = 0
         self.core_hz = CRYSTAL_HZ
@@ -270,13 +271,7 @@ class Machine:
         return self.core_hz >> shift if self.cru.regs.get(devices.CRU_MODE, 0) & 1 else CRYSTAL_HZ
 
     def map_device(self, device, base, size):
-        def read(uc, offset, width, user):
-            return device.read(offset, width)
-
-        def write(uc, offset, width, value, user):
-            device.write(offset, width, value)
-
-        self.uc.mmio_map(base, size, read, None, write, None)
+        mmio.map_device(self.uc, base, size, device)
 
     def build_memory(self):
         self.uc.mem_map(RAM_BASE, RAM_SIZE)
@@ -419,10 +414,10 @@ class Machine:
         self.hook_symbol(name, replaced)
 
     def current_pc(self):
-        return self.uc.reg_read(UC_ARM_REG_PC)
+        return self.read_register(UC_ARM_REG_PC)
 
     def reg(self, register):
-        return self.uc.reg_read(register)
+        return self.read_register(register)
 
     def read_memory(self, address, length):
         return bytes(self.uc.mem_read(address, length))
@@ -608,7 +603,7 @@ class Machine:
     def interrupt_due(self):
         systick = self.systick
         return (systick.tick_interrupt and systick.enabled and systick.pending()
-                and not self.uc.reg_read(UC_ARM_REG_PRIMASK) and self.exception_depth == 0)
+                and not self.read_register(UC_ARM_REG_PRIMASK) and self.exception_depth == 0)
 
     def enter_systick(self):
         vtor = self.systick.vtor
@@ -691,7 +686,7 @@ class Machine:
         if not self.started:
             self.uc.reg_write(UC_ARM_REG_PC, self.entry)
             self.started = True
-        start = self.uc.reg_read(UC_ARM_REG_PC)
+        start = self.read_register(UC_ARM_REG_PC)
         count = self.next_slice_length()
         self.resumed = self.parked if self.parked == start else None
         self.parked = None
@@ -705,7 +700,7 @@ class Machine:
             return
         self.base_cycles += count
         if self.entered is not None and not self.halting:
-            if self.uc.reg_read(UC_ARM_REG_PC) == self.entered:
+            if self.read_register(UC_ARM_REG_PC) == self.entered:
                 self.parked = self.entered
         if self.faults and self.stop_reason is None:
             self.stop_reason = "fault: %s" % (self.faults[-1],)
