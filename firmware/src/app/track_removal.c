@@ -140,7 +140,7 @@ static void tell(const TrackRemoval *removal, StringId text)
 static const StringId HIDE_TEXT[] = {STR_TRACK_HIDDEN, STR_HIDDEN_FULL, STR_HIDE_FAILED,
                                      STR_HIDE_FAILED, STR_RESCAN_FIRST};
 static const StringId DELETE_TEXT[] = {STR_FILE_DELETED, STR_HIDDEN_FULL, STR_DELETE_PART_REFUSED,
-                                       STR_DELETE_FILE_FAILED};
+                                       STR_DELETE_FILE_FAILED, STR_RESCAN_FIRST};
 
 static Screen *ask_delete(const TrackRemoval *removal, uint16_t track)
 {

@@ -93,8 +93,9 @@ static bool audio_stream(FlacInput input, uint32_t at, uint32_t size, AsfTrack *
     for (uint32_t index = 0; index < track->extra_bytes; index++) {
         track->extra[index] = bytes[72 + index];
     }
-    return (track->codec == 0x160 || track->codec == 0x161) && track->channels >= 1 &&
-           track->channels <= 2 && track->rate >= 8000 && track->rate <= 48000 &&
+    track->unsupported = (track->codec != 0x160 && track->codec != 0x161) || track->channels > 2 ||
+                         track->rate > 48000;
+    return !track->unsupported && track->channels >= 1 && track->rate >= 8000 &&
            track->block_align > 0 && track->block_align <= WMA_PACKET_BYTES;
 }
 
@@ -107,8 +108,8 @@ static bool object(FlacInput input, uint32_t *offset, uint32_t limit, AsfTrack *
         return false;
     }
     uint64_t size = little64(header + 16);
-    if (size < sizeof header || size > limit - at || little32(header) == 0x2211B3FBu ||
-        little32(header) == 0x298AE614u) {
+    track->unsupported = little32(header) == 0x2211B3FBu || little32(header) == 0x298AE614u;
+    if (size < sizeof header || size > limit - at || track->unsupported) {
         return false;
     }
     *offset += (uint32_t)size;
@@ -119,11 +120,11 @@ static bool object(FlacInput input, uint32_t *offset, uint32_t limit, AsfTrack *
            audio_stream(input, at, (uint32_t)size, track);
 }
 
-bool asf_track_probe(FlacInput input, AsfTrack *track)
+static bool probe(FlacInput input, AsfTrack *track)
 {
     uint8_t header[50];
     AsfTrack candidate = {0};
-    if (track == NULL || input.read == NULL || input.size < sizeof header ||
+    if (input.read == NULL || input.size < sizeof header ||
         !input.read(input.context, 0, header, 30) || !guid(header, 0x75B22630u, HEADER_TAIL)) {
         return false;
     }
@@ -135,6 +136,7 @@ bool asf_track_probe(FlacInput input, AsfTrack *track)
     uint32_t offset = 30;
     for (uint32_t index = 0; index < count; index++) {
         if (!object(input, &offset, (uint32_t)size, &candidate)) {
+            track->unsupported = candidate.unsupported;
             return false;
         }
     }
@@ -164,5 +166,19 @@ bool asf_track_probe(FlacInput input, AsfTrack *track)
     candidate.frame_samples = frame;
     candidate.samples = (uint32_t)((frames - 1) * frame);
     *track = candidate;
+    return true;
+}
+
+bool asf_track_probe(FlacInput input, AsfTrack *track)
+{
+    AsfTrack found = {0};
+    if (track == NULL) {
+        return false;
+    }
+    if (!probe(input, &found)) {
+        track->unsupported = found.unsupported;
+        return false;
+    }
+    *track = found;
     return true;
 }

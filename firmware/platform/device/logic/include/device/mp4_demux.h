@@ -35,6 +35,7 @@ typedef struct Mp4Track {
     uint32_t runs_at;
     uint32_t run_count;
     bool wide_offsets;
+    bool unsupported;
 } Mp4Track;
 
 typedef struct Mp4Cursor {

@@ -129,6 +129,33 @@ static void unsupported_alac_cookies_are_rejected_during_probe(void)
     }
 }
 
+static void rename_box(M4aFile *file, const char *from, const char *to)
+{
+    for (uint32_t index = 0; index + 4 <= file->size; index++) {
+        if (memcmp(file->bytes + index, from, 4) == 0) {
+            memcpy(file->bytes + index, to, 4);
+            return;
+        }
+    }
+    CHECK(false);
+}
+
+static void only_an_unsupported_m4a_codec_is_marked_unsupported(void)
+{
+    M4aFile file;
+    Mp4Track track;
+    CHECK(probe_file(AAC_ALBUM "01 Lead.m4a", &file, &track));
+    CHECK(!track.unsupported);
+    rename_box(&file, "esds", "esdx");
+    CHECK(!mp4_probe(m4a_file_input(&file), &track));
+    CHECK(!track.unsupported);
+    rename_box(&file, "esdx", "esds");
+    rename_box(&file, "mp4a", "ac-3");
+    CHECK(!mp4_probe(m4a_file_input(&file), &track));
+    CHECK(track.unsupported);
+    m4a_file_free(&file);
+}
+
 static void the_cursor_visits_every_sample_inside_the_media_data(void)
 {
     M4aFile file;
@@ -1429,6 +1456,7 @@ int main(void)
         TEST_CASE(a_mono_aac_file_at_48k_is_recognised),
         TEST_CASE(alac_files_report_their_cookie_depth_and_channels),
         TEST_CASE(unsupported_alac_cookies_are_rejected_during_probe),
+        TEST_CASE(only_an_unsupported_m4a_codec_is_marked_unsupported),
         TEST_CASE(the_cursor_visits_every_sample_inside_the_media_data),
         TEST_CASE(seeking_lands_on_the_same_sample_as_walking),
         TEST_CASE(oversized_sample_sizes_stop_at_the_file_boundary),

@@ -19,7 +19,14 @@ from echo_image_harness import (
     KEY_NEXT,
     KEY_PLAY,
     LEAVE_HOLD_MS,
+    SETTINGS_PATH,
 )
+
+HIGH_GAIN_RISE_LEVELS = 6
+DAC_MENU_GAIN_ROW = 1
+SETTINGS_GAIN_FIELD = 8
+SETTINGS_VOLUME_FIELD = 13
+SETTINGS_DAC_VOLUME_FIELD = 16
 
 
 class EchoImageTest(EchoImageHarness):
@@ -191,6 +198,31 @@ class EchoImageTest(EchoImageHarness):
         machine.answer_waits_for_key(4)
         self.assertEqual(machine.run(until=lambda: "usb_storage_session" in machine.reached,
                                      until_ms=machine.milliseconds() + 6000), "condition met")
+        self.assert_healthy(session)
+
+    def test_high_gain_chosen_in_the_dac_menu_lowers_both_volumes_before_the_gain_rises(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        session, machine, _ = self.dac_session()
+        music = session.fat().read(SETTINGS_PATH)[SETTINGS_VOLUME_FIELD]
+        def level():
+            return machine.read_memory(machine.symbols["volume_level"], 1)[0]
+        before = level()
+        gains = []
+        machine.hook_symbol("hal_audio_set_gain", lambda: gains.append(
+            (machine.reg(UC_ARM_REG_R0), level())))
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY, KEY_MENU):
+            self.press(machine, key)
+        self.assertEqual([(1, before - HIGH_GAIN_RISE_LEVELS)], gains)
+        self.hold_back(machine, LEAVE_HOLD_MS)
+        machine.note("usb_modes")
+        self.assertEqual(machine.run(until=lambda: "usb_modes" in machine.reached,
+                                     until_ms=machine.milliseconds() + LEAVE_HOLD_MS + 2000),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        saved = session.fat().read(SETTINGS_PATH)
+        self.assertEqual(1, saved[SETTINGS_GAIN_FIELD])
+        self.assertEqual(before - HIGH_GAIN_RISE_LEVELS, saved[SETTINGS_DAC_VOLUME_FIELD])
+        self.assertEqual(music - HIGH_GAIN_RISE_LEVELS, saved[SETTINGS_VOLUME_FIELD])
         self.assert_healthy(session)
 
     def test_the_dac_level_meter_keeps_the_usb_audio_loop_fed(self):

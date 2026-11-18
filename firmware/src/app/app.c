@@ -1066,7 +1066,8 @@ static void update_power(uint32_t now_ms)
     if (app.power.sleep_timer_active) {
         if (app.power.sleep_track_end) {
             PlayerStatus status = player_status(&app.player);
-            if (status.state == PLAYER_IDLE) {
+            app.power.sleep_track_started |= status.state != PLAYER_IDLE;
+            if (status.state == PLAYER_IDLE && app.power.sleep_track_started) {
                 power_policy_start_sleep_timer(&app.power, 0, now_ms);
             } else if (status.state == PLAYER_PLAYING && status.duration_ms != 0) {
                 remaining = status.position_ms < status.duration_ms
@@ -1804,6 +1805,15 @@ const HeadphoneProfiles *app_headphone_profiles(void)
 
 void app_remember_dac(AppDacSettings settings)
 {
+    if (settings.gain == GAIN_HIGH && app.settings.settings.gain != GAIN_HIGH) {
+        uint8_t wired = app.player.volume;
+        player_set_volume(&app.player, PLAYER_OUTPUT_WIRED,
+                          wired > HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB
+                              ? (uint8_t)(wired - HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB)
+                              : 0);
+        (void)player_save(&app.player);
+        capture_settings();
+    }
     app.settings.settings.dac_volume = settings.volume;
     app.settings.settings.gain = (GainLevel)settings.gain;
     app.settings.settings.output = (OutputJack)settings.output;

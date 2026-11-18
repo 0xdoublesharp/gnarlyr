@@ -27,6 +27,7 @@ typedef struct AsfTrack {
     uint16_t extra_bytes;
     uint8_t stream;
     uint8_t extra[6];
+    bool unsupported;
 } AsfTrack;
 
 bool asf_track_probe(FlacInput input, AsfTrack *track);

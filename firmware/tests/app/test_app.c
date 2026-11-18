@@ -1217,6 +1217,63 @@ static void high_gain_lowers_from_the_headphone_ceiling(void)
     CHECK_EQUAL(10 - GAIN_RISE_STEPS, app_player_status().volume);
 }
 
+static void high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved(void)
+{
+    start_app_with_library();
+    uint8_t volume = app_player_status().volume;
+    CHECK(volume > GAIN_RISE_STEPS);
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = SETTINGS_DEFAULT_DAC_VOLUME - GAIN_RISE_STEPS;
+    dac.gain = GAIN_HIGH;
+    app_remember_dac(dac);
+    app_step();
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, app_player_status().volume);
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, fake_hal_audio_volume());
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(GAIN_HIGH, saved.gain);
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, saved.volume);
+    CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME - GAIN_RISE_STEPS, saved.dac_volume);
+    app_remember_dac(app_dac_settings());
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, app_player_status().volume);
+}
+
+static void high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_the_output(void)
+{
+    start_app_with_library();
+    uint8_t wired = app_player_status().volume;
+    CHECK(wired > GAIN_RISE_STEPS);
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    uint8_t bluetooth = app_player_status().volume;
+    AppDacSettings dac = app_dac_settings();
+    dac.gain = GAIN_HIGH;
+    app_remember_dac(dac);
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(bluetooth, saved.bluetooth_volume);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    CHECK_EQUAL(wired - GAIN_RISE_STEPS, app_player_status().volume);
+    CHECK_EQUAL(wired - GAIN_RISE_STEPS, saved.volume);
+}
+
+static void choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_output(void)
+{
+    start_app_with_library();
+    uint8_t wired = app_player_status().volume;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    uint8_t bluetooth = app_player_status().volume;
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(bluetooth, app_player_status().volume);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    CHECK_EQUAL(wired - GAIN_RISE_STEPS, app_player_status().volume);
+}
+
 static void the_dac_filter_applies_on_play_saves_and_returns_after_a_restart(void)
 {
     start_app_with_library();
@@ -2952,6 +3009,25 @@ static void end_of_track_sleep_does_not_start_the_queued_song(void)
     open_setting(SETTINGS_SLEEP_INDEX);
     move_down(7);
     tap(KEY_PLAY);
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    fake_hal_audio_finish_track();
+    step();
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
+static void end_of_track_sleep_chosen_while_idle_waits_for_a_track_to_end(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(7);
+    tap(KEY_PLAY);
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    hold_back();
+    move_up(HOME_SETTINGS_INDEX);
+    play_first_album_track();
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
     CHECK(fake_hal_audio_queued_path() == NULL);
     fake_hal_audio_finish_track();
     step();
@@ -6664,6 +6740,9 @@ int main(void)
         TEST_CASE(choosing_high_gain_lowers_both_volumes_before_the_gain_rises),
         TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
         TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),
+        TEST_CASE(high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved),
+        TEST_CASE(high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_the_output),
+        TEST_CASE(choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_output),
         TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
         TEST_CASE(shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
@@ -6757,6 +6836,7 @@ int main(void)
         TEST_CASE(turning_off_while_playing_silences_the_music_before_cutting_power),
         TEST_CASE(the_sleep_timer_silences_the_music_before_cutting_power),
         TEST_CASE(end_of_track_sleep_does_not_start_the_queued_song),
+        TEST_CASE(end_of_track_sleep_chosen_while_idle_waits_for_a_track_to_end),
         TEST_CASE(sleep_fade_tracks_the_deadline_and_off_cancels_it),
         TEST_CASE(a_one_second_power_hold_only_turns_the_screen_off),
         TEST_CASE(a_slightly_long_press_wakes_the_screen_without_switching_off),

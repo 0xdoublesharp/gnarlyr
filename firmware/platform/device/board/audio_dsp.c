@@ -49,6 +49,7 @@ uint32_t board_audio_dsp_render(AudioResample *resample, uint32_t *words, uint32
 CORE_SEAM CORE_COLD bool mp4_probe(FlacInput input, Mp4Track *track)
 {
     const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
+    track->unsupported = false;
     return load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC) && dsp->probe(input, track);
 }
 

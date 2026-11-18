@@ -283,6 +283,7 @@ CORE_COLD static bool open_chosen(void *context, const char *path, uint32_t star
     (void)context;
     source_kind = kind_of(path);
     unknown_format = source_kind == SOURCE_UNKNOWN;
+    core1_source.unsupported = false;
     if (unknown_format || !board_audio_process_prepare()) {
         return false;
     }
@@ -779,6 +780,9 @@ static HalAudioProblem unreadable_problem(void)
 {
     if (unknown_format) {
         return HAL_AUDIO_PROBLEM_FORMAT;
+    }
+    if (!core1_source.unsupported) {
+        return HAL_AUDIO_PROBLEM_UNREADABLE;
     }
     if (source_kind == SOURCE_WMA) {
         return HAL_AUDIO_PROBLEM_WMA;

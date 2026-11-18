@@ -71,6 +71,7 @@ bool parametric_bank_encode(const ParametricBank *bank, uint8_t *bytes)
 static bool decode_record(const uint8_t *bytes, ParametricEq *eq)
 {
     *eq = (ParametricEq){.count = bytes[0], .preamp = (int16_t)store_get16(bytes + 2)};
+    eq->preamp = eq->preamp > PARAMETRIC_MAX_PREAMP ? PARAMETRIC_MAX_PREAMP : eq->preamp;
     if (bytes[1] != 0 || eq->count > PARAMETRIC_FILTERS) {
         return false;
     }

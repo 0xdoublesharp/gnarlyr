@@ -77,6 +77,7 @@ void power_policy_start_sleep_timer(PowerPolicy *policy, uint32_t duration_ms, u
 {
     policy->sleep_duration_ms = supported_delay(duration_ms);
     policy->sleep_track_end = false;
+    policy->sleep_track_started = false;
     policy->sleep_timer_active = true;
     policy->sleep_deadline_ms = now_ms + supported_delay(duration_ms);
 }

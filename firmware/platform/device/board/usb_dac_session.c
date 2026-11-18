@@ -435,11 +435,20 @@ static void step_volume(int step)
     show_state();
 }
 
+static void set_gain(uint8_t gain)
+{
+    if (gain == GAIN_HIGH && settings.gain != GAIN_HIGH) {
+        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), shared->dac_volume,
+                                               HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB));
+    }
+    settings.gain = gain;
+    hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW);
+}
+
 static void apply_choice(UsbDacAction action)
 {
     static const HalAudioOutput OUTPUTS[] = {HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED,
                                              HAL_AUDIO_OUTPUT_BALANCED};
-    settings.gain = menu.settings.gain;
     settings.output = menu.settings.output;
     settings.headphones = menu.settings.headphones;
     if (action == USB_DAC_ACTION_HEADPHONES) {
@@ -447,7 +456,7 @@ static void apply_choice(UsbDacAction action)
     } else if (action == USB_DAC_ACTION_VOLUME) {
         set_volume(menu.settings.volume);
     } else if (action == USB_DAC_ACTION_GAIN) {
-        hal_audio_set_gain(settings.gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW);
+        set_gain(menu.settings.gain);
     } else if (action == USB_DAC_ACTION_OUTPUT) {
         hal_audio_set_output(OUTPUTS[settings.output % OUTPUT_JACK_COUNT]);
     }

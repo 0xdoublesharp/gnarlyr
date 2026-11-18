@@ -73,6 +73,34 @@ static void books_play_in_order_even_with_shuffle_on(void)
     CHECK(path_is(fake_hal_audio_queued_path(), SPOKEN_CHAPTER_TWO_PATH));
 }
 
+static void a_book_opened_from_folders_plays_in_order_with_shuffle_on(void)
+{
+    for (uint32_t seed = 1; seed <= 8; seed++) {
+        start();
+        player_set_shuffle(&player, SHUFFLE_SONGS, seed);
+        uint32_t position = 0;
+        BrowseQuery source = folder_of(SPOKEN_CHAPTER_ONE_PATH, &position);
+        CHECK(player_play_list(&player, source, position, seed));
+        CHECK(path_is(fake_hal_audio_queued_path(), SPOKEN_CHAPTER_TWO_PATH));
+    }
+}
+
+static void a_restored_book_keeps_the_music_shuffle_setting(void)
+{
+    static Player resumed;
+    start();
+    player_set_shuffle(&player, SHUFFLE_SONGS, SEED);
+    uint32_t position = 0;
+    BrowseQuery source = folder_of(SPOKEN_CHAPTER_ONE_PATH, &position);
+    CHECK(player_play_list(&player, source, position, SEED));
+    player_init(&resumed, library);
+    player_set_shuffle(&resumed, SHUFFLE_SONGS, SEED);
+    CHECK(player_restore(&resumed, true));
+    CHECK(resumed.spoken);
+    CHECK_EQUAL(SHUFFLE_SONGS, resumed.shuffle);
+    CHECK_EQUAL(SHUFFLE_OFF, resumed.queue.plan.shuffle);
+}
+
 static void holding_volume_jumps_within_a_chapter(void)
 {
     start();
@@ -540,6 +568,53 @@ static void another_chapter_of_the_file_starts_from_its_top(void)
     CHECK_EQUAL(SPOKEN_PART_ONE_MS + SPOKEN_PART_TWO_MS, fake_hal_audio_play_start());
 }
 
+static Bookmark saved_book(uint32_t key)
+{
+    Bookmark found = {0};
+    CHECK(bookmarks_find(&store.bookmarks, key, &found));
+    return found;
+}
+
+static void stop_near_the_end_of_part(uint32_t chapter, uint32_t start_ms, uint32_t length_ms)
+{
+    start();
+    play_part(chapter);
+    follow(0);
+    fake_hal_audio_set_position(at_part(start_ms, length_ms - 5000));
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(2000);
+}
+
+static void only_the_last_chapter_of_a_file_finishes_the_book(void)
+{
+    stop_near_the_end_of_part(0, 0, SPOKEN_PART_ONE_MS);
+    Bookmark book = saved_book(spoken_track_key(SPOKEN_PARTS_PATH));
+    CHECK(!bookmark_finished(book));
+    CHECK_EQUAL(SPOKEN_PART_ONE_MS - 5000, book.position_ms);
+    stop_near_the_end_of_part(2, SPOKEN_PART_ONE_MS + SPOKEN_PART_TWO_MS, SPOKEN_PART_ONE_MS);
+    CHECK(bookmark_finished(saved_book(spoken_track_key(SPOKEN_PARTS_PATH))));
+}
+
+static void only_the_last_file_of_a_book_folder_finishes_the_book(void)
+{
+    start();
+    play(SPOKEN_CHAPTER_ONE_PATH, true);
+    follow(0);
+    fake_hal_audio_set_position(SPOKEN_CHAPTER_MS - 5000);
+    follow(1000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(2000);
+    CHECK(!bookmark_finished(saved_book(spoken_bookmark_key(SPOKEN_CHAPTER_ONE_PATH))));
+    play(SPOKEN_CHAPTER_THREE_PATH, true);
+    follow(3000);
+    fake_hal_audio_set_position(SPOKEN_CHAPTER_MS - 5000);
+    follow(4000);
+    play(SPOKEN_SONG_PATH, false);
+    follow(5000);
+    CHECK(bookmark_finished(saved_book(spoken_bookmark_key(SPOKEN_CHAPTER_THREE_PATH))));
+}
+
 static void books_outside_the_named_folder_share_the_shelf_and_resume(void)
 {
     SpokenLibrary external;
@@ -805,6 +880,8 @@ int main(void)
         TEST_CASE(a_saved_track_key_finds_its_chapter_after_the_number_changes),
         TEST_CASE(descriptions_handle_invalid_zero_and_finished_rows),
         TEST_CASE(books_play_in_order_even_with_shuffle_on),
+        TEST_CASE(a_book_opened_from_folders_plays_in_order_with_shuffle_on),
+        TEST_CASE(a_restored_book_keeps_the_music_shuffle_setting),
         TEST_CASE(holding_volume_jumps_within_a_chapter),
         TEST_CASE(jumping_past_the_end_starts_the_next_chapter),
         TEST_CASE(music_still_skips_tracks),
@@ -831,6 +908,8 @@ int main(void)
         TEST_CASE(a_loaded_chaptered_book_is_not_restarted),
         TEST_CASE(a_chaptered_book_is_bookmarked_under_its_file_path),
         TEST_CASE(another_chapter_of_the_file_starts_from_its_top),
+        TEST_CASE(only_the_last_chapter_of_a_file_finishes_the_book),
+        TEST_CASE(only_the_last_file_of_a_book_folder_finishes_the_book),
         TEST_CASE(books_outside_the_named_folder_share_the_shelf_and_resume),
         TEST_CASE(whole_m4b_books_play_and_resume_without_a_named_shelf),
     };

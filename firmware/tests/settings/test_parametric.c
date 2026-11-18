@@ -209,7 +209,7 @@ static void malformed_filters_never_publish_a_partial_curve(void)
 
 static void aliases_comments_and_line_limits_are_explicit(void)
 {
-    const char *text = "Preamp:\t+1.2 DB # headroom\r\n"
+    const char *text = "Preamp:\t-1.2 DB # headroom\r\n"
                        "Filter +1: ON PEQ FC 20 HZ GAIN +12 DB Q .30 # peak\n"
                        "Filter 2: ON LSC FC 200 HZ GAIN -12 DB\n"
                        "Filter 3: ON LS FC 300 HZ GAIN 0 DB\n"
@@ -219,7 +219,7 @@ static void aliases_comments_and_line_limits_are_explicit(void)
     ParametricEq eq;
     CHECK(parse(text, &eq, &parser));
     CHECK_EQUAL(5, eq.count);
-    CHECK_EQUAL(12, eq.preamp);
+    CHECK_EQUAL(-12, eq.preamp);
     CHECK_EQUAL(PARAMETRIC_PEAK, eq.filters[0].type);
     CHECK_EQUAL(PARAMETRIC_LOW_SHELF, eq.filters[1].type);
     CHECK_EQUAL(PARAMETRIC_LOW_SHELF, eq.filters[2].type);
@@ -233,6 +233,18 @@ static void aliases_comments_and_line_limits_are_explicit(void)
     parametric_import_text(&parser, too_long, sizeof too_long);
     CHECK(parser.invalid);
     CHECK(!parametric_import_finish(&parser, &eq));
+}
+
+static void a_requested_preamp_above_zero_db_is_refused(void)
+{
+    ParametricEq eq = {.preamp = 0};
+    CHECK(parametric_valid(&eq));
+    eq.preamp = 1;
+    CHECK(!parametric_valid(&eq));
+    ParametricImport parser;
+    CHECK(parse("Preamp: 0 dB\nFilter 1: ON PK Fc 100 Hz Gain -3 dB Q 0.7\n", &eq, &parser));
+    CHECK_EQUAL(0, eq.preamp);
+    CHECK(!parse("Preamp: +0.1 dB\nFilter 1: ON PK Fc 100 Hz Gain -3 dB Q 0.7\n", &eq, &parser));
 }
 
 static void the_ten_strongest_filters_are_kept_and_reported(void)
@@ -262,7 +274,7 @@ static void cascade_response_sums_filters_and_preamp_never_raises_the_safe_limit
         .filters = {{1000, 70, 62, PARAMETRIC_PEAK, true}, {1000, 70, -23, PARAMETRIC_PEAK, true}}};
     CHECK(abs(parametric_response(&eq, 1000, 44100) - 39) <= 1);
     uint16_t safe = parametric_pre_gain(&eq, 44100);
-    eq.preamp = 120;
+    eq.preamp = 0;
     CHECK_EQUAL(safe, parametric_pre_gain(&eq, 44100));
     eq.preamp = -600;
     CHECK(parametric_pre_gain(&eq, 44100) < safe);
@@ -278,6 +290,7 @@ int main(void)
         TEST_CASE(headroom_bounds_the_response_and_impulse_at_every_rate),
         TEST_CASE(malformed_filters_never_publish_a_partial_curve),
         TEST_CASE(aliases_comments_and_line_limits_are_explicit),
+        TEST_CASE(a_requested_preamp_above_zero_db_is_refused),
         TEST_CASE(the_ten_strongest_filters_are_kept_and_reported),
         TEST_CASE(cascade_response_sums_filters_and_preamp_never_raises_the_safe_limit),
     };

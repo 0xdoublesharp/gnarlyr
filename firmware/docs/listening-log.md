@@ -103,7 +103,7 @@ The off switch is `enabled` in the configuration and `listening_log_enable`. Whi
 
 The statistics are jobs over the ring: `begin`, then `step` until the result is no longer working. A job copies `next` and `kept` when it begins, so a play logged while it runs is not part of its result. Each step is one read of at most 512 bytes, eight records. A pass over a full ring is 512 or 513 steps. A read that fails ends the job as failed.
 
-Two terms: a play is every record. A listen is a play that ran for at least half the track's length, or that finished when the length is not known (`listening_play_listened`).
+Two terms: a play is every record. A listen is a play that ran for at least half the track's length, or that finished when the length is not known (`listening_play_listened`). Time listened is counted in the track's own time, so playback speed changes neither it nor whether a play is a listen.
 
 ### Summary
 
