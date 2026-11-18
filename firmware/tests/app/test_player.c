@@ -566,6 +566,87 @@ static void jumping_into_the_list_clears_up_next(void)
     CHECK_EQUAL(0, started->up_next.count);
 }
 
+static Player *paused_at(uint32_t position)
+{
+    Player *started = playing(position);
+    player_toggle_pause(started);
+    CHECK_EQUAL(HAL_AUDIO_PAUSED, fake_hal_audio_state());
+    return started;
+}
+
+static void check_waiting_at_the_start_of(const Player *subject, uint16_t track, const char *path)
+{
+    CHECK(path_is(fake_hal_audio_playing_path(), path));
+    CHECK_EQUAL(track, player_status(subject).track);
+    CHECK_EQUAL(PLAYER_PAUSED, player_status(subject).state);
+    CHECK_EQUAL(HAL_AUDIO_PAUSED, fake_hal_audio_state());
+    CHECK_EQUAL(0, player_status(subject).position_ms);
+}
+
+static void a_skip_while_paused_loads_the_next_track_and_waits(void)
+{
+    Player *paused = paused_at(0);
+    player_skip(paused, 1);
+    check_waiting_at_the_start_of(paused, SHOOT_TO_THRILL, SHOOT_TO_THRILL_PATH);
+    int plays = fake_hal_audio_play_count();
+    player_toggle_pause(paused);
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(paused).state);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+    CHECK_EQUAL(plays, fake_hal_audio_play_count());
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+}
+
+static void a_skip_back_while_paused_loads_the_previous_track_and_waits(void)
+{
+    Player *paused = paused_at(1);
+    fake_hal_audio_set_position(EARLY_IN_TRACK_MS);
+    player_skip(paused, -1);
+    check_waiting_at_the_start_of(paused, HELLS_BELLS, HELLS_BELLS_PATH);
+}
+
+static void a_refused_track_while_paused_moves_on_and_waits(void)
+{
+    Player *paused = paused_at(0);
+    player_set_repeat(paused, REPEAT_ALL);
+    fake_hal_audio_refuse_plays(1);
+    player_skip(paused, 1);
+    check_waiting_at_the_start_of(paused, HELLS_BELLS, HELLS_BELLS_PATH);
+}
+
+static void jumping_to_up_next_while_paused_waits(void)
+{
+    Player *paused = paused_at(0);
+    player_add_to_up_next(paused, HELP);
+    CHECK(player_jump_to_up_next(paused, 0));
+    check_waiting_at_the_start_of(paused, HELP, HELP_PATH);
+}
+
+static void jumping_into_the_list_while_paused_waits(void)
+{
+    Player *paused = paused_at(0);
+    CHECK(player_jump_to_queue(paused, (PlayQueueCursor){1, 0}));
+    check_waiting_at_the_start_of(paused, SHOOT_TO_THRILL, SHOOT_TO_THRILL_PATH);
+}
+
+static void choosing_a_list_while_paused_plays_it(void)
+{
+    Player *paused = paused_at(0);
+    CHECK(player_play_list(paused, back_in_black(), 1, SEED));
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(paused).state);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+}
+
+static void a_skip_after_resuming_plays_the_next_track(void)
+{
+    Player *paused = paused_at(0);
+    player_skip(paused, 1);
+    player_toggle_pause(paused);
+    player_skip(paused, -1);
+    CHECK(path_is(fake_hal_audio_playing_path(), HELLS_BELLS_PATH));
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(paused).state);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+}
+
 static void up_next_survives_a_restart(void)
 {
     Player *started = playing(0);
@@ -1585,15 +1666,15 @@ static void resuming_from_standby_keeps_the_replay_gain_and_the_following_track(
     CHECK(path_is(fake_hal_audio_queued_path(), SHOOT_TO_THRILL_PATH));
 }
 
-static void skipping_in_standby_starts_the_next_track_from_its_beginning(void)
+static void skipping_in_standby_loads_the_next_track_from_its_beginning_and_waits(void)
 {
     Player *started = playing(0);
     fake_hal_audio_set_position(42000);
     enter_standby(started, 1000);
     player_skip(started, 1);
-    CHECK(path_is(fake_hal_audio_playing_path(), SHOOT_TO_THRILL_PATH));
     CHECK_EQUAL(0, fake_hal_audio_play_start());
-    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+    check_waiting_at_the_start_of(started, SHOOT_TO_THRILL, SHOOT_TO_THRILL_PATH);
+    CHECK(!player_in_standby(started));
 }
 
 static void seeking_in_standby_moves_the_resume_point_without_powering_up(void)
@@ -1679,7 +1760,7 @@ int main(void)
         TEST_CASE(holding_standby_keeps_a_long_pause_powered_until_it_is_allowed_again),
         TEST_CASE(an_output_handed_to_a_usb_session_is_never_released_by_a_long_pause),
         TEST_CASE(resuming_from_standby_keeps_the_replay_gain_and_the_following_track),
-        TEST_CASE(skipping_in_standby_starts_the_next_track_from_its_beginning),
+        TEST_CASE(skipping_in_standby_loads_the_next_track_from_its_beginning_and_waits),
         TEST_CASE(seeking_in_standby_moves_the_resume_point_without_powering_up),
 
         TEST_CASE(initialization_clears_a_previous_queue_binding),
@@ -1745,6 +1826,13 @@ int main(void)
         TEST_CASE(repeat_one_repeats_an_added_song),
         TEST_CASE(jumping_to_an_added_song_skips_the_ones_before_it),
         TEST_CASE(jumping_into_the_list_clears_up_next),
+        TEST_CASE(a_skip_while_paused_loads_the_next_track_and_waits),
+        TEST_CASE(a_skip_back_while_paused_loads_the_previous_track_and_waits),
+        TEST_CASE(a_refused_track_while_paused_moves_on_and_waits),
+        TEST_CASE(jumping_to_up_next_while_paused_waits),
+        TEST_CASE(jumping_into_the_list_while_paused_waits),
+        TEST_CASE(choosing_a_list_while_paused_plays_it),
+        TEST_CASE(a_skip_after_resuming_plays_the_next_track),
         TEST_CASE(up_next_survives_a_restart),
         TEST_CASE(a_session_resumes_inside_an_added_song),
         TEST_CASE(releasing_the_output_pauses_where_the_track_was),

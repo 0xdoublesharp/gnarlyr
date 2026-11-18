@@ -802,7 +802,8 @@ int fake_hal_write_count(void)
     return fake.write_count;
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next,
+                    bool paused)
 {
     fake.audio.repeat_state = 0;
     uint32_t start_ms = track->start_ms + offset_ms;
@@ -819,7 +820,7 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAud
     fake.audio.play_end_ms = track->end_ms;
     fake.audio.replay_gain = track->replay_gain != 0 ? track->replay_gain : 65536;
     fake.audio.play_fade_ms = track->fade_ms;
-    fake.audio.status = (HalAudioStatus){.state = HAL_AUDIO_PLAYING,
+    fake.audio.status = (HalAudioStatus){.state = paused ? HAL_AUDIO_PAUSED : HAL_AUDIO_PLAYING,
                                          .token = token,
                                          .position_ms = start_ms,
                                          .failed = false,

@@ -2890,6 +2890,72 @@ static void power_rocker_skips_while_locked_without_a_power_tap(void)
     hold_play_and_power();
 }
 
+static void headset(HalHeadsetCommand command);
+
+static void check_paused_on(const char *path)
+{
+    CHECK(playing_path_is(path));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK_EQUAL(HAL_AUDIO_PAUSED, fake_hal_audio_state());
+}
+
+static void a_paused_chord_skip_loads_the_track_and_waits_for_play(void)
+{
+    play_on_now_playing();
+    tap(KEY_PLAY);
+    chord_tap(KEY_VOLUME_UP);
+    check_paused_on(SHOOT_TO_THRILL_PATH);
+    chord_tap(KEY_VOLUME_DOWN);
+    check_paused_on(HELLS_BELLS_PATH);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+}
+
+static void a_paused_skip_with_the_screen_off_waits_for_play(void)
+{
+    play_on_now_playing();
+    tap(KEY_PLAY);
+    tap(KEY_POWER);
+    CHECK(!fake_hal_display_on());
+    chord_tap(KEY_VOLUME_UP);
+    check_paused_on(SHOOT_TO_THRILL_PATH);
+    chord_tap(KEY_VOLUME_DOWN);
+    check_paused_on(HELLS_BELLS_PATH);
+    CHECK(!fake_hal_display_on());
+}
+
+static void a_paused_power_rocker_skip_while_locked_waits_for_play(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    hold_play_and_power();
+    fake_hal_queue_transition(KEY_POWER, true, now_ms);
+    step();
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms + 20);
+    wait_ms(30);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms + 20);
+    wait_ms(30);
+    check_paused_on(SHOOT_TO_THRILL_PATH);
+    hold_play_and_power();
+}
+
+static void a_paused_headset_skip_waits_for_play(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    headset(HAL_HEADSET_TOGGLE_PAUSE);
+    headset(HAL_HEADSET_NEXT);
+    check_paused_on(SHOOT_TO_THRILL_PATH);
+    headset(HAL_HEADSET_PREVIOUS);
+    check_paused_on(HELLS_BELLS_PATH);
+    headset(HAL_HEADSET_TOGGLE_PAUSE);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
 static void configured_menu_hold_opens_quick_settings(void)
 {
     start_app_with_library();
@@ -7715,6 +7781,10 @@ int main(void)
         TEST_CASE(small_text_resizes_the_open_list_at_once),
         TEST_CASE(the_text_size_survives_a_restart),
         TEST_CASE(power_rocker_skips_while_locked_without_a_power_tap),
+        TEST_CASE(a_paused_chord_skip_loads_the_track_and_waits_for_play),
+        TEST_CASE(a_paused_skip_with_the_screen_off_waits_for_play),
+        TEST_CASE(a_paused_power_rocker_skip_while_locked_waits_for_play),
+        TEST_CASE(a_paused_headset_skip_waits_for_play),
         TEST_CASE(configured_menu_hold_opens_quick_settings),
         TEST_CASE(configured_menu_hold_selects_the_other_destinations),
         TEST_CASE(configured_menu_hold_toggles_shuffle),

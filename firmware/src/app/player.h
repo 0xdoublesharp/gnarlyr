@@ -157,6 +157,7 @@ typedef struct Player {
     uint32_t refusal_count;
     HalAudioRefusal refusal;
     uint16_t refused_track;
+    bool hold_pause;
     uint8_t ab_repeat;
     bool spoken;
     PlayerResume resume;

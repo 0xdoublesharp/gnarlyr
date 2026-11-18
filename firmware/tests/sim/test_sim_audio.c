@@ -9,7 +9,7 @@ static void start_virtual_playback(void)
 {
     sim_storage_configure(ECHO_FIXTURE_DIR, ECHO_FIXTURE_DIR);
     CHECK(sim_audio_start(true));
-    CHECK(hal_audio_play(&TRACK, 0, NULL));
+    CHECK(hal_audio_play(&TRACK, 0, NULL, false));
 }
 
 static void virtual_playback_moves_through_the_recording_at_the_chosen_speed(void)

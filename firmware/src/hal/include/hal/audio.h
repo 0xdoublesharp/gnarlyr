@@ -163,7 +163,8 @@ typedef struct HalAudioEffects {
     bool speech_boost;
 } HalAudioEffects;
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next);
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next,
+                    bool paused);
 void hal_audio_queue_next(const HalAudioTrack *track);
 void hal_audio_pause(void);
 void hal_audio_resume(void);

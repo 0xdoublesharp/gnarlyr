@@ -345,7 +345,8 @@ void sim_audio_stop(void)
     close_track(&audio.slots[1]);
 }
 
-bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next)
+bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next,
+                    bool paused)
 {
     audio.repeat_state = 0;
     lock();
@@ -358,7 +359,7 @@ bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAud
             open_track(next_track(), next, 0);
         }
     }
-    audio.state = opened ? HAL_AUDIO_PLAYING : HAL_AUDIO_STOPPED;
+    audio.state = !opened ? HAL_AUDIO_STOPPED : paused ? HAL_AUDIO_PAUSED : HAL_AUDIO_PLAYING;
     audio.failed = !opened;
     unlock();
     return opened;

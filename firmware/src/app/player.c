@@ -242,7 +242,8 @@ static bool start_track(Player *player, uint32_t start_ms, bool from_bookmark)
     player->start_ms = audio.track.start_ms;
     TrackAudio next;
     bool queued = prepare_next(player, &next);
-    player->loaded = hal_audio_play(&audio.track, start_ms, queued ? &next.track : NULL);
+    player->loaded =
+        hal_audio_play(&audio.track, start_ms, queued ? &next.track : NULL, player->hold_pause);
     if (!player->loaded) {
         player->refusal = hal_audio_refusal();
         player->refused_track = track;
@@ -250,7 +251,7 @@ static bool start_track(Player *player, uint32_t start_ms, bool from_bookmark)
         become_idle(player);
         return false;
     }
-    player->state = PLAYER_PLAYING;
+    player->state = player->hold_pause ? PLAYER_PAUSED : PLAYER_PLAYING;
     return true;
 }
 
@@ -341,6 +342,16 @@ static bool start_up_next(Player *player)
     }
     save_up_next(player);
     return started;
+}
+
+static bool move_and_start(Player *player, int direction, bool wrap);
+
+static bool skip_holding_pause(Player *player, int direction, bool wrap)
+{
+    player->hold_pause = player->state == PLAYER_PAUSED;
+    bool moved = move_and_start(player, direction, wrap);
+    player->hold_pause = false;
+    return moved;
 }
 
 static bool move_and_start(Player *player, int direction, bool wrap)
@@ -477,7 +488,7 @@ void player_jump(Player *player, int32_t delta_ms)
     }
     uint32_t target = position + (uint32_t)delta_ms;
     if (duration > 0 && target >= duration) {
-        move_and_start(player, 1, player->repeat != REPEAT_OFF);
+        skip_holding_pause(player, 1, player->repeat != REPEAT_OFF);
         return;
     }
     player_seek(player, target);
@@ -498,7 +509,7 @@ CORE_SEAM void player_skip(Player *player, int direction)
         return;
     }
     bool wrap = direction > 0 ? player->repeat != REPEAT_OFF : player->repeat == REPEAT_ALL;
-    if (!move_and_start(player, direction, wrap) && direction < 0) {
+    if (!skip_holding_pause(player, direction, wrap) && direction < 0) {
         restart_track(player);
     }
 }
@@ -724,7 +735,9 @@ bool player_jump_to_up_next(Player *player, uint16_t index)
         return false;
     }
     up_next_drop(&player->up_next, index);
+    player->hold_pause = player->state == PLAYER_PAUSED;
     bool started = start_up_next(player);
+    player->hold_pause = false;
     player_save(player);
     return started;
 }
@@ -740,7 +753,9 @@ bool player_jump_to_queue(Player *player, PlayQueueCursor cursor)
     save_up_next(player);
     player->from_up_next = false;
     play_queue_move_to(&player->queue, cursor);
+    player->hold_pause = player->state == PLAYER_PAUSED;
     bool started = start_playable(player, 0, 1, player->repeat == REPEAT_ALL);
+    player->hold_pause = false;
     player_save(player);
     return started;
 }

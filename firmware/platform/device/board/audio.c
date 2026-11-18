@@ -534,7 +534,7 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
 }
 
 CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
-                              const HalAudioTrack *next)
+                              const HalAudioTrack *next, bool paused)
 {
     if (!workspace_loan_claimable(&workspace_loan)) {
         return false;
@@ -549,11 +549,8 @@ CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
     }
     AudioEngineTrack upcoming = engine_track(next);
     audio_engine_queue_next(&engine, next != NULL ? &upcoming : NULL);
-    if (!start_output(true)) {
-        audio_engine_stop(&engine);
-        return false;
-    }
-    return true;
+    restart_output(true, paused);
+    return engine.state != AUDIO_ENGINE_STOPPED;
 }
 
 void hal_audio_queue_next(const HalAudioTrack *track)

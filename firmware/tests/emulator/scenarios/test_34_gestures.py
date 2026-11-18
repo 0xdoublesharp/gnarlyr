@@ -236,7 +236,7 @@ class EchoImageTest(EchoImageHarness):
                    if since + listen // 2 <= stamp < since + listen and level < 0]
         self.assertEqual([], starved[:5])
 
-    def test_playback_resumes_and_skips_cleanly_after_a_session_that_changed_internal_music(self):
+    def test_playback_resumes_and_paused_skips_wait_after_a_session_that_changed_internal_music(self):
         from test_33_combined_library import host_rewrites_internal_entry
         rig, slot = self.remount_rig()
         layers = Layers(rig)
@@ -253,15 +253,13 @@ class EchoImageTest(EchoImageHarness):
             rig.press("play")
             paused = layers.snapshot()
             self.assertIsNone(Layers.problem(paused), paused)
-            started = rig.skip(name)
+            rig.skip(name)
             rig.run_for(SETTLE_MS)
             state = layers.snapshot()
             self.assertIsNone(Layers.problem(state), (name, state))
-            if state["app"] == PLAYER_PLAYING:
-                self.assert_playing_cleanly(rig, layers, started)
-            else:
-                rig.press("play")
-                self.assert_playing_cleanly(rig, layers, rig.machine.milliseconds())
+            self.assertEqual(PLAYER_PAUSED, state["app"], (name, state, layers.events()))
+            self.assertFalse(Layers.audible(state), (name, state))
+            self.assert_playing_cleanly(rig, layers, rig.press("play"))
         self.assert_healthy(rig.session)
 
 
