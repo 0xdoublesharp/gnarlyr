@@ -46,7 +46,7 @@ add_executable(echo_device
 target_sources(echo_device PRIVATE board/panel_vop.c)
 target_include_directories(echo_device PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 if(NOT ECHO_RELEASE)
-    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c logic/rtc_registers.c)
+    target_sources(echo_device PRIVATE board/debug_session.c board/profiler.c)
     set(ECHO_PROFILE_BUCKET_SHIFT 7)
 endif()
 set(ECHO_CORE1_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/core1/core1.ld)
@@ -283,7 +283,6 @@ set(ECHO_OVERLAY_IMPORTS
     label_wrap_count
     text_width
     text_digit_width
-    text_style_width
     status_bar_draw
     text_draw_glyph_scaled
     utf8_next
@@ -396,7 +395,6 @@ if(NOT ECHO_RELEASE)
         draw_profile_average_us
         frame_stats_average_us
         frame_stats_worst_us
-        rtc_registers_decode
         board_battery_gauge
         board_debug_audio
         dac_path_diagnostics
@@ -453,6 +451,10 @@ if(CMAKE_CROSSCOMPILING)
         board/cru.c
         board/core1.c
         board/dac.c
+        board/emmc.c
+        board/sd.c
+        board/storage.c
+        board/usb.c
         board/debug_battery_trace.c
         board/debug_poke.c
         board/debug_report_file.c
@@ -546,6 +548,7 @@ add_executable(echo_usb_overlay
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
+    ${PROJECT_SOURCE_DIR}/src/gfx/text_style.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
     ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
@@ -562,6 +565,7 @@ add_executable(echo_usb_overlay
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
+        logic/rtc_registers.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_script.c)

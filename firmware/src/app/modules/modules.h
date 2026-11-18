@@ -40,7 +40,7 @@ typedef struct SettingsModuleEntry {
     ScreenAction (*menu_hold)(AppScreens *screens, uint8_t action);
     Screen *(*language_row)(AppScreens *screens);
     Screen *(*usb_modes)(AppScreens *screens, bool prompt);
-    bool (*choose)(AppScreens *screens, DebugSpan title, DebugSpan option);
+    const struct SettingsChooseTables *choose_tables;
     void (*dac_headphones)(HeadphoneStore *store, uint8_t chosen, Player *player,
                            SettingsStore *settings);
 } SettingsModuleEntry;

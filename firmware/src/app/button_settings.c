@@ -136,26 +136,11 @@ Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig confi
     return menu_screen_init(&buttons->menu, menu);
 }
 
-bool button_settings_choose(ButtonSettings *buttons, DebugSpan title, DebugSpan option)
-{
-    if (debug_span_matches(title, i18n_text(STR_MENU_LONG_ACTION))) {
-        for (int action = 0; action < 6; action++) {
-            if (debug_span_matches(option, i18n_text(LONG_ACTIONS[action]))) {
-                long_choose(buttons, action);
-                return true;
-            }
-        }
-    }
-    for (int button = 0; button < PLAYBACK_BUTTON_COUNT; button++) {
-        if (!debug_span_matches(title, i18n_text(BUTTONS[button]))) {
-            continue;
-        }
-        for (int action = 0; action < BUTTON_ACTION_COUNT; action++) {
-            if (debug_span_matches(option, i18n_text(ACTIONS[action]))) {
-                choose(&buttons->entries[button], action);
-                return true;
-            }
-        }
-    }
-    return false;
-}
+#ifdef ECHO_DEBUG_LOOP
+const ButtonChoices BUTTON_CHOICES = {.buttons = BUTTONS,
+                                      .actions = ACTIONS,
+                                      .long_actions = LONG_ACTIONS,
+                                      .long_title = STR_MENU_LONG_ACTION,
+                                      .choose = choose,
+                                      .long_choose = long_choose};
+#endif

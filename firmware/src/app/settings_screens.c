@@ -861,36 +861,9 @@ static const char *choice_value(const void *context)
     return i18n_text(entry->choice->options[current]);
 }
 
-static int option_named(SettingsScreens *screens, const SettingChoice *choice, DebugSpan option)
-{
-    ChoiceConfig config = {.option_ids = choice->options, .option_count = choice->option_count};
-    if (choice->options == NULL) {
-        choice->extend(screens, &config);
-    }
-    for (int index = 0; index < config.option_count; index++) {
-        const char *text =
-            config.option_ids != NULL ? i18n_text(config.option_ids[index]) : config.options[index];
-        if (debug_span_matches(option, text)) {
-            return index;
-        }
-    }
-    return -1;
-}
-
-bool settings_screens_choose(SettingsScreens *screens, DebugSpan title, DebugSpan option)
-{
-    for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
-        const SettingChoice *choice = &CHOICES[index];
-        int chosen = debug_span_matches(title, i18n_text(choice->title))
-                         ? option_named(screens, choice, option)
-                         : -1;
-        if (chosen >= 0) {
-            choice->choose(&screens->context, chosen);
-            return true;
-        }
-    }
-    return button_settings_choose(&screens->buttons, title, option);
-}
+#ifdef ECHO_DEBUG_LOOP
+const SettingsChooseTables SETTINGS_CHOOSE_TABLES = {CHOICES, &BUTTON_CHOICES};
+#endif
 
 static ScreenAction request_rescan(void *context)
 {

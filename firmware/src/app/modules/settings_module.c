@@ -88,13 +88,6 @@ static Screen *usb_modes(AppScreens *screens, bool prompt)
     return settings_screens_usb_modes(&screens->modules.settings.settings, prompt);
 }
 
-#ifdef ECHO_DEBUG_LOOP
-static bool choose(AppScreens *screens, DebugSpan title, DebugSpan option)
-{
-    return settings_screens_choose(&screens->modules.settings.settings, title, option);
-}
-#endif
-
 static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
 {
     SettingsScreens *settings = &screens->modules.settings.settings;
@@ -117,7 +110,7 @@ const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
     .language_row = language_row,
     .usb_modes = usb_modes,
 #ifdef ECHO_DEBUG_LOOP
-    .choose = choose,
+    .choose_tables = &SETTINGS_CHOOSE_TABLES,
 #endif
     .dac_headphones = headphone_store_choose_for_dac,
 };

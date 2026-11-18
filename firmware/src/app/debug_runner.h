@@ -43,11 +43,15 @@ typedef struct DebugFrameSources {
 
 DebugFrameSources app_debug_frame_sources(void);
 
+struct SettingsChooseTarget;
+
 typedef struct DebugCodeEntry {
     DebugRequest (*step)(uint32_t now_ms, DebugRunnerView view);
     void (*stop)(uint32_t now_ms, DebugScriptState state);
     void (*frame)(DebugFrameSources sources);
     bool (*screenshot)(const DebugScreenshot *shot);
+    bool (*choose_setting)(const struct SettingsChooseTarget *target, DebugSpan title,
+                           DebugSpan option);
 } DebugCodeEntry;
 
 #ifdef ECHO_DEBUG_LOOP
