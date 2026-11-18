@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "device/fat.h"
 
 #include "fat_create.h"
@@ -26,20 +28,22 @@ static uint32_t per_sector(const FatVolume *volume)
 
 static bool split_path(const char *path, char *parent, const char **name, size_t *length)
 {
-    size_t last = 0;
-    size_t total = 0;
-    for (; path[total] != '\0'; total++) {
-        last = path[total] == '/' ? total : last;
+    const char *slash = NULL;
+    const char *end = path;
+    for (; *end != '\0'; end++) {
+        slash = *end == '/' ? end : slash;
     }
-    *name = path + last + 1;
-    *length = total - last - 1;
-    if (total == 0 || last >= FAT_PARENT_CAPACITY || *length == 0) {
+    if (slash == NULL) {
         return false;
     }
-    for (size_t index = 0; index < last; index++) {
-        parent[index] = path[index];
+    size_t parent_length = (size_t)(slash - path);
+    *name = slash + 1;
+    *length = (size_t)(end - *name);
+    if (parent_length >= FAT_PARENT_CAPACITY || *length == 0) {
+        return false;
     }
-    parent[last] = '\0';
+    memcpy(parent, path, parent_length);
+    parent[parent_length] = '\0';
     return true;
 }
 

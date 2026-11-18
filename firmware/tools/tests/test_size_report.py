@@ -378,6 +378,15 @@ Linker script and memory map
         self.assertRegex(table, r"release\s+resident code\s+95\s+100\s+5\s+8\s+FAIL")
         self.assertRegex(table, r"device\s+module views\s+60\s+100\s+40\s+0\s+PASS")
 
+    def test_release_budgets_reserve_space_in_every_mutable_region(self):
+        floors = size_report.BUDGET_FLOORS["release"]
+        self.assertEqual(
+            floors,
+            {"static": 4096, "workspace": 256, "module": 64, "overlay": 512,
+             "core1": 1024, "language": 1024},
+        )
+        self.assertTrue(all(floor > 0 for floor in floors.values()))
+
     def test_a_build_summary_with_an_incomplete_build_fails(self):
         import contextlib
         import io
