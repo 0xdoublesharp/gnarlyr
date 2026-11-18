@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "albums": [
+    {
+      "artist": "Tycho",
+      "title": "Dive",
+      "year": "2011",
+      "tracks": [
+        "A Walk",
+        "Hours"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/46/be/ed/46beed8a-5d0f-1077-cbeb-aace15e69f44/cover.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/dive/679251532?uo=4",
+      "sha256": "f498f4558fbde111969e6403faa3af6cd81a6469d499e0e6482b35798ff5b125"
+    },
+    {
+      "artist": "Boards of Canada",
+      "title": "Music Has the Right to Children",
+      "year": "1998",
+      "tracks": [
+        "Wildlife Analysis",
+        "An Eagle In Your Mind"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Features125/v4/b5/4c/c2/b54cc20d-03f5-f2c4-4a0d-9b51ad65af89/dj.txuslqgv.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/music-has-the-right-to-children/281116024?uo=4",
+      "sha256": "e1dba00bde26d2e7f6b3c2c2fd5122b32330be3c1ec5d854076a43fdff9acf05"
+    },
+    {
+      "artist": "Daft Punk",
+      "title": "Discovery",
+      "year": "2001",
+      "tracks": [
+        "One More Time",
+        "Aerodynamic"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/fd/4a/77/fd4a77db-0ebc-d043-41a2-f32fa1bb0fb4/dj.qrikkdwj.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/discovery/697194953?uo=4",
+      "sha256": "6eef5694bf531b3f34c8fc4e70323d18a6908a27053e44de0cd71e4fb5802dd9"
+    },
+    {
+      "artist": "Nujabes",
+      "title": "Metaphorical Music",
+      "year": "2003",
+      "tracks": [
+        "Blessing It (feat. Substantial & Pase Rock) [Remix]",
+        "Horn In the Middle"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/f3/20/32/f3203208-39f4-3d87-2bfb-918d7593bc38/HPD4.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/metaphorical-music/1078898175?uo=4",
+      "sha256": "8d7729d203cc82fff54f055a116f847cc486838837537073e9a5657ff6944c95"
+    },
+    {
+      "artist": "Bonobo",
+      "title": "Black Sands",
+      "year": "2010",
+      "tracks": [
+        "Prelude",
+        "Kiara"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/c1/bf/c2/c1bfc295-9310-5e5d-0322-7deee6dd4128/5021392584195.png/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/black-sands/416292276?uo=4",
+      "sha256": "54ca51579dde2a763789d7796696e15f63d763bf831291265391fac5714191a8"
+    },
+    {
+      "artist": "Air",
+      "title": "Moon Safari",
+      "year": "1998",
+      "tracks": [
+        "La Femme d'argent",
+        "Sexy Boy"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d1/f9/26/d1f926e7-e996-7166-3744-0710a82177ac/017046664455.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/moon-safari/693063670?uo=4",
+      "sha256": "2e6a67593e68203f16cacaf6c79c8de467b05537d7ec558f5ca5de709a48c4b3"
+    },
+    {
+      "artist": "Massive Attack",
+      "title": "Mezzanine",
+      "year": "1998",
+      "tracks": [
+        "Angel",
+        "Risingson"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/0a/98/55/0a98555b-8d9d-3b46-660a-b91261557d17/00724384559953.rgb.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/mezzanine/724466069?uo=4",
+      "sha256": "fb2119235c4b64d764c496133aa56488daad76e08017a09fc7a02294daa7b445"
+    },
+    {
+      "artist": "Portishead",
+      "title": "Dummy",
+      "year": "1994",
+      "tracks": [
+        "Mysterons",
+        "Sour Times"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/c1/71/93/c1719342-df7d-e9c5-c87c-53dae5afb289/00042282855329.rgb.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/dummy/1440653096?uo=4",
+      "sha256": "c16842a4560d2cd537c4dabfe8e5e80cb3dfa359db766daf6ec7d29a19323d90"
+    },
+    {
+      "artist": "Aphex Twin",
+      "title": "Selected Ambient Works 85-92",
+      "year": "1992",
+      "tracks": [
+        "Xtal",
+        "Tha"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5f/b3/e0/5fb3e08d-c2cd-3da4-6ad7-c5dc61803683/cover.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/selected-ambient-works-85-92/1668862636?uo=4",
+      "sha256": "0bc035a5f912ccdddd8dac3083df57fd946c5ffff0151c8708f03e2fc290f038"
+    },
+    {
+      "artist": "Tycho",
+      "title": "Awake",
+      "year": "2014",
+      "tracks": [
+        "Awake",
+        "Montana"
+      ],
+      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/7b/b8/d6/7bb8d640-dfdc-1473-3948-4060af9a3819/804297820828.jpg/600x600bb.jpg",
+      "source": "https://music.apple.com/us/album/awake/793928184?uo=4",
+      "sha256": "d7ccf02205a369a132c1efa34eff450a195fbea85ba5eb3685e68c57a49a0483"
+    }
+  ]
+}

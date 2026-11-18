@@ -12,6 +12,7 @@ import sys
 import tempfile
 
 from echo_debug import IDENTITY, png_bytes
+from site_album_art import albums as artwork_albums
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho")
@@ -116,9 +117,14 @@ def create_demo(config, work, env, source_root=ROOT):
     card.mkdir()
     demo = config.get("demo", {})
     tracks = demo.get("tracks", [])
+    artwork = artwork_albums() if demo.get("real_albums") else None
     if not 1 <= len(tracks) <= 32:
         raise ValueError("Demo needs 1–32 tracks")
     for index, track in enumerate(tracks):
+        if artwork:
+            album = artwork[track["album_index"]]
+            track = {**track, "artist": album["artist"], "album": album["title"],
+                     "title": album["tracks"][track["track_index"]], "cover": album["cover"]}
         folder = card / f"Album {track.get('album', 'Demo')}"
         if folder.parent != card or '/' in str(track.get('album', 'Demo')) or '\\' in str(track.get('album', 'Demo')):
             raise ValueError("Demo album names cannot contain path separators")
@@ -128,7 +134,10 @@ def create_demo(config, work, env, source_root=ROOT):
         signal = "anullsrc=r=44100:cl=stereo"
         if demo.get("audio_source") == "tone":
             signal = "aevalsrc=0.18*sin(2*PI*220*t)+0.08*sin(2*PI*880*t)|0.16*sin(2*PI*330*t)+0.07*sin(2*PI*1320*t):s=44100"
-        command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", signal, "-t", str(duration), "-c:a", "flac"]
+        command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", signal]
+        if track.get("cover"):
+            command += ["-i", track["cover"], "-map", "0:a", "-map", "1:v", "-c:v", "copy", "-disposition:v", "attached_pic"]
+        command += ["-t", str(duration), "-c:a", "flac"]
         for field in ("title", "artist", "album"):
             command += ["-metadata", field + "=" + track.get(field, "Demo")]
         run(command + [audio], work / f"track-{index}.log", env)
@@ -154,6 +163,9 @@ def create_demo(config, work, env, source_root=ROOT):
     library = work / "library.db"
     python = source_root / "firmware/.venv/bin/python"
     run([python, source_root / "firmware/tools/library_index.py", "--music", card, "--output", library], work / "index.log", env)
+    if artwork:
+        run([python, source_root / "firmware/tools/cover_export.py", "--music", card,
+             "--library", library, "--output", work / "covers.bin"], work / "covers.log", env)
     return card, library
 
 
@@ -184,6 +196,8 @@ def render_case(case, context):
     system = work / (case["name"] + "-system")
     system.mkdir()
     shutil.copyfile(context["library"], system / "library.db")
+    if (work / "covers.bin").is_file():
+        shutil.copyfile(work / "covers.bin", system / "covers.bin")
     source_root = context.get("source_root", ROOT)
     prepare_language(case, system, work, env, source_root)
     card = context["card"]
@@ -202,6 +216,14 @@ def render_case(case, context):
     bmp = work / (case["name"] + ".bmp")
     command = [context["simulator"], "--headless", "--frames", str(case.get("frames", context["defaults"].get("frames", 900))),
                "--battery", str(context["defaults"].get("battery", 80)), "--card", card, "--system-dir", system, "--screenshot", bmp]
+    if case.get("combined_library"):
+        internal = work / (case["name"] + "-internal")
+        internal.mkdir()
+        shutil.copyfile(next(card.glob("*/*.flac")), internal / "A Walk.flac")
+        run([source_root / "firmware/.venv/bin/python", source_root / "firmware/tools/library_index.py",
+             "--music", card, "--internal", internal, "--output", system / "library.db"],
+            work / (case["name"] + "-index.log"), env)
+        command += ["--internal", internal]
     if case.get("keys"):
         command += ["--keys", ",".join(case["keys"])]
     result = run(command, work / (case["name"] + ".log"), env)

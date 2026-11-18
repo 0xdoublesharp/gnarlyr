@@ -19,10 +19,17 @@ function option(name, fallback) {
 const source = option("--source-root", resolve(root, `../${identity.name.toLowerCase()}-companion`));
 const configPath = option("--config", join(root, "tools/site_companion_screenshots.json"));
 const config = JSON.parse(await readFile(configPath, "utf8"));
+if (config.real_albums) {
+  const result = spawnSync("python3", [join(root, "tools/site_album_art.py")], {
+    encoding: "utf8", timeout: 180000, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  config.albums = JSON.parse(result.stdout);
+}
 assert.equal(config.version, 1);
 assert(config.viewport.width >= 900 && config.viewport.width <= 1600);
 assert(config.viewport.height >= 700 && config.viewport.height <= 1200);
-const known = new Set(["library-dark", "library-light", "sync-preview", "player-settings", "firmware-review", "languages", "mixtapes", "first-install", "setup-notice", "recovery"]);
+const known = new Set(["library-dark", "library-light", "sync-preview", "player-library", "player-settings", "firmware-review", "languages", "mixtapes", "first-install", "setup-notice", "recovery"]);
 assert(config.screens.length && config.screens.every((name) => known.has(name)));
 assert.equal(new Set(config.screens).size, config.screens.length);
 assert(config.albums.length >= 2 && config.albums.length <= 12);
@@ -65,10 +72,11 @@ try {
     const folder = join(music, album.artist, album.title);
     await mkdir(folder, { recursive: true });
     for (const [index, title] of album.tracks.entries()) {
-      const result = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+      const artwork = album.cover ? ["-i", album.cover, "-map", "0:a", "-map", "1:v", "-c:v", "copy", "-disposition:v", "attached_pic"] : [];
+      const result = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", ...artwork,
         "-t", String(180 + index * 30), "-c:a", "flac", "-metadata", `artist=${album.artist}`,
         "-metadata", `album=${album.title}`, "-metadata", `title=${title}`, "-metadata", `track=${index + 1}`,
-        "-metadata", "date=2026", join(folder, `${String(index + 1).padStart(2, "0")} ${title}.flac`)],
+        "-metadata", `date=${album.year ?? "2026"}`, join(folder, `${String(index + 1).padStart(2, "0")} ${title}.flac`)],
         { env, encoding: "utf8", timeout: 30000 });
       assert.equal(result.status, 0, result.stderr);
     }
@@ -160,15 +168,20 @@ try {
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   await cp(music, card, { recursive: true });
+  await page.getByRole("button", { name: "Player library", exact: true }).click();
+  await pick(card);
+  await page.getByRole("button", { name: "Choose music drive", exact: true }).click();
+  await page.getByRole("button", { name: "Review preparation", exact: true }).waitFor();
+  await shot("player-library");
   await page.getByRole("button", { name: "Mixtapes", exact: true }).click();
   await pick(card);
   await page.getByRole("button", { name: "Choose music drive", exact: true }).first().click();
   await page.getByRole("button", { name: "New mixtape", exact: true }).click();
   await page.getByLabel("Mixtape name", { exact: true }).fill("Night drive");
   await page.getByLabel("Mixtape format", { exact: true }).selectOption("45");
-  await page.getByRole("button", { name: "Add First Light", exact: true }).click();
-  await page.getByRole("button", { name: "Add Night Drive", exact: true }).click();
-  await page.getByRole("button", { name: "Add Soft Focus", exact: true }).click();
+  for (const album of config.albums.slice(0, 3)) {
+    await page.getByRole("button", { name: `Add ${album.tracks[0]}`, exact: true }).click();
+  }
   await page.getByLabel("Side for track 3", { exact: true }).selectOption("B");
   await page.locator(".mix-drive").evaluate((element) => element.scrollIntoView({ block: "start" }));
   await shot("mixtapes");

@@ -7,22 +7,28 @@
   "demo": {
     "tracks": [
       {
-        "title": "First Light",
-        "artist": "{firmware_name} Demo",
-        "album": "Daybreak",
-        "seconds": 30
+        "title": "A Walk",
+        "artist": "Tycho",
+        "album": "Dive",
+        "seconds": 30,
+        "album_index": 0,
+        "track_index": 0
       },
       {
-        "title": "Night Drive",
-        "artist": "{firmware_name} Demo",
-        "album": "After Hours",
-        "seconds": 30
+        "title": "Awake",
+        "artist": "Tycho",
+        "album": "Awake",
+        "seconds": 30,
+        "album_index": 9,
+        "track_index": 0
       },
       {
-        "title": "Soft Focus",
-        "artist": "{firmware_name} Demo",
-        "album": "After Hours",
-        "seconds": 30
+        "title": "Montana",
+        "artist": "Tycho",
+        "album": "Awake",
+        "seconds": 30,
+        "album_index": 9,
+        "track_index": 1
       }
     ],
     "lyrics": "[00:00.00]A new day begins\n[00:03.00]Take the long way home\n[00:10.00]One more song\n",
@@ -35,7 +41,8 @@
       "title": "City Stories",
       "artist": "{firmware_name} Demo"
     },
-    "audio_source": "tone"
+    "audio_source": "tone",
+    "real_albums": true
   },
   "screens": [
     {
@@ -53,6 +60,22 @@
         "down",
         "play"
       ]
+    },
+    {
+      "name": "combined-library",
+      "file": "combined-library.png",
+      "expected_title": "Folders",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play"
+      ],
+      "combined_library": true
     },
     {
       "name": "search",
@@ -1540,7 +1563,7 @@
     {
       "name": "artist-albums",
       "file": "artist-albums.png",
-      "expected_title": "{firmware_name} Demo",
+      "expected_title": "Tycho",
       "keys": [
         "play",
         "down",
@@ -1945,7 +1968,7 @@
     {
       "name": "track-actions",
       "file": "track-actions.png",
-      "expected_title": "First Light",
+      "expected_title": "A Walk",
       "keys": [
         "play",
         "down",
