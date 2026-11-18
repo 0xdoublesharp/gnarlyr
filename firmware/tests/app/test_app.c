@@ -2627,7 +2627,7 @@ static void a_chord_seek_as_the_next_part_begins_seeks_within_that_part(void)
     fake_hal_audio_finish_track();
     step();
     CHECK_EQUAL(seeks + 1, fake_hal_audio_seek_count());
-    CHECK_EQUAL(2493, fake_hal_audio_last_seek());
+    CHECK_EQUAL(1000 + NOW_PLAYING_SEEK_STEP_MIN_MS, fake_hal_audio_last_seek());
     release_key(KEY_VOLUME_UP);
     release_key(KEY_PLAY);
 }
