@@ -142,7 +142,8 @@ static void change_base(ParametricScreen *editor, int step)
     const ParametricBank *bank = editor->config.bank;
     editor->base_slot = slot;
     editor->base_error = STRING_COUNT;
-    if (slot >= 0 && (bank == NULL || (bank->used >> slot & 1) == 0)) {
+    if (slot >= 0 &&
+        (bank == NULL || (bank->used >> slot & 1) == 0 || bank->shaping[slot + 1].active)) {
         editor->base_error = STR_SHAPE_BASE_INVALID;
         editor->notice = editor->base_error;
         sound_shaping_screen_texts(editor);

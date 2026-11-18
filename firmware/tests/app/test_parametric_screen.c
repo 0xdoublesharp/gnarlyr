@@ -289,11 +289,41 @@ static void rejected_base_choices_remain_uncommitted_and_do_not_block_later_slot
     CHECK_EQUAL(1, editor.working.count);
 }
 
+static void a_slot_saved_from_sound_shaping_is_refused_as_the_base(void)
+{
+    start();
+    ParametricBank bank = {.used = 3};
+    bank.slots[0].count = 1;
+    bank.slots[1].count = 1;
+    bank.slots[0].filters[0] = (ParametricFilter){1000, 70, -10, PARAMETRIC_PEAK, true};
+    bank.slots[1].filters[0] = bank.slots[0].filters[0];
+    bank.shaping[2] = (SoundShaping){.positions = {2}, .base_count = 0, .active = true};
+    editor.config.bank = &bank;
+    editor.config.shape_commit = shape_commit;
+    editor.shaping_requested = true;
+    editor.screen.enter(&editor, 0);
+    for (int index = 0; index < 9; index++) {
+        key(KEY_VOLUME_UP);
+    }
+    key(KEY_PLAY);
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(0, editor.base_slot);
+    CHECK_EQUAL(STRING_COUNT, editor.notice);
+    ParametricEq kept = editor.working;
+    key(KEY_VOLUME_UP);
+    CHECK_EQUAL(STR_SHAPE_BASE_INVALID, editor.notice);
+    CHECK(parametric_same(&kept, &editor.working));
+    int before = committed;
+    key(KEY_PLAY);
+    CHECK_EQUAL(before, committed);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(shaping_sliders_and_preamp_fit_both_themes_in_all_native_layouts),
         TEST_CASE(rejected_base_choices_remain_uncommitted_and_do_not_block_later_slots),
+        TEST_CASE(a_slot_saved_from_sound_shaping_is_refused_as_the_base),
         TEST_CASE(shaping_previews_cancels_saves_resets_and_refuses_an_overfull_stack),
         TEST_CASE(add_edit_cancel_keep_and_remove_work_with_buttons),
         TEST_CASE(failed_publication_keeps_the_saved_curve_and_slot_selection_works),
