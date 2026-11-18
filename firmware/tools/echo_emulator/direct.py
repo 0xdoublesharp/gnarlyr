@@ -63,3 +63,49 @@ def map_device(uc, base, size, device):
     if status != binding.uc.UC_ERR_OK:
         raise UcError(status)
     uc._mmio_callbacks[(base, base + size)] = callbacks
+
+
+CODE_HOOKS = (binding.uc.UC_HOOK_CODE, binding.uc.UC_HOOK_BLOCK)
+ACCESS_HOOKS = binding.uc.UC_HOOK_MEM_READ | binding.uc.UC_HOOK_MEM_WRITE | binding.uc.UC_HOOK_MEM_FETCH
+
+
+def code_function(uc, callback, user_data):
+    def code(handle, address, size, key):
+        try:
+            callback(uc, address, size, user_data)
+        except BaseException as error:
+            callback_failed(uc, error)
+
+    return binding.HOOK_CODE_CFUNC(code)
+
+
+def access_function(uc, callback, user_data):
+    def access(handle, kind, address, size, value, key):
+        try:
+            callback(uc, kind, address, size, value, user_data)
+        except BaseException as error:
+            callback_failed(uc, error)
+
+    return binding.HOOK_MEM_ACCESS_CFUNC(access)
+
+
+def hook_add(uc, kind, callback, user_data=None, begin=1, end=0):
+    """`Uc.hook_add` for code, block and memory access hooks, one wrapper frame shorter.
+
+    The callback gets the binding's arguments, and the handle works with `Uc.hook_del`. Other
+    hook kinds go to the binding.
+    """
+    if kind in CODE_HOOKS:
+        function = code_function(uc, callback, user_data)
+    elif kind and not kind & ~ACCESS_HOOKS:
+        function = access_function(uc, callback, user_data)
+    else:
+        return uc.hook_add(kind, callback, user_data, begin, end)
+    handle = binding.uc_hook_h()
+    status = binding.uclib.uc_hook_add(uc._uch, ctypes.byref(handle), kind, function,
+                                       ctypes.c_void_p(0), ctypes.c_uint64(begin),
+                                       ctypes.c_uint64(end))
+    if status != binding.uc.UC_ERR_OK:
+        raise UcError(status)
+    uc._callbacks[handle.value] = function
+    return handle.value

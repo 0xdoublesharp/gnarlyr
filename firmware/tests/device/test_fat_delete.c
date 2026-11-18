@@ -168,6 +168,7 @@ static void deleting_something_that_is_not_a_file_changes_nothing(void)
     CHECK(!fat_delete(&card->volume, "/Nowhere/README.TXT"));
     CHECK(!fat_delete(&card->volume, "/"));
     CHECK(!fat_delete(&card->volume, ""));
+    CHECK(!fat_delete(&card->volume, "readme.txt"));
     CHECK(!fat_delete(&card->volume, "/Music/"));
     CHECK_EQUAL(0, card->sparse.writes);
     CHECK(fat_delete(&card->volume, "/readme.txt"));

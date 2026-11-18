@@ -20,6 +20,11 @@ echo_add_unit_test(NAME test_card_format_ui
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_settings_backup
+    SOURCES app/test_settings_backup.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures)
 add_test(NAME card_format_layout_captures
     COMMAND test_card_format_ui --captures ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures

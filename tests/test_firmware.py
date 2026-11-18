@@ -1,3 +1,4 @@
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -99,6 +100,12 @@ class SelectionTests(unittest.TestCase):
 
 
 class FuzzCommandTests(unittest.TestCase):
+    def test_wrapper_inventory_matches_every_cmake_fuzzer(self):
+        cmake = (firmware.SOURCE / "tests/fuzz/CMakeLists.txt").read_text()
+        registered = set(re.findall(r"echo_add_fuzzer\(([a-z0-9_]+)", cmake))
+        self.assertEqual(set(firmware.FUZZ_TARGETS), registered)
+        self.assertEqual(set(firmware.FUZZ_SEEDS), registered)
+
     def test_cue_sheet_target_has_boundary_seeds(self):
         self.assertEqual(firmware.FUZZ_TARGETS["cue_sheet"], 65536)
         corpus = b"\n".join(firmware.FUZZ_SEEDS["cue_sheet"])
@@ -173,6 +180,19 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(firmware.FUZZ_TARGETS["mp3_probe"], 262144)
         self.assertEqual(firmware.FUZZ_TARGETS["opus_decode"], 2048)
         self.assertEqual(len(firmware.FUZZ_FIXTURES["mp3_probe"]), 3)
+
+    def test_theme_and_remaining_decoder_targets_have_canonical_inputs(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["theme_pack"], 1024)
+        self.assertEqual({seed[0] for seed in firmware.FUZZ_SEEDS["theme_pack"]}, {0, 1, 2, 3})
+        self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["asf_track"]), 6)
+        self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["ape_track"]), 13)
+        self.assertEqual(
+            {path.suffix for path in firmware.FUZZ_FIXTURES["dsd_track"]},
+            {".dff", ".dsf"},
+        )
+        for name in ("asf_track", "ape_track", "dsd_track"):
+            self.assertEqual(firmware.FUZZ_TARGETS[name], 262144)
+            self.assertTrue(all(path.exists() for path in firmware.FUZZ_FIXTURES[name]))
 
     def test_fat_target_has_each_supported_volume_fixture(self):
         self.assertEqual(firmware.FUZZ_TARGETS["fat_volume"], 400000)

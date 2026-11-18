@@ -11,7 +11,7 @@ from unicorn.arm_const import (
     UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R12, UC_ARM_REG_SP, UC_ARM_REG_XPSR,
     UC_CPU_ARM_CORTEX_M3)
 
-from . import devices, mmio
+from . import devices, direct
 from .panel import Panel
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -145,7 +145,7 @@ class Machine:
         self.card = card
         self.uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
         self.uc.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M3)
-        self.read_register = mmio.RegisterReader(self.uc)
+        self.read_register = direct.RegisterReader(self.uc)
         self.base_cycles = 0
         self.jump_cycles = 0
         self.core_hz = CRYSTAL_HZ
@@ -271,7 +271,7 @@ class Machine:
         return self.core_hz >> shift if self.cru.regs.get(devices.CRU_MODE, 0) & 1 else CRYSTAL_HZ
 
     def map_device(self, device, base, size):
-        mmio.map_device(self.uc, base, size, device)
+        direct.map_device(self.uc, base, size, device)
 
     def build_memory(self):
         self.uc.mem_map(RAM_BASE, RAM_SIZE)
@@ -389,7 +389,7 @@ class Machine:
                 if self.halting:
                     break
 
-        self.uc.hook_add(UC_HOOK_BLOCK, hook, None, address, address)
+        direct.hook_add(self.uc, UC_HOOK_BLOCK, hook, None, address, address)
         self.uc.ctl_remove_cache(address, address + 2)
 
     def hook_symbol(self, name, callback, optional=False):
@@ -578,7 +578,7 @@ class Machine:
         def hook(uc, where, size, user):
             counter[0] += 1
 
-        self.uc.hook_add(UC_HOOK_CODE, hook, None, first, first + capacity - 1)
+        direct.hook_add(self.uc, UC_HOOK_CODE, hook, None, first, first + capacity - 1)
         self.uc.ctl_remove_cache(first, first + capacity)
         return counter
 

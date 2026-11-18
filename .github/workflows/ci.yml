@@ -93,6 +93,25 @@ jobs:
         if: always()
         run: sccache --show-stats
 
+  fuzz:
+    name: Sanitized fuzz smoke
+    needs: preflight
+    env:
+      CC: clang
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup-firmware
+      - name: Run every fuzzer with deterministic seeds
+        run: python3 tools/firmware.py fuzz --runs 1000 --seed 1 --jobs 4
+      - name: Compiler cache statistics
+        if: always()
+        run: sccache --show-stats
+
   mac-filesystems:
     name: macOS card compatibility
     if: >-

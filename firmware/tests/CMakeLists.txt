@@ -166,7 +166,7 @@ if(ARM_GCC)
                     FIXTURES_REQUIRED device_image
                     SKIP_RETURN_CODE 77
                     LABELS echo_image
-                    PROCESSORS 2
+                    PROCESSORS 1
                     TIMEOUT 900
                 )
             endforeach()
