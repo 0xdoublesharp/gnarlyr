@@ -3,6 +3,8 @@ import struct
 from unicorn import Uc, UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB, UC_HOOK_MEM_WRITE
 from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_SP
 
+from . import direct
+
 CODE_BASE = 0x0
 CODE_BYTES = 0x20000
 RAM_BASE = 0x01000000
@@ -39,7 +41,7 @@ class Core1:
         self.uc.mem_map(0x40000000, 0x200000)
         self.clock_writes = []
         self.clock = CLOCK_100_MHZ
-        self.uc.hook_add(UC_HOOK_MEM_WRITE, self.note_clock, begin=0x40180014, end=0x40180014)
+        direct.hook_add(self.uc, UC_HOOK_MEM_WRITE, self.note_clock, begin=0x40180014, end=0x40180014)
         self.uc.mem_write(CODE_BASE, program)
         self.instructions = 0
         self.next_slot = 0
