@@ -276,12 +276,13 @@ static ScanResult read_batch(ScanState *state, const ScanFileSystem *files, Leve
     return index_listing(state, batch.start, batch.count, level);
 }
 
-static ScanResult read_entries(ScanState *state, const ScanFileSystem *files, Level *level)
+static ScanResult read_entries(ScanState *state, const ScanFileSystem *files, Level *level,
+                               uint32_t pass)
 {
     bool fits = false;
     uint32_t start = state->listing_used;
     ScanResult result = SCAN_OK;
-    for (uint32_t pass = 0; result == SCAN_OK && !fits && pass < 2; pass++) {
+    for (; result == SCAN_OK && !fits && pass < 2; pass++) {
         state->placing = pass == 0;
         result = read_whole(state, files, level, &fits);
     }
@@ -305,9 +306,10 @@ static ScanResult read_following_batch(ScanState *state, const ScanFileSystem *f
     return read_batch(state, files, level, level->start, true);
 }
 
-static ScanResult read_listing(ScanState *state, const ScanFileSystem *files, Level *level)
+static ScanResult read_listing(ScanState *state, const ScanFileSystem *files, Level *level,
+                               uint32_t pass)
 {
-    ScanResult result = read_entries(state, files, level);
+    ScanResult result = read_entries(state, files, level, pass);
     return result == SCAN_OK ? scan_mark_cue_targets(state, files, level) : result;
 }
 
@@ -444,6 +446,34 @@ static ScanResult note_playlist(ScanState *state, const char *name)
     return SCAN_OK;
 }
 
+static uint32_t first_placed(const ScanState *state)
+{
+    uint32_t index = 0;
+    while (index < state->depth && !state->levels[index].placed) {
+        index++;
+    }
+    return index;
+}
+
+static ScanResult unplace_path(ScanState *state, const ScanFileSystem *files, uint32_t first)
+{
+    state->listing_used = state->levels[first].start;
+    ScanResult result = SCAN_OK;
+    for (uint32_t index = first; result == SCAN_OK && index <= state->depth; index++) {
+        Level *level = &state->levels[index];
+        uint32_t next = level->next;
+        scan_truncate_path(state, level->path_length);
+        result = read_listing(state, files, level, 1);
+        level->next = next;
+        if (result == SCAN_OK && index < state->depth) {
+            const uint32_t *offsets =
+                (const uint32_t *)(const void *)(state->listing + level->first);
+            (void)scan_append_path(state, scan_entry_name(state, offsets[next - 1]), true);
+        }
+    }
+    return result;
+}
+
 static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *stats,
                               uint32_t offset)
 {
@@ -482,14 +512,19 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
             place[index] = listed[index];
         }
     }
-    ScanResult result = read_listing(state, &job->files, child);
+    ScanResult result = read_listing(state, &job->files, child, 0);
+    uint32_t first = first_placed(state);
+    bool unplace = result == SCAN_OK && child->partial && first < state->depth;
+    if (unplace) {
+        result = unplace_path(state, &job->files, first);
+    }
     state->depth += result == SCAN_OK;
-    return result == SCAN_NO_MUSIC_ROOT ? SCAN_OK : result;
+    return result == SCAN_NO_MUSIC_ROOT && !unplace ? SCAN_OK : result;
 }
 
 static ScanResult walk(ScanState *state, const ScanJob *job, ScanStats *stats)
 {
-    ScanResult result = read_listing(state, &job->files, &state->levels[0]);
+    ScanResult result = read_listing(state, &job->files, &state->levels[0], 0);
     state->depth = result == SCAN_OK ? 1 : 0;
     while (result == SCAN_OK && state->depth > 0) {
         Level *level = &state->levels[state->depth - 1];

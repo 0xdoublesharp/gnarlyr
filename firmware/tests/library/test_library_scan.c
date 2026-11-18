@@ -310,7 +310,7 @@ static void a_missing_music_root_says_so(void)
 }
 
 enum {
-    TREE_CAPACITY = 4096 + 64,
+    TREE_CAPACITY = 4608,
     TREE_PATH = 96,
     FRAME_BYTES = 417,
     FRAMES = 3
@@ -711,7 +711,7 @@ static void subfolders_are_opened_from_the_place_their_listing_gave(void)
         tree_add(path);
     }
     for (uint32_t index = 0; index < 900; index++) {
-        snprintf(path, sizeof path, "/Library/Artist 005/Album 2/Disc/%04u - Song.mp3", index);
+        snprintf(path, sizeof path, "/Library/Artist 299/Album 2/Disc/%04u - Song.mp3", index);
         tree_add(path);
     }
     ScanStats stats;
@@ -720,7 +720,7 @@ static void subfolders_are_opened_from_the_place_their_listing_gave(void)
     CHECK(library_holds_every_path(&output));
     CHECK_EQUAL(0u, tree.misplaced_opens);
     CHECK(tree.opens >= 604u);
-    CHECK_EQUAL(1u, tree.opens - tree.placed_opens);
+    CHECK_EQUAL(2u, tree.opens - tree.placed_opens);
 }
 
 static void a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio(void)
@@ -738,6 +738,49 @@ static void a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio(void)
     CHECK_EQUAL(SCAN_OK, scan_tree(96 * 1024, &output, &stats));
     CHECK_EQUAL(3602u, stats.tracks);
     CHECK_EQUAL(0u, tree.placed_opens);
+}
+
+static void a_cue_sheet_below_a_folder_of_thousands_of_folders_still_claims_its_audio(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/F0000000/A.cue");
+    tree_add("/F0000000/Z.mp3");
+    char path[TREE_PATH];
+    for (uint32_t index = 0; index < 1500; index++) {
+        snprintf(path, sizeof path, "/F0000000/M%07u.TXT", index);
+        tree_add(path);
+    }
+    for (uint32_t index = 1; index < 3000; index++) {
+        snprintf(path, sizeof path, "/F%07u/a.mp3", index);
+        tree_add(path);
+    }
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(96 * 1024, &output, &stats));
+    CHECK_EQUAL(3001u, stats.tracks);
+}
+
+static void relisting_the_folders_above_a_big_folder_keeps_their_places_and_claims(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/A.cue");
+    tree_add("/Z.mp3");
+    tree_add("/F0000000/0 before.mp3");
+    tree_add("/F0000000/~after.mp3");
+    tree_add("/F0000000/Big/b.mp3");
+    char path[TREE_PATH];
+    for (uint32_t index = 0; index < 1500; index++) {
+        snprintf(path, sizeof path, "/F0000000/Big/M%07u.TXT", index);
+        tree_add(path);
+    }
+    for (uint32_t index = 1; index < 3000; index++) {
+        snprintf(path, sizeof path, "/F%07u/a.mp3", index);
+        tree_add(path);
+    }
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(96 * 1024, &output, &stats));
+    CHECK_EQUAL(3004u, stats.tracks);
 }
 
 static void playlist_extensions_are_case_insensitive_and_exact(void)
@@ -1147,6 +1190,8 @@ int main(int argc, char **argv)
         TEST_CASE(playlist_extensions_are_case_insensitive_and_exact),
         TEST_CASE(subfolders_are_opened_from_the_place_their_listing_gave),
         TEST_CASE(a_cue_sheet_beside_thousands_of_folders_still_claims_its_audio),
+        TEST_CASE(a_cue_sheet_below_a_folder_of_thousands_of_folders_still_claims_its_audio),
+        TEST_CASE(relisting_the_folders_above_a_big_folder_keeps_their_places_and_claims),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -79,9 +79,12 @@ static bool next_entry(void *context, ScanEntry *entry)
         HalDirPlace at = hal_dir_place(&files->dir);
         entry->place = (ScanPlace){.start = at.start, .size = at.size, .flags = at.flags};
     }
-    for (size_t index = 0; index < sizeof entry->name; index++) {
+    size_t index = 0;
+    while (index + 1 < sizeof entry->name && listed_entry.name[index] != '\0') {
         entry->name[index] = listed_entry.name[index];
+        index++;
     }
+    entry->name[index] = '\0';
     return true;
 }
 
