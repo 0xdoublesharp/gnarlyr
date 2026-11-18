@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "core/drive_path.h"
 #include "library/library.h"
 
 enum {
@@ -182,6 +183,7 @@ void track_fields_from_tags(const char *path, const TrackTags *tags, TrackFields
     const char *parent = NULL;
     size_t parent_length = 0;
     const char *name = last_component(path, &name_length, &parent, &parent_length);
+    parent_length = parent_length == 1 && parent[0] == DRIVE_PATH_INTERNAL ? 0 : parent_length;
     size_t stem = stem_length(name, name_length);
     copy_text(fields->title, name, stem);
     FilePrefix prefix = prefix_of(fields->title);

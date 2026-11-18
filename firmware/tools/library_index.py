@@ -417,15 +417,15 @@ def resolve_playlist(paths, raw, playlist):
 
 def resolve_playlists(raw_playlists, tracks):
     paths = PathIndex(tracks)
-    playlists, card_tops = [], {}
-    for raw in sorted(raw_playlists, key=lambda raw: drive_root(raw.folder) != ""):
-        joined = card_tops.get(top_playlist_key(raw, INTERNAL_MARKER))
-        if joined is not None:
-            resolve_playlist(paths, raw, joined)
+    card_tops = {top_playlist_key(raw, "") for raw in raw_playlists} - {()}
+    playlists = []
+    for raw in raw_playlists:
+        if top_playlist_key(raw, INTERNAL_MARKER) in card_tops:
             continue
         playlist = resolve_playlist(paths, raw, Playlist(raw.name))
-        card_tops.setdefault(top_playlist_key(raw, ""), playlist)
-        card_tops.pop((), None)
+        for partner in (other for other in raw_playlists if top_playlist_key(raw, "") and
+                        top_playlist_key(other, INTERNAL_MARKER) == top_playlist_key(raw, "")):
+            resolve_playlist(paths, partner, playlist)
         playlists.append(playlist)
     return sorted(playlists, key=lambda playlist: (sort_key(playlist.name), playlist.name))
 
@@ -842,12 +842,21 @@ def on_drive(track, prefix):
     return replace(track, path=prefix + track.path) if prefix else track
 
 
+def walk_order(root, prefix, path):
+    return PurePosixPath(prefix + path.relative_to(root).as_posix()).parts
+
+
 def scan(root, internal=None):
-    tracks, playlists, failures = scan_drive(root, "", set())
+    drives = [(root, "", set())]
     if internal is not None:
-        more = scan_drive(internal, INTERNAL_MARKER + "/", card_files(root))
-        tracks, playlists, failures = tracks + more[0], playlists + more[1], failures + more[2]
-    return tracks, playlists, failures
+        drives.append((internal, INTERNAL_MARKER + "/", card_files(root)))
+    tracks, playlists, failures = [], [], []
+    for keyed_tracks, keyed_playlists, failed in (scan_drive(*drive) for drive in drives):
+        tracks += keyed_tracks
+        playlists += keyed_playlists
+        failures += failed
+    in_order = lambda keyed: [item for _, item in sorted(keyed, key=lambda pair: pair[0])]
+    return [track for found in in_order(tracks) for track in found], in_order(playlists), failures
 
 
 def scan_drive(root, prefix, shadowed):
@@ -864,10 +873,11 @@ def scan_drive(root, prefix, shadowed):
                 found = cue_tracks(root, sheets[path][0], sheets[path][1], path)
             else:
                 found = audio_tracks(root, path)
-            tracks.extend(on_drive(track, prefix) for track in found)
+            tracks.append((walk_order(root, prefix, path),
+                           [on_drive(track, prefix) for track in found]))
         except Exception as error:
             failures.append(f"{path.relative_to(root)}: {error}")
-    playlists = [on_drive_playlist(read_playlist(root, path), prefix)
+    playlists = [(walk_order(root, prefix, path), on_drive_playlist(read_playlist(root, path), prefix))
                  for path in visible_files(root, PLAYLIST_SUFFIXES)]
     return tracks, playlists, failures
 

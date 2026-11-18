@@ -89,6 +89,17 @@ static void artists_fill_in_for_each_other(void)
     CHECK_EQUAL(0, strcmp("Y", fields.track.album_artist));
 }
 
+static void a_file_at_the_top_of_internal_storage_is_in_no_folder_album(void)
+{
+    TrackTags tags = empty_tags();
+    static TrackFields fields;
+    track_fields_from_tags("\"/Intro.flac", &tags, &fields);
+    CHECK_EQUAL(0, strcmp("Unknown Album", fields.track.album));
+    CHECK_EQUAL(0, strcmp("\"/Intro.flac", fields.track.path));
+    track_fields_from_tags("\"/Live/Intro.flac", &tags, &fields);
+    CHECK_EQUAL(0, strcmp("Live", fields.track.album));
+}
+
 static void file_names_give_titles_and_numbers(void)
 {
     TrackTags tags = empty_tags();
@@ -146,6 +157,7 @@ int main(void)
         TEST_CASE(tags_are_used_when_present),
         TEST_CASE(missing_tags_fall_back_to_the_path),
         TEST_CASE(artists_fill_in_for_each_other),
+        TEST_CASE(a_file_at_the_top_of_internal_storage_is_in_no_folder_album),
         TEST_CASE(file_names_give_titles_and_numbers),
         TEST_CASE(numbers_over_255_are_capped),
         TEST_CASE(replay_gain_survives_metadata_conversion_and_clears_for_an_untagged_track),
