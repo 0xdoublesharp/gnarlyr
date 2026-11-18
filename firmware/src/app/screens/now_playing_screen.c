@@ -267,6 +267,9 @@ static void refresh(NowPlayingScreen *now_playing, uint32_t now_ms)
     now_playing->now_ms = now_ms;
     now_playing->status = player_status(now_playing->config.player);
     bool changed = !now_playing->has_text || now_playing->text_track != now_playing->status.track;
+    if (changed) {
+        now_playing->scrub_position_ms = now_playing->status.position_ms;
+    }
     if (now_playing->status.has_track && changed) {
         load_texts(now_playing, now_playing->status.track);
         now_playing->has_text = true;

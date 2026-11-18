@@ -2443,6 +2443,24 @@ static void holding_play_alone_still_opens_seek_mode_for_a_b_repeat(void)
     CHECK_EQUAL(volume, fake_hal_audio_volume());
 }
 
+static void a_track_change_in_seek_mode_drops_the_old_target(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(1000);
+    step();
+    hold(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_VOLUME_UP);
+    fake_hal_audio_finish_track();
+    step();
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_audio_last_seek());
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
 static void a_chord_after_seek_mode_opened_leaves_seek_mode(void)
 {
     play_on_now_playing();
@@ -7851,6 +7869,7 @@ int main(void)
         TEST_CASE(holding_play_alone_still_opens_seek_mode_for_a_b_repeat),
         TEST_CASE(holding_volume_in_seek_mode_steps_by_the_length_and_speeds_up),
         TEST_CASE(a_chord_after_seek_mode_opened_leaves_seek_mode),
+        TEST_CASE(a_track_change_in_seek_mode_drops_the_old_target),
         TEST_CASE(play_and_volume_together_do_not_skip_in_lists),
         TEST_CASE(holding_play_and_tapping_volume_jumps_in_a_book),
         TEST_CASE(the_lock_toasts_fit_a_portrait_screen_in_large_text),
