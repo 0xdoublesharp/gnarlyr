@@ -3649,17 +3649,28 @@ static void a_new_firmware_rescans_music_that_changed(void)
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
 }
 
-static void a_new_firmware_rebuilds_a_library_it_cannot_read(void)
+static uint16_t stored_library_version(void)
+{
+    HalFile file;
+    uint8_t bytes[2] = {0, 0};
+    CHECK(hal_file_open(&file, "/" FIRMWARE_DATA_DIRECTORY "/library.db"));
+    CHECK(hal_file_read(file, 4, bytes, sizeof bytes));
+    hal_file_close(&file);
+    return (uint16_t)(bytes[0] | bytes[1] << 8);
+}
+
+static void a_new_firmware_rebuilds_a_version_one_library(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
-    static const uint8_t OLD_VERSION[2] = {2, 0};
+    static const uint8_t OLD_VERSION[2] = {1, 0};
     CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/library.db", 4, OLD_VERSION,
                             sizeof OLD_VERSION));
     fake_hal_set_version("newer");
     restart_app();
     step();
     CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
 }
 
 static void a_different_stored_fingerprint_is_rescanned_after_usb(void)
@@ -7289,7 +7300,7 @@ int main(void)
         TEST_CASE(the_music_check_after_usb_says_so_before_walking_the_card),
         TEST_CASE(a_new_firmware_rescans_music_that_changed),
         TEST_CASE(a_scan_notice_redraws_the_text_it_was_given),
-        TEST_CASE(a_new_firmware_rebuilds_a_library_it_cannot_read),
+        TEST_CASE(a_new_firmware_rebuilds_a_version_one_library),
         TEST_CASE(a_card_that_cannot_be_walked_is_rescanned_after_usb),
         TEST_CASE(a_scan_cut_short_runs_again_at_the_next_start),
         TEST_CASE(after_three_scans_cut_short_the_next_start_scans_without_covers),

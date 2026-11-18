@@ -10,6 +10,7 @@ from echo_image_harness import (
     fnv1a,
     IDENTITY,
     PROJECT,
+    SCAN_RECORD_POLL_MS,
     summary,
 )
 
@@ -17,6 +18,10 @@ TRACK = (PROJECT / "tests" / "fixtures" / "mp3" / "cbr_192_48k_stereo_bare.mp3")
 COVER = b"\x89PNG\r\n\x1a\n" + bytes(56)
 SCAN_PATH = "/" + IDENTITY.data_directory + "/scan.bin"
 COVERS_PATH = "/" + IDENTITY.data_directory + "/covers.bin"
+LIBRARY_PATH = "/" + IDENTITY.data_directory + "/library.db"
+LIBRARY_VERSION_AT = 4
+SCAN_VERSION_AT = 16
+SCAN_VERSION_BYTES = 16
 STEPS_AFTER_START = 3
 GUARD_OFFSET = 512
 GUARD_RUNNING = GUARD_OFFSET + 4
@@ -166,6 +171,51 @@ class EchoImageTest(EchoImageHarness):
         machine.hook_symbol("app_step", stepped)
         self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS), "started")
         self.assertNotIn("hal_system_borrow_scratch", machine.reached)
+
+    def library_version(self, session):
+        data = session.fat().read(LIBRARY_PATH) or b""
+        return int.from_bytes(data[4:6], "little") if data[:4] == b"DSDB" else None
+
+    def patch_file_start(self, session, path, offset, data):
+        lba = session.file_sectors(path).start
+        sector = bytearray(session.disk.read(lba, 1))
+        sector[offset:offset + len(data)] = data
+        session.disk.write(lba, bytes(sector))
+
+    def wait_for_scan_record(self, session, unlike=None):
+        machine = session.machine
+        deadline = machine.milliseconds() + self.session_module.FRAME_LIMIT_MS
+        while self.recorded_version(session) in (None, unlike) and machine.milliseconds() < deadline:
+            machine.run(until_ms=machine.milliseconds() + SCAN_RECORD_POLL_MS)
+        return self.recorded_version(session)
+
+    def scans_until_library_version(self, session, version):
+        machine = session.machine
+        machine.stop_at("hal_system_return_scratch")
+        deadline = machine.milliseconds() + self.session_module.FRAME_LIMIT_MS
+        while self.library_version(session) != version and machine.milliseconds() < deadline:
+            if machine.run(until_ms=deadline) == "reached hal_system_return_scratch":
+                machine.continue_past_stop()
+        return self.library_version(session)
+
+    def test_a_version_one_library_is_rebuilt_at_the_first_start_of_a_new_build(self):
+        first = self.session(volume=music_volume())
+        self.scan_to_the_end(first)
+        self.covers_to_the_end(first)
+        first.machine.continue_past_stop()
+        current = self.wait_for_scan_record(first)
+        self.assertIsNotNone(current)
+        self.assertEqual(self.library_version(first), 2)
+        self.patch_file_start(first, LIBRARY_PATH, LIBRARY_VERSION_AT, (1).to_bytes(2, "little"))
+        self.patch_file_start(first, SCAN_PATH, SCAN_VERSION_AT, b"0.9.0".ljust(SCAN_VERSION_BYTES, b"\0"))
+        self.assertEqual(self.library_version(first), 1)
+        self.assertEqual(self.recorded_version(first), "0.9.0")
+        second = first.reboot()
+        self.assertEqual(self.scans_until_library_version(second, 2), 2)
+        self.assertEqual(self.built_library_tracks(second), 3)
+        second.machine.continue_past_stop()
+        self.assertEqual(self.wait_for_scan_record(second, unlike="0.9.0"), current)
+        self.assert_healthy(second)
 
     def test_a_cover_that_faults_is_skipped_and_reported_on_the_next_start(self):
         cover = "/ALBUM1/COVER.PNG"

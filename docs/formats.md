@@ -1,6 +1,6 @@
 # Gnarlyr file and pack formats
 
-Gnarlyr 1.0.0 is not released, so every format that Gnarlyr writes starts at version 1. A file whose magic, version, size or checksum does not match is refused: the player uses defaults, rebuilds it (the library) or skips it (a pack). Nothing reads an earlier development layout. From the public beta on, a layout change keeps people's settings and data: see [Settings continuity](#settings-continuity) below. Integers are little-endian. FNV-1a means the 32-bit hash with offset basis 2166136261 and prime 16777619. The detailed design notes for each format are linked below. This page is the reference that tools and the desktop app are checked against.
+Gnarlyr 1.0.0 is not released, so every format that Gnarlyr writes starts at version 1, except the library database, which is at version 2 so that players rebuild libraries written before folder files could be sorted by name. A file whose magic, version, size or checksum does not match is refused: the player uses defaults, rebuilds it (the library) or skips it (a pack). Nothing reads an earlier development layout. From the public beta on, a layout change keeps people's settings and data: see [Settings continuity](#settings-continuity) below. Integers are little-endian. FNV-1a means the 32-bit hash with offset basis 2166136261 and prime 16777619. The detailed design notes for each format are linked below. This page is the reference that tools and the desktop app are checked against.
 
 ## Settings: `/.gnarlyr/settings.bin` (internal storage)
 
@@ -98,7 +98,7 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 
 | File | Magic, version | Notes |
 |---|---|---|
-| `library.db` | `DSDB`, 1 | rebuilt by a rescan when refused; [library-format.md](../firmware/docs/library-format.md) |
+| `library.db` | `DSDB`, 2 | rebuilt by a rescan when refused; [library-format.md](../firmware/docs/library-format.md) |
 | `covers.bin` | `DSCV`, 1 | |
 | library gain table | `DSRG`, 1 | appended to `library.db`; [replay-gain.md](../firmware/docs/replay-gain.md) |
 | `favorites.bin` | `DSFV`, 1 | |
@@ -133,4 +133,4 @@ After the beta, an update must keep people's settings and data, a downgrade must
 
 ## Desktop app
 
-The desktop app (separate repository) reads `settings.bin` and language packs by this page. Any change to a layout here changes its version only after release; until then the layout is edited in place and both sides change together.
+The desktop app (separate repository) reads `settings.bin` and language packs by this page. Any change to those layouts changes their version only after release; until then the layout is edited in place and both sides change together.

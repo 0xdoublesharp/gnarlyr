@@ -104,7 +104,7 @@ class CacheConfinementTest(unittest.TestCase):
         empty = echo_sync.library_index.build_library([])
         valid = echo_sync.library_index.encode_library(empty)
         unsupported = bytearray(valid)
-        struct.pack_into("<H", unsupported, 4, 2)
+        struct.pack_into("<H", unsupported, 4, 1)
         for raw in (b"DSDB", bytes(unsupported)):
             path = self.folder / "library.db"
             path.write_bytes(raw)

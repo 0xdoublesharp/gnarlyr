@@ -1,4 +1,4 @@
-# Library database format (version 1)
+# Library database format (version 2)
 
 The file formats Gnarlyr keeps in its data folder for the library, covers, favorites and bookmarks. The PC indexer (`tools/library_index.py`) writes the library database. The device reads it (`src/library`). Everything is sorted on the PC, so the device never sorts. It reads fixed-size records by index and strings by offset, a few hundred bytes at a time. The four-byte magics that start with `DS` are format tags named for the maker, Doublesharp, and remain stable across display-name and identifier changes.
 
@@ -12,7 +12,7 @@ The file formats Gnarlyr keeps in its data folder for the library, covers, favor
 | Offset | Type | Field |
 |---|---|---|
 | 0 | `char[4]` | magic `DSDB` |
-| 4 | `u16` | version = 1 (the player rebuilds a library of any other version) |
+| 4 | `u16` | version = 2 (the player rebuilds a library of any other version) |
 | 6 | `u16` | section count = 10 |
 | 8 | 10 × 12 B | section directory, in the order below |
 
@@ -33,7 +33,7 @@ Each section directory entry is `u32 offset`, `u32 count`, `u16 record size`, `u
 
 ## Optional ReplayGain extension
 
-The device scanner and PC indexer append a checked gain table after the normal sections when gain metadata exists. The base header and records stay at version 1, and the gain table is excluded from the content fingerprint used by saved playback and labels. The extension layout, validation and reserved-file publication rules are in [ReplayGain metadata](replay-gain.md#library-cache).
+The device scanner and PC indexer append a checked gain table after the normal sections when gain metadata exists. The base header and records stay at version 2, and the gain table is excluded from the content fingerprint used by saved playback and labels. The extension layout, validation and reserved-file publication rules are in [ReplayGain metadata](replay-gain.md#library-cache).
 
 ## Records
 

@@ -17,7 +17,7 @@ from fnv import fnv1a
 from replay_gain import tag_values as replay_gain_tag_values
 
 MAGIC = b"DSDB"
-VERSION = 1
+VERSION = 2
 HEADER_SIZE = 128
 SECTION_ALIGNMENT = 4
 NONE = 0xFFFF
