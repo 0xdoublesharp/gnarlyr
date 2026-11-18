@@ -4914,6 +4914,23 @@ static void the_key_test_takes_every_ladder_key_until_power_leaves(void)
     CHECK(title_is("About"));
 }
 
+static void in_portrait_the_key_test_names_the_physical_key(void)
+{
+    start_app_with_library();
+    choose_orientation(ORIENTATION_PORTRAIT);
+    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    portrait_down(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    tap(KEY_VOLUME_UP);
+    text_spy_reset();
+    settle();
+    CHECK(text_shown("Vol+ tap"));
+}
+
 static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
 {
     start_app();
@@ -6677,6 +6694,7 @@ int main(void)
         TEST_CASE(waking_the_screen_shows_now_playing_while_playing),
         TEST_CASE(waking_while_paused_keeps_the_screen),
         TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
+        TEST_CASE(in_portrait_the_key_test_names_the_physical_key),
         TEST_CASE(the_cpu_clock_cycles_through_24_96_and_200_mhz),
         TEST_CASE(the_stall_test_asks_before_it_freezes_the_main_loop),
         TEST_CASE(stray_presses_in_about_do_not_freeze_the_player),

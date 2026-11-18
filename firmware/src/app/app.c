@@ -234,9 +234,10 @@ static Key oriented_key(HalKeyTransition transition)
     if (transition.pressed) {
         Orientation orientation = app.settings.settings.orientation;
         bool changes_volume = top_screen()->hold_volume_keys;
-        app.rocker_swapped[transition.key] =
-            app.display_on && (changes_volume ? rocker_volume_swapped_in(orientation)
-                                              : rocker_swapped_in(orientation));
+        app.rocker_swapped[transition.key] = app.display_on &&
+                                             top_screen()->keys != SCREEN_KEYS_TEST &&
+                                             (changes_volume ? rocker_volume_swapped_in(orientation)
+                                                             : rocker_swapped_in(orientation));
     }
     return rocker_key(transition.key, app.rocker_swapped[transition.key]);
 }

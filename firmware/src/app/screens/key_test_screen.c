@@ -98,7 +98,9 @@ static void draw_event(Canvas *canvas, const KeyTestScreen *test, const Theme *t
                                i18n_text((StringId)(STR_KEY_TAP + test->last.gesture))};
         i18n_format(&builder, STR_KEY_TEST_EVENT, parts, 2);
     }
-    draw_line(canvas, (TextStyle){theme->fonts.body, theme->colors.text, false}, area, text);
+    const Font *font =
+        text_width(theme->fonts.body, text) <= area->width ? theme->fonts.body : theme->fonts.small;
+    draw_line(canvas, (TextStyle){font, theme->colors.text, false}, area, text);
 }
 
 static void draw_history(Canvas *canvas, const KeyTestScreen *test, const Theme *theme, Rect area)
