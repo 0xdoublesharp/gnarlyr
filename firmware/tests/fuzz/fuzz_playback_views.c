@@ -39,16 +39,14 @@ static void exercise_helpers(const uint8_t *data, size_t size)
     uint8_t first = size > 0 ? data[0] : 0;
     uint8_t second = size > 1 ? data[1] : 0;
     KeyEvent event = event_for(first);
-    NowPlayingKeys keys = {.scrubbing = (second & 1u) != 0,
-                           .adjusting_volume = (second & 2u) != 0,
-                           .skip = (SkipGesture)(second % SKIP_GESTURE_COUNT)};
+    NowPlayingKeys keys = {.scrubbing = (second & 1u) != 0};
+    event.chord = (second & 2u) != 0;
     NowPlayingCommand command = now_playing_command_for(event, keys);
     fuzz_require(command >= NOW_PLAYING_NONE && command <= NOW_PLAYING_REPEAT_MARK);
     uint32_t position = get32(data, size, 2);
     uint32_t duration = get32(data, size, 6);
     int32_t delta = (int32_t)get32(data, size, 10);
     fuzz_require(now_playing_scrub_target(position, duration, delta) <= duration);
-    now_playing_adjusting_volume(position, duration);
     now_playing_progress_width(position, duration, first);
     now_playing_volume_width(first, second);
     NowPlayingFeedback feedback =
@@ -109,9 +107,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             &player, (uint16_t)(data[1] % library_count(&fixture.library, LIBRARY_TRACKS)));
     }
     Settings settings = settings_defaults();
-    if (size > 2) {
-        settings.skip_gesture = (SkipGesture)(data[2] % SKIP_GESTURE_COUNT);
-    }
     Theme theme = BOARD_THEME;
     Screen placeholder = {.title = "Destination"};
     Toast toast = {0};

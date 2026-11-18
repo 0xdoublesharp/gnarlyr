@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "core/key_tracker.h"
+#include "core/strings.h"
 #include "cover_cache.h"
 #include "gfx/frame_diff.h"
 #include "library/library.h"
@@ -12,6 +13,7 @@
 #include "settings/settings.h"
 #include "ui/screen.h"
 #include "ui/theme.h"
+#include "ui/toast.h"
 
 enum {
     NOW_PLAYING_TEXT_CAPACITY = 128
@@ -46,8 +48,8 @@ enum {
     NOW_PLAYING_SCRUB_STEP_MS = 5000,
     NOW_PLAYING_SCRUB_FAST_STEP_MS = 15000,
     NOW_PLAYING_SEEK_FAST_AFTER_REPEATS = 8,
+    NOW_PLAYING_SEEK_COMMANDS = NOW_PLAYING_SEEK_BACK_FAST - NOW_PLAYING_SEEK_FORWARD + 1,
     NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
-    NOW_PLAYING_VOLUME_HOLD_MS = NOW_PLAYING_VOLUME_FEEDBACK_MS,
     NOW_PLAYING_BADGE_MS = 700
 };
 
@@ -62,8 +64,6 @@ typedef enum NowPlayingFeedback {
 
 typedef struct NowPlayingKeys {
     bool scrubbing;
-    bool adjusting_volume;
-    SkipGesture skip;
 } NowPlayingKeys;
 
 struct NowPlayingScreen;
@@ -74,6 +74,7 @@ typedef struct NowPlayingConfig {
     const Library *library;
     const Theme *theme;
     CoverCache *covers;
+    Toast *toast;
     Screen *quick_settings;
     Screen *lyrics;
     void (*cassette_draw)(const struct NowPlayingScreen *screen, Canvas *canvas);
@@ -106,7 +107,8 @@ typedef struct NowPlayingScreen {
 } NowPlayingScreen;
 
 NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys);
-bool now_playing_adjusting_volume(uint32_t volume_changed_ms, uint32_t now_ms);
+StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after);
+void now_playing_player_command(Player *player, NowPlayingCommand command);
 void now_playing_seek_by(Player *player, int32_t delta_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);
 const char *now_playing_codec_name(HalAudioCodec codec);

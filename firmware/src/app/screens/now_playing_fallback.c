@@ -38,6 +38,11 @@ static ScreenAction fallback_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     (void)now_ms;
+    if (event.chord) {
+        now_playing_player_command(now_playing->config.player,
+                                   now_playing_command_for(event, (NowPlayingKeys){0}));
+        return screen_action_none();
+    }
     if (event.gesture != KEY_GESTURE_PRESS) {
         return screen_action_none();
     }

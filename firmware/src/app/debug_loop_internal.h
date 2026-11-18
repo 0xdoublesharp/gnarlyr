@@ -4,6 +4,7 @@
 
 #include "app/debug_loop.h"
 #include "core/key_tracker.h"
+#include "hal/input.h"
 #include "player.h"
 
 #ifdef ECHO_DEBUG_LOOP
@@ -13,6 +14,7 @@ enum {
 };
 
 void debug_loop_key(KeyEvent event);
+void debug_loop_ladder(HalKeyTransition transition, bool chord);
 void debug_loop_screen(const char *title, int depth);
 void debug_loop_follow(uint32_t now_ms, const Player *player);
 void debug_loop_shutdown(DebugReportReason reason);
@@ -27,6 +29,12 @@ enum {
 static inline void debug_loop_key(KeyEvent event)
 {
     (void)event;
+}
+
+static inline void debug_loop_ladder(HalKeyTransition transition, bool chord)
+{
+    (void)transition;
+    (void)chord;
 }
 
 static inline void debug_loop_screen(const char *title, int depth)

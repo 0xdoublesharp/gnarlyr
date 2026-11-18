@@ -7,6 +7,8 @@
 
 #include "app/rescan_module.h"
 #include "core/i18n.h"
+#include "device/key_ladder.h"
+#include "device/key_ladder_model.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
@@ -21,6 +23,7 @@
 #include <string.h>
 
 enum {
+    FAKE_KEY_IDLE_READING = KEY_LADDER_IDLE_READING,
     TRANSITION_CAPACITY = 16,
     FILE_CAPACITY = 64,
     PROBE_CALL_CAPACITY = 32,
@@ -100,6 +103,8 @@ typedef struct LargeStore {
 static LargeStore large_stores[2];
 
 typedef struct FakeHal {
+    uint16_t key_adc;
+    KeyLadderModel ladder;
     AudioVisualBuffer visual_buffer;
     int visual_reads;
     uint8_t battery_care_mode;
@@ -315,6 +320,8 @@ void fake_hal_reset(void)
     memset(language_packs, 0, sizeof language_packs);
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
+    fake.key_adc = FAKE_KEY_IDLE_READING;
+    key_ladder_model_init(&fake.ladder);
 }
 
 void fake_hal_set_version(const char *version)
@@ -370,13 +377,38 @@ void fake_hal_set_microseconds_per_read(uint32_t step_us)
     fake.microseconds_per_read = step_us;
 }
 
+static void take_ladder_transitions(void)
+{
+    HalKeyTransition transition;
+    while (key_ladder_model_next(&fake.ladder, &transition)) {
+        if (fake.transition_count < TRANSITION_CAPACITY) {
+            fake.transitions[fake.transition_count++] = transition;
+        }
+    }
+}
+
+void fake_hal_drop_transitions(void)
+{
+    fake.transition_count = 0;
+    fake.next_transition = 0;
+}
+
+void fake_hal_queue_reading_sample(uint16_t reading, uint32_t time_ms)
+{
+    key_ladder_model_sample(&fake.ladder, reading, time_ms);
+    take_ladder_transitions();
+}
+
 void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms)
 {
-    if (fake.transition_count == TRANSITION_CAPACITY) {
-        return;
+    key_ladder_model_set(&fake.ladder, key, pressed, time_ms);
+    fake.key_adc = fake.ladder.reading;
+    HalKeyTransition transition;
+    while (key_ladder_model_next(&fake.ladder, &transition)) {
+        if (fake.transition_count < TRANSITION_CAPACITY) {
+            fake.transitions[fake.transition_count++] = transition;
+        }
     }
-    fake.transitions[fake.transition_count++] =
-        (HalKeyTransition){.key = key, .pressed = pressed, .time_ms = time_ms};
 }
 
 static int panel_width(void)
@@ -2192,7 +2224,17 @@ void fake_hal_fail_internal_writes(const char *path)
 
 uint16_t hal_input_key_adc(void)
 {
-    return 1023;
+    return fake.key_adc;
+}
+
+void fake_hal_set_key_adc(uint16_t reading)
+{
+    fake.key_adc = reading;
+}
+
+bool hal_input_decode_key(uint16_t reading, Key *key)
+{
+    return key_ladder_decode(reading, key);
 }
 
 bool hal_power_usb_host(void)

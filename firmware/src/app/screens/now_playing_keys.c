@@ -9,40 +9,9 @@ static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
     case KEY_GESTURE_LONG_PRESS:
         return hold;
     case KEY_GESTURE_REPEAT:
-    case KEY_GESTURE_DOUBLE_PRESS:
-    case KEY_GESTURE_TRIPLE_PRESS:
         return NOW_PLAYING_NONE;
     }
     return NOW_PLAYING_NONE;
-}
-
-static NowPlayingCommand volume_command_for(KeyEvent event, NowPlayingCommand volume,
-                                            NowPlayingCommand skip)
-{
-    switch (event.gesture) {
-    case KEY_GESTURE_PRESS:
-        return volume;
-    case KEY_GESTURE_LONG_PRESS:
-    case KEY_GESTURE_DOUBLE_PRESS:
-        return skip;
-    case KEY_GESTURE_REPEAT:
-    case KEY_GESTURE_TRIPLE_PRESS:
-        return NOW_PLAYING_NONE;
-    }
-    return NOW_PLAYING_NONE;
-}
-
-static NowPlayingCommand play_command_for(KeyEvent event, SkipGesture skip)
-{
-    if (skip == SKIP_GESTURE_PLAY_CLICKS) {
-        if (event.gesture == KEY_GESTURE_DOUBLE_PRESS) {
-            return NOW_PLAYING_NEXT;
-        }
-        if (event.gesture == KEY_GESTURE_TRIPLE_PRESS) {
-            return NOW_PLAYING_PREVIOUS;
-        }
-    }
-    return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_SCRUB_START);
 }
 
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms)
@@ -61,13 +30,6 @@ static NowPlayingCommand seek_command_for(KeyEvent event)
         return fast ? NOW_PLAYING_SEEK_FORWARD_FAST : NOW_PLAYING_SEEK_FORWARD;
     }
     return fast ? NOW_PLAYING_SEEK_BACK_FAST : NOW_PLAYING_SEEK_BACK;
-}
-
-static bool holds_volume(KeyEvent event)
-{
-    bool volume = event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN;
-    return volume &&
-           (event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT);
 }
 
 static NowPlayingCommand scrub_command_for(KeyEvent event)
@@ -90,28 +52,29 @@ static NowPlayingCommand scrub_command_for(KeyEvent event)
     return NOW_PLAYING_NONE;
 }
 
+static NowPlayingCommand chord_command_for(KeyEvent event)
+{
+    if (event.gesture == KEY_GESTURE_PRESS) {
+        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_NEXT : NOW_PLAYING_PREVIOUS;
+    }
+    bool held = event.gesture == KEY_GESTURE_LONG_PRESS || event.gesture == KEY_GESTURE_REPEAT;
+    return held ? seek_command_for(event) : NOW_PLAYING_NONE;
+}
+
 NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
 {
+    if (event.chord) {
+        return chord_command_for(event);
+    }
     if (keys.scrubbing) {
         return scrub_command_for(event);
     }
-    if (keys.adjusting_volume && holds_volume(event)) {
-        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
-    }
-    if (keys.skip == SKIP_GESTURE_DOUBLE_VOLUME && holds_volume(event)) {
-        return seek_command_for(event);
-    }
-    if (event.gesture == KEY_GESTURE_REPEAT && keys.skip != SKIP_GESTURE_HOLD &&
-        (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN)) {
-        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
-    }
     switch (event.key) {
     case KEY_VOLUME_UP:
-        return volume_command_for(event, NOW_PLAYING_VOLUME_UP, NOW_PLAYING_NEXT);
     case KEY_VOLUME_DOWN:
-        return volume_command_for(event, NOW_PLAYING_VOLUME_DOWN, NOW_PLAYING_PREVIOUS);
+        return event.key == KEY_VOLUME_UP ? NOW_PLAYING_VOLUME_UP : NOW_PLAYING_VOLUME_DOWN;
     case KEY_PLAY:
-        return play_command_for(event, keys.skip);
+        return by_gesture(event.gesture, NOW_PLAYING_TOGGLE_PAUSE, NOW_PLAYING_SCRUB_START);
     case KEY_BACK:
         return by_gesture(event.gesture, NOW_PLAYING_LEAVE, NOW_PLAYING_HOME);
     case KEY_MENU:
@@ -122,9 +85,28 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
     return NOW_PLAYING_NONE;
 }
 
-bool now_playing_adjusting_volume(uint32_t volume_changed_ms, uint32_t now_ms)
+void now_playing_player_command(Player *player, NowPlayingCommand command)
 {
-    return now_ms - volume_changed_ms < NOW_PLAYING_VOLUME_HOLD_MS;
+    uint32_t seek = (uint32_t)command - NOW_PLAYING_SEEK_FORWARD;
+    int32_t step = (seek & 1u) != 0 ? NOW_PLAYING_SCRUB_FAST_STEP_MS : NOW_PLAYING_SCRUB_STEP_MS;
+    switch (command) {
+    case NOW_PLAYING_TOGGLE_PAUSE:
+        player_toggle_pause(player);
+        return;
+    case NOW_PLAYING_NEXT:
+    case NOW_PLAYING_PREVIOUS:
+        player_skip(player, command == NOW_PLAYING_NEXT ? 1 : -1);
+        return;
+    case NOW_PLAYING_VOLUME_UP:
+    case NOW_PLAYING_VOLUME_DOWN:
+        player_change_volume(player, command == NOW_PLAYING_VOLUME_UP ? 1 : -1);
+        return;
+    default:
+        break;
+    }
+    if (seek < NOW_PLAYING_SEEK_COMMANDS) {
+        now_playing_seek_by(player, seek < NOW_PLAYING_SEEK_COMMANDS / 2 ? step : -step);
+    }
 }
 
 void now_playing_seek_by(Player *player, int32_t delta_ms)

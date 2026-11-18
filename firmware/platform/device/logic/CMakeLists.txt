@@ -149,6 +149,7 @@ add_library(echo_device_logic STATIC
     jack_sense.c
     loader_request.c
     key_ladder.c
+    key_ladder_model.c
     headset_dips.c
     headset_dips_view.c
     headset_monitor.c

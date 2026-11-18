@@ -370,7 +370,7 @@ Screen *moments_screen_init(MomentsScreen *screen, MomentsScreenConfig config)
     screen->model = (ListModel){.context = screen, .count = row_count, .label = row_label};
     screen->screen = (Screen){.title = i18n_text(STR_MOMENTS),
                               .context = screen,
-                              .takes_every_key = true,
+                              .keys = SCREEN_KEYS_ALL,
                               .stays_on_wake = true,
                               .enter = enter,
                               .handle_key = handle_key,

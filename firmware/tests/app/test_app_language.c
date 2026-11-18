@@ -142,10 +142,10 @@ static void with_one_language_settings_has_no_language_row(void)
 {
     start_with(1, false);
     open_setting(SETTINGS_LANGUAGE_INDEX);
-    CHECK(title_is("Skip songs"));
+    CHECK(title_is("Gain"));
     start_with(0, false);
     open_setting(SETTINGS_LANGUAGE_INDEX);
-    CHECK(title_is("Skip songs"));
+    CHECK(title_is("Gain"));
 }
 
 static void with_two_languages_settings_has_a_language_row_after_orientation(void)
@@ -160,7 +160,7 @@ static void with_two_languages_settings_has_a_language_row_after_orientation(voi
     tap(KEY_BACK);
     move_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Skip songs"));
+    CHECK(title_is("Gain"));
 }
 
 static void choosing_a_language_changes_the_screens_at_once(void)

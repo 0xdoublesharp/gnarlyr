@@ -183,6 +183,62 @@ static void a_short_pass_through_another_key_is_not_a_press(void)
     check_empty(&scanner);
 }
 
+static void settle_reading(KeyScanner *scanner, uint16_t reading, uint32_t time_ms)
+{
+    settle(scanner, key_ladder_mask(reading), time_ms);
+}
+
+static void the_owners_play_then_vol_down_is_a_play_release_and_vol_down_press_at_once(void)
+{
+    KeyScanner scanner = armed_scanner();
+    settle_reading(&scanner, 242, 36500);
+    check_next(&scanner, KEY_PLAY, true, 36515);
+    settle_reading(&scanner, 1, 36568);
+    check_next(&scanner, KEY_PLAY, false, 36583);
+    check_next(&scanner, KEY_VOLUME_DOWN, true, 36583);
+    check_empty(&scanner);
+    settle_reading(&scanner, 242, 36700);
+    check_next(&scanner, KEY_VOLUME_DOWN, false, 36715);
+    check_next(&scanner, KEY_PLAY, true, 36715);
+    check_empty(&scanner);
+}
+
+static void an_idle_reading_between_play_and_volume_releases_play_first(void)
+{
+    KeyScanner scanner = armed_scanner();
+    settle_reading(&scanner, 242, 100);
+    check_next(&scanner, KEY_PLAY, true, 115);
+    settle_reading(&scanner, 1023, 200);
+    check_next(&scanner, KEY_PLAY, false, 205);
+    settle_reading(&scanner, 1, 300);
+    check_next(&scanner, KEY_VOLUME_DOWN, true, 315);
+    check_empty(&scanner);
+}
+
+static void a_play_press_under_a_held_volume_key_is_invisible(void)
+{
+    KeyScanner scanner = armed_scanner();
+    settle_reading(&scanner, 1, 100);
+    check_next(&scanner, KEY_VOLUME_DOWN, true, 115);
+    settle_reading(&scanner, 1, 200);
+    check_empty(&scanner);
+    settle_reading(&scanner, 242, 300);
+    check_next(&scanner, KEY_VOLUME_DOWN, false, 315);
+    check_next(&scanner, KEY_PLAY, true, 315);
+    check_empty(&scanner);
+}
+
+static void stable_keys_stay_raw_so_the_recovery_escape_sees_vol_up_alone(void)
+{
+    KeyScanner scanner = armed_scanner();
+    settle_reading(&scanner, 242, 100);
+    settle_reading(&scanner, 122, 200);
+    settle_reading(&scanner, 122, 300);
+    CHECK_EQUAL(1u << KEY_VOLUME_UP, scanner.stable);
+    settle(&scanner, key_ladder_mask(122) | POWER, 400);
+    CHECK_EQUAL(1u << KEY_VOLUME_UP, scanner.stable & ~POWER);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -199,6 +255,10 @@ int main(void)
         TEST_CASE(power_held_from_switch_on_is_ignored_until_released),
         TEST_CASE(ladder_keys_work_while_the_switch_on_power_press_is_held),
         TEST_CASE(a_full_queue_drops_new_transitions),
+        TEST_CASE(the_owners_play_then_vol_down_is_a_play_release_and_vol_down_press_at_once),
+        TEST_CASE(an_idle_reading_between_play_and_volume_releases_play_first),
+        TEST_CASE(a_play_press_under_a_held_volume_key_is_invisible),
+        TEST_CASE(stable_keys_stay_raw_so_the_recovery_escape_sees_vol_up_alone),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

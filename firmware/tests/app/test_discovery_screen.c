@@ -91,7 +91,7 @@ static void search_owns_menu_and_wake_without_changing_playback(void)
 {
     start();
     discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), true);
-    CHECK(discovery.screen.takes_every_key);
+    CHECK_EQUAL(SCREEN_KEYS_ALL, discovery.screen.keys);
     CHECK(discovery.screen.stays_on_wake);
     CHECK_EQUAL(DISCOVERY_EDITOR, discovery.mode);
     key(KEY_PLAY, KEY_GESTURE_PRESS);

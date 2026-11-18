@@ -232,17 +232,17 @@ The computer picks each album's cover the way the player does: the first picture
 
 | Button | In lists | On Now Playing |
 |---|---|---|
-| Volume up / down | Next / previous item; hold to accelerate and jump by letter in long name-sorted lists | Volume; hold Vol+ for the next track, Vol− for the previous one (in audiobooks and podcasts: 30 s forward, 15 s back) |
-| Play | Select; a song plays the list from that song. Hold on an artist or album artist for Play all / Shuffle albums, hold on an album for Favorites, hold on a song for its actions (Play Next, Add to Up Next, Add to Favorite Playlist, Track info, My tags, Add to tape, Hide track, Delete file), hold on a folder in Folders to play everything under it, subfolders included | Play / pause; hold to seek |
+| Volume up / down | Next / previous item; hold to accelerate and jump by letter in long name-sorted lists | Volume; hold to keep changing it |
+| Play | Select; a song plays the list from that song. Hold on an artist or album artist for Play all / Shuffle albums, hold on an album for Favorites, hold on a song for its actions (Play Next, Add to Up Next, Add to Favorite Playlist, Track info, My tags, Add to tape, Hide track, Delete file), hold on a folder in Folders to play everything under it, subfolders included | Play / pause. Hold ▶, then tap Vol+ for the next track or Vol− for the previous one; hold ▶, then hold Vol+ or Vol− to move through the song. Hold ▶ alone to open seeking (see Changing songs) |
 | Menu | Opens Now Playing while a track is loaded | Opens Quick Settings; hold for Lyrics (Settings → Controls can change both) |
 | Back | Back; hold to go home | Back; hold to go home |
 | Power | Screen off or on (standby when that is on); hold 2 s to turn off | Same |
 
-The Now Playing column above is for Settings → Skip songs = Hold vol±; the other two choices move skipping to a double-click of Vol± or a double/triple click of ▶ (see Skip songs).
+On Now Playing, press ▶ first and keep it held, then press the volume button (see Changing songs).
 
 **Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one.
 
-With the screen off, ▶‖ still pauses and resumes, a tap of vol± changes the volume and holding vol± skips tracks (or jumps 30 s / 15 s in audiobooks and podcasts).
+With the screen off the same Now Playing gestures work without lighting the screen: ▶‖ pauses and resumes, vol± changes the volume, and holding ▶ while tapping or holding vol± skips or moves through the song.
 
 After 30 seconds paused, the player switches its sound output off to save battery. Play then takes a moment longer to start and fades in from where you paused; Bluetooth headphones stay connected.
 
@@ -275,7 +275,7 @@ VU meters shows separate left and right neon dials. The bright needles follow th
 
 The artwork uses your theme's colours in either orientation and at every text size. Pausing lets the needles and bars settle. Turning the screen off stops their updates.
 
-All styles use the same time, progress bar and playback buttons. Hold Play to seek, use the volume buttons to move the target, then press Play to keep it or Back to cancel. Menu opens Quick Settings and holding Menu opens Lyrics, with the default button assignments.
+All styles use the same time, progress bar and playback buttons. To move through the song, hold Play and hold Vol+ or Vol−: the position moves 5 s per step, then 15 s per step after about a second, and playback carries on from there when you let go. Holding Play alone opens seeking instead: use the volume buttons to move the target, then press Play to keep it or Back to cancel. Menu opens Quick Settings and holding Menu opens Lyrics, with the default button assignments.
 
 ## Charging
 
@@ -297,9 +297,13 @@ Hold ▶, then press Power while still holding it, and keep both down for about 
 
 The top bar shows, from the left: play or pause, Bluetooth, the padlock, and the shuffle mode (a note with crossed arrows for Shuffle Songs, a disc with crossed arrows for Shuffle Albums); the battery sits on the right. The battery's fill shows how much charge is left. At 15% or less the fill turns red, and at 5% or less the outline turns red too. While the cable supplies power, the fill turns green and a bolt appears inside the battery: a light bolt with a dark edge while charging, a plain dark bolt once it's charged. To see the level as a number too, turn on Settings → Status bar → Battery percent: the percentage then shows to the left of the battery, in red when low.
 
-## Skip songs
+## Changing songs
 
-Settings → Skip songs picks how the buttons change the song on Now Playing and with the screen off. Hold vol± (the default): hold Vol+ for the next song and Vol− for the previous one. Double vol±: double-click Vol+ for the next song and Vol− for the previous one; a single click changes the volume after a short pause, and holding Vol+ fast-forwards and holding Vol− rewinds inside the song (5 s per step, 15 s per step after about a second), also with the screen off. Double/triple Play: double-click ▶ for the next song and triple-click for the previous one; a single click pauses or resumes after a short pause, and Vol± keep changing the volume at once. In lists and menus the buttons always react at once. With Hold vol± or Double vol±, holding Vol+ or Vol− right after a volume step, while the volume bar is still showing (about 2.5 seconds after the step, with the screen on or off), keeps changing the volume instead of skipping or seeking; pressing any other button ends that.
+On Now Playing and with the screen off, the volume buttons only change the volume: a tap is one step and holding keeps changing it. To change the song, hold ▶ first, then tap Vol+ for the next track or Vol− for the previous one. As with most players, Vol− more than 3 seconds into a song goes back to its start first, and a second tap then goes to the previous song. A short message says what happened: "Next track", "Previous track", "Back to start", or "No next track" at the end of the queue with Repeat off. In audiobooks and podcasts the same tap jumps 30 s forward or 15 s back and shows "+30 s" or "-15 s"; a jump back near the start stops at the beginning. With the screen off nothing is shown. Hold ▶, then hold Vol+ or Vol− to move through the song, faster after about a second; playback carries on from where you let go. Letting go of ▶ after one of these doesn't pause. You can tap the volume button again while still holding ▶ to skip again.
+
+Order matters: press ▶ first. The player reads ▶ and the volume buttons on one line, and the volume buttons win, so a ▶ press while a volume button is already held can't be seen; it counts from the moment the volume button is let go. Holding ▶ alone for about half a second opens seeking (for A–B repeat); adding a volume button then closes it and skips or moves through the song instead. In lists and menus the buttons work as before.
+
+The Skip songs setting is gone: these gestures replace the hold, double-click and Play-click choices. Settings saved by earlier builds still load.
 
 ## Rewind on resume
 
@@ -566,7 +570,7 @@ To make your own, start with the original designs in [`examples/themes`](../../e
 
 ## Controls
 
-Settings → Controls assigns tap and hold actions independently for Vol+, Vol−, Play and Menu during playback. Default keeps the normal skip gesture; Off ignores that action. Reset buttons restores the normal controls. List navigation stays the same.
+Settings → Controls assigns tap and hold actions independently for Vol+, Vol−, Play and Menu during playback. Default keeps the normal action (a volume step, pause and resume, seeking, Quick Settings or Lyrics); Off ignores that action. A hold counts after about 0.6 s. Holding ▶ and then pressing a volume button always skips or moves through the song, whatever the volume button's own assignment, and doesn't run ▶'s tap action when you let go. Reset buttons restores the normal controls. List navigation stays the same.
 
 Hold Power first, then press Vol+ for the next track or Vol− for the previous one, including while the keys are locked. Release both keys before another shortcut. These shortcuts consume the Power gesture; holding Power alone retains its usual power-off action. Hold Play and Power to lock or unlock the buttons (see [Button lock](#button-lock)). With the cable in a computer, don't keep Power and Vol+ held: after 3 seconds the player restarts into its recovery mode ([`device-recovery.md`](device-recovery.md)); unplug and press RST to leave it.
 
@@ -646,7 +650,7 @@ Settings → Sleep timer turns the player off after 15–120 minutes, at End of 
 
 ## A–B repeat
 
-On Now Playing, hold Play to open seeking, then press Menu to mark A at the sound currently playing. Repeat those two presses later to mark B: the player repeats A through the sample before B. Do it a third time to clear the loop. “A set, B next”, “A-B repeat” and “A-B off” show the result. The seek cursor also shows the Menu hint. Moving the seek cursor does not move an A/B mark; marks use the playing position when Menu is released.
+On Now Playing, hold Play alone (without a volume button) to open seeking, then press Menu to mark A at the sound currently playing. Repeat those two presses later to mark B: the player repeats A through the sample before B. Do it a third time to clear the loop. “A set, B next”, “A-B repeat” and “A-B off” show the result. The seek cursor also shows the Menu hint. Moving the seek cursor does not move an A/B mark; marks use the playing position when Menu is released.
 
 Marks use source samples, including inside CUE tracks and audiobook chapters. A B mark must follow A. A pause keeps the loop and its output ready; seeking outside a loop returns to A. Changing tracks, handing audio to USB or restarting clears it. End-of-track/chapter sleep clears a loop so the track can finish. Timed sleep still fades and switches off during a loop. MP3 seeks retain the decoder’s existing approximate positioning.
 

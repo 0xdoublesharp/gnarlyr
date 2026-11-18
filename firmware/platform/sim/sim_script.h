@@ -8,7 +8,7 @@
 
 enum {
     SIM_SCRIPT_MAX_STEPS = 64,
-    SIM_SCRIPT_MAX_EVENTS = SIM_SCRIPT_MAX_STEPS * 2,
+    SIM_SCRIPT_MAX_EVENTS = SIM_SCRIPT_MAX_STEPS * 4,
     SIM_SCRIPT_FRAME_MS = 16,
     SIM_SCRIPT_TAP_FRAMES = KEY_SCRIPT_TAP_MS / SIM_SCRIPT_FRAME_MS,
     SIM_SCRIPT_HOLD_FRAMES = KEY_SCRIPT_LONG_MS / SIM_SCRIPT_FRAME_MS,
@@ -18,6 +18,7 @@ enum {
 
 typedef struct SimScript {
     KeyScriptStep steps[SIM_SCRIPT_MAX_STEPS];
+    bool with_play[SIM_SCRIPT_MAX_STEPS];
     int count;
 } SimScript;
 

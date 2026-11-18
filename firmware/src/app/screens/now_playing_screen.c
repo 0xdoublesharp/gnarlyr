@@ -11,6 +11,7 @@
 #include "gfx/image.h"
 #include "home_art.h"
 #include "neon_art.h"
+#include "playback/spoken.h"
 #include "settings/settings.h"
 #include "ui/header.h"
 #include "ui/icons.h"
@@ -29,6 +30,10 @@ enum {
     STATUS_CAPACITY = 64,
     BITRATE_CAPACITY = 24,
     RATE_CAPACITY = 16
+};
+
+enum {
+    SKIP_TOAST_CAPACITY = 32
 };
 
 static const NowPlayingLayout *layout(const NowPlayingScreen *now_playing)
@@ -202,33 +207,6 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
         now_playing->scrubbing = false;
         now_playing->repeat_feedback_ms = now_playing->now_ms;
         break;
-    case NOW_PLAYING_TOGGLE_PAUSE:
-        player_toggle_pause(player);
-        break;
-    case NOW_PLAYING_NEXT:
-        player_skip(player, 1);
-        break;
-    case NOW_PLAYING_PREVIOUS:
-        player_skip(player, -1);
-        break;
-    case NOW_PLAYING_VOLUME_UP:
-        player_change_volume(player, 1);
-        break;
-    case NOW_PLAYING_VOLUME_DOWN:
-        player_change_volume(player, -1);
-        break;
-    case NOW_PLAYING_SEEK_FORWARD:
-        now_playing_seek_by(player, NOW_PLAYING_SCRUB_STEP_MS);
-        break;
-    case NOW_PLAYING_SEEK_FORWARD_FAST:
-        now_playing_seek_by(player, NOW_PLAYING_SCRUB_FAST_STEP_MS);
-        break;
-    case NOW_PLAYING_SEEK_BACK:
-        now_playing_seek_by(player, -NOW_PLAYING_SCRUB_STEP_MS);
-        break;
-    case NOW_PLAYING_SEEK_BACK_FAST:
-        now_playing_seek_by(player, -NOW_PLAYING_SCRUB_FAST_STEP_MS);
-        break;
     case NOW_PLAYING_LEAVE:
         return screen_action_pop();
     case NOW_PLAYING_QUICK_SETTINGS:
@@ -249,7 +227,8 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
     case NOW_PLAYING_SCRUB_COMMIT:
     case NOW_PLAYING_SCRUB_CANCEL:
         return run_scrub_command(now_playing, command);
-    case NOW_PLAYING_NONE:
+    default:
+        now_playing_player_command(player, command);
         break;
     }
     return screen_action_none();
@@ -295,25 +274,56 @@ static void refresh(NowPlayingScreen *now_playing, uint32_t now_ms)
 
 static NowPlayingKeys keys_of(const NowPlayingScreen *now_playing)
 {
-    bool volume_shown =
-        now_playing->feedback == NOW_PLAYING_FEEDBACK_VOLUME &&
-        now_playing_adjusting_volume(now_playing->feedback_started_ms, now_playing->now_ms);
-    return (NowPlayingKeys){.scrubbing = now_playing->scrubbing,
-                            .adjusting_volume = volume_shown,
-                            .skip = now_playing->config.settings->skip_gesture};
+    return (NowPlayingKeys){.scrubbing = now_playing->scrubbing};
+}
+
+StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after)
+{
+    if (before.spoken) {
+        return next ? STR_JUMPED_FORWARD : STR_JUMPED_BACK;
+    }
+    bool moved = after.track != before.track || after.place.number != before.place.number;
+    bool restarted = !moved && after.position_ms < before.position_ms;
+    if (next) {
+        return moved || restarted ? STR_SKIPPED_TO_NEXT : STR_SKIPPED_NOTHING;
+    }
+    if (moved) {
+        return STR_SKIPPED_TO_PREVIOUS;
+    }
+    return restarted ? STR_SKIPPED_TO_START : STRING_COUNT;
+}
+
+static void announce_skip(NowPlayingScreen *now_playing, bool next, PlayerStatus before,
+                          uint32_t now_ms)
+{
+    StringId outcome = now_playing_skip_outcome(next, before, now_playing->status);
+    if (outcome == STRING_COUNT) {
+        return;
+    }
+    char text[SKIP_TOAST_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    uint32_t jump_ms = next ? SPOKEN_JUMP_FORWARD_MS : SPOKEN_JUMP_BACK_MS;
+    i18n_format_counts(&builder, outcome, jump_ms / MS_PER_SECOND, 0);
+    toast_show(now_playing->config.toast, text, now_ms);
 }
 
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     now_playing->now_ms = now_ms;
+    now_playing->scrubbing = now_playing->scrubbing && !event.chord;
     NowPlayingCommand command = now_playing_command_for(event, keys_of(now_playing));
+    PlayerStatus before = player_status(now_playing->config.player);
     ScreenAction action = run_command(now_playing, command);
     refresh(now_playing, now_ms);
     NowPlayingFeedback feedback = now_playing_feedback_for(command, now_playing->status.state);
     if (feedback != NOW_PLAYING_FEEDBACK_NONE) {
         now_playing->feedback = feedback;
         now_playing->feedback_started_ms = now_ms;
+    }
+    bool skip = command == NOW_PLAYING_NEXT || command == NOW_PLAYING_PREVIOUS;
+    if (event.chord && skip && now_playing->config.toast != NULL) {
+        announce_skip(now_playing, command == NOW_PLAYING_NEXT, before, now_ms);
     }
     return action;
 }
@@ -657,24 +667,23 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
                        modes});
 }
 
+static const uint8_t BADGE_ICONS[] = {
+    [NOW_PLAYING_FEEDBACK_NEXT] = ICON_NEXT,
+    [NOW_PLAYING_FEEDBACK_PREVIOUS] = ICON_PREVIOUS,
+    [NOW_PLAYING_FEEDBACK_PAUSE] = ICON_PAUSE,
+    [NOW_PLAYING_FEEDBACK_PLAY] = ICON_PLAY,
+};
+
 static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect area, Color color)
 {
-    switch (feedback) {
-    case NOW_PLAYING_FEEDBACK_NEXT:
-        icon_draw(canvas, ICON_NEXT, area, (IconInk){color, color});
-        return;
-    case NOW_PLAYING_FEEDBACK_PREVIOUS:
-        icon_draw(canvas, ICON_PREVIOUS, area, (IconInk){color, color});
-        return;
-    case NOW_PLAYING_FEEDBACK_PAUSE:
-        icon_draw(canvas, ICON_PAUSE, area, (IconInk){color, color});
-        return;
-    case NOW_PLAYING_FEEDBACK_PLAY:
-        icon_draw(canvas, ICON_PLAY, area, (IconInk){color, color});
-        return;
-    default:
-        return;
-    }
+    icon_draw(canvas, (IconId)BADGE_ICONS[feedback], area, (IconInk){color, color});
+}
+
+static Rect badge_square(const NowPlayingScreen *now_playing, int size)
+{
+    const NowPlayingLayout *cover = layout(now_playing);
+    int inset = (cover->cover_size - size) / 2;
+    return (Rect){cover_left(now_playing) + inset, cover->cover_top + inset, size, size};
 }
 
 static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
@@ -684,13 +693,9 @@ static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
         return;
     }
     const Theme *theme = now_playing->config.theme;
-    int center_x = cover_left(now_playing) + layout(now_playing)->cover_size / 2;
-    int center_y = layout(now_playing)->cover_top + layout(now_playing)->cover_size / 2;
-    Rect badge = {center_x - BADGE_SIZE / 2, center_y - BADGE_SIZE / 2, BADGE_SIZE, BADGE_SIZE};
-    Rect icon = {center_x - BADGE_ICON_SIZE / 2, center_y - BADGE_ICON_SIZE / 2, BADGE_ICON_SIZE,
-                 BADGE_ICON_SIZE};
-    canvas_fill_rect(canvas, badge, theme->colors.background);
-    draw_badge_icon(canvas, feedback, icon, theme->colors.text);
+    canvas_fill_rect(canvas, badge_square(now_playing, BADGE_SIZE), theme->colors.background);
+    draw_badge_icon(canvas, feedback, badge_square(now_playing, BADGE_ICON_SIZE),
+                    theme->colors.text);
 }
 
 static void draw_nothing_playing(const Theme *theme, Canvas *canvas)

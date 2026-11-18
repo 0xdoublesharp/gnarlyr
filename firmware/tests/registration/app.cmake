@@ -196,6 +196,11 @@ echo_add_unit_test(NAME test_now_playing_screen
     LIBRARIES echo_app echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_key_test_screen
+    SOURCES app/test_key_test_screen.c app/fake_hal.c support/screen_snapshot.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_diagnostics_values
     SOURCES app/test_diagnostics_values.c app/fake_hal.c
     LIBRARIES echo_app echo_library_scan

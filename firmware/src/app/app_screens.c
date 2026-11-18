@@ -398,6 +398,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
                                     .library = &context.store->library,
                                     .theme = context.compact_theme,
                                     .covers = context.covers,
+                                    .toast = context.toast,
                                     .quick_settings =
                                         &screens->modules.equalizer.quick_settings.screen,
                                     .lyrics = &screens->modules.views.lyrics.screen,

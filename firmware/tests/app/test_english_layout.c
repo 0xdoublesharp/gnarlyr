@@ -89,7 +89,6 @@ static const StringId SCREEN_TITLES[] = {
     STR_TEXT_SIZE,
     STR_ORIENTATION,
     STR_LANGUAGE,
-    STR_SKIP_SONGS,
     STR_GAIN,
     STR_OUTPUT,
     STR_EQUALIZER,

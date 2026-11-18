@@ -25,7 +25,6 @@ enum {
     LANGUAGE_FIELD = 19,
     HALF_DB_GAINS_FIELD = 28,
     TEXT_SIZE_FIELD = 24,
-    SKIP_GESTURE_FIELD = 25,
     ORIENTATION_FIELD = 26,
     APPEARANCE_FIELD = 27,
     EXTENSION_FIELD = 38,
@@ -205,7 +204,6 @@ Settings settings_defaults(void)
         .appearance = APPEARANCE_NEON_NOIR,
         .equalizer = EQUALIZER_OFF,
         .text_size = TEXT_SIZE_MEDIUM,
-        .skip_gesture = SKIP_GESTURE_HOLD,
         .orientation = ORIENTATION_LANDSCAPE,
         .replay_gain_mode = REPLAY_GAIN_OFF,
         .prevent_clipping = true,
@@ -366,7 +364,6 @@ static void encode_values(const Settings *settings, uint8_t *bytes)
     bytes[ACCENT_FIELD] = (uint8_t)settings->accent;
     bytes[EQUALIZER_FIELD] = (uint8_t)settings->equalizer;
     bytes[TEXT_SIZE_FIELD] = (uint8_t)settings->text_size;
-    bytes[SKIP_GESTURE_FIELD] = (uint8_t)settings->skip_gesture;
     bytes[ORIENTATION_FIELD] = (uint8_t)settings->orientation;
     bytes[APPEARANCE_FIELD] = (uint8_t)settings->appearance;
 }
@@ -511,7 +508,6 @@ static bool values_valid(const uint8_t *bytes)
            bytes[ACCENT_FIELD] < ACCENT_COLOR_COUNT &&
            bytes[EQUALIZER_FIELD] < EQUALIZER_PRESET_COUNT &&
            bytes[TEXT_SIZE_FIELD] < TEXT_SIZE_COUNT &&
-           bytes[SKIP_GESTURE_FIELD] < SKIP_GESTURE_COUNT &&
            bytes[ORIENTATION_FIELD] < ORIENTATION_COUNT &&
            bytes[APPEARANCE_FIELD] < APPEARANCE_THEME_COUNT;
 }
@@ -534,7 +530,6 @@ static void decode_values(const uint8_t *bytes, Settings *settings)
         .accent = (AccentColor)bytes[ACCENT_FIELD],
         .equalizer = (EqualizerPreset)bytes[EQUALIZER_FIELD],
         .text_size = (TextSize)bytes[TEXT_SIZE_FIELD],
-        .skip_gesture = (SkipGesture)bytes[SKIP_GESTURE_FIELD],
         .orientation = (Orientation)bytes[ORIENTATION_FIELD],
         .appearance = (AppearanceTheme)bytes[APPEARANCE_FIELD],
         .replay_gain_mode = (uint8_t)(flags & 3u),

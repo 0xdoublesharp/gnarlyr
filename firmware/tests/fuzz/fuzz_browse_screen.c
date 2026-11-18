@@ -55,8 +55,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
     static const Key KEYS[] = {KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_PLAY, KEY_MENU, KEY_BACK};
     static const KeyGesture GESTURES[] = {KEY_GESTURE_PRESS, KEY_GESTURE_LONG_PRESS,
-                                          KEY_GESTURE_REPEAT, KEY_GESTURE_DOUBLE_PRESS,
-                                          KEY_GESTURE_TRIPLE_PRESS};
+                                          KEY_GESTURE_REPEAT};
     FixtureLibrary fixture;
     BrowsePool pool;
     Player player;
@@ -81,7 +80,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         } else {
             ScreenAction action = active->handle_key(
                 active->context,
-                (KeyEvent){.key = KEYS[value % 5], .gesture = GESTURES[(value / 5) % 5]},
+                (KeyEvent){.key = KEYS[value % 5],
+                           .gesture =
+                               GESTURES[(value / 5) % (sizeof GESTURES / sizeof GESTURES[0])]},
                 (uint32_t)index * 271u);
             fuzz_require(action.type <= SCREEN_ACTION_REPLACE);
             if ((action.type == SCREEN_ACTION_PUSH || action.type == SCREEN_ACTION_REPLACE) &&

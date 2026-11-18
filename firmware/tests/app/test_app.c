@@ -13,6 +13,7 @@
 #include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
+#include "device/key_ladder.h"
 #include "discovery_screen.h"
 #include "equalizer_presets.h"
 #include "fake_hal.h"
@@ -31,16 +32,19 @@
 #include "library/playlist_reader.h"
 #include "library_rescan.h"
 #include "music_check.h"
+#include "playback/spoken.h"
 #include "plug_modes.h"
 #include "scan_guard.h"
 #include "screen_modules.h"
 #include "screen_snapshot.h"
 #include "screens/charge_screen.h"
+#include "screens/now_playing_screen.h"
 #include "screens/wire_boot.h"
 #include "settings/equalizer_slots.h"
 #include "settings/headphone_profile.h"
 #include "settings/settings.h"
 #include "settings_store.h"
+#include "spoken_library.h"
 #include "text_spy.h"
 #include "theme_runtime.h"
 #include "ui/header.h"
@@ -71,20 +75,19 @@ enum {
     SETTINGS_COLOR_INDEX = 10,
     SETTINGS_TEXT_SIZE_INDEX = 11,
     SETTINGS_ORIENTATION_INDEX = 12,
-    SETTINGS_SKIP_INDEX = 13,
-    SETTINGS_GAIN_INDEX = 14,
-    SETTINGS_DAC_FILTER_INDEX = 15,
-    SETTINGS_EQUALIZER_INDEX = 17,
-    SETTINGS_CUSTOM_EQ_INDEX = 18,
-    SETTINGS_REPLAY_GAIN_INDEX = 19,
-    SETTINGS_CLIPPING_INDEX = 20,
-    SETTINGS_START_INDEX = 21,
-    SETTINGS_RESCAN_INDEX = 22,
-    SETTINGS_USB_MODE_INDEX = 23,
-    SETTINGS_THEME_INDEX = 24,
-    SETTINGS_STATUS_BAR_INDEX = 25,
+    SETTINGS_GAIN_INDEX = 13,
+    SETTINGS_DAC_FILTER_INDEX = 14,
+    SETTINGS_EQUALIZER_INDEX = 16,
+    SETTINGS_CUSTOM_EQ_INDEX = 17,
+    SETTINGS_REPLAY_GAIN_INDEX = 18,
+    SETTINGS_CLIPPING_INDEX = 19,
+    SETTINGS_START_INDEX = 20,
+    SETTINGS_RESCAN_INDEX = 21,
+    SETTINGS_USB_MODE_INDEX = 22,
+    SETTINGS_THEME_INDEX = 23,
+    SETTINGS_STATUS_BAR_INDEX = 24,
     STATUS_BAR_BATTERY_PERCENT_INDEX = 3,
-    SETTINGS_USB_ANSWER_INDEX = 30,
+    SETTINGS_USB_ANSWER_INDEX = 29,
     GAIN_RISE_STEPS = 6,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
@@ -102,6 +105,7 @@ enum {
     DIAGNOSTICS_STALL_TEST_INDEX = 5,
     DIAGNOSTICS_POWER_TAPS_INDEX = 6,
     DIAGNOSTICS_PROFILER_INDEX = 13,
+    DIAGNOSTICS_KEYS_INDEX = 14,
     DEBUG_FOLLOW_MS = 100,
     SCRIPT_STEP_MS = 8,
     CHARGE_DARK_MS = 6000,
@@ -166,6 +170,7 @@ static void start_app_with_database(const uint8_t *bytes, uint32_t size)
     uint32_t covers_size = 0;
     const uint8_t *covers = fixture_covers_bytes(&covers_size);
     fake_hal_reset();
+    app_reset_for_test();
     fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/library.db", bytes, size);
     fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/covers.bin", covers, covers_size);
     fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/build.tmp", NULL, 16 * 1024 * 1024);
@@ -613,6 +618,7 @@ static void an_artist_leads_to_their_albums(void)
 }
 
 static void play_first_album_track(void);
+static void chord_tap(Key volume);
 static bool toast_is(const char *expected);
 
 static void an_artist_strip_opens_their_album_with_only_their_songs(void)
@@ -1016,10 +1022,10 @@ static void now_playing_keys_control_the_player(void)
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
-    hold(KEY_VOLUME_UP);
+    chord_tap(KEY_VOLUME_UP);
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
-    hold(KEY_VOLUME_DOWN);
+    chord_tap(KEY_VOLUME_DOWN);
     CHECK(playing_path_is(HELLS_BELLS_PATH));
 }
 
@@ -2112,7 +2118,7 @@ static void in_portrait_the_volume_down_key_moves_down_the_list(void)
     choose_orientation(ORIENTATION_PORTRAIT);
     portrait_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Skip songs"));
+    CHECK(title_is("Gain"));
 }
 
 static void in_the_flipped_portrait_the_rocker_keeps_its_landscape_direction(void)
@@ -2135,7 +2141,7 @@ static void a_key_held_across_the_turn_keeps_the_direction_it_started_with(void)
     now_ms += 10;
     step();
     tap(KEY_PLAY);
-    CHECK(title_is("Skip songs"));
+    CHECK(title_is("Gain"));
 }
 
 static void home_puts_the_album_art_under_the_menu_in_portrait(void)
@@ -2191,159 +2197,6 @@ static void cover_flow_stacks_the_albums_in_portrait(void)
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(stack->center_x, middle));
 }
 
-static void play_with_skip_gesture(SkipGesture gesture)
-{
-    start_app_with_library();
-    open_setting(SETTINGS_SKIP_INDEX);
-    CHECK(title_is("Skip songs"));
-    move_down((int)gesture);
-    tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
-    restart_app();
-    wait_ms(1000);
-    play_first_album_track();
-    CHECK(title_is("Now Playing"));
-}
-
-static void skip_songs_defaults_to_hold_and_is_saved(void)
-{
-    start_app_with_library();
-    open_setting(SETTINGS_SKIP_INDEX);
-    CHECK_EQUAL(SKIP_GESTURE_HOLD, settings_defaults().skip_gesture);
-    move_down(SKIP_GESTURE_PLAY_CLICKS);
-    tap(KEY_PLAY);
-    Settings settings;
-    CHECK(saved_settings(&settings));
-    CHECK_EQUAL(SKIP_GESTURE_PLAY_CLICKS, settings.skip_gesture);
-}
-
-static void double_volume_clicks_skip_songs_and_single_clicks_change_the_volume(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_DOUBLE_VOLUME);
-    tap(KEY_VOLUME_UP);
-    tap(KEY_VOLUME_UP);
-    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    tap(KEY_VOLUME_DOWN);
-    tap(KEY_VOLUME_DOWN);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-    uint8_t volume = fake_hal_audio_volume();
-    tap(KEY_VOLUME_UP);
-    CHECK_EQUAL(volume, fake_hal_audio_volume());
-    wait_ms(400);
-    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
-    tap(KEY_VOLUME_DOWN);
-    wait_ms(400);
-    CHECK_EQUAL(volume, fake_hal_audio_volume());
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-}
-
-static void holding_volume_seeks_with_the_double_volume_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_DOUBLE_VOLUME);
-    uint8_t volume = fake_hal_audio_volume();
-    int seeks = fake_hal_audio_seek_count();
-    hold(KEY_VOLUME_UP);
-    CHECK(fake_hal_audio_seek_count() > seeks);
-    CHECK_EQUAL(volume, fake_hal_audio_volume());
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-}
-
-static void holding_volume_down_rewinds_with_the_double_volume_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_DOUBLE_VOLUME);
-    fake_hal_audio_set_position(PLAYING_POSITION_MS);
-    step();
-    uint32_t before = app_player_status().position_ms;
-    CHECK_EQUAL(PLAYING_POSITION_MS, before);
-    hold_for(KEY_VOLUME_DOWN, 600);
-    CHECK(app_player_status().position_ms + 4000 < before);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-}
-
-static void holding_volume_up_fast_forwards_with_the_screen_off(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_DOUBLE_VOLUME);
-    tap(KEY_POWER);
-    CHECK(!fake_hal_display_on());
-    uint32_t before = app_player_status().position_ms;
-    uint8_t volume = fake_hal_audio_volume();
-    hold_for(KEY_VOLUME_UP, 600);
-    CHECK(app_player_status().position_ms > before + 4000);
-    CHECK_EQUAL(volume, fake_hal_audio_volume());
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-    CHECK(!fake_hal_display_on());
-}
-
-static void holding_volume_down_rewinds_with_the_screen_off(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_DOUBLE_VOLUME);
-    fake_hal_audio_set_position(PLAYING_POSITION_MS);
-    tap(KEY_POWER);
-    CHECK(!fake_hal_display_on());
-    uint32_t before = app_player_status().position_ms;
-    hold_for(KEY_VOLUME_DOWN, 600);
-    CHECK(app_player_status().position_ms + 4000 < before);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-}
-
-static void hold_stepping(Key key, uint32_t duration_ms)
-{
-    fake_hal_queue_transition(key, true, now_ms);
-    for (uint32_t elapsed = 0; elapsed < duration_ms; elapsed += 50) {
-        now_ms += 50;
-        step();
-    }
-    fake_hal_queue_transition(key, false, now_ms);
-    now_ms += 10;
-    step();
-}
-
-static void holding_volume_after_a_volume_step_keeps_changing_it(SkipGesture gesture,
-                                                                 bool screen_off)
-{
-    play_with_skip_gesture(gesture);
-    if (screen_off) {
-        tap(KEY_POWER);
-        CHECK(!fake_hal_display_on());
-    }
-    uint8_t volume = fake_hal_audio_volume();
-    int seeks = fake_hal_audio_seek_count();
-    tap(KEY_VOLUME_UP);
-    wait_ms(400);
-    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
-    hold_stepping(KEY_VOLUME_UP, 1500);
-    CHECK(fake_hal_audio_volume() > volume + 3);
-    CHECK_EQUAL(seeks, fake_hal_audio_seek_count());
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-    uint8_t raised = fake_hal_audio_volume();
-    hold_stepping(KEY_VOLUME_DOWN, 1500);
-    CHECK(fake_hal_audio_volume() + 3 < raised);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-    tap(KEY_VOLUME_UP);
-    wait_ms(400);
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    uint8_t before_skip = fake_hal_audio_volume();
-    hold(KEY_VOLUME_UP);
-    CHECK_EQUAL(before_skip, fake_hal_audio_volume());
-}
-
-static void holding_volume_after_a_step_changes_it_with_the_hold_setting(void)
-{
-    holding_volume_after_a_volume_step_keeps_changing_it(SKIP_GESTURE_HOLD, false);
-}
-
-static void holding_volume_after_a_step_changes_it_with_the_double_volume_setting(void)
-{
-    holding_volume_after_a_volume_step_keeps_changing_it(SKIP_GESTURE_DOUBLE_VOLUME, false);
-}
-
-static void holding_volume_after_a_step_changes_it_with_the_screen_off(void)
-{
-    holding_volume_after_a_volume_step_keeps_changing_it(SKIP_GESTURE_HOLD, true);
-    holding_volume_after_a_volume_step_keeps_changing_it(SKIP_GESTURE_DOUBLE_VOLUME, true);
-}
-
 static void hold_play_and_power(void)
 {
     fake_hal_queue_transition(KEY_PLAY, true, now_ms);
@@ -2356,6 +2209,394 @@ static void hold_play_and_power(void)
     fake_hal_queue_transition(KEY_POWER, false, now_ms + 20);
     now_ms += 30;
     step();
+}
+
+static void play_on_now_playing(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    CHECK(title_is("Now Playing"));
+}
+
+static void press_key(Key key)
+{
+    fake_hal_queue_transition(key, true, now_ms);
+    now_ms += 40;
+    step();
+}
+
+static void release_key(Key key)
+{
+    fake_hal_queue_transition(key, false, now_ms);
+    now_ms += 40;
+    step();
+}
+
+static void keep_holding(uint32_t duration_ms)
+{
+    for (uint32_t elapsed = 0; elapsed < duration_ms; elapsed += 50) {
+        now_ms += 50;
+        step();
+    }
+}
+
+static void chord_tap(Key volume)
+{
+    press_key(KEY_PLAY);
+    tap(volume);
+    release_key(KEY_PLAY);
+}
+
+static void chord_hold(Key volume, uint32_t duration_ms)
+{
+    press_key(KEY_PLAY);
+    press_key(volume);
+    keep_holding(duration_ms);
+    release_key(volume);
+    release_key(KEY_PLAY);
+}
+
+static void holding_play_and_tapping_volume_skips_tracks_with_a_toast(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    chord_tap(KEY_VOLUME_UP);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK(toast_is("Next track"));
+    wait_ms(TOAST_DURATION_MS + 100);
+    chord_tap(KEY_VOLUME_DOWN);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK(toast_is("Previous track"));
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+}
+
+static void releasing_play_after_a_chord_does_not_pause(void)
+{
+    play_on_now_playing();
+    chord_tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    chord_hold(KEY_VOLUME_UP, 1000);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void holding_play_and_holding_volume_seeks_faster_the_longer_it_is_held(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(0);
+    step();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    int seeks = fake_hal_audio_seek_count();
+    uint32_t last = 0;
+    uint32_t first_step = 0;
+    uint32_t largest_step = 0;
+    for (int count = 0; count < 52 && last < NOW_PLAYING_SEEK_FAST_AFTER_REPEATS * 6000; count++) {
+        now_ms += 50;
+        step();
+        if (fake_hal_audio_seek_count() == seeks) {
+            continue;
+        }
+        seeks = fake_hal_audio_seek_count();
+        uint32_t moved = fake_hal_audio_last_seek() - last;
+        first_step = first_step == 0 ? moved : first_step;
+        largest_step = moved > largest_step ? moved : largest_step;
+        last = fake_hal_audio_last_seek();
+    }
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_STEP_MS, first_step);
+    CHECK_EQUAL(NOW_PLAYING_SCRUB_FAST_STEP_MS, largest_step);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK(app_toast_text() == NULL);
+    uint32_t forward = app_player_status().position_ms;
+    chord_hold(KEY_VOLUME_DOWN, 900);
+    CHECK(app_player_status().position_ms + NOW_PLAYING_SCRUB_STEP_MS <= forward);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void volume_keys_alone_change_the_volume_without_skipping(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    wait_ms(3000);
+    press_key(KEY_VOLUME_UP);
+    keep_holding(1500);
+    release_key(KEY_VOLUME_UP);
+    CHECK(fake_hal_audio_volume() > volume + 3);
+    uint8_t raised = fake_hal_audio_volume();
+    press_key(KEY_VOLUME_DOWN);
+    keep_holding(1500);
+    release_key(KEY_VOLUME_DOWN);
+    CHECK(fake_hal_audio_volume() + 3 < raised);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+}
+
+static void the_play_chord_works_the_same_with_the_screen_off(void)
+{
+    play_on_now_playing();
+    tap(KEY_POWER);
+    CHECK(!fake_hal_display_on());
+    uint8_t volume = fake_hal_audio_volume();
+    chord_tap(KEY_VOLUME_UP);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK(app_toast_text() == NULL);
+    fake_hal_audio_set_position(0);
+    step();
+    chord_hold(KEY_VOLUME_UP, 1200);
+    CHECK(app_player_status().position_ms > NOW_PLAYING_SCRUB_STEP_MS);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!fake_hal_display_on());
+}
+
+static void the_play_chord_is_refused_while_locked(void)
+{
+    play_on_now_playing();
+    hold_play_and_power();
+    uint16_t track = app_player_status().track;
+    chord_tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK(toast_is("Hold Play+Power"));
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    hold_play_and_power();
+}
+
+static void holding_play_alone_still_opens_seek_mode_for_a_b_repeat(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(PLAYING_POSITION_MS / 2);
+    step();
+    uint8_t volume = fake_hal_audio_volume();
+    hold(KEY_PLAY);
+    tap(KEY_MENU);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    hold(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYING_POSITION_MS / 2 + NOW_PLAYING_SCRUB_STEP_MS, fake_hal_audio_last_seek());
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+}
+
+static void a_chord_after_seek_mode_opened_leaves_seek_mode(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_PLAY);
+    keep_holding(800);
+    tap(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void play_and_volume_together_do_not_skip_in_lists(void)
+{
+    play_on_now_playing();
+    hold_back();
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    uint16_t track = app_player_status().track;
+    press_key(KEY_PLAY);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK(app_toast_text() == NULL);
+    release_key(KEY_PLAY);
+}
+
+static void holding_play_and_tapping_volume_jumps_in_a_book(void)
+{
+    static SpokenLibrary spoken;
+    spoken_library_open(&spoken);
+    start_app_with_database(spoken.bytes, spoken.size);
+    open_music_entry(MUSIC_FOLDERS_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    CHECK(app_player_status().spoken);
+    fake_hal_audio_set_position(100000);
+    step();
+    chord_tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(100000 + SPOKEN_JUMP_FORWARD_MS, fake_hal_audio_last_seek());
+    CHECK(toast_is("+30 s"));
+    fake_hal_audio_set_position(100000);
+    step();
+    chord_tap(KEY_VOLUME_DOWN);
+    CHECK_EQUAL(100000 - SPOKEN_JUMP_BACK_MS, fake_hal_audio_last_seek());
+    CHECK(toast_is("-15 s"));
+    spoken_library_close(&spoken);
+}
+
+static void power_after_a_chord_with_play_let_go_does_not_lock_the_keys(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    press_key(KEY_POWER);
+    keep_holding(1300);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_POWER);
+    CHECK(!toast_is("Buttons locked"));
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+}
+
+static void a_one_sample_idle_blip_under_play_still_allows_a_chord(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_PLAY);
+    fake_hal_queue_reading_sample(KEY_LADDER_IDLE_READING, now_ms);
+    now_ms += 5;
+    for (int sample = 0; sample < 4; sample++) {
+        fake_hal_queue_reading_sample(242, now_ms);
+        now_ms += 5;
+    }
+    step();
+    tap(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
+static void a_menu_press_between_play_and_volume_is_not_a_chord(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_MENU);
+    release_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_MENU);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void play_and_volume_in_a_list_select_before_moving_as_before(void)
+{
+    start_app_with_library();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    release_key(KEY_VOLUME_UP);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Music"));
+}
+
+static void a_screen_change_during_a_chord_keeps_the_chord_tap(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    tap(KEY_POWER);
+    CHECK(!fake_hal_display_on());
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+}
+
+static void a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_PLAY);
+    uint32_t at = now_ms;
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, at + 10);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, at + 60);
+    fake_hal_queue_transition(KEY_PLAY, false, at + 110);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, at + 160);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, at + 200);
+    now_ms = at + 250;
+    step();
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+}
+
+static void a_play_release_drained_by_a_usb_session_leaves_no_chord_behind(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    fake_hal_drop_transitions();
+    app_resume_after_usb();
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
+static void a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    fake_hal_drop_transitions();
+    app_resume_after_usb();
+    wait_ms(1500);
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    press_key(KEY_POWER);
+    keep_holding(1300);
+    release_key(KEY_POWER);
+    CHECK(!toast_is("Buttons locked"));
+}
+
+static void a_chord_back_late_in_a_song_says_it_went_back_to_the_start(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(PLAYING_POSITION_MS / 2);
+    step();
+    chord_tap(KEY_VOLUME_DOWN);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(0, fake_hal_audio_last_seek());
+    CHECK(toast_is("Back to start"));
+}
+
+static void a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track(void)
+{
+    play_on_now_playing();
+    for (int count = 0;
+         count < 40 && app_player_status().place.number < app_player_status().place.total;
+         count++) {
+        chord_tap(KEY_VOLUME_UP);
+    }
+    CHECK_EQUAL(app_player_status().place.total, app_player_status().place.number);
+    wait_ms(TOAST_DURATION_MS + 100);
+    uint16_t track = app_player_status().track;
+    chord_tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK(toast_is("No next track"));
+}
+
+static void the_fallback_now_playing_skips_on_a_chord(void)
+{
+    play_on_now_playing();
+    tap(KEY_BACK);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    fake_hal_evict_module();
+    step();
+    tap(KEY_MENU);
+    wait_ms(500);
+    CHECK(title_is("Now Playing"));
+    CHECK(fake_hal_loaded_module() != SCREEN_MODULE_PLAYING);
+    chord_tap(KEY_VOLUME_UP);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
 }
 
 static void play_and_power_lock_and_unlock_the_buttons(void)
@@ -2543,103 +2784,6 @@ static void in_portrait_the_volume_keys_keep_their_labels_on_now_playing(void)
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
 }
 
-static void holding_volume_long_after_a_step_skips_again(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_HOLD);
-    tap(KEY_VOLUME_UP);
-    wait_ms(2500);
-    uint8_t volume = fake_hal_audio_volume();
-    hold(KEY_VOLUME_UP);
-    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    CHECK_EQUAL(volume, fake_hal_audio_volume());
-}
-
-static void holding_volume_still_repeats_it_with_the_play_clicks_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
-    uint8_t volume = fake_hal_audio_volume();
-    hold(KEY_VOLUME_UP);
-    CHECK(fake_hal_audio_volume() > volume);
-}
-
-static void play_clicks_skip_songs_and_a_single_click_pauses(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    wait_ms(400);
-    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
-    tap(KEY_PLAY);
-    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
-    wait_ms(400);
-    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
-}
-
-static void volume_stays_instant_and_repeats_with_the_play_clicks_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
-    uint8_t volume = fake_hal_audio_volume();
-    tap(KEY_VOLUME_UP);
-    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
-    hold(KEY_VOLUME_UP);
-    CHECK(fake_hal_audio_volume() > volume + 1);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-}
-
-static void holding_play_still_scrubs_with_the_play_clicks_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
-    hold(KEY_PLAY);
-    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-}
-
-static void lists_stay_instant_with_the_click_settings(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
-    hold_back();
-    wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
-    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
-    tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
-}
-
-static void screen_off_clicks_skip_with_the_double_volume_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_DOUBLE_VOLUME);
-    tap(KEY_POWER);
-    CHECK(!fake_hal_display_on());
-    tap(KEY_VOLUME_UP);
-    tap(KEY_VOLUME_UP);
-    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    CHECK(!fake_hal_display_on());
-}
-
-static void screen_off_play_clicks_skip_with_the_play_clicks_setting(void)
-{
-    play_with_skip_gesture(SKIP_GESTURE_PLAY_CLICKS);
-    tap(KEY_POWER);
-    CHECK(!fake_hal_display_on());
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    wait_ms(400);
-    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    CHECK(playing_path_is(HELLS_BELLS_PATH));
-    tap(KEY_PLAY);
-    wait_ms(400);
-    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
-    CHECK(!fake_hal_display_on());
-}
-
 static uint16_t scrollbar_probe(void)
 {
     return fake_hal_pixel(HAL_DISPLAY_WIDTH - expected_theme()->metrics.scrollbar_inset - 1, 40);
@@ -2813,7 +2957,7 @@ static void with_the_screen_off_media_keys_keep_working(void)
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
     tap(KEY_PLAY);
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
-    hold(KEY_VOLUME_UP);
+    chord_tap(KEY_VOLUME_UP);
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     const char *title = app_screen_title();
     tap(KEY_MENU);
@@ -3095,13 +3239,18 @@ static void a_slightly_long_press_wakes_the_screen_without_switching_off(void)
     CHECK(fake_hal_display_on());
 }
 
-static void a_volume_hold_under_a_second_changes_the_volume(void)
+static void a_volume_hold_keeps_changing_the_volume(void)
 {
     start_app_with_library();
     play_first_album_track();
     uint8_t volume = fake_hal_audio_volume();
-    hold_for(KEY_VOLUME_UP, 800);
-    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, now_ms);
+    for (int count = 0; count < 16; count++) {
+        wait_ms(50);
+    }
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    wait_ms(10);
+    CHECK(fake_hal_audio_volume() > volume + 1);
     CHECK(playing_path_is(HELLS_BELLS_PATH));
 }
 
@@ -4480,10 +4629,10 @@ static void holding_play_on_a_folder_plays_everything_under_it_in_order(void)
     CHECK_EQUAL(0, fake_hal_audio_play_start());
     CHECK_EQUAL(1000, fake_hal_audio_play_end());
     CHECK_EQUAL(1000, fake_hal_audio_queued_start());
-    hold(KEY_VOLUME_UP);
-    hold(KEY_VOLUME_UP);
+    chord_tap(KEY_VOLUME_UP);
+    chord_tap(KEY_VOLUME_UP);
     CHECK_EQUAL(2493, fake_hal_audio_play_start());
-    hold(KEY_VOLUME_UP);
+    chord_tap(KEY_VOLUME_UP);
     CHECK(strcmp(CUE_AUDIO_PATH, fake_hal_audio_playing_path()) != 0);
 }
 
@@ -5001,6 +5150,95 @@ static void open_diagnostics_row(int index)
     move_down(index);
 }
 
+static void the_key_test_takes_every_ladder_key_until_power_leaves(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    wait_ms(SLIDE_DURATION_MS);
+    open_diagnostics_row(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    uint8_t volume = fake_hal_audio_volume();
+    uint16_t track = app_player_status().track;
+    static const Key LADDER[] = {KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_PLAY, KEY_MENU, KEY_BACK};
+    for (size_t index = 0; index < sizeof LADDER / sizeof LADDER[0]; index++) {
+        tap(LADDER[index]);
+        hold(LADDER[index]);
+        CHECK(title_is("Keys"));
+    }
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    tap(KEY_POWER);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("About"));
+}
+
+static void in_portrait_the_key_test_names_the_physical_key(void)
+{
+    start_app_with_library();
+    choose_orientation(ORIENTATION_PORTRAIT);
+    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    portrait_down(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    tap(KEY_VOLUME_UP);
+    text_spy_reset();
+    settle();
+    CHECK(text_shown("Vol+ tap"));
+}
+
+static void the_stall_question_always_opens_on_cancel(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_STALL_TEST_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(1);
+    tap(KEY_BACK);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_stall_test_count());
+}
+
+static void power_leaves_the_key_test_even_with_power_taps_ignored(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_POWER_TAPS_INDEX);
+    tap(KEY_PLAY);
+    move_down(DIAGNOSTICS_KEYS_INDEX - DIAGNOSTICS_POWER_TAPS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    tap(KEY_POWER);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+    CHECK(fake_hal_display_on());
+}
+
+static void testing_keys_keeps_the_screen_on(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    for (int count = 0; count < 8; count++) {
+        wait_ms(DEFAULT_TIMEOUT_MS / 4);
+        tap(KEY_MENU);
+    }
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("Keys"));
+}
+
 static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
 {
     start_app();
@@ -5014,13 +5252,33 @@ static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
     CHECK_EQUAL(200, hal_system_clock_mhz());
 }
 
-static void the_stall_test_row_freezes_the_main_loop_on_purpose(void)
+static void the_stall_test_asks_before_it_freezes_the_main_loop(void)
 {
     start_app();
     open_diagnostics_row(DIAGNOSTICS_STALL_TEST_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Freeze the player?"));
     CHECK_EQUAL(0, fake_hal_stall_test_count());
     tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK_EQUAL(0, fake_hal_stall_test_count());
+    CHECK(title_is("About"));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(1);
+    tap(KEY_PLAY);
     CHECK_EQUAL(1, fake_hal_stall_test_count());
+}
+
+static void stray_presses_in_about_do_not_freeze_the_player(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_STALL_TEST_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_stall_test_count());
 }
 
 static void the_watchdog_test_row_stops_everything_on_purpose(void)
@@ -6743,8 +7001,14 @@ int main(void)
         TEST_CASE(idling_in_the_menus_stays_put_while_playing),
         TEST_CASE(waking_the_screen_shows_now_playing_while_playing),
         TEST_CASE(waking_while_paused_keeps_the_screen),
+        TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
+        TEST_CASE(in_portrait_the_key_test_names_the_physical_key),
+        TEST_CASE(the_stall_question_always_opens_on_cancel),
+        TEST_CASE(power_leaves_the_key_test_even_with_power_taps_ignored),
+        TEST_CASE(testing_keys_keeps_the_screen_on),
         TEST_CASE(the_cpu_clock_cycles_through_24_96_and_200_mhz),
-        TEST_CASE(the_stall_test_row_freezes_the_main_loop_on_purpose),
+        TEST_CASE(the_stall_test_asks_before_it_freezes_the_main_loop),
+        TEST_CASE(stray_presses_in_about_do_not_freeze_the_player),
         TEST_CASE(the_watchdog_test_row_stops_everything_on_purpose),
         TEST_CASE(ignored_power_taps_leave_the_screen_on_but_a_hold_still_switches_off),
         TEST_CASE(a_clock_that_does_not_lock_stays_where_it_was),
@@ -6812,33 +7076,37 @@ int main(void)
         TEST_CASE(large_text_resizes_the_open_list_at_once_and_is_saved),
         TEST_CASE(small_text_resizes_the_open_list_at_once),
         TEST_CASE(the_text_size_survives_a_restart),
-        TEST_CASE(skip_songs_defaults_to_hold_and_is_saved),
-        TEST_CASE(double_volume_clicks_skip_songs_and_single_clicks_change_the_volume),
-        TEST_CASE(holding_volume_seeks_with_the_double_volume_setting),
-        TEST_CASE(holding_volume_down_rewinds_with_the_double_volume_setting),
-        TEST_CASE(holding_volume_up_fast_forwards_with_the_screen_off),
-        TEST_CASE(holding_volume_down_rewinds_with_the_screen_off),
-        TEST_CASE(holding_volume_still_repeats_it_with_the_play_clicks_setting),
-        TEST_CASE(holding_volume_after_a_step_changes_it_with_the_hold_setting),
-        TEST_CASE(holding_volume_after_a_step_changes_it_with_the_double_volume_setting),
-        TEST_CASE(holding_volume_after_a_step_changes_it_with_the_screen_off),
-        TEST_CASE(holding_volume_long_after_a_step_skips_again),
         TEST_CASE(power_rocker_skips_while_locked_without_a_power_tap),
         TEST_CASE(configured_menu_hold_opens_quick_settings),
         TEST_CASE(configured_menu_hold_selects_the_other_destinations),
         TEST_CASE(configured_menu_hold_toggles_shuffle),
         TEST_CASE(power_menu_saves_a_screenshot_without_a_debug_script),
+        TEST_CASE(power_after_a_chord_with_play_let_go_does_not_lock_the_keys),
+        TEST_CASE(a_one_sample_idle_blip_under_play_still_allows_a_chord),
+        TEST_CASE(a_menu_press_between_play_and_volume_is_not_a_chord),
+        TEST_CASE(play_and_volume_in_a_list_select_before_moving_as_before),
+        TEST_CASE(a_screen_change_during_a_chord_keeps_the_chord_tap),
+        TEST_CASE(a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap),
+        TEST_CASE(a_play_release_drained_by_a_usb_session_leaves_no_chord_behind),
+        TEST_CASE(a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards),
+        TEST_CASE(a_chord_back_late_in_a_song_says_it_went_back_to_the_start),
+        TEST_CASE(a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track),
+        TEST_CASE(the_fallback_now_playing_skips_on_a_chord),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
+        TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
+        TEST_CASE(releasing_play_after_a_chord_does_not_pause),
+        TEST_CASE(holding_play_and_holding_volume_seeks_faster_the_longer_it_is_held),
+        TEST_CASE(volume_keys_alone_change_the_volume_without_skipping),
+        TEST_CASE(the_play_chord_works_the_same_with_the_screen_off),
+        TEST_CASE(the_play_chord_is_refused_while_locked),
+        TEST_CASE(holding_play_alone_still_opens_seek_mode_for_a_b_repeat),
+        TEST_CASE(a_chord_after_seek_mode_opened_leaves_seek_mode),
+        TEST_CASE(play_and_volume_together_do_not_skip_in_lists),
+        TEST_CASE(holding_play_and_tapping_volume_jumps_in_a_book),
         TEST_CASE(the_lock_toasts_fit_a_portrait_screen_in_large_text),
         TEST_CASE(in_portrait_the_volume_keys_keep_their_labels_on_now_playing),
         TEST_CASE(in_the_flipped_portrait_the_top_volume_key_is_louder_on_now_playing),
         TEST_CASE(the_lock_works_with_the_screen_off),
-        TEST_CASE(play_clicks_skip_songs_and_a_single_click_pauses),
-        TEST_CASE(volume_stays_instant_and_repeats_with_the_play_clicks_setting),
-        TEST_CASE(holding_play_still_scrubs_with_the_play_clicks_setting),
-        TEST_CASE(lists_stay_instant_with_the_click_settings),
-        TEST_CASE(screen_off_clicks_skip_with_the_double_volume_setting),
-        TEST_CASE(screen_off_play_clicks_skip_with_the_play_clicks_setting),
         TEST_CASE(the_home_menu_fits_its_rows_to_the_new_size_when_shown_again),
         TEST_CASE(the_orientation_setting_is_saved),
         TEST_CASE(choosing_portrait_turns_the_screen_and_redraws_it_upright),
@@ -6881,7 +7149,7 @@ int main(void)
         TEST_CASE(sleep_fade_tracks_the_deadline_and_off_cancels_it),
         TEST_CASE(a_one_second_power_hold_only_turns_the_screen_off),
         TEST_CASE(a_slightly_long_press_wakes_the_screen_without_switching_off),
-        TEST_CASE(a_volume_hold_under_a_second_changes_the_volume),
+        TEST_CASE(a_volume_hold_keeps_changing_the_volume),
         TEST_CASE(keys_are_ignored_while_saying_goodbye),
         TEST_CASE(the_splash_ignores_keys_until_it_ends),
         TEST_CASE(the_splash_draws_over_the_home_screen),

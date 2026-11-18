@@ -22,7 +22,7 @@ from .session import Session
 KEYS = {"play": 250, "back": 500, "previous": 35, "next": 100}
 KEY_HOLD_MS = 150
 KEY_SETTLE_MS = 450
-LONG_PRESS_MS = 1300
+CHORD_STEP_MS = 150
 SETTLE_MS = 1500
 SCAN_LIMIT_MS = 4 * 3600 * 1000
 STEP_LIMIT_MS = 20000
@@ -113,6 +113,14 @@ def press(machine, key, hold_ms=KEY_HOLD_MS, settle_ms=KEY_SETTLE_MS):
     start = machine.milliseconds() + 20
     machine.press_key(KEYS[key], delay_ms=20, hold_ms=hold_ms)
     machine.run(until_ms=start + hold_ms + settle_ms)
+    return start * 1000
+
+
+def press_chord(machine, key, settle_ms=KEY_SETTLE_MS):
+    start = machine.milliseconds() + 20
+    steps = [(KEYS["play"], CHORD_STEP_MS), (KEYS[key], CHORD_STEP_MS), (KEYS["play"], CHORD_STEP_MS)]
+    released = machine.press_ladder(steps)
+    machine.run(until_ms=released + settle_ms)
     return start * 1000
 
 
@@ -481,9 +489,9 @@ def load_summary(watch, loads):
                 / max(1, sum(1 for load in read if load["found"])), 2)}
 
 
-def keyed(watch, key, hold_ms=KEY_HOLD_MS, settle_ms=KEY_SETTLE_MS, wanted=None):
+def keyed(watch, key, hold_ms=KEY_HOLD_MS, settle_ms=KEY_SETTLE_MS, wanted=None, chord=False):
     machine = watch.machine
-    pressed = press(machine, key, hold_ms, settle_ms)
+    pressed = press_chord(machine, key, settle_ms) if chord else press(machine, key, hold_ms, settle_ms)
     loads = watch.loads(pressed)
     first = watch.first_frame_after(pressed)
     found = [load for load in loads if load["found"] and (wanted is None or load["kind"] == wanted)]
@@ -591,11 +599,11 @@ def now_playing(session, watch):
     press(machine, "play")
     opened = keyed(watch, "play", settle_ms=1500)
     plays = len(watch.plays.records)
-    skip = keyed(watch, "next", hold_ms=LONG_PRESS_MS, settle_ms=1500, wanted="full")
+    skip = keyed(watch, "next", settle_ms=1500, wanted="full", chord=True)
     track_started = watch.plays.records[plays]["start_us"] if len(watch.plays.records) > plays else None
     found = [load for load in skip["loads"] if load["found"]]
     skip["track_start_to_cover_drawn_ms"] = milliseconds(watch.drawn_us(found[-1]), track_started) if found and track_started else None
-    back = keyed(watch, "previous", hold_ms=LONG_PRESS_MS, settle_ms=1500, wanted="full")
+    back = keyed(watch, "previous", settle_ms=1500, wanted="full", chord=True)
     to_list = keyed(watch, "back")
     press(machine, "back")
     home = keyed(watch, "back")

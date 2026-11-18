@@ -70,15 +70,16 @@ static void apply_action(DiscoveryScreen *screen, Scratch *scratch, uint8_t valu
 {
     static const Key KEYS[] = {KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_PLAY, KEY_MENU, KEY_BACK};
     static const KeyGesture GESTURES[] = {KEY_GESTURE_PRESS, KEY_GESTURE_LONG_PRESS,
-                                          KEY_GESTURE_REPEAT, KEY_GESTURE_DOUBLE_PRESS,
-                                          KEY_GESTURE_TRIPLE_PRESS};
+                                          KEY_GESTURE_REPEAT};
     switch (value >> 5) {
     case 0:
     case 1:
     case 2:
     case 3:
         screen->screen.handle_key(
-            screen, (KeyEvent){.key = KEYS[value % 5], .gesture = GESTURES[(value / 5) % 5]},
+            screen,
+            (KeyEvent){.key = KEYS[value % 5],
+                       .gesture = GESTURES[(value / 5) % (sizeof GESTURES / sizeof GESTURES[0])]},
             now_ms);
         break;
     case 4:

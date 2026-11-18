@@ -413,7 +413,7 @@ Screen *mixtape_ui_init(MixtapeUi *ui, MixtapeUiConfig config)
     *ui = (MixtapeUi){.config = config, .rows_first = -1};
     ui->screen = (Screen){.title = i18n_text(STR_MIXTAPES),
                           .context = ui,
-                          .takes_every_key = true,
+                          .keys = SCREEN_KEYS_ALL,
                           .stays_on_wake = true,
                           .enter = enter,
                           .handle_key = handle_key,
