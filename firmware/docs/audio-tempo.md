@@ -22,7 +22,7 @@ The engine stretches decoded PCM at its own rate, after volume, ReplayGain and t
 
 Positions, seeks, ranges, bookmarks and the resume file stay in source time: each segment records the speed it was stretched at and converts consumed output frames back. A seek, a speed change and a new track restart the stage. Queued files at the same input rate and adjacent chapters continue in the same stage; the next segment starts after the stage's and interpolator's pending output. A change of input rate on the same output clock drains the stage and the interpolator, then restarts both. The end-of-track prediction for fades counts audio inside the stage at the current speed (see Track transitions in [architecture](architecture.md)). Stretching keeps core 0 at the full clock.
 
-The simulator runs the same kernel between its decoder and the SDL stream; positions there are the decoder's, already in source time. The listening log counts wall time while the play moves forward and converts the remaining source time to wall time when a track ends.
+The simulator runs the same kernel between its decoder and the SDL stream; positions there are the decoder's, already in source time. The listening log counts source time: while the play moves forward it scales the elapsed wall time by the speed, carrying the remainder between observations, and when a track ends it counts the source time left to its end, so whether a play was a listen does not depend on the speed.
 
 ## Checks
 

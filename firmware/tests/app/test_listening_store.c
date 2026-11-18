@@ -346,7 +346,7 @@ static void an_unknown_duration_does_not_discard_elapsed_time_on_a_track_change(
     CHECK_EQUAL(1500, seen.listened_ms);
 }
 
-static void slower_audio_counts_wall_time_instead_of_source_distance(void)
+static void slower_audio_counts_track_time_instead_of_wall_time(void)
 {
     reset();
     ListeningObservation play = observed(10, 0, PLAYER_PLAYING);
@@ -357,10 +357,10 @@ static void slower_audio_counts_wall_time_instead_of_source_distance(void)
     play.status.position_ms = 1000;
     play.status.state = PLAYER_PAUSED;
     listening_store_flush(&store, play, 2000);
-    CHECK_EQUAL(2000, store.log.root.counters.totals.listened_ms);
+    CHECK_EQUAL(1000, store.log.root.counters.totals.listened_ms);
 }
 
-static void stepped_observations_at_every_speed_keep_the_wall_time(void)
+static void stepped_observations_at_every_speed_count_track_time(void)
 {
     static const uint16_t SPEEDS[] = {50, 75, 90, 100, 110, 125, 150, 175, 200, 250, 300};
     for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
@@ -372,12 +372,12 @@ static void stepped_observations_at_every_speed_keep_the_wall_time(void)
             play.status.position_ms = now * SPEEDS[index] / 100;
             listening_store_follow(&store, play, now);
         }
-        CHECK_EQUAL(1700, store.active.listened_ms);
+        CHECK_EQUAL(1700 * SPEEDS[index] / 100, store.active.listened_ms);
         CHECK_EQUAL(1700 * SPEEDS[index] / 100, store.active.end_ms);
     }
 }
 
-static void a_track_change_closes_at_the_source_end_and_counts_wall_time(void)
+static void a_track_change_closes_at_the_source_end_and_counts_track_time(void)
 {
     static const uint16_t SPEEDS[] = {50, 200, 300};
     for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
@@ -389,9 +389,32 @@ static void a_track_change_closes_at_the_source_end_and_counts_wall_time(void)
         ListeningSeen seen;
         CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
         CHECK_EQUAL(1, seen.count);
-        CHECK_EQUAL((100000u + SPEEDS[index] - 1) / SPEEDS[index], seen.listened_ms);
+        CHECK_EQUAL(1000, seen.listened_ms);
         CHECK_EQUAL(60000, seen.first.play.end_ms);
         CHECK_EQUAL(LISTENING_FINISHED, seen.first.play.end);
+    }
+}
+
+static void a_song_played_to_the_end_counts_as_listened_at_every_speed(void)
+{
+    static const uint16_t SPEEDS[] = {50, 100, 200, 250, 300};
+    for (uint32_t index = 0; index < sizeof SPEEDS / sizeof SPEEDS[0]; index++) {
+        reset();
+        ListeningObservation play = observed(10, 0, PLAYER_PLAYING);
+        play.status.speed = SPEEDS[index];
+        listening_store_follow(&store, play, 0);
+        uint32_t now = 0;
+        while (play.status.position_ms + 1000 < play.status.duration_ms) {
+            now += 100;
+            play.status.position_ms = now * SPEEDS[index] / 100;
+            listening_store_follow(&store, play, now);
+        }
+        listening_store_follow(&store, (ListeningObservation){0}, now + 1000);
+        ListeningSeen seen;
+        CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
+        CHECK_EQUAL(1, seen.count);
+        CHECK_EQUAL(LISTENING_FINISHED, seen.first.play.end);
+        CHECK(listening_play_listened(&seen.first.play));
     }
 }
 
@@ -444,9 +467,10 @@ static void every_lossless_codec_is_classified_as_lossless(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(slower_audio_counts_wall_time_instead_of_source_distance),
-        TEST_CASE(stepped_observations_at_every_speed_keep_the_wall_time),
-        TEST_CASE(a_track_change_closes_at_the_source_end_and_counts_wall_time),
+        TEST_CASE(slower_audio_counts_track_time_instead_of_wall_time),
+        TEST_CASE(stepped_observations_at_every_speed_count_track_time),
+        TEST_CASE(a_track_change_closes_at_the_source_end_and_counts_track_time),
+        TEST_CASE(a_song_played_to_the_end_counts_as_listened_at_every_speed),
         TEST_CASE(the_player_reports_the_speed_it_asked_the_audio_to_use),
         TEST_CASE(the_real_last_track_is_recorded_finished_when_the_player_becomes_idle),
         TEST_CASE(an_idle_remembered_track_does_not_start_a_new_history_play),

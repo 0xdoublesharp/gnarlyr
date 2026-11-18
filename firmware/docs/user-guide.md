@@ -453,7 +453,7 @@ Fade plays one song after the other. A crossfade, where the next song starts whi
 
 ## Playback speed
 
-Playback speed plays faster or slower without changing the pitch: 0.5×, 0.75×, Normal (1×), 1.25×, 1.5×, 1.75×, 2×, 2.5× or 3×. On Now Playing, tap Menu to open Quick Settings and press Play on Playback speed to step through the speeds; it is also in Settings, below Status bar and above Rewind on resume. The speed applies at once and is saved for the next start. While it isn't Normal, Now Playing shows it under the track. Track times, seeking, bookmarks and resume positions keep using the recording's own time. Listening history counts the time you actually listened.
+Playback speed plays faster or slower without changing the pitch: 0.5×, 0.75×, Normal (1×), 1.25×, 1.5×, 1.75×, 2×, 2.5× or 3×. On Now Playing, tap Menu to open Quick Settings and press Play on Playback speed to step through the speeds; it is also in Settings, below Status bar and above Rewind on resume. The speed applies at once and is saved for the next start. While it isn't Normal, Now Playing shows it under the track. Track times, seeking, bookmarks and resume positions keep using the recording's own time. Listening history counts time in the recording's own time too, so a song played to the end counts as a listen at any speed.
 
 Recordings above 48 kHz always play at normal speed.
 
