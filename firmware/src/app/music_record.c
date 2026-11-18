@@ -8,9 +8,12 @@
 enum {
     CARD_AT = 4,
     INTERNAL_AT = MUSIC_CHECK_PRINT_BYTES + MUSIC_CHECK_VERSION_BYTES,
-    STATE_AT = INTERNAL_AT + 12,
-    GENERATION_AT = STATE_AT + 4
+    STATE_AT = MUSIC_CHECK_STATE_AT,
+    GENERATION_AT = MUSIC_CHECK_GENERATION_AT
 };
+
+_Static_assert(STATE_AT == INTERNAL_AT + 12, "the state follows the internal fingerprint");
+_Static_assert(MUSIC_DRIVE_UNKNOWN == MUSIC_CHECK_STATE_UNKNOWN, "one unknown state");
 
 static void put_word(uint8_t *bytes, uint32_t value)
 {
@@ -64,8 +67,8 @@ static bool internal_matches(const MusicRecord *stored, const MusicRecord *curre
                              uint32_t internal_songs)
 {
     if (stored->internal_state == MUSIC_DRIVE_UNKNOWN) {
-        return current->internal_state == MUSIC_DRIVE_KNOWN && current->internal.complete &&
-               internal_songs == 0;
+        return current->internal_state == MUSIC_DRIVE_NONE ||
+               (current->internal.complete && internal_songs == 0);
     }
     return stored->internal_state == current->internal_state &&
            (current->internal_state == MUSIC_DRIVE_NONE ||

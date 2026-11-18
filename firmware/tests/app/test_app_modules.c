@@ -16,6 +16,7 @@
 #include "library_store.h"
 #include "music_check.h"
 #include "music_record.h"
+#include "music_walk.h"
 #include "screen_modules.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -582,6 +583,31 @@ static int walks_after_start(bool moved)
     return fake_hal_dir_open_count() - walks;
 }
 
+static int walks_after_restart(void)
+{
+    app_start();
+    int walks = fake_hal_dir_open_count();
+    for (int index = 0; index < 20; index++) {
+        now_ms += 50;
+        step();
+    }
+    return fake_hal_dir_open_count() - walks;
+}
+
+static void an_unknown_internal_half_asks_for_one_music_check_at_start(void)
+{
+    fake_hal_reset();
+    add_player_files();
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 4096) == HAL_RESERVE_CREATED);
+    fake_hal_set_empty_card(true);
+    music_record_write(&(MusicRecord){.card = music_walk_fingerprint(MUSIC_WALK_QUIET),
+                                      .internal_state = MUSIC_DRIVE_UNKNOWN});
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    CHECK(walks_after_restart() > 0);
+    CHECK_EQUAL(0, walks_after_restart());
+}
+
 static void a_moved_internal_music_generation_asks_for_a_music_check_at_start(void)
 {
     CHECK(walks_after_start(true) > 0);
@@ -622,6 +648,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(about_music_says_card_and_internal_for_a_combined_library),
         TEST_CASE(a_moved_internal_music_generation_asks_for_a_music_check_at_start),
+        TEST_CASE(an_unknown_internal_half_asks_for_one_music_check_at_start),
         TEST_CASE(a_matching_internal_music_generation_asks_for_nothing_at_start),
         TEST_CASE(about_omits_the_old_usb_controls_and_raw_dac_rows),
         TEST_CASE(discovery_screen_memory_belongs_to_the_library_module),

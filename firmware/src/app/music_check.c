@@ -92,5 +92,6 @@ CORE_COLD bool music_check_generation_moved(void)
 {
     uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
     return read_bytes(bytes) && bytes_le32(bytes) == MUSIC_CHECK_RECORD_MAGIC &&
-           bytes_le32(bytes + MUSIC_CHECK_GENERATION_AT) != music_check_generation();
+           (bytes_le32(bytes + MUSIC_CHECK_GENERATION_AT) != music_check_generation() ||
+            bytes_le32(bytes + MUSIC_CHECK_STATE_AT) == MUSIC_CHECK_STATE_UNKNOWN);
 }
