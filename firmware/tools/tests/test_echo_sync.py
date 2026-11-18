@@ -375,6 +375,18 @@ class SyncTest(unittest.TestCase):
         self.assertIn("Eject the card safely", output.replace("eject", "Eject"))
         self.assertEqual(0, self.run_sync("--check")[0])
 
+    def test_check_says_a_rebuild_is_needed_when_the_library_is_not_the_current_version(self):
+        self.prepare_echo()
+        self.assertEqual(0, self.run_sync()[0])
+        library = self.folder / "library.db"
+        data = bytearray(library.read_bytes())
+        struct.pack_into("<H", data, 4, library_index.VERSION - 1)
+        library.write_bytes(bytes(data))
+        status, output = self.run_sync("--check")
+        self.assertEqual(1, status, output)
+        self.assertNotIn("won't rescan", output)
+        self.assertIn("rebuild", output)
+
     def test_covers_use_the_players_layout_for_the_cards_file(self):
         self.prepare_echo()
         status, output = self.run_sync()

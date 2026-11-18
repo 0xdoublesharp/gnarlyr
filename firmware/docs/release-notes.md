@@ -70,7 +70,7 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 
 ## Unreleased: formats start at version 1
 
-- Every Gnarlyr file and pack format is version 1, using its current layout: settings, language packs, theme packs, the library, the stores and the small files ([formats](../../docs/formats.md)). Files written by earlier development builds are refused and replaced by defaults or rebuilt; settings reset once.
+- Every Gnarlyr file and pack format is version 1, using its current layout: settings, language packs, theme packs, the stores and the small files ([formats](../../docs/formats.md)). The library is version 2, so a library written before folders of untagged files were sorted by name is rebuilt at the next start. Files written by earlier development builds are refused and replaced by defaults or rebuilt; settings reset once.
 - Language packs are segmented: text used by one screen group loads with that group, so a pack needs only its shared text and its largest group in the player's 18 KiB of language memory.
 - A pack file with a damaged part is not offered in Settings → Language. If the card holding the chosen pack is removed, screens opened afterwards show English until the card is back.
 - Checked in host tests, the tool and browser tests and the emulator; not yet seen on a player.

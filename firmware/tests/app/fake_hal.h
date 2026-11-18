@@ -171,6 +171,7 @@ const uint8_t *fake_hal_file_bytes(const char *path, uint32_t *size);
 
 void fake_hal_fail_music_writes(bool fail);
 void fake_hal_fail_file_writes(const char *path);
+void fake_hal_damage_file_writes(const char *path, uint32_t offset, uint8_t value);
 void fake_hal_fail_file_opens(const char *path);
 
 void fake_hal_fail_file_reads(const char *path);

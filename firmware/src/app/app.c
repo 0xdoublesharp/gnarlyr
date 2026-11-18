@@ -130,6 +130,7 @@ typedef struct AppState {
     uint32_t battery_check_ms;
     bool usb_power;
     bool rescan_requested;
+    bool library_rebuilt;
     uint8_t rescan_stops;
     bool covers_pending;
     bool rescan_manual;
@@ -1531,15 +1532,27 @@ static void change_language(uint32_t now_ms)
     }
 }
 
+static bool library_refused(void)
+{
+    HalFile file;
+    uint8_t magic[4] = {0, 0, 0, 0};
+    if (app.library.available || app.library_rebuilt || !hal_file_open(&file, LIBRARY_STORE_PATH)) {
+        return false;
+    }
+    bool read = hal_file_read(file, 0, magic, sizeof magic);
+    hal_file_close(&file);
+    return read && (magic[0] | magic[1] | magic[2] | magic[3]) != 0;
+}
+
 static void request_start_scan(bool library_created)
 {
     app.covers_pending = music_check_covers_pending();
     uint32_t stopped = music_check_interrupted_scans();
     bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
-    if (library_created || resume) {
+    if (library_created || resume || (stopped == 0 && library_refused())) {
         app.rescan_requested = true;
         app.rescan_stops = resume ? (uint8_t)stopped : 0;
-    } else if (stopped == 0 && music_check_firmware_is_new()) {
+    } else if (stopped == 0 && !app.library_rebuilt && music_check_firmware_is_new()) {
         app.covers_pending = true;
         app.music_check_requested = true;
     }
@@ -1641,6 +1654,7 @@ CORE_COLD bool app_store_clock_offset(int16_t offset, bool from_storage)
 
 CORE_SEAM void app_start(void)
 {
+    app.library_rebuilt = false;
     start_app(true);
 }
 
@@ -1750,6 +1764,7 @@ static void run_rescan(void)
         uint32_t expected = music_check_entries();
         expected = expected > 0 ? expected : outcome.stats.files + outcome.stats.files / 4u + 1u;
         music_check_remember(walk_music(expected));
+        app.library_rebuilt = true;
         bool charging = app.charging;
         start_app(false);
         if (charging) {

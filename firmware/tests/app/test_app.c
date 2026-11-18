@@ -3673,6 +3673,132 @@ static void a_new_firmware_rebuilds_a_version_one_library(void)
     CHECK_EQUAL(2, stored_library_version());
 }
 
+static void write_library_header(uint32_t offset, const uint8_t *bytes, uint32_t size)
+{
+    CHECK(hal_file_write_at("/" FIRMWARE_DATA_DIRECTORY "/library.db", offset, bytes, size));
+}
+
+static void a_version_one_library_is_rebuilt_at_start_by_the_same_firmware(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_damaged_library_is_rebuilt_at_start_by_the_same_firmware(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t DAMAGED[4] = {'X', 'X', 'X', 'X'};
+    write_library_header(0, DAMAGED, sizeof DAMAGED);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_rebuilt_library_that_still_cannot_be_read_is_not_rebuilt_again(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    fake_hal_damage_file_writes("/" FIRMWARE_DATA_DIRECTORY "/library.db", 4, 9);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(9, stored_library_version());
+    int writes = fake_hal_library_writes();
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(writes, fake_hal_library_writes());
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+}
+
+static void a_refused_library_on_a_changed_card_is_rebuilt_after_an_earlier_rebuild(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    app_start_after_storage();
+    app_request_rescan_if_music_changed();
+    while (app_preparing()) {
+        step();
+    }
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_new_firmware_rebuilds_a_library_no_build_finished(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t NO_MAGIC[4] = {0, 0, 0, 0};
+    write_library_header(0, NO_MAGIC, sizeof NO_MAGIC);
+    fake_hal_set_version("newer");
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_library_no_build_finished_waits_for_new_music(void)
+{
+    start_app();
+    step();
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
+}
+
+static void a_start_rebuild_that_fails_waits_for_the_next_start(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    static const uint8_t OLD_VERSION[2] = {1, 0};
+    write_library_header(4, OLD_VERSION, sizeof OLD_VERSION);
+    fake_hal_refuse_scratch(true);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    fake_hal_refuse_scratch(false);
+    restart_app();
+    step();
+    CHECK_EQUAL(3, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(2, stored_library_version());
+}
+
+static void a_rebuild_that_cannot_record_the_music_is_not_repeated(void)
+{
+    start_on_a_fresh_card(HAL_RESERVE_CREATED);
+    step();
+    fake_hal_set_version("newer");
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    restart_app();
+    step();
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    int writes = fake_hal_library_writes();
+    for (int count = 0; count < 6; count++) {
+        step();
+    }
+    CHECK_EQUAL(writes, fake_hal_library_writes());
+    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
+}
+
 static void a_different_stored_fingerprint_is_rescanned_after_usb(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
@@ -7341,6 +7467,14 @@ int main(void)
         TEST_CASE(a_new_firmware_rescans_music_that_changed),
         TEST_CASE(a_scan_notice_redraws_the_text_it_was_given),
         TEST_CASE(a_new_firmware_rebuilds_a_version_one_library),
+        TEST_CASE(a_version_one_library_is_rebuilt_at_start_by_the_same_firmware),
+        TEST_CASE(a_damaged_library_is_rebuilt_at_start_by_the_same_firmware),
+        TEST_CASE(a_rebuilt_library_that_still_cannot_be_read_is_not_rebuilt_again),
+        TEST_CASE(a_library_no_build_finished_waits_for_new_music),
+        TEST_CASE(a_refused_library_on_a_changed_card_is_rebuilt_after_an_earlier_rebuild),
+        TEST_CASE(a_new_firmware_rebuilds_a_library_no_build_finished),
+        TEST_CASE(a_start_rebuild_that_fails_waits_for_the_next_start),
+        TEST_CASE(a_rebuild_that_cannot_record_the_music_is_not_repeated),
         TEST_CASE(a_card_that_cannot_be_walked_is_rescanned_after_usb),
         TEST_CASE(a_scan_cut_short_runs_again_at_the_next_start),
         TEST_CASE(after_three_scans_cut_short_the_next_start_scans_without_covers),
