@@ -313,6 +313,19 @@ class CardFileTest(unittest.TestCase):
         self.assertEqual(4096, len(written))
 
 
+class AlbumPathTest(unittest.TestCase):
+    def test_a_library_holding_internal_storage_is_refused_for_covers_from_the_card(self):
+        import cover_export
+        with tempfile.TemporaryDirectory() as directory:
+            card = Path(directory)
+            source = cover_export.AlbumSource(key=1, title="Album", artist="A",
+                                              paths=['"/Music/01 Song.flac'])
+            with self.assertRaises(echo_sync.SyncError):
+                echo_sync.check_album_paths(card, [source])
+            echo_sync.check_album_paths(card, [cover_export.AlbumSource(key=1, artist="A",
+                title="Album", paths=["Music/01 Song.flac"])])
+
+
 class ScanRecordTest(unittest.TestCase):
     def test_the_record_holds_the_magic_both_hashes_the_count_the_firmware_tag_and_an_unknown_internal_half(self):
         tag = b"0.1.0".ljust(16, b"\0")

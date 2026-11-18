@@ -645,6 +645,9 @@ def check_album_paths(card, sources):
     for source in sources:
         for relative in source.paths:
             parts = relative.split("/")
+            if parts[0] == library_index.INTERNAL_MARKER:
+                raise SyncError("The library includes music on the player's own storage. "
+                                "Connect the player to update its covers.")
             if (any(part in ("", ".", "..") for part in parts) or
                     "\\" in relative or ":" in relative or "\x00" in relative or
                     not (card / relative).resolve().is_relative_to(card.resolve())):
