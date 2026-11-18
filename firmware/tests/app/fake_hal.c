@@ -104,6 +104,7 @@ static LargeStore large_stores[2];
 
 typedef struct FakeHal {
     uint16_t key_adc;
+    bool loader_keys;
     KeyLadderModel ladder;
     AudioVisualBuffer visual_buffer;
     int visual_reads;
@@ -321,6 +322,7 @@ void fake_hal_reset(void)
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
     fake.key_adc = FAKE_KEY_IDLE_READING;
+    fake.loader_keys = false;
     key_ladder_model_init(&fake.ladder);
 }
 
@@ -571,6 +573,16 @@ HalHeadsetReading hal_input_headset_reading(void)
 bool hal_input_waiting(void)
 {
     return fake.next_transition != fake.transition_count;
+}
+
+bool hal_input_loader_keys_held(void)
+{
+    return fake.loader_keys;
+}
+
+void fake_hal_set_loader_keys(bool held)
+{
+    fake.loader_keys = held;
 }
 
 bool hal_input_next_transition(HalKeyTransition *transition)

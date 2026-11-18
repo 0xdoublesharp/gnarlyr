@@ -4049,6 +4049,46 @@ static void switching_off_on_usb_power_shows_the_charge_screen(void)
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
 }
 
+static void hold_loader_keys(Key first, Key second)
+{
+    if (first == KEY_POWER) {
+        fake_hal_queue_transition(first, true, now_ms);
+        keep_holding(300);
+    }
+    fake_hal_set_loader_keys(true);
+    if (first != KEY_POWER) {
+        fake_hal_queue_transition(first, true, now_ms);
+    }
+    fake_hal_queue_transition(second, true, now_ms);
+    keep_holding(3000);
+    fake_hal_set_loader_keys(false);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, now_ms);
+    fake_hal_queue_transition(KEY_POWER, false, now_ms);
+    keep_holding(100);
+}
+
+static void power_and_volume_up_held_for_the_loader_neither_switch_off_nor_skip(void)
+{
+    const Key orders[][2] = {{KEY_VOLUME_UP, KEY_POWER}, {KEY_POWER, KEY_VOLUME_UP}};
+    for (int order = 0; order < 2; order++) {
+        start_app_with_library();
+        play_first_album_track();
+        fake_hal_set_battery(ON_USB);
+        uint16_t track = app_player_status().track;
+        uint8_t volume = fake_hal_audio_volume();
+        hold_loader_keys(orders[order][0], orders[order][1]);
+        wait_ms(GOODBYE_MS);
+        CHECK(!app_charging());
+        CHECK_EQUAL(0, fake_hal_power_off_count());
+        CHECK_EQUAL(track, app_player_status().track);
+        CHECK_EQUAL(volume, fake_hal_audio_volume());
+        CHECK(fake_hal_display_on());
+        hold_power();
+        wait_ms(GOODBYE_MS);
+        CHECK(app_charging());
+    }
+}
+
 static void the_charge_screen_goes_dark_and_a_key_lights_it(void)
 {
     start_app_with_library();
@@ -7302,6 +7342,7 @@ int main(void)
         TEST_CASE(an_empty_battery_saves_and_turns_the_player_off),
         TEST_CASE(an_empty_battery_on_usb_power_keeps_playing),
         TEST_CASE(switching_off_on_usb_power_shows_the_charge_screen),
+        TEST_CASE(power_and_volume_up_held_for_the_loader_neither_switch_off_nor_skip),
         TEST_CASE(the_charge_screen_goes_dark_and_a_key_lights_it),
         TEST_CASE(charging_motion_waits_for_its_next_frame_and_stops_in_the_dark),
         TEST_CASE(charging_keeps_its_renderer_loaded_until_the_player_wakes),

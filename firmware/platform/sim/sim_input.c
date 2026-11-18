@@ -94,6 +94,11 @@ bool hal_input_waiting(void)
     return queue.length != 0;
 }
 
+bool hal_input_loader_keys_held(void)
+{
+    return false;
+}
+
 bool hal_input_next_headset_command(HalHeadsetCommand *command)
 {
     (void)command;
