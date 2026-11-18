@@ -248,6 +248,34 @@ class EchoImageTest(EchoImageHarness):
         self.assert_playing_cleanly(rig, layers, rig.press("play"), RESUMED_LISTEN_MS)
         self.assert_healthy(rig.session)
 
+    def call(self, machine, name):
+        from echo_emulator.machine import TRAMPOLINE
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
+        returned = TRAMPOLINE + 0x904
+        machine.add_address_hook(returned, lambda: machine.stop("returned"))
+        context = machine.uc.context_save()
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
+        self.assertEqual("returned", machine.run(until_ms=machine.milliseconds() + 3000))
+        result = machine.reg(UC_ARM_REG_R0)
+        machine.uc.context_restore(context)
+        return result
+
+    def test_a_bluetooth_restart_whose_transfer_fails_stops_the_track(self):
+        rig = self.gesture_rig()
+        layers = Layers(rig)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
+        rig.machine.stub_symbol("dmac_start_loop", lambda machine: 0)
+        self.assertEqual(0, self.call(rig.machine, "board_audio_bluetooth_start"))
+        rig.run_for(SETTLE_MS)
+        state = layers.snapshot()
+        self.assertEqual(ENGINE_STOPPED, state["engine"], state)
+        self.assertNotEqual(PLAYER_PLAYING, state["app"], "%s\n%s" % (state, layers.events()))
+        self.assertIsNone(Layers.problem(state), state)
+
     def remount_rig(self):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig

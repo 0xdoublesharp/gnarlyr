@@ -1175,7 +1175,11 @@ CORE_SEAM CORE_COLD bool board_audio_bluetooth_start(void)
                                      .reciprocal = length == 0 ? 0 : UINT32_MAX / length,
                                      .active = length != 0};
     apply_volume();
-    return start_output(false);
+    if (!start_output(false)) {
+        audio_engine_stop(&engine);
+        return false;
+    }
+    return true;
 }
 
 void board_audio_output_changed(void)
