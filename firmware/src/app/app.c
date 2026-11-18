@@ -964,12 +964,12 @@ static void dispatch_key_events(uint32_t now_ms)
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
         app.render_urgent = true;
         debug_loop_key(event);
-        if ((app.power.standby_active && event.key != KEY_POWER) || ignored_power_tap(event)) {
-            continue;
-        }
         if (top_screen()->keys == SCREEN_KEYS_TEST &&
             (event.key != KEY_POWER || event.gesture == KEY_GESTURE_PRESS)) {
             dispatch_to_screen(event, now_ms);
+            continue;
+        }
+        if ((app.power.standby_active && event.key != KEY_POWER) || ignored_power_tap(event)) {
             continue;
         }
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);

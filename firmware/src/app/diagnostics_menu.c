@@ -75,6 +75,13 @@ static void build_stall_question(ViewsModuleScreens *own, const Theme *theme)
                            theme);
 }
 
+static ScreenAction ask_stall_test(void *context)
+{
+    AppScreens *screens = context;
+    build_stall_question(&screens->modules.views, screens->context.theme);
+    return screen_action_push(&screens->modules.views.stall_question.screen);
+}
+
 static ScreenAction run_watchdog_test(void *context)
 {
     (void)context;
@@ -114,7 +121,7 @@ typedef enum DiagnosticsContext {
     CONTEXT_CLOCK,
     CONTEXT_BLUETOOTH,
     CONTEXT_KEY_TEST,
-    CONTEXT_STALL,
+    CONTEXT_SCREENS,
     CONTEXT_COUNT
 } DiagnosticsContext;
 
@@ -132,7 +139,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [2] = {STR_ABOUT_CPU_CLOCK, cycle_clock, clock_value, CONTEXT_CLOCK, false},
     [3] = {STR_ABOUT_BATTERY, NULL, diagnostics_row_battery, CONTEXT_NONE, false},
     [4] = {STR_BLUETOOTH, bluetooth_screen_open_details, NULL, CONTEXT_BLUETOOTH, true},
-    [5] = {STR_ABOUT_STALL_TEST, menu_open_screen, NULL, CONTEXT_STALL, true},
+    [5] = {STR_ABOUT_STALL_TEST, ask_stall_test, NULL, CONTEXT_SCREENS, true},
     [6] = {STR_ABOUT_POWER_TAPS, toggle_power_taps, power_taps_value, CONTEXT_OPTIONS, false},
     [7] = {STR_ABOUT_JACK_35, NULL, diagnostics_row_jack_single_ended, CONTEXT_NONE, false},
     [8] = {STR_ABOUT_JACK_44, NULL, diagnostics_row_jack_balanced, CONTEXT_NONE, false},
@@ -156,7 +163,7 @@ static void build_rows(AppScreens *screens, AppOptions *options)
                                      [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth,
                                      [CONTEXT_KEY_TEST] =
                                          &screens->modules.equalizer.key_test.screen,
-                                     [CONTEXT_STALL] = &screens->modules.views.stall_question};
+                                     [CONTEXT_SCREENS] = screens};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];
         screens->modules.views.diagnostics_items[index] =
@@ -173,7 +180,6 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     ViewsModuleScreens *own = &screens->modules.views;
     options_init(screens);
     build_rows(screens, options);
-    build_stall_question(own, theme);
     app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
 }

@@ -1,5 +1,6 @@
 #include "key_test_screen.h"
 
+#include "app/app.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/font.h"
@@ -52,6 +53,7 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     KeyTestScreen *test = context;
     (void)now_ms;
+    app_wake();
     if (event.key == KEY_POWER) {
         return screen_action_pop();
     }

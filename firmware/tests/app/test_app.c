@@ -5079,6 +5079,51 @@ static void in_portrait_the_key_test_names_the_physical_key(void)
     CHECK(text_shown("Vol+ tap"));
 }
 
+static void the_stall_question_always_opens_on_cancel(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_STALL_TEST_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(1);
+    tap(KEY_BACK);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, fake_hal_stall_test_count());
+}
+
+static void power_leaves_the_key_test_even_with_power_taps_ignored(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_POWER_TAPS_INDEX);
+    tap(KEY_PLAY);
+    move_down(DIAGNOSTICS_KEYS_INDEX - DIAGNOSTICS_POWER_TAPS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    tap(KEY_POWER);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+    CHECK(fake_hal_display_on());
+}
+
+static void testing_keys_keeps_the_screen_on(void)
+{
+    start_app();
+    open_diagnostics_row(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    for (int count = 0; count < 8; count++) {
+        wait_ms(DEFAULT_TIMEOUT_MS / 4);
+        tap(KEY_MENU);
+    }
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("Keys"));
+}
+
 static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
 {
     start_app();
@@ -6843,6 +6888,9 @@ int main(void)
         TEST_CASE(waking_while_paused_keeps_the_screen),
         TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
         TEST_CASE(in_portrait_the_key_test_names_the_physical_key),
+        TEST_CASE(the_stall_question_always_opens_on_cancel),
+        TEST_CASE(power_leaves_the_key_test_even_with_power_taps_ignored),
+        TEST_CASE(testing_keys_keeps_the_screen_on),
         TEST_CASE(the_cpu_clock_cycles_through_24_96_and_200_mhz),
         TEST_CASE(the_stall_test_asks_before_it_freezes_the_main_loop),
         TEST_CASE(stray_presses_in_about_do_not_freeze_the_player),
