@@ -2980,6 +2980,25 @@ static void end_of_track_sleep_does_not_start_the_queued_song(void)
     CHECK_EQUAL(1, fake_hal_power_off_count());
 }
 
+static void end_of_track_sleep_chosen_while_idle_waits_for_a_track_to_end(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_SLEEP_INDEX);
+    move_down(7);
+    tap(KEY_PLAY);
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(0, fake_hal_power_off_count());
+    hold_back();
+    move_up(HOME_SETTINGS_INDEX);
+    play_first_album_track();
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    fake_hal_audio_finish_track();
+    step();
+    wait_ms(GOODBYE_MS);
+    CHECK_EQUAL(1, fake_hal_power_off_count());
+}
+
 static void a_one_second_power_hold_only_turns_the_screen_off(void)
 {
     start_app_with_library();
@@ -6779,6 +6798,7 @@ int main(void)
         TEST_CASE(turning_off_while_playing_silences_the_music_before_cutting_power),
         TEST_CASE(the_sleep_timer_silences_the_music_before_cutting_power),
         TEST_CASE(end_of_track_sleep_does_not_start_the_queued_song),
+        TEST_CASE(end_of_track_sleep_chosen_while_idle_waits_for_a_track_to_end),
         TEST_CASE(sleep_fade_tracks_the_deadline_and_off_cancels_it),
         TEST_CASE(a_one_second_power_hold_only_turns_the_screen_off),
         TEST_CASE(a_slightly_long_press_wakes_the_screen_without_switching_off),

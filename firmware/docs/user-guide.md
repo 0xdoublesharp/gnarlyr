@@ -644,7 +644,7 @@ Place a timed `.lrc` file beside a song, with the same filename stem. Hold Menu 
 
 ## Sleep timer
 
-Settings → Sleep timer turns the player off after 15–120 minutes, at End of track, or at End of chapter/episode. Chapter/episode uses the current audiobook chapter, podcast episode or CUE track; on ordinary music it ends at the current song. The final minute fades smoothly to silence. If an end timer is armed with less time remaining, its fade starts at the current level and uses that shorter interval. A paused end timer waits for playback to finish; a timed timer continues while paused. Off cancels the timer and restores the normal listening level. A new start leaves the timer off.
+Settings → Sleep timer turns the player off after 15–120 minutes, at End of track, or at End of chapter/episode. Chapter/episode uses the current audiobook chapter, podcast episode or CUE track; on ordinary music it ends at the current song. The final minute fades smoothly to silence. If an end timer is armed with less time remaining, its fade starts at the current level and uses that shorter interval. A paused end timer waits for playback to finish; a timed timer continues while paused. An end timer chosen while nothing is playing waits for the next track you play to end. Off cancels the timer and restores the normal listening level. A new start leaves the timer off.
 
 ## A–B repeat
 

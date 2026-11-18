@@ -1065,7 +1065,8 @@ static void update_power(uint32_t now_ms)
     if (app.power.sleep_timer_active) {
         if (app.power.sleep_track_end) {
             PlayerStatus status = player_status(&app.player);
-            if (status.state == PLAYER_IDLE) {
+            app.power.sleep_track_started |= status.state != PLAYER_IDLE;
+            if (status.state == PLAYER_IDLE && app.power.sleep_track_started) {
                 power_policy_start_sleep_timer(&app.power, 0, now_ms);
             } else if (status.state == PLAYER_PLAYING && status.duration_ms != 0) {
                 remaining = status.position_ms < status.duration_ms
