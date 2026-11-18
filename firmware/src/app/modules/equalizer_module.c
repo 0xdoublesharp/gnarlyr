@@ -19,6 +19,9 @@ static void bind(AppScreens *screens)
                                            .value = settings_action_speed_text,
                                            .cycle = settings_action_cycle_speed}};
     quick_settings_screen_init(&own->quick_settings, quick);
+#ifdef ECHO_DEBUG_LOOP
+    key_test_screen_init(&own->key_test, context->theme);
+#endif
 }
 
 const ParametricModuleEntry EQUALIZER_MODULE_ENTRY = {

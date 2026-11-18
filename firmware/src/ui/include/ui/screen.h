@@ -16,6 +16,12 @@ typedef enum ScreenActionType {
     SCREEN_ACTION_REPLACE
 } ScreenActionType;
 
+typedef enum ScreenKeys {
+    SCREEN_KEYS_SHARED,
+    SCREEN_KEYS_ALL,
+    SCREEN_KEYS_TEST
+} ScreenKeys;
+
 typedef struct ScreenAction {
     ScreenActionType type;
     Screen *target;
@@ -27,7 +33,7 @@ struct Screen {
     bool full_screen;
     bool paints_every_pixel;
     bool hold_volume_keys;
-    bool takes_every_key;
+    uint8_t keys;
     bool stays_on_wake;
     bool fast_list;
     uint16_t header_title_width;

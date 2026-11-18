@@ -634,7 +634,8 @@ static bool opens_now_playing(KeyEvent event)
 {
     return event.key == KEY_MENU && event.gesture == KEY_GESTURE_PRESS &&
            player_status(&app.player).has_track &&
-           top_screen() != &app.screens.now_playing.screen && !top_screen()->takes_every_key;
+           top_screen() != &app.screens.now_playing.screen &&
+           top_screen()->keys == SCREEN_KEYS_SHARED;
 }
 
 static ScreenAction now_playing_action(void)
@@ -938,6 +939,14 @@ static void mapped_navigation(ButtonAction action, uint32_t now_ms)
     }
 }
 
+static const uint8_t ACTION_COMMANDS[BUTTON_ACTION_COUNT] = {
+    [BUTTON_ACTION_PLAY_PAUSE] = NOW_PLAYING_TOGGLE_PAUSE,
+    [BUTTON_ACTION_NEXT] = NOW_PLAYING_NEXT,
+    [BUTTON_ACTION_PREVIOUS] = NOW_PLAYING_PREVIOUS,
+    [BUTTON_ACTION_VOLUME_UP] = NOW_PLAYING_VOLUME_UP,
+    [BUTTON_ACTION_VOLUME_DOWN] = NOW_PLAYING_VOLUME_DOWN,
+};
+
 static bool mapped_playback(KeyEvent event, uint32_t now_ms)
 {
     PlaybackButton button;
@@ -956,36 +965,19 @@ static bool mapped_playback(KeyEvent event, uint32_t now_ms)
         action != BUTTON_ACTION_VOLUME_DOWN) {
         return true;
     }
-    switch (action) {
-    case BUTTON_ACTION_PLAY_PAUSE:
-        run_player_command(NOW_PLAYING_TOGGLE_PAUSE);
-        break;
-    case BUTTON_ACTION_NEXT:
-        run_player_command(NOW_PLAYING_NEXT);
-        break;
-    case BUTTON_ACTION_PREVIOUS:
-        run_player_command(NOW_PLAYING_PREVIOUS);
-        break;
-    case BUTTON_ACTION_VOLUME_UP:
-        run_player_command(NOW_PLAYING_VOLUME_UP);
-        break;
-    case BUTTON_ACTION_VOLUME_DOWN:
-        run_player_command(NOW_PLAYING_VOLUME_DOWN);
-        break;
-    case BUTTON_ACTION_UP_NEXT:
-    case BUTTON_ACTION_SEEK:
-    case BUTTON_ACTION_HOME:
+    NowPlayingCommand command = (NowPlayingCommand)ACTION_COMMANDS[action];
+    if (command != NOW_PLAYING_NONE) {
+        run_player_command(command);
+    } else if (action == BUTTON_ACTION_UP_NEXT || action == BUTTON_ACTION_SEEK ||
+               action == BUTTON_ACTION_HOME) {
         mapped_navigation(action, now_ms);
-        break;
-    default:
-        break;
     }
     return true;
 }
 
 static bool configured_menu_hold(KeyEvent event)
 {
-    if (top_screen()->takes_every_key) {
+    if (top_screen()->keys != SCREEN_KEYS_SHARED) {
         return false;
     }
     if (!app_menu_hold(&app.screens, event)) {
@@ -1002,6 +994,11 @@ static void dispatch_key_events(uint32_t now_ms)
         app.render_urgent = true;
         debug_loop_key(event);
         if ((app.power.standby_active && event.key != KEY_POWER) || ignored_power_tap(event)) {
+            continue;
+        }
+        if (top_screen()->keys == SCREEN_KEYS_TEST &&
+            (event.key != KEY_POWER || event.gesture == KEY_GESTURE_PRESS)) {
+            dispatch_to_screen(event, now_ms);
             continue;
         }
         PowerKeyOutcome outcome = power_policy_key(&app.power, event, now_ms);

@@ -64,7 +64,7 @@ Screen *cassette_flip_screen_init(CassetteFlipScreen *screen, Player *player, co
     *screen = (CassetteFlipScreen){.player = player, .theme = theme, .mixtapes = mixtapes};
     screen->screen = (Screen){.title = i18n_text(STR_MIXTAPE),
                               .context = screen,
-                              .takes_every_key = true,
+                              .keys = SCREEN_KEYS_ALL,
                               .stays_on_wake = true,
                               .enter = cassette_flip_screen_enter,
                               .handle_key = handle_key,

@@ -182,7 +182,7 @@ Screen *card_format_screen_init(CardFormatScreen *screen, CardFormatConfig confi
     *screen = (CardFormatScreen){.config = config, .card = hal_card_info(), .phase = PHASE_WARNING};
     screen->screen = (Screen){.title = i18n_text(STR_CARD_FORMAT),
                               .context = screen,
-                              .takes_every_key = true,
+                              .keys = SCREEN_KEYS_ALL,
                               .stays_on_wake = true,
                               .handle_key = key,
                               .draw = draw};

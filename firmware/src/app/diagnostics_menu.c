@@ -98,6 +98,7 @@ typedef enum DiagnosticsContext {
     CONTEXT_OPTIONS,
     CONTEXT_CLOCK,
     CONTEXT_BLUETOOTH,
+    CONTEXT_KEY_TEST,
     CONTEXT_COUNT
 } DiagnosticsContext;
 
@@ -123,7 +124,7 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
     [10] = {STR_MUSIC, NULL, diagnostics_row_music, CONTEXT_NONE, false},
     [11] = {STR_ABOUT_HEADSET, NULL, diagnostics_row_headset, CONTEXT_NONE, false},
     [12] = {STR_ABOUT_CORE_BUSY, NULL, diagnostics_row_core0_busy, CONTEXT_NONE, false},
-    [14] = {STR_ABOUT_KEYS, NULL, diagnostics_row_keys, CONTEXT_NONE, false},
+    [14] = {STR_ABOUT_KEYS, menu_open_screen, diagnostics_row_keys, CONTEXT_KEY_TEST, true},
     [13] = {STR_ABOUT_PROFILER, switch_profiler, profiler_value, CONTEXT_NONE, false},
 };
 
@@ -136,7 +137,9 @@ static void build_rows(AppScreens *screens, AppOptions *options)
 {
     void *contexts[CONTEXT_COUNT] = {[CONTEXT_OPTIONS] = options,
                                      [CONTEXT_CLOCK] = &screens->modules.views.diagnostic_clock,
-                                     [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth};
+                                     [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth,
+                                     [CONTEXT_KEY_TEST] =
+                                         &screens->modules.equalizer.key_test.screen};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];
         screens->modules.views.diagnostics_items[index] =

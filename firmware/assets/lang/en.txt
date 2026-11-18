@@ -880,6 +880,27 @@ STR_CARD_EJECT = Eject card
 STR_CARD_MOUNT = Mount card
 STR_CARD_SAFE = Safe to remove card
 STR_ABOUT_KEYS = Keys
+
+# Key test in developer builds (Settings > About > Keys). The key names follow the player's keys
+# in order; the gestures are a tap, a hold, a repeat while held, and double and triple clicks.
+# In STR_KEY_TEST_EVENT {0} is a key and {1} a gesture; in STR_KEY_TEST_ENTRY {0} is a time in
+# milliseconds, {1} the key reading and {2} the key that reading stands for.
+STR_KEY_VOLUME_UP = Vol+
+STR_KEY_VOLUME_DOWN = Vol-
+STR_KEY_PLAY = Play
+STR_KEY_MENU = Menu
+STR_KEY_BACK = Back
+STR_KEY_POWER = Power
+STR_KEY_TAP = tap
+STR_KEY_HOLD = hold
+STR_KEY_REPEAT = repeat
+STR_KEY_DOUBLE = double
+STR_KEY_TRIPLE = triple
+STR_KEY_TEST_EVENT = {0} {1}
+STR_KEY_TEST_ENTRY = {0} ms · {1} · {2}
+STR_KEY_TEST_HINT = Power: exit
+STR_KEY_TEST_CAUTION = Holding Power and Vol+ for 3 s with a computer cable starts recovery mode.
+
 STR_MENU_LONG_ACTION = Hold Menu
 STR_LONG_CURRENT = Default
 STR_PLAY_ALL_ALBUMS = Play all

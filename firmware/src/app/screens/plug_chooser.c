@@ -243,14 +243,15 @@ Screen *plug_chooser_init(PlugChooser *chooser, PlugChooserConfig config)
     list_view_init(&chooser->list, &chooser->model, config.theme, 0);
     PlugChooserLayout layout = chooser_layout(chooser);
     list_view_fit_rows(&chooser->list, list_view_rows_in(&chooser->list, layout.list.height));
-    chooser->screen = (Screen){.title = config.title,
-                               .context = chooser,
-                               .paints_every_pixel = true,
-                               .takes_every_key = config.state.place != PLUG_PLACE_SETTINGS,
-                               .stays_on_wake = true,
-                               .enter = enter,
-                               .handle_key = handle_key,
-                               .update = update,
-                               .draw = draw};
+    chooser->screen = (Screen){
+        .title = config.title,
+        .context = chooser,
+        .paints_every_pixel = true,
+        .keys = config.state.place != PLUG_PLACE_SETTINGS ? SCREEN_KEYS_ALL : SCREEN_KEYS_SHARED,
+        .stays_on_wake = true,
+        .enter = enter,
+        .handle_key = handle_key,
+        .update = update,
+        .draw = draw};
     return &chooser->screen;
 }

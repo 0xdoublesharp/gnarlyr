@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "device/key_ladder.h"
 #include "hal/input.h"
 
 enum {
@@ -100,4 +101,9 @@ HalHeadsetReading hal_input_headset_reading(void)
 uint16_t hal_input_key_adc(void)
 {
     return 1023;
+}
+
+bool hal_input_decode_key(uint16_t reading, Key *key)
+{
+    return key_ladder_decode(reading, key);
 }

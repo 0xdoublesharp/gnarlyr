@@ -7,6 +7,7 @@
 
 #include "app/rescan_module.h"
 #include "core/i18n.h"
+#include "device/key_ladder.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/clock.h"
@@ -21,6 +22,7 @@
 #include <string.h>
 
 enum {
+    FAKE_KEY_IDLE_READING = 1023,
     TRANSITION_CAPACITY = 16,
     FILE_CAPACITY = 64,
     PROBE_CALL_CAPACITY = 32,
@@ -99,6 +101,7 @@ typedef struct LargeStore {
 static LargeStore large_stores[2];
 
 typedef struct FakeHal {
+    uint16_t key_adc;
     AudioVisualBuffer visual_buffer;
     int visual_reads;
     uint8_t battery_care_mode;
@@ -314,6 +317,7 @@ void fake_hal_reset(void)
     memset(language_packs, 0, sizeof language_packs);
     fake.audio.jack = HAL_AUDIO_JACK_SINGLE_ENDED;
     fake.audio.status.idle = true;
+    fake.key_adc = FAKE_KEY_IDLE_READING;
 }
 
 void fake_hal_set_version(const char *version)
@@ -2166,7 +2170,17 @@ void fake_hal_fail_internal_writes(const char *path)
 
 uint16_t hal_input_key_adc(void)
 {
-    return 1023;
+    return fake.key_adc;
+}
+
+void fake_hal_set_key_adc(uint16_t reading)
+{
+    fake.key_adc = reading;
+}
+
+bool hal_input_decode_key(uint16_t reading, Key *key)
+{
+    return key_ladder_decode(reading, key);
 }
 
 bool hal_power_usb_host(void)

@@ -102,6 +102,7 @@ enum {
     DIAGNOSTICS_STALL_TEST_INDEX = 5,
     DIAGNOSTICS_POWER_TAPS_INDEX = 6,
     DIAGNOSTICS_PROFILER_INDEX = 13,
+    DIAGNOSTICS_KEYS_INDEX = 14,
     DEBUG_FOLLOW_MS = 100,
     SCRIPT_STEP_MS = 8,
     CHARGE_DARK_MS = 6000,
@@ -4886,6 +4887,33 @@ static void open_diagnostics_row(int index)
     move_down(index);
 }
 
+static void the_key_test_takes_every_ladder_key_until_power_leaves(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    hold_back();
+    wait_ms(SLIDE_DURATION_MS);
+    open_diagnostics_row(DIAGNOSTICS_KEYS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Keys"));
+    uint8_t volume = fake_hal_audio_volume();
+    uint16_t track = app_player_status().track;
+    static const Key LADDER[] = {KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_PLAY, KEY_MENU, KEY_BACK};
+    for (size_t index = 0; index < sizeof LADDER / sizeof LADDER[0]; index++) {
+        tap(LADDER[index]);
+        hold(LADDER[index]);
+        CHECK(title_is("Keys"));
+    }
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    tap(KEY_POWER);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(fake_hal_display_on());
+    CHECK(title_is("About"));
+}
+
 static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
 {
     start_app();
@@ -6628,6 +6656,7 @@ int main(void)
         TEST_CASE(idling_in_the_menus_stays_put_while_playing),
         TEST_CASE(waking_the_screen_shows_now_playing_while_playing),
         TEST_CASE(waking_while_paused_keeps_the_screen),
+        TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
         TEST_CASE(the_cpu_clock_cycles_through_24_96_and_200_mhz),
         TEST_CASE(the_stall_test_row_freezes_the_main_loop_on_purpose),
         TEST_CASE(the_watchdog_test_row_stops_everything_on_purpose),

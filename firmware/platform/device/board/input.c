@@ -39,6 +39,11 @@ uint16_t hal_input_key_adc(void)
     return key_adc;
 }
 
+bool hal_input_decode_key(uint16_t reading, Key *key)
+{
+    return key_ladder_decode(reading, key);
+}
+
 static KeyScanner scanner;
 static BatteryGauge gauge;
 static HeadsetMonitor headset;
