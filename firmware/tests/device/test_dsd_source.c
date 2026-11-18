@@ -357,7 +357,7 @@ enum {
 
 typedef struct PinnedInput {
     uint32_t calls;
-    bool flaky;
+    uint32_t period;
 } PinnedInput;
 
 static uint8_t pinned_signal[2][PINNED_BLOCKS * 4096];
@@ -365,7 +365,7 @@ static uint8_t pinned_signal[2][PINNED_BLOCKS * 4096];
 static bool pinned_read(void *context, uint32_t offset, void *out, uint32_t count)
 {
     PinnedInput *pinned = context;
-    if (pinned->flaky && pinned->calls++ % 3 == 1) {
+    if (pinned->period != 0 && pinned->calls++ % pinned->period == 1) {
         return false;
     }
     return read_file(NULL, offset, out, count);
@@ -441,9 +441,9 @@ static void pinned_block(PinnedHashes *hashes, const Core1Block *block, uint32_t
     }
 }
 
-static PinnedHashes pinned_decode(uint32_t channels, bool flaky)
+static PinnedHashes pinned_decode(uint32_t channels, uint32_t period)
 {
-    PinnedInput pinned = {.flaky = flaky};
+    PinnedInput pinned = {.period = period};
     control = (StreamControl){.generation = 1};
     StreamRegion region = {
         .control = &control, .samples = output, .ring = ring, .ring_bytes = DSD_RING_BYTES};
@@ -467,10 +467,12 @@ static uint64_t pinned_layouts(uint32_t ratio, uint32_t channels, uint32_t bits,
     uint64_t samples = 0;
     for (uint32_t layout = 0; layout < 3; layout++) {
         pinned_virtual(ratio, layout, channels, bits);
-        PinnedHashes steady = pinned_decode(channels, false);
-        PinnedHashes starved = pinned_decode(channels, true);
-        CHECK_EQUAL(steady.samples, starved.samples);
-        CHECK_EQUAL(steady.blocks, starved.blocks);
+        PinnedHashes steady = pinned_decode(channels, 0);
+        for (uint32_t period = 3; period <= 4; period++) {
+            PinnedHashes starved = pinned_decode(channels, period);
+            CHECK_EQUAL(steady.samples, starved.samples);
+            CHECK_EQUAL(steady.blocks, starved.blocks);
+        }
         CHECK_EQUAL(layout == 0 ? steady.samples : samples, steady.samples);
         samples = steady.samples;
         total = pinned_mix(pinned_mix(total, (uint32_t)steady.blocks), (uint32_t)samples);
