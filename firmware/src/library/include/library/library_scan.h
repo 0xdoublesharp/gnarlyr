@@ -65,6 +65,7 @@ typedef struct ScanStats {
 typedef struct ScanTrackFilter {
     bool (*hidden)(void *context, const BuilderTrack *track);
     void *context;
+    bool (*shadowed)(void *context, const char *card_path);
 } ScanTrackFilter;
 
 typedef struct ScanJob {

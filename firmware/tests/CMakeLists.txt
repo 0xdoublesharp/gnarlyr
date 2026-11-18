@@ -319,6 +319,16 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/scan_music.db
             -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
     )
+    add_test(NAME combined_music_up_to_date
+        COMMAND ${CMAKE_COMMAND}
+            -DPYTHON=${ECHO_TOOLS_PYTHON}
+            -DINDEXER=${PROJECT_SOURCE_DIR}/tools/library_index.py
+            -DMUSIC=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/combined_music/card
+            -DINTERNAL=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/combined_music/internal
+            -DEXPECTED=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/combined_music.db
+            -DOUTPUT=${CMAKE_CURRENT_BINARY_DIR}/combined_music.db
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/check_library_index.cmake
+    )
     add_test(NAME cue_music_up_to_date
         COMMAND ${CMAKE_COMMAND}
             -DPYTHON=${ECHO_TOOLS_PYTHON}

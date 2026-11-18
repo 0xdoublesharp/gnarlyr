@@ -46,7 +46,7 @@ The device scanner and PC indexer append a checked gain table after the normal s
 
 Field notes:
 - `u32` string fields hold an offset into the strings section.
-- Track `path` is relative to the music root and uses `/`. Every string is Unicode NFC (composed). FAT cards store names in NFC, but macOS lists them decomposed (NFD), so the indexer recomposes paths, playlist names, playlist entries and tags. The device then matches paths against the card's names without any Unicode tables. Track `artist` indexes the artists section, and `genre` indexes genres.
+- Track `path` is relative to the music root and uses `/`. In a library that combines a card with internal storage (Combined libraries below), a track on internal storage has the path it has there behind the marker component `"`, for example `"/Music/Artist/01 Song.flac`. Every string is Unicode NFC (composed). FAT cards store names in NFC, but macOS lists them decomposed (NFD), so the indexer recomposes paths, playlist names, playlist entries and tags. The device then matches paths against the card's names without any Unicode tables. Track `artist` indexes the artists section, and `genre` indexes genres.
 - An album's tracks are `tracks[first_track .. first_track + track_count)`. Album `cover` is reserved and always `0xFFFF`. Covers live in their own file, keyed by album key (see Covers file).
 - A group's albums are `links[first_link .. first_link + link_count)`. Artists list every album containing at least one of their tracks. Artist and album-artist albums are ordered by year, then title; genre albums are ordered by title. Within each section the groups' links are consecutive and in group order (group `n + 1` starts where group `n` ends). Cover Flow relies on this for album artists to read its order straight from `links`; a file that breaks it gets Cover Flow in album order instead.
 - A playlist's links are track indices in playlist order. Its name is the file name without `.m3u` or `.m3u8`.
@@ -148,14 +148,27 @@ The indexer reads every `.m3u` and `.m3u8` file under the music root, skipping h
 Each entry is matched to a track, ignoring case and treating `\` as `/`:
 
 1. relative to the playlist's folder
-2. relative to the music root
-3. otherwise by the longest matching run of trailing path parts, so absolute Windows paths such as MusicBee's `D:\Music\Artist\Album\01 - Song.flac` still match. A tie counts as not found.
+2. relative to the music root of the playlist's own drive
+3. otherwise by the longest matching run of trailing path parts, so absolute Windows paths such as MusicBee's `D:\Music\Artist\Album\01 - Song.flac` still match. A tie counts as not found, unless exactly one of the tied tracks is on the playlist's own drive.
+
+In a playlist on internal storage, an entry starting with `/` or `\` is relative to the top of internal storage.
 
 An entry with a start then picks, among the tracks sharing the matched track's path (casefolded), the one with that start; the highest track index wins a repeat. No such track leaves the matched one, which for a path shared by the parts of a CUE album is the last one: a plain path to a CUE-split file means its last track. The suffix match (step 3) finds nothing for such a file, because its parts tie, directive or not.
 
 Entries that match nothing are left out, and the indexer reports how many each playlist lost.
 
 On the device, the scanner notes each `.m3u`/`.m3u8` path during the walk (the PC's order) and reads them after the tracks, once `library_builder_prepare` has fixed the track order and built the path indexes: an exact table keyed by the casefolded path (Python's `str.casefold`, from a second generated table; the last of equal keys wins, as in a Python dict) and chains by casefolded file name for the suffix match. `library/playlist_reader` checks the whole file for strict UTF-8 (a BOM is skipped) or decodes Windows-1252 with U+FFFD for its five undefined bytes, splits lines like `str.splitlines` (U+0085, U+2028 and U+2029 only in UTF-8) and trims them; each entry is resolved at once, so entries are never stored (an entry's `#GNARLYR-START` is read with it, and the part is picked by walking the chain of its file name for the track with that start and the same casefolded path). Candidates go through `posixpath.normpath` rules, including its two leading slashes. Playlists are sorted by sort key and then name, and their names share the string table with everything else. `scan_music/` (nested folders, a hidden folder, an AppleDouble file and three playlists in UTF-8 with a BOM, Windows-1252 and plain UTF-8) and `builder_random/with_playlists` (30 random playlists, 379 entries) check it byte for byte.
+
+## Combined libraries
+
+With a readable card, the player's library holds the card's music and internal storage's music; without one, internal storage's own library is used, which has no marker. `core/drive_path` defines the marker `"` (`DRIVE_PATH_INTERNAL`, `INTERNAL_MARKER` in the indexer, which a test pins to the C header): FAT and exFAT forbid it in names, so no real folder collides with it. Storage routes a path whose first component is the marker to internal storage with the marker removed (`/"/Music/a.flac` opens `/Music/a.flac` there); every other path stays on the card.
+
+- **The same file on both drives.** An internal audio or CUE file whose path relative to the top of internal storage names a file on the card (ASCII letter case ignored, as FAT lookups do) is left out: the card copy wins. The device asks the card for that path during the walk (`ScanTrackFilter.shadowed`); the indexer compares against the card's file list. A file left out this way is not counted as skipped. Playlists are not left out this way.
+- **Folders.** The folder named `"` holds internal storage's folders and is always the first folder of the root: its sort key is empty in both builders. Folder flags, including `LIBRARY_FOLDER_NAMED`, follow the same rules inside it.
+- **Spoken word.** A leading marker component is skipped before the first folder is tested (`spoken_on_drive`), so `"/Audiobooks/...` is spoken word, and the bookmark's book-folder test counts slashes after it. Keys still hash the whole path, so the two drives never share a bookmark. The shelves list the root's folders and then the internal folder's folders (`spoken_root_count`, `spoken_root_folder`), so an `Audiobooks` folder on each drive shares one shelf.
+- **Favorite Tracks and other top-level playlists.** A playlist file at the top of internal storage whose name (without extension, ASCII letter case ignored) matches one at the top of the card is read into the card's playlist, after the card's entries, each resolved from its own drive. Elsewhere, playlists stay separate.
+
+`tools/library_index.py --music CARD --internal INTERNAL` builds a combined library. Without `--internal` its output is unchanged. `tests/fixtures/combined_music/{card,internal}` (an internal `Audiobooks` folder with a single file and a book folder, an internal playlist, a duplicate, matching Favorite Tracks files and a card folder named `!Bang`) is checked byte for byte against `combined_music.db` (`combined_music_up_to_date`) and, through a simulated two-drive walk, against the device scanner by meaning (`test_library_scan`).
 
 ## Album keys and favorites
 

@@ -8,6 +8,7 @@ typedef enum SpokenKind {
     SPOKEN_PODCAST
 } SpokenKind;
 
+const char *spoken_on_drive(const char *path);
 SpokenKind spoken_kind_of(const char *path);
 SpokenKind spoken_kind_of_folder(const char *path);
 SpokenKind spoken_kind_of_name(const char *name, size_t length);

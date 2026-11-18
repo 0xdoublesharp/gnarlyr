@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "builder_internal.h"
+#include "core/drive_path.h"
 #include "core/hash.h"
 #include "library/sort_key.h"
 
@@ -413,19 +414,36 @@ typedef struct Best {
     uint32_t score;
     uint32_t position;
     uint32_t at_score;
+    uint32_t own_position;
+    uint32_t own_at_score;
 } Best;
 
-static void consider(Best *best, uint32_t score, uint32_t position)
+static bool on_internal(const char *path)
+{
+    return path[0] == DRIVE_PATH_INTERNAL && (path[1] == '\0' || path[1] == '/');
+}
+
+static void consider(Best *best, uint32_t score, uint32_t position, bool own)
 {
     if (best->at_score == 0 || score > best->score) {
-        *best = (Best){.score = score, .position = position, .at_score = 1};
+        *best = (Best){score, position, 1, position, own ? 1u : 0u};
     } else if (score == best->score) {
         best->at_score++;
         best->position = position > best->position ? position : best->position;
+        best->own_position = own ? position : best->own_position;
+        best->own_at_score += own ? 1u : 0u;
     }
 }
 
-static uint32_t find_by_suffix(BuilderState *state, Prepared *prepared)
+static uint32_t best_position(const Best *best)
+{
+    if (best->at_score == 1) {
+        return best->position;
+    }
+    return best->own_at_score == 1 ? best->own_position : BUILDER_UNSET;
+}
+
+static uint32_t find_by_suffix(BuilderState *state, Prepared *prepared, bool internal)
 {
     ResolveScratch *scratch = scratch_of(prepared);
     const Parts *wanted = &scratch->wanted;
@@ -440,10 +458,11 @@ static uint32_t find_by_suffix(BuilderState *state, Prepared *prepared)
         Parts *candidate = &scratch->candidate;
         if (candidate->count > 0 &&
             same_span(wanted, last, candidate, candidate->spans[candidate->count - 1])) {
-            consider(&best, common_suffix(wanted, candidate), position);
+            consider(&best, common_suffix(wanted, candidate), position,
+                     on_internal(scratch->track) == internal);
         }
     }
-    return best.at_score == 1 ? best.position : BUILDER_UNSET;
+    return best_position(&best);
 }
 
 static uint32_t row_start(BuilderState *state, Prepared *prepared, uint32_t position)
@@ -473,6 +492,20 @@ static uint32_t pick_part(BuilderState *state, Prepared *prepared, uint32_t posi
     return found != BUILDER_UNSET ? found : position;
 }
 
+static uint32_t root_entry(bool internal, const char *entry, uint32_t length, char *out)
+{
+    uint32_t used = 0;
+    if (internal && !on_internal(entry)) {
+        out[used++] = DRIVE_PATH_INTERNAL;
+        out[used++] = '/';
+    }
+    for (uint32_t index = 0; index < length && used + 1 < PATH_CAPACITY; index++) {
+        out[used++] = entry[index];
+    }
+    out[used] = '\0';
+    return used;
+}
+
 static uint32_t resolve_path(BuilderState *state, Prepared *prepared, const char *folder,
                              const char *entry)
 {
@@ -480,21 +513,24 @@ static uint32_t resolve_path(BuilderState *state, Prepared *prepared, const char
     if (contains_url(entry)) {
         return BUILDER_UNSET;
     }
-    uint32_t length = 0;
-    for (; entry[length] != '\0' && length + 1 < PATH_CAPACITY; length++) {
-        scratch->entry[length] = entry[length] == '\\' ? '/' : entry[length];
+    bool internal = on_internal(folder);
+    uint32_t length = internal && (entry[0] == '/' || entry[0] == '\\') ? 1u : 0u;
+    scratch->entry[0] = DRIVE_PATH_INTERNAL;
+    for (const char *from = entry; *from != '\0' && length + 1 < PATH_CAPACITY; from++) {
+        scratch->entry[length++] = *from == '\\' ? '/' : *from;
     }
     scratch->entry[length] = '\0';
     uint32_t joined = join(folder, scratch->entry, length, scratch->joined);
     uint32_t found = find_exact(state, prepared, scratch->joined, joined);
     if (found == BUILDER_UNSET) {
-        found = find_exact(state, prepared, scratch->entry, length);
+        joined = root_entry(internal, scratch->entry, length, scratch->joined);
+        found = find_exact(state, prepared, scratch->joined, joined);
     }
     if (found != BUILDER_UNSET) {
         return found;
     }
     uint32_t parts = fold_parts(&scratch->raw, scratch->entry, length, &scratch->wanted);
-    return parts > 0 ? find_by_suffix(state, prepared) : BUILDER_UNSET;
+    return parts > 0 ? find_by_suffix(state, prepared, internal) : BUILDER_UNSET;
 }
 
 uint32_t builder_resolve_entry(BuilderState *state, Prepared *prepared, const char *folder,

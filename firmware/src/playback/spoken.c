@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/drive_path.h"
 #include "core/hash.h"
 
 enum {
@@ -71,7 +72,8 @@ static bool is_part(const LibraryTrack *track)
 uint32_t spoken_bookmark_key(const char *path)
 {
     const char *start = relative(path);
-    if (spoken_kind_of_folder(start) != SPOKEN_AUDIOBOOK || slash_count(start) < 2) {
+    if (spoken_kind_of_folder(start) != SPOKEN_AUDIOBOOK ||
+        slash_count(spoken_on_drive(start)) < 2) {
         return spoken_track_key(start);
     }
     return hash_update(HASH_START, start, last_slash(start));
@@ -103,16 +105,62 @@ static SpokenKind folder_kind(const Library *library, uint16_t folder)
     return spoken_kind_of_name(name, text_length(name));
 }
 
-bool spoken_shelf_folder(const Library *library, SpokenKind kind, uint16_t *folder)
-{
+typedef struct Roots {
     LibraryFolder root;
-    if (kind == SPOKEN_NONE || !library_read_folder(library, ROOT_FOLDER, &root)) {
+    LibraryFolder inner;
+    uint32_t own;
+    bool marked;
+} Roots;
+
+static bool internal_root(const Library *library, const LibraryFolder *root, LibraryFolder *inner)
+{
+    uint16_t child = 0;
+    char name[NAME_CAPACITY];
+    return root->subfolder_count > 0 &&
+           library_read_index(library, LIBRARY_LINKS, root->first_link, &child) &&
+           library_read_folder(library, child, inner) &&
+           library_read_string(library, inner->name, name, sizeof name) &&
+           name[0] == DRIVE_PATH_INTERNAL && name[1] == '\0';
+}
+
+static bool read_roots(const Library *library, Roots *roots)
+{
+    if (!library_read_folder(library, ROOT_FOLDER, &roots->root)) {
         return false;
     }
-    for (uint32_t index = 0; index < root.subfolder_count; index++) {
+    roots->marked = internal_root(library, &roots->root, &roots->inner);
+    roots->own = roots->root.subfolder_count - (roots->marked ? 1u : 0u);
+    return true;
+}
+
+uint32_t spoken_root_count(const Library *library)
+{
+    Roots roots;
+    if (!read_roots(library, &roots)) {
+        return 0;
+    }
+    return roots.own + (roots.marked ? roots.inner.subfolder_count : 0u);
+}
+
+bool spoken_root_folder(const Library *library, uint32_t position, uint16_t *folder)
+{
+    Roots roots;
+    if (!read_roots(library, &roots)) {
+        return false;
+    }
+    bool own = position < roots.own;
+    const LibraryFolder *from = own ? &roots.root : &roots.inner;
+    uint32_t at = own ? position + (roots.marked ? 1u : 0u) : position - roots.own;
+    return (own || roots.marked) && at < from->subfolder_count &&
+           library_read_index(library, LIBRARY_LINKS, from->first_link + at, folder);
+}
+
+bool spoken_shelf_folder(const Library *library, SpokenKind kind, uint16_t *folder)
+{
+    uint32_t count = kind == SPOKEN_NONE ? 0 : spoken_root_count(library);
+    for (uint32_t index = 0; index < count; index++) {
         uint16_t child = 0;
-        if (library_read_index(library, LIBRARY_LINKS, root.first_link + index, &child) &&
-            folder_kind(library, child) == kind) {
+        if (spoken_root_folder(library, index, &child) && folder_kind(library, child) == kind) {
             *folder = child;
             return true;
         }

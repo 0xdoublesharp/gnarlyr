@@ -2,6 +2,8 @@
 
 #include <stdbool.h>
 
+#include "core/drive_path.h"
+
 static char lower(char letter)
 {
     return letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
@@ -29,11 +31,17 @@ SpokenKind spoken_kind_of_name(const char *name, size_t length)
     return SPOKEN_NONE;
 }
 
-SpokenKind spoken_kind_of_folder(const char *path)
+const char *spoken_on_drive(const char *path)
 {
     while (*path == '/') {
         path++;
     }
+    return path[0] == DRIVE_PATH_INTERNAL && path[1] == '/' ? path + 2 : path;
+}
+
+SpokenKind spoken_kind_of_folder(const char *path)
+{
+    path = spoken_on_drive(path);
     size_t length = 0;
     while (path[length] != '\0' && path[length] != '/') {
         length++;

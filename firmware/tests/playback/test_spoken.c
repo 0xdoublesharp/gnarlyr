@@ -69,6 +69,23 @@ static void loose_books_and_episodes_have_their_own_bookmark(void)
                 spoken_bookmark_key("Podcasts/Show/A.mp3"));
 }
 
+static void folders_at_the_top_of_internal_storage_name_spoken_word_too(void)
+{
+    CHECK_EQUAL(SPOKEN_AUDIOBOOK, spoken_kind_of("\"/Audiobooks/Book/01.mp3"));
+    CHECK_EQUAL(SPOKEN_PODCAST, spoken_kind_of("/\"/Podcasts/Show/A.mp3"));
+    CHECK_EQUAL(SPOKEN_NONE, spoken_kind_of("\"/Music/Audiobooks/x.mp3"));
+    CHECK_EQUAL(SPOKEN_NONE, spoken_kind_of("\"/Audiobooks.mp3"));
+}
+
+static void internal_books_share_a_bookmark_per_folder_and_loose_ones_keep_their_own(void)
+{
+    uint32_t first = spoken_bookmark_key("\"/Audiobooks/Book/01.mp3");
+    CHECK_EQUAL(first, spoken_bookmark_key("\"/Audiobooks/Book/02.mp3"));
+    CHECK(first != spoken_bookmark_key("Audiobooks/Book/01.mp3"));
+    CHECK(spoken_bookmark_key("\"/Audiobooks/One.mp3") !=
+          spoken_bookmark_key("\"/Audiobooks/Two.mp3"));
+}
+
 static void the_end_of_a_track_is_its_last_tenth_up_to_30_seconds(void)
 {
     CHECK(!spoken_near_end(0, 0));
@@ -224,6 +241,35 @@ static void the_audiobook_shelf_exists_without_a_physical_named_folder(void)
     spoken_library_close(&external);
 }
 
+static uint32_t shelf_size(const Library *library, SpokenKind kind)
+{
+    SpokenShelf shelf;
+    spoken_shelf_init(&shelf, kind, NULL, NULL);
+    return spoken_shelf_count(library, &shelf);
+}
+
+static void shelves_take_spoken_folders_from_the_top_of_internal_storage(void)
+{
+    SpokenLibrary card;
+    Library *library = spoken_library_open(&card);
+    uint32_t books = shelf_size(library, SPOKEN_AUDIOBOOK);
+    uint32_t shows = shelf_size(library, SPOKEN_PODCAST);
+    spoken_library_close(&card);
+    SpokenLibrary internal;
+    library = spoken_library_open_internal(&internal);
+    uint16_t folder = 0;
+    CHECK(spoken_shelf_folder(library, SPOKEN_AUDIOBOOK, &folder));
+    CHECK(spoken_shelf_folder(library, SPOKEN_PODCAST, &folder));
+    CHECK_EQUAL(books, shelf_size(library, SPOKEN_AUDIOBOOK));
+    CHECK_EQUAL(shows, shelf_size(library, SPOKEN_PODCAST));
+    BrowseItem item;
+    SpokenShelf shelf;
+    spoken_shelf_init(&shelf, SPOKEN_AUDIOBOOK, NULL, NULL);
+    CHECK(spoken_shelf_item(library, &shelf, books - 1, &item));
+    CHECK(!spoken_shelf_item(library, &shelf, books, &item));
+    spoken_library_close(&internal);
+}
+
 static void shelf_record_read_failures_never_publish_a_partial_item(void)
 {
     SpokenLibrary external;
@@ -271,6 +317,9 @@ int main(void)
         TEST_CASE(a_folder_holds_exactly_its_own_tracks),
         TEST_CASE(external_books_can_be_paged_backwards_without_duplicates),
         TEST_CASE(the_audiobook_shelf_exists_without_a_physical_named_folder),
+        TEST_CASE(folders_at_the_top_of_internal_storage_name_spoken_word_too),
+        TEST_CASE(shelves_take_spoken_folders_from_the_top_of_internal_storage),
+        TEST_CASE(internal_books_share_a_bookmark_per_folder_and_loose_ones_keep_their_own),
         TEST_CASE(shelf_record_read_failures_never_publish_a_partial_item),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));

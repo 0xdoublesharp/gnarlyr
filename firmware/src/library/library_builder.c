@@ -505,6 +505,24 @@ BuilderResult library_builder_begin_playlist(LibraryBuilder *builder, const char
     return BUILDER_OK;
 }
 
+BuilderResult library_builder_continue_playlist(LibraryBuilder *builder, const char *folder)
+{
+    BuilderState *state = state_of(builder);
+    if (state == NULL || !state->prepare_done || state->prepare_result != BUILDER_OK ||
+        state->prepared->playlist_count == 0) {
+        return BUILDER_OUT_OF_MEMORY;
+    }
+    store_progress_add(&state->store, 1);
+    uint32_t length = builder_text_length(folder);
+    if (length >= BUILDER_TEXT_CAPACITY) {
+        return BUILDER_OUT_OF_MEMORY;
+    }
+    for (uint32_t index = 0; index <= length; index++) {
+        state->prepared->playlist_folder[index] = folder[index];
+    }
+    return BUILDER_OK;
+}
+
 BuilderResult library_builder_playlist_entry(LibraryBuilder *builder, const char *entry,
                                              uint32_t start_ms)
 {

@@ -244,10 +244,21 @@ static const char *nested_path(const char *path)
     return path;
 }
 
+static const char *internal_path(size_t index, const char *path)
+{
+    static char paths[sizeof TRACKS / sizeof TRACKS[0]][PATH_CAPACITY];
+    if (strncmp(path, "Audiobooks/", 11) != 0 && strncmp(path, "Podcasts/", 9) != 0) {
+        return path;
+    }
+    snprintf(paths[index], sizeof paths[index], "\"/%s", path);
+    return paths[index];
+}
+
 static void add_tracks(LibraryBuilder *builder, int layout)
 {
     for (size_t index = 0; index < sizeof TRACKS / sizeof TRACKS[0]; index++) {
         BuilderTrack track = TRACKS[index];
+        track.path = layout == 4 ? internal_path(index, track.path) : track.path;
         track.path = layout == 1 ? nested_path(track.path) : track.path;
         if (layout >= 2 && track.path == SPOKEN_PARTS_PATH) {
             track.path = "Downloads/Writer/Zebra Tale.m4b";
@@ -308,6 +319,11 @@ Library *spoken_library_open_external(SpokenLibrary *spoken)
 Library *spoken_library_open_without_shelf(SpokenLibrary *spoken)
 {
     return open_library(spoken, 3);
+}
+
+Library *spoken_library_open_internal(SpokenLibrary *spoken)
+{
+    return open_library(spoken, 4);
 }
 
 void spoken_library_close(SpokenLibrary *spoken)

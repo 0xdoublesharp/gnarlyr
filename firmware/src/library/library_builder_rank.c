@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "builder_internal.h"
+#include "core/drive_path.h"
 #include "library/sort_key.h"
 
 enum {
@@ -380,7 +381,8 @@ static bool collect_folders(BuilderState *state, Prepared *prepared, Region *inp
             return false;
         }
         text[row.length] = '\0';
-        uint32_t key_length = (uint32_t)sort_key_make(text, key, SORT_KEY_CAPACITY);
+        bool internal = text[0] == DRIVE_PATH_INTERNAL && text[1] == '\0';
+        uint32_t key_length = internal ? 0 : (uint32_t)sort_key_make(text, key, SORT_KEY_CAPACITY);
         uint8_t header[FOLDER_HEADER];
         builder_put16(header, FOLDER_HEADER + key_length + row.length);
         builder_put16(header + 2, node);

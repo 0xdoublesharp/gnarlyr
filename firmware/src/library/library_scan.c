@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/drive_path.h"
 #include "scan_internal.h"
 
 enum {
@@ -474,6 +475,25 @@ static ScanResult unplace_path(ScanState *state, const ScanFileSystem *files, ui
     return result;
 }
 
+static bool shadowed(ScanState *state, const ScanJob *job, const char *name)
+{
+    if (job->filter.shadowed == NULL || state->path[1] != DRIVE_PATH_INTERNAL ||
+        state->path[2] != '/' || !scan_append_path(state, name, false)) {
+        return false;
+    }
+    bool found = job->filter.shadowed(job->filter.context, state->path + 2);
+    scan_truncate_path(state, state->levels[state->depth - 1].path_length);
+    return found;
+}
+
+static bool skipped_file(ScanState *state, const ScanJob *job, uint32_t offset, bool cue)
+{
+    const char *name = scan_entry_name(state, offset);
+    return state->listing[offset] == ENTRY_CLAIMED ||
+           (!cue && track_tags_format_for_name(name) == TAG_FORMAT_UNKNOWN) ||
+           shadowed(state, job, name);
+}
+
 static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *stats,
                               uint32_t offset)
 {
@@ -482,14 +502,12 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
     if (!directory && is_playlist_name(name)) {
         return note_playlist(state, name);
     }
-    if (!directory && state->listing[offset] == ENTRY_CLAIMED) {
+    bool cue = !directory && scan_is_cue_name(name);
+    if (!directory && skipped_file(state, job, offset, cue)) {
         return SCAN_OK;
     }
-    if (!directory && scan_is_cue_name(name)) {
+    if (cue) {
         return scan_add_cue(state, job, stats, offset);
-    }
-    if (!directory && track_tags_format_for_name(name) == TAG_FORMAT_UNKNOWN) {
-        return SCAN_OK;
     }
     if (!scan_append_path(state, name, directory)) {
         return SCAN_PATH_TOO_LONG;
@@ -575,28 +593,41 @@ static bool split_memory(ScanState **state, const ScanJob *job)
     return true;
 }
 
-static void name_and_folder(ScanState *state, const uint8_t *record, char *folder)
+static uint32_t record_parent(const uint8_t *record)
+{
+    return (uint32_t)record[2] | (uint32_t)record[3] << 8;
+}
+
+static uint32_t stem_end(const uint8_t *record)
 {
     uint32_t length = (uint32_t)record[0] | (uint32_t)record[1] << 8;
-    uint32_t parent = (uint32_t)record[2] | (uint32_t)record[3] << 8;
+    const char *path = (const char *)record + 4;
+    uint32_t end = length;
+    for (uint32_t index = record_parent(record) + 1; index < length; index++) {
+        end = path[index] == '.' ? index : end;
+    }
+    return end;
+}
+
+static void name_and_folder(ScanState *state, const uint8_t *record, char *folder)
+{
+    uint32_t parent = record_parent(record);
     const char *path = (const char *)record + 4;
     uint32_t folder_length = parent > 1 ? parent - 2 : 0;
     for (uint32_t index = 0; index < folder_length; index++) {
         folder[index] = path[index + 1];
     }
     folder[folder_length] = '\0';
-    uint32_t stem_end = length;
-    for (uint32_t index = parent + 1; index < length; index++) {
-        stem_end = path[index] == '.' ? index : stem_end;
-    }
+    uint32_t end = stem_end(record);
     uint32_t count = 0;
-    for (uint32_t index = parent; index < stem_end; index++) {
+    for (uint32_t index = parent; index < end; index++) {
         state->playlist_name[count++] = path[index];
     }
     state->playlist_name[count] = '\0';
 }
 
-static ScanResult read_playlist(ScanState *state, const ScanJob *job, const uint8_t *record)
+static ScanResult read_playlist(ScanState *state, const ScanJob *job, const uint8_t *record,
+                                bool joined)
 {
     ByteSource source;
     uint32_t size = 0;
@@ -606,7 +637,9 @@ static ScanResult read_playlist(ScanState *state, const ScanJob *job, const uint
     }
     name_and_folder(state, record, state->path);
     ScanResult result = scan_builder_result(
-        library_builder_begin_playlist(&state->builder, state->playlist_name, state->path));
+        joined
+            ? library_builder_continue_playlist(&state->builder, state->path)
+            : library_builder_begin_playlist(&state->builder, state->playlist_name, state->path));
     playlist_reader_open(&state->playlist, source, size);
     while (result == SCAN_OK &&
            playlist_reader_next(&state->playlist, state->entry_text, sizeof state->entry_text)) {
@@ -632,12 +665,76 @@ static uint32_t noted_playlist(const ScanState *state, uint32_t index)
     return offset;
 }
 
+static bool at_top(const uint8_t *record, bool internal)
+{
+    const char *path = (const char *)record + 4;
+    return record_parent(record) == (internal ? 3u : 1u) &&
+           (path[1] == DRIVE_PATH_INTERNAL) == internal;
+}
+
+static char fold(char letter)
+{
+    return letter >= 'A' && letter <= 'Z' ? (char)(letter - 'A' + 'a') : letter;
+}
+
+static bool same_top_name(const uint8_t *card, const uint8_t *internal)
+{
+    const char *left = (const char *)card + 5;
+    const char *right = (const char *)internal + 7;
+    uint32_t length = stem_end(card) - 1;
+    if (length != stem_end(internal) - 3) {
+        return false;
+    }
+    for (uint32_t index = 0; index < length; index++) {
+        if (fold(left[index]) != fold(right[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool has_card_partner(const ScanState *state, const uint8_t *record)
+{
+    uint32_t offset = state->playlist_floor;
+    for (uint32_t index = 0; index < state->playlist_count; index++) {
+        const uint8_t *other = state->listing + offset;
+        if (at_top(other, false) && same_top_name(other, record)) {
+            return true;
+        }
+        offset += record_length(state, offset);
+    }
+    return false;
+}
+
+static ScanResult read_partners(ScanState *state, const ScanJob *job, const uint8_t *card)
+{
+    ScanResult result = SCAN_OK;
+    uint32_t offset = state->playlist_floor;
+    for (uint32_t index = 0; result == SCAN_OK && index < state->playlist_count; index++) {
+        const uint8_t *other = state->listing + offset;
+        if (at_top(other, true) && same_top_name(card, other)) {
+            result = read_playlist(state, job, other, true);
+        }
+        offset += record_length(state, offset);
+    }
+    return result;
+}
+
+static ScanResult read_noted(ScanState *state, const ScanJob *job, const uint8_t *record)
+{
+    if (at_top(record, true) && has_card_partner(state, record)) {
+        return SCAN_OK;
+    }
+    ScanResult result = read_playlist(state, job, record, false);
+    return result == SCAN_OK && at_top(record, false) ? read_partners(state, job, record) : result;
+}
+
 static ScanResult read_playlists(ScanState *state, const ScanJob *job)
 {
     ScanResult result = scan_builder_result(library_builder_prepare(&state->builder));
     library_builder_expect_playlists(&state->builder, state->playlist_count);
     for (uint32_t index = 0; result == SCAN_OK && index < state->playlist_count; index++) {
-        result = read_playlist(state, job, state->listing + noted_playlist(state, index));
+        result = read_noted(state, job, state->listing + noted_playlist(state, index));
     }
     return result;
 }

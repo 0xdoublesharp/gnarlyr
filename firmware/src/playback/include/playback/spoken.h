@@ -18,6 +18,8 @@ uint32_t spoken_part_key(const char *path, uint32_t start_ms);
 uint32_t spoken_bookmark_key(const char *path);
 uint32_t spoken_record_key(const char *path, const LibraryTrack *track);
 bool spoken_near_end(uint32_t position_ms, uint32_t duration_ms);
+uint32_t spoken_root_count(const Library *library);
+bool spoken_root_folder(const Library *library, uint32_t position, uint16_t *folder);
 bool spoken_shelf_folder(const Library *library, SpokenKind kind, uint16_t *folder);
 bool spoken_folder_key(const Library *library, uint16_t folder, uint32_t *key);
 bool spoken_folder_holds(const Library *library, uint16_t folder, uint16_t track);

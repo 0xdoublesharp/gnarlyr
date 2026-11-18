@@ -625,3 +625,104 @@ class UnicodeFormTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CombinedLibraryTest(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        root = Path(self.directory.name)
+        self.card, self.internal = root / "card", root / "internal"
+
+    def song(self, drive, path):
+        target = drive / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write_silent_flac(target, 1)
+
+    def playlist(self, drive, path, *lines):
+        target = drive / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def scanned(self):
+        tracks, playlists, failures = library_index.scan(self.card, self.internal)
+        self.assertEqual(failures, [])
+        return tracks, playlists
+
+    def test_the_marker_matches_the_firmware_constant(self):
+        header = (TOOLS_DIRECTORY.parent / "src" / "core" / "include" / "core" /
+                  "drive_path.h").read_text(encoding="utf-8")
+        self.assertIn("#define DRIVE_PATH_INTERNAL '%s'" % library_index.INTERNAL_MARKER, header)
+
+    def test_internal_tracks_carry_the_marker_and_card_tracks_do_not(self):
+        self.song(self.card, "Card/01 Card.flac")
+        self.song(self.internal, "Inside/01 Inside.flac")
+        tracks, _ = self.scanned()
+        self.assertEqual(sorted(track.path for track in tracks),
+                         ["\"/Inside/01 Inside.flac", "Card/01 Card.flac"])
+
+    def test_the_card_copy_of_a_relative_path_wins_with_ascii_case_ignored(self):
+        self.song(self.card, "Shared/01 Same.flac")
+        self.song(self.internal, "SHARED/01 same.flac")
+        self.song(self.internal, "Other/02 Other.flac")
+        tracks, _ = self.scanned()
+        self.assertEqual(sorted(track.path for track in tracks),
+                         ["\"/Other/02 Other.flac", "Shared/01 Same.flac"])
+
+    def test_without_an_internal_root_nothing_changes(self):
+        self.song(self.card, "Card/01 Card.flac")
+        self.assertEqual(library_index.scan(self.card), library_index.scan(self.card, None))
+
+    def test_an_internal_audiobooks_folder_is_spoken_word(self):
+        self.song(self.internal, "Audiobooks/Book/01 Part.flac")
+        self.song(self.internal, "Music/01 Song.flac")
+        tracks, _ = self.scanned()
+        spoken = {track.path: library_index.spoken_of(track) for track in tracks}
+        self.assertEqual(spoken, {"\"/Audiobooks/Book/01 Part.flac": 1, "\"/Music/01 Song.flac": 0})
+
+    def test_the_internal_folder_is_the_first_folder_of_the_root(self):
+        self.song(self.card, "!Bang/01 Bang.flac")
+        self.song(self.card, "0 Zero/01 Zero.flac")
+        self.song(self.internal, "Inside/01 Inside.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        root = model.folders[0]
+        self.assertEqual(model.folders[root.subfolders[0]].name, library_index.INTERNAL_MARKER)
+
+    def test_an_internal_playlist_resolves_against_its_own_drive_first(self):
+        self.song(self.card, "Album/01 Song.flac")
+        self.song(self.internal, "Album/02 Song.flac")
+        self.song(self.internal, "Lists/Here.flac")
+        self.playlist(self.internal, "Lists/Mine.m3u", "Here.flac", "Album/02 Song.flac",
+                      "/Album/02 Song.flac", "01 Song.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        mine = next(playlist for playlist in model.playlists if playlist.name == "Mine")
+        self.assertEqual([model.tracks[index].path for index in mine.tracks],
+                         ["\"/Lists/Here.flac", "\"/Album/02 Song.flac",
+                          "\"/Album/02 Song.flac", "Album/01 Song.flac"])
+
+    def test_a_suffix_tie_prefers_the_playlist_drive(self):
+        self.song(self.card, "One/Song.flac")
+        self.song(self.internal, "Two/Song.flac")
+        self.playlist(self.card, "Card.m3u", "Elsewhere/Song.flac")
+        self.playlist(self.internal, "Inside.m3u", "Elsewhere/Song.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        found = {playlist.name: [model.tracks[index].path for index in playlist.tracks]
+                 for playlist in model.playlists}
+        self.assertEqual(found, {"Card": ["One/Song.flac"], "Inside": ["\"/Two/Song.flac"]})
+
+    def test_same_named_playlists_at_the_top_of_both_drives_are_one_playlist_card_first(self):
+        self.song(self.card, "Card/01 Card.flac")
+        self.song(self.internal, "Inside/01 Inside.flac")
+        self.playlist(self.card, "Favorite Tracks.m3u", "Card/01 Card.flac")
+        self.playlist(self.internal, "favorite tracks.m3u", "Inside/01 Inside.flac")
+        self.playlist(self.internal, "Lists/Favorite Tracks.m3u", "../Inside/01 Inside.flac")
+        tracks, playlists = self.scanned()
+        model = library_index.build_library(tracks, playlists)
+        named = [(playlist.name, [model.tracks[index].path for index in playlist.tracks])
+                 for playlist in model.playlists]
+        self.assertEqual(sorted(named), sorted([
+            ("Favorite Tracks", ["Card/01 Card.flac", "\"/Inside/01 Inside.flac"]),
+            ("Favorite Tracks", ["\"/Inside/01 Inside.flac"])]))

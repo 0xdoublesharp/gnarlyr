@@ -206,6 +206,71 @@ static void scanning_folders_and_playlists_matches_the_pc_indexer(void)
     free(expected);
 }
 
+typedef struct DriveFiles {
+    HostFiles host;
+    bool at_root;
+    bool marker_listed;
+} DriveFiles;
+
+static bool open_drive_dir(void *context, const char *path, const ScanPlace *place)
+{
+    DriveFiles *files = context;
+    files->at_root = strcmp(path, "/") == 0;
+    files->marker_listed = false;
+    return open_dir(&files->host, path, place);
+}
+
+static bool next_drive_entry(void *context, ScanEntry *entry)
+{
+    DriveFiles *files = context;
+    if (next_entry(&files->host, entry)) {
+        return true;
+    }
+    if (!files->at_root || files->marker_listed) {
+        return false;
+    }
+    files->marker_listed = true;
+    *entry = (ScanEntry){.directory = true, .name = {'"'}};
+    return true;
+}
+
+static bool on_card(void *context, const char *path)
+{
+    HostFiles *files = context;
+    HalFile file;
+    bool found = hal_file_open(&file, path);
+    hal_file_close(&file);
+    (void)files;
+    return found;
+}
+
+static void scanning_both_drives_matches_the_pc_indexer(void)
+{
+    static uint8_t memory[MEMORY_SIZE];
+    static DriveFiles files;
+    static Output output;
+    sim_storage_configure(ECHO_FIXTURE_DIR "/combined_music/card", NULL);
+    sim_storage_configure_internal(ECHO_FIXTURE_DIR "/combined_music/internal");
+    output.length = 0;
+    ScanJob job = {
+        .files = {open_drive_dir, next_drive_entry, close_dir, open_file, close_file, &files},
+        .memory = memory,
+        .size = sizeof memory,
+        .scratch = SCRATCH,
+        .sink = {write_output, &output},
+        .filter = {.shadowed = on_card, .context = &files},
+    };
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, library_scan(&job, &stats));
+    sim_storage_configure_internal(NULL);
+    CHECK_EQUAL(8u, stats.tracks);
+    CHECK_EQUAL(0u, stats.skipped);
+    uint32_t expected_size = 0;
+    uint8_t *expected = read_fixture("combined_music.db", &expected_size);
+    CHECK(library_compare(expected, expected_size, output.bytes, stats.length));
+    free(expected);
+}
+
 static bool phases_rise_in_order(const PhaseLog *log)
 {
     for (uint32_t index = 1; index < log->count; index++) {
@@ -588,7 +653,7 @@ static void a_hidden_track_is_left_out_of_the_library(void)
         .size = sizeof memory,
         .scratch = SCRATCH,
         .sink = {write_output, &output},
-        .filter = {hide_second, &asked},
+        .filter = {hide_second, &asked, NULL},
     };
     ScanStats stats;
     CHECK_EQUAL(SCAN_OK, library_scan(&job, &stats));
@@ -1162,6 +1227,7 @@ int main(int argc, char **argv)
         TEST_CASE(scanning_the_tag_fixtures_matches_the_pc_indexer),
         TEST_CASE(a_listing_at_an_odd_address_is_used_from_its_next_aligned_byte),
         TEST_CASE(scanning_folders_and_playlists_matches_the_pc_indexer),
+        TEST_CASE(scanning_both_drives_matches_the_pc_indexer),
         TEST_CASE(a_hidden_track_is_left_out_of_the_library),
         TEST_CASE(scanning_cue_sheets_matches_the_pc_indexer),
         TEST_CASE(scanning_m4a_files_matches_the_pc_indexer),

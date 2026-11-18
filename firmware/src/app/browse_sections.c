@@ -62,17 +62,13 @@ static ListSections folder_range(const Library *library, uint16_t subject, int f
 static ListSections shelf_range(const BrowseScreen *browse, int position)
 {
     const Library *library = browse->pool->config.library;
-    LibraryFolder root;
-    if (!library_read_folder(library, 0, &root)) {
-        return (ListSections){0, 0};
-    }
     int first = 0;
-    for (uint32_t link = 0; link < root.subfolder_count; link++) {
+    uint32_t roots = spoken_root_count(library);
+    for (uint32_t link = 0; link < roots; link++) {
         uint16_t id;
         LibraryFolder folder;
         char name[BROWSE_LABEL_CAPACITY];
-        if (!library_read_index(library, LIBRARY_LINKS, root.first_link + link, &id) ||
-            !library_read_folder(library, id, &folder) ||
+        if (!spoken_root_folder(library, link, &id) || !library_read_folder(library, id, &folder) ||
             !library_read_string(library, folder.name, name, sizeof name)) {
             return (ListSections){0, 0};
         }

@@ -34,6 +34,7 @@ CUE_AUDIO_SUFFIXES = {".flac", ".wav", ".mp3"}
 PATH_SEPARATOR = re.compile(r"[\\/]")
 URL_MARKER = "://"
 SPOKEN_FOLDERS = {b"audiobooks", b"audiobook", b"podcasts", b"podcast"}
+INTERNAL_MARKER = "\""
 
 HEADER_PREFIX = struct.Struct("<4sHH")
 SECTION_ENTRY = struct.Struct("<IIHH")
@@ -352,6 +353,7 @@ def common_suffix_length(first, second):
 class PathIndex:
     def __init__(self, tracks):
         paths = [track.path for track in tracks]
+        self.paths = paths
         self.exact = {path.casefold(): index for index, path in enumerate(paths)}
         self.folded = [path.casefold() for path in paths]
         self.starts = {}
@@ -373,39 +375,64 @@ class PathIndex:
         if URL_MARKER in entry:
             return None
         normalized = entry.replace("\\", "/")
-        for candidate in (posixpath.join(playlist_folder, normalized), normalized):
+        root = drive_root(playlist_folder)
+        if root and normalized.startswith("/"):
+            normalized = root + normalized
+        rooted = normalized if not root or drive_root(normalized) else root + "/" + normalized
+        for candidate in (posixpath.join(playlist_folder, normalized), rooted):
             index = self.exact.get(posixpath.normpath(candidate).casefold())
             if index is not None:
                 return index
-        return self.resolve_by_suffix(path_parts(normalized))
+        return self.resolve_by_suffix(path_parts(normalized), root)
 
-    def resolve_by_suffix(self, parts):
+    def resolve_by_suffix(self, parts, root=""):
         if not parts:
             return None
         scored = sorted(((common_suffix_length(parts, candidate), index)
                          for candidate, index in self.by_name.get(parts[-1], [])), reverse=True)
-        if not scored or (len(scored) > 1 and scored[0][0] == scored[1][0]):
+        if not scored:
             return None
-        return scored[0][1]
+        tied = [index for score, index in scored if score == scored[0][0]]
+        own = [index for index in tied if drive_root(self.paths[index]) == root]
+        return tied[0] if len(tied) == 1 else own[0] if len(own) == 1 else None
+
+
+def drive_root(path):
+    return INTERNAL_MARKER if path.split("/", 1)[0] == INTERNAL_MARKER else ""
+
+
+def top_playlist_key(raw, folder):
+    return (ascii_fold(raw.name),) if raw.folder == folder else ()
+
+
+def resolve_playlist(paths, raw, playlist):
+    for entry in raw.entries:
+        index = paths.resolve(entry, raw.folder)
+        if index is None:
+            playlist.unresolved += 1
+        else:
+            playlist.tracks.append(index)
+    return playlist
 
 
 def resolve_playlists(raw_playlists, tracks):
     paths = PathIndex(tracks)
-    playlists = []
-    for raw in raw_playlists:
-        playlist = Playlist(raw.name)
-        for entry in raw.entries:
-            index = paths.resolve(entry, raw.folder)
-            if index is None:
-                playlist.unresolved += 1
-            else:
-                playlist.tracks.append(index)
+    playlists, card_tops = [], {}
+    for raw in sorted(raw_playlists, key=lambda raw: drive_root(raw.folder) != ""):
+        joined = card_tops.get(top_playlist_key(raw, INTERNAL_MARKER))
+        if joined is not None:
+            resolve_playlist(paths, raw, joined)
+            continue
+        playlist = resolve_playlist(paths, raw, Playlist(raw.name))
+        card_tops.setdefault(top_playlist_key(raw, ""), playlist)
+        card_tops.pop((), None)
         playlists.append(playlist)
     return sorted(playlists, key=lambda playlist: (sort_key(playlist.name), playlist.name))
 
 
 def spoken_of(track):
     parts = track.path.lstrip("/").split("/")
+    parts = parts[1:] if parts[0] == INTERNAL_MARKER else parts
     return int((len(parts) > 1 and parts[0].encode("utf-8").lower() in SPOKEN_FOLDERS)
                or track.path.lower().endswith(".m4b"))
 
@@ -502,12 +529,16 @@ def folder_tracks(node, tracks):
         tracks[index].disc, tracks[index].number, sort_key(PurePosixPath(tracks[index].path).name)))
 
 
+def folder_order(name):
+    return ("" if name == INTERNAL_MARKER else sort_key(name)), name
+
+
 def add_folder(folders, node, name, parent, tracks):
     position = len(folders)
     node["flags"] |= FOLDER_NAMED if folder_named(node, tracks) else 0
     folder = Folder(name, parent, flags=node["flags"])
     folders.append(folder)
-    for child_name in sorted(node["children"], key=lambda child: (sort_key(child), child)):
+    for child_name in sorted(node["children"], key=folder_order):
         folder.subfolders.append(add_folder(folders, node["children"][child_name], child_name,
                                             position, tracks))
     folder.tracks = folder_tracks(node, tracks)
@@ -799,9 +830,30 @@ def audio_tracks(root, path):
             for part, (chapter, end) in enumerate(zip(chapters, ends))]
 
 
-def scan(root):
+def drive_relative(root, path):
+    return ascii_fold(nfc(path.relative_to(root).as_posix()))
+
+
+def card_files(root):
+    return {drive_relative(root, path) for path in root.rglob("*") if path.is_file()}
+
+
+def on_drive(track, prefix):
+    return replace(track, path=prefix + track.path) if prefix else track
+
+
+def scan(root, internal=None):
+    tracks, playlists, failures = scan_drive(root, "", set())
+    if internal is not None:
+        more = scan_drive(internal, INTERNAL_MARKER + "/", card_files(root))
+        tracks, playlists, failures = tracks + more[0], playlists + more[1], failures + more[2]
+    return tracks, playlists, failures
+
+
+def scan_drive(root, prefix, shadowed):
     tracks, failures = [], []
-    files = list(visible_files(root, AUDIO_SUFFIXES | {CUE_SUFFIX}))
+    files = [path for path in visible_files(root, AUDIO_SUFFIXES | {CUE_SUFFIX})
+             if drive_relative(root, path) not in shadowed]
     sheets = cue_sheets(files)
     claimed = {audio for _, audio in sheets.values()}
     for path in files:
@@ -809,25 +861,35 @@ def scan(root):
             continue
         try:
             if path in sheets:
-                tracks.extend(cue_tracks(root, sheets[path][0], sheets[path][1], path))
+                found = cue_tracks(root, sheets[path][0], sheets[path][1], path)
             else:
-                tracks.extend(audio_tracks(root, path))
+                found = audio_tracks(root, path)
+            tracks.extend(on_drive(track, prefix) for track in found)
         except Exception as error:
             failures.append(f"{path.relative_to(root)}: {error}")
-    playlists = [read_playlist(root, path) for path in visible_files(root, PLAYLIST_SUFFIXES)]
+    playlists = [on_drive_playlist(read_playlist(root, path), prefix)
+                 for path in visible_files(root, PLAYLIST_SUFFIXES)]
     return tracks, playlists, failures
+
+
+def on_drive_playlist(raw, prefix):
+    if not prefix:
+        return raw
+    return replace(raw, folder=(prefix + raw.folder).rstrip("/"))
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description=f"Index a music folder into a {IDENTITY.name} library")
     parser.add_argument("--music", type=Path, required=True, help="music root (read only)")
     parser.add_argument("--output", type=Path, required=True, help="library.db to write")
+    parser.add_argument("--internal", type=Path, help="internal-storage music root (read only)")
     return parser.parse_args()
 
 
 def main():
     arguments = parse_arguments()
-    tracks, playlists, failures = scan(arguments.music.resolve())
+    internal = arguments.internal.resolve() if arguments.internal else None
+    tracks, playlists, failures = scan(arguments.music.resolve(), internal)
     for failure in failures:
         print(f"skipped {failure}", file=sys.stderr)
     model = build_library(tracks, playlists)

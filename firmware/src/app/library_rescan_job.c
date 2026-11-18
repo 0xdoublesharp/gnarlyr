@@ -160,6 +160,15 @@ static bool open_file(void *context, const char *path, ByteSource *source, uint3
     return true;
 }
 
+static bool on_card(void *context, const char *card_path)
+{
+    (void)context;
+    HalFile file;
+    bool found = hal_file_open(&file, card_path);
+    hal_file_close(&file);
+    return found;
+}
+
 static void close_file(void *context)
 {
     RescanFiles *files = context;
@@ -278,7 +287,7 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
         .sink = {write_library, NULL},
         .capacity = capacity,
         .progress = {report, &rescan_files, report_phase},
-        .filter = {hidden_scan_skips, &hidden},
+        .filter = {hidden_scan_skips, &hidden, on_card},
     };
     run_passes(&job, &outcome);
     if (outcome.result == SCAN_OK) {

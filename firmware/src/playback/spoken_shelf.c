@@ -38,15 +38,12 @@ static bool root_matches(const Library *library, const SpokenShelf *shelf, uint1
 
 static bool named_next(const Library *library, SpokenShelf *shelf, BrowseItem *item)
 {
-    LibraryFolder root;
-    if (!library_read_folder(library, 0, &root)) {
-        return false;
-    }
-    while (shelf->root < root.subfolder_count) {
+    uint32_t roots = spoken_root_count(library);
+    while (shelf->root < roots) {
         service(shelf);
         uint16_t index = 0;
         BrowseQuery query = browse_root_query(BROWSE_FOLDER);
-        if (library_read_index(library, LIBRARY_LINKS, root.first_link + shelf->root, &index) &&
+        if (spoken_root_folder(library, shelf->root, &index) &&
             root_matches(library, shelf, index)) {
             query.subject = index;
             if (shelf->child < browse_count(library, query)) {
@@ -142,14 +139,11 @@ CORE_SEAM uint32_t spoken_shelf_count(const Library *library, SpokenShelf *shelf
 
 static void seek_named(const Library *library, SpokenShelf *shelf, uint32_t position)
 {
-    LibraryFolder root;
-    if (shelf->track != 0 || !library_read_folder(library, 0, &root)) {
-        return;
-    }
-    while (shelf->root < root.subfolder_count) {
+    uint32_t roots = shelf->track != 0 ? 0 : spoken_root_count(library);
+    while (shelf->root < roots) {
         uint16_t index;
         BrowseQuery query = browse_root_query(BROWSE_FOLDER);
-        if (library_read_index(library, LIBRARY_LINKS, root.first_link + shelf->root, &index) &&
+        if (spoken_root_folder(library, shelf->root, &index) &&
             root_matches(library, shelf, index)) {
             query.subject = index;
             uint32_t remaining = browse_count(library, query) - shelf->child;

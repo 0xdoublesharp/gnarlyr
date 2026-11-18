@@ -35,6 +35,7 @@ Library *spoken_library_open(SpokenLibrary *spoken);
 Library *spoken_library_open_nested(SpokenLibrary *spoken);
 Library *spoken_library_open_external(SpokenLibrary *spoken);
 Library *spoken_library_open_without_shelf(SpokenLibrary *spoken);
+Library *spoken_library_open_internal(SpokenLibrary *spoken);
 void spoken_library_close(SpokenLibrary *spoken);
 uint16_t spoken_library_track(const Library *library, const char *path);
 uint16_t spoken_library_chapter(const Library *library, uint8_t number);
