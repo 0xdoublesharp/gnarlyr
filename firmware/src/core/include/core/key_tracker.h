@@ -45,6 +45,7 @@ typedef struct KeyState {
     bool chord;
     uint8_t behavior;
     bool long_press_sent;
+    bool release_queued;
     uint32_t pressed_at_ms;
     uint32_t next_repeat_at_ms;
     uint8_t repeats;
