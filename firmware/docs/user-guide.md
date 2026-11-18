@@ -196,13 +196,13 @@ Rebuilding on the player takes a while, and its covers fill in afterwards while 
 
 The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there are no packaged downloads. Install Python 3.10 or newer, then the tools' packages once with `python3 -m pip install -r tools/requirements.txt`.
 
-1. Copy your music to the card, in the player over USB or in a card reader.
-2. Run `python3 tools/echo_sync.py /Volumes/CARD` with the card's mount point (on Windows, `tools\echo_sync.bat E:` finds Python for you). Without an argument it looks for a card the player has used and asks.
-3. When it says "Done", eject the card (in the player: both drives).
+1. Copy your music to the player over USB, or copy to the card in a card reader.
+2. Run `python3 tools/echo_sync.py /Volumes/CARD` with the card's mount point (on Windows, `tools\echo_sync.bat E:` finds Python for you). When it finds both mounted drives on the same player, it includes both. You can also give the internal mount point explicitly, for example `python3 tools/echo_sync.py /Volumes/CARD --internal /Volumes/GNARLYR`. Without a card argument, it asks which card to use.
+3. When it says "Done", eject the card safely. For a player connected over USB, eject both drives.
 
-It reads the whole card, as the player does, and writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.gnarlyr` folder. If the player has never used the card, it asks before creating `/.gnarlyr` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size unless the new data needs more room; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB), or larger if needed. It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
+It reads the whole card and any selected internal storage. It writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.gnarlyr` folder. If the player has never used the card, it asks before creating `/.gnarlyr` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size unless the new data needs more room; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB), or larger if needed. It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
 
-**Why the player doesn't rescan.** After a USB session the player checks for changes: it compares the names, sizes and modification times of the music, playlists and cover images on the card with a fingerprint it keeps in `scan.bin`. The computer writes the same fingerprint, so the check finds nothing new and the player keeps the computer's library. With a card reader there's no USB session, and the computer cannot see the player's own storage, so at the next start the player checks that storage once: with no music there it keeps the computer's library; with music there it rebuilds the library to include it.
+**Why the player doesn't rescan.** The player uses the names, sizes and modification times of music, playlists and cover images to check whether its library is up to date. With both drives available, echo-sync records both fingerprints in the card's `scan.bin`. Matching fingerprints let the player keep the library. With a card reader, echo-sync records the card fingerprint and marks internal storage unknown. The player checks internal storage at the next start and rebuilds the library if it finds music there.
 
 **When the player rescans anyway.** If the fingerprints differ, the player rescans as it would without the computer, and nothing is lost. That happens when:
 
@@ -212,7 +212,7 @@ It reads the whole card, as the player does, and writes `library.db`, `covers.bi
 - the card has folders more than 31 levels deep or paths longer than 1,023 bytes (the player can't fingerprint those);
 - a name was saved decomposed (for example by Linux) and read on a Mac, or only as an old DOS short name with accented letters.
 
-To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (`python3 tools/echo_sync.py /Volumes/CARD --check`). "They match" means the player won't rescan after the next sync. If the card's library is missing, damaged or from another version, it says the player will rebuild it.
+To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (`python3 tools/echo_sync.py /Volumes/CARD --check`). It compares the saved fingerprint for each available drive, the internal generation when available and the card library's format header.
 
 **After a firmware update** the player checks the music once when it first starts ("Checking for changes"), and rescans only if the music changed, or if it can't read the library on the card (as after an update that changes the library format). `scan.bin` remembers the firmware version; the computer keeps it. A `scan.bin` the computer had to create has no version yet, so the player checks once on its next start too.
 
@@ -220,9 +220,10 @@ To see whether it works on your card, let the player scan it once, then run echo
 |---|---|
 | `--dry-run` | Read everything and say what would be written, but write nothing |
 | `--no-covers` | Build the library only; `covers.bin` stays as it is, so new albums show without covers until the next rescan on the player |
-| `--covers-only` | Rebuild only `covers.bin`, from the card's `library.db` (or from the music when there is none) |
+| `--covers-only` | Rebuild only `covers.bin` from the card's `library.db` or, if there is no usable library, from the music. Mount both drives if the library includes internal music |
+| `--internal PATH` | Include music from the player's internal storage at PATH |
 | `--no-fingerprint` | Leave `scan.bin` alone, so the player compares the music with its own last scan |
-| `--check` | Only compare the computer's fingerprint with the player's, and check the card's library version |
+| `--check` | Compare the saved fingerprint for each available drive, and check the card's library format header |
 | `--yes` | Create `/.gnarlyr` without asking |
 | `--verbose` | List the albums without art |
 

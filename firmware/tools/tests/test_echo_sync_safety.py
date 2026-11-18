@@ -79,7 +79,8 @@ class CacheConfinementTest(unittest.TestCase):
             with mock.patch.object(echo_sync.cover_export, "collect_covers") as collect:
                 with contextlib.redirect_stdout(io.StringIO()):
                     with self.assertRaises(echo_sync.SyncError):
-                        echo_sync.sync(self.card, echo_sync.card_volume("fat32"), options)
+                        drive = echo_sync.MusicDrive(self.card, echo_sync.card_volume("fat32"))
+                        echo_sync.sync(echo_sync.MusicDrives(drive), options)
                 collect.assert_not_called()
 
     def test_sync_refuses_a_visible_media_symlink_before_parsing_or_writing(self):
@@ -87,7 +88,8 @@ class CacheConfinementTest(unittest.TestCase):
         with mock.patch.object(echo_sync.library_index, "scan", return_value=([], [], [])) as scan:
             with contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(echo_sync.SyncError):
-                    echo_sync.sync(self.card, echo_sync.card_volume("fat32"), echo_sync.SyncOptions(covers=False))
+                    drive = echo_sync.MusicDrive(self.card, echo_sync.card_volume("fat32"))
+                    echo_sync.sync(echo_sync.MusicDrives(drive), echo_sync.SyncOptions(covers=False))
             scan.assert_not_called()
         self.assertEqual([], list(self.folder.iterdir()))
         self.assertEqual(self.original, self.victim.read_bytes())
@@ -111,7 +113,7 @@ class CacheConfinementTest(unittest.TestCase):
             with mock.patch.object(echo_sync, "build_library", return_value=(empty, valid)) as rebuild:
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual([], echo_sync.album_sources(self.card, None, path))
-                rebuild.assert_called_once_with(self.card)
+                rebuild.assert_called_once_with(self.card, None)
 
 
 class SimulatedPowerLoss(BaseException):

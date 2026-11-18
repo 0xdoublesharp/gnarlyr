@@ -329,15 +329,16 @@ class AlbumPathTest(unittest.TestCase):
 class ScanRecordTest(unittest.TestCase):
     def test_the_record_holds_the_magic_both_hashes_the_count_the_firmware_tag_and_an_unknown_internal_half(self):
         tag = b"0.1.0".ljust(16, b"\0")
-        record = echo_sync.scan_record(echo_sync.Fingerprint(True, 0x11223344, 5, 6), tag)
+        snapshot = echo_sync.ScanSnapshot(echo_sync.Fingerprint(True, 0x11223344, 5, 6))
+        record = echo_sync.scan_record(snapshot, tag)
         self.assertEqual(b"DSS2" + bytes([0x44, 0x33, 0x22, 0x11]) + struct.pack("<II", 5, 6) + tag +
                          struct.pack("<IIIII", 0, 0, 0, 2, 0), record)
 
     def test_a_stored_record_reads_back(self):
-        fingerprint = echo_sync.Fingerprint(True, 1, 2, 3)
-        record = echo_sync.scan_record(fingerprint, bytes(16))
-        self.assertEqual(fingerprint, echo_sync.stored_fingerprint(record))
-        self.assertIsNone(echo_sync.stored_fingerprint(bytes(32)))
+        snapshot = echo_sync.ScanSnapshot(echo_sync.Fingerprint(True, 1, 2, 3))
+        record = echo_sync.scan_record(snapshot, bytes(16))
+        self.assertEqual(snapshot, echo_sync.stored_snapshot(record))
+        self.assertIsNone(echo_sync.stored_snapshot(bytes(32)))
 
     def test_the_firmware_tag_is_kept_or_empty(self):
         record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, b"tag".ljust(16, b"\0"), 0, 0, 0, 2, 0)
@@ -384,7 +385,7 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(4096, len(scan))
         volume = echo_sync.detect_volume(self.card)
         self.assertEqual(echo_sync.card_fingerprint(self.card, volume),
-                         echo_sync.stored_fingerprint(scan))
+                         echo_sync.stored_snapshot(scan).card)
         self.assertIn("Eject the card safely", output.replace("eject", "Eject"))
         self.assertEqual(0, self.run_sync("--check")[0])
 

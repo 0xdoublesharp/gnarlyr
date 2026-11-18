@@ -71,11 +71,21 @@ class ToolCliBoundaryTest(unittest.TestCase):
         with mock.patch.object(library_index, "encode_library", side_effect=ValueError("too many tracks")):
             with self.assertRaisesRegex(echo_sync.SyncError, "too big"):
                 echo_sync.build_library(self.music)
-        echo_sync.build_covers(self.music, cover_export.album_sources(model), echo_sync.card_volume("fat"), echo_sync.SyncOptions(verbose=True))
+        drive = echo_sync.MusicDrive(self.music, echo_sync.card_volume("fat"))
+        echo_sync.build_covers(echo_sync.MusicDrives(drive), cover_export.album_sources(model),
+                               echo_sync.SyncOptions(verbose=True))
         self.assertIn("no cover:", self.output.getvalue())
         with mock.patch.object(echo_sync, "write_card_file", side_effect=OSError("disk failed")):
             with self.assertRaisesRegex(echo_sync.SyncError, "couldn't write"):
                 echo_sync.write_or_report(self.root / "library.db", b"data", echo_sync.LIBRARY_FILE, echo_sync.SyncOptions())
+
+    def test_an_indexer_error_is_reported_by_the_sync_cli_before_writing(self):
+        cache = self.music / echo_sync.DATA_FOLDER
+        cache.mkdir()
+        with mock.patch.object(library_index, "scan", side_effect=ValueError("reserved folder name")):
+            self.assertEqual(2, echo_sync.main([str(self.music), "--no-covers"]))
+        self.assertIn("reserved folder name", self.errors.getvalue())
+        self.assertEqual([], list(cache.iterdir()))
 
     def test_missing_folders_empty_selection_and_next_steps_are_explicit(self):
         self.assertIsNone(echo_sync.host_lister(echo_sync.card_volume("fat"))(self.root / "missing"))
@@ -87,9 +97,12 @@ class ToolCliBoundaryTest(unittest.TestCase):
         with mock.patch.object(os.path, "ismount", return_value=True):
             echo_sync.check_target(self.music, echo_sync.card_volume("fat"), False)
         echo_sync.ensure_data_folder(self.music / "new-cache", echo_sync.SyncOptions(), True)
-        echo_sync.print_next_steps(echo_sync.SyncOptions(), True, echo_sync.CardVolume("FAT32", True, False, 0, ""), 1)
+        drive = echo_sync.MusicDrive(self.music, echo_sync.card_volume("fat"))
+        drives = echo_sync.MusicDrives(drive)
+        echo_sync.print_next_steps(echo_sync.SyncOptions(), True, drives, 1)
         for fingerprint in (False, True):
-            echo_sync.print_next_steps(echo_sync.SyncOptions(library=True, covers=False, fingerprint=fingerprint), False, echo_sync.card_volume("fat"), 1)
+            options = echo_sync.SyncOptions(library=True, covers=False, fingerprint=fingerprint)
+            echo_sync.print_next_steps(options, False, drives, 1)
         self.assertIn("Covers were left", self.output.getvalue())
         self.assertIn("scan the card once more", self.output.getvalue())
         self.assertIn("compares the music", self.output.getvalue())

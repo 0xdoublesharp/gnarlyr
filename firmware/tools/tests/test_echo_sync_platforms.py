@@ -1,7 +1,9 @@
 import contextlib
 import ctypes
 import io
+import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -121,18 +123,116 @@ class PlatformBoundaryTest(unittest.TestCase):
 
     def test_fingerprint_check_distinguishes_missing_changed_and_incomplete_records(self):
         fingerprint = echo_sync.Fingerprint(True, 1, 2, 3)
-        record = echo_sync.scan_record(fingerprint, bytes(16))
+        snapshot = echo_sync.ScanSnapshot(fingerprint)
+        drive = echo_sync.MusicDrive(self.root, echo_sync.card_volume("fat32"))
+        drives = echo_sync.MusicDrives(drive)
+        record = echo_sync.scan_record(snapshot, bytes(16))
         for data, current in ((b"", fingerprint), (record, echo_sync.Fingerprint(True, 2, 2, 3)), (record, echo_sync.Fingerprint(False, 1, 2, 3))):
             with mock.patch.object(echo_sync, "take_fingerprint", return_value=current), mock.patch.object(echo_sync, "read_prefix", return_value=data):
-                self.assertEqual(1, echo_sync.run_check(self.root, echo_sync.card_volume("fat32")))
+                self.assertEqual(1, echo_sync.run_check(drives))
         self.assertEqual("none", echo_sync.describe(None))
         self.assertEqual("incomplete", echo_sync.describe(echo_sync.Fingerprint(False, 0, 0, 0)))
         for after in (echo_sync.Fingerprint(False, 0, 0, 0), echo_sync.Fingerprint(True, 2, 2, 3)):
             with mock.patch.object(echo_sync, "take_fingerprint", return_value=after), mock.patch.object(echo_sync, "write_or_report") as write:
-                self.assertFalse(echo_sync.record_fingerprint(self.root, self.root, echo_sync.card_volume("fat32"), fingerprint, echo_sync.SyncOptions()))
+                self.assertFalse(echo_sync.record_fingerprint(
+                    self.root, drives, snapshot, echo_sync.SyncOptions()))
                 write.assert_not_called()
         with mock.patch.object(echo_sync, "card_fingerprint", side_effect=OSError("disconnected")):
             self.assertFalse(echo_sync.take_fingerprint(self.root, echo_sync.card_volume("fat32")).complete)
+
+
+class PlayerDriveDiscoveryTest(unittest.TestCase):
+    def setUp(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.root = Path(scratch.name)
+        self.card = self.root / "Card volume"
+        self.internal = self.root / "Internal volume"
+
+    def test_macos_uses_both_media_on_the_same_usb_player(self):
+        def medium(name, *points):
+            return {"_name": name, "volumes": [{"mount_point": point} for point in points]}
+
+        def player(*media, pid="0x0001"):
+            return {"_name": echo_sync.IDENTITY.name, "vendor_id": "0x1209 (pid.codes)",
+                    "product_id": pid, "Media": list(media)}
+
+        card = medium("SD card Media", None, str(self.card))
+        internal = medium("Internal Storage Media", str(self.internal))
+        elsewhere = medium("Internal Storage Media", str(self.root / "Elsewhere"))
+        tree = {"SPUSBDataType": [{"_items": [player(card, internal, medium("Other")),
+                                             player(elsewhere), player(card, pid="0x0002")]}]}
+        with (mock.patch.object(echo_sync.sys, "platform", "darwin"),
+              mock.patch.object(echo_sync.subprocess, "run",
+                                return_value=SimpleNamespace(stdout=json.dumps(tree))) as run):
+            self.assertEqual([(self.card, self.internal)], echo_sync.mounted_player_pairs())
+        self.assertEqual(["system_profiler", "SPUSBDataType", "-json"], run.call_args.args[0])
+        tree["SPUSBDataType"][0]["_items"] = [player(card), player(internal)]
+        with (mock.patch.object(echo_sync.sys, "platform", "darwin"),
+              mock.patch.object(echo_sync, "command_json", return_value=tree)):
+            self.assertEqual([], echo_sync.mounted_player_pairs())
+
+    def test_linux_uses_block_mounts_and_the_usb_parent_lun(self):
+        block = self.root / "block"
+        block.mkdir()
+        player = self.root / "usb1" / "1-8"
+        player.mkdir(parents=True)
+        for field, value in (("idVendor", "1209"), ("idProduct", "0001"),
+                             ("product", echo_sync.IDENTITY.name)):
+            (player / field).write_text(value)
+        for disk, lun in (("sda", 0), ("sdb1", 1), ("sdc", 2)):
+            path = player / "host5" / f"5:0:0:{lun}" / "block" / disk
+            path.mkdir(parents=True)
+            (block / disk).symlink_to(path)
+        self.assertEqual((player, 0), echo_sync.linux_player_lun("/dev/sda", block))
+        self.assertEqual((player, 1), echo_sync.linux_player_lun("/dev/sdb1", block))
+        self.assertIsNone(echo_sync.linux_player_lun("/dev/sdc", block))
+        self.assertIsNone(echo_sync.linux_player_lun("/dev/absent", block))
+        self.assertIsNone(echo_sync.linux_player_lun("tmpfs", block))
+        local = self.root / "virtual" / "block" / "loop0"
+        local.mkdir(parents=True)
+        (block / "loop0").symlink_to(local)
+        self.assertIsNone(echo_sync.linux_player_lun("/dev/loop0", block))
+        (player / "product").write_text("Another USB device")
+        self.assertIsNone(echo_sync.linux_player_lun("/dev/sda", block))
+
+        rows = [("/dev/sda", str(self.internal), "vfat", ""),
+                ("/dev/sdb1", str(self.card), "exfat", ""),
+                ("/dev/missing", str(self.root / "missing"), "vfat", ""),
+                ("tmpfs", str(self.root / "tmp"), "tmpfs", "")]
+        with (mock.patch.object(echo_sync.sys, "platform", "linux"),
+              mock.patch.object(echo_sync, "linux_mount_rows", return_value=rows),
+              mock.patch.object(echo_sync, "linux_player_lun",
+                                side_effect=[(player, 0), (player, 1), None]) as lun):
+            self.assertEqual([(self.card, self.internal)], echo_sync.mounted_player_pairs())
+        self.assertEqual(3, lun.call_count)
+
+    def test_windows_does_not_mix_different_devices_or_ambiguous_luns(self):
+        rows = [{"device": "player-1", "lun": 1, "root": str(self.card)},
+                {"device": "player-1", "lun": 0, "root": str(self.internal)},
+                {"device": "player-2", "lun": 0, "root": str(self.root / "Unpaired")},
+                {"device": "player-1", "lun": 3, "root": str(self.root / "Different LUN")}]
+        with (mock.patch.object(echo_sync.sys, "platform", "win32"),
+              mock.patch.object(echo_sync, "command_json", return_value=rows) as query):
+            self.assertEqual([(self.card, self.internal)], echo_sync.mounted_player_pairs())
+            command = query.call_args.args[0]
+            self.assertEqual("powershell.exe", command[0])
+            self.assertIn("DEVPKEY_Device_Parent", command[-1])
+            self.assertIn("SCSILogicalUnit", command[-1])
+            rows.append({"device": "player-1", "lun": 1, "root": str(self.root / "Second partition")})
+            self.assertEqual([], echo_sync.mounted_player_pairs())
+            query.return_value = None
+            self.assertEqual([], echo_sync.mounted_player_pairs())
+
+    def test_probe_failure_and_unknown_platform_leave_single_drive_discovery_available(self):
+        for error in (OSError("missing program"), subprocess.TimeoutExpired("system_profiler", 15)):
+            with mock.patch.object(echo_sync.subprocess, "run", side_effect=error):
+                self.assertEqual([], echo_sync.command_json(["system_profiler"]))
+        with mock.patch.object(echo_sync.subprocess, "run",
+                               return_value=SimpleNamespace(stdout="invalid JSON")):
+            self.assertEqual([], echo_sync.command_json(["system_profiler"]))
+        with mock.patch.object(echo_sync.sys, "platform", "other"):
+            self.assertEqual([], echo_sync.mounted_player_pairs())
 
 
 if __name__ == "__main__":
