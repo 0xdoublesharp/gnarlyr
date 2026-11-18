@@ -41,13 +41,19 @@ typedef enum NowPlayingCommand {
     NOW_PLAYING_SEEK_BACK,
     NOW_PLAYING_SEEK_BACK_FAST,
     NOW_PLAYING_LYRICS,
-    NOW_PLAYING_REPEAT_MARK
+    NOW_PLAYING_REPEAT_MARK,
+    NOW_PLAYING_SCRUB_TAP_FORWARD,
+    NOW_PLAYING_SCRUB_TAP_BACK
 } NowPlayingCommand;
 
 enum {
-    NOW_PLAYING_SCRUB_STEP_MS = 5000,
-    NOW_PLAYING_SCRUB_FAST_STEP_MS = 15000,
-    NOW_PLAYING_SEEK_FAST_AFTER_REPEATS = 8,
+    NOW_PLAYING_SCRUB_TAP_MS = 5000,
+    NOW_PLAYING_SEEK_STEP_DIVISOR = 100,
+    NOW_PLAYING_SEEK_FAST_FACTOR = 3,
+    NOW_PLAYING_SEEK_STEP_MIN_MS = 1000,
+    NOW_PLAYING_SEEK_STEP_MAX_MS = 30000,
+    NOW_PLAYING_SEEK_FAST_MAX_MS = 120000,
+    NOW_PLAYING_SEEK_FAST_AFTER_REPEATS = 13,
     NOW_PLAYING_SEEK_COMMANDS = NOW_PLAYING_SEEK_BACK_FAST - NOW_PLAYING_SEEK_FORWARD + 1,
     NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
     NOW_PLAYING_BADGE_MS = 700
@@ -109,7 +115,8 @@ typedef struct NowPlayingScreen {
 NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys);
 StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after);
 void now_playing_player_command(Player *player, NowPlayingCommand command);
-void now_playing_seek_by(Player *player, int32_t delta_ms);
+uint32_t now_playing_seek_step(uint32_t duration_ms, bool fast);
+int32_t now_playing_seek_delta(uint32_t move, uint32_t duration_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);
 const char *now_playing_codec_name(HalAudioCodec codec);
 void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacity);
