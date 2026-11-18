@@ -418,14 +418,17 @@ def resolve_playlist(paths, raw, playlist):
 def resolve_playlists(raw_playlists, tracks):
     paths = PathIndex(tracks)
     card_tops = {top_playlist_key(raw, "") for raw in raw_playlists} - {()}
-    playlists = []
+    playlists, joined = [], set()
     for raw in raw_playlists:
         if top_playlist_key(raw, INTERNAL_MARKER) in card_tops:
             continue
         playlist = resolve_playlist(paths, raw, Playlist(raw.name))
-        for partner in (other for other in raw_playlists if top_playlist_key(raw, "") and
-                        top_playlist_key(other, INTERNAL_MARKER) == top_playlist_key(raw, "")):
-            resolve_playlist(paths, partner, playlist)
+        key = top_playlist_key(raw, "")
+        if key and key not in joined:
+            joined.add(key)
+            for partner in (other for other in raw_playlists
+                            if top_playlist_key(other, INTERNAL_MARKER) == key):
+                resolve_playlist(paths, partner, playlist)
         playlists.append(playlist)
     return sorted(playlists, key=lambda playlist: (sort_key(playlist.name), playlist.name))
 

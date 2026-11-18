@@ -679,10 +679,10 @@ static char fold(char letter)
 
 static bool same_top_name(const uint8_t *card, const uint8_t *internal)
 {
-    const char *left = (const char *)card + 5;
-    const char *right = (const char *)internal + 7;
-    uint32_t length = stem_end(card) - 1;
-    if (length != stem_end(internal) - 3) {
+    const char *left = (const char *)card + 4 + record_parent(card);
+    const char *right = (const char *)internal + 4 + record_parent(internal);
+    uint32_t length = stem_end(card) - record_parent(card);
+    if (length != stem_end(internal) - record_parent(internal)) {
         return false;
     }
     for (uint32_t index = 0; index < length; index++) {
@@ -720,13 +720,27 @@ static ScanResult read_partners(ScanState *state, const ScanJob *job, const uint
     return result;
 }
 
-static ScanResult read_noted(ScanState *state, const ScanJob *job, const uint8_t *record)
+static bool first_card_top(const ScanState *state, uint32_t index, const uint8_t *record)
 {
+    for (uint32_t earlier = 0; earlier < index; earlier++) {
+        const uint8_t *other = state->listing + noted_playlist(state, earlier);
+        if (at_top(other, false) && same_top_name(other, record)) {
+            return false;
+        }
+    }
+    return at_top(record, false);
+}
+
+static ScanResult read_noted(ScanState *state, const ScanJob *job, uint32_t index)
+{
+    const uint8_t *record = state->listing + noted_playlist(state, index);
     if (at_top(record, true) && has_card_partner(state, record)) {
         return SCAN_OK;
     }
     ScanResult result = read_playlist(state, job, record, false);
-    return result == SCAN_OK && at_top(record, false) ? read_partners(state, job, record) : result;
+    return result == SCAN_OK && first_card_top(state, index, record)
+               ? read_partners(state, job, record)
+               : result;
 }
 
 static ScanResult read_playlists(ScanState *state, const ScanJob *job)
@@ -734,7 +748,7 @@ static ScanResult read_playlists(ScanState *state, const ScanJob *job)
     ScanResult result = scan_builder_result(library_builder_prepare(&state->builder));
     library_builder_expect_playlists(&state->builder, state->playlist_count);
     for (uint32_t index = 0; result == SCAN_OK && index < state->playlist_count; index++) {
-        result = read_noted(state, job, state->listing + noted_playlist(state, index));
+        result = read_noted(state, job, index);
     }
     return result;
 }
