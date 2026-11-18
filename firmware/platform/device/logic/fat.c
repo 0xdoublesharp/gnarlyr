@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "exfat.h"
 #include "fat_entry.h"
 #include "fat_layout.h"
@@ -127,8 +128,8 @@ static void note_location(const FatVolume *volume, FatEntryLocation *where,
                                 .contiguous = false};
 }
 
-static bool find_fat_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
-                           FatFile *found, FatEntryLocation *where)
+static CORE_COLD bool find_fat_entry(FatVolume *volume, FatFile *directory, const char *name,
+                                     size_t length, FatFile *found, FatEntryLocation *where)
 {
     LongName long_name = {.valid = false};
     for (uint32_t index = 0; index < MAXIMUM_DIRECTORY_ENTRIES; index++) {
@@ -180,8 +181,8 @@ static size_t component_length(const char *path)
     return length;
 }
 
-static bool walk_from(FatVolume *volume, FatFile *current, const char *path, const char *end,
-                      bool *found_any)
+static CORE_COLD bool walk_from(FatVolume *volume, FatFile *current, const char *path,
+                                const char *end, bool *found_any)
 {
     while (path < end) {
         if (*path == '/') {
@@ -234,7 +235,8 @@ static void remember_parent(FatVolume *volume, const char *path, uint32_t parent
     volume->parent_named = named;
 }
 
-static bool walk_path(FatVolume *volume, const char *path, FatFile *found, bool *found_any)
+static CORE_COLD bool walk_path(FatVolume *volume, const char *path, FatFile *found,
+                                bool *found_any)
 {
     uint32_t total = 0;
     uint32_t parent = parent_length(path, &total);
@@ -255,7 +257,7 @@ static bool walk_path(FatVolume *volume, const char *path, FatFile *found, bool 
     return true;
 }
 
-bool fat_open(FatVolume *volume, const char *path, FatFile *file)
+CORE_COLD bool fat_open(FatVolume *volume, const char *path, FatFile *file)
 {
     FatFile current;
     bool found_any = false;
@@ -268,7 +270,7 @@ bool fat_open(FatVolume *volume, const char *path, FatFile *file)
     return true;
 }
 
-bool fat_open_directory(FatVolume *volume, const char *path, FatDirCursor *cursor)
+CORE_COLD bool fat_open_directory(FatVolume *volume, const char *path, FatDirCursor *cursor)
 {
     FatFile directory;
     bool found_any = false;
@@ -369,8 +371,8 @@ bool fat_read(FatVolume *volume, FatFile *file, uint32_t offset, void *buffer, u
     return true;
 }
 
-static bool write_run(FatVolume *volume, uint32_t lba, const uint8_t *bytes, uint32_t count,
-                      bool direct)
+static CORE_COLD bool write_run(FatVolume *volume, uint32_t lba, const uint8_t *bytes,
+                                uint32_t count, bool direct)
 {
     if (!direct) {
         return fat_write_run(volume, lba, bytes, count);
@@ -379,8 +381,8 @@ static bool write_run(FatVolume *volume, uint32_t lba, const uint8_t *bytes, uin
     return volume->device.write(volume->device.context, lba, count, bytes);
 }
 
-static uint32_t write_whole_sectors(FatVolume *volume, FatFile *file, uint32_t offset,
-                                    const uint8_t *bytes, uint32_t length)
+static CORE_COLD uint32_t write_whole_sectors(FatVolume *volume, FatFile *file, uint32_t offset,
+                                              const uint8_t *bytes, uint32_t length)
 {
     uint32_t sectors = length / FAT_SECTOR_SIZE;
     uint32_t sector_index = offset / FAT_SECTOR_SIZE;
@@ -399,8 +401,8 @@ static uint32_t write_whole_sectors(FatVolume *volume, FatFile *file, uint32_t o
     return count * FAT_SECTOR_SIZE;
 }
 
-static uint32_t write_step(FatVolume *volume, FatFile *file, uint32_t offset, const uint8_t *bytes,
-                           uint32_t length)
+static CORE_COLD uint32_t write_step(FatVolume *volume, FatFile *file, uint32_t offset,
+                                     const uint8_t *bytes, uint32_t length)
 {
     uint32_t within = offset % FAT_SECTOR_SIZE;
     if (within == 0 && length >= FAT_SECTOR_SIZE) {
@@ -415,8 +417,8 @@ static uint32_t write_step(FatVolume *volume, FatFile *file, uint32_t offset, co
     return chunk;
 }
 
-bool fat_write(FatVolume *volume, FatFile *file, uint32_t offset, const void *bytes,
-               uint32_t length)
+CORE_COLD bool fat_write(FatVolume *volume, FatFile *file, uint32_t offset, const void *bytes,
+                         uint32_t length)
 {
     if (volume->device.write == NULL || offset > file->size || length > file->size - offset) {
         return false;

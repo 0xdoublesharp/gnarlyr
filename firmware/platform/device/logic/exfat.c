@@ -1,5 +1,6 @@
 #include "exfat.h"
 
+#include "core/seam.h"
 #include "exfat_set.h"
 #include "fat_layout.h"
 #include "fat_names.h"
@@ -74,8 +75,8 @@ static void note_location(FatEntryLocation *where, uint32_t index, const EntrySe
     }
 }
 
-bool exfat_find_entry(FatVolume *volume, FatFile *directory, const char *name, size_t length,
-                      FatFile *found, FatEntryLocation *where)
+CORE_COLD bool exfat_find_entry(FatVolume *volume, FatFile *directory, const char *name,
+                                size_t length, FatFile *found, FatEntryLocation *where)
 {
     uint32_t index = 0;
     while (index < MAXIMUM_DIRECTORY_ENTRIES) {
