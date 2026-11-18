@@ -158,10 +158,11 @@ static void the_seek_target_stays_inside_the_track(void)
     CHECK_EQUAL(200000, now_playing_scrub_target(198000, 200000, 15000));
 }
 
-static void the_seek_target_of_an_unknown_length_only_stops_at_the_start(void)
+static void the_seek_target_of_an_unknown_length_stays_put(void)
 {
-    CHECK_EQUAL(5000, now_playing_scrub_target(3000, 0, 2000));
-    CHECK_EQUAL(0, now_playing_scrub_target(3000, 0, -6000));
+    CHECK_EQUAL(3000, now_playing_scrub_target(3000, 0, 2000));
+    CHECK_EQUAL(3000, now_playing_scrub_target(3000, 0, -6000));
+    CHECK_EQUAL(3000, now_playing_scrub_target(3000, 0, NOW_PLAYING_SCRUB_TAP_MS));
 }
 
 static void a_seek_step_is_one_percent_of_the_length(void)
@@ -194,12 +195,6 @@ static void a_fast_seek_step_stays_between_three_seconds_and_two_minutes(void)
     CHECK_EQUAL(120000, now_playing_seek_step(4000000, true));
     CHECK_EQUAL(120000, now_playing_seek_step(14400000, true));
     CHECK_EQUAL(120000, now_playing_seek_step(UINT32_MAX, true));
-}
-
-static void an_unknown_length_steps_two_seconds_then_six(void)
-{
-    CHECK_EQUAL(2000, now_playing_seek_step(0, false));
-    CHECK_EQUAL(6000, now_playing_seek_step(0, true));
 }
 
 static void a_seek_delta_follows_the_direction_and_speed_of_the_move(void)
@@ -382,6 +377,62 @@ static void a_paused_resume_shows_its_planned_start_in_every_layout(void)
     }
 }
 
+static Library unknown_length_library;
+static Player unknown_length_player;
+
+static void start_unknown_length_view(void)
+{
+    start_passive_view();
+    unknown_length_player = (Player){.library = &unknown_length_library,
+                                     .has_track = true,
+                                     .state = PLAYER_PAUSED,
+                                     .paused_position_ms = 42000};
+    playback_view.config.player = &unknown_length_player;
+    playback_view.config.library = &unknown_length_library;
+    playback_view.screen.enter(&playback_view, 0);
+}
+
+static void press_on_view(Key key, KeyGesture gesture, uint8_t repeats, bool chord)
+{
+    KeyEvent event = {.key = key, .gesture = gesture, .repeats = repeats, .chord = chord};
+    playback_view.screen.handle_key(&playback_view, event, 0);
+}
+
+static void scrubbing_a_track_of_unknown_length_leaves_its_position(void)
+{
+    start_unknown_length_view();
+    CHECK_EQUAL(0, playback_view.status.duration_ms);
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0, true);
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 20, true);
+    press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 20, true);
+    CHECK_EQUAL(42000, player_status(&unknown_length_player).position_ms);
+    unknown_length_player.loaded = true;
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 20, true);
+    press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_LONG_PRESS, 0, true);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+}
+
+static void seeking_in_a_track_of_unknown_length_leaves_its_position(void)
+{
+    start_unknown_length_view();
+    press_on_view(KEY_PLAY, KEY_GESTURE_LONG_PRESS, 0, false);
+    CHECK(playback_view.scrubbing);
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 0, false);
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 20, false);
+    CHECK_EQUAL(42000, playback_view.scrub_position_ms);
+    press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 0, false);
+    press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 20, false);
+    CHECK_EQUAL(42000, playback_view.scrub_position_ms);
+    press_on_view(KEY_PLAY, KEY_GESTURE_PRESS, 0, false);
+    CHECK(!playback_view.scrubbing);
+    CHECK_EQUAL(42000, player_status(&unknown_length_player).position_ms);
+    unknown_length_player.loaded = true;
+    press_on_view(KEY_PLAY, KEY_GESTURE_LONG_PRESS, 0, false);
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 0, false);
+    press_on_view(KEY_PLAY, KEY_GESTURE_PRESS, 0, false);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+}
+
 static CoverCache artwork_cache;
 
 static void artwork_has_a_larger_primary_surface_in_every_text_size_and_orientation(void)
@@ -546,12 +597,13 @@ int main(void)
         TEST_CASE(while_seeking_a_held_volume_key_steps_and_speeds_up),
         TEST_CASE(while_seeking_play_commits_and_back_cancels),
         TEST_CASE(the_seek_target_stays_inside_the_track),
-        TEST_CASE(the_seek_target_of_an_unknown_length_only_stops_at_the_start),
+        TEST_CASE(the_seek_target_of_an_unknown_length_stays_put),
+        TEST_CASE(scrubbing_a_track_of_unknown_length_leaves_its_position),
+        TEST_CASE(seeking_in_a_track_of_unknown_length_leaves_its_position),
         TEST_CASE(a_seek_step_is_one_percent_of_the_length),
         TEST_CASE(after_about_two_seconds_a_seek_step_is_three_percent_of_the_length),
         TEST_CASE(a_seek_step_stays_between_one_and_thirty_seconds),
         TEST_CASE(a_fast_seek_step_stays_between_three_seconds_and_two_minutes),
-        TEST_CASE(an_unknown_length_steps_two_seconds_then_six),
         TEST_CASE(a_seek_delta_follows_the_direction_and_speed_of_the_move),
         TEST_CASE(menu_opens_quick_settings),
         TEST_CASE(back_leaves_and_a_long_back_goes_home),

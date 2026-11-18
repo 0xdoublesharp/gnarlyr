@@ -17,18 +17,18 @@ static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms)
 {
     int64_t target = (int64_t)position_ms + delta_ms;
+    if (duration_ms == 0) {
+        return position_ms;
+    }
     if (target < 0) {
         return 0;
     }
-    return duration_ms != 0 && target > duration_ms ? duration_ms : (uint32_t)target;
+    return target > duration_ms ? duration_ms : (uint32_t)target;
 }
 
 uint32_t now_playing_seek_step(uint32_t duration_ms, bool fast)
 {
     uint32_t factor = fast ? NOW_PLAYING_SEEK_FAST_FACTOR : 1u;
-    if (duration_ms == 0) {
-        return NOW_PLAYING_SEEK_UNKNOWN_STEP_MS * factor;
-    }
     uint32_t step = duration_ms / NOW_PLAYING_SEEK_STEP_DIVISOR * factor;
     uint32_t low = NOW_PLAYING_SEEK_STEP_MIN_MS * factor;
     uint32_t high = fast ? NOW_PLAYING_SEEK_FAST_MAX_MS : NOW_PLAYING_SEEK_STEP_MAX_MS;
@@ -105,7 +105,7 @@ NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys)
 static void seek_by(Player *player, uint32_t move)
 {
     PlayerStatus status = player_status(player);
-    if (!status.has_track) {
+    if (!status.has_track || status.duration_ms == 0) {
         return;
     }
     int32_t delta_ms = now_playing_seek_delta(move, status.duration_ms);

@@ -166,7 +166,9 @@ static void start_scrub(NowPlayingScreen *now_playing)
 
 static void commit_scrub(NowPlayingScreen *now_playing)
 {
-    player_seek(now_playing->config.player, now_playing->scrub_position_ms);
+    if (now_playing->status.duration_ms != 0) {
+        player_seek(now_playing->config.player, now_playing->scrub_position_ms);
+    }
     now_playing->scrubbing = false;
 }
 
