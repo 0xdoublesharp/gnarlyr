@@ -2,7 +2,7 @@
 
 Gnarlyr can keep a record of what was played: one entry per play in a ring, and totals that outlive the ring. `playback/listening_log` stores them, `playback/listening_stats` computes the statistics, `playback/listening_export` writes the plays as a scrobbler file and `playback/listening_track` derives a track's keys from the library. Block format, generations and publication are in `playback-store.md`. The smart lists in the Music menu rank songs from the ring (`smart-lists.md`).
 
-The app logs plays through `app/listening_store` and exports them from Home → Listening; none of this has run on a player.
+The app logs plays through `app/listening_store` and exports them from Home → Recap; none of this has run on a player.
 
 ## File
 
@@ -121,7 +121,7 @@ Two terms: a play is every record. A listen is a play that ran for at least half
 - A play without a clock, or dated after today, counts for no day.
 - With a clock the job takes one pass. A streak of 64 days or more takes one more pass for every further 64 days.
 - `listening_skip_permille` gives the skip rate of any of these totals: skips per thousand plays.
-- No screen shows the summary yet: Home → Listening → Totals reads the counters. A dated row (today, this week, the streak) would begin a summary job with `hal_clock_wall`'s UTC seconds plus its offset, and say the time is unknown when the clock is not set.
+- No screen shows the summary yet: Home → Recap → Totals reads the counters. A dated row (today, this week, the streak) would begin a summary job with `hal_clock_wall`'s UTC seconds plus its offset, and say the time is unknown when the clock is not set.
 
 ### Top lists
 
@@ -188,7 +188,7 @@ A step reads the plays of one 512-byte sector of the ring, at most eight, and ma
 
 ### Export plays screen
 
-Home → Listening → Export plays (`app/screens/listening_screen`) runs the job as soon as it opens; each pass takes up to 16 steps or 12 ms. When the measure finds no plays to write, the screen says so and leaves any earlier file alone. Otherwise it gives the file exactly the size of the text, so the file ends after its last line and holds no padding: an existing `/.scrobbler.log` of another size is deleted and reserved again at that size (at most `LISTENING_EXPORT_FILE_BYTES`, 2 MiB, which a ring of 4,096 plays cannot reach: its longest text is about 1.85 MB). If the old file cannot be deleted, or the card is full, the export fails without writing. Back or a long Back while the file is being written deletes the partial file. The screen shows the share of the two passes done, then the number of plays written and the file's name, the reason there was nothing to write, or why it failed.
+Home → Recap → Export plays (`app/screens/listening_screen`) runs the job as soon as it opens; each pass takes up to 16 steps or 12 ms. When the measure finds no plays to write, the screen says so and leaves any earlier file alone. Otherwise it gives the file exactly the size of the text, so the file ends after its last line and holds no padding: an existing `/.scrobbler.log` of another size is deleted and reserved again at that size (at most `LISTENING_EXPORT_FILE_BYTES`, 2 MiB, which a ring of 4,096 plays cannot reach: its longest text is about 1.85 MB). If the old file cannot be deleted, or the card is full, the export fails without writing. Back or a long Back while the file is being written deletes the partial file. The screen shows the share of the two passes done, then the number of plays written and the file's name, the reason there was nothing to write, or why it failed.
 
 No scrobbling tool has been run on a file written this way.
 
