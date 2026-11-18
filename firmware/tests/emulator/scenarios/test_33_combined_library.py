@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from echo_image_harness import (
     EchoImageHarness,
@@ -12,6 +13,8 @@ from echo_image_harness import (
 )
 
 MUSIC_CHECK_PATH = "/" + IDENTITY.data_directory + "/scan.bin"
+MUSIC_GENERATION_PATH = "/" + IDENTITY.data_directory + "/music_gen.bin"
+FAVORITE_ROW = 2
 TRACK = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_128_44k_stereo_tagged.mp3"
 
 
@@ -88,6 +91,39 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(slot.fat().read(LIBRARY_PATH), combined)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
+
+    def test_an_internal_song_is_favorited_and_deleted_on_internal_storage_with_a_card_in(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from test_23_hide_delete import DELETE_ROW, HOLD_MS, short_wav
+        volume = Fat32Volume()
+        for name in ("A.wav", "B.wav"):
+            volume.add_file(name, short_wav())
+        slot = self.with_card(files=[("C.wav", short_wav(), None)])
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs, prepare=slot.insert)
+        internal = rig.session.fat
+        favorites = "/Favorite Tracks.m3u"
+
+        def song_action(row):
+            rig.press("play", hold=HOLD_MS)
+            rig.press_many("next", row)
+            rig.press("play")
+
+        rig.open_songs()
+        song_action(FAVORITE_ROW)
+        self.assertTrue((internal().read(favorites) or b"").startswith(b"#EXTM3U\nA.wav\n"))
+        self.assertFalse(slot.fat().exists(favorites))
+        rig.press("next")
+        song_action(DELETE_ROW)
+        rig.press("next")
+        rig.press("play")
+        self.assertFalse(internal().exists("/B.wav"))
+        self.assertTrue(internal().exists("/A.wav"))
+        self.assertTrue(slot.fat().exists("/C.wav"))
+        self.assertEqual(internal().read(MUSIC_GENERATION_PATH)[:4], (1).to_bytes(4, "little"))
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
 
 
 if __name__ == "__main__":
