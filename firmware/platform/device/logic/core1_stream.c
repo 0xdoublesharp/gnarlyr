@@ -59,7 +59,7 @@ static Core1DecodeResult decode_flac(void *context, Core1Block *block)
 Core1Decoder core1_flac_decoder(Core1Flac *flac, FlacDecoder *decoder)
 {
     *flac = (Core1Flac){.decoder = decoder, .starved = NULL};
-    return (Core1Decoder){start_flac, decode_flac, flac};
+    return (Core1Decoder){start_flac, decode_flac, flac, false};
 }
 
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder)
@@ -104,6 +104,20 @@ static bool read_ring(void *context, uint32_t offset, void *buffer, uint32_t len
     return true;
 }
 
+static uint32_t largest_block(uint32_t max_block, bool fits_any_room)
+{
+    if (fits_any_room) {
+        return 1;
+    }
+    return max_block != 0 && max_block < FLAC_MAX_BLOCK ? max_block : FLAC_MAX_BLOCK;
+}
+
+uint32_t core1_stream_handoff_frames(uint32_t min_block, uint32_t max_block, bool fits_any_room)
+{
+    uint32_t least = FLAC_MAX_BLOCK + 1 - largest_block(max_block, fits_any_room);
+    return min_block > least ? min_block : least;
+}
+
 static void adopt(Core1Stream *stream, uint32_t generation)
 {
     core1_stream_clock(stream->region, 100);
@@ -123,8 +137,12 @@ static void adopt(Core1Stream *stream, uint32_t generation)
     stream->channels =
         control->channels < FLAC_MAX_CHANNELS ? control->channels : FLAC_MAX_CHANNELS;
     stream->slot = 0;
+    stream->largest = largest_block(control->max_block, stream->decoder.fits_any_room);
+    stream->filled = 0;
+    stream->first_sample = 0;
     stream->finished = false;
     stream->starved = false;
+    stream->holding = false;
     FlacInput input = {
         .read = read_ring, .context = stream, .size = stream->end_offset - stream->start_offset};
     stream->decoder.start(stream->decoder.context, input, info, control->first_sample,
@@ -134,11 +152,37 @@ static void adopt(Core1Stream *stream, uint32_t generation)
     control->acked_generation = generation;
 }
 
-static void copy_channels(Core1Stream *stream, uint32_t slot, const Core1Block *block)
+static uint32_t room(const Core1Stream *stream)
+{
+    return FLAC_MAX_BLOCK - stream->filled;
+}
+
+static void publish_slot(Core1Stream *stream, uint32_t outcome)
+{
+    volatile StreamSlot *slot = &stream->region.control->slots[stream->slot];
+    slot->first_sample = stream->first_sample;
+    slot->samples = stream->filled;
+    slot->generation = stream->generation;
+    slot->result = outcome;
+    core1_publish();
+    slot->state = STREAM_SLOT_FULL;
+    stream->slot = (stream->slot + 1) % STREAM_SLOTS;
+    stream->filled = 0;
+}
+
+static void finish(Core1Stream *stream, Core1DecodeResult result)
+{
+    stream->filled = 0;
+    stream->first_sample = 0;
+    publish_slot(stream, result == CORE1_FINISHED ? AUDIO_FRAME_END : AUDIO_FRAME_ERROR);
+    stream->finished = true;
+}
+
+static void copy_channels(Core1Stream *stream, const Core1Block *block)
 {
     for (uint32_t channel = 0; channel < stream->channels; channel++) {
         const int32_t *from = block->channels[channel];
-        int32_t *to = stream->region.samples[slot][channel];
+        int32_t *to = stream->region.samples[stream->slot][channel] + stream->filled;
         if (from == to) {
             continue;
         }
@@ -148,28 +192,81 @@ static void copy_channels(Core1Stream *stream, uint32_t slot, const Core1Block *
     }
 }
 
-static void fill_slot(Core1Stream *stream, Core1DecodeResult result, const Core1Block *block)
+static bool written_in_place(const Core1Block *block)
 {
-    volatile StreamControl *control = stream->region.control;
-    volatile StreamSlot *slot = &control->slots[stream->slot];
-    uint32_t outcome = AUDIO_FRAME_ERROR;
-    if (result == CORE1_DECODED) {
-        copy_channels(stream, stream->slot, block);
-        slot->first_sample = block->first_sample;
-        slot->samples = block->samples;
-        control->released = stream->start_offset + block->position;
-        outcome = AUDIO_FRAME_READY;
-    } else {
-        slot->first_sample = 0;
-        slot->samples = 0;
-        outcome = result == CORE1_FINISHED ? AUDIO_FRAME_END : AUDIO_FRAME_ERROR;
-        stream->finished = true;
+    return block->channels[0] == block->out[0];
+}
+
+static bool append(Core1Stream *stream, const Core1Block *block)
+{
+    bool in_place = written_in_place(block);
+    bool joins =
+        stream->filled == 0 || block->first_sample == stream->first_sample + stream->filled;
+    if (block->samples > room(stream) || (!in_place && !joins)) {
+        return false;
     }
-    slot->generation = stream->generation;
-    slot->result = outcome;
-    core1_publish();
-    slot->state = STREAM_SLOT_FULL;
-    stream->slot = (stream->slot + 1) % STREAM_SLOTS;
+    stream->region.control->released = stream->start_offset + block->position;
+    if (block->samples == 0) {
+        return true;
+    }
+    copy_channels(stream, block);
+    stream->filled += block->samples;
+    uint32_t end = block->first_sample + block->samples;
+    stream->first_sample = end >= stream->filled ? end - stream->filled : 0;
+    return true;
+}
+
+static bool core_0_waiting(const Core1Stream *stream)
+{
+    uint32_t other = (stream->slot + STREAM_SLOTS - 1) % STREAM_SLOTS;
+    return stream->region.control->slots[other].state == STREAM_SLOT_EMPTY;
+}
+
+static void take(Core1Stream *stream, Core1DecodeResult result, const Core1Block *block)
+{
+    if (result == CORE1_DECODED && append(stream, block)) {
+        if (stream->filled != 0 && core_0_waiting(stream)) {
+            publish_slot(stream, AUDIO_FRAME_READY);
+        }
+        return;
+    }
+    bool overran = result == CORE1_DECODED && written_in_place(block);
+    if (stream->filled != 0 && !overran) {
+        publish_slot(stream, AUDIO_FRAME_READY);
+        stream->held = *block;
+        stream->held_result = result;
+        stream->holding = true;
+        return;
+    }
+    finish(stream, result == CORE1_DECODED ? CORE1_FAILED : result);
+}
+
+static Core1Block next_block(const Core1Stream *stream)
+{
+    Core1Block block = {.room = room(stream)};
+    for (uint32_t channel = 0; channel < FLAC_MAX_CHANNELS; channel++) {
+        block.out[channel] = stream->region.samples[stream->slot][channel] + stream->filled;
+    }
+    return block;
+}
+
+static bool decode_next(Core1Stream *stream)
+{
+    stream->starved = false;
+    Core1Block block = next_block(stream);
+    Core1DecodeResult result = stream->decoder.decode(stream->decoder.context, &block);
+    if (stream->region.control->generation != stream->generation) {
+        return true;
+    }
+    if (result == CORE1_STARVED) {
+        stream->starved = false;
+        if (stream->filled != 0) {
+            publish_slot(stream, AUDIO_FRAME_READY);
+        }
+        return false;
+    }
+    take(stream, result, &block);
+    return true;
 }
 
 bool core1_stream_step(Core1Stream *stream)
@@ -191,18 +288,16 @@ bool core1_stream_step(Core1Stream *stream)
     if (control->slots[stream->slot].state != STREAM_SLOT_EMPTY) {
         return false;
     }
-    stream->starved = false;
-    Core1Block block = {0};
-    Core1DecodeResult result = stream->decoder.decode(stream->decoder.context, &block);
-    if (control->generation != stream->generation) {
+    if (stream->holding) {
+        stream->holding = false;
+        take(stream, stream->held_result, &stream->held);
         return true;
     }
-    if (result == CORE1_STARVED) {
-        stream->starved = false;
-        return false;
+    if (stream->filled != 0 && room(stream) < stream->largest) {
+        publish_slot(stream, AUDIO_FRAME_READY);
+        return true;
     }
-    fill_slot(stream, result, &block);
-    return true;
+    return decode_next(stream);
 }
 
 static bool current(const Core1Stream *stream)

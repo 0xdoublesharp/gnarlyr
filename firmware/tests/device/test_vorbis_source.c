@@ -292,7 +292,9 @@ static void reopening_discards_full_pcm_slots_from_the_previous_generation(void)
     CHECK(interface.open(interface.context, "seek44", 0, &info));
     AudioFrame frame;
     CHECK_EQUAL(AUDIO_FRAME_READY, next_frame(&frame));
-    core1_stream_step(&consumer);
+    for (int step = 0; step < 64 && control.slots[1].state != STREAM_SLOT_FULL; step++) {
+        core1_stream_step(&consumer);
+    }
     CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
     CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
     uint32_t previous = source.generation;

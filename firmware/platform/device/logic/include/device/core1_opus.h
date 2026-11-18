@@ -30,7 +30,6 @@ typedef struct Core1Opus {
     uint32_t staged;
     uint32_t taken;
     uint32_t first;
-    uint32_t slot;
     bool origin_set;
     bool audio_started;
     bool anchored;

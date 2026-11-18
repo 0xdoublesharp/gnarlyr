@@ -176,7 +176,7 @@ static void compare_loaded_seek(const char *name, uint32_t target)
     uint32_t next_sample = clamped;
     Core1DecodeResult result = CORE1_FAILED;
     for (uint32_t count = 0; count < 2000; count++) {
-        Core1Block block;
+        Core1Block block = {.out = {samples[0][0], samples[0][1]}, .room = FLAC_MAX_BLOCK};
         result = decoder.decode(decoder.context, &block);
         if (result != CORE1_DECODED) {
             break;

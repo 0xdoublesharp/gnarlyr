@@ -15,7 +15,6 @@ typedef struct Core1Vorbis {
     StreamRegion region;
     uint32_t position;
     uint32_t next_sample;
-    uint32_t slot;
     uint32_t generation;
     uint32_t origin;
     uint32_t record_flags;

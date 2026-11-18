@@ -174,5 +174,5 @@ Core1Decoder core1_wma_decoder(Core1Wma *wma, WMADecodeContext *decoder, uint8_t
                                StreamRegion region)
 {
     *wma = (Core1Wma){.decoder = decoder, .packet = packet, .region = region};
-    return (Core1Decoder){start_wma, decode_wma, wma};
+    return (Core1Decoder){start_wma, decode_wma, wma, false};
 }

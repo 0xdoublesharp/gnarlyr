@@ -90,5 +90,5 @@ Core1Decoder core1_mp3_decoder(Core1Mp3 *mp3, Mp3Decoder *decoder,
                                int32_t (*tail)[MP3_TAIL_CAPACITY])
 {
     *mp3 = (Core1Mp3){.decoder = decoder, .control = control, .tail = tail};
-    return (Core1Decoder){start_mp3, decode_mp3, mp3};
+    return (Core1Decoder){start_mp3, decode_mp3, mp3, false};
 }
