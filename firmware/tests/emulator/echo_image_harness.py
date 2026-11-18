@@ -1030,9 +1030,11 @@ class EchoImageHarness(unittest.TestCase):
         machine.hook_symbol("hal_audio_service", service)
 
     def capture_played(self, rig, total):
+        from echo_emulator.audio import RING_BYTES
+        from unicorn import UC_HOOK_MEM_WRITE
         machine, audio, frames, done = rig.machine, rig.audio, [], [None]
 
-        def played():
+        def played(*_):
             if not audio.running:
                 return
             ring_frames = audio.ring_words() // 2
@@ -1044,6 +1046,8 @@ class EchoImageHarness(unittest.TestCase):
                 done[0] += 1
 
         machine.hook_symbol("audio_engine_pump", played)
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, played, None, audio.ring,
+                            audio.ring + RING_BYTES - 1)
         return frames
 
     def tone_level(self, words, rate, frequency):
