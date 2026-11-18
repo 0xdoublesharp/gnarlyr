@@ -1280,6 +1280,27 @@ static void choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_ou
     CHECK_EQUAL(wired - GAIN_RISE_STEPS, app_player_status().volume);
 }
 
+static void a_refused_high_gain_while_bluetooth_plays_keeps_both_volumes(void)
+{
+    start_app_with_library();
+    uint8_t wired = app_player_status().volume;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
+    uint8_t bluetooth = app_player_status().volume;
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    fake_hal_fail_analog(true);
+    tap(KEY_PLAY);
+    CHECK(toast_is("Couldn't change gain"));
+    CHECK_EQUAL(bluetooth, app_player_status().volume);
+    fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
+    fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
+    CHECK_EQUAL(wired, app_player_status().volume);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(GAIN_LOW, store.settings.gain);
+}
+
 static void a_gain_the_player_cannot_apply_is_reported_and_not_saved(void)
 {
     start_app_with_library();
@@ -7046,6 +7067,7 @@ int main(void)
         TEST_CASE(high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved),
         TEST_CASE(high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_the_output),
         TEST_CASE(choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_output),
+        TEST_CASE(a_refused_high_gain_while_bluetooth_plays_keeps_both_volumes),
         TEST_CASE(a_gain_the_player_cannot_apply_is_reported_and_not_saved),
         TEST_CASE(a_dac_filter_the_player_cannot_apply_is_reported_and_not_saved),
         TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
