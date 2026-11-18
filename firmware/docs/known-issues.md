@@ -41,7 +41,7 @@ These apply to 1.0.0-beta.1, the public beta. It is the `device` build, which wr
 
 - **12/24-hour clock choice.** Software checks cover the setting, midnight/noon, local-time rollover and layouts. Display and persistence on the player remain to be checked.
 
-- **Combined library (card and internal storage).** Host tests, the simulator and emulator scenarios cover routing, the two-drive scan and indexer rules, the Internal storage folder, About, the two-drive music check and internal music generation, Favorite Tracks per drive, deleting an internal file and removing and reinserting the card. None of it has been seen on the player: scan time with internal music, playback of internal songs on both outputs, eject and mount while an internal song plays, USB writes to each drive and state across restarts remain to be checked.
+- **Combined library (card and internal storage).** Host tests, the simulator and emulator scenarios cover routing, the two-drive scan and indexer rules, the Internal storage folder, About, the two-drive music check and internal music generation, Favorite Tracks per drive, deleting an internal file, removing and reinserting the card (also while an internal song plays), a USB session writing only to internal storage (with and without a music change), a card inserted or powered on after internal music changed, a card unreadable at boot and formatting a card with internal music present. None of it has been seen on the player: scan time with internal music, playback of internal songs on both outputs, eject and mount while an internal song plays, USB writes to each drive and state across restarts remain to be checked.
 
 These checks remain incomplete on the owner's unit; the observed developer flows above do not replace them.
 
