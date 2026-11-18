@@ -307,7 +307,7 @@ After a pause, ▶ picks up a little before where you stopped, so you don't lose
 
 ## Gain and DAC filter
 
-Settings → Gain picks Low (the default) or High for both jacks. High gives harder-to-drive headphones more level. Choosing High lowers the music and USB DAC volumes by 6 steps first, so the sound never gets suddenly louder; turn it up again if you need to, within your headphone profile's ceiling. Going back to Low leaves the volume where it is.
+Settings → Gain picks Low (the default) or High for both jacks. High gives harder-to-drive headphones more level. Choosing High, here or in the USB DAC menu, lowers the music and USB DAC volumes by 6 steps first, so the sound never gets suddenly louder; turn it up again if you need to, within your headphone profile's ceiling. Going back to Low leaves the volume where it is.
 
 Settings → DAC filter chooses how the DAC smooths the sound: Fast, low latency (the default, as on FiiO's firmware), Fast, phase compensated, Slow, low latency, Slow, phase compensated, or Non-oversampling. Fast filters keep the treble flat almost to the top of the range and cut sharply above it; slow ones begin to roll off a little earlier and more gently. Low latency filters delay the sound less; phase compensated ones keep every frequency in step. Non-oversampling skips the smoothing and softens the highest treble a little at 44.1 and 48 kHz.
 

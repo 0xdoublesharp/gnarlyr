@@ -5,7 +5,8 @@
 #include "core/replay_gain.h"
 
 enum {
-    HEADPHONE_AUDIO_VOLUME_MAX = 60
+    HEADPHONE_AUDIO_VOLUME_MAX = 60,
+    HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB = 6
 };
 
 typedef struct HeadphoneAudio {

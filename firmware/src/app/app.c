@@ -1803,6 +1803,11 @@ const HeadphoneProfiles *app_headphone_profiles(void)
 
 void app_remember_dac(AppDacSettings settings)
 {
+    if (settings.gain == GAIN_HIGH && app.settings.settings.gain != GAIN_HIGH) {
+        player_change_volume(&app.player, -HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB);
+        (void)player_save(&app.player);
+        capture_settings();
+    }
     app.settings.settings.dac_volume = settings.volume;
     app.settings.settings.gain = (GainLevel)settings.gain;
     app.settings.settings.output = (OutputJack)settings.output;

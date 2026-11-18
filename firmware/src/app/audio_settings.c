@@ -7,9 +7,9 @@ static bool lower_for_high_gain(SettingsStore *store, Player *player)
 {
     HeadphoneAudio active = hal_audio_headphones();
     uint8_t music =
-        headphone_audio_rise_volume(active, player->volume, AUDIO_SETTINGS_HIGH_GAIN_RISE_DB);
+        headphone_audio_rise_volume(active, player->volume, HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB);
     uint8_t usb = headphone_audio_rise_volume(active, store->settings.dac_volume,
-                                              AUDIO_SETTINGS_HIGH_GAIN_RISE_DB);
+                                              HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB);
     bool changed = player->volume != music;
     player_change_volume(player, (int)music - player->volume);
     store->settings.dac_volume = usb;

@@ -1217,6 +1217,27 @@ static void high_gain_lowers_from_the_headphone_ceiling(void)
     CHECK_EQUAL(10 - GAIN_RISE_STEPS, app_player_status().volume);
 }
 
+static void high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved(void)
+{
+    start_app_with_library();
+    uint8_t volume = app_player_status().volume;
+    CHECK(volume > GAIN_RISE_STEPS);
+    AppDacSettings dac = app_dac_settings();
+    dac.volume = SETTINGS_DEFAULT_DAC_VOLUME - GAIN_RISE_STEPS;
+    dac.gain = GAIN_HIGH;
+    app_remember_dac(dac);
+    app_step();
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, app_player_status().volume);
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, fake_hal_audio_volume());
+    Settings saved;
+    CHECK(saved_settings(&saved));
+    CHECK_EQUAL(GAIN_HIGH, saved.gain);
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, saved.volume);
+    CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME - GAIN_RISE_STEPS, saved.dac_volume);
+    app_remember_dac(app_dac_settings());
+    CHECK_EQUAL(volume - GAIN_RISE_STEPS, app_player_status().volume);
+}
+
 static void the_dac_filter_applies_on_play_saves_and_returns_after_a_restart(void)
 {
     start_app_with_library();
@@ -6664,6 +6685,7 @@ int main(void)
         TEST_CASE(choosing_high_gain_lowers_both_volumes_before_the_gain_rises),
         TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
         TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),
+        TEST_CASE(high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved),
         TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
         TEST_CASE(shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),
