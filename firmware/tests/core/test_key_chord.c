@@ -3,7 +3,9 @@
 
 static KeyChord allowed_chord(void)
 {
-    return (KeyChord){.allowed = true};
+    KeyChord chord = {.allowed = true};
+    key_chord_take(&chord, KEY_PLAY, true, 50);
+    return chord;
 }
 
 static void a_play_release_and_volume_press_at_once_start_a_chord(void)
@@ -43,6 +45,17 @@ static void play_coming_back_as_the_volume_key_lets_go_keeps_the_chord(void)
     CHECK_EQUAL(KEY_CHORD_START, key_chord_take(&chord, KEY_VOLUME_UP, true, 400));
 }
 
+static void a_power_tap_during_the_chord_still_drops_the_returning_play(void)
+{
+    KeyChord chord = allowed_chord();
+    key_chord_take(&chord, KEY_PLAY, false, 100);
+    key_chord_take(&chord, KEY_VOLUME_UP, true, 100);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_POWER, true, 150));
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_POWER, false, 200));
+    key_chord_take(&chord, KEY_VOLUME_UP, false, 300);
+    CHECK_EQUAL(KEY_CHORD_DROP, key_chord_take(&chord, KEY_PLAY, true, 300));
+}
+
 static void the_volume_key_letting_go_to_idle_ends_the_chord(void)
 {
     KeyChord chord = allowed_chord();
@@ -64,8 +77,17 @@ static void a_play_press_under_a_volume_key_held_first_still_counts(void)
 static void outside_the_chord_screens_a_play_release_never_arms_a_chord(void)
 {
     KeyChord chord = {.allowed = false};
+    key_chord_take(&chord, KEY_PLAY, true, 50);
     key_chord_take(&chord, KEY_PLAY, false, 100);
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 100));
+}
+
+static void a_play_release_without_a_press_the_app_saw_is_not_a_chord(void)
+{
+    KeyChord chord = {.allowed = true};
+    key_chord_take(&chord, KEY_PLAY, false, 100);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 100));
+    CHECK(!chord.play_held);
 }
 
 int main(void)
@@ -75,9 +97,11 @@ int main(void)
         TEST_CASE(a_volume_press_after_an_idle_reading_is_not_a_chord),
         TEST_CASE(another_key_between_play_and_volume_is_not_a_chord),
         TEST_CASE(play_coming_back_as_the_volume_key_lets_go_keeps_the_chord),
+        TEST_CASE(a_power_tap_during_the_chord_still_drops_the_returning_play),
         TEST_CASE(the_volume_key_letting_go_to_idle_ends_the_chord),
         TEST_CASE(a_play_press_under_a_volume_key_held_first_still_counts),
         TEST_CASE(outside_the_chord_screens_a_play_release_never_arms_a_chord),
+        TEST_CASE(a_play_release_without_a_press_the_app_saw_is_not_a_chord),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

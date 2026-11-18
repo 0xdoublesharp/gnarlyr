@@ -2620,6 +2620,79 @@ static void the_fallback_now_playing_skips_on_a_chord(void)
     fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
 }
 
+static void play_held_through_a_usb_session_does_not_start_a_chord(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    app_resume_after_usb();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+}
+
+static void a_chord_keeps_an_earlier_play_tap_from_the_same_batch(void)
+{
+    play_on_now_playing();
+    int seeks = fake_hal_audio_seek_count();
+    uint32_t at = now_ms;
+    fake_hal_queue_transition(KEY_PLAY, true, at + 10);
+    fake_hal_queue_transition(KEY_PLAY, false, at + 40);
+    fake_hal_queue_transition(KEY_PLAY, true, at + 100);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, at + 150);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, at + 900);
+    fake_hal_queue_transition(KEY_PLAY, false, at + 950);
+    now_ms = at + 1000;
+    step();
+    CHECK(fake_hal_audio_seek_count() > seeks);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void a_chord_tap_never_reaches_a_list_woken_mid_chord(void)
+{
+    start_app_with_library();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Settings"));
+    tap(KEY_POWER);
+    CHECK(!fake_hal_display_on());
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    tap(KEY_POWER);
+    CHECK(fake_hal_display_on());
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+}
+
+static void a_chord_hold_stops_seeking_once_power_wakes_a_list(void)
+{
+    start_app_with_library();
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_POWER);
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    wait_ms(1500);
+    tap(KEY_POWER);
+    CHECK(fake_hal_display_on());
+    wait_ms(1500);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+}
+
 static void play_and_power_lock_and_unlock_the_buttons(void)
 {
     start_app_with_library();
@@ -7114,6 +7187,10 @@ int main(void)
         TEST_CASE(a_chord_back_late_in_a_song_says_it_went_back_to_the_start),
         TEST_CASE(a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track),
         TEST_CASE(the_fallback_now_playing_skips_on_a_chord),
+        TEST_CASE(play_held_through_a_usb_session_does_not_start_a_chord),
+        TEST_CASE(a_chord_keeps_an_earlier_play_tap_from_the_same_batch),
+        TEST_CASE(a_chord_tap_never_reaches_a_list_woken_mid_chord),
+        TEST_CASE(a_chord_hold_stops_seeking_once_power_wakes_a_list),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),

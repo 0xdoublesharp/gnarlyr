@@ -107,9 +107,11 @@ void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms)
         return;
     }
     if (!repeats(tracker, key) && !state->long_press_sent) {
+        uint32_t queued = tracker->queue_length;
         push_event(tracker, key,
                    long_press_due(tracker, key, now_ms) ? KEY_GESTURE_LONG_PRESS
                                                         : KEY_GESTURE_PRESS);
+        state->release_queued = tracker->queue_length != queued;
     }
     state->held = false;
 }
@@ -121,15 +123,13 @@ void key_tracker_cancel(KeyTracker *tracker, Key key)
 
 void key_tracker_forget(KeyTracker *tracker, Key key)
 {
-    uint32_t kept = 0;
-    for (uint32_t index = 0; index < tracker->queue_length; index++) {
-        KeyEvent event =
-            tracker->queue[(tracker->queue_start + index) % KEY_TRACKER_QUEUE_CAPACITY];
-        if (event.key != key) {
-            tracker->queue[(tracker->queue_start + kept++) % KEY_TRACKER_QUEUE_CAPACITY] = event;
-        }
+    uint32_t last =
+        (tracker->queue_start + tracker->queue_length + KEY_TRACKER_QUEUE_CAPACITY - 1) %
+        KEY_TRACKER_QUEUE_CAPACITY;
+    if (tracker->states[key].release_queued && tracker->queue_length > 0 &&
+        tracker->queue[last].key == key) {
+        tracker->queue_length--;
     }
-    tracker->queue_length = kept;
     key_tracker_cancel(tracker, key);
 }
 

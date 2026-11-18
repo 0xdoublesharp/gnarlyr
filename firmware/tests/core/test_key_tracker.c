@@ -245,16 +245,28 @@ static void hold_repeats_count_up_from_the_long_press(void)
     CHECK_EQUAL(0, event.repeats);
 }
 
-static void forgetting_a_key_drops_its_queued_events_and_its_hold(void)
+static void forgetting_a_key_withdraws_only_its_latest_release(void)
 {
     KeyTracker tracker = make_tracker();
     key_tracker_key_down(&tracker, KEY_PLAY, 1000);
     key_tracker_key_up(&tracker, KEY_PLAY, 1050);
-    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1050);
+    key_tracker_key_down(&tracker, KEY_PLAY, 1100);
+    key_tracker_key_up(&tracker, KEY_PLAY, 1150);
+    key_tracker_forget(&tracker, KEY_PLAY);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_PLAY));
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
+}
+
+static void forgetting_a_key_leaves_other_keys_newer_events(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_key_down(&tracker, KEY_PLAY, 1000);
+    key_tracker_key_up(&tracker, KEY_PLAY, 1050);
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1060);
     key_tracker_key_down(&tracker, KEY_PLAY, 1100);
     key_tracker_forget(&tracker, KEY_PLAY);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_PLAY));
     CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
-    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
     key_tracker_key_up(&tracker, KEY_VOLUME_UP, 1110);
     key_tracker_update(&tracker, 1100 + LONG_PRESS_MS);
     key_tracker_key_up(&tracker, KEY_PLAY, 1100 + LONG_PRESS_MS + 10);
@@ -421,7 +433,8 @@ int main(void)
         TEST_CASE(slow_consumers_receive_only_the_newest_volume_repeat),
         TEST_CASE(released_volume_keys_do_not_deliver_stale_repeats),
         TEST_CASE(hold_repeats_count_up_from_the_long_press),
-        TEST_CASE(forgetting_a_key_drops_its_queued_events_and_its_hold),
+        TEST_CASE(forgetting_a_key_withdraws_only_its_latest_release),
+        TEST_CASE(forgetting_a_key_leaves_other_keys_newer_events),
         TEST_CASE(releasing_every_key_forgets_holds_and_queued_events),
         TEST_CASE(changing_a_behavior_while_a_key_is_held_leaves_that_press_alone),
         TEST_CASE(a_chord_press_marks_its_own_events_only),

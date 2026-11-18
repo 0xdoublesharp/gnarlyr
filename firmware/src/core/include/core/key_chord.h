@@ -19,6 +19,7 @@ typedef enum KeyChordLast {
 
 typedef struct KeyChord {
     bool allowed;
+    bool play_down;
     bool play_held;
     uint8_t last;
     uint32_t time_ms;
