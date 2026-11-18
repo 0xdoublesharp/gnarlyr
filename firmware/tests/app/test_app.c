@@ -4645,6 +4645,24 @@ static void a_favorite_shows_in_playlists_without_a_rescan(void)
     CHECK(title_is("Favorite Tracks"));
 }
 
+static void add_to_favorite_playlist_says_it_failed_when_its_module_cannot_load(void)
+{
+    start_app_with_library();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    play_first_album_track();
+    tap(KEY_BACK);
+    move_down(1);
+    hold(KEY_PLAY);
+    move_down(2);
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    tap(KEY_PLAY);
+    fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
+    CHECK(toast_is("Couldn't add to Favorites"));
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes("/Favorite Tracks.m3u", &size) == NULL);
+}
+
 static void add_to_favorite_playlist_keeps_the_cue_part_apart(void)
 {
     start_app_with_cue_library();
@@ -7340,6 +7358,7 @@ int main(void)
         TEST_CASE(holding_play_on_a_song_offers_up_next),
         TEST_CASE(add_to_favorite_playlist_writes_a_playlist_file),
         TEST_CASE(add_to_favorite_playlist_keeps_the_cue_part_apart),
+        TEST_CASE(add_to_favorite_playlist_says_it_failed_when_its_module_cannot_load),
         TEST_CASE(a_favorite_shows_in_playlists_without_a_rescan),
         TEST_CASE(play_next_from_a_list_queues_the_song),
         TEST_CASE(add_to_up_next_from_a_list_queues_the_song),

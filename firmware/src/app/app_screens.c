@@ -6,6 +6,7 @@
 #include "board_layout.h"
 #include "core/i18n.h"
 #include "diagnostics_values.h"
+#include "favorite_playlist.h"
 #include "hal/clock.h"
 #include "hal/power.h"
 #include "hal/system.h"
@@ -162,6 +163,10 @@ static Screen *track_manage(void *context, uint16_t track, SongManage manage)
     AppScreens *screens = context;
     const ViewsModuleEntry *entry =
         (const ViewsModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_VIEWS);
+    if (entry == NULL && manage == SONG_MANAGE_FAVORITE && screens->context.toast != NULL) {
+        toast_show(screens->context.toast, favorite_playlist_message(FAVORITE_PLAYLIST_FAILED),
+                   hal_clock_milliseconds());
+    }
     return entry != NULL ? entry->manage(screens, track, manage) : NULL;
 }
 
