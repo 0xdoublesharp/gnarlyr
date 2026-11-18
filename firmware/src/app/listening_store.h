@@ -40,6 +40,7 @@ typedef struct ListeningStore {
 StoreFile listening_store_file(ListeningFile *file, const char *path, uint32_t bytes);
 void listening_store_attach(ListeningStore *store, const Library *library, StoreFile file);
 void listening_store_load(ListeningStore *store, const Library *library);
+void listening_store_detach(ListeningStore *store);
 void listening_store_follow(ListeningStore *store, ListeningObservation observation,
                             uint32_t now_ms);
 void listening_store_flush(ListeningStore *store, ListeningObservation observation,

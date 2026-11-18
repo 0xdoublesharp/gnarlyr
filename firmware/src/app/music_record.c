@@ -13,7 +13,7 @@ enum {
 };
 
 _Static_assert(STATE_AT == INTERNAL_AT + 12, "the state follows the internal fingerprint");
-_Static_assert(MUSIC_DRIVE_UNKNOWN == MUSIC_CHECK_STATE_UNKNOWN, "one unknown state");
+_Static_assert((int)MUSIC_DRIVE_UNKNOWN == (int)MUSIC_CHECK_STATE_UNKNOWN, "one unknown state");
 
 static void put_word(uint8_t *bytes, uint32_t value)
 {

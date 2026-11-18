@@ -65,6 +65,7 @@ const struct HeadphoneProfiles *app_headphone_profiles(void);
 void app_request_rescan(void);
 void app_request_rescan_if_music_changed(void);
 void app_note_internal_music_written(void);
+void app_leave_storage(void);
 void app_show_splash(void);
 void app_draw_start(void);
 bool app_charging(void);

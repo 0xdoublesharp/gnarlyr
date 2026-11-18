@@ -1813,6 +1813,13 @@ CORE_COLD static void run_rescan(void)
     toast_show(&app.toast, text, hal_clock_milliseconds());
 }
 
+void app_leave_storage(void)
+{
+    flush_listening();
+    listening_store_detach(&app.listening);
+    app.listening_loaded = false;
+}
+
 void app_release_audio(void)
 {
     flush_session_edits();

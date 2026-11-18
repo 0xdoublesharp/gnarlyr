@@ -47,6 +47,13 @@ void listening_store_attach(ListeningStore *store, const Library *library, Store
     store->failed = store_blocking(load);
 }
 
+void listening_store_detach(ListeningStore *store)
+{
+    store->waiting = false;
+    store->failed = false;
+    store->following = false;
+}
+
 void listening_store_load(ListeningStore *store, const Library *library)
 {
     *store = (ListeningStore){.library = library};

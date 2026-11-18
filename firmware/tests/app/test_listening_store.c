@@ -147,6 +147,22 @@ static void a_failed_write_is_retried_once_without_duplicate_counts(void)
     CHECK_EQUAL(1, store.log.root.counters.totals.plays);
 }
 
+static void a_detached_store_never_writes_its_waiting_play_to_the_next_drive(void)
+{
+    reset();
+    listening_store_follow(&store, observed(1, 0, PLAYER_PLAYING), 0);
+    disk.cut_write = disk.writes + 1;
+    disk.cut_bytes = 0;
+    listening_store_flush(&store, observed(1, 1000, PLAYER_PAUSED), 1000);
+    CHECK(store.waiting);
+    listening_store_detach(&store);
+    listening_disk_reset(&disk);
+    int writes = disk.writes;
+    listening_store_flush(&store, (ListeningObservation){0}, 2100);
+    listening_store_flush(&store, (ListeningObservation){0}, 4200);
+    CHECK_EQUAL(writes, disk.writes);
+}
+
 static void an_uncertain_commit_is_reloaded_before_a_retry(void)
 {
     reset();
@@ -513,6 +529,7 @@ int main(void)
         TEST_CASE(repeating_the_same_track_starts_a_distinct_play_without_a_skip),
         TEST_CASE(the_last_song_finishing_is_not_reported_as_stopped),
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),
+        TEST_CASE(a_detached_store_never_writes_its_waiting_play_to_the_next_drive),
         TEST_CASE(an_uncertain_commit_is_reloaded_before_a_retry),
         TEST_CASE(export_lookup_rejects_an_identity_that_now_names_another_track),
         TEST_CASE(incomplete_or_idle_observations_do_not_start_history),

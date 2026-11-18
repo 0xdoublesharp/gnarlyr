@@ -101,6 +101,7 @@ static void run_usb_session(void)
         plug_in_again();
     }
     if (storage_changed || hal_system_restart_pending()) {
+        app_leave_storage();
         storage_reset();
         if (usb_session_shared()->last_session.internal_written > 0) {
             app_note_internal_music_written();
@@ -330,6 +331,7 @@ static void follow_card(uint32_t *generation)
         app_release_audio();
     }
     hal_audio_release();
+    app_leave_storage();
     storage_reset();
     app_start_after_storage();
     app_request_rescan_if_music_changed();
