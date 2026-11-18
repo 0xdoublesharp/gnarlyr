@@ -16,6 +16,8 @@ from echo_image_harness import (
 PATTERN = (0, 8485, 12000, 8485, 0, -8485, -12000, -8485)
 TRACKS = (("01 First.wav", 44100, 30), ("02 Second.wav", 48000, 20), ("03 Third.wav", 44100, 25),
           ("04 Fourth.wav", 48000, 20), ("05 Fifth.wav", 44100, 30), ("06 Sixth.wav", 48000, 25))
+REFUSED_TRACKS = (("01 First.wav", 44100, 30), ("02 Refused.wav", 7000, 30),
+                  ("03 Third.wav", 44100, 30))
 PLAY = 250
 VOLUME_KEYS = (35, 100)
 TAP_MS = 150
@@ -35,7 +37,7 @@ CHECK_GAP_MS = 150
 MP3 = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_192_48k_stereo_bare.mp3"
 MP3_REPEATS = 24
 LISTEN_MS = 2500
-END_SEEK_MS = 700
+END_SEEK_LIMIT_MS = 10000
 RESUMED_LISTEN_MS = 1200
 PREFILL_WAIT_MS = 1500
 GESTURES = int(os.environ.get("ECHO_GESTURES", "36"))
@@ -156,11 +158,11 @@ class Gestures:
 
 
 class EchoImageTest(EchoImageHarness):
-    def gesture_rig(self):
+    def gesture_rig(self, tracks=TRACKS):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
         volume = Fat32Volume()
-        for name, rate, tenths in TRACKS:
+        for name, rate, tenths in tracks:
             volume.add_file(name, wav_file(rate, tenths))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
@@ -194,6 +196,21 @@ class EchoImageTest(EchoImageHarness):
                 self.assertIsNone(problem, "seed %d gesture %d %s" % (seed, index, name))
             self.assert_healthy(rig.session)
 
+    def seek_until_the_track_changes(self, rig, layers):
+        from echo_emulator.machine import ADC_NO_KEY
+        machine = rig.machine
+        playing = layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8
+        machine.adc_key_value = PLAY
+        machine.run(until_ms=machine.milliseconds() + TAP_MS)
+        machine.adc_key_value = VOLUME_KEYS[1]
+        self.assertEqual("condition met", machine.run(
+            until=lambda: layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8 != playing,
+            until_ms=machine.milliseconds() + END_SEEK_LIMIT_MS), layers.events())
+        machine.adc_key_value = PLAY
+        machine.run(until_ms=machine.milliseconds() + TAP_MS)
+        machine.adc_key_value = ADC_NO_KEY
+        return machine.milliseconds()
+
     def test_a_seek_to_the_end_while_paused_stays_silent_into_a_track_at_another_rate(self):
         rig = self.gesture_rig()
         layers = Layers(rig)
@@ -203,13 +220,30 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         paused = layers.snapshot()
         self.assertNotEqual(PLAYER_PLAYING, paused["app"], paused)
-        released = rig.machine.press_ladder([(PLAY, TAP_MS), (VOLUME_KEYS[1], END_SEEK_MS),
-                                             (PLAY, TAP_MS)])
+        released = self.seek_until_the_track_changes(rig, layers)
         rig.machine.run(until_ms=released + PREFILL_WAIT_MS)
         problem, state = self.lasting_problem(rig, layers)
         self.assertIsNone(problem, "%s\n%s" % (state, layers.events()))
         self.assertEqual(PLAYER_PAUSED, state["app"], "%s\n%s" % (state, layers.events()))
         self.assertEqual(1, layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8)
+        self.assertFalse(Layers.audible(state), state)
+        self.assert_playing_cleanly(rig, layers, rig.press("play"), RESUMED_LISTEN_MS)
+        self.assert_healthy(rig.session)
+
+    def test_a_paused_seek_into_an_unreadable_track_moves_on_and_stays_paused(self):
+        rig = self.gesture_rig(REFUSED_TRACKS)
+        layers = Layers(rig)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        rig.press("play")
+        released = self.seek_until_the_track_changes(rig, layers)
+        rig.machine.run(until_ms=released + PREFILL_WAIT_MS)
+        problem, state = self.lasting_problem(rig, layers)
+        self.assertIsNone(problem, "%s\n%s" % (state, layers.events()))
+        self.assertEqual(PLAYER_PAUSED, state["app"], "%s\n%s" % (state, layers.events()))
+        self.assertEqual(2, layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8,
+                         layers.events())
         self.assertFalse(Layers.audible(state), state)
         self.assert_playing_cleanly(rig, layers, rig.press("play"), RESUMED_LISTEN_MS)
         self.assert_healthy(rig.session)

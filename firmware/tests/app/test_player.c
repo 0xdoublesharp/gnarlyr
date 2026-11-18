@@ -628,6 +628,24 @@ static void jumping_into_the_list_while_paused_waits(void)
     check_waiting_at_the_start_of(paused, SHOOT_TO_THRILL, SHOOT_TO_THRILL_PATH);
 }
 
+static void a_track_that_fails_while_paused_moves_on_and_waits(void)
+{
+    Player *paused = paused_at(0);
+    fake_hal_audio_fail_track();
+    player_update(paused, 1000);
+    check_waiting_at_the_start_of(paused, SHOOT_TO_THRILL, SHOOT_TO_THRILL_PATH);
+}
+
+static void a_track_that_fails_while_playing_moves_on_playing(void)
+{
+    Player *started = playing(0);
+    fake_hal_audio_fail_track();
+    player_update(started, 1000);
+    CHECK(path_is(fake_hal_audio_playing_path(), SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(PLAYER_PLAYING, player_status(started).state);
+    CHECK_EQUAL(HAL_AUDIO_PLAYING, fake_hal_audio_state());
+}
+
 static void choosing_a_list_while_paused_plays_it(void)
 {
     Player *paused = paused_at(0);
@@ -1831,6 +1849,8 @@ int main(void)
         TEST_CASE(a_refused_track_while_paused_moves_on_and_waits),
         TEST_CASE(jumping_to_up_next_while_paused_waits),
         TEST_CASE(jumping_into_the_list_while_paused_waits),
+        TEST_CASE(a_track_that_fails_while_paused_moves_on_and_waits),
+        TEST_CASE(a_track_that_fails_while_playing_moves_on_playing),
         TEST_CASE(choosing_a_list_while_paused_plays_it),
         TEST_CASE(a_skip_after_resuming_plays_the_next_track),
         TEST_CASE(up_next_survives_a_restart),

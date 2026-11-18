@@ -638,7 +638,7 @@ static void advance_to_next(Player *player)
 static void finish_track(Player *player, bool failed)
 {
     if (failed && !player->stop_after_track &&
-        move_and_start(player, 1, player->repeat != REPEAT_OFF)) {
+        skip_holding_pause(player, 1, player->repeat != REPEAT_OFF)) {
         return;
     }
     if (player->cassette.active) {
