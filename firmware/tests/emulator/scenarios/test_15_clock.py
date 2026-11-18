@@ -272,6 +272,28 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(second)
 
 
+    def test_a_mac_time_the_clock_chip_missed_is_written_at_the_next_session(self):
+        script = ("build %s\nreconnect\n" % self.build_tag()).encode("ascii")
+        volume = self.debug_volume(run_txt=script)
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), None, IDENTITY.data_directory)
+
+        def prepare(machine):
+            machine.rtc_bus.registers[2] |= 0x80
+            machine.rtc_bus.present = False
+            machine.stub_symbol("board_wall_time_forget_file", lambda machine: 0)
+
+        session, machine = self.ejecting_session(volume, before_start=prepare)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assertNotEqual(machine.rtc_bus.registers[2] & 0x80, 0)
+        machine.rtc_bus.present = True
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        self.assertEqual(machine.rtc_bus.registers[2] & 0x80, 0)
+        events = [(event["kind"], event["detail"]) for event in self.read_report(session)["events"]]
+        self.assertIn(("storage", "2"), events)
+        self.assert_healthy(session)
+
     def test_usb_time_sync_preserves_settings_changed_by_the_host(self):
         volume = self.debug_volume()
         volume.add_file("settings.bin", settings_file(0, 4096, b13=3), directory=IDENTITY.data_directory)

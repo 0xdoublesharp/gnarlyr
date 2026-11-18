@@ -63,6 +63,7 @@ typedef struct UsbShared {
     bool dac_volume_known;
     uint8_t dac_volume;
     uint8_t usb_page;
+    bool clock_chip_pending;
 } UsbShared;
 
 typedef struct UsbOverlayEntry {
@@ -111,4 +112,4 @@ typedef struct UsbSessionScreen {
 extern UsbSessionScreen usb_session_screen;
 void usb_dac_session(UsbShared *shared);
 void update_after_usb(UsbShared *shared);
-void time_file_take(bool apply);
+void time_file_take(bool apply, bool *chip_pending);
