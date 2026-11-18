@@ -95,6 +95,29 @@ static void the_skip_toasts_name_the_direction(void)
     CHECK(strcmp("Previous track", i18n_text(STR_SKIPPED_TO_PREVIOUS)) == 0);
 }
 
+static void skip_toasts_say_what_the_skip_did(void)
+{
+    PlayerStatus before = {.has_track = true, .track = 4, .position_ms = 40000};
+    before.place.number = 2;
+    PlayerStatus moved = before;
+    moved.track = 5;
+    moved.place.number = 3;
+    moved.position_ms = 0;
+    PlayerStatus restarted = before;
+    restarted.position_ms = 0;
+    CHECK_EQUAL(STR_SKIPPED_TO_NEXT, now_playing_skip_outcome(true, before, moved));
+    CHECK_EQUAL(STR_SKIPPED_TO_PREVIOUS, now_playing_skip_outcome(false, before, moved));
+    CHECK_EQUAL(STR_SKIPPED_TO_START, now_playing_skip_outcome(false, before, restarted));
+    CHECK_EQUAL(STR_SKIPPED_TO_NEXT, now_playing_skip_outcome(true, before, restarted));
+    CHECK_EQUAL(STR_SKIPPED_NOTHING, now_playing_skip_outcome(true, before, before));
+    PlayerStatus at_start = before;
+    at_start.position_ms = 0;
+    CHECK_EQUAL(STRING_COUNT, now_playing_skip_outcome(false, at_start, at_start));
+    before.spoken = true;
+    CHECK_EQUAL(STR_JUMPED_FORWARD, now_playing_skip_outcome(true, before, before));
+    CHECK_EQUAL(STR_JUMPED_BACK, now_playing_skip_outcome(false, before, before));
+}
+
 static void play_toggles_pause_and_a_long_play_starts_seeking(void)
 {
     CHECK_EQUAL(NOW_PLAYING_TOGGLE_PAUSE, command(KEY_PLAY, KEY_GESTURE_PRESS));
@@ -458,6 +481,7 @@ int main(void)
         TEST_CASE(holding_play_and_holding_volume_seeks_and_speeds_up),
         TEST_CASE(a_chord_overrides_seek_mode),
         TEST_CASE(the_skip_toasts_name_the_direction),
+        TEST_CASE(skip_toasts_say_what_the_skip_did),
         TEST_CASE(play_toggles_pause_and_a_long_play_starts_seeking),
         TEST_CASE(while_seeking_volume_keys_move_the_target),
         TEST_CASE(while_seeking_play_commits_and_back_cancels),

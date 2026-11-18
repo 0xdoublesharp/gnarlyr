@@ -2332,12 +2332,12 @@ static void holding_play_and_tapping_volume_jumps_in_a_book(void)
     step();
     chord_tap(KEY_VOLUME_UP);
     CHECK_EQUAL(100000 + SPOKEN_JUMP_FORWARD_MS, fake_hal_audio_last_seek());
-    CHECK(app_toast_text() == NULL);
+    CHECK(toast_is("+30 s"));
     fake_hal_audio_set_position(100000);
     step();
     chord_tap(KEY_VOLUME_DOWN);
     CHECK_EQUAL(100000 - SPOKEN_JUMP_BACK_MS, fake_hal_audio_last_seek());
-    CHECK(app_toast_text() == NULL);
+    CHECK(toast_is("-15 s"));
     spoken_library_close(&spoken);
 }
 
@@ -2457,6 +2457,50 @@ static void a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards(void)
     keep_holding(1300);
     release_key(KEY_POWER);
     CHECK(!toast_is("Buttons locked"));
+}
+
+static void a_chord_back_late_in_a_song_says_it_went_back_to_the_start(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(PLAYING_POSITION_MS / 2);
+    step();
+    chord_tap(KEY_VOLUME_DOWN);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(0, fake_hal_audio_last_seek());
+    CHECK(toast_is("Back to start"));
+}
+
+static void a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track(void)
+{
+    play_on_now_playing();
+    for (int count = 0;
+         count < 40 && app_player_status().place.number < app_player_status().place.total;
+         count++) {
+        chord_tap(KEY_VOLUME_UP);
+    }
+    CHECK_EQUAL(app_player_status().place.total, app_player_status().place.number);
+    wait_ms(TOAST_DURATION_MS + 100);
+    uint16_t track = app_player_status().track;
+    chord_tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(track, app_player_status().track);
+    CHECK(toast_is("No next track"));
+}
+
+static void the_fallback_now_playing_skips_on_a_chord(void)
+{
+    play_on_now_playing();
+    tap(KEY_BACK);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    fake_hal_evict_module();
+    step();
+    tap(KEY_MENU);
+    wait_ms(500);
+    CHECK(title_is("Now Playing"));
+    CHECK(fake_hal_loaded_module() != SCREEN_MODULE_PLAYING);
+    chord_tap(KEY_VOLUME_UP);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
 }
 
 static void play_and_power_lock_and_unlock_the_buttons(void)
@@ -6877,6 +6921,9 @@ int main(void)
         TEST_CASE(a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap),
         TEST_CASE(a_play_release_drained_by_a_usb_session_leaves_no_chord_behind),
         TEST_CASE(a_play_hold_cut_short_by_a_usb_session_does_not_act_afterwards),
+        TEST_CASE(a_chord_back_late_in_a_song_says_it_went_back_to_the_start),
+        TEST_CASE(a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track),
+        TEST_CASE(the_fallback_now_playing_skips_on_a_chord),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),

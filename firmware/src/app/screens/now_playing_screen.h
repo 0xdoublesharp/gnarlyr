@@ -107,6 +107,7 @@ typedef struct NowPlayingScreen {
 } NowPlayingScreen;
 
 NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys);
+StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after);
 void now_playing_player_command(Player *player, NowPlayingCommand command);
 void now_playing_seek_by(Player *player, int32_t delta_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);

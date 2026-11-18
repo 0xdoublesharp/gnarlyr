@@ -11,6 +11,7 @@
 #include "gfx/image.h"
 #include "home_art.h"
 #include "neon_art.h"
+#include "playback/spoken.h"
 #include "settings/settings.h"
 #include "ui/header.h"
 #include "ui/icons.h"
@@ -31,9 +32,9 @@ enum {
     RATE_CAPACITY = 16
 };
 
-_Static_assert(STR_SKIPPED_TO_PREVIOUS - STR_SKIPPED_TO_NEXT == 1 &&
-                   NOW_PLAYING_FEEDBACK_PREVIOUS - NOW_PLAYING_FEEDBACK_NEXT == 1,
-               "skip toasts follow the skip feedback");
+enum {
+    SKIP_TOAST_CAPACITY = 32
+};
 
 static const NowPlayingLayout *layout(const NowPlayingScreen *now_playing)
 {
@@ -276,12 +277,43 @@ static NowPlayingKeys keys_of(const NowPlayingScreen *now_playing)
     return (NowPlayingKeys){.scrubbing = now_playing->scrubbing};
 }
 
+StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after)
+{
+    if (before.spoken) {
+        return next ? STR_JUMPED_FORWARD : STR_JUMPED_BACK;
+    }
+    bool moved = after.track != before.track || after.place.number != before.place.number;
+    bool restarted = !moved && after.position_ms < before.position_ms;
+    if (next) {
+        return moved || restarted ? STR_SKIPPED_TO_NEXT : STR_SKIPPED_NOTHING;
+    }
+    if (moved) {
+        return STR_SKIPPED_TO_PREVIOUS;
+    }
+    return restarted ? STR_SKIPPED_TO_START : STRING_COUNT;
+}
+
+static void announce_skip(NowPlayingScreen *now_playing, bool next, PlayerStatus before,
+                          uint32_t now_ms)
+{
+    StringId outcome = now_playing_skip_outcome(next, before, now_playing->status);
+    if (outcome == STRING_COUNT) {
+        return;
+    }
+    char text[SKIP_TOAST_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    uint32_t jump_ms = next ? SPOKEN_JUMP_FORWARD_MS : SPOKEN_JUMP_BACK_MS;
+    i18n_format_counts(&builder, outcome, jump_ms / MS_PER_SECOND, 0);
+    toast_show(now_playing->config.toast, text, now_ms);
+}
+
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     now_playing->now_ms = now_ms;
     now_playing->scrubbing = now_playing->scrubbing && !event.chord;
     NowPlayingCommand command = now_playing_command_for(event, keys_of(now_playing));
+    PlayerStatus before = player_status(now_playing->config.player);
     ScreenAction action = run_command(now_playing, command);
     refresh(now_playing, now_ms);
     NowPlayingFeedback feedback = now_playing_feedback_for(command, now_playing->status.state);
@@ -289,11 +321,9 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         now_playing->feedback = feedback;
         now_playing->feedback_started_ms = now_ms;
     }
-    uint32_t skip = (uint32_t)feedback - NOW_PLAYING_FEEDBACK_NEXT;
-    if (event.chord && skip < 2 && !now_playing->status.spoken &&
-        now_playing->config.toast != NULL) {
-        toast_show(now_playing->config.toast, i18n_text((StringId)(STR_SKIPPED_TO_NEXT + skip)),
-                   now_ms);
+    bool skip = command == NOW_PLAYING_NEXT || command == NOW_PLAYING_PREVIOUS;
+    if (event.chord && skip && now_playing->config.toast != NULL) {
+        announce_skip(now_playing, command == NOW_PLAYING_NEXT, before, now_ms);
     }
     return action;
 }
