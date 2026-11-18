@@ -52,8 +52,7 @@ static int text_width_of(const MenuScreen *menu, Rect content)
     const ListView *list = &menu->list;
     int count = menu->config.item_count;
     int wide = content.width - 2 * list->theme->metrics.padding;
-    bool scrolls =
-        count > list->visible_rows || rows_height(list, 0, count - 1, wide) > content.height;
+    bool scrolls = rows_height(list, 0, count - 1, wide) > content.height;
     return scrolls ? wide - bar_width(list->theme) : wide;
 }
 
@@ -103,6 +102,8 @@ static void draw(void *context, Canvas *canvas)
         menu_draw(context, canvas);
         return;
     }
+    int last = last_top(list, count, width, content.height);
+    list->top = list->top > last ? last : list->top;
     while (list->top < list->selected &&
            rows_height(list, list->top, list->selected, width) > content.height) {
         list->top++;
@@ -112,8 +113,7 @@ static void draw(void *context, Canvas *canvas)
     Rect rows = content;
     if (width < content.width - 2 * theme->metrics.padding) {
         rows.width -= bar_width(theme);
-        list_view_draw_scrollbar(list, canvas, content,
-                                 last_top(list, count, width, content.height));
+        list_view_draw_scrollbar(list, canvas, content, last);
     }
     draw_rows(menu, canvas, rows, width);
 }

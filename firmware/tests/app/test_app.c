@@ -5587,6 +5587,24 @@ static void every_about_row_is_drawn_whole_in_portrait_at_large_text(void)
     CHECK(text_shown("Keys"));
 }
 
+static void all_about_rows_stay_on_screen_in_small_portrait_at_the_last_row(void)
+{
+    start_app_with_library();
+    choose_text_size(TEXT_SIZE_SMALL);
+    restart_app();
+    wait_ms(1000);
+    choose_orientation(ORIENTATION_PORTRAIT);
+    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("About"));
+    portrait_down(DIAGNOSTICS_ITEM_COUNT - 1);
+    text_spy_reset();
+    settle();
+    CHECK(text_shown("Frame time"));
+    CHECK(text_shown("Keys"));
+}
+
 static void in_portrait_the_key_test_names_the_physical_key(void)
 {
     start_app_with_library();
@@ -7414,6 +7432,7 @@ int main(void)
         TEST_CASE(the_key_test_takes_every_ladder_key_until_power_leaves),
         TEST_CASE(in_portrait_the_key_test_names_the_physical_key),
         TEST_CASE(every_about_row_is_drawn_whole_in_portrait_at_large_text),
+        TEST_CASE(all_about_rows_stay_on_screen_in_small_portrait_at_the_last_row),
         TEST_CASE(the_stall_question_always_opens_on_cancel),
         TEST_CASE(power_leaves_the_key_test_even_with_power_taps_ignored),
         TEST_CASE(testing_keys_keeps_the_screen_on),
