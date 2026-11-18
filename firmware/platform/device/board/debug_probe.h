@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "app/debug_loop.h"
 #include "device/debug_report.h"
 #include "device/fat.h"
 #include "device/pc_profile.h"
@@ -49,6 +50,11 @@ void board_debug_power_off(void);
 void debug_report_write(const UsbShared *shared, uint32_t reason);
 bool debug_script_take(void);
 void debug_restart_after_install(FatVolume *volume, const UsbShared *shared);
+
+static inline bool board_debug_script_active(void)
+{
+    return debug_runner_active();
+}
 
 #else
 
@@ -118,6 +124,11 @@ static inline bool board_debug_take_reconnect(void)
 static inline bool board_debug_usb_forced(void)
 {
     return usb_session_forced();
+}
+
+static inline bool board_debug_script_active(void)
+{
+    return false;
 }
 
 static inline void board_debug_listen_stopped(void)

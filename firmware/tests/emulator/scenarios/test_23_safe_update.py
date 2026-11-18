@@ -140,6 +140,35 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual((modes, asked), ([], []))
         self.assert_healthy(trial)
 
+    def test_a_script_sent_with_the_eject_that_confirms_a_trial_runs_before_the_player_reconnects(self):
+        newer = self.newer_image()
+        script = "\n".join(["build " + self.build_tag(), "back:long", "wait 1500", "reconnect", ""])
+        volume = self.debug_volume(root=[(IDENTITY.update_file, newer)], run_txt=script.encode("ascii"))
+        installed = self.session(volume=volume, vbus=True)
+        self.assertEqual(self.boot_until_waiting_for_key(installed), "reached board_wait_for_power_hold")
+        trial = self.start(installed, newer, vbus=True)
+        machine = trial.machine
+        machine.host_ejects()
+        self.host_writes(machine)
+        machine.note("usb_session_storage_changed")
+        machine.note("debug_script_take")
+        listens = machine.trace("usb_session_listen")
+        reconnects = machine.trace("hal_system_usb_reconnect")
+        hosts = machine.trace("usb_wait_for_host")
+        self.assertEqual(trial.run_to_first_frame(), "condition met")
+        self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertEqual(machine.reached["debug_script_take"], 1)
+        machine.continue_past_stop()
+        self.assertEqual(machine.run(until=lambda: len(listens) >= 2,
+                                     until_ms=machine.milliseconds() + LIMIT_MS), "condition met")
+        self.assertEqual(len(reconnects), 1)
+        self.assertLess(reconnects[0], listens[1])
+        self.assertEqual(machine.run(until=lambda: hosts and hosts[-1] > listens[1],
+                                     until_ms=machine.milliseconds() + LIMIT_MS), "condition met")
+        self.assertIsNone(prove_upgrade.trial_record(trial))
+        self.assertEqual(self.read_report(trial)["values"]["script.state"], "finished")
+        self.assert_healthy(trial)
+
     def host_writes(self, machine):
         machine.stub_symbol("msc_write_proven", lambda machine: 1)
 

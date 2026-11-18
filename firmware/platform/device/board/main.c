@@ -96,7 +96,8 @@ static void run_usb_session(void)
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
     board_trial_snapshot(1);
-    if (usb != NULL && board_trial_session_ended() && usb_vbus_present()) {
+    if (usb != NULL && board_trial_session_ended() && usb_vbus_present() &&
+        !board_debug_script_active()) {
         plug_in_again();
     }
     if (storage_changed || hal_system_restart_pending()) {
