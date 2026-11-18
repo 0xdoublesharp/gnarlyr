@@ -13,6 +13,7 @@
 #include "core/key_script.h"
 #include "core/key_tracker.h"
 #include "default_theme.h"
+#include "device/key_ladder.h"
 #include "discovery_screen.h"
 #include "equalizer_presets.h"
 #include "fake_hal.h"
@@ -2338,6 +2339,22 @@ static void holding_play_and_tapping_volume_jumps_in_a_book(void)
     CHECK_EQUAL(100000 - SPOKEN_JUMP_BACK_MS, fake_hal_audio_last_seek());
     CHECK(app_toast_text() == NULL);
     spoken_library_close(&spoken);
+}
+
+static void power_after_a_chord_with_play_let_go_does_not_lock_the_keys(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    press_key(KEY_POWER);
+    keep_holding(1300);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_POWER);
+    CHECK(!toast_is("Buttons locked"));
+    uint8_t volume = fake_hal_audio_volume();
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
 }
 
 static void play_and_power_lock_and_unlock_the_buttons(void)
@@ -6750,6 +6767,7 @@ int main(void)
         TEST_CASE(configured_menu_hold_selects_the_other_destinations),
         TEST_CASE(configured_menu_hold_toggles_shuffle),
         TEST_CASE(power_menu_saves_a_screenshot_without_a_debug_script),
+        TEST_CASE(power_after_a_chord_with_play_let_go_does_not_lock_the_keys),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),

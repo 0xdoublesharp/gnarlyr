@@ -13,4 +13,5 @@ typedef struct KeyLadderModel {
 
 void key_ladder_model_init(KeyLadderModel *model);
 void key_ladder_model_set(KeyLadderModel *model, Key key, bool pressed, uint32_t time_ms);
+void key_ladder_model_sample(KeyLadderModel *model, uint16_t reading, uint32_t time_ms);
 bool key_ladder_model_next(KeyLadderModel *model, HalKeyTransition *transition);

@@ -50,14 +50,10 @@ KeyLockVerdict key_lock_transition(KeyLock *lock, Key key, bool pressed, uint32_
             return KEY_LOCK_SWALLOW;
         }
     }
-    if (lock->locked && key != KEY_POWER) {
-        return pressed && !was_held ? KEY_LOCK_REFUSED : KEY_LOCK_SWALLOW;
+    if (!lock->locked || key == KEY_POWER) {
+        return KEY_LOCK_PASS;
     }
-    if (pressed && !was_held && (key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN)) {
-        lock->chorded[key] = lock->chords && lock->held[KEY_PLAY];
-        return lock->chorded[key] ? KEY_LOCK_CHORD : KEY_LOCK_PASS;
-    }
-    return KEY_LOCK_PASS;
+    return pressed && !was_held ? KEY_LOCK_REFUSED : KEY_LOCK_SWALLOW;
 }
 
 bool key_lock_update(KeyLock *lock, uint32_t now_ms)

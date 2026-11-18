@@ -39,6 +39,7 @@ static void holding_play_and_adding_vol_down_reads_as_the_players_log(void)
     check_next(&model, KEY_PLAY, true);
     key_ladder_model_set(&model, KEY_VOLUME_DOWN, true, 36583);
     CHECK_EQUAL(1, model.reading);
+    check_next(&model, KEY_PLAY, false);
     check_next(&model, KEY_VOLUME_DOWN, true);
     check_empty(&model);
 }
@@ -53,13 +54,15 @@ static void releasing_vol_then_play_returns_through_the_play_band(void)
     CHECK_EQUAL(242, model.reading);
     key_ladder_model_set(&model, KEY_PLAY, false, 400);
     check_next(&model, KEY_PLAY, true);
+    check_next(&model, KEY_PLAY, false);
     check_next(&model, KEY_VOLUME_UP, true);
     check_next(&model, KEY_VOLUME_UP, false);
+    check_next(&model, KEY_PLAY, true);
     check_next(&model, KEY_PLAY, false);
     check_empty(&model);
 }
 
-static void releasing_play_then_vol_holds_play_until_vol_goes(void)
+static void releasing_play_under_a_held_volume_key_is_invisible(void)
 {
     KeyLadderModel model;
     key_ladder_model_init(&model);
@@ -68,11 +71,11 @@ static void releasing_play_then_vol_holds_play_until_vol_goes(void)
     key_ladder_model_set(&model, KEY_PLAY, false, 300);
     CHECK_EQUAL(122, model.reading);
     check_next(&model, KEY_PLAY, true);
+    check_next(&model, KEY_PLAY, false);
     check_next(&model, KEY_VOLUME_UP, true);
     check_empty(&model);
     key_ladder_model_set(&model, KEY_VOLUME_UP, false, 400);
     check_next(&model, KEY_VOLUME_UP, false);
-    check_next(&model, KEY_PLAY, false);
     check_empty(&model);
 }
 
@@ -104,7 +107,7 @@ int main(void)
         TEST_CASE(the_lowest_held_key_sets_the_reading),
         TEST_CASE(holding_play_and_adding_vol_down_reads_as_the_players_log),
         TEST_CASE(releasing_vol_then_play_returns_through_the_play_band),
-        TEST_CASE(releasing_play_then_vol_holds_play_until_vol_goes),
+        TEST_CASE(releasing_play_under_a_held_volume_key_is_invisible),
         TEST_CASE(pressing_play_under_a_held_volume_key_is_invisible),
         TEST_CASE(power_is_its_own_input),
     };

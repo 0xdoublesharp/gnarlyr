@@ -23,6 +23,13 @@ void key_ladder_model_set(KeyLadderModel *model, Key key, bool pressed, uint32_t
     }
 }
 
+void key_ladder_model_sample(KeyLadderModel *model, uint16_t reading, uint32_t time_ms)
+{
+    uint8_t previous = (uint8_t)(model->scanner.stable & ~POWER_MASK);
+    uint8_t mask = key_ladder_held_mask(reading, previous) | (model->held & POWER_MASK);
+    key_scanner_sample(&model->scanner, mask, time_ms);
+}
+
 bool key_ladder_model_next(KeyLadderModel *model, HalKeyTransition *transition)
 {
     return key_scanner_next(&model->scanner, transition);

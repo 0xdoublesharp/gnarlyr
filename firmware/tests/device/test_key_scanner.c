@@ -188,82 +188,55 @@ static void settle_reading(KeyScanner *scanner, uint16_t reading, uint32_t time_
     settle(scanner, key_ladder_mask(reading), time_ms);
 }
 
-static void the_owners_play_then_vol_down_keeps_play_held_and_presses_vol_down(void)
+static void the_owners_play_then_vol_down_is_a_play_release_and_vol_down_press_at_once(void)
 {
     KeyScanner scanner = armed_scanner();
     settle_reading(&scanner, 242, 36500);
     check_next(&scanner, KEY_PLAY, true, 36515);
     settle_reading(&scanner, 1, 36568);
+    check_next(&scanner, KEY_PLAY, false, 36583);
     check_next(&scanner, KEY_VOLUME_DOWN, true, 36583);
     check_empty(&scanner);
     settle_reading(&scanner, 242, 36700);
-    check_next(&scanner, KEY_VOLUME_DOWN, false, 36705);
-    check_empty(&scanner);
-    settle_reading(&scanner, 1023, 36800);
-    check_next(&scanner, KEY_PLAY, false, 36805);
+    check_next(&scanner, KEY_VOLUME_DOWN, false, 36715);
+    check_next(&scanner, KEY_PLAY, true, 36715);
     check_empty(&scanner);
 }
 
-static void play_then_vol_up_is_a_chord_too(void)
+static void an_idle_reading_between_play_and_volume_releases_play_first(void)
 {
     KeyScanner scanner = armed_scanner();
     settle_reading(&scanner, 242, 100);
     check_next(&scanner, KEY_PLAY, true, 115);
-    settle_reading(&scanner, 122, 200);
-    check_next(&scanner, KEY_VOLUME_UP, true, 215);
+    settle_reading(&scanner, 1023, 200);
+    check_next(&scanner, KEY_PLAY, false, 205);
+    settle_reading(&scanner, 1, 300);
+    check_next(&scanner, KEY_VOLUME_DOWN, true, 315);
     check_empty(&scanner);
 }
 
-static void an_idle_reading_between_play_and_volume_releases_play(void)
-{
-    KeyScanner scanner = armed_scanner();
-    settle_reading(&scanner, 242, 100);
-    check_next(&scanner, KEY_PLAY, true, 115);
-    key_scanner_sample(&scanner, key_ladder_mask(1023), 200);
-    settle_reading(&scanner, 1, 205);
-    check_next(&scanner, KEY_PLAY, false, 220);
-    check_next(&scanner, KEY_VOLUME_DOWN, true, 220);
-    check_empty(&scanner);
-}
-
-static void volume_first_then_play_stays_a_plain_volume_press(void)
+static void a_play_press_under_a_held_volume_key_is_invisible(void)
 {
     KeyScanner scanner = armed_scanner();
     settle_reading(&scanner, 1, 100);
     check_next(&scanner, KEY_VOLUME_DOWN, true, 115);
-    settle_reading(&scanner, 242, 200);
-    check_next(&scanner, KEY_VOLUME_DOWN, false, 215);
-    check_next(&scanner, KEY_PLAY, true, 215);
+    settle_reading(&scanner, 1, 200);
     check_empty(&scanner);
-}
-
-static void letting_go_of_play_first_holds_it_until_the_volume_key_goes(void)
-{
-    KeyScanner scanner = armed_scanner();
-    settle_reading(&scanner, 242, 100);
-    check_next(&scanner, KEY_PLAY, true, 115);
-    settle_reading(&scanner, 122, 200);
-    check_next(&scanner, KEY_VOLUME_UP, true, 215);
-    settle_reading(&scanner, 122, 300);
-    check_empty(&scanner);
-    settle_reading(&scanner, 1023, 400);
-    check_next(&scanner, KEY_VOLUME_UP, false, 405);
-    check_next(&scanner, KEY_PLAY, false, 405);
-    check_empty(&scanner);
-}
-
-static void a_second_volume_press_under_the_same_play_is_a_chord_again(void)
-{
-    KeyScanner scanner = armed_scanner();
-    settle_reading(&scanner, 242, 100);
-    settle_reading(&scanner, 122, 200);
     settle_reading(&scanner, 242, 300);
-    settle_reading(&scanner, 122, 400);
-    check_next(&scanner, KEY_PLAY, true, 115);
-    check_next(&scanner, KEY_VOLUME_UP, true, 215);
-    check_next(&scanner, KEY_VOLUME_UP, false, 305);
-    check_next(&scanner, KEY_VOLUME_UP, true, 415);
+    check_next(&scanner, KEY_VOLUME_DOWN, false, 315);
+    check_next(&scanner, KEY_PLAY, true, 315);
     check_empty(&scanner);
+}
+
+static void stable_keys_stay_raw_so_the_recovery_escape_sees_vol_up_alone(void)
+{
+    KeyScanner scanner = armed_scanner();
+    settle_reading(&scanner, 242, 100);
+    settle_reading(&scanner, 122, 200);
+    settle_reading(&scanner, 122, 300);
+    CHECK_EQUAL(1u << KEY_VOLUME_UP, scanner.stable);
+    settle(&scanner, key_ladder_mask(122) | POWER, 400);
+    CHECK_EQUAL(1u << KEY_VOLUME_UP, scanner.stable & ~POWER);
 }
 
 int main(void)
@@ -282,12 +255,10 @@ int main(void)
         TEST_CASE(power_held_from_switch_on_is_ignored_until_released),
         TEST_CASE(ladder_keys_work_while_the_switch_on_power_press_is_held),
         TEST_CASE(a_full_queue_drops_new_transitions),
-        TEST_CASE(the_owners_play_then_vol_down_keeps_play_held_and_presses_vol_down),
-        TEST_CASE(play_then_vol_up_is_a_chord_too),
-        TEST_CASE(an_idle_reading_between_play_and_volume_releases_play),
-        TEST_CASE(volume_first_then_play_stays_a_plain_volume_press),
-        TEST_CASE(letting_go_of_play_first_holds_it_until_the_volume_key_goes),
-        TEST_CASE(a_second_volume_press_under_the_same_play_is_a_chord_again),
+        TEST_CASE(the_owners_play_then_vol_down_is_a_play_release_and_vol_down_press_at_once),
+        TEST_CASE(an_idle_reading_between_play_and_volume_releases_play_first),
+        TEST_CASE(a_play_press_under_a_held_volume_key_is_invisible),
+        TEST_CASE(stable_keys_stay_raw_so_the_recovery_escape_sees_vol_up_alone),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

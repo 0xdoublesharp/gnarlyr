@@ -13,6 +13,7 @@
 #include "core/frame_pacer.h"
 #include "core/hash.h"
 #include "core/i18n.h"
+#include "core/key_chord.h"
 #include "core/key_lock.h"
 #include "core/key_tracker.h"
 #include "core/low_battery.h"
@@ -176,6 +177,8 @@ typedef struct AppState {
     Screen *usb_chooser;
     uint32_t charge_lit_until_ms;
     KeyLock lock;
+    KeyChord chord;
+    bool chorded[KEY_COUNT];
     HalBattery charge_battery;
     HalAudioJack listener_jack;
     bool listener_bluetooth;
@@ -242,33 +245,50 @@ static void run_player_command(NowPlayingCommand command);
 static void combo_screenshot(void);
 static void use_screen_key_behaviors(void);
 
+static void pass_key(Key key, bool pressed, uint32_t time_ms, bool chord)
+{
+    if (!pressed) {
+        key_tracker_key_up(&app.keys, key, time_ms);
+        return;
+    }
+    if (key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN) {
+        use_screen_key_behaviors();
+        app.chorded[key] = chord;
+        if (chord) {
+            key_tracker_set_behavior(&app.keys, key, KEY_BEHAVIOR_TAP_HOLD_REPEAT);
+        }
+    }
+    key_tracker_key_down(&app.keys, key, time_ms);
+}
+
+static bool pass_through_chord(Key key, HalKeyTransition transition)
+{
+    if (key == KEY_PLAY) {
+        app.chord.allowed =
+            !app.charging && (!app.display_on || top_screen() == &app.screens.now_playing.screen ||
+                              top_screen()->keys == SCREEN_KEYS_TEST);
+    }
+    KeyChordAction action = key_chord_take(&app.chord, key, transition.pressed, transition.time_ms);
+    if (action == KEY_CHORD_START) {
+        key_tracker_forget(&app.keys, KEY_PLAY);
+    }
+    if (action != KEY_CHORD_DROP) {
+        pass_key(key, transition.pressed, transition.time_ms, action == KEY_CHORD_START);
+    }
+    return action == KEY_CHORD_START;
+}
+
 static void take_transition(HalKeyTransition transition)
 {
     hal_system_coast(false);
     app.render_urgent = true;
     Key key = oriented_key(transition);
-    app.lock.chords =
-        !app.charging && (!app.display_on || top_screen() == &app.screens.now_playing.screen ||
-                          top_screen()->keys == SCREEN_KEYS_TEST);
     KeyLockVerdict verdict =
         key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
-    debug_loop_ladder(transition, verdict == KEY_LOCK_CHORD);
+    bool chord = verdict == KEY_LOCK_PASS && pass_through_chord(key, transition);
+    debug_loop_ladder(transition, chord);
     switch (verdict) {
-    case KEY_LOCK_CHORD:
-        key_tracker_cancel(&app.keys, KEY_PLAY);
-        app.screens.now_playing.scrubbing = false;
-        key_tracker_set_behavior(&app.keys, key, KEY_BEHAVIOR_TAP_HOLD_REPEAT);
-        key_tracker_key_down(&app.keys, key, transition.time_ms);
-        break;
     case KEY_LOCK_PASS:
-        if (transition.pressed) {
-            if (key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN) {
-                use_screen_key_behaviors();
-            }
-            key_tracker_key_down(&app.keys, key, transition.time_ms);
-        } else {
-            key_tracker_key_up(&app.keys, key, transition.time_ms);
-        }
         break;
     case KEY_LOCK_COMBO_STARTED:
         key_tracker_cancel(&app.keys, KEY_PLAY);
@@ -951,8 +971,8 @@ static void dispatch_key_events(uint32_t now_ms)
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
         app.render_urgent = true;
         debug_loop_key(event);
-        event.chord = (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN) &&
-                      app.lock.chorded[event.key];
+        event.chord =
+            (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN) && app.chorded[event.key];
         if ((app.power.standby_active && event.key != KEY_POWER) || ignored_power_tap(event)) {
             continue;
         }

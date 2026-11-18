@@ -376,6 +376,22 @@ void fake_hal_set_microseconds_per_read(uint32_t step_us)
     fake.microseconds_per_read = step_us;
 }
 
+static void take_ladder_transitions(void)
+{
+    HalKeyTransition transition;
+    while (key_ladder_model_next(&fake.ladder, &transition)) {
+        if (fake.transition_count < TRANSITION_CAPACITY) {
+            fake.transitions[fake.transition_count++] = transition;
+        }
+    }
+}
+
+void fake_hal_queue_reading_sample(uint16_t reading, uint32_t time_ms)
+{
+    key_ladder_model_sample(&fake.ladder, reading, time_ms);
+    take_ladder_transitions();
+}
+
 void fake_hal_queue_transition(Key key, bool pressed, uint32_t time_ms)
 {
     key_ladder_model_set(&fake.ladder, key, pressed, time_ms);

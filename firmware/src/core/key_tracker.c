@@ -156,6 +156,20 @@ void key_tracker_cancel(KeyTracker *tracker, Key key)
     tracker->states[key] = (KeyState){0};
 }
 
+void key_tracker_forget(KeyTracker *tracker, Key key)
+{
+    uint32_t kept = 0;
+    for (uint32_t index = 0; index < tracker->queue_length; index++) {
+        KeyEvent event =
+            tracker->queue[(tracker->queue_start + index) % KEY_TRACKER_QUEUE_CAPACITY];
+        if (event.key != key) {
+            tracker->queue[(tracker->queue_start + kept++) % KEY_TRACKER_QUEUE_CAPACITY] = event;
+        }
+    }
+    tracker->queue_length = kept;
+    key_tracker_cancel(tracker, key);
+}
+
 static void update_repeat(KeyTracker *tracker, Key key, uint32_t now_ms)
 {
     KeyState *state = &tracker->states[key];

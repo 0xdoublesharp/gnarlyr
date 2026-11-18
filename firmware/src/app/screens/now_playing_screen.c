@@ -280,6 +280,7 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     now_playing->now_ms = now_ms;
+    now_playing->scrubbing = now_playing->scrubbing && !event.chord;
     NowPlayingCommand command = now_playing_command_for(event, keys_of(now_playing));
     ScreenAction action = run_command(now_playing, command);
     refresh(now_playing, now_ms);
