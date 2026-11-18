@@ -56,6 +56,39 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(again.machine.reached.get("hal_storage_lend_cache", 0), 0)
         self.assert_healthy(again)
 
+    def wait_for_record(self, machine, read):
+        record = b""
+        deadline = machine.milliseconds() + self.session_module.FRAME_LIMIT_MS
+        while record[:4] != b"DSS2" and machine.milliseconds() < deadline:
+            machine.run(until_ms=machine.milliseconds() + SCAN_RECORD_POLL_MS)
+            record = read() or b""
+        return record
+
+    def test_removing_the_card_uses_the_internal_library_and_reinserting_keeps_the_combined_one(self):
+        from echo_emulator.bench import LIBRARY_PATH
+        track = TRACK.read_bytes()
+        slot = self.with_card(files=[("CARDSONG.MP3", track, None)])
+        session = self.session(files=[("INSIDE.MP3", track, None)])
+        machine = session.machine
+        slot.insert(machine)
+        self.assertEqual(self.wait_for_record(machine, lambda: slot.fat().read(MUSIC_CHECK_PATH))[:4],
+                         b"DSS2")
+        machine.run(until_ms=machine.milliseconds() + 1000)
+        combined = slot.fat().read(LIBRARY_PATH)
+        slot.remove(machine)
+        record = self.wait_for_record(machine, lambda: session.fat().read(MUSIC_CHECK_PATH))
+        self.assertEqual(int.from_bytes(record[44:48], "little"), 0)
+        internal = session.fat().read(LIBRARY_PATH) or b""
+        self.assertEqual(int.from_bytes(internal[12:16], "little"), 1)
+        self.assertIn(b"INSIDE.MP3", internal)
+        self.assertNotIn(b'"/', internal)
+        machine.run(until_ms=machine.milliseconds() + 1000)
+        slot.insert(machine)
+        machine.run(until_ms=machine.milliseconds() + 4000)
+        self.assertEqual(slot.fat().read(LIBRARY_PATH), combined)
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))
