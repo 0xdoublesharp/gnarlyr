@@ -453,6 +453,10 @@ if(CMAKE_CROSSCOMPILING)
         board/cru.c
         board/core1.c
         board/dac.c
+        board/emmc.c
+        board/sd.c
+        board/storage.c
+        board/usb.c
         board/debug_battery_trace.c
         board/debug_poke.c
         board/debug_report_file.c
