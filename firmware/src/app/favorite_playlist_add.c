@@ -1,5 +1,6 @@
 #include "favorite_playlist.h"
 
+#include "core/drive_path.h"
 #include "core/string_builder.h"
 #include "hal/storage.h"
 #include "library/playlist_reader.h"
@@ -25,7 +26,10 @@ typedef struct Contents {
 typedef struct Block {
     char text[BLOCK_CAPACITY];
     StringBuilder builder;
+    const char *playlist;
 } Block;
+
+static const char INTERNAL_PLAYLIST_PATH[] = DRIVE_PATH_INTERNAL_ROOT "/Favorite Tracks.m3u";
 
 static void feed(Contents *contents, char letter, uint32_t next)
 {
@@ -65,17 +69,17 @@ static bool scan(HalFile file, const char *track, Contents *contents)
     return true;
 }
 
-static bool create(void)
+static bool create(const char *playlist)
 {
     char blanks[CHUNK_BYTES];
     for (uint32_t index = 0; index < CHUNK_BYTES; index++) {
         blanks[index] = ' ';
     }
-    if (hal_file_reserve(FAVORITE_PLAYLIST_PATH, PLAYLIST_BYTES) != HAL_RESERVE_CREATED) {
+    if (hal_file_reserve(playlist, PLAYLIST_BYTES) != HAL_RESERVE_CREATED) {
         return false;
     }
     for (uint32_t offset = 0; offset < PLAYLIST_BYTES; offset += CHUNK_BYTES) {
-        if (!hal_file_write_at(FAVORITE_PLAYLIST_PATH, offset, blanks, CHUNK_BYTES)) {
+        if (!hal_file_write_at(playlist, offset, blanks, CHUNK_BYTES)) {
             return false;
         }
     }
@@ -95,12 +99,14 @@ static bool compose(Block *block, const Library *library, const LibraryTrack *re
     if (!library_read_string(library, record->path, path, sizeof path)) {
         return false;
     }
+    bool internal = path[0] == DRIVE_PATH_INTERNAL && path[1] == '/';
+    block->playlist = internal ? INTERNAL_PLAYLIST_PATH : FAVORITE_PLAYLIST_PATH;
     if (is_part(record)) {
         string_builder_append(builder, PLAYLIST_START_DIRECTIVE);
         string_builder_append_unsigned(builder, record->start_ms);
         string_builder_append_char(builder, '\n');
     }
-    string_builder_append(builder, path);
+    string_builder_append(builder, path + (internal ? 2 : 0));
     return !builder->overflowed;
 }
 
@@ -122,15 +128,14 @@ static FavoritePlaylistResult append(HalFile file, Block *block)
     }
     uint32_t length = head_length + (uint32_t)block->builder.length;
     return !block->builder.overflowed && contents.end + length <= file.size &&
-                   hal_file_write_at(FAVORITE_PLAYLIST_PATH, contents.end, start, length)
+                   hal_file_write_at(block->playlist, contents.end, start, length)
                ? FAVORITE_PLAYLIST_ADDED
                : FAVORITE_PLAYLIST_FAILED;
 }
 
-static bool open_playlist(HalFile *file)
+static bool open_playlist(HalFile *file, const char *playlist)
 {
-    return hal_file_open(file, FAVORITE_PLAYLIST_PATH) ||
-           (create() && hal_file_open(file, FAVORITE_PLAYLIST_PATH));
+    return hal_file_open(file, playlist) || (create(playlist) && hal_file_open(file, playlist));
 }
 
 FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t track)
@@ -139,7 +144,7 @@ FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t tr
     Block block;
     HalFile file;
     if (!library_read_track(library, track, &record) || !compose(&block, library, &record) ||
-        !open_playlist(&file)) {
+        !open_playlist(&file, block.playlist)) {
         return FAVORITE_PLAYLIST_FAILED;
     }
     FavoritePlaylistResult result = append(file, &block);

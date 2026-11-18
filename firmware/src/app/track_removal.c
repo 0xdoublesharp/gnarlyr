@@ -2,11 +2,13 @@
 
 #include <stddef.h>
 
+#include "core/drive_path.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
+#include "music_check.h"
 
 enum {
     ROOTED_PATH_BYTES = MIX_PATH_BYTES + 1
@@ -126,6 +128,10 @@ HiddenResult track_removal_delete(HiddenTracks tracks, uint16_t track)
         (void)hidden_tracks_save(tracks, &head);
         hidden_tracks_replan(tracks.player, anchor);
         result = HIDDEN_FAILED;
+    }
+    if (result == HIDDEN_DONE && identity.path[0] == DRIVE_PATH_INTERNAL &&
+        identity.path[1] == '/') {
+        music_check_bump_generation();
     }
     return result;
 }

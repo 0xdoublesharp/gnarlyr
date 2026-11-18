@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "browse_screen.h"
@@ -10,8 +11,10 @@
 #include "hidden_tracks.h"
 #include "library/library_browse.h"
 #include "library_store.h"
+#include "music_check.h"
 #include "player.h"
 #include "settings_screens.h"
+#include "spoken_library.h"
 #include "track_removal.h"
 
 enum {
@@ -257,6 +260,36 @@ static void deleting_the_playing_track_moves_on_and_removes_the_file(void)
     CHECK_EQUAL(0, hidden_records());
 }
 
+static void deleting_an_internal_file_moves_the_internal_music_generation(void)
+{
+    SpokenLibrary internal;
+    (void)spoken_library_open_internal(&internal);
+    fake_hal_reset();
+    fake_hal_add_file("/" FIRMWARE_DATA_DIRECTORY "/library.db", internal.bytes, internal.size);
+    open_store();
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 512) == HAL_RESERVE_CREATED);
+    char marked[300];
+    snprintf(marked, sizeof marked, "\"/%s", SPOKEN_EPISODE_A_PATH);
+    char rooted[300];
+    snprintf(rooted, sizeof rooted, "/%s", marked);
+    fake_hal_add_file(rooted, NULL, 100);
+    uint16_t track = spoken_library_track(&store.library, marked);
+    CHECK_EQUAL(HIDDEN_DONE, track_removal_delete(tracks(), track));
+    HalFile file;
+    CHECK(!hal_file_open(&file, rooted));
+    CHECK_EQUAL(1, music_check_generation());
+    spoken_library_close(&internal);
+}
+
+static void deleting_a_card_file_keeps_the_internal_music_generation(void)
+{
+    start();
+    CHECK(hal_internal_file_reserve(MUSIC_GENERATION_PATH, 512) == HAL_RESERVE_CREATED);
+    fake_hal_add_file(HELLS_BELLS_PATH, NULL, 100);
+    CHECK_EQUAL(HIDDEN_DONE, track_removal_delete(tracks(), HELLS_BELLS));
+    CHECK_EQUAL(0, music_check_generation());
+}
+
 static void deleting_a_queued_track_takes_it_out_of_the_queue(void)
 {
     start();
@@ -389,6 +422,8 @@ int main(void)
         TEST_CASE(showing_a_track_hidden_since_the_last_rescan_lists_it_again),
         TEST_CASE(deleting_the_playing_track_moves_on_and_removes_the_file),
         TEST_CASE(deleting_a_queued_track_takes_it_out_of_the_queue),
+        TEST_CASE(deleting_an_internal_file_moves_the_internal_music_generation),
+        TEST_CASE(deleting_a_card_file_keeps_the_internal_music_generation),
         TEST_CASE(a_file_that_cannot_be_removed_stays_listed),
         TEST_CASE(part_of_a_cue_file_is_not_deleted),
         TEST_CASE(deleting_after_twelve_removals_since_the_rescan_asks_for_a_rescan),

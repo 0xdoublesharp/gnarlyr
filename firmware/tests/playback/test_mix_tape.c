@@ -392,9 +392,21 @@ static void invalid_identities_are_never_encoded(void)
     CHECK(!mix_identity_equal(&dotted, &decoded));
 }
 
+static void a_path_on_internal_storage_survives_the_identity_record(void)
+{
+    MixIdentity identity = {.path = "\"/Music/01 Song.flac", .start_ms = 0, .end_ms = 0};
+    uint8_t bytes[MIX_RECORD_MAX];
+    uint16_t size = mix_identity_encode(&identity, bytes);
+    CHECK(size > 0);
+    MixIdentity back;
+    CHECK_EQUAL(size, mix_identity_decode(bytes, size, &back));
+    CHECK(mix_identity_equal(&identity, &back));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_path_on_internal_storage_survives_the_identity_record),
         TEST_CASE(saved_paths_cue_boundaries_and_duplicates_survive_reopening),
         TEST_CASE(invalid_measurements_and_files_fail_before_writing),
         TEST_CASE(unusable_tapes_and_cursor_boundaries_fail_closed),

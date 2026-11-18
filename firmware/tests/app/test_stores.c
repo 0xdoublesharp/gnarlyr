@@ -407,6 +407,28 @@ static void expect_playlist(const char *expected)
     CHECK(playlist_text()[strlen(expected)] == ' ');
 }
 
+static void an_internal_song_goes_to_the_favorite_tracks_file_of_internal_storage(void)
+{
+    fake_hal_reset();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    SpokenLibrary internal;
+    Library *library = spoken_library_open_internal(&internal);
+    char marked[300];
+    snprintf(marked, sizeof marked, "\"/%s", SPOKEN_CHAPTER_ONE_PATH);
+    uint16_t track = spoken_library_track(library, marked);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_ADDED, favorite_playlist_add(library, track));
+    uint32_t size = 0;
+    const char *inside = (const char *)fake_hal_file_bytes("/\""
+                                                           "/Favorite Tracks.m3u",
+                                                           &size);
+    char expected[300];
+    snprintf(expected, sizeof expected, "#EXTM3U\n%s\n", SPOKEN_CHAPTER_ONE_PATH);
+    CHECK(inside != NULL && strncmp(inside, expected, strlen(expected)) == 0);
+    CHECK(fake_hal_file_bytes(FAVORITE_PLAYLIST_PATH, &size) == NULL);
+    CHECK_EQUAL(FAVORITE_PLAYLIST_PRESENT, favorite_playlist_add(library, track));
+    spoken_library_close(&internal);
+}
+
 static void adding_a_song_creates_the_playlist_with_a_header(void)
 {
     fake_hal_reset();
@@ -726,6 +748,7 @@ int main(void)
         TEST_CASE(toggling_an_album_adds_it_and_saves),
         TEST_CASE(favorites_are_loaded_again),
         TEST_CASE(adding_a_song_creates_the_playlist_with_a_header),
+        TEST_CASE(an_internal_song_goes_to_the_favorite_tracks_file_of_internal_storage),
         TEST_CASE(adding_more_songs_appends_one_line_each),
         TEST_CASE(a_song_already_in_the_playlist_is_not_added_again),
         TEST_CASE(a_hand_edited_playlist_is_read_and_extended),
