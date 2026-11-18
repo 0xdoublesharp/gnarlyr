@@ -2503,6 +2503,19 @@ static void the_fallback_now_playing_skips_on_a_chord(void)
     fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
 }
 
+static void play_held_through_a_usb_session_does_not_start_a_chord(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    app_resume_after_usb();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_VOLUME_UP);
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+}
+
 static void play_and_power_lock_and_unlock_the_buttons(void)
 {
     start_app_with_library();
@@ -6972,6 +6985,7 @@ int main(void)
         TEST_CASE(a_chord_back_late_in_a_song_says_it_went_back_to_the_start),
         TEST_CASE(a_chord_skip_at_the_end_of_the_queue_says_there_is_no_next_track),
         TEST_CASE(the_fallback_now_playing_skips_on_a_chord),
+        TEST_CASE(play_held_through_a_usb_session_does_not_start_a_chord),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),

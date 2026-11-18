@@ -16,6 +16,7 @@ KeyChordAction key_chord_take(KeyChord *chord, Key key, bool pressed, uint32_t t
         return KEY_CHORD_START;
     }
     if (pressed && key == KEY_PLAY && same && last == KEY_CHORD_LAST_VOLUME_RELEASE) {
+        chord->play_down = true;
         return KEY_CHORD_DROP;
     }
     if (!pressed && volume_key(key) && chord->play_held) {
@@ -23,8 +24,11 @@ KeyChordAction key_chord_take(KeyChord *chord, Key key, bool pressed, uint32_t t
         return KEY_CHORD_PASS;
     }
     chord->play_held = false;
-    if (!pressed && key == KEY_PLAY && chord->allowed) {
-        chord->last = KEY_CHORD_LAST_PLAY_RELEASE;
+    if (key == KEY_PLAY) {
+        if (!pressed && chord->allowed && chord->play_down) {
+            chord->last = KEY_CHORD_LAST_PLAY_RELEASE;
+        }
+        chord->play_down = pressed;
     }
     return KEY_CHORD_PASS;
 }
