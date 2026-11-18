@@ -29,6 +29,7 @@ SCAN_PRINT_BYTES = 16
 SCAN_VERSION_BYTES = 16
 SCAN_INTERNAL_KNOWN = 1
 SCAN_INTERNAL_UNKNOWN = 2
+MUSIC_GENERATION_FILE = "music_gen.bin"
 USB_VENDOR = "1209"
 USB_PRODUCT = "0001"
 INTERNAL_LUN = 0
@@ -37,7 +38,7 @@ SCSI_ADDRESS = re.compile(r"\d+:\d+:\d+:([01])")
 WORD_MASK = 0xFFFFFFFF
 SECOND_SEED = FNV_OFFSET ^ 0x5BD1E995
 PATH_CAPACITY = 1024
-MAX_DEPTH = 32
+MAX_DEPTH = 16
 EXFAT_SIZE_LIMIT = 1 << 32
 COUNTED_SUFFIXES = tuple(sorted(suffix.encode("ascii") for suffix in
                                 library_index.AUDIO_SUFFIXES | library_index.PLAYLIST_SUFFIXES |
@@ -400,16 +401,6 @@ def write_card_file(path, data, card_file):
     return size
 
 
-def forget_fingerprint(path):
-    try:
-        with open_card_file(path) as file:
-            if os.fstat(file.fileno()).st_size:
-                write_all(file, bytes(len(SCAN_MAGIC)))
-                settle(file)
-    except FileNotFoundError:
-        return
-
-
 def file_system_name(card):
     if sys.platform == "win32":
         return windows_file_system(card)
@@ -536,8 +527,7 @@ def player_cards(roots):
 def matching_pairs(mounts):
     players = {}
     for device, lun, mount in mounts:
-        if lun in (CARD_LUN, INTERNAL_LUN):
-            players.setdefault(device, {}).setdefault(lun, set()).add(card_root(mount))
+        players.setdefault(device, {}).setdefault(lun, set()).add(mount)
     for drives in players.values():
         card = drives.get(CARD_LUN, set())
         internal = drives.get(INTERNAL_LUN, set())
@@ -568,17 +558,28 @@ def mac_usb_devices(tree):
             yield from mac_usb_devices(value)
 
 
+def mac_media_lun(medium):
+    if "Logical Unit" in medium:
+        unit = str(medium["Logical Unit"]).strip()
+        return int(unit) if unit in (str(INTERNAL_LUN), str(CARD_LUN)) else None
+    name = medium.get("_name", "").casefold()
+    for label, lun in (("internal storage", INTERNAL_LUN), ("sd card", CARD_LUN)):
+        if label in name:
+            return lun
+    return None
+
+
 def mac_player_mounts():
     tree = command_json(["system_profiler", "SPUSBDataType", "-json"])
     for device, player in enumerate(mac_usb_devices(tree)):
         for medium in player.get("Media", ()):
-            name = medium.get("_name", "").casefold()
-            for label, lun in (("internal storage", INTERNAL_LUN), ("sd card", CARD_LUN)):
-                if label in name:
-                    for volume in medium.get("volumes", ()):
-                        point = volume.get("mount_point")
-                        if point:
-                            yield device, lun, point
+            lun = mac_media_lun(medium)
+            if lun is None:
+                continue
+            for volume in medium.get("volumes", ()):
+                point = volume.get("mount_point")
+                if point:
+                    yield device, lun, point
 
 
 def linux_is_player(device):
@@ -645,7 +646,7 @@ ConvertTo-Json -InputObject $rows -Compress
             yield row["device"], row["lun"], row["root"]
 
 
-def mounted_player_pairs():
+def mounted_player_drives():
     if sys.platform == "darwin":
         mounts = mac_player_mounts()
     elif sys.platform == "win32":
@@ -654,7 +655,8 @@ def mounted_player_pairs():
         mounts = linux_player_mounts()
     else:
         return []
-    return list(matching_pairs(mounts))
+    return [(device, lun, card_root(root)) for device, lun, root in mounts
+            if lun in (CARD_LUN, INTERNAL_LUN)]
 
 
 def typed_path(text, platform=sys.platform):
@@ -871,7 +873,7 @@ def take_snapshot(drives):
     internal = drives.internal
     if internal is None:
         return ScanSnapshot(fingerprint)
-    generation = read_prefix(internal.root / DATA_FOLDER / "music_gen.bin", 4)
+    generation = read_prefix(internal.root / DATA_FOLDER / MUSIC_GENERATION_FILE, 4)
     return ScanSnapshot(fingerprint, take_fingerprint(internal.root, internal.volume),
                         int.from_bytes(generation, "little") if len(generation) == 4 else 0)
 
@@ -891,23 +893,29 @@ def write_or_report(path, data, card_file, options):
     print(f"  {card_file.name:<11} {human_size(len(data))} in a {human_size(size)} file")
 
 
-def record_fingerprint(folder, drives, before, options):
+def verified_snapshot(drives, before):
     step("Checking the music again...")
     after = take_snapshot(drives)
     if not (before.complete and after.complete):
         print("incomplete")
-        print("  The music couldn't be fingerprinted completely (folders more than 31 levels "
-              "deep, paths over 1,023 bytes or an unreadable file), so the player will rescan.")
-        return False
+        print(f"  The music couldn't be fingerprinted completely. The player can check up to "
+              f"{MAX_DEPTH - 1} folder levels below the root and paths up to "
+              f"{PATH_CAPACITY - 1:,} bytes.")
+        return None
     if before != after:
         print("changed")
-        print("  The music changed while this ran. The player will rescan it.")
-        return False
+        print("  The music changed while this ran. The player will check it at start-up.")
+        return None
     print(f"{after.entries:,} files and folders, unchanged")
-    path = folder / SCAN_FILE.name
-    record = scan_record(after, stored_version(read_prefix(path, SCAN_RECORD.size)))
-    write_or_report(path, record, SCAN_FILE, options)
-    return True
+    return after
+
+
+def publish_fingerprint(path, record, fallback, options):
+    try:
+        write_or_report(path, record, SCAN_FILE, options)
+    except (OSError, SyncError, KeyboardInterrupt):
+        write_or_report(path, fallback, SCAN_FILE, options)
+        raise
 
 
 def check_cache_targets(folder):
@@ -942,16 +950,22 @@ def sync(drives, options):
     if options.covers:
         sources = album_sources(card, model, library_path, root)
         covers_data = build_covers(drives, sources, options)
-    if before is not None and not options.dry_run:
-        forget_fingerprint(folder / SCAN_FILE.name)
     print(f"{'Planned for' if options.dry_run else 'Writing'} {folder}")
+    scan_path = folder / SCAN_FILE.name
     if library_data is not None:
+        version = stored_version(read_prefix(scan_path, SCAN_RECORD.size))
+        fallback = scan_record(ScanSnapshot(Fingerprint(False, 0, 0, 0)), version)
+        write_or_report(scan_path, fallback, SCAN_FILE, options)
         write_or_report(library_path, library_data, LIBRARY_FILE, options)
     if covers_data is not None:
         write_or_report(folder / COVERS_FILE.name, covers_data, COVERS_FILE, options)
     if before is None:
         return False
-    return record_fingerprint(folder, drives, before, options)
+    verified = verified_snapshot(drives, before)
+    if verified is None:
+        return False
+    publish_fingerprint(scan_path, scan_record(verified, version), fallback, options)
+    return True
 
 
 def print_next_steps(options, recorded, drives, seconds):
@@ -973,10 +987,8 @@ def print_next_steps(options, recorded, drives, seconds):
         for caveat in dict.fromkeys(caveats):
             if caveat:
                 print(f"(Note: {caveat}.)")
-    elif options.library and options.fingerprint:
-        print("The player will scan the card once more when it starts or after USB.")
     elif options.library:
-        print("After USB the player compares the music with its own last scan, as usual.")
+        print("The player will check the music at start-up.")
     if options.library and not options.covers:
         print("Covers were left as they were: new albums show without a cover until the next "
               "rescan on the player (Settings, Rescan library).")
@@ -1033,15 +1045,14 @@ def parse_arguments(argv):
                         help="the card's drive or mount point, for example E:\\ or "
                              "/Volumes/CARD; without it, the tool asks")
     parser.add_argument("--internal", metavar="PATH",
-                        help="the mount point of the player's internal storage")
+                        help="require this mounted internal drive to belong to the same player as the card")
     parts = parser.add_mutually_exclusive_group()
     parts.add_argument("--no-covers", action="store_true",
                        help="build the library only and leave covers.bin as it is")
     parts.add_argument("--covers-only", action="store_true",
                        help="rebuild covers.bin from the card's library.db, or from the music")
     parser.add_argument("--no-fingerprint", action="store_true",
-                        help="leave scan.bin alone, so the player decides itself whether to "
-                             "rescan")
+                        help="skip computing fingerprints and ask the player to check at start-up")
     parser.add_argument("--check", action="store_true",
                         help="compare fingerprints for the available drives and check the card's "
                              "library format header without writing files")
@@ -1053,33 +1064,45 @@ def parse_arguments(argv):
     return parser.parse_args(argv)
 
 
-def card_argument(arguments, pairs=()):
+def is_internal_target(card, mounts):
+    if any(lun == INTERNAL_LUN and card.is_relative_to(root) for _, lun, root in mounts):
+        return True
+    for root in (card, *card.parents):
+        try:
+            (root / DATA_FOLDER / MUSIC_GENERATION_FILE).lstat()
+        except FileNotFoundError:
+            continue
+        return True
+    return False
+
+
+def card_argument(arguments, mounts=()):
     if arguments.card is not None:
         return arguments.card
     if not sys.stdin.isatty():
         raise SyncError("Give the card's drive or mount point, for example E: or /Volumes/CARD.")
-    internal = {drive for _, drive in pairs}
-    cards = (card for card, _ in pairs)
-    known = (root for root in player_cards(mounted_roots()) if root.resolve() not in internal)
-    return ask_for_card(list(dict.fromkeys((*cards, *known))))
+    cards = [root for _, lun, root in mounts if lun == CARD_LUN]
+    known = [root.resolve() for root in player_cards(mounted_roots())]
+    choices = [root for root in dict.fromkeys((*cards, *known))
+               if not is_internal_target(root, mounts)]
+    return ask_for_card(choices)
 
 
 def drive_roots(arguments):
-    pairs = mounted_player_pairs() if arguments.card is None and sys.stdin.isatty() else None
-    card = card_root(card_argument(arguments, pairs or ()))
-    if arguments.internal is not None:
-        internal = card_root(arguments.internal)
-        if not internal.is_dir():
-            raise SyncError(f"{internal} isn't a folder or drive.")
-        if card.is_relative_to(internal) or internal.is_relative_to(card):
-            raise SyncError("The card and internal storage must be separate drives or folders.")
-        return card, internal
-    if pairs is None and os.path.ismount(card):
-        pairs = mounted_player_pairs()
-    matched = [pair for pair in (pairs or ()) if card in pair]
+    mounts = mounted_player_drives()
+    card = card_root(card_argument(arguments, mounts))
+    if is_internal_target(card, mounts):
+        raise SyncError(f"{card} is the player's internal storage. Select the memory card.")
+    matched = [internal for target, internal in matching_pairs(mounts) if target == card]
     if len(matched) > 1:
-        raise SyncError("The two drives could not be identified. Give the card and --internal explicitly.")
-    return matched[0] if matched else (card, None)
+        raise SyncError("Could not identify the card and internal storage of the same player.")
+    internal = matched[0] if matched else None
+    if arguments.internal is not None and card_root(arguments.internal) != internal:
+        raise SyncError("--internal must match the detected internal storage of the same player "
+                        "as the card. Connect the player over USB with both drives mounted.")
+    if internal is not None and internal.is_relative_to(card):
+        raise SyncError("The card and internal storage must have separate mount points.")
+    return card, internal
 
 
 def wait_before_closing():

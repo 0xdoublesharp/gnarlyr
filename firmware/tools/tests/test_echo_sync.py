@@ -8,6 +8,7 @@ import unicodedata
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS_DIRECTORY))
@@ -115,7 +116,7 @@ class PlayerFingerprintTest(unittest.TestCase):
     def test_a_card_deeper_than_the_player_walks_is_incomplete(self):
         card = MemoryCard()
         parent = "/"
-        for _ in range(echo_sync.MAX_DEPTH + 1):
+        for _ in range(16):
             card.add(parent, "d", True, 0, 1)
             parent = echo_sync.child_path(parent.encode(), b"d").decode()
         self.assertFalse(card.fingerprint().complete)
@@ -123,7 +124,7 @@ class PlayerFingerprintTest(unittest.TestCase):
     def test_the_deepest_folder_the_player_walks_is_complete(self):
         card = MemoryCard()
         parent = "/"
-        for _ in range(echo_sync.MAX_DEPTH - 1):
+        for _ in range(15):
             card.add(parent, "d", True, 0, 1)
             parent = echo_sync.child_path(parent.encode(), b"d").decode()
         self.assertTrue(card.fingerprint().complete)
@@ -304,14 +305,6 @@ class CardFileTest(unittest.TestCase):
         echo_sync.write_card_file(self.path, data, self.card_file)
         self.assertEqual(data, self.path.read_bytes())
 
-    def test_forgetting_the_fingerprint_clears_only_its_magic(self):
-        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, b"v1.2.3".ljust(16, b"\0"), 0, 0, 0, 2, 0)
-        self.path.write_bytes(record + bytes(4096 - len(record)))
-        echo_sync.forget_fingerprint(self.path)
-        written = self.path.read_bytes()
-        self.assertEqual(bytes(4) + record[4:], written[:len(record)])
-        self.assertEqual(4096, len(written))
-
 
 class AlbumPathTest(unittest.TestCase):
     def test_a_library_holding_internal_storage_is_refused_for_covers_from_the_card(self):
@@ -361,7 +354,8 @@ class SyncTest(unittest.TestCase):
 
     def run_sync(self, *arguments):
         output = io.StringIO()
-        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+        with (contextlib.redirect_stdout(output), contextlib.redirect_stderr(output),
+              mock.patch.object(echo_sync, "mounted_player_drives", return_value=[])):
             status = echo_sync.main([str(self.card), *arguments])
         return status, output.getvalue()
 
@@ -438,13 +432,75 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(["covers.bin"], sorted(path.name for path in self.folder.iterdir()))
         self.assertEqual(bytes(MEBIBYTE), (self.folder / "covers.bin").read_bytes())
 
-    def test_without_a_fingerprint_scan_bin_is_left_alone(self):
-        self.prepare_echo()
-        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, bytes(16), 0, 0, 0, 2, 0)
-        (self.folder / "scan.bin").write_bytes(record)
-        self.run_sync("--no-fingerprint")
-        self.assertEqual(record, (self.folder / "scan.bin").read_bytes())
+    def assert_unverified_scan(self, tag=bytes(16)):
+        path = self.folder / "scan.bin"
+        self.assertTrue(path.is_file())
+        self.assertEqual((b"DSS2", 0, 0, 0, tag, 0, 0, 0, 2, 0),
+                         SCAN_RECORD.unpack_from(path.read_bytes()))
         self.assertTrue((self.folder / "library.db").exists())
+
+    def test_no_fingerprint_replaces_a_previous_known_internal_record(self):
+        self.prepare_echo()
+        tag = b"tag".ljust(16, b"\0")
+        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, tag, 4, 5, 6, 1, 7)
+        (self.folder / "scan.bin").write_bytes(record)
+        status, output = self.run_sync("--no-fingerprint", "--no-covers")
+        self.assertEqual(0, status, output)
+        self.assert_unverified_scan(tag)
+
+    def test_an_incomplete_card_fingerprint_leaves_a_valid_unknown_scan_record(self):
+        self.prepare_echo()
+        before = echo_sync.Fingerprint(False, 1, 2, 3)
+        with mock.patch.object(echo_sync, "take_fingerprint", return_value=before):
+            status, output = self.run_sync("--no-covers")
+        self.assertEqual(0, status, output)
+        self.assert_unverified_scan()
+
+    def test_a_card_change_during_publication_leaves_a_valid_unknown_scan_record(self):
+        self.prepare_echo()
+        self.assertEqual(0, self.run_sync("--no-covers")[0])
+        write = echo_sync.write_card_file
+
+        def change_music(path, data, specification):
+            result = write(path, data, specification)
+            if path.name == "library.db":
+                (self.card / "Added.m3u").write_bytes(b"Artist/Album/01 - Song.flac\n")
+            return result
+
+        with mock.patch.object(echo_sync, "write_card_file", side_effect=change_music):
+            status, output = self.run_sync("--no-covers")
+        self.assertEqual(0, status, output)
+        self.assertIn("changed while this ran", output)
+        self.assert_unverified_scan()
+
+    def test_a_cover_write_failure_leaves_a_valid_startup_record_for_the_written_library(self):
+        self.prepare_echo()
+        write = echo_sync.write_card_file
+
+        def fail_covers(path, data, specification):
+            if path.name == "covers.bin":
+                raise OSError("cover write failed")
+            return write(path, data, specification)
+
+        with mock.patch.object(echo_sync, "write_card_file", side_effect=fail_covers):
+            status, output = self.run_sync()
+        self.assertEqual(2, status, output)
+        self.assert_unverified_scan()
+
+    def test_a_failed_fingerprint_promotion_restores_the_unknown_startup_record(self):
+        self.prepare_echo()
+        write = echo_sync.write_card_file
+
+        def fail_promotion(path, data, specification):
+            if path.name == "scan.bin" and SCAN_RECORD.unpack_from(data)[1:4] != (0, 0, 0):
+                path.write_bytes(bytes(4096))
+                raise OSError("fingerprint write failed")
+            return write(path, data, specification)
+
+        with mock.patch.object(echo_sync, "write_card_file", side_effect=fail_promotion):
+            status, output = self.run_sync("--no-covers")
+        self.assertEqual(2, status, output)
+        self.assert_unverified_scan()
 
     def test_covers_only_uses_the_cards_library(self):
         self.prepare_echo()

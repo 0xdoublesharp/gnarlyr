@@ -49,10 +49,10 @@ class CacheConfinementTest(unittest.TestCase):
         os.link(self.victim, target)
         self.assert_preserved(lambda: echo_sync.write_card_file(target, b"new library", self.spec))
 
-    def test_forgetting_a_fingerprint_refuses_a_symlink(self):
+    def test_scan_publication_refuses_a_symlink(self):
         target = self.folder / "scan.bin"
         target.symlink_to(self.victim)
-        self.assert_preserved(lambda: echo_sync.forget_fingerprint(target))
+        self.assert_preserved(lambda: echo_sync.check_cache_targets(self.folder))
 
     def test_a_dangling_symlink_never_creates_a_file_outside_the_card(self):
         missing = self.outside / "new.bin"
@@ -96,7 +96,8 @@ class CacheConfinementTest(unittest.TestCase):
 
     def test_cli_reports_an_unsafe_cache_as_an_error_without_a_traceback_or_writes(self):
         (self.folder / self.spec.name).symlink_to(self.victim)
-        with mock.patch.object(echo_sync, "detect_volume", return_value=echo_sync.card_volume("fat32")):
+        with (mock.patch.object(echo_sync, "detect_volume", return_value=echo_sync.card_volume("fat32")),
+              mock.patch.object(echo_sync, "mounted_player_drives", return_value=[])):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as output:
                 self.assertEqual(2, echo_sync.main([str(self.card), "--no-covers"]))
         self.assertIn("echo_sync:", output.getvalue())
@@ -260,15 +261,12 @@ class PublicationFaultTest(unittest.TestCase):
             echo_sync.write_card_file(self.path, self.new, self.spec)
         self.assertEqual(self.new[16:], self.decoded(self.path.read_bytes()))
 
-    def test_zero_length_writes_and_empty_fingerprints_do_not_loop(self):
+    def test_zero_length_writes_do_not_loop(self):
         class RefusingFile:
             def write(self, _):
                 return 0
         with self.assertRaisesRegex(OSError, "stopped"):
             echo_sync.write_all(RefusingFile(), b"payload")
-        self.path.write_bytes(b"")
-        echo_sync.forget_fingerprint(self.path)
-        self.assertEqual(b"", self.path.read_bytes())
 
 
 if __name__ == "__main__":

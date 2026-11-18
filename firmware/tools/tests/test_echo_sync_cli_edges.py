@@ -32,7 +32,9 @@ class ToolCliBoundaryTest(unittest.TestCase):
             self.addCleanup(redirect.__exit__, None, None, None)
 
     def execute(self, module, args, expected):
-        with mock.patch.object(sys, "argv", [str(TOOLS / f"{module}.py"), *map(str, args)]):
+        with (mock.patch.object(sys, "argv", [str(TOOLS / f"{module}.py"), *map(str, args)]),
+              mock.patch.object(sys, "platform", "darwin"),
+              mock.patch.object(echo_sync.subprocess, "run", return_value=SimpleNamespace(stdout="[]"))):
             with self.assertRaises(SystemExit) as ended:
                 runpy.run_path(str(TOOLS / f"{module}.py"), run_name="__main__")
         self.assertEqual(expected, ended.exception.code)
@@ -82,7 +84,8 @@ class ToolCliBoundaryTest(unittest.TestCase):
     def test_an_indexer_error_is_reported_by_the_sync_cli_before_writing(self):
         cache = self.music / echo_sync.DATA_FOLDER
         cache.mkdir()
-        with mock.patch.object(library_index, "scan", side_effect=ValueError("reserved folder name")):
+        with (mock.patch.object(library_index, "scan", side_effect=ValueError("reserved folder name")),
+              mock.patch.object(echo_sync, "mounted_player_drives", return_value=[])):
             self.assertEqual(2, echo_sync.main([str(self.music), "--no-covers"]))
         self.assertIn("reserved folder name", self.errors.getvalue())
         self.assertEqual([], list(cache.iterdir()))
@@ -104,8 +107,7 @@ class ToolCliBoundaryTest(unittest.TestCase):
             options = echo_sync.SyncOptions(library=True, covers=False, fingerprint=fingerprint)
             echo_sync.print_next_steps(options, False, drives, 1)
         self.assertIn("Covers were left", self.output.getvalue())
-        self.assertIn("scan the card once more", self.output.getvalue())
-        self.assertIn("compares the music", self.output.getvalue())
+        self.assertIn("The player will check the music at start-up.", self.output.getvalue())
 
     def test_cache_parent_replacement_is_detected_before_opening_the_leaf(self):
         folder = self.music / echo_sync.DATA_FOLDER

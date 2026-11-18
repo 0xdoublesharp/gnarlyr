@@ -197,19 +197,19 @@ Rebuilding on the player takes a while, and its covers fill in afterwards while 
 The tool is **echo-sync**, `tools/echo_sync.py`. It runs from the source; there are no packaged downloads. Install Python 3.10 or newer, then the tools' packages once with `python3 -m pip install -r tools/requirements.txt`.
 
 1. Copy your music to the player over USB, or copy to the card in a card reader.
-2. Run `python3 tools/echo_sync.py /Volumes/CARD` with the card's mount point (on Windows, `tools\echo_sync.bat E:` finds Python for you). When it finds both mounted drives on the same player, it includes both. You can also give the internal mount point explicitly, for example `python3 tools/echo_sync.py /Volumes/CARD --internal /Volumes/GNARLYR`. Without a card argument, it asks which card to use.
+2. Run `python3 tools/echo_sync.py /Volumes/CARD` with the card's mount point (on Windows, `tools\echo_sync.bat E:` finds Python for you). When it finds both mounted drives on the same player, it includes both. Use `--internal PATH` to require a specific internal mount. Echo-sync must detect that both mounts belong to the same player. Without a card argument, it asks which card to use.
 3. When it says "Done", eject the card safely. For a player connected over USB, eject both drives.
 
 It reads the whole card and any selected internal storage. It writes `library.db`, `covers.bin` and `scan.bin` into the card's `/.gnarlyr` folder. If the player has never used the card, it asks before creating `/.gnarlyr` (`--yes` creates it without asking). Files the player made are overwritten in place and keep their size unless the new data needs more room; missing ones are made at the player's sizes (4 MB, 80 MB and 4 KB), or larger if needed. It then prints what it found, for example "1,402 tracks, 120 albums, 3 playlists" and "115 covers, 5 without art".
 
-**Why the player doesn't rescan.** The player uses the names, sizes and modification times of music, playlists and cover images to check whether its library is up to date. With both drives available, echo-sync records both fingerprints in the card's `scan.bin`. Matching fingerprints let the player keep the library. With a card reader, echo-sync records the card fingerprint and marks internal storage unknown. The player checks internal storage at the next start and rebuilds the library if it finds music there.
+**Why the player doesn't rescan.** The player uses the names, sizes and modification times of music, playlists and cover images to check whether its library is up to date. With both drives available, echo-sync records both fingerprints in the card's `scan.bin`. Matching fingerprints let the player keep the library. With a card reader, echo-sync marks internal storage unknown so the player checks it at the next start. If it finds internal music, it rebuilds the library to include it. If echo-sync skips fingerprinting or cannot verify the music stayed unchanged, it writes a scan record that requests a check at start-up.
 
 **When the player rescans anyway.** If the fingerprints differ, the player rescans as it would without the computer, and nothing is lost. That happens when:
 
 - the music changed after the computer ran;
 - the card is exFAT and a file's time was saved without a time-zone tag (modern Windows, macOS and Linux always add one; some cameras and old devices don't);
 - the card is FAT32 and the computer reads its file times differently from the player;
-- the card has folders more than 31 levels deep or paths longer than 1,023 bytes (the player can't fingerprint those);
+- either drive has folders more than 15 levels below its root or directory paths longer than 1,023 bytes;
 - a name was saved decomposed (for example by Linux) and read on a Mac, or only as an old DOS short name with accented letters.
 
 To see whether it works on your card, let the player scan it once, then run echo-sync with `--check` without changing anything (`python3 tools/echo_sync.py /Volumes/CARD --check`). It compares the saved fingerprint for each available drive, the internal generation when available and the card library's format header.
@@ -221,8 +221,8 @@ To see whether it works on your card, let the player scan it once, then run echo
 | `--dry-run` | Read everything and say what would be written, but write nothing |
 | `--no-covers` | Build the library only; `covers.bin` stays as it is, so new albums show without covers until the next rescan on the player |
 | `--covers-only` | Rebuild only `covers.bin` from the card's `library.db` or, if there is no usable library, from the music. Mount both drives if the library includes internal music |
-| `--internal PATH` | Include music from the player's internal storage at PATH |
-| `--no-fingerprint` | Leave `scan.bin` alone, so the player compares the music with its own last scan |
+| `--internal PATH` | Require PATH to match the detected internal mount of the same USB player as the card |
+| `--no-fingerprint` | Skip computing fingerprints and write a scan record that requests a check at start-up |
 | `--check` | Compare the saved fingerprint for each available drive, and check the card's library format header |
 | `--yes` | Create `/.gnarlyr` without asking |
 | `--verbose` | List the albums without art |

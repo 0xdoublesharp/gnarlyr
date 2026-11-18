@@ -133,10 +133,8 @@ class PlatformBoundaryTest(unittest.TestCase):
         self.assertEqual("none", echo_sync.describe(None))
         self.assertEqual("incomplete", echo_sync.describe(echo_sync.Fingerprint(False, 0, 0, 0)))
         for after in (echo_sync.Fingerprint(False, 0, 0, 0), echo_sync.Fingerprint(True, 2, 2, 3)):
-            with mock.patch.object(echo_sync, "take_fingerprint", return_value=after), mock.patch.object(echo_sync, "write_or_report") as write:
-                self.assertFalse(echo_sync.record_fingerprint(
-                    self.root, drives, snapshot, echo_sync.SyncOptions()))
-                write.assert_not_called()
+            with mock.patch.object(echo_sync, "take_fingerprint", return_value=after):
+                self.assertIsNone(echo_sync.verified_snapshot(drives, snapshot))
         with mock.patch.object(echo_sync, "card_fingerprint", side_effect=OSError("disconnected")):
             self.assertFalse(echo_sync.take_fingerprint(self.root, echo_sync.card_volume("fat32")).complete)
 
@@ -165,12 +163,24 @@ class PlayerDriveDiscoveryTest(unittest.TestCase):
         with (mock.patch.object(echo_sync.sys, "platform", "darwin"),
               mock.patch.object(echo_sync.subprocess, "run",
                                 return_value=SimpleNamespace(stdout=json.dumps(tree))) as run):
-            self.assertEqual([(self.card, self.internal)], echo_sync.mounted_player_pairs())
+            self.assertEqual([(self.card, self.internal)], list(echo_sync.matching_pairs(echo_sync.mounted_player_drives())))
         self.assertEqual(["system_profiler", "SPUSBDataType", "-json"], run.call_args.args[0])
         tree["SPUSBDataType"][0]["_items"] = [player(card), player(internal)]
         with (mock.patch.object(echo_sync.sys, "platform", "darwin"),
               mock.patch.object(echo_sync, "command_json", return_value=tree)):
-            self.assertEqual([], echo_sync.mounted_player_pairs())
+            self.assertEqual([], list(echo_sync.matching_pairs(echo_sync.mounted_player_drives())))
+
+    def test_macos_logical_unit_overrides_media_names(self):
+        player = {"_name": echo_sync.IDENTITY.name, "vendor_id": "0x1209", "product_id": "0x0001",
+                  "Media": [{"_name": "SD card", "Logical Unit": "0",
+                             "volumes": [{"mount_point": str(self.internal)}]},
+                            {"_name": "Internal storage", "Logical Unit": 1,
+                             "volumes": [{"mount_point": str(self.card)}]},
+                            {"_name": "Internal storage", "Logical Unit": 2,
+                             "volumes": [{"mount_point": str(self.root / "Unexpected")}]}]}
+        with mock.patch.object(echo_sync, "command_json", return_value=[player]):
+            self.assertEqual([(0, 0, str(self.internal)), (0, 1, str(self.card))],
+                             list(echo_sync.mac_player_mounts()))
 
     def test_linux_uses_block_mounts_and_the_usb_parent_lun(self):
         block = self.root / "block"
@@ -204,7 +214,7 @@ class PlayerDriveDiscoveryTest(unittest.TestCase):
               mock.patch.object(echo_sync, "linux_mount_rows", return_value=rows),
               mock.patch.object(echo_sync, "linux_player_lun",
                                 side_effect=[(player, 0), (player, 1), None]) as lun):
-            self.assertEqual([(self.card, self.internal)], echo_sync.mounted_player_pairs())
+            self.assertEqual([(self.card, self.internal)], list(echo_sync.matching_pairs(echo_sync.mounted_player_drives())))
         self.assertEqual(3, lun.call_count)
 
     def test_windows_does_not_mix_different_devices_or_ambiguous_luns(self):
@@ -214,15 +224,15 @@ class PlayerDriveDiscoveryTest(unittest.TestCase):
                 {"device": "player-1", "lun": 3, "root": str(self.root / "Different LUN")}]
         with (mock.patch.object(echo_sync.sys, "platform", "win32"),
               mock.patch.object(echo_sync, "command_json", return_value=rows) as query):
-            self.assertEqual([(self.card, self.internal)], echo_sync.mounted_player_pairs())
+            self.assertEqual([(self.card, self.internal)], list(echo_sync.matching_pairs(echo_sync.mounted_player_drives())))
             command = query.call_args.args[0]
             self.assertEqual("powershell.exe", command[0])
             self.assertIn("DEVPKEY_Device_Parent", command[-1])
             self.assertIn("SCSILogicalUnit", command[-1])
             rows.append({"device": "player-1", "lun": 1, "root": str(self.root / "Second partition")})
-            self.assertEqual([], echo_sync.mounted_player_pairs())
+            self.assertEqual([], list(echo_sync.matching_pairs(echo_sync.mounted_player_drives())))
             query.return_value = None
-            self.assertEqual([], echo_sync.mounted_player_pairs())
+            self.assertEqual([], list(echo_sync.matching_pairs(echo_sync.mounted_player_drives())))
 
     def test_probe_failure_and_unknown_platform_leave_single_drive_discovery_available(self):
         for error in (OSError("missing program"), subprocess.TimeoutExpired("system_profiler", 15)):
@@ -232,7 +242,7 @@ class PlayerDriveDiscoveryTest(unittest.TestCase):
                                return_value=SimpleNamespace(stdout="invalid JSON")):
             self.assertEqual([], echo_sync.command_json(["system_profiler"]))
         with mock.patch.object(echo_sync.sys, "platform", "other"):
-            self.assertEqual([], echo_sync.mounted_player_pairs())
+            self.assertEqual([], echo_sync.mounted_player_drives())
 
 
 if __name__ == "__main__":
