@@ -20,6 +20,7 @@ TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 
+from dsd_fixture import dff, dsf, signal
 from echo_emulator import core1
 
 FIXTURES = ROOT / "tests" / "fixtures"
@@ -44,7 +45,11 @@ CASES = {
     "alac": [("media", "alac.m4a", None), ("media", "alac_apple.m4a", None)],
     "vorbis": [("fixtures", "vorbis/seek44.ogg", 2), ("fixtures", "vorbis/stereo48.ogg", 2)],
     "opus": [("media", "opus.opus", 2), ("fixtures", "opus/speech16.opus", 1)],
+    "dsd": [("generated", "dsd64.dsf", 2), ("generated", "dsd64_dff.dff", 2),
+            ("generated", "dsd64_mono.dsf", 1), ("generated", "dsd128.dsf", 2),
+            ("generated", "dsd256_mono.dsf", 1)],
 }
+DSD_FRAMES = 4 * 4096 + 1000
 MEDIA_COMMANDS = {
     "flac16.flac": ["-t", "1.5", "-c:a", "flac", "-compression_level", "5", "-frame_size", "4096"],
     "flac16_p12.flac": ["-t", "1.5", "-c:a", "flac", "-compression_level", "5", "-frame_size", "4096",
@@ -146,6 +151,19 @@ def bench_opus(paths, path, channels):
     return steady_rate(blocks, 48000)
 
 
+def bench_dsd(paths, path, channels):
+    ratio = int(path.stem[3:6].rstrip("_")) // 64
+    data, _ = signal(2822400 * ratio, frames=DSD_FRAMES, channels=channels)
+    container = dff if path.suffix == ".dff" else dsf
+    with tempfile.TemporaryDirectory() as scratch:
+        source, transport = Path(scratch) / path.name, Path(scratch) / "transport.bin"
+        source.write_bytes(container(data, 2822400 * ratio))
+        run_tool(paths.tools / "dsd_stream_tool", str(source), str(transport))
+        stream = transport.read_bytes() + bytes(32768)
+    blocks = stream_decode(paths.program("core1_dsd"), stream, channels, 24, ring=32768)
+    return steady_rate(blocks, 88200)
+
+
 def flac_header(data):
     offset = 4
     info = None
@@ -192,7 +210,7 @@ def bench_flac(paths, path, _):
 
 
 BENCHES = {"flac": bench_flac, "mp3": bench_mp3, "aac": bench_m4a, "alac": bench_m4a,
-           "vorbis": bench_vorbis, "opus": bench_opus}
+           "vorbis": bench_vorbis, "opus": bench_opus, "dsd": bench_dsd}
 
 
 class Paths:
@@ -202,6 +220,8 @@ class Paths:
         self.media = Path(media)
 
     def case(self, place, name):
+        if place == "generated":
+            return Path(name)
         return (self.media if place == "media" else FIXTURES) / name
 
     def program(self, name):

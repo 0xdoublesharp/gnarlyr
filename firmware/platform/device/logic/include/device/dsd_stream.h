@@ -9,7 +9,9 @@ enum {
     DSD_BLOCK_BYTES = 4096,
     DSD_OUTPUT_FRAMES = 4096,
     DSD_SECOND_TAPS = 64,
-    DSD_PREROLL = 40
+    DSD_PREROLL = 40,
+    DSD_LANE_HISTORY = 40,
+    DSD_LANE_BYTES = DSD_LANE_HISTORY + DSD_BLOCK_BYTES
 };
 
 typedef struct DsdTrack {
@@ -31,8 +33,8 @@ typedef struct DsdStream {
 
 typedef struct DsdWorkspace {
     int32_t table[40][256];
-    uint8_t bits[2][64];
-    int32_t history[2][2 * DSD_SECOND_TAPS];
+    int32_t history[2 * DSD_SECOND_TAPS][2];
+    uint8_t lanes[2][2][DSD_LANE_BYTES];
     uint8_t packet[2 * DSD_BLOCK_BYTES];
 } DsdWorkspace;
 
@@ -46,16 +48,19 @@ typedef struct Core1Dsd {
     uint64_t bit_count;
     uint32_t byte_position;
     uint32_t byte_count;
+    uint32_t steady_end;
     uint32_t partial_bits;
     uint32_t generation;
     uint32_t position;
-    uint32_t packet_size;
+    uint32_t lane;
+    uint32_t lane_start;
     uint32_t packet_cursor;
     uint32_t packet_frames;
     uint32_t channels;
     uint32_t layout;
     uint32_t ratio;
-    uint32_t shift;
+    uint32_t raise;
+    uint32_t lower;
     uint32_t stage_position;
     uint32_t stage_count;
     uint32_t warmup;
