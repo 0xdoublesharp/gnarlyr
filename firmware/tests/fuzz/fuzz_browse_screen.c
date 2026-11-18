@@ -55,8 +55,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
     static const Key KEYS[] = {KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_PLAY, KEY_MENU, KEY_BACK};
     static const KeyGesture GESTURES[] = {KEY_GESTURE_PRESS, KEY_GESTURE_LONG_PRESS,
-                                          KEY_GESTURE_REPEAT, KEY_GESTURE_DOUBLE_PRESS,
-                                          KEY_GESTURE_TRIPLE_PRESS};
+                                          KEY_GESTURE_REPEAT};
     FixtureLibrary fixture;
     BrowsePool pool;
     Player player;

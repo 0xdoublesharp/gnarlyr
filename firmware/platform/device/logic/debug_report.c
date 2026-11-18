@@ -111,7 +111,7 @@ static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_h
 static const char SCHEMA_KEY[] = "debug_report";
 static const char SEQUENCE_KEY[] = "report.sequence";
 static const char COLD_KEY[] = "report.cold_start";
-static const char *const GESTURE_NAMES[] = {"press", "long", "repeat", "double", "triple"};
+static const char *const GESTURE_NAMES[] = {"press", "long", "repeat"};
 static const char *const PLAYER_NAMES[] = {"idle", "playing", "paused", "standby"};
 _Static_assert(sizeof PLAYER_NAMES / sizeof PLAYER_NAMES[0] == DEBUG_PLAYER_STANDBY + 1,
                "the report names the standby state the event log records");

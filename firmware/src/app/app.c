@@ -85,7 +85,6 @@ static const KeyConfig KEY_CONFIG = {
             .long_press_ms = 600,
             .repeat_delay_ms = 400,
             .repeat_interval_ms = 120,
-            .click_window_ms = 300,
         },
     .behaviors =
         {

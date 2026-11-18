@@ -9,8 +9,6 @@ static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
     case KEY_GESTURE_LONG_PRESS:
         return hold;
     case KEY_GESTURE_REPEAT:
-    case KEY_GESTURE_DOUBLE_PRESS:
-    case KEY_GESTURE_TRIPLE_PRESS:
         return NOW_PLAYING_NONE;
     }
     return NOW_PLAYING_NONE;

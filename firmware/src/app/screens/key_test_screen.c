@@ -14,7 +14,7 @@ enum {
 
 _Static_assert(STR_KEY_POWER - STR_KEY_VOLUME_UP == KEY_POWER - KEY_VOLUME_UP,
                "key names follow the keys");
-_Static_assert(STR_KEY_TRIPLE - STR_KEY_TAP == KEY_GESTURE_TRIPLE_PRESS - KEY_GESTURE_PRESS,
+_Static_assert(STR_KEY_REPEAT - STR_KEY_TAP == KEY_GESTURE_REPEAT - KEY_GESTURE_PRESS,
                "gesture names follow the gestures");
 
 Key key_test_band(uint16_t reading)

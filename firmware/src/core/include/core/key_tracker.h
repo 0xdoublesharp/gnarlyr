@@ -12,17 +12,13 @@ enum {
 typedef enum KeyGesture {
     KEY_GESTURE_PRESS,
     KEY_GESTURE_LONG_PRESS,
-    KEY_GESTURE_REPEAT,
-    KEY_GESTURE_DOUBLE_PRESS,
-    KEY_GESTURE_TRIPLE_PRESS
+    KEY_GESTURE_REPEAT
 } KeyGesture;
 
 typedef enum KeyBehavior {
     KEY_BEHAVIOR_TAP_OR_HOLD,
     KEY_BEHAVIOR_REPEAT,
-    KEY_BEHAVIOR_TAP_HOLD_REPEAT,
-    KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT,
-    KEY_BEHAVIOR_TRIPLE_CLICK_OR_HOLD
+    KEY_BEHAVIOR_TAP_HOLD_REPEAT
 } KeyBehavior;
 
 typedef struct KeyEvent {
@@ -36,7 +32,6 @@ typedef struct KeyTiming {
     uint32_t long_press_ms;
     uint32_t repeat_delay_ms;
     uint32_t repeat_interval_ms;
-    uint32_t click_window_ms;
 } KeyTiming;
 
 typedef struct KeyConfig {
@@ -52,9 +47,7 @@ typedef struct KeyState {
     bool long_press_sent;
     uint32_t pressed_at_ms;
     uint32_t next_repeat_at_ms;
-    uint8_t clicks;
     uint8_t repeats;
-    uint32_t clicked_at_ms;
 } KeyState;
 
 typedef struct KeyTracker {
