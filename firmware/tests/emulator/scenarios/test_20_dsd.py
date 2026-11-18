@@ -43,6 +43,33 @@ class EchoImageTest(EchoImageHarness):
                 self.assertAlmostEqual(expected, actual, delta=0.005)
         self.assert_healthy(rig.session)
 
+    def test_dsd64_stereo_dsf_plays_the_reference_sine_across_blocks(self):
+        from dsd_fixture import signal, dsf
+        from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        frames = 13230
+        data, samples = signal(2822400, frames)
+        volume = Fat32Volume()
+        volume.add_file("Sine.dsf", dsf(data, 2822400, samples))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        bridge = Core1Bridge(rig.audio, {CORE1_DSD: self.elf.with_name("core1_dsd.bin").read_bytes()})
+        pcm = self.capture_output(rig, frames)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(400)
+        self.assertEqual(frames, len(pcm))
+        self.assertEqual([CORE1_DSD], bridge.started)
+        for channel, frequency in enumerate((1000, 1321)):
+            values = [(word - 2 ** 32 if word & 0x80000000 else word) / 2 ** 31
+                      for word in (pcm[index][channel] for index in range(256, frames - 256))]
+            self.assertAlmostEqual(0.7, max(abs(value) for value in values), delta=0.01)
+            for index, actual in enumerate(values[::29]):
+                expected = 0.7 * math.sin(2 * math.pi * frequency * (256 + 29 * index) / 88200)
+                self.assertAlmostEqual(expected, actual, delta=0.005)
+        self.assert_healthy(rig.session)
+
     def test_dsd256_mono_seeks_to_the_saved_pcm_position(self):
         from dsd_fixture import signal, dsf
         from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
