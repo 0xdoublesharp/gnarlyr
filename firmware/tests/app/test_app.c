@@ -3784,7 +3784,7 @@ static void a_start_rebuild_that_fails_waits_for_the_next_start(void)
     CHECK_EQUAL(2, stored_library_version());
 }
 
-static void a_rebuild_that_cannot_record_the_music_is_not_repeated(void)
+static void a_check_that_cannot_load_its_module_neither_rebuilds_nor_repeats(void)
 {
     start_on_a_fresh_card(HAL_RESERVE_CREATED);
     step();
@@ -3792,13 +3792,13 @@ static void a_rebuild_that_cannot_record_the_music_is_not_repeated(void)
     fake_hal_break_module(SCREEN_MODULE_EQUALIZER, true);
     restart_app();
     step();
-    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     int writes = fake_hal_library_writes();
     for (int count = 0; count < 6; count++) {
         step();
     }
     CHECK_EQUAL(writes, fake_hal_library_writes());
-    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     fake_hal_break_module(SCREEN_MODULE_EQUALIZER, false);
 }
 
@@ -7614,7 +7614,7 @@ int main(void)
         TEST_CASE(a_refused_library_on_a_changed_card_is_rebuilt_after_an_earlier_rebuild),
         TEST_CASE(a_new_firmware_rebuilds_a_library_no_build_finished),
         TEST_CASE(a_start_rebuild_that_fails_waits_for_the_next_start),
-        TEST_CASE(a_rebuild_that_cannot_record_the_music_is_not_repeated),
+        TEST_CASE(a_check_that_cannot_load_its_module_neither_rebuilds_nor_repeats),
         TEST_CASE(a_card_that_cannot_be_walked_is_rescanned_after_usb),
         TEST_CASE(a_scan_cut_short_runs_again_at_the_next_start),
         TEST_CASE(after_three_scans_cut_short_the_next_start_scans_without_covers),

@@ -137,6 +137,7 @@ typedef struct AppState {
     uint16_t covers_album;
     bool language_requested;
     bool music_check_requested;
+    bool music_unchecked;
     bool reload_pending;
     bool prepare_pending;
     size_t prepare_index;
@@ -1750,7 +1751,8 @@ CORE_COLD static bool walk_music(uint32_t files)
 {
     const ParametricModuleEntry *module =
         (const ParametricModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_EQUALIZER);
-    return module == NULL || module->music_walk(files);
+    app.music_unchecked = module == NULL;
+    return module != NULL && module->music_walk(files);
 }
 
 static uint32_t scan_event(DebugScanPhase phase, uint32_t number)
@@ -2272,7 +2274,10 @@ CORE_SEAM void app_step(void)
             }
             if (!changed && app.rescan_manual) {
                 debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_UP_TO_DATE, 0));
-                toast_show(&app.toast, i18n_text(STR_LIBRARY_UP_TO_DATE), hal_clock_milliseconds());
+                toast_show(
+                    &app.toast,
+                    i18n_text(app.music_unchecked ? STR_SCREEN_MISSING : STR_LIBRARY_UP_TO_DATE),
+                    hal_clock_milliseconds());
             }
             if (changed) {
                 app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECK_CHANGED));

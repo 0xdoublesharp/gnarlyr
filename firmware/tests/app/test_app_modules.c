@@ -546,22 +546,35 @@ static void after_a_music_check_the_screen_on_top_gets_its_module_back(void)
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
 }
 
-static void a_music_check_that_cannot_walk_the_card_rescans_instead(void)
+static void a_music_check_without_its_module_neither_rebuilds_nor_repeats(void)
 {
     start_on_a_fresh_card();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
     fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_EQUALIZER, true);
+    app_request_rescan_if_music_changed();
+    step();
+    step();
+    step();
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    fake_hal_break_module(SCREEN_MODULE_EQUALIZER, false);
     int walks = fake_hal_dir_open_count();
     app_request_rescan_if_music_changed();
     step();
-    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
-    fake_hal_break_module(SCREEN_MODULE_EQUALIZER, false);
-    walks = fake_hal_dir_open_count();
-    app_request_rescan_if_music_changed();
-    step();
     CHECK(fake_hal_dir_open_count() > walks);
-    CHECK_EQUAL(2, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+}
+
+static void a_manual_rescan_without_the_check_module_says_so_instead_of_rebuilding(void)
+{
+    start_on_a_fresh_card();
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_EQUALIZER, true);
+    app_request_rescan();
+    step();
+    fake_hal_break_module(SCREEN_MODULE_EQUALIZER, false);
+    CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK(toast_is("Screen missing: reinstall update"));
 }
 
 static int walks_after_start(bool moved)
@@ -678,7 +691,8 @@ int main(void)
         TEST_CASE(settings_that_cannot_load_leave_home_usable),
         TEST_CASE(the_music_check_walks_the_card_from_its_module),
         TEST_CASE(after_a_music_check_the_screen_on_top_gets_its_module_back),
-        TEST_CASE(a_music_check_that_cannot_walk_the_card_rescans_instead),
+        TEST_CASE(a_music_check_without_its_module_neither_rebuilds_nor_repeats),
+        TEST_CASE(a_manual_rescan_without_the_check_module_says_so_instead_of_rebuilding),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
