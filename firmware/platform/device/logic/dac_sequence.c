@@ -294,7 +294,7 @@ bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
     if (after.filter >= DAC_ANALOG_FILTERS) {
         return false;
     }
-    if (before.gain_high != after.gain_high) {
+    if (before.gain_high != after.gain_high || before.filter == DAC_ANALOG_UNKNOWN) {
         return change_analog(bus, after);
     }
     return before.filter == after.filter || change_filter(bus, after.filter);

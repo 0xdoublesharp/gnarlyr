@@ -441,18 +441,20 @@ void hal_audio_set_headphones(HeadphoneAudio profile)
     hal_audio_set_volume(audio.volume);
 }
 
-void hal_audio_set_gain(HalAudioGain gain)
+bool hal_audio_set_gain(HalAudioGain gain)
 {
     lock();
     audio.analog_gain = gain;
     unlock();
+    return true;
 }
 
-void hal_audio_set_filter(HalAudioFilter filter)
+bool hal_audio_set_filter(HalAudioFilter filter)
 {
     lock();
     audio.filter = filter;
     unlock();
+    return true;
 }
 
 void hal_audio_set_output(HalAudioOutput output)

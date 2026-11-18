@@ -1217,6 +1217,45 @@ static void high_gain_lowers_from_the_headphone_ceiling(void)
     CHECK_EQUAL(10 - GAIN_RISE_STEPS, app_player_status().volume);
 }
 
+static void a_gain_the_player_cannot_apply_is_reported_and_not_saved(void)
+{
+    start_app_with_library();
+    uint8_t volume = fake_hal_audio_volume();
+    open_setting(SETTINGS_GAIN_INDEX);
+    move_down(1);
+    fake_hal_fail_analog(true);
+    tap(KEY_PLAY);
+    CHECK(toast_is("Couldn't change gain"));
+    CHECK_EQUAL(HAL_AUDIO_GAIN_LOW, fake_hal_audio_gain());
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(volume, app_player_status().volume);
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(GAIN_LOW, store.settings.gain);
+    CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME, store.settings.dac_volume);
+    fake_hal_fail_analog(false);
+    tap(KEY_PLAY);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
+    settings_store_load(&store);
+    CHECK_EQUAL(GAIN_HIGH, store.settings.gain);
+}
+
+static void a_dac_filter_the_player_cannot_apply_is_reported_and_not_saved(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_DAC_FILTER_INDEX);
+    move_down(DAC_FILTER_NON_OVERSAMPLING);
+    fake_hal_fail_analog(true);
+    tap(KEY_PLAY);
+    CHECK(toast_is("Couldn't change the filter"));
+    CHECK_EQUAL(HAL_AUDIO_FILTER_FAST_LOW_LATENCY, fake_hal_audio_filter());
+    SettingsStore store;
+    settings_store_load(&store);
+    CHECK_EQUAL(settings_defaults().dac_filter, store.settings.dac_filter);
+}
+
 static void the_dac_filter_applies_on_play_saves_and_returns_after_a_restart(void)
 {
     start_app_with_library();
@@ -6664,6 +6703,8 @@ int main(void)
         TEST_CASE(choosing_high_gain_lowers_both_volumes_before_the_gain_rises),
         TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
         TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),
+        TEST_CASE(a_gain_the_player_cannot_apply_is_reported_and_not_saved),
+        TEST_CASE(a_dac_filter_the_player_cannot_apply_is_reported_and_not_saved),
         TEST_CASE(the_dac_filter_applies_on_play_saves_and_returns_after_a_restart),
         TEST_CASE(shaping_is_reachable_from_equalizer_and_cancels_when_leaving_the_module),
         TEST_CASE(an_equalizer_preset_reaches_the_audio_and_survives_a_restart),

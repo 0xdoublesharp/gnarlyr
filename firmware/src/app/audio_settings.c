@@ -3,40 +3,47 @@
 #include "hal/audio.h"
 #include "hal/system.h"
 
-static bool lower_for_high_gain(SettingsStore *store, Player *player)
+static void set_volumes(SettingsStore *store, Player *player, uint8_t music, uint8_t usb)
 {
-    HeadphoneAudio active = hal_audio_headphones();
-    uint8_t music =
-        headphone_audio_rise_volume(active, player->volume, AUDIO_SETTINGS_HIGH_GAIN_RISE_DB);
-    uint8_t usb = headphone_audio_rise_volume(active, store->settings.dac_volume,
-                                              AUDIO_SETTINGS_HIGH_GAIN_RISE_DB);
-    bool changed = player->volume != music;
     player_change_volume(player, (int)music - player->volume);
     store->settings.dac_volume = usb;
     hal_system_set_dac_volume(usb);
-    return !changed || !player->has_track || player_save(player);
 }
 
-static bool save(SettingsStore *store, Player *player)
+static AudioSettingsResult save(SettingsStore *store, Player *player, bool kept)
 {
     settings_store_capture(store, player_status(player));
-    return settings_store_save(store);
+    return settings_store_save(store) && kept ? AUDIO_SETTINGS_SAVED : AUDIO_SETTINGS_NOT_SAVED;
 }
 
-bool audio_settings_set_gain(SettingsStore *store, Player *player, GainLevel gain)
+AudioSettingsResult audio_settings_set_gain(SettingsStore *store, Player *player, GainLevel gain)
 {
-    bool kept = true;
-    if (gain == GAIN_HIGH && store->settings.gain != GAIN_HIGH) {
-        kept = lower_for_high_gain(store, player);
+    uint8_t music = player->volume;
+    uint8_t usb = store->settings.dac_volume;
+    bool rising = gain == GAIN_HIGH && store->settings.gain != GAIN_HIGH;
+    if (rising) {
+        HeadphoneAudio active = hal_audio_headphones();
+        set_volumes(store, player,
+                    headphone_audio_rise_volume(active, music, AUDIO_SETTINGS_HIGH_GAIN_RISE_DB),
+                    headphone_audio_rise_volume(active, usb, AUDIO_SETTINGS_HIGH_GAIN_RISE_DB));
+    }
+    if (!hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW)) {
+        if (rising) {
+            set_volumes(store, player, music, usb);
+        }
+        return AUDIO_SETTINGS_NOT_APPLIED;
     }
     store->settings.gain = gain;
-    hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW);
-    return save(store, player) && kept;
+    return save(store, player,
+                player->volume == music || !player->has_track || player_save(player));
 }
 
-bool audio_settings_set_filter(SettingsStore *store, Player *player, DacFilter filter)
+AudioSettingsResult audio_settings_set_filter(SettingsStore *store, Player *player,
+                                              DacFilter filter)
 {
+    if (!hal_audio_set_filter((HalAudioFilter)filter)) {
+        return AUDIO_SETTINGS_NOT_APPLIED;
+    }
     store->settings.dac_filter = (uint8_t)filter;
-    hal_audio_set_filter((HalAudioFilter)filter);
-    return save(store, player);
+    return save(store, player, true);
 }

@@ -311,7 +311,7 @@ Settings → Gain picks Low (the default) or High for both jacks. High gives har
 
 Settings → DAC filter chooses how the DAC smooths the sound: Fast, low latency (the default, as on FiiO's firmware), Fast, phase compensated, Slow, low latency, Slow, phase compensated, or Non-oversampling. Fast filters keep the treble flat almost to the top of the range and cut sharply above it; slow ones begin to roll off a little earlier and more gently. Low latency filters delay the sound less; phase compensated ones keep every frequency in step. Non-oversampling skips the smoothing and softens the highest treble a little at 44.1 and 48 kHz.
 
-Gain and DAC filter apply when you press ▶, not while you scroll. During playback the sound mutes for a moment while the player changes them. Both are kept across restarts.
+Gain and DAC filter apply when you press ▶, not while you scroll. During playback the sound mutes for a moment while the player changes them. Both are kept across restarts. If the DAC doesn't take a change, the player says "Couldn't change gain" or "Couldn't change the filter", keeps the previous setting and stays silent until the DAC answers again; choose it again, or pause and play, to retry.
 
 ## Headphone profiles
 

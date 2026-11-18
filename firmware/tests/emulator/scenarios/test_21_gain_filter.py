@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
+    english,
     main,
     SETTINGS_PATH,
 )
@@ -68,6 +69,47 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(len(starts), 1)
         self.assertEqual(machine.watchdog_resets, 0)
         self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_a_failed_gain_change_stays_muted_unsaved_and_rechecks_before_unmuting(self):
+        rig = self.playback_rig()
+        machine, session = rig.machine, rig.session
+        toasts = self.collect_toasts(machine)
+        events = rig.audio.dac_events
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(500)
+        machine.uc.mem_write(machine.symbols["dac_up"], b"\x01")
+        rig.press_many("back", 3)
+        rig.press("previous")
+        rig.press("play")
+        rig.audio.analog_fault = True
+        events.clear()
+        rig.press_many("next", GAIN_ROW_FROM_TOP)
+        rig.press("play")
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(1, events.count("apply"), events)
+        self.assertNotIn("unmute", events[events.index("apply"):])
+        self.assertEqual(english("STR_GAIN_NOT_CHANGED"), toasts[-1])
+        rig.press("play")
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(2, events.count("apply"), events)
+        self.assertNotIn("unmute", events)
+        saved = session.fat().read(SETTINGS_PATH)
+        if saved:
+            self.assertEqual(0, saved[SETTINGS_GAIN_FIELD])
+        rig.audio.analog_fault = False
+        events.clear()
+        rig.press("menu")
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertIn("unmute", events)
+        self.assertLess(events.index("apply"), events.index("unmute"), events)
+        self.assertEqual(machine.watchdog_resets, 0)
         self.assert_healthy(session)
 
 

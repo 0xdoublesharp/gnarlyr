@@ -55,6 +55,7 @@ typedef struct FakeAudio {
     uint8_t bluetooth_volume;
     HalAudioGain gain;
     HalAudioFilter filter;
+    bool analog_fails;
     uint8_t volume_at_gain;
     uint8_t dac_volume_at_gain;
     HalAudioOutput output;
@@ -836,16 +837,29 @@ HeadphoneAudio hal_audio_headphones(void)
     return fake.audio.headphones;
 }
 
-void hal_audio_set_gain(HalAudioGain gain)
+void fake_hal_fail_analog(bool fails)
 {
+    fake.audio.analog_fails = fails;
+}
+
+bool hal_audio_set_gain(HalAudioGain gain)
+{
+    if (fake.audio.analog_fails) {
+        return false;
+    }
     fake.audio.gain = gain;
     fake.audio.volume_at_gain = fake.audio.volume;
     fake.audio.dac_volume_at_gain = fake.dac_volume;
+    return true;
 }
 
-void hal_audio_set_filter(HalAudioFilter filter)
+bool hal_audio_set_filter(HalAudioFilter filter)
 {
+    if (fake.audio.analog_fails) {
+        return false;
+    }
     fake.audio.filter = filter;
+    return true;
 }
 
 int fake_hal_audio_filter(void)

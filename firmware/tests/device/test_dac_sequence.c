@@ -803,6 +803,18 @@ static void an_unknown_filter_is_refused_without_touching_a_register(void)
     CHECK_EQUAL(0, fake.count);
 }
 
+static void an_unknown_chip_state_rewrites_gain_and_filter(void)
+{
+    DacBus bus = playing_bus(0, 0);
+    DacAnalog unknown = {.gain_high = true, .filter = DAC_ANALOG_UNKNOWN};
+    CHECK(dac_apply_analog(&bus, unknown, (DacAnalog){.gain_high = true, .filter = 1}));
+    bool gain_written = false;
+    for (int index = 0; index < fake.count; index++) {
+        gain_written |= fake.ops[index].kind == OP_WRITE && fake.ops[index].map == 0x080000;
+    }
+    CHECK(gain_written);
+}
+
 static void a_silent_bus_fails_a_gain_change(void)
 {
     DacBus bus = playing_bus(0, 0);
@@ -890,6 +902,7 @@ int main(void)
         TEST_CASE(a_filter_change_mutes_the_pcm_path_without_powering_down),
         TEST_CASE(an_unchanged_setting_touches_no_register),
         TEST_CASE(an_unknown_filter_is_refused_without_touching_a_register),
+        TEST_CASE(an_unknown_chip_state_rewrites_gain_and_filter),
         TEST_CASE(a_silent_bus_fails_a_gain_change),
         TEST_CASE(a_gain_timeout_never_writes_gain_or_releases_the_outputs),
         TEST_CASE(the_gain_setting_writes_the_headphone_gain_register),

@@ -12,8 +12,8 @@ ITEM_WORDS = 16
 WORD_BYTES = 4
 WORDS_PER_FRAME = 2
 RING_BYTES = 7 * 4000 * WORD_BYTES
-SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_apply_analog", "dac_path_start_transfer",
-                  "dac_path_stop_transfer", "dac_path_stop")
+SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_path_start_transfer", "dac_path_stop_transfer",
+                  "dac_path_stop")
 
 
 class AudioPath:
@@ -30,6 +30,8 @@ class AudioPath:
         self.resume_fault = False
         self.start_fault = False
         self.mute_fault = False
+        self.analog_fault = False
+        self.dac_events = []
         self.started_us = 0
         self.items = 0
         self.plays = []
@@ -54,6 +56,7 @@ class AudioPath:
         machine.stub_symbol("dmac_running", lambda machine: int(self.running))
         for name in SILENT_RETURNS:
             machine.stub_symbol(name, lambda machine: None)
+        machine.stub_symbol("dac_apply_analog", self.apply_analog)
         machine.hook_symbol("board_core1_start_stream", self.note_program)
         for name in ("core1_power_up", "core1_hold", "core1_prepare"):
             machine.stub_symbol(name, lambda machine: 0)
@@ -122,7 +125,12 @@ class AudioPath:
         self.output_fault |= self.start_fault
         self.start_fault = False
 
+    def apply_analog(self, machine):
+        self.dac_events.append("apply")
+        return 0 if self.analog_fault else 1
+
     def note_mute(self):
+        self.dac_events.append("mute" if self.machine.reg(UC_ARM_REG_R1) else "unmute")
         if self.machine.reg(UC_ARM_REG_R1):
             self.output_fault |= self.mute_fault
             self.mute_fault = False
