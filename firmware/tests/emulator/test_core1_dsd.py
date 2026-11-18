@@ -13,6 +13,7 @@ from dsd_fixture import signal, dsf, dff
 from echo_emulator.core1 import CLOCK_100_MHZ, CLOCK_200_MHZ, Core1, decode_stream
 
 ARGUMENTS = {}
+FRAMES = 4 * 4096 + 1000
 
 
 class DsdProgramTest(unittest.TestCase):
@@ -21,7 +22,7 @@ class DsdProgramTest(unittest.TestCase):
         report = []
         for ratio in (1, 2, 4):
             for channels in (1, 2):
-                data, _ = signal(2822400 * ratio, frames=6000, channels=channels)
+                data, _ = signal(2822400 * ratio, frames=FRAMES, channels=channels)
                 for container, extension in ((dsf, "dsf"), (dff, "dff")):
                     with tempfile.TemporaryDirectory() as temporary:
                         root = Path(temporary)
@@ -41,7 +42,7 @@ class DsdProgramTest(unittest.TestCase):
                                 self.assertEqual(2, result)
                         expected = struct.unpack(f"<{len(actual)}i", pcm.read_bytes())
                         self.assertEqual(expected, tuple(actual))
-                        self.assertEqual(6000 * channels, len(actual))
+                        self.assertEqual(FRAMES * channels, len(actual))
                         frames = ready[-1][0] - ready[1][0]
                         instructions = ready[-1][1] - ready[1][1]
                         cost = round(instructions * 1764 / frames)

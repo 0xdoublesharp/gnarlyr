@@ -424,8 +424,7 @@ static void containers_play_seek_and_reopen_through_the_shared_ring(void)
 
 static void failed_dsd_opens_and_reads_release_the_source(void)
 {
-    make_signal(2822400, 0, 64000);
-    container(1, 1, 2);
+    dsf(2822400, 1, 3 * 32 * DSD_OUTPUT_FRAMES);
     control = (StreamControl){0};
     StreamRegion region = {
         .control = &control, .samples = output, .ring = ring, .ring_bytes = sizeof ring};

@@ -82,6 +82,25 @@ an error, not a clean end. The 32 KiB input ring and 50,304-byte lookup/history/
 packet workspace fit the existing 128 KiB ring area. Static state is separate
 and the linker retains a 16 KiB stack reserve.
 
+Core 1 publishes 4,096-frame PCM blocks (46 ms at 88.2 kHz) into the two shared
+output slots. Core 0 takes at most one decoded block per audio service, so the
+block length bounds how fast it can drain core 1. With the earlier 512-frame
+blocks, the owner's player running build `405d960` took 312 blocks in a 3 s
+window of a stereo DSD64 sine (about 104 per second, 60% of real time), with
+an empty output buffer, 590 engine underruns and core 1 busy 57.5% of the time:
+core 1 rested with both slots full while core 0 starved. At 4,096 frames a
+service takes 46 ms of audio, beyond the 20 ms core 1 rests while its slots
+are full.
+
+`device_image_boot_test_dsd64_stereo_keeps_up_with_the_players_audio_service_cadence`
+models that hand-off. It lets the image's audio service run at most once per
+10 ms, gives core 1 a time-based budget of 150 instructions per microsecond
+(more than this stream needs, so decoding cost is not the limit) and analyses
+the frames the output DMA plays. With 512-frame blocks the 1 kHz level falls
+from 0.35 to 0.25 within 0.25 s; with 4,096-frame blocks every window stays at
+the reference. The emulator does not model core 1's SysTick rests or real
+cycle costs.
+
 A seek starts at least 40 PCM frames before its target, rounded down to a whole
 DSF channel-block pair or a DFF PCM-frame boundary. Normal decoding rebuilds all
 history, and the source discards frames before the requested global PCM
@@ -103,20 +122,23 @@ two million cycles at 100 MHz or four million at 200 MHz.
 
 `core1_dsd_decodes_in_emulator` compares generated DSF/DFF PCM with the native
 reference and measures all three DSD rates. The following are the larger DSF/DFF
-steady means and normalized full 512-frame block peaks, excluding setup and the
+steady means and normalized full 4,096-frame block peaks, excluding setup and the
 partial final block:
 
 | Stream | MHz | Mean instructions / 20 ms | Peak / 20 ms | Peak ideal budget used | Playback |
 |---|---:|---:|---:|---:|---|
-| DSD64 mono | 100 | 1,294,994 | 1,347,117 | 67.4% | Accepted |
-| DSD64 stereo | 200 | 1,922,817 | 2,025,844 | 50.6% | Accepted |
-| DSD128 mono | 200 | 1,683,174 | 1,695,094 | 42.4% | Accepted |
-| DSD128 stereo | 200 | 2,523,342 | 2,539,195 | 63.5% | Accepted |
-| DSD256 mono | 200 | 2,495,337 | 2,504,742 | 62.6% | Accepted |
-| DSD256 stereo | 200 | 3,756,654 | 3,772,617 | 94.3% | Refused |
+| DSD64 mono | 100 | 1,298,244 | 1,304,051 | 65.2% | Accepted |
+| DSD64 stereo | 200 | 1,928,655 | 1,938,850 | 48.5% | Accepted |
+| DSD128 mono | 200 | 1,686,086 | 1,692,079 | 42.3% | Accepted |
+| DSD128 stereo | 200 | 2,528,170 | 2,538,765 | 63.5% | Accepted |
+| DSD256 mono | 200 | 2,496,697 | 2,503,881 | 62.6% | Accepted |
+| DSD256 stereo | 200 | 3,758,287 | 3,770,464 | 94.3% | Refused |
 
 Admission requires both mean and full-block peak below 80% of the selected
 ideal instruction budget. Stereo DSD256 is refused before transport startup.
 The shared PCM slots buffer channel-block snapshot bursts. Loads, branches,
-multiplies, memory waits and storage increase actual cycle costs; physical CPU
-margin remains unmeasured.
+multiplies, memory waits and storage increase actual cycle costs. On the
+player, the 512-frame build decoded the stereo DSD64 sine at about 1.05 times
+real time while core 1 was busy. If core 1 ran at the requested 200 MHz, that
+is roughly two cycles per counted instruction; the margin at that rate is small
+and needs a player measurement with the 4,096-frame blocks.

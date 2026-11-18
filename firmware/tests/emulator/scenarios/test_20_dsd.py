@@ -70,6 +70,35 @@ class EchoImageTest(EchoImageHarness):
                 self.assertAlmostEqual(expected, actual, delta=0.005)
         self.assert_healthy(rig.session)
 
+    def test_dsd64_stereo_keeps_up_with_the_players_audio_service_cadence(self):
+        from dsd_fixture import signal, dsf
+        from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        frames, window = 44100, 4410
+        data, samples = signal(2822400, frames + 2 * window)
+        volume = Fat32Volume()
+        volume.add_file("Sine.dsf", dsf(data, 2822400, samples))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        program = self.elf.with_name("core1_dsd.bin").read_bytes()
+        bridge = Core1Bridge(rig.audio, {CORE1_DSD: program}, instructions_per_us=150)
+        self.limit_audio_service(rig, 10000)
+        played = self.capture_played(rig, frames)
+        rig.open_songs()
+        rig.play_song(1)
+        for _ in range(40):
+            if len(played) == frames:
+                break
+            rig.run_for(50)
+        self.assertEqual(frames, len(played))
+        self.assertEqual([CORE1_DSD], bridge.started)
+        for start in range(window, frames - window + 1, window):
+            for channel, frequency in enumerate((1000, 1321)):
+                words = [frame[channel] for frame in played[start:start + window]]
+                self.assertGreater(self.tone_level(words, 88200, frequency), 0.34, (start, channel))
+        self.assert_healthy(rig.session)
+
     def test_dsd256_mono_seeks_to_the_saved_pcm_position(self):
         from dsd_fixture import signal, dsf
         from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
