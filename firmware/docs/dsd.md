@@ -34,6 +34,8 @@ The first stage is a fifth-order CIC FIR, the convolution of five unit-gain
 boxes of length R, where R is 16, 32 or 64 for DSD64, DSD128 or DSD256. It
 converts to 176.4 kHz. Its lengths are 76, 156 and 316 DSD samples. Byte lookup
 tables evaluate that FIR directly; there are no wrapping integrator states.
+The tables are built for the stream's stored bit order, so MSB-first bytes index
+them without being reversed.
 Coefficients are exact integers with DC sums R^5 (2^20, 2^25 and 2^30). The
 result is represented at Q28 for the following stage.
 
@@ -51,6 +53,11 @@ coefficients. The native double-precision reference independently convolves
 five boxes and integrates the compensation response; sine, sweep, alternating
 and 0x69 silence, overload and partial-byte fixtures agree within 32 units at
 24-bit scale. ARM output matches native output exactly on generated fixtures.
+`dsd_conversion_is_pinned_bit_for_bit_across_layouts_and_starved_reads` pins the
+native output, block lengths, first frames and released positions to one hash
+for all three rates, both channel counts, all three layouts, lengths from 1 to
+300,003 bits, sine, random, silence and overload signals, each read with and
+without a failure on every third read.
 
 DSD's conventional reference peak is -6.02 dB relative to the full +/-1 bit
 stream. A factor of two restores that reference peak to PCM full scale. All
@@ -78,8 +85,13 @@ DFF, 1 is LSB-first DSF and 2 is MSB-first DSF.
 Core 1 snapshots complete channel blocks before releasing their ring bytes and
 checks generations after reads. A starved read retains its staged output;
 reopening resets history and rejects old generations. Storage failure remains
-an error, not a clean end. The 32 KiB input ring and 50,304-byte lookup/history/
-packet workspace fit the existing 128 KiB ring area. Static state is separate
+an error, not a clean end. Each channel's bytes go to a lane: DSF channel blocks
+and mono DFF are read straight into it, and stereo DFF is split once per packet.
+A lane keeps the 40 bytes before its packet, so every first-stage window is
+contiguous. Two lanes per channel alternate, so a failed read leaves the live
+lane untouched and is simply retried. The 32 KiB input ring and the 66,720-byte
+workspace (lookup tables, interleaved second-stage history, lanes and the DFF
+staging buffer) fit the existing 128 KiB ring area. Static state is separate
 and the linker retains a 16 KiB stack reserve.
 
 Core 1 publishes 4,096-frame PCM blocks (46 ms at 88.2 kHz) into the two shared
@@ -127,18 +139,48 @@ partial final block:
 
 | Stream | MHz | Mean instructions / 20 ms | Peak / 20 ms | Peak ideal budget used | Playback |
 |---|---:|---:|---:|---:|---|
-| DSD64 mono | 100 | 1,298,244 | 1,304,051 | 65.2% | Accepted |
-| DSD64 stereo | 200 | 1,928,655 | 1,938,850 | 48.5% | Accepted |
-| DSD128 mono | 200 | 1,686,086 | 1,692,079 | 42.3% | Accepted |
-| DSD128 stereo | 200 | 2,528,170 | 2,538,765 | 63.5% | Accepted |
-| DSD256 mono | 200 | 2,496,697 | 2,503,881 | 62.6% | Accepted |
-| DSD256 stereo | 200 | 3,758,287 | 3,770,464 | 94.3% | Refused |
+| DSD64 mono | 100 | 795,067 | 799,743 | 40.0% | Accepted |
+| DSD64 stereo | 200 | 1,263,317 | 1,278,211 | 32.0% | Accepted |
+| DSD128 mono | 200 | 1,003,477 | 1,008,615 | 25.2% | Accepted |
+| DSD128 stereo | 200 | 1,673,420 | 1,688,203 | 42.2% | Accepted |
+| DSD256 mono | 200 | 1,367,906 | 1,373,388 | 34.3% | Accepted |
+| DSD256 stereo | 200 | 2,444,115 | 2,459,092 | 61.5% | Refused |
 
 Admission requires both mean and full-block peak below 80% of the selected
-ideal instruction budget. Stereo DSD256 is refused before transport startup.
+ideal instruction budget. Stereo DSD256 now passes that screen but is still
+refused before transport startup; admitting it needs a player check.
 The shared PCM slots buffer channel-block snapshot bursts. Loads, branches,
-multiplies, memory waits and storage increase actual cycle costs. On the
-player, the 512-frame build decoded the stereo DSD64 sine at about 1.05 times
-real time while core 1 was busy. If core 1 ran at the requested 200 MHz, that
-is roughly two cycles per counted instruction; the margin at that rate is small
-and needs a player measurement with the 4,096-frame blocks.
+multiplies, memory waits and storage increase actual cycle costs.
+
+With 4,096-frame blocks, the owner's player running build `e1ee5587` played a
+5 s stereo DSD64 DSF sine with no underruns over a 3 s measure while core 1 was
+busy 95.3% of the time (`core1_busy_permille 953`). That figure is core 1's time
+outside its idle waits as a share of elapsed time; at 200 MHz it is about 190
+million busy cycles per second against that build's 95.9 million counted
+instructions, about two cycles per instruction.
+
+## Converter cost
+
+The converter was then rewritten for speed with unchanged output: the pinned
+hash above did not change. The first stage reads each channel's lane with
+fixed offsets instead of a masked 64-byte ring, and the bit order lives in the
+tables. The second stage computes both channels in one pass that loads each
+coefficient once and reads interleaved history; it is kept out of line because
+inlining it into the decode loop made GCC spill the coefficients. The history
+scaling uses two fixed shifts, and stepping within a packet has a fast path.
+
+| Stereo DSD64 DSF | Before | After | Change |
+|---|---:|---:|---:|
+| Instructions per 20 ms (`core1_dsd_decodes_in_emulator`) | 1,914,646 | 1,219,371 | -36.3% |
+| Million instructions per second (`core1_bench.py --format dsd`) | 95.89 | 61.11 | -36.3% |
+| Weighted cycles per output frame | about 1,970 | about 1,413 | -28% |
+
+The weighted figure applies Cortex-M3 timings to the emulator's per-instruction
+profile: 2 cycles per load or store, 3 per `LDRD`/`STRD`, 1 + n per n-register
+`LDM`/`POP`, 6 per `SMLAL`, 4 per `SMULL`, 3 per taken branch, 1 otherwise.
+The 64 long multiply-accumulates per stereo frame and their loads remain, so
+cycles fall less than instructions. Scaling the player's
+953 permille by the weighted change predicts about 680 permille at 200 MHz.
+That is an estimate; the rewritten converter has not been measured on the
+player. `-O3` for `core1_dsd.c` measured 60.91 million instructions per second
+against 61.11 million at `-O2`, so the file keeps the project's `-O2`.

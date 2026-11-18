@@ -93,6 +93,9 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - Generated native reference tests, filter-response checks and ARM decoder
   comparisons cover software behavior. Physical playback and real-time margin
   have not been checked on the player.
+- The converter now needs about a third fewer core-1 instructions for the same
+  output (stereo DSD64: 1.91 to 1.22 million per 20 ms in the emulator). Its
+  load on the player has not been measured yet.
 
 ## Unreleased: AIFF playback
 
