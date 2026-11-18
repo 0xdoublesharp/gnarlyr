@@ -76,6 +76,44 @@ class Panel:
             else:
                 self.rows = span
 
+    def pixels(self, values):
+        window = self.window
+        if window is None:
+            return
+        if window.width <= 0 or window.height <= 0:
+            for value in values:
+                self.pixel(value)
+            return
+        count = min(len(values), window.width * window.height - window.pixels)
+        accepted = values[:count]
+        window.pixels += count
+        window.nonzero += count - accepted.count(0)
+        self.pixel_total += count
+        self.place_span(window, accepted)
+        if window.complete:
+            self.window = None
+            self.track_sweep(window)
+
+    def place_span(self, window, values):
+        width, done = window.width, 0
+        while done < len(values):
+            row, column = divmod(self.position, width)
+            length = min(len(values) - done, width - column)
+            self.place_row(window.rows[0] + row - FIRST_VISIBLE_ROW,
+                           window.columns[0] + column, values[done:done + length])
+            self.position += length
+            done += length
+
+    def place_row(self, y, x, values):
+        first, last = max(x, 0), min(x + len(values), WIDTH)
+        if not 0 <= y < HEIGHT or first >= last:
+            self.out_of_range += len(values)
+            return
+        start = y * WIDTH
+        self.frame[start + first:start + last] = values[first - x:last - x]
+        self.painted[start + first:start + last] = b"\x01" * (last - first)
+        self.out_of_range += len(values) - (last - first)
+
     def pixel(self, value):
         window = self.window
         if window is None:
