@@ -77,7 +77,9 @@ static void apply_action(DiscoveryScreen *screen, Scratch *scratch, uint8_t valu
     case 2:
     case 3:
         screen->screen.handle_key(
-            screen, (KeyEvent){.key = KEYS[value % 5], .gesture = GESTURES[(value / 5) % 5]},
+            screen,
+            (KeyEvent){.key = KEYS[value % 5],
+                       .gesture = GESTURES[(value / 5) % (sizeof GESTURES / sizeof GESTURES[0])]},
             now_ms);
         break;
     case 4:
