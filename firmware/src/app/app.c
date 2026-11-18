@@ -178,7 +178,6 @@ typedef struct AppState {
     uint32_t charge_lit_until_ms;
     KeyLock lock;
     KeyChord chord;
-    bool chorded[KEY_COUNT];
     HalBattery charge_battery;
     HalAudioJack listener_jack;
     bool listener_bluetooth;
@@ -249,16 +248,11 @@ static void pass_key(Key key, bool pressed, uint32_t time_ms, bool chord)
 {
     if (!pressed) {
         key_tracker_key_up(&app.keys, key, time_ms);
-        return;
+    } else if (chord) {
+        key_tracker_chord_down(&app.keys, key, time_ms);
+    } else {
+        key_tracker_key_down(&app.keys, key, time_ms);
     }
-    if (key == KEY_VOLUME_UP || key == KEY_VOLUME_DOWN) {
-        use_screen_key_behaviors();
-        app.chorded[key] = chord;
-        if (chord) {
-            key_tracker_set_behavior(&app.keys, key, KEY_BEHAVIOR_TAP_HOLD_REPEAT);
-        }
-    }
-    key_tracker_key_down(&app.keys, key, time_ms);
 }
 
 static bool pass_through_chord(Key key, HalKeyTransition transition)
@@ -971,8 +965,6 @@ static void dispatch_key_events(uint32_t now_ms)
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
         app.render_urgent = true;
         debug_loop_key(event);
-        event.chord =
-            (event.key == KEY_VOLUME_UP || event.key == KEY_VOLUME_DOWN) && app.chorded[event.key];
         if ((app.power.standby_active && event.key != KEY_POWER) || ignored_power_tap(event)) {
             continue;
         }

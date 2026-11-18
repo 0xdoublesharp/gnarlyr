@@ -2,9 +2,14 @@
 
 #include "core/deadline.h"
 
+static KeyBehavior behavior_of(const KeyTracker *tracker, Key key)
+{
+    return (KeyBehavior)tracker->states[key].behavior;
+}
+
 static bool repeats(const KeyTracker *tracker, Key key)
 {
-    return tracker->config.behaviors[key] == KEY_BEHAVIOR_REPEAT;
+    return behavior_of(tracker, key) == KEY_BEHAVIOR_REPEAT;
 }
 
 static uint32_t supported_delay(uint32_t delay_ms)
@@ -14,12 +19,12 @@ static uint32_t supported_delay(uint32_t delay_ms)
 
 static bool repeats_after_hold(const KeyTracker *tracker, Key key)
 {
-    return tracker->config.behaviors[key] == KEY_BEHAVIOR_TAP_HOLD_REPEAT;
+    return behavior_of(tracker, key) == KEY_BEHAVIOR_TAP_HOLD_REPEAT;
 }
 
 static uint8_t click_limit(const KeyTracker *tracker, Key key)
 {
-    switch (tracker->config.behaviors[key]) {
+    switch (behavior_of(tracker, key)) {
     case KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT:
         return 2;
     case KEY_BEHAVIOR_TRIPLE_CLICK_OR_HOLD:
@@ -58,8 +63,10 @@ static void push_event(KeyTracker *tracker, Key key, KeyGesture gesture)
         return;
     }
     uint32_t slot = (tracker->queue_start + tracker->queue_length) % KEY_TRACKER_QUEUE_CAPACITY;
-    tracker->queue[slot] =
-        (KeyEvent){.key = key, .gesture = gesture, .repeats = tracker->states[key].repeats};
+    tracker->queue[slot] = (KeyEvent){.key = key,
+                                      .gesture = gesture,
+                                      .repeats = tracker->states[key].repeats,
+                                      .chord = tracker->states[key].chord};
     tracker->queue_length++;
 }
 
@@ -80,7 +87,7 @@ void key_tracker_set_behavior(KeyTracker *tracker, Key key, KeyBehavior behavior
     tracker->config.behaviors[key] = behavior;
 }
 
-void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms)
+static void press(KeyTracker *tracker, Key key, uint32_t now_ms, bool chord)
 {
     KeyState *state = &tracker->states[key];
     if (state->held) {
@@ -88,6 +95,9 @@ void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms)
     }
     *state = (KeyState){
         .held = true,
+        .chord = chord,
+        .behavior =
+            (uint8_t)(chord ? KEY_BEHAVIOR_TAP_HOLD_REPEAT : tracker->config.behaviors[key]),
         .pressed_at_ms = now_ms,
         .next_repeat_at_ms = now_ms + tracker->config.timing.repeat_delay_ms,
         .clicks = state->clicks,
@@ -96,6 +106,16 @@ void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms)
     if (repeats(tracker, key)) {
         push_event(tracker, key, KEY_GESTURE_PRESS);
     }
+}
+
+void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms)
+{
+    press(tracker, key, now_ms, false);
+}
+
+void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms)
+{
+    press(tracker, key, now_ms, true);
 }
 
 static void flush_clicks(KeyTracker *tracker, Key key)
@@ -135,7 +155,7 @@ static void finish_tap_or_hold(KeyTracker *tracker, Key key, uint32_t now_ms)
 
 static bool clicks_then_repeats(const KeyTracker *tracker, Key key)
 {
-    return tracker->config.behaviors[key] == KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT;
+    return behavior_of(tracker, key) == KEY_BEHAVIOR_DOUBLE_CLICK_REPEAT;
 }
 
 void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms)

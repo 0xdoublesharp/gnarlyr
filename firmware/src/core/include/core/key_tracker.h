@@ -47,6 +47,8 @@ typedef struct KeyConfig {
 
 typedef struct KeyState {
     bool held;
+    bool chord;
+    uint8_t behavior;
     bool long_press_sent;
     uint32_t pressed_at_ms;
     uint32_t next_repeat_at_ms;
@@ -66,6 +68,7 @@ typedef struct KeyTracker {
 void key_tracker_init(KeyTracker *tracker, const KeyConfig *config);
 void key_tracker_set_behavior(KeyTracker *tracker, Key key, KeyBehavior behavior);
 void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms);
+void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms);
 void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms);
 void key_tracker_cancel(KeyTracker *tracker, Key key);
 void key_tracker_forget(KeyTracker *tracker, Key key);

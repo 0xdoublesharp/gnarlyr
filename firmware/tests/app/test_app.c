@@ -2400,6 +2400,35 @@ static void play_and_volume_in_a_list_select_before_moving_as_before(void)
     CHECK(title_is("Music"));
 }
 
+static void a_screen_change_during_a_chord_keeps_the_chord_tap(void)
+{
+    play_on_now_playing();
+    press_key(KEY_PLAY);
+    press_key(KEY_VOLUME_UP);
+    tap(KEY_POWER);
+    CHECK(!fake_hal_display_on());
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_PLAY);
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+}
+
+static void a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    press_key(KEY_PLAY);
+    uint32_t at = now_ms;
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, at + 10);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, at + 60);
+    fake_hal_queue_transition(KEY_PLAY, false, at + 110);
+    fake_hal_queue_transition(KEY_VOLUME_UP, true, at + 160);
+    fake_hal_queue_transition(KEY_VOLUME_UP, false, at + 200);
+    now_ms = at + 250;
+    step();
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
+}
+
 static void play_and_power_lock_and_unlock_the_buttons(void)
 {
     start_app_with_library();
@@ -6814,6 +6843,8 @@ int main(void)
         TEST_CASE(a_one_sample_idle_blip_under_play_still_allows_a_chord),
         TEST_CASE(a_menu_press_between_play_and_volume_is_not_a_chord),
         TEST_CASE(play_and_volume_in_a_list_select_before_moving_as_before),
+        TEST_CASE(a_screen_change_during_a_chord_keeps_the_chord_tap),
+        TEST_CASE(a_later_plain_press_in_the_same_batch_keeps_the_earlier_chord_tap),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),
