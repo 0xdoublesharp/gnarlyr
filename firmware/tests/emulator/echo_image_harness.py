@@ -1015,6 +1015,44 @@ class EchoImageHarness(unittest.TestCase):
         machine.hook_symbol("audio_engine_pump", capture)
         return samples
 
+    def limit_audio_service(self, rig, interval_us):
+        from echo_emulator.machine import STUB_RETURN
+        from unicorn.arm_const import UC_ARM_REG_PC
+        machine, last = rig.machine, [None]
+
+        def service():
+            now = machine.microseconds()
+            if last[0] is not None and now - last[0] < interval_us:
+                machine.uc.reg_write(UC_ARM_REG_PC, STUB_RETURN | 1)
+                return
+            last[0] = now
+
+        machine.hook_symbol("hal_audio_service", service)
+
+    def capture_played(self, rig, total):
+        machine, audio, frames, done = rig.machine, rig.audio, [], [None]
+
+        def played():
+            if not audio.running:
+                return
+            ring_frames = audio.ring_words() // 2
+            now = audio.elapsed_us(machine) * audio.rate // 1000000
+            done[0] = now if done[0] is None else done[0]
+            while done[0] < now and len(frames) < total:
+                slot = done[0] % ring_frames
+                frames.append(struct.unpack("<II", machine.read_memory(audio.dma_ring + slot * 8, 8)))
+                done[0] += 1
+
+        machine.hook_symbol("audio_engine_pump", played)
+        return frames
+
+    def tone_level(self, words, rate, frequency):
+        values = [(word - 2 ** 32 if word & 0x80000000 else word) / 2 ** 31 for word in words]
+        step = 2 * math.pi * frequency / rate
+        real = sum(value * math.cos(step * index) for index, value in enumerate(values))
+        imaginary = sum(value * math.sin(step * index) for index, value in enumerate(values))
+        return math.hypot(real, imaginary) / len(values)
+
     def converted_reference(self, channels, factor, count):
         import audio_resample_table
         rows = [audio_resample_table.coefficients(12 * phase // factor) for phase in range(factor)]
