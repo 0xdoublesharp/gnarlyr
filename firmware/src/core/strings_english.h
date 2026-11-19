@@ -773,6 +773,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_QUICK_SETTINGS] = "Quick Settings",
     [STR_QUICK_SETTINGS_HINT] = "Play: change · Back: close",
     [STR_PLAYBACK_SPEED] = "Playback speed",
+    [STR_SPEED] = "Speed",
     [STR_LISTENING_STATS] = "Recap",
     [STR_CLEAR_HISTORY] = "Clear history",
     [STR_EXPORT_FIRST] = "Export plays first",

@@ -290,7 +290,7 @@ static void sleep_is_chosen_for_the_same_session_timer_and_does_not_persist(void
 static void speed_is_listed_only_while_playback_can_change_speed(void)
 {
     start();
-    CHECK(strcmp(panel.model.label(&panel, SPEED_ROW), i18n_text(STR_PLAYBACK_SPEED)) == 0);
+    CHECK(strcmp(panel.model.label(&panel, SPEED_ROW), i18n_text(STR_SPEED)) == 0);
     CHECK(row_detail_is(SPEED_ROW, STR_SPEED_100));
     pick(SPEED_ROW, SETTINGS_SPEED_NORMAL + 1);
     CHECK_EQUAL(SETTINGS_SPEED_NORMAL + 1, settings.settings.playback_speed);
@@ -561,6 +561,27 @@ static void check_submenu_fits(size_t submenu, int layout)
     }
 }
 
+static void every_row_label_and_value_is_shown_whole_at_every_size_and_orientation(void)
+{
+    start();
+    player.loaded = true;
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            set_layout(orientation, size);
+            panel.screen.enter(&panel, 100);
+            for (int row = ROWS - 1; row >= 0; row--) {
+                list_view_select(&panel.list, row, 100);
+                Canvas canvas = full_canvas();
+                text_spy_reset();
+                panel.screen.draw(&panel, &canvas);
+                CHECK(shown_whole(panel.model.label(&panel, row)));
+                const char *value = panel.model.detail(&panel, row);
+                CHECK(value == NULL || shown_whole(value));
+            }
+        }
+    }
+}
+
 static void every_submenu_fits_every_text_size_and_orientation(void)
 {
     start();
@@ -602,6 +623,7 @@ int main(void)
         TEST_CASE(all_rows_fit_every_theme_orientation_and_text_size),
         TEST_CASE(the_a_b_row_fits_every_text_size_and_orientation),
         TEST_CASE(the_style_row_fits_every_text_size_and_orientation),
+        TEST_CASE(every_row_label_and_value_is_shown_whole_at_every_size_and_orientation),
         TEST_CASE(every_submenu_fits_every_text_size_and_orientation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

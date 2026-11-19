@@ -253,11 +253,13 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 
 ## Quick Settings
 
-Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and Vol− to the previous row; ▶ changes the selected value immediately. Back closes the panel and hold Back goes Home. Menu returns to Now Playing.
+Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and Vol− to the previous row. Back closes the panel and hold Back goes Home. Menu returns to Now Playing.
 
-The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphones (Off and your four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), A–B repeat (Off, A set, A–B; see [A–B repeat](#ab-repeat)), Now Playing (Cover, Cassette, VU meters, Spectrum; see [Now Playing style](#now-playing-style)), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Settings → Home screen can also put Up Next on Home. Hold Menu on Now Playing still opens Lyrics directly.
+Rows with two or three values change in place: ▶ on Shuffle, Repeat or Transitions steps to the next value at once, and ▶ on A–B repeat sets A, then B, then clears. Rows with more values show › and open a list of all of them: Equalizer, Headphones, Speed, Sleep timer, ReplayGain and Now Playing. The list starts on the current value, which is ticked. Vol+ and Vol− move, ▶ chooses and returns to Quick Settings with the row showing the new value, and Back returns without changing anything. Choosing doesn't preview: the value applies when you press ▶.
 
-Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Play on Playback speed steps to the next speed (after 3× it returns to 0.5×), applies it at once and saves it. Play on Now Playing steps to the next style (after Spectrum it returns to Cover) and saves it as Settings → Now Playing style; Now Playing shows the new style when you close the panel, and playback carries on.
+The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphones (Off and your four profiles), Speed (the playback speed), Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), A–B repeat (Off, A set, A–B; see [A–B repeat](#ab-repeat)), Now Playing (Cover, Cassette, VU meters, Spectrum; see [Now Playing style](#now-playing-style)), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next also show › and open their screens; Back returns to the selected panel row. Settings → Home screen can also put Up Next on Home. Hold Menu on Now Playing still opens Lyrics directly.
+
+Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. A speed chosen from Speed applies at once and is saved. A style chosen from Now Playing is saved as Settings → Now Playing style; Now Playing shows it when you close the panel, and playback carries on.
 ## Long lists and whole artists
 
 In Artists, Album artists, Albums, Songs, Genres, Playlists and Favorites, hold Vol+ or Vol− to move faster, then jump to the start of each letter section. The same gesture works in name-sorted search results and filter choices, genre albums, and the name-sorted folders and files on Folders, Audiobooks and Podcasts. The badge shows the current letter and disappears shortly after release. Accents and a leading “The” follow the library's sorting; digits and symbols show **#**, at their place in the sort order. Small sections are kept, and holding stops at the ends. Lists that fit on one screen keep their ordinary scrolling.
@@ -268,7 +270,7 @@ Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums*
 
 ## Now Playing style
 
-Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and **Spectrum**. Cover is the default, and your choice stays after a restart. To change it while listening, tap Menu on Now Playing and press ▶ on the Now Playing row of Quick Settings; the new style appears when you close the panel. Both places change the same setting.
+Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and **Spectrum**. Cover is the default, and your choice stays after a restart. To change it while listening, tap Menu on Now Playing, press ▶ on the Now Playing row of Quick Settings and choose a style; the new style appears when you close the panel. Both places change the same setting.
 
 Cassette puts the title, artist and album inside a neon wireframe shell above the theme's perspective floor. The left reel empties and the right reel fills as the track advances; the spokes turn during playback and stop when paused.
 
@@ -465,7 +467,7 @@ Fade plays one song after the other. A crossfade, where the next song starts whi
 
 ## Playback speed
 
-Playback speed plays faster or slower without changing the pitch: 0.5×, 0.75×, Normal (1×), 1.25×, 1.5×, 1.75×, 2×, 2.5× or 3×. On Now Playing, tap Menu to open Quick Settings and press Play on Playback speed to step through the speeds; it is also in Settings, below Status bar and above Rewind on resume. The speed applies at once and is saved for the next start. While it isn't Normal, Now Playing shows it under the track in the Cover style, and in portrait with any style. Track times, seeking, bookmarks and resume positions keep using the recording's own time. Listening history counts time in the recording's own time too, so a song played to the end counts as a listen at any speed.
+Playback speed plays faster or slower without changing the pitch: 0.5×, 0.75×, Normal (1×), 1.25×, 1.5×, 1.75×, 2×, 2.5× or 3×. On Now Playing, tap Menu to open Quick Settings, press Play on Speed and choose a speed from the list; it is also in Settings, below Status bar and above Rewind on resume. The speed applies at once and is saved for the next start. While it isn't Normal, Now Playing shows it under the track in the Cover style, and in portrait with any style. Track times, seeking, bookmarks and resume positions keep using the recording's own time. Listening history counts time in the recording's own time too, so a song played to the end counts as a listen at any speed.
 
 Recordings above 48 kHz always play at normal speed.
 
@@ -518,7 +520,7 @@ Podcasts/
 - Books and episodes don't appear in Albums, Artists, Album Artists, Genres or Songs; you can also reach them through Music → Folders.
 - **Skip silence** (Settings → Skip silence) shortens long pauses in books and episodes. A pause that lasts more than a quarter of a second is cut to a quarter of a second, with a short fade, so speech carries on sooner. Pauses shorter than that play as recorded. Music isn't affected. Positions, bookmarks, chapters and the time shown on Now Playing stay in the recording's own time, so a book resumes exactly where it was even after skipped pauses.
 - **Speech boost** (Settings → Speech boost) evens out the volume of books and episodes: quiet voices are raised by up to 12 dB and loud passages are brought down, so you don't have to keep changing the volume. Room noise below the voices isn't raised, and the output never goes above full scale. Music isn't affected.
-- Change the speed for spoken word on Now Playing: tap Menu, then press Play on Playback speed in Quick Settings (see Playback speed). Positions, bookmarks and chapters still refer to the original recording.
+- Change the speed for spoken word on Now Playing: tap Menu, then press Play on Speed in Quick Settings and choose a speed (see Playback speed). Positions, bookmarks and chapters still refer to the original recording.
 - **HE-AAC doesn't play.** An `.m4b` or `.m4a` that isn't AAC-LC or Apple Lossless (HE-AAC with SBR or PS, xHE-AAC) is refused with "Only AAC-LC and ALAC M4A play". Libation can download AAC-LC: in Libation's settings, leave "Request xHE-AAC Codec" off (Libation's FAQ says that makes it download AAC-LC); it keeps whatever codec Audible delivers and doesn't re-encode, so the files may still be HE-AAC for some titles. Libation names every non-MP3 file `.m4b`, whatever its codec.
 
 ## Updating Gnarlyr
