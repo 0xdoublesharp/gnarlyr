@@ -116,6 +116,17 @@ void settings_action_apply_transitions(SettingsContext *context)
     settings_action_save(context);
 }
 
+int settings_action_current_now_playing(const void *context)
+{
+    return (int)settings_now_playing_style(settings_of(context));
+}
+
+void settings_action_choose_now_playing(void *context, int index)
+{
+    settings_set_now_playing_style(editable_settings(context), (NowPlayingStyle)index);
+    settings_action_save(context);
+}
+
 int settings_action_current_transition(const void *context)
 {
     return settings_of(context)->track_transition != TRACK_TRANSITION_OFF ? 1 : 0;

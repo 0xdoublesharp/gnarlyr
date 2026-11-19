@@ -255,7 +255,7 @@ static void lyrics_and_up_next_open_and_back_returns_to_the_panel(void)
 {
     start_with(settings_defaults());
     open_panel();
-    select_row(9);
+    select_row(10);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Lyrics") == 0);
     tap(KEY_BACK);

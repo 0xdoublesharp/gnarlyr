@@ -20,6 +20,7 @@ enum {
     TRANSITIONS,
     REPLAY_GAIN,
     AB_REPEAT,
+    STYLE,
     LYRICS,
     UP_NEXT,
     ROW_COUNT
@@ -30,7 +31,7 @@ static EqualizerPresets presets;
 static const StringId LABELS[] = {STR_SHUFFLE,     STR_REPEAT,         STR_EQUALIZER,
                                   STR_HEADPHONES,  STR_PLAYBACK_SPEED, STR_SLEEP_TIMER,
                                   STR_TRANSITIONS, STR_REPLAY_GAIN,    STR_AB_LOOP,
-                                  STR_LYRICS,      STR_UP_NEXT};
+                                  STR_NOW_PLAYING, STR_LYRICS,         STR_UP_NEXT};
 static const StringId SHUFFLE_VALUES[] = {STR_OFF, STR_SHUFFLE_SONGS, STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_VALUES[] = {STR_OFF, STR_REPEAT_MODE_ONE, STR_REPEAT_MODE_ALL};
 static const StringId SLEEP_VALUES[] = {
@@ -39,6 +40,8 @@ static const StringId SLEEP_VALUES[] = {
 static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM,
                                          STR_REPLAY_GAIN_AUTO};
 static const StringId AB_VALUES[] = {STR_OFF, STR_AB_ROW_A, STR_AB_ROW_LOOP};
+static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
+                                        STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
 
 static bool has_speed(const QuickSettingsScreen *panel)
 {
@@ -91,6 +94,8 @@ static const char *detail(const void *context, int index)
         return i18n_text(REPLAY_VALUES[settings->store->settings.replay_gain_mode]);
     case AB_REPEAT:
         return i18n_text(AB_VALUES[settings->player->ab_repeat % 3u]);
+    case STYLE:
+        return i18n_text(STYLE_VALUES[settings_action_current_now_playing(settings)]);
     default:
         return NULL;
     }
@@ -152,6 +157,10 @@ static ScreenAction select_row(void *context, int index)
     case AB_REPEAT:
         ab_repeat_step(settings->player, settings->power, settings->toast,
                        hal_clock_milliseconds());
+        break;
+    case STYLE:
+        settings_action_choose_now_playing(settings,
+                                           (settings_action_current_now_playing(settings) + 1) % 4);
         break;
     case LYRICS:
         return screen_action_push(panel->config.lyrics);

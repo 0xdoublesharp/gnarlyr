@@ -13,6 +13,7 @@ from echo_image_harness import (
     KEY_PLAY,
     MODULE_LOAD_LIMIT_MS,
     MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW,
+    SETTINGS_PATH,
     STEP_GAP_WITH_A_MODULE_MS,
     english,
     fnv1a,
@@ -21,7 +22,8 @@ from echo_image_harness import (
 )
 from test_22_meter_styles import MovingFlac
 
-COVER, VU, SPECTRUM = 0, 2, 3
+COVER, CASSETTE, VU, SPECTRUM = 0, 1, 2, 3
+QUICK_SETTINGS_STYLE_ROW_FROM_END = 3
 
 ANIMATE_MS = 600
 STRIP_ALBUMS = 3
@@ -192,6 +194,98 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(max(call["us"] for call in watch.loads()), MODULE_LOAD_LIMIT_MS * 1000)
         self.assertEqual(machine.watchdog_resets, 0)
         self.assertEqual(machine.faults, [])
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def saved_style(self, rig):
+        settings = rig.session.fat().read(SETTINGS_PATH)
+        return (settings[51] >> 5 & 1) | (settings[52] >> 7) << 1
+
+    def switch_in_quick_settings(self, rig, watch, presses, first):
+        rig.press("menu")
+        _, equalizer = self.module(rig.machine, "equalizer")
+        self.assertTrue(equalizer.loaded(rig.machine))
+        if first:
+            rig.press_many("previous", QUICK_SETTINGS_STYLE_ROW_FROM_END)
+        opened = len(watch.loads())
+        for _ in range(presses):
+            rig.press("play")
+        self.assertEqual(opened, len(watch.loads()))
+        self.assertTrue(equalizer.loaded(rig.machine))
+        windows = len(rig.machine.panel.windows)
+        latency = self.release_to_first_draw_ms(rig.machine, KEY_BACK)
+        rig.run_for(ANIMATE_MS)
+        self.assertGreater(len(rig.machine.panel.windows), windows)
+        return latency
+
+    def playing_rig(self, style):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(style)
+        watch = ModuleWatch(rig.session)
+        rig.open_songs()
+        started = rig.play_song(1)
+        audible = rig.first_audio_after(started)
+        self.assertIsNotNone(audible)
+        rig.run_for(ANIMATE_MS)
+        return rig, watch, audible
+
+    def test_quick_settings_switches_cover_vu_spectrum_cassette_while_playing(self):
+        rig, watch, audible = self.playing_rig(COVER)
+        machine = rig.machine
+        stage, stage_overlay = self.module(machine, "stage")
+        playing, playing_overlay = self.module(machine, "playing")
+        equalizer, _ = self.module(machine, "equalizer")
+        mark = machine.milliseconds()
+        first = len(watch.loads())
+        latencies = {}
+        for style, presses, overlay in ((VU, 2, stage_overlay), (SPECTRUM, 1, stage_overlay),
+                                        (CASSETTE, 2, playing_overlay)):
+            latencies[style] = self.switch_in_quick_settings(rig, watch, presses, style == VU)
+            self.assertEqual(style, self.saved_style(rig))
+            self.assertTrue(overlay.loaded(machine))
+        loads = watch.loads()[first:]
+        self.assertEqual([(call["module"], call["loaded"]) for call in loads],
+                         [(equalizer, True), (stage, True), (equalizer, True), (stage, True),
+                          (equalizer, True), (playing, True)])
+        self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
+        self.assertLessEqual(max(latencies.values()), MODULE_LOAD_LIMIT_MS)
+        self.assertEqual([], rig.audio.underruns(audible))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assertLess(rig.longest_gap(mark), STEP_GAP_WITH_A_MODULE_MS)
+        self.assertTrue(rig.audio.running)
+        self.assertEqual(1, len(rig.audio.plays))
+        self.assert_module_code_never_written(watch)
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
+        print("\n" + json.dumps({"quick_settings_close_to_first_pixels_ms": latencies,
+                                 "loads": [(call["module"], round(call["us"] / 1000, 2))
+                                           for call in loads],
+                                 "longest_gap_ms": rig.longest_gap(mark)}))
+
+    def test_a_meter_style_chosen_in_quick_settings_without_an_intact_stage_shows_cover(self):
+        rig, watch, audible = self.playing_rig(COVER)
+        session, machine = rig.session, rig.machine
+        number, _ = self.module(machine, "stage")
+        playing_number, playing = self.module(machine, "playing")
+        equalizer, _ = self.module(machine, "equalizer")
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        toasts = self.collect_toasts(machine)
+        first = len(watch.loads())
+        self.switch_in_quick_settings(rig, watch, 2, True)
+        self.assertEqual(VU, self.saved_style(rig))
+        self.switch_in_quick_settings(rig, watch, 1, False)
+        self.assertEqual(SPECTRUM, self.saved_style(rig))
+        self.assertTrue(playing.loaded(machine))
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()[first:]],
+                         [(equalizer, True), (number, False), (playing_number, True),
+                          (equalizer, True), (playing_number, True)])
+        self.assertEqual(toasts, [])
+        self.assertEqual([], rig.audio.underruns(audible))
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 

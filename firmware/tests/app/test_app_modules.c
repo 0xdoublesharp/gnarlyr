@@ -102,6 +102,7 @@ static bool toast_is(const char *expected)
 
 static void start_app_with_style(NowPlayingStyle style)
 {
+    app_reset_for_test();
     fake_hal_reset();
     add_player_files();
     SettingsStore store;
@@ -334,6 +335,96 @@ static void a_damaged_stage_module_leaves_meter_styles_on_the_playing_module(voi
     CHECK(app_toast_text() == NULL || !toast_is(MISSING));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK(fake_hal_module_refusals() <= 1);
+}
+
+static void play_from_cover_flow(void)
+{
+    open_cover_flow();
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    wait_ms(200);
+    CHECK(title_is("Now Playing"));
+}
+
+static NowPlayingStyle saved_style(void)
+{
+    SettingsStore store;
+    settings_store_load(&store);
+    return settings_now_playing_style(&store.settings);
+}
+
+static void cycle_style_in_quick_settings(int presses, bool first)
+{
+    tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    for (int count = 0; first && count < 3; count++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    for (int count = 0; count < presses; count++) {
+        tap(KEY_PLAY);
+    }
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    tap(KEY_BACK);
+    wait_ms(200);
+    CHECK(title_is("Now Playing"));
+}
+
+static void quick_settings_swaps_the_now_playing_module_once_per_close(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    int loads = fake_hal_module_loads();
+    cycle_style_in_quick_settings(2, true);
+    CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 2, fake_hal_module_loads());
+    cycle_style_in_quick_settings(1, false);
+    CHECK_EQUAL(NOW_PLAYING_SPECTRUM, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 4, fake_hal_module_loads());
+    cycle_style_in_quick_settings(2, false);
+    CHECK_EQUAL(NOW_PLAYING_CASSETTE, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 6, fake_hal_module_loads());
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+}
+
+static void a_meter_style_chosen_in_quick_settings_without_an_intact_stage_shows_cover(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    cycle_style_in_quick_settings(2, true);
+    CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_refusals());
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+    cycle_style_in_quick_settings(1, false);
+    CHECK_EQUAL(NOW_PLAYING_SPECTRUM, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_refusals());
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void quick_settings_cycles_from_the_style_settings_chose(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    run_script("build any\nset Now Playing style=VU meters\n");
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    cycle_style_in_quick_settings(1, true);
+    CHECK_EQUAL(NOW_PLAYING_SPECTRUM, saved_style());
+    run_script("build any\nset Now Playing style=Cassette\n");
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    cycle_style_in_quick_settings(1, false);
+    CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
 }
 
 static void a_module_in_the_slot_is_not_loaded_again(void)
@@ -796,6 +887,9 @@ int main(void)
         TEST_CASE(artists_load_playing_only_for_an_album_strip),
         TEST_CASE(cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact),
         TEST_CASE(a_damaged_stage_module_leaves_meter_styles_on_the_playing_module),
+        TEST_CASE(quick_settings_swaps_the_now_playing_module_once_per_close),
+        TEST_CASE(a_meter_style_chosen_in_quick_settings_without_an_intact_stage_shows_cover),
+        TEST_CASE(quick_settings_cycles_from_the_style_settings_chose),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),
         TEST_CASE(a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so),

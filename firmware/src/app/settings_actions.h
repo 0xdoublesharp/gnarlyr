@@ -26,3 +26,5 @@ void settings_action_choose_speed(void *context, int index);
 bool settings_action_speed_available(const void *context);
 const char *settings_action_speed_text(const void *context);
 void settings_action_cycle_speed(void *context);
+int settings_action_current_now_playing(const void *context);
+void settings_action_choose_now_playing(void *context, int index);

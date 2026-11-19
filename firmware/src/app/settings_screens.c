@@ -666,17 +666,6 @@ static void choose_standby_timeout(void *context, int index)
 static const StringId STANDBY_OPTIONS[] = {STR_MINUTES_30, STR_STANDBY_HOURS_2,
                                            STR_STANDBY_HOURS_8};
 
-static int current_now_playing(const void *context)
-{
-    return (int)settings_now_playing_style(settings_of(context));
-}
-
-static void choose_now_playing(void *context, int index)
-{
-    settings_set_now_playing_style(editable_settings(context), (NowPlayingStyle)index);
-    settings_action_save(context);
-}
-
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
      settings_action_choose_shuffle, NULL, NULL},
@@ -745,7 +734,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_STARTUP_ANIMATION, OFF_ON_OPTIONS, 2, current_startup_animation, choose_startup_animation,
      NULL, NULL},
     [SETTINGS_NOW_PLAYING_CHOICE] = {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 4,
-                                     current_now_playing, choose_now_playing, NULL, NULL},
+                                     settings_action_current_now_playing,
+                                     settings_action_choose_now_playing, NULL, NULL},
 };
 
 static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)
