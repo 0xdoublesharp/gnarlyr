@@ -54,6 +54,9 @@ static NowPlayingCommand chord_command_for(KeyEvent event)
 
 NowPlayingCommand now_playing_command_for(KeyEvent event)
 {
+    if ((uint32_t)event.gesture > KEY_GESTURE_REPEAT) {
+        return NOW_PLAYING_NONE;
+    }
     if (event.chord != KEY_CHORD_NONE) {
         return chord_command_for(event);
     }

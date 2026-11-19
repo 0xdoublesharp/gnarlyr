@@ -158,7 +158,7 @@ FUZZ_SEEDS = {
     "ape_track": [b"\0", b"MAC " + bytes(124)],
     "dsd_track": [b"\0", b"DSD " + bytes(124), b"FRM8" + bytes(124)],
     "card_format": [b"\0" * 16, bytes(range(16)), b"\xff\0\0\0" * 4],
-    "playback_views": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
+    "playback_views": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32, b"\x19\x04"],
     "cover_flow": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
     "fat_volume": [b"\0", b"DSSP" + bytes(8)],
 }

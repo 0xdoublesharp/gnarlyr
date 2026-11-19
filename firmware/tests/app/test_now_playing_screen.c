@@ -98,6 +98,18 @@ static void holding_menu_and_holding_volume_starts_and_keeps_a_preview(void)
                 menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 2));
 }
 
+static void a_gesture_outside_the_known_ones_runs_no_command(void)
+{
+    for (int gesture = KEY_GESTURE_REPEAT + 1; gesture <= UINT8_MAX; gesture++) {
+        for (int key = 0; key < KEY_COUNT; key++) {
+            KeyGesture odd = (KeyGesture)gesture;
+            CHECK_EQUAL(NOW_PLAYING_NONE, command((Key)key, odd));
+            CHECK_EQUAL(NOW_PLAYING_NONE, chord_command((Key)key, odd, 0));
+            CHECK_EQUAL(NOW_PLAYING_NONE, menu_chord_command((Key)key, odd, 0));
+        }
+    }
+}
+
 static void the_skip_toasts_name_the_direction(void)
 {
     CHECK(strcmp("Next track", i18n_text(STR_SKIPPED_TO_NEXT)) == 0);
@@ -745,6 +757,7 @@ int main(void)
         TEST_CASE(holding_play_and_tapping_volume_skips),
         TEST_CASE(holding_play_and_holding_volume_skips_once_without_repeating),
         TEST_CASE(holding_menu_and_tapping_volume_moves_ten_seconds),
+        TEST_CASE(a_gesture_outside_the_known_ones_runs_no_command),
         TEST_CASE(holding_menu_and_holding_volume_starts_and_keeps_a_preview),
         TEST_CASE(the_skip_toasts_name_the_direction),
         TEST_CASE(skip_toasts_say_what_the_skip_did),
