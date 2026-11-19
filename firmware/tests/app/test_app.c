@@ -5724,6 +5724,36 @@ static void a_style_chosen_in_quick_settings_is_kept_across_a_restart(void)
     CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
 }
 
+static void a_meter_style_without_an_intact_stage_draws_cover_after_quick_settings(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    StyleSwitches switches = style_switches_begin();
+    for (int style = NOW_PLAYING_VU; style <= NOW_PLAYING_SPECTRUM; style++) {
+        tap(KEY_MENU);
+        if (!switches.on_style_row) {
+            move_up(3);
+            switches.on_style_row = true;
+        }
+        while (switches.shown != (NowPlayingStyle)style) {
+            tap(KEY_PLAY);
+            switches.shown = (NowPlayingStyle)((switches.shown + 1) % 4);
+        }
+        text_spy_reset();
+        tap(KEY_BACK);
+        wait_ms(300);
+        CHECK(title_is("Now Playing"));
+        CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+        CHECK(!text_shown("PEAK"));
+        CHECK(!text_shown("C60"));
+        CHECK(text_shown("Hells Bells"));
+        CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+        CHECK_EQUAL(switches.plays, fake_hal_audio_play_count());
+    }
+    CHECK_EQUAL(1, fake_hal_module_refusals());
+}
+
 static void choosing_a_song_in_up_next_plays_it(void)
 {
     start_app_with_library();
@@ -8499,6 +8529,7 @@ int main(void)
         TEST_CASE(quick_settings_switches_every_now_playing_style_pair_while_playing),
         TEST_CASE(quick_settings_switches_every_now_playing_style_pair_while_paused),
         TEST_CASE(a_style_chosen_in_quick_settings_is_kept_across_a_restart),
+        TEST_CASE(a_meter_style_without_an_intact_stage_draws_cover_after_quick_settings),
         TEST_CASE(choosing_a_song_in_up_next_plays_it),
         TEST_CASE(holding_play_on_a_song_offers_up_next),
         TEST_CASE(add_to_favorite_playlist_writes_a_playlist_file),
