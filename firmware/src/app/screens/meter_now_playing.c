@@ -331,9 +331,12 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
         return rest(state, diff);
     }
     NowPlayingStyle style = settings_now_playing_style(screen->config.settings);
-    follow(state, screen, style);
+    bool due = !state->active || state->frame != screen->now_ms / AUDIO_VISUAL_FRAME_MS;
+    if (due) {
+        follow(state, screen, style);
+    }
     bool changed = mask_stage(screen, diff);
-    if (!state->active || state->frame != screen->now_ms / AUDIO_VISUAL_FRAME_MS) {
+    if (due) {
         step(screen, style);
     }
     return changed;
