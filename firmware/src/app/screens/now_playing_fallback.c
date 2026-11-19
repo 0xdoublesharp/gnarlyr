@@ -76,7 +76,6 @@ static void fallback_draw(void *context, Canvas *canvas)
 
 void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig config)
 {
-    now_playing->config = config;
     now_playing->destination = NULL;
     now_playing->flip_prompted = false;
     now_playing->has_text = false;
@@ -93,6 +92,7 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
         .hold_volume_keys = true,
     };
     now_playing_fallback_attach(now_playing);
+    now_playing->config = config;
 }
 
 CORE_SEAM void now_playing_fallback_attach(NowPlayingScreen *now_playing)
