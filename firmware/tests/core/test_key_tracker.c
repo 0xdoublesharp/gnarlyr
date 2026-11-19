@@ -356,6 +356,27 @@ static void forgetting_a_hold_decided_at_release_drops_it(void)
     CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
 }
 
+static void a_held_key_follows_a_new_behavior_until_its_hold_is_sent(void)
+{
+    KeyTracker tracker = make_tracker();
+    key_tracker_set_behavior(&tracker, KEY_PLAY, KEY_BEHAVIOR_TAP_OR_HOLD);
+    key_tracker_key_down(&tracker, KEY_PLAY, 1000);
+    key_tracker_set_behavior(&tracker, KEY_PLAY, KEY_BEHAVIOR_HOLD_AT_RELEASE);
+    key_tracker_follow_behavior(&tracker, KEY_PLAY);
+    key_tracker_update(&tracker, 1000 + LONG_PRESS_MS * 2);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
+    key_tracker_key_up(&tracker, KEY_PLAY, 1000 + LONG_PRESS_MS * 2);
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_PLAY));
+    key_tracker_set_behavior(&tracker, KEY_PLAY, KEY_BEHAVIOR_TAP_OR_HOLD);
+    key_tracker_key_down(&tracker, KEY_PLAY, 5000);
+    key_tracker_update(&tracker, 5000 + LONG_PRESS_MS);
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_PLAY));
+    key_tracker_set_behavior(&tracker, KEY_PLAY, KEY_BEHAVIOR_HOLD_AT_RELEASE);
+    key_tracker_follow_behavior(&tracker, KEY_PLAY);
+    key_tracker_key_up(&tracker, KEY_PLAY, 5000 + LONG_PRESS_MS * 2);
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_PLAY));
+}
+
 static void changing_a_behavior_leaves_other_keys_alone(void)
 {
     KeyTracker tracker = hold_repeat_tracker();
@@ -485,6 +506,7 @@ int main(void)
         TEST_CASE(a_chord_press_marks_its_own_events_only),
         TEST_CASE(a_hold_decided_at_release_waits_for_the_key_to_let_go),
         TEST_CASE(forgetting_a_hold_decided_at_release_drops_it),
+        TEST_CASE(a_held_key_follows_a_new_behavior_until_its_hold_is_sent),
         TEST_CASE(holding_past_threshold_emits_one_long_press),
         TEST_CASE(release_after_long_press_emits_nothing),
         TEST_CASE(late_release_without_update_emits_long_press),

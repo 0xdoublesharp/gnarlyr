@@ -1726,6 +1726,32 @@ static void ab_marks_suppress_the_next_track_and_clear_on_skip(void)
     CHECK_EQUAL(0, player_status(started).ab_repeat);
 }
 
+static void finishing_the_last_track_clears_the_ab_marks(void)
+{
+    Player *started = playing(1);
+    CHECK_EQUAL(PLAYER_MARK_A, player_repeat_mark(started));
+    fake_hal_audio_finish_track();
+    player_update(started, 100);
+    CHECK_EQUAL(PLAYER_IDLE, player_status(started).state);
+    CHECK_EQUAL(0, player_status(started).ab_repeat);
+    CHECK_EQUAL(PLAYER_MARK_NO_TRACK, player_repeat_mark(started));
+}
+
+static void each_mark_says_what_it_did(void)
+{
+    CHECK_EQUAL(PLAYER_MARK_NO_TRACK, player_repeat_mark(fresh_player()));
+    Player *started = playing(0);
+    CHECK_EQUAL(PLAYER_MARK_A, player_repeat_mark(started));
+    fake_hal_audio_refuse_repeat_b(true);
+    int restarts = fake_hal_audio_play_count();
+    CHECK_EQUAL(PLAYER_MARK_REFUSED, player_repeat_mark(started));
+    CHECK_EQUAL(1, player_status(started).ab_repeat);
+    CHECK_EQUAL(restarts, fake_hal_audio_play_count());
+    fake_hal_audio_refuse_repeat_b(false);
+    CHECK_EQUAL(PLAYER_MARK_B, player_repeat_mark(started));
+    CHECK_EQUAL(PLAYER_MARK_CLEARED, player_repeat_mark(started));
+}
+
 static void an_end_sleep_timer_clears_the_ab_loop_and_can_finish(void)
 {
     Player *started = playing(0);
@@ -1741,6 +1767,8 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(ab_marks_suppress_the_next_track_and_clear_on_skip),
         TEST_CASE(an_end_sleep_timer_clears_the_ab_loop_and_can_finish),
+        TEST_CASE(finishing_the_last_track_clears_the_ab_marks),
+        TEST_CASE(each_mark_says_what_it_did),
         TEST_CASE(auto_gain_uses_album_neighbors_and_track_gain_for_song_shuffle),
         TEST_CASE(auto_gain_keeps_separated_album_tracks_at_track_gain),
         TEST_CASE(auto_gain_does_not_treat_a_foreign_up_next_track_as_an_album_neighbor),

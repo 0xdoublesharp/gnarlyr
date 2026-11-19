@@ -101,9 +101,6 @@ void now_playing_player_command(Player *player, NowPlayingCommand command)
     case NOW_PLAYING_VOLUME_DOWN:
         player_change_volume(player, command == NOW_PLAYING_VOLUME_UP ? 1 : -1);
         return;
-    case NOW_PLAYING_REPEAT_MARK:
-        player_repeat_mark(player);
-        return;
     default:
         break;
     }

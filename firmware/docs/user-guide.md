@@ -242,7 +242,7 @@ On Now Playing, press ▶ first and keep it held, then press the volume button (
 
 **Wired headphones with buttons** (3.5 mm jack, from any screen, screen on or off): the middle button pauses and resumes, press it twice for the next track and three times for the previous one; + and − change the volume, hold + for the next track and − for the previous one.
 
-With the screen off the same Now Playing gestures work without lighting the screen: ▶‖ pauses and resumes, vol± changes the volume, and holding ▶ while tapping or holding vol± skips or moves through the song.
+With the screen off the same Now Playing gestures work without lighting the screen: ▶‖ pauses and resumes, vol± changes the volume, holding ▶ while pressing vol± skips, and holding Menu while pressing or holding vol± moves through the song.
 
 After 30 seconds paused, the player switches its sound output off to save battery. Play then takes a moment longer to start and fades in from where you paused; Bluetooth headphones stay connected.
 
@@ -652,7 +652,7 @@ Settings → Sleep timer turns the player off after 15–120 minutes, at End of 
 
 ## A–B repeat
 
-On Now Playing, tap Menu for Quick Settings and press Play on A–B repeat to mark A at the sound currently playing. Press it again later to mark B: the player repeats A through the sample before B. A B at or before A is refused with “B must come after A”, and A stays. Press it a third time to clear the loop. The row shows Off, A set or A–B, and Now Playing shows “A set, B next”, “A-B repeat” and “A-B off”. A button given the A-B repeat action in Settings → Controls (for example Menu hold or Play hold) does the same on Now Playing and with the screen off. Moving through the song with Menu and a volume button does not move an A/B mark.
+On Now Playing, tap Menu for Quick Settings and press Play on A–B repeat to mark A at the sound currently playing. Press it again later to mark B: the player repeats A through the sample before B. A B at or before A is refused with “B must come after A”, and A stays. Press it a third time to clear the loop. With nothing playing it shows “Nothing is playing”. The marks clear when the track changes or playback ends. If an End of track or End of chapter/episode sleep timer is set, marking B turns it off and shows “Sleep timer off”, since a loop would never reach the end; choosing one of those sleep timers while a loop plays clears the loop. The row shows Off, A set or A–B, and Now Playing shows “A set, B next”, “A-B repeat” and “A-B off”. A button given the A-B repeat action in Settings → Controls (for example Menu hold or Play hold) does the same on Now Playing and with the screen off. Moving through the song with Menu and a volume button does not move an A/B mark.
 
 Marks use source samples, including inside CUE tracks and audiobook chapters. A B mark must follow A. A pause keeps the loop and its output ready; seeking outside a loop returns to A. Changing tracks, handing audio to USB or restarting clears it. End-of-track/chapter sleep clears a loop so the track can finish. Timed sleep still fades and switches off during a loop. MP3 seeks retain the decoder’s existing approximate positioning.
 

@@ -139,6 +139,14 @@ void key_tracker_forget(KeyTracker *tracker, Key key)
     key_tracker_cancel(tracker, key);
 }
 
+void key_tracker_follow_behavior(KeyTracker *tracker, Key key)
+{
+    KeyState *state = &tracker->states[key];
+    if (state->held && state->chord == KEY_CHORD_NONE && !state->long_press_sent) {
+        state->behavior = (uint8_t)tracker->config.behaviors[key];
+    }
+}
+
 void key_tracker_release_all(KeyTracker *tracker)
 {
     for (int key = 0; key < KEY_COUNT; key++) {

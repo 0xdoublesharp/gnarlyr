@@ -637,6 +637,7 @@ static void advance_to_next(Player *player)
 
 static void finish_track(Player *player, bool failed)
 {
+    player->ab_repeat = 0;
     if (failed && !player->stop_after_track &&
         skip_holding_pause(player, 1, player->repeat != REPEAT_OFF)) {
         return;
@@ -1094,10 +1095,17 @@ void player_set_stop_after_track(Player *player, bool stop)
     }
 }
 
-void player_repeat_mark(Player *player)
+PlayerMark player_repeat_mark(Player *player)
 {
-    if (player->loaded) {
-        player->ab_repeat = hal_audio_repeat_mark(false);
-        player_requeue(player);
+    uint8_t before = player->ab_repeat;
+    player->ab_repeat = player->loaded ? hal_audio_repeat_mark(false) : 0;
+    if (before == 1 && player->ab_repeat == 1) {
+        return PLAYER_MARK_REFUSED;
     }
+    if (before == 0 && player->ab_repeat == 0) {
+        return PLAYER_MARK_NO_TRACK;
+    }
+    player_requeue(player);
+    static const uint8_t MARKS[] = {PLAYER_MARK_CLEARED, PLAYER_MARK_A, PLAYER_MARK_B};
+    return (PlayerMark)MARKS[player->ab_repeat % 3u];
 }

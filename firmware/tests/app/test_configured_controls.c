@@ -297,6 +297,47 @@ static void a_mapped_play_hold_waits_for_release_so_a_chord_still_skips(void)
     CHECK(strcmp(app_screen_title(), "Now Playing") != 0);
 }
 
+static void a_mapped_a_b_refused_b_says_why(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_MENU_HOLD] = BUTTON_ACTION_AB_REPEAT;
+    start_with(settings);
+    hold(KEY_MENU, 900);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    fake_hal_audio_refuse_repeat_b(true);
+    hold(KEY_MENU, 900);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    CHECK(app_toast_text() != NULL && strcmp(app_toast_text(), "B must come after A") == 0);
+    fake_hal_audio_refuse_repeat_b(false);
+}
+
+static void a_play_hold_begun_on_a_list_follows_the_screen_going_dark(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_PLAY_HOLD] = BUTTON_ACTION_PLAY_PAUSE;
+    start_with(settings);
+    tap(KEY_BACK);
+    CHECK(strcmp(app_screen_title(), "Now Playing") != 0);
+    uint16_t first = app_player_status().track;
+    uint32_t timeout = settings_screen_timeout_ms(&settings);
+    for (uint32_t waited = 0; waited + 300 < timeout; waited += 40) {
+        wait_ms(40);
+    }
+    CHECK(fake_hal_display_on());
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
+    for (int count = 0; count < 25; count++) {
+        wait_ms(40);
+    }
+    CHECK(!fake_hal_display_on());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    tap(KEY_VOLUME_UP);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    wait_ms(40);
+    CHECK(app_player_status().track != first);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!fake_hal_display_on());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -312,6 +353,8 @@ int main(void)
         TEST_CASE(a_custom_play_tap_does_not_run_after_a_chord),
         TEST_CASE(a_mapped_a_b_repeat_sets_a_then_b_then_clears),
         TEST_CASE(a_mapped_play_hold_waits_for_release_so_a_chord_still_skips),
+        TEST_CASE(a_mapped_a_b_refused_b_says_why),
+        TEST_CASE(a_play_hold_begun_on_a_list_follows_the_screen_going_dark),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

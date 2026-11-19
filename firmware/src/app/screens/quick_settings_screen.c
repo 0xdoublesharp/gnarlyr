@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "ab_repeat.h"
 #include "core/i18n.h"
 #include "hal/clock.h"
 #include "settings_actions.h"
@@ -113,15 +114,6 @@ static void cycle_headphones(SettingsContext *settings)
     }
 }
 
-static void step_ab_repeat(SettingsContext *settings)
-{
-    uint8_t before = settings->player->ab_repeat;
-    player_repeat_mark(settings->player);
-    if (before == 1 && settings->player->ab_repeat == 1) {
-        toast_show(settings->toast, i18n_text(STR_AB_B_AFTER_A), hal_clock_milliseconds());
-    }
-}
-
 static ScreenAction select_row(void *context, int index)
 {
     QuickSettingsScreen *panel = context;
@@ -158,7 +150,8 @@ static ScreenAction select_row(void *context, int index)
             settings, (settings->store->settings.replay_gain_mode + 1) % REPLAY_GAIN_MODE_COUNT);
         break;
     case AB_REPEAT:
-        step_ab_repeat(settings);
+        ab_repeat_step(settings->player, settings->power, settings->toast,
+                       hal_clock_milliseconds());
         break;
     case LYRICS:
         return screen_action_push(panel->config.lyrics);

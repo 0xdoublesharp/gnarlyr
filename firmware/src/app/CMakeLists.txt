@@ -1,4 +1,5 @@
 add_library(echo_app STATIC
+    ab_repeat.c
     app.c
     standby.c
     cassette_art.c

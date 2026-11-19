@@ -2471,6 +2471,68 @@ static void a_menu_to_volume_reading_that_crosses_the_play_band_still_scrubs(voi
     CHECK(title_is("Now Playing"));
 }
 
+static void cross_the_play_band(uint16_t reading, int play_samples)
+{
+    for (int sample = 0; sample < play_samples; sample++) {
+        fake_hal_queue_reading_sample(250, now_ms);
+        now_ms += 5;
+        step();
+    }
+    for (int sample = 0; sample < 8; sample++) {
+        fake_hal_queue_reading_sample(reading, now_ms);
+        now_ms += 5;
+        step();
+    }
+}
+
+static void slow_crossings_scrub_without_skipping_or_opening_a_screen(bool screen_off)
+{
+    static const int crossings[] = {4, 6, 10};
+    for (int index = 0; index < 3; index++) {
+        play_on_now_playing();
+        if (screen_off) {
+            tap(KEY_POWER);
+            CHECK(!fake_hal_display_on());
+        }
+        uint8_t volume = fake_hal_audio_volume();
+        uint16_t track = app_player_status().track;
+        int seeks = fake_hal_audio_seek_count();
+        press_key(KEY_MENU);
+        cross_the_play_band(122, crossings[index]);
+        cross_the_play_band(365, crossings[index]);
+        release_key(KEY_MENU);
+        wait_ms(SLIDE_DURATION_MS);
+        CHECK_EQUAL(track, app_player_status().track);
+        CHECK_EQUAL(seeks + 1, fake_hal_audio_seek_count());
+        CHECK_EQUAL(volume, fake_hal_audio_volume());
+        CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+        CHECK_EQUAL(!screen_off, fake_hal_display_on());
+        CHECK(screen_off || title_is("Now Playing"));
+    }
+}
+
+static void slow_play_band_crossings_both_ways_still_scrub(void)
+{
+    slow_crossings_scrub_without_skipping_or_opening_a_screen(false);
+    slow_crossings_scrub_without_skipping_or_opening_a_screen(true);
+}
+
+static void a_power_shortcut_under_a_held_menu_runs_only_the_shortcut(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(PLAYING_POSITION_MS / 2);
+    step();
+    press_key(KEY_MENU);
+    press_key(KEY_POWER);
+    tap(KEY_VOLUME_DOWN);
+    release_key(KEY_POWER);
+    release_key(KEY_MENU);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK_EQUAL(0, fake_hal_audio_last_seek());
+    CHECK(title_is("Now Playing"));
+    CHECK(fake_hal_display_on());
+}
+
 static void the_menu_chord_does_not_seek_in_lists(void)
 {
     play_on_now_playing();
@@ -8002,6 +8064,8 @@ int main(void)
         TEST_CASE(menu_held_long_around_a_volume_press_opens_neither_lyrics_nor_quick_settings),
         TEST_CASE(holding_menu_alone_opens_lyrics_when_it_is_let_go),
         TEST_CASE(a_menu_to_volume_reading_that_crosses_the_play_band_still_scrubs),
+        TEST_CASE(slow_play_band_crossings_both_ways_still_scrub),
+        TEST_CASE(a_power_shortcut_under_a_held_menu_runs_only_the_shortcut),
         TEST_CASE(the_menu_chord_does_not_seek_in_lists),
         TEST_CASE(volume_keys_alone_change_the_volume_without_skipping),
         TEST_CASE(both_chords_work_the_same_with_the_screen_off),

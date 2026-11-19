@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "ab_repeat.h"
 #include "app_internal.h"
 #include "app_screens.h"
 #include "bluetooth_link.h"
@@ -14,6 +15,7 @@
 #include "core/hash.h"
 #include "core/i18n.h"
 #include "core/key_chord.h"
+#include "core/key_crossing.h"
 #include "core/key_lock.h"
 #include "core/key_tracker.h"
 #include "core/low_battery.h"
@@ -180,6 +182,7 @@ typedef struct AppState {
     uint32_t charge_lit_until_ms;
     KeyLock lock;
     KeyChord chord;
+    KeyCrossing crossing;
     uint8_t raw_held;
     bool loader_keys;
     HalBattery charge_battery;
@@ -265,27 +268,62 @@ static bool chord_screen(void)
            top_screen()->keys == SCREEN_KEYS_TEST;
 }
 
-static uint8_t pass_through_chord(Key key, HalKeyTransition transition)
+static uint8_t pass_through_chord(KeyStep step)
 {
-    if (key == KEY_PLAY || key == KEY_MENU) {
+    if (step.key == KEY_PLAY || step.key == KEY_MENU) {
         app.chord.allowed = !app.charging && chord_screen();
     }
-    KeyChordAction action = key_chord_take(&app.chord, key, transition.pressed, transition.time_ms);
+    KeyChordAction action = key_chord_take(&app.chord, step.key, step.pressed, step.time_ms);
     uint8_t chord = action == KEY_CHORD_START ? app.chord.held : KEY_CHORD_NONE;
     if (chord != KEY_CHORD_NONE) {
         key_tracker_forget(&app.keys, chord == KEY_CHORD_MENU ? KEY_MENU : KEY_PLAY);
     }
     if (action != KEY_CHORD_DROP) {
-        pass_key(key, transition.pressed, transition.time_ms, chord);
+        pass_key(step.key, step.pressed, step.time_ms, chord);
     }
     return chord;
+}
+
+static uint8_t pass_steps(const KeyCrossingOut *out)
+{
+    uint8_t chord = KEY_CHORD_NONE;
+    for (int index = 0; index < out->count; index++) {
+        uint8_t started = pass_through_chord(out->steps[index]);
+        chord = started != KEY_CHORD_NONE ? started : chord;
+    }
+    return chord;
+}
+
+static uint8_t pass_through_crossing(Key key, HalKeyTransition transition)
+{
+    KeyCrossingRules rules = {.menu = !app.charging && chord_screen(),
+                              .volume = app.chord.held == KEY_CHORD_MENU};
+    KeyCrossingOut out = {0};
+    key_crossing_take(&app.crossing, (KeyStep){key, transition.pressed, transition.time_ms}, rules,
+                      &out);
+    return pass_steps(&out);
+}
+
+static void settle_crossing(uint32_t now_ms)
+{
+    KeyCrossingOut out = {0};
+    key_crossing_settle(&app.crossing, now_ms, &out);
+    pass_steps(&out);
+}
+
+static void drop_seed_gestures(void)
+{
+    key_crossing_reset(&app.crossing);
+    key_tracker_forget(&app.keys, KEY_MENU);
+    key_tracker_forget(&app.keys, KEY_PLAY);
 }
 
 static void dispatch_transition(HalKeyTransition transition, Key key, bool scripted)
 {
     KeyLockVerdict verdict =
         key_lock_transition(&app.lock, key, transition.pressed, transition.time_ms);
-    uint8_t chord = verdict == KEY_LOCK_PASS ? pass_through_chord(key, transition) : KEY_CHORD_NONE;
+    uint8_t chord =
+        verdict == KEY_LOCK_PASS ? pass_through_crossing(key, transition) : KEY_CHORD_NONE;
     if (!scripted && top_screen()->keys == SCREEN_KEYS_TEST) {
         debug_loop_ladder(transition, chord != KEY_CHORD_NONE);
     }
@@ -293,10 +331,11 @@ static void dispatch_transition(HalKeyTransition transition, Key key, bool scrip
     case KEY_LOCK_PASS:
         break;
     case KEY_LOCK_COMBO_STARTED:
-        key_tracker_cancel(&app.keys, KEY_PLAY);
+        drop_seed_gestures();
         key_tracker_cancel(&app.keys, KEY_POWER);
         break;
     case KEY_LOCK_SHORTCUT:
+        drop_seed_gestures();
         key_tracker_cancel(&app.keys, KEY_POWER);
         key_tracker_cancel(&app.keys, key);
         if (!app.charging && !fade_running()) {
@@ -379,6 +418,7 @@ static void read_input(void)
     while (debug_runner_next_key(&transition)) {
         take_transition(transition, true);
     }
+    settle_crossing(hal_clock_milliseconds());
 }
 
 static uint32_t wanted_clock_mhz(void)
@@ -681,6 +721,9 @@ static void use_screen_key_behaviors(void)
 {
     set_key_behaviors(KEY_BEHAVIOR_REPEAT,
                       chord_screen() ? KEY_BEHAVIOR_HOLD_AT_RELEASE : KEY_BEHAVIOR_TAP_OR_HOLD);
+    key_tracker_follow_behavior(&app.keys, KEY_PLAY);
+    key_tracker_follow_behavior(&app.keys, KEY_MENU);
+    app.chord.allowed = !app.charging && chord_screen();
     if (app.display_on && !top_screen()->hold_volume_keys) {
         return;
     }
@@ -975,7 +1018,6 @@ static const uint8_t ACTION_COMMANDS[BUTTON_ACTION_COUNT] = {
     [BUTTON_ACTION_PREVIOUS] = NOW_PLAYING_PREVIOUS,
     [BUTTON_ACTION_VOLUME_UP] = NOW_PLAYING_VOLUME_UP,
     [BUTTON_ACTION_VOLUME_DOWN] = NOW_PLAYING_VOLUME_DOWN,
-    [BUTTON_ACTION_AB_REPEAT] = NOW_PLAYING_REPEAT_MARK,
 };
 
 static bool mapped_playback(KeyEvent event, uint32_t now_ms)
@@ -994,11 +1036,11 @@ static bool mapped_playback(KeyEvent event, uint32_t now_ms)
         return true;
     }
     NowPlayingCommand command = (NowPlayingCommand)ACTION_COMMANDS[action];
-    if (command != NOW_PLAYING_NONE) {
+    if (action == BUTTON_ACTION_AB_REPEAT) {
+        ab_repeat_step(&app.player, &app.power, &app.toast, now_ms);
+        app.screens.now_playing.repeat_feedback_ms = now_ms;
+    } else if (command != NOW_PLAYING_NONE) {
         run_player_command(command);
-        if (action == BUTTON_ACTION_AB_REPEAT) {
-            app.screens.now_playing.repeat_feedback_ms = now_ms;
-        }
     } else if (action == BUTTON_ACTION_UP_NEXT || action == BUTTON_ACTION_HOME) {
         mapped_navigation(action, now_ms);
     }
@@ -2533,6 +2575,7 @@ void app_resume_after_usb(void)
     app.raw_held = 0;
     app.loader_keys = false;
     app.chord = (KeyChord){.allowed = false};
+    key_crossing_reset(&app.crossing);
     app_wake();
 }
 

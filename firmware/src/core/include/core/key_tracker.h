@@ -69,6 +69,7 @@ void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms);
 void key_tracker_resume(KeyTracker *tracker, Key key, uint32_t now_ms);
 void key_tracker_cancel(KeyTracker *tracker, Key key);
 void key_tracker_forget(KeyTracker *tracker, Key key);
+void key_tracker_follow_behavior(KeyTracker *tracker, Key key);
 void key_tracker_release_all(KeyTracker *tracker);
 void key_tracker_update(KeyTracker *tracker, uint32_t now_ms);
 bool key_tracker_next_event(KeyTracker *tracker, KeyEvent *event);
