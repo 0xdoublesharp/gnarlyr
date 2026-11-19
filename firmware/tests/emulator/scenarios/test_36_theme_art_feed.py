@@ -104,15 +104,27 @@ class EchoImageTest(EchoImageHarness):
                   volume=feed_volume(pack), module_elfs=self.module_elfs)
         DecoderLoad(rig.audio, self.elf.parent)
         meter = PowerMeter(rig.machine)
-        frames = []
-        rig.machine.hook_symbol("frame_pacer_done",
-                                lambda: frames.append(rig.machine.milliseconds()))
+        frames, draws = [], [0]
+        per_frame = []
+
+        def frame_done():
+            frames.append(rig.machine.milliseconds())
+            per_frame.append(draws[0])
+            draws[0] = 0
+
+        def art_drawn():
+            draws[0] += 1
+
+        rig.machine.hook_symbol("frame_pacer_done", frame_done)
+        if pack is not None:
+            rig.machine.hook_symbol("theme_art_module_draw", art_drawn)
         rig.open_songs()
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
         self.assertEqual(96000, rig.audio.rate)
         self.paint_stack(rig.machine)
         first_ms = rig.machine.milliseconds()
+        first_frame = len(per_frame)
         result = meter.measure(rig, rig.session.card, MEASURE_MS)
         level = rig.audio.levels[-1][1] if rig.audio.levels else 0
         reads = [count for stamp, _, count in rig.session.card.read_log
@@ -120,7 +132,8 @@ class EchoImageTest(EchoImageHarness):
         result.update(themed=pack is not None, stack_peak_bytes=self.stack_peak(rig.machine),
                       buffered_ms=round(max(0, level) * 1000 / rig.audio.rate),
                       card_kib_per_s=round(sum(reads) * 512 * 1000 / MEASURE_MS / 1024, 1),
-                      frames_drawn=len([stamp for stamp in frames if stamp >= first_ms]))
+                      frames_drawn=len([stamp for stamp in frames if stamp >= first_ms]),
+                      art_draws_per_frame=per_frame[first_frame:])
         self.assert_healthy(rig.session)
         return result, list(rig.machine.panel.frame)
 
@@ -160,6 +173,16 @@ class EchoImageTest(EchoImageHarness):
         plain, themed = self.compared("indexed")
         for result in (plain, themed):
             self.assertLessEqual(result["core0_busy_percent"], CORE0_LIMIT_PERCENT, result)
+
+    def test_a_marquee_step_redraws_only_its_band(self):
+        plain, themed = self.compared("indexed")
+        draws = themed["art_draws_per_frame"]
+        full = max(draws)
+        banded = [count for count in draws if 0 < count <= full // 4]
+        print(json.dumps({"art_draws_per_frame": draws}))
+        self.assertGreaterEqual(full, 8, draws)
+        self.assertGreaterEqual(len(banded), len(draws) * 3 // 4, draws)
+        self.assertLess(themed["core0_busy_percent"], 2 * plain["core0_busy_percent"], themed)
 
     def test_a_lossless_photo_behind_a_scrolling_title_keeps_the_96_khz_feed(self):
         self.compared("lossless")

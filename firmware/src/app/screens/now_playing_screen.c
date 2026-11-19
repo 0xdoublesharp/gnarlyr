@@ -411,7 +411,7 @@ static void draw_text_line(const NowPlayingScreen *now_playing, Canvas *canvas, 
     }
     MarqueeTiming timing = now_playing->config.theme->marquee;
     uint32_t elapsed = now_playing->now_ms - now_playing->text_changed_ms;
-    int offset = marquee_offset(timing, width, label.area.width, elapsed);
+    int offset = marquee_offset_in(timing, width, label.area, elapsed);
     label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 

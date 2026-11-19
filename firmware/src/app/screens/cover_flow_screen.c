@@ -556,8 +556,7 @@ static void draw_line(const CoverFlowScreen *flow, Canvas *canvas, Label label, 
         return;
     }
     MarqueeTiming timing = flow->config.theme->marquee;
-    int offset =
-        marquee_offset(timing, width, label.area.width, flow->now_ms - flow->text_changed_ms);
+    int offset = marquee_offset_in(timing, width, label.area, flow->now_ms - flow->text_changed_ms);
     label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 

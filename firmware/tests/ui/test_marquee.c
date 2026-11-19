@@ -110,6 +110,28 @@ static void a_long_pause_and_short_scroll_never_make_a_zero_cycle(void)
     CHECK_EQUAL(0, marquee_offset(timing, 2, 1, 1000));
 }
 
+static void scrolling_marquees_mark_the_rows_their_next_step_redraws(void)
+{
+    marquee_watch_start();
+    CHECK_EQUAL(30,
+                marquee_offset_in(TIMING, LONG_TEXT, (Rect){10, 40, VIEW, 20}, PAUSE_MS + 1000));
+    marquee_offset_in(TIMING, LONG_TEXT, (Rect){0, 100, VIEW, 10}, 0);
+    Rect band = marquee_watch_band();
+    CHECK_EQUAL(40, band.y);
+    CHECK_EQUAL(70, band.height);
+}
+
+static void text_that_fits_marks_no_rows_and_a_new_frame_forgets_them(void)
+{
+    marquee_watch_start();
+    marquee_offset_in(TIMING, 50, (Rect){10, 40, VIEW, 20}, 5000);
+    CHECK(rect_is_empty(marquee_watch_band()));
+    marquee_offset_in(TIMING, LONG_TEXT, (Rect){10, 40, VIEW, 20}, 5000);
+    CHECK(!rect_is_empty(marquee_watch_band()));
+    marquee_watch_start();
+    CHECK(rect_is_empty(marquee_watch_band()));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -127,6 +149,8 @@ int main(void)
         TEST_CASE(very_wide_text_does_not_overflow_its_scroll_duration),
         TEST_CASE(text_and_gap_widths_are_added_without_signed_overflow),
         TEST_CASE(a_long_pause_and_short_scroll_never_make_a_zero_cycle),
+        TEST_CASE(scrolling_marquees_mark_the_rows_their_next_step_redraws),
+        TEST_CASE(text_that_fits_marks_no_rows_and_a_new_frame_forgets_them),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

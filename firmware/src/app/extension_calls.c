@@ -76,7 +76,7 @@ bool hal_file_remove(const char *path)
     return code != NULL && code->file_remove(path);
 }
 
-bool theme_art_module_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
+CORE_SEAM bool theme_art_module_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
 {
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->theme_draw(theme, canvas, slot, area);

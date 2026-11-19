@@ -167,7 +167,9 @@ typedef struct AppState {
     uint32_t view_stamp;
     uint32_t view_checked_ms;
     uint32_t marquee_due_ms;
+    Rect marquee_band;
     bool marquee_due;
+    bool band_only;
     bool frame_sent;
     Fade splash;
     Fade goodbye;
@@ -1412,7 +1414,12 @@ static StripRenderer frame_renderer(Rect area, bool drawer_paints_everything)
 
 static void render(FrameDrawer drawer, bool drawer_paints_everything)
 {
-    StripRenderer renderer = frame_renderer(whole_screen(), drawer_paints_everything);
+    Rect area = whole_screen();
+    if (app.band_only) {
+        area.y = app.marquee_band.y;
+        area.height = app.marquee_band.height;
+    }
+    StripRenderer renderer = frame_renderer(area, drawer_paints_everything);
     FrameSink sink = {.write = write_to_display, .context = NULL};
     strip_renderer_render(&renderer, drawer, sink);
     hal_display_present();
@@ -2448,6 +2455,7 @@ static void follow_marquees(uint32_t now_ms)
     uint32_t wait_ms = marquee_watch_wait_ms();
     app.marquee_due = wait_ms != MARQUEE_STILL;
     app.marquee_due_ms = now_ms + wait_ms;
+    app.marquee_band = marquee_watch_band();
 }
 
 static void render_when_due(uint32_t now_ms, uint32_t started_us)
@@ -2456,8 +2464,10 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
         return;
     }
     app.render_wanted |= view_changed(now_ms);
-    app.render_wanted |= marquee_step_reached(now_ms);
+    bool stepped = marquee_step_reached(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
+    bool marquee_only = stepped && !app.render_wanted && !urgent && app.pacer.fast_frames == 0;
+    app.render_wanted |= stepped;
     if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;
     }
@@ -2465,8 +2475,10 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     app.render_wanted = false;
     frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
     app.frame_sent = false;
+    app.band_only = marquee_only && app.marquee_band.height > 0;
     marquee_watch_start();
     render_frame();
+    app.band_only = false;
     follow_marquees(now_ms);
     frame_pacer_done(&app.pacer, now_ms, app.frame_sent, urgent);
     light_after_first_frame();
