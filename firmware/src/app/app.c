@@ -930,12 +930,7 @@ static void run_player_command(NowPlayingCommand command)
     if (mixtape_busy()) {
         cancel_edits();
     }
-    now_playing_player_command(&app.player, command);
-}
-
-static void run_background(KeyEvent event)
-{
-    run_player_command(now_playing_command_for(event));
+    now_playing_player_command(&app.screens.now_playing, command, app.now_ms);
 }
 
 static const NowPlayingCommand HEADSET_COMMANDS[] = {
@@ -1090,7 +1085,7 @@ static void dispatch_key_events(uint32_t now_ms)
                    (configured_menu_hold(event) || mapped_playback(event, now_ms))) {
             continue;
         } else if (outcome.background) {
-            run_background(event);
+            run_player_command(now_playing_command_for(event));
         } else if (!outcome.consumed) {
             dispatch_to_screen(event, now_ms);
         }

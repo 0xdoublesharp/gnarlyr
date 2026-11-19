@@ -55,6 +55,8 @@ typedef struct FakeAudio {
     bool refuse_repeat_b;
     int seek_count;
     uint32_t last_seek_ms;
+    uint32_t last_seek_token;
+    int finish_after_reads;
     uint8_t volume;
     uint8_t bluetooth_volume;
     HalAudioGain gain;
@@ -869,6 +871,7 @@ void hal_audio_seek(uint32_t position_ms)
 {
     fake.audio.seek_count++;
     fake.audio.last_seek_ms = position_ms;
+    fake.audio.last_seek_token = fake.audio.status.token;
     fake.audio.status.position_ms = position_ms;
 }
 
@@ -1282,7 +1285,25 @@ HalJackPins hal_audio_jack_pins(void)
 
 HalAudioStatus hal_audio_status(void)
 {
+    if (fake.audio.finish_after_reads > 0 && --fake.audio.finish_after_reads == 0) {
+        fake_hal_audio_finish_track();
+    }
     return fake.audio.status;
+}
+
+void fake_hal_audio_finish_track_after_reads(int reads)
+{
+    fake.audio.finish_after_reads = reads;
+}
+
+uint32_t fake_hal_audio_token(void)
+{
+    return fake.audio.status.token;
+}
+
+uint32_t fake_hal_audio_last_seek_token(void)
+{
+    return fake.audio.last_seek_token;
 }
 
 static WrittenFile *written_slot(const char *path)
