@@ -11,6 +11,29 @@
 #include "settings_actions.h"
 #include "text_spy.h"
 
+enum {
+    SHUFFLE_ROW = 0,
+    REPEAT_ROW = 1,
+    EQUALIZER_ROW = 2,
+    HEADPHONES_ROW = 3,
+    SPEED_ROW = 4,
+    SLEEP_ROW = 5,
+    TRANSITIONS_ROW = 6,
+    REPLAY_GAIN_ROW = 7,
+    AB_ROW = 8,
+    STYLE_ROW = 9,
+    LYRICS_ROW = 10,
+    UP_NEXT_ROW = 11,
+    ROWS = 12
+};
+
+static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
+                                        STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
+static const int SUBMENU_ROWS[] = {EQUALIZER_ROW, HEADPHONES_ROW,  SPEED_ROW,
+                                   SLEEP_ROW,     REPLAY_GAIN_ROW, STYLE_ROW};
+static const char *const SUBMENU_NAMES[] = {"equalizer", "headphones",  "speed",
+                                            "sleep",     "replay-gain", "style"};
+
 static QuickSettingsScreen panel;
 static SettingsStore settings;
 static HeadphoneStore headphones;
@@ -22,8 +45,6 @@ static Toast toast;
 static Screen lyrics;
 static Screen up_next;
 static Color pixels[480 * 480];
-static bool speed_available;
-static int speed_cycles;
 
 static void start(void)
 {
@@ -55,18 +76,52 @@ static ScreenAction press(Key key)
                                    100);
 }
 
+static ScreenAction press_values(Key key)
+{
+    return panel.values.screen.handle_key(
+        &panel.values, (KeyEvent){.key = key, .gesture = KEY_GESTURE_PRESS}, 100);
+}
+
 static void choose(int index)
 {
     list_view_select(&panel.list, index, 100);
     CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_PLAY).type);
 }
 
+static void open_values(int row)
+{
+    list_view_select(&panel.list, row, 100);
+    ScreenAction action = press(KEY_PLAY);
+    CHECK_EQUAL(SCREEN_ACTION_PUSH, action.type);
+    CHECK(action.target == &panel.values.screen);
+    panel.values.screen.enter(&panel.values, 100);
+}
+
+static void pick(int row, int value)
+{
+    open_values(row);
+    list_view_select(&panel.values.list, value, 100);
+    CHECK_EQUAL(SCREEN_ACTION_POP, press_values(KEY_PLAY).type);
+    panel.screen.enter(&panel, 200);
+    CHECK_EQUAL(row, panel.list.selected);
+}
+
+static bool row_detail_is(int row, StringId expected)
+{
+    return strcmp(i18n_text(expected), panel.model.detail(&panel, row)) == 0;
+}
+
+static bool value_label_is(int value, const char *expected)
+{
+    return strcmp(expected, panel.values.model.label(&panel.values, value)) == 0;
+}
+
 static void navigation_wraps_and_back_closes_without_changing_a_value(void)
 {
     start();
-    CHECK_EQUAL(11, panel.model.count(&panel));
+    CHECK_EQUAL(ROWS, panel.model.count(&panel));
     press(KEY_VOLUME_DOWN);
-    CHECK_EQUAL(10, panel.list.selected);
+    CHECK_EQUAL(UP_NEXT_ROW, panel.list.selected);
     CHECK_EQUAL(SCREEN_ACTION_PUSH, press(KEY_PLAY).type);
     CHECK(press(KEY_PLAY).target == &up_next);
     press(KEY_VOLUME_UP);
@@ -74,55 +129,148 @@ static void navigation_wraps_and_back_closes_without_changing_a_value(void)
     CHECK_EQUAL(SCREEN_ACTION_POP, press(KEY_BACK).type);
     CHECK_EQUAL(SHUFFLE_OFF, player.shuffle);
     CHECK_EQUAL(0, fake_hal_write_count());
-    list_view_select(&panel.list, 9, 100);
+    list_view_select(&panel.list, LYRICS_ROW, 100);
     CHECK(press(KEY_PLAY).target == &lyrics);
     panel.screen.enter(&panel, 200);
-    CHECK_EQUAL(9, panel.list.selected);
+    CHECK_EQUAL(LYRICS_ROW, panel.list.selected);
 }
 
-static void every_eq_preset_and_used_slot_cycles_and_persists(void)
+static void rows_with_four_or_more_values_open_a_submenu_and_the_rest_act_in_place(void)
+{
+    start();
+    player.loaded = true;
+    for (int row = 0; row < ROWS; row++) {
+        bool submenu = false;
+        for (size_t index = 0; index < sizeof SUBMENU_ROWS / sizeof SUBMENU_ROWS[0]; index++) {
+            submenu = submenu || SUBMENU_ROWS[index] == row;
+        }
+        bool push = row == LYRICS_ROW || row == UP_NEXT_ROW;
+        list_view_select(&panel.list, row, 100);
+        CHECK_EQUAL(submenu || push, panel.model.opens(&panel, row));
+        ScreenAction action = press(KEY_PLAY);
+        CHECK_EQUAL(submenu || push ? SCREEN_ACTION_PUSH : SCREEN_ACTION_NONE, action.type);
+        if (submenu) {
+            CHECK(action.target == &panel.values.screen);
+            CHECK(panel.values.config.option_count >= 4);
+        }
+    }
+}
+
+static void cycle_rows_wrap_to_their_first_value(void)
+{
+    start();
+    for (int index = 1; index <= SHUFFLE_MODE_COUNT; index++) {
+        choose(SHUFFLE_ROW);
+        CHECK_EQUAL(index % SHUFFLE_MODE_COUNT,
+                    settings_action_current_shuffle(&panel.config.settings));
+    }
+    for (int index = 1; index <= REPEAT_MODE_COUNT; index++) {
+        choose(REPEAT_ROW);
+        CHECK_EQUAL(index % REPEAT_MODE_COUNT,
+                    settings_action_current_repeat(&panel.config.settings));
+    }
+    choose(TRANSITIONS_ROW);
+    CHECK(row_detail_is(TRANSITIONS_ROW, STR_TRANSITION_FADE));
+    choose(TRANSITIONS_ROW);
+    CHECK(row_detail_is(TRANSITIONS_ROW, STR_OFF));
+}
+
+static void a_submenu_marks_and_highlights_the_current_value_on_entry(void)
+{
+    start();
+    settings_action_choose_now_playing(&panel.config.settings, NOW_PLAYING_VU);
+    open_values(STYLE_ROW);
+    CHECK(strcmp(i18n_text(STR_NOW_PLAYING_STYLE), panel.values.screen.title) == 0);
+    CHECK_EQUAL(4, panel.values.model.count(&panel.values));
+    CHECK_EQUAL(NOW_PLAYING_VU, panel.values.list.selected);
+    for (int value = 0; value < 4; value++) {
+        CHECK(value_label_is(value, i18n_text(STYLE_VALUES[value])));
+        CHECK_EQUAL(value == NOW_PLAYING_VU,
+                    panel.values.model.detail(&panel.values, value) != NULL);
+    }
+}
+
+static Settings snapshot_settings(void)
+{
+    return settings.settings;
+}
+
+static void cancelling_any_submenu_leaves_every_value_unchanged(void)
+{
+    start();
+    for (size_t index = 0; index < sizeof SUBMENU_ROWS / sizeof SUBMENU_ROWS[0]; index++) {
+        Settings before = snapshot_settings();
+        int writes = fake_hal_write_count();
+        open_values(SUBMENU_ROWS[index]);
+        press_values(KEY_VOLUME_UP);
+        press_values(KEY_VOLUME_UP);
+        CHECK_EQUAL(SCREEN_ACTION_POP, press_values(KEY_BACK).type);
+        Settings after = snapshot_settings();
+        CHECK(memcmp(&before, &after, sizeof before) == 0);
+        CHECK_EQUAL(writes, fake_hal_write_count());
+        CHECK_EQUAL(HEADPHONE_PROFILE_NONE, headphones.profiles.current);
+        CHECK(!power.sleep_timer_active);
+    }
+}
+
+static void every_eq_preset_and_used_slot_can_be_chosen_and_persists(void)
 {
     start();
     int8_t gains[SETTINGS_EQUALIZER_BANDS] = {2, -2, 4, -4, 6, -6, 8, -8, 10, -10};
     CHECK(equalizer_presets_save_slot(panel.config.settings.presets, 5, gains));
     panel.screen.enter(&panel, 100);
     for (int index = 1; index < EQUALIZER_PRESET_COUNT; index++) {
-        choose(2);
+        pick(EQUALIZER_ROW, index);
         CHECK_EQUAL(index, settings.settings.equalizer);
-        CHECK(strcmp(panel.model.detail(&panel, 2), i18n_text(EQUALIZER_PRESET_NAMES[index])) == 0);
+        CHECK(strcmp(panel.model.detail(&panel, EQUALIZER_ROW),
+                     i18n_text(EQUALIZER_PRESET_NAMES[index])) == 0);
     }
-    choose(2);
+    open_values(EQUALIZER_ROW);
+    CHECK_EQUAL(EQUALIZER_PRESET_COUNT + 1, panel.values.model.count(&panel.values));
+    CHECK(value_label_is(EQUALIZER_PRESET_COUNT, equalizer_presets_slot_label(5)));
+    pick(EQUALIZER_ROW, EQUALIZER_PRESET_COUNT);
     CHECK_EQUAL(EQUALIZER_CUSTOM, settings.settings.equalizer);
     CHECK(memcmp(gains, settings.settings.equalizer_gains, sizeof gains) == 0);
-    CHECK(strcmp(panel.model.detail(&panel, 2), equalizer_presets_slot_label(5)) == 0);
+    CHECK(strcmp(panel.model.detail(&panel, EQUALIZER_ROW), equalizer_presets_slot_label(5)) == 0);
     SettingsStore restored;
     settings_store_load(&restored);
     CHECK(memcmp(gains, restored.settings.equalizer_gains, sizeof gains) == 0);
     settings_store_apply_hardware(&restored.settings);
     CHECK_EQUAL(SETTINGS_EQUALIZER_BANDS, fake_hal_audio_equalizer().band_count);
-    choose(2);
+    pick(EQUALIZER_ROW, 0);
     CHECK_EQUAL(EQUALIZER_OFF, settings.settings.equalizer);
 }
 
-static void headphone_profiles_cycle_through_off_and_survive_reload(void)
+static void headphone_profiles_are_chosen_from_off_and_the_four_slots_and_survive_reload(void)
 {
     start();
-    for (int index = 0; index <= HEADPHONE_PROFILE_LIMIT; index++) {
-        choose(3);
+    open_values(HEADPHONES_ROW);
+    CHECK_EQUAL(HEADPHONE_PROFILE_LIMIT + 1, panel.values.model.count(&panel.values));
+    CHECK(value_label_is(0, i18n_text(STR_OFF)));
+    CHECK_EQUAL(0, panel.values.list.selected);
+    for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
+        pick(HEADPHONES_ROW, slot + 1);
         HeadphoneStore restored;
         headphone_store_load(&restored);
-        CHECK_EQUAL(index, restored.profiles.current);
-        const char *text = index == HEADPHONE_PROFILE_NONE ? i18n_text(STR_OFF)
-                                                           : restored.profiles.slots[index].name;
-        CHECK(strcmp(panel.model.detail(&panel, 3), text) == 0);
+        CHECK_EQUAL(slot, restored.profiles.current);
+        CHECK(strcmp(panel.model.detail(&panel, HEADPHONES_ROW),
+                     restored.profiles.slots[slot].name) == 0);
+        open_values(HEADPHONES_ROW);
+        CHECK_EQUAL(slot + 1, panel.values.list.selected);
+        CHECK(value_label_is(slot + 1, restored.profiles.slots[slot].name));
     }
+    pick(HEADPHONES_ROW, 0);
+    HeadphoneStore restored;
+    headphone_store_load(&restored);
+    CHECK_EQUAL(HEADPHONE_PROFILE_NONE, restored.profiles.current);
+    CHECK(row_detail_is(HEADPHONES_ROW, STR_OFF));
 }
 
-static void sleep_cycles_the_same_session_timer_and_does_not_persist(void)
+static void sleep_is_chosen_for_the_same_session_timer_and_does_not_persist(void)
 {
     start();
     for (int option = 1; option < SLEEP_TIMER_OPTION_COUNT; option++) {
-        choose(4);
+        pick(SLEEP_ROW, option);
         CHECK(power.sleep_timer_active);
         CHECK_EQUAL(settings_sleep_option_minutes(option) * 60000, power.sleep_duration_ms);
         CHECK_EQUAL(option, settings_action_current_sleep(&panel.config.settings));
@@ -130,59 +278,40 @@ static void sleep_cycles_the_same_session_timer_and_does_not_persist(void)
     SettingsContext other = panel.config.settings;
     settings_action_choose_sleep(&other, 1);
     CHECK_EQUAL(1, settings_action_current_sleep(&panel.config.settings));
-    choose(4);
+    open_values(SLEEP_ROW);
+    CHECK_EQUAL(1, panel.values.list.selected);
+    pick(SLEEP_ROW, 2);
     CHECK_EQUAL(2, settings_action_current_sleep(&other));
     settings_action_choose_sleep(&other, 0);
     CHECK(!power.sleep_timer_active);
     CHECK_EQUAL(0, fake_hal_write_count());
 }
 
-static bool speed_is_available(const void *context)
-{
-    return *(const bool *)context;
-}
-
-static const char *speed_value(const void *context)
-{
-    (void)context;
-    return "1.25x";
-}
-
-static void cycle_speed(void *context)
-{
-    (void)context;
-    speed_cycles++;
-}
-
-static void speed_is_hidden_until_a_complete_available_hook_is_supplied(void)
+static void speed_is_listed_only_while_playback_can_change_speed(void)
 {
     start();
-    speed_available = false;
-    speed_cycles = 0;
-    panel.config.speed =
-        (QuickSettingsSpeed){&speed_available, speed_is_available, speed_value, cycle_speed};
-    CHECK_EQUAL(11, panel.model.count(&panel));
-    speed_available = true;
-    CHECK_EQUAL(12, panel.model.count(&panel));
-    CHECK(strcmp(panel.model.label(&panel, 4), i18n_text(STR_PLAYBACK_SPEED)) == 0);
-    CHECK(strcmp(panel.model.detail(&panel, 4), "1.25x") == 0);
-    choose(4);
-    CHECK_EQUAL(1, speed_cycles);
-    CHECK(!power.sleep_timer_active);
-    panel.config.speed.cycle = NULL;
-    CHECK_EQUAL(11, panel.model.count(&panel));
+    CHECK(strcmp(panel.model.label(&panel, SPEED_ROW), i18n_text(STR_PLAYBACK_SPEED)) == 0);
+    CHECK(row_detail_is(SPEED_ROW, STR_SPEED_100));
+    pick(SPEED_ROW, SETTINGS_SPEED_NORMAL + 1);
+    CHECK_EQUAL(SETTINGS_SPEED_NORMAL + 1, settings.settings.playback_speed);
+    CHECK(row_detail_is(SPEED_ROW, SETTINGS_SPEED_LABELS[SETTINGS_SPEED_NORMAL + 1]));
+    SettingsStore restored;
+    settings_store_load(&restored);
+    CHECK_EQUAL(SETTINGS_SPEED_NORMAL + 1, restored.settings.playback_speed);
+    panel.config.settings.player = NULL;
+    CHECK_EQUAL(ROWS - 1, panel.model.count(&panel));
+    CHECK(strcmp(panel.model.label(&panel, SPEED_ROW), i18n_text(STR_SLEEP_TIMER)) == 0);
+    panel.config.settings.player = &player;
+    CHECK_EQUAL(ROWS, panel.model.count(&panel));
 }
 
 static void losing_speed_support_keeps_the_selection_inside_the_panel(void)
 {
     start();
-    speed_available = true;
-    panel.config.speed =
-        (QuickSettingsSpeed){&speed_available, speed_is_available, speed_value, cycle_speed};
-    list_view_select(&panel.list, 11, 100);
-    speed_available = false;
+    list_view_select(&panel.list, UP_NEXT_ROW, 100);
+    panel.config.settings.player = NULL;
     panel.screen.update(&panel, 200);
-    CHECK_EQUAL(10, panel.list.selected);
+    CHECK_EQUAL(UP_NEXT_ROW - 1, panel.list.selected);
     CHECK(press(KEY_PLAY).target == &up_next);
 }
 
@@ -192,7 +321,7 @@ static void replay_gain_and_transitions_update_the_player_and_keep_other_setting
     settings.settings.prevent_clipping = false;
     settings.settings.transition_tenths = 27;
     for (int mode = 1; mode <= REPLAY_GAIN_MODE_COUNT; mode++) {
-        choose(6);
+        pick(REPLAY_GAIN_ROW, mode % REPLAY_GAIN_MODE_COUNT);
         CHECK_EQUAL(mode % REPLAY_GAIN_MODE_COUNT, player.replay_gain_mode);
         CHECK(!player.prevent_clipping);
         SettingsStore restored;
@@ -200,10 +329,10 @@ static void replay_gain_and_transitions_update_the_player_and_keep_other_setting
         CHECK_EQUAL(player.replay_gain_mode, restored.settings.replay_gain_mode);
         CHECK(!restored.settings.prevent_clipping);
     }
-    choose(5);
+    choose(TRANSITIONS_ROW);
     CHECK(player.fade_transitions);
     CHECK_EQUAL(27, player.transition_tenths);
-    choose(5);
+    choose(TRANSITIONS_ROW);
     CHECK(!player.fade_transitions);
     SettingsStore restored;
     settings_store_load(&restored);
@@ -211,30 +340,22 @@ static void replay_gain_and_transitions_update_the_player_and_keep_other_setting
     CHECK_EQUAL(27, restored.settings.transition_tenths);
 }
 
-static void failed_saves_are_reported_and_headphone_selection_stays_committed(void)
+static void failed_saves_are_reported_from_a_cycle_row_and_from_a_submenu(void)
 {
     start();
     fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
-    choose(0);
+    choose(SHUFFLE_ROW);
+    CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
+    start();
+    fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
+    pick(REPLAY_GAIN_ROW, REPLAY_GAIN_ALBUM);
+    CHECK_EQUAL(REPLAY_GAIN_ALBUM, settings.settings.replay_gain_mode);
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
     start();
     fake_hal_fail_internal_writes(HEADPHONE_STORE_PATH);
-    choose(3);
+    pick(HEADPHONES_ROW, 1);
     CHECK_EQUAL(HEADPHONE_PROFILE_NONE, headphones.profiles.current);
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
-}
-
-enum {
-    AB_ROW = 7,
-    STYLE_ROW = 8
-};
-
-static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
-                                        STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
-
-static bool row_detail_is(int row, StringId expected)
-{
-    return strcmp(i18n_text(expected), panel.model.detail(&panel, row)) == 0;
 }
 
 static void a_b_repeat_sets_a_then_b_then_clears(void)
@@ -285,19 +406,18 @@ static NowPlayingStyle saved_style(void)
     return settings_now_playing_style(&restored.settings);
 }
 
-static void now_playing_style_cycles_cover_cassette_vu_spectrum_and_persists(void)
+static void now_playing_style_is_chosen_from_its_submenu_and_persists(void)
 {
     start();
     CHECK(strcmp(i18n_text(STR_NOW_PLAYING), panel.model.label(&panel, STYLE_ROW)) == 0);
-    CHECK(!panel.model.opens(&panel, STYLE_ROW));
     CHECK(row_detail_is(STYLE_ROW, STR_NOW_PLAYING_COVER));
-    for (int step = 1; step <= 4; step++) {
-        choose(STYLE_ROW);
-        NowPlayingStyle expected = (NowPlayingStyle)(step % 4);
-        CHECK_EQUAL(expected, settings_now_playing_style(&settings.settings));
-        CHECK_EQUAL(expected, saved_style());
-        CHECK(row_detail_is(STYLE_ROW, STYLE_VALUES[expected]));
-        CHECK_EQUAL(STYLE_ROW, panel.list.selected);
+    static const NowPlayingStyle order[] = {NOW_PLAYING_VU, NOW_PLAYING_SPECTRUM,
+                                            NOW_PLAYING_CASSETTE, NOW_PLAYING_COVER};
+    for (int step = 0; step < 4; step++) {
+        pick(STYLE_ROW, (int)order[step]);
+        CHECK_EQUAL(order[step], settings_now_playing_style(&settings.settings));
+        CHECK_EQUAL(order[step], saved_style());
+        CHECK(row_detail_is(STYLE_ROW, STYLE_VALUES[order[step]]));
     }
     CHECK_EQUAL(SHUFFLE_OFF, player.shuffle);
     CHECK_EQUAL('\0', toast.text[0]);
@@ -310,21 +430,34 @@ static void the_style_follows_the_settings_choice_both_ways(void)
     settings_action_choose_now_playing(&other, NOW_PLAYING_VU);
     CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
     CHECK(row_detail_is(STYLE_ROW, STR_NOW_PLAYING_VU));
-    choose(STYLE_ROW);
+    pick(STYLE_ROW, NOW_PLAYING_SPECTRUM);
     CHECK_EQUAL(NOW_PLAYING_SPECTRUM, settings_action_current_now_playing(&other));
-    choose(STYLE_ROW);
-    CHECK_EQUAL(NOW_PLAYING_COVER, settings_action_current_now_playing(&other));
     settings_action_choose_now_playing(&other, NOW_PLAYING_CASSETTE);
     CHECK(row_detail_is(STYLE_ROW, STR_NOW_PLAYING_CASSETTE));
+    open_values(STYLE_ROW);
+    CHECK_EQUAL(NOW_PLAYING_CASSETTE, panel.values.list.selected);
 }
 
 static void a_failed_style_save_is_reported_and_the_style_stays_chosen(void)
 {
     start();
     fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
-    choose(STYLE_ROW);
+    pick(STYLE_ROW, NOW_PLAYING_CASSETTE);
     CHECK_EQUAL(NOW_PLAYING_CASSETTE, settings_now_playing_style(&settings.settings));
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
+}
+
+static void set_layout(int orientation, int size)
+{
+    theme = BOARD_THEME;
+    default_theme_set_text_size(&theme, (TextSize)size);
+    default_theme_set_orientation(&theme, (Orientation)orientation);
+}
+
+static Canvas full_canvas(void)
+{
+    return canvas_make(pixels,
+                       (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
 }
 
 static void all_rows_fit_every_theme_orientation_and_text_size(void)
@@ -333,18 +466,15 @@ static void all_rows_fit_every_theme_orientation_and_text_size(void)
     for (int appearance = 0; appearance < APPEARANCE_THEME_COUNT; appearance++) {
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
             for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-                theme = BOARD_THEME;
+                set_layout(orientation, size);
                 default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
-                default_theme_set_text_size(&theme, (TextSize)size);
-                default_theme_set_orientation(&theme, (Orientation)orientation);
                 panel.screen.enter(&panel, 100);
                 CHECK(panel.list.visible_rows > 0);
                 CHECK(text_width(theme.fonts.small, i18n_text(STR_QUICK_SETTINGS_HINT)) <=
                       theme.metrics.screen_width - 2 * theme.metrics.padding);
                 for (int row = 0; row < panel.model.count(&panel); row++) {
                     list_view_select(&panel.list, row, 100);
-                    Canvas canvas = canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width,
-                                                               theme.metrics.screen_height});
+                    Canvas canvas = full_canvas();
                     text_spy_reset();
                     panel.screen.draw(&panel, &canvas);
                     CHECK(panel.list.top <= row);
@@ -374,14 +504,11 @@ static void the_a_b_row_fits_every_text_size_and_orientation(void)
     for (int orientation = 0; orientation < 2; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             for (int state = 0; state < 3; state++) {
-                theme = BOARD_THEME;
-                default_theme_set_text_size(&theme, (TextSize)size);
-                default_theme_set_orientation(&theme, (Orientation)orientation);
+                set_layout(orientation, size);
                 panel.screen.enter(&panel, 100);
                 player.ab_repeat = (uint8_t)state;
                 list_view_select(&panel.list, AB_ROW, 100);
-                Canvas canvas = canvas_make(
-                    pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+                Canvas canvas = full_canvas();
                 text_spy_reset();
                 panel.screen.draw(&panel, &canvas);
                 CHECK(shown_whole(i18n_text(STR_AB_LOOP)));
@@ -399,14 +526,11 @@ static void the_style_row_fits_every_text_size_and_orientation(void)
     for (int orientation = 0; orientation < 2; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             for (int style = 0; style < 4; style++) {
-                theme = BOARD_THEME;
-                default_theme_set_text_size(&theme, (TextSize)size);
-                default_theme_set_orientation(&theme, (Orientation)orientation);
+                set_layout(orientation, size);
                 panel.screen.enter(&panel, 100);
                 settings_set_now_playing_style(&settings.settings, (NowPlayingStyle)style);
                 list_view_select(&panel.list, STYLE_ROW, 100);
-                Canvas canvas = canvas_make(
-                    pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+                Canvas canvas = full_canvas();
                 text_spy_reset();
                 panel.screen.draw(&panel, &canvas);
                 CHECK(shown_whole(i18n_text(STR_NOW_PLAYING)));
@@ -418,26 +542,67 @@ static void the_style_row_fits_every_text_size_and_orientation(void)
     }
 }
 
+static void check_submenu_fits(size_t submenu, int layout)
+{
+    open_values(SUBMENU_ROWS[submenu]);
+    int count = panel.values.model.count(&panel.values);
+    for (int value = count - 1; value >= 0; value--) {
+        list_view_select(&panel.values.list, value, 100);
+        Canvas canvas = full_canvas();
+        text_spy_reset();
+        panel.values.screen.draw(&panel.values, &canvas);
+        CHECK(shown_whole(panel.values.screen.title));
+        CHECK(shown_whole(panel.values.model.label(&panel.values, value)));
+        CHECK(panel.values.list.top <= value);
+        CHECK(panel.values.list.top + panel.values.list.visible_rows > value);
+        if (value == 0) {
+            screen_snapshot_write(&canvas, SUBMENU_NAMES[submenu], layout);
+        }
+    }
+}
+
+static void every_submenu_fits_every_text_size_and_orientation(void)
+{
+    start();
+    int8_t gains[SETTINGS_EQUALIZER_BANDS] = {1};
+    CHECK(equalizer_presets_save_slot(panel.config.settings.presets, 0, gains));
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            set_layout(orientation, size);
+            panel.screen.enter(&panel, 100);
+            for (size_t submenu = 0; submenu < sizeof SUBMENU_ROWS / sizeof SUBMENU_ROWS[0];
+                 submenu++) {
+                check_submenu_fits(submenu, orientation * TEXT_SIZE_COUNT + size);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(navigation_wraps_and_back_closes_without_changing_a_value),
-        TEST_CASE(every_eq_preset_and_used_slot_cycles_and_persists),
-        TEST_CASE(headphone_profiles_cycle_through_off_and_survive_reload),
-        TEST_CASE(sleep_cycles_the_same_session_timer_and_does_not_persist),
-        TEST_CASE(speed_is_hidden_until_a_complete_available_hook_is_supplied),
+        TEST_CASE(rows_with_four_or_more_values_open_a_submenu_and_the_rest_act_in_place),
+        TEST_CASE(cycle_rows_wrap_to_their_first_value),
+        TEST_CASE(a_submenu_marks_and_highlights_the_current_value_on_entry),
+        TEST_CASE(cancelling_any_submenu_leaves_every_value_unchanged),
+        TEST_CASE(every_eq_preset_and_used_slot_can_be_chosen_and_persists),
+        TEST_CASE(headphone_profiles_are_chosen_from_off_and_the_four_slots_and_survive_reload),
+        TEST_CASE(sleep_is_chosen_for_the_same_session_timer_and_does_not_persist),
+        TEST_CASE(speed_is_listed_only_while_playback_can_change_speed),
         TEST_CASE(losing_speed_support_keeps_the_selection_inside_the_panel),
         TEST_CASE(replay_gain_and_transitions_update_the_player_and_keep_other_settings),
-        TEST_CASE(failed_saves_are_reported_and_headphone_selection_stays_committed),
-        TEST_CASE(all_rows_fit_every_theme_orientation_and_text_size),
+        TEST_CASE(failed_saves_are_reported_from_a_cycle_row_and_from_a_submenu),
         TEST_CASE(a_b_repeat_sets_a_then_b_then_clears),
         TEST_CASE(a_b_with_b_before_a_keeps_a_and_says_why),
         TEST_CASE(a_b_without_a_track_stays_off),
-        TEST_CASE(the_a_b_row_fits_every_text_size_and_orientation),
-        TEST_CASE(now_playing_style_cycles_cover_cassette_vu_spectrum_and_persists),
+        TEST_CASE(now_playing_style_is_chosen_from_its_submenu_and_persists),
         TEST_CASE(the_style_follows_the_settings_choice_both_ways),
         TEST_CASE(a_failed_style_save_is_reported_and_the_style_stays_chosen),
+        TEST_CASE(all_rows_fit_every_theme_orientation_and_text_size),
+        TEST_CASE(the_a_b_row_fits_every_text_size_and_orientation),
         TEST_CASE(the_style_row_fits_every_text_size_and_orientation),
+        TEST_CASE(every_submenu_fits_every_text_size_and_orientation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

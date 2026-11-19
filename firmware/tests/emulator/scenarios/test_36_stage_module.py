@@ -208,8 +208,9 @@ class EchoImageTest(EchoImageHarness):
         if first:
             rig.press_many("previous", QUICK_SETTINGS_STYLE_ROW_FROM_END)
         opened = len(watch.loads())
-        for _ in range(presses):
-            rig.press("play")
+        rig.press("play")
+        rig.press_many("next", presses)
+        rig.press("play")
         self.assertEqual(opened, len(watch.loads()))
         self.assertTrue(equalizer.loaded(rig.machine))
         windows = len(rig.machine.panel.windows)

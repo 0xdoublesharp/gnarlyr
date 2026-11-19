@@ -26,6 +26,13 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[11])
         rig.press_many("next", 2)
         rig.press("play")
+        self.assertTrue(equalizer.loaded(machine))
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[18])
+        rig.press("play")
+        rig.press("next")
+        rig.press("back")
         self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[18])
         rig.press("back")
         machine.run(until=lambda: len(rig.audio.levels) > before,

@@ -816,6 +816,9 @@ static void playback_speed_cycles_in_quick_settings_and_is_saved(void)
     CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
     move_down(4);
     tap(KEY_PLAY);
+    CHECK(title_is("Playback speed"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    move_down(2);
     tap(KEY_PLAY);
     CHECK(title_is("Quick Settings"));
     CHECK_EQUAL(150, fake_hal_audio_speed());
@@ -5659,14 +5662,20 @@ static void switch_style_in_quick_settings(StyleSwitches *switches, NowPlayingSt
         move_up(3);
         switches->on_style_row = true;
     }
-    while (switches->shown != style) {
-        tap(KEY_PLAY);
-        switches->shown = (NowPlayingStyle)((switches->shown + 1) % 4);
-        wait_ms(100);
-        CHECK(title_is("Quick Settings"));
-        CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
-        CHECK_EQUAL(loads, fake_hal_module_loads());
-    }
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing style"));
+    move_down(((int)style - (int)switches->shown + 4) % 4);
+    tap(KEY_PLAY);
+    switches->shown = style;
+    wait_ms(100);
+    CHECK(title_is("Quick Settings"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads, fake_hal_module_loads());
+    tap(KEY_PLAY);
+    move_down(1);
+    tap(KEY_BACK);
+    CHECK(title_is("Quick Settings"));
+    CHECK_EQUAL(loads, fake_hal_module_loads());
     text_spy_reset();
     tap(switches->closes++ % 2 == 0 ? KEY_BACK : KEY_MENU);
     CHECK_EQUAL(loads + 1, fake_hal_module_loads());
@@ -5736,10 +5745,10 @@ static void a_meter_style_without_an_intact_stage_draws_cover_after_quick_settin
             move_up(3);
             switches.on_style_row = true;
         }
-        while (switches.shown != (NowPlayingStyle)style) {
-            tap(KEY_PLAY);
-            switches.shown = (NowPlayingStyle)((switches.shown + 1) % 4);
-        }
+        tap(KEY_PLAY);
+        move_down((style - (int)switches.shown + 4) % 4);
+        tap(KEY_PLAY);
+        switches.shown = (NowPlayingStyle)style;
         text_spy_reset();
         tap(KEY_BACK);
         wait_ms(300);

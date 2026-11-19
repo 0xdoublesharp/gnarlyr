@@ -419,11 +419,6 @@ static void choose_usb_answer(void *context, int index)
     choose_saved_plug_mode(context, (PlugMode)index, false);
 }
 
-static int current_replay_gain(const void *context)
-{
-    return settings_of(context)->replay_gain_mode;
-}
-
 static int current_prevent_clipping(const void *context)
 {
     return settings_of(context)->prevent_clipping ? 1 : 0;
@@ -694,8 +689,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
      choose_equalizer, describe_equalizer, NULL},
-    {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
-     settings_action_choose_replay_gain, NULL, NULL},
+    {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT,
+     settings_action_current_replay_gain, settings_action_choose_replay_gain, NULL, NULL},
     {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
      NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},

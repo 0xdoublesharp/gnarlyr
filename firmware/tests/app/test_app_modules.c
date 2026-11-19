@@ -361,9 +361,13 @@ static void cycle_style_in_quick_settings(int presses, bool first)
     for (int count = 0; first && count < 3; count++) {
         tap(KEY_VOLUME_DOWN);
     }
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing style"));
     for (int count = 0; count < presses; count++) {
-        tap(KEY_PLAY);
+        tap(KEY_VOLUME_UP);
     }
+    tap(KEY_PLAY);
+    CHECK(title_is("Quick Settings"));
     CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
     tap(KEY_BACK);
     wait_ms(200);

@@ -102,6 +102,11 @@ void settings_action_apply_replay_gain(SettingsContext *context)
     settings_action_save(context);
 }
 
+int settings_action_current_replay_gain(const void *context)
+{
+    return settings_of(context)->replay_gain_mode;
+}
+
 void settings_action_choose_replay_gain(void *context, int index)
 {
     editable_settings(context)->replay_gain_mode = (uint8_t)index;
@@ -162,15 +167,4 @@ bool settings_action_speed_available(const void *context)
 {
     const SettingsContext *settings = context;
     return settings->store != NULL && settings->player != NULL;
-}
-
-const char *settings_action_speed_text(const void *context)
-{
-    return i18n_text(SETTINGS_SPEED_LABELS[settings_action_current_speed(context)]);
-}
-
-void settings_action_cycle_speed(void *context)
-{
-    settings_action_choose_speed(context, (settings_action_current_speed(context) + 1) %
-                                              SETTINGS_SPEED_COUNT);
 }

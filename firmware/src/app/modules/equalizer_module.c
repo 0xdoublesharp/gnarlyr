@@ -1,6 +1,5 @@
 #include "modules/modules.h"
 #include "music_walk.h"
-#include "settings_actions.h"
 
 static void bind(AppScreens *screens)
 {
@@ -14,11 +13,7 @@ static void bind(AppScreens *screens)
                                               .toast = context->toast},
                                  .theme = context->theme,
                                  .lyrics = &screens->modules.views.lyrics.screen,
-                                 .up_next = &screens->modules.playing.up_next.screen,
-                                 .speed = {.context = &own->quick_settings.config.settings,
-                                           .available = settings_action_speed_available,
-                                           .value = settings_action_speed_text,
-                                           .cycle = settings_action_cycle_speed}};
+                                 .up_next = &screens->modules.playing.up_next.screen};
     quick_settings_screen_init(&own->quick_settings, quick);
 }
 
