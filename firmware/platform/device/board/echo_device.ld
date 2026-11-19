@@ -83,6 +83,8 @@ PROVIDE(device_profile_code_base = ORIGIN(CODE_RAM));
 PROVIDE(device_profile_code_bytes = LENGTH(CODE_RAM));
 PROVIDE(device_profile_overlay_base = ORIGIN(HIGH_RAM));
 PROVIDE(device_profile_overlay_bytes = ORIGIN(GLYPH_RAM) - ORIGIN(HIGH_RAM));
+PROVIDE(device_profile_module_base = ORIGIN(DSP_RAM));
+PROVIDE(device_profile_module_bytes = ORIGIN(EXTENSION_RAM) + LENGTH(EXTENSION_RAM) - ORIGIN(DSP_RAM));
 
 ASSERT(ADDR(.code) == 0x03050000, "the code vector table must be at 0x03050000")
 ASSERT(ADDR(.data) == 0x03004000, "the entry vector must be at 0x03004000")

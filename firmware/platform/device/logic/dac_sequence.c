@@ -289,7 +289,7 @@ static bool change_filter(const DacBus *bus, uint8_t filter)
     return write_both(bus, PCM_MUTE, 0xEC) && written;
 }
 
-bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
+CORE_SEAM bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
 {
     if (after.filter >= DAC_ANALOG_FILTERS) {
         return false;
@@ -310,7 +310,7 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
                      VOLUME_UNITS_PER_STEP * (DAC_VOLUME_LEVELS - capped));
 }
 
-void dac_output_on(const DacBus *bus, uint8_t volume)
+CORE_SEAM void dac_output_on(const DacBus *bus, uint8_t volume)
 {
     set_pin(bus, DAC_PIN_ENABLE_A, true);
     set_pin(bus, DAC_PIN_MUTE, true);
@@ -368,7 +368,7 @@ void dac_output_off(const DacBus *bus)
     set_pin(bus, DAC_PIN_ENABLE_B, false);
 }
 
-void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume)
+CORE_SEAM void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume)
 {
     if (muted) {
         set_pin(bus, DAC_PIN_MUTE, true);
