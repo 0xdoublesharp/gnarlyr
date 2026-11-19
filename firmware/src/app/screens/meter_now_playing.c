@@ -1,5 +1,6 @@
 #include "meter_now_playing.h"
 
+#include "core/hash.h"
 #include "core/seam.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
@@ -256,14 +257,24 @@ static bool rest(MeterState *state, FrameDiff *diff)
     return changed;
 }
 
+static uint32_t look_of(const Theme *theme)
+{
+    uint32_t look = hash_update(HASH_START, &theme->colors, sizeof theme->colors);
+    look = hash_update(look, &theme->metrics.screen_width, sizeof theme->metrics.screen_width);
+    return hash_update(look, &theme->fonts.title, sizeof theme->fonts.title);
+}
+
 static void follow(MeterState *state, const NowPlayingScreen *screen, NowPlayingStyle style)
 {
+    uint32_t look = look_of(screen->config.theme);
     if (state->style != style || state->track != screen->status.track ||
-        state->text_changed_ms != screen->text_changed_ms) {
+        state->text_changed_ms != screen->text_changed_ms || state->look != look) {
         meter_now_playing_reset();
         state->style = style;
         state->track = screen->status.track;
         state->text_changed_ms = screen->text_changed_ms;
+        state->look = look;
+        state->repaint = true;
     }
 }
 
@@ -299,7 +310,12 @@ static void step(NowPlayingScreen *screen, NowPlayingStyle style)
     MeterTick before = tick_of(state);
     update(screen, &levels, elapsed);
     SunsetArt art = art_of(screen);
-    render_changes(&art, &before);
+    if (state->repaint) {
+        state->repaint = false;
+        render(&art, art.scene.stage);
+    } else {
+        render_changes(&art, &before);
+    }
     state->updated_ms = screen->now_ms;
     hal_display_present();
 }

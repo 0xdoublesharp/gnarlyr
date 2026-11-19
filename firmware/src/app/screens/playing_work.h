@@ -29,9 +29,11 @@ typedef struct MeterState {
     uint32_t frame;
     uint32_t updated_ms;
     uint32_t text_changed_ms;
+    uint32_t look;
     uint16_t track;
     NowPlayingStyle style;
     bool active;
+    bool repaint;
 } MeterState;
 
 typedef struct PlayingStyleWork {

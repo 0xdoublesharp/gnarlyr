@@ -251,6 +251,65 @@ static void a_peak_that_lights_and_goes_out_is_restored_by_partial_redraws(void)
     }
 }
 
+static void full_scale(void)
+{
+    for (int frame = 0; frame < 512; frame++) {
+        samples[frame * 2] = (uint32_t)32767 << 16;
+        samples[frame * 2 + 1] = (uint32_t)32767 << 16;
+    }
+}
+
+static Canvas lit_peak_on_panel(int style)
+{
+    Canvas canvas = start(1, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, (NowPlayingStyle)style);
+    screen.now_ms = 1000;
+    draw_fresh(&canvas);
+    hal_display_write(0, 0, canvas.bounds.width, canvas.bounds.height, pixels);
+    full_scale();
+    animate_frames(2);
+    return canvas;
+}
+
+static void a_new_track_in_silence_repaints_the_crown_and_peak_it_inherited(void)
+{
+    Canvas canvas = lit_peak_on_panel(NOW_PLAYING_VU);
+    CHECK_EQUAL(0, partial_mismatches(&canvas));
+    CHECK(peak_label_lit(&canvas, 0));
+    memset(samples, 0, sizeof samples);
+    screen.status.track++;
+    screen.text_changed_ms = screen.now_ms;
+    animate_frames(1);
+    CHECK_EQUAL(0, partial_mismatches(&canvas));
+    CHECK(!peak_label_lit(&canvas, 0));
+}
+
+static void changing_the_style_in_place_repaints_the_stage(void)
+{
+    Canvas canvas = lit_peak_on_panel(NOW_PLAYING_VU);
+    settings_set_now_playing_style(&settings, NOW_PLAYING_SPECTRUM);
+    animate_frames(1);
+    CHECK_EQUAL(0, partial_mismatches(&canvas));
+    settings_set_now_playing_style(&settings, NOW_PLAYING_VU);
+    animate_frames(1);
+    CHECK_EQUAL(0, partial_mismatches(&canvas));
+}
+
+static void changing_the_theme_in_place_repaints_the_stage(void)
+{
+    Canvas canvas = lit_peak_on_panel(NOW_PLAYING_SPECTRUM);
+    default_theme_set_appearance(&theme, APPEARANCE_CLASSIC);
+    animate_frames(1);
+    Rect stage = meter_now_playing_layout(&theme).stage;
+    draw_fresh(&canvas);
+    int mismatches = 0;
+    for (int y = stage.y; y < stage.y + stage.height; y++) {
+        for (int x = stage.x; x < stage.x + stage.width; x++) {
+            mismatches += fake_hal_pixel(x, y) != pixels[y * canvas.bounds.width + x] ? 1 : 0;
+        }
+    }
+    CHECK_EQUAL(0, mismatches);
+}
+
 static void an_unlit_crown_stays_dark_after_long_uptime(void)
 {
     Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
@@ -399,6 +458,9 @@ int main(void)
         TEST_CASE(a_peak_flashes_its_sun_crown_white_and_lights_peak_for_half_a_second),
         TEST_CASE(an_unlit_crown_stays_dark_after_long_uptime),
         TEST_CASE(a_peak_that_lights_and_goes_out_is_restored_by_partial_redraws),
+        TEST_CASE(a_new_track_in_silence_repaints_the_crown_and_peak_it_inherited),
+        TEST_CASE(changing_the_style_in_place_repaints_the_stage),
+        TEST_CASE(changing_the_theme_in_place_repaints_the_stage),
         TEST_CASE(scale_marks_sit_beside_each_half_of_the_sun),
         TEST_CASE(spectrum_bars_have_white_tops_and_striped_reflections),
         TEST_CASE(the_floor_lines_brighten_with_the_bass),
