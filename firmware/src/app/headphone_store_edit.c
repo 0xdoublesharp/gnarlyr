@@ -26,6 +26,7 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
         return false;
     }
     HeadphoneAudio next = headphone_store_parameters(profiles);
+    store->file.file = headphone_store_file();
     if (!lower_volumes(store, next, player, settings) ||
         headphone_file_save(&store->file, profiles) != STORE_DONE) {
         return false;

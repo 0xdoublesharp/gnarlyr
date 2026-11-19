@@ -75,20 +75,6 @@ bool hal_file_remove(const char *path)
     return code != NULL && code->file_remove(path);
 }
 
-void headphone_store_load(HeadphoneStore *store)
-{
-    const ExtensionModuleEntry *code = extension();
-    if (code != NULL) {
-        code->headphones_load(store);
-    } else {
-        *store = (HeadphoneStore){.profiles = {.current = HEADPHONE_PROFILE_NONE},
-                                  .active = {.left = REPLAY_GAIN_UNITY, .right = REPLAY_GAIN_UNITY},
-                                  .load = STORE_UNREADABLE};
-        store->file.needs_reload = true;
-        hal_audio_set_headphones(store->active);
-    }
-}
-
 bool hal_clock_set_wall(HalWallTime time)
 {
     const ExtensionModuleEntry *code = extension();

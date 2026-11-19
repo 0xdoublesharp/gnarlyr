@@ -188,35 +188,6 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
         self.assertTrue(self.latest_session.module_reads("slot_2", 8))
 
-    def headphone_boot(self):
-        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2
-        volume = self.debug_volume()
-        good = headphone_bank(1, 12, 18)
-        broken = bytearray(headphone_bank(2, 6, 24))
-        broken[28 + 40] ^= 1
-        data = good + broken
-        volume.add_file("headphones.bin", data, None, image_tests.IDENTITY.data_directory)
-        session = self.session(volume=volume)
-        applied = []
-        machine = session.machine
-        machine.hook_symbol("hal_audio_set_headphones", lambda: applied.append(
-            (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1),
-             machine.reg(UC_ARM_REG_R2) & 255)))
-        self.assertEqual(session.run_to_home_screen(), "condition met")
-        machine.run(until_ms=machine.milliseconds() + image_tests.STARTUP_WORK_MS)
-        return session, applied, data
-
-    def test_headphone_loading_uses_slot_two_and_the_last_intact_profile_bank(self):
-        self.damaged_extension_slots = ("slot_1",)
-        session, applied, data = self.headphone_boot()
-        left, right, ceiling = applied[-1]
-        self.assertTrue(0 < left < right < 65536)
-        self.assertEqual(ceiling, 18)
-        self.assertTrue(session.module_reads("slot_2", 8))
-        path = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
-        self.assertEqual(session.fat().read(path), data)
-        self.assert_healthy(session)
-
     def test_clock_sync_before_profile_restore_keeps_the_saved_volume(self):
         from unicorn.arm_const import UC_ARM_REG_PC, UC_ARM_REG_R0, UC_ARM_REG_R1
         volume = self.debug_volume()
@@ -265,15 +236,6 @@ class EchoImageTest(EchoImageHarness):
                 machine.run(until_ms=machine.milliseconds() + image_tests.STARTUP_WORK_MS)
                 self.assertEqual(levels[-1], expected)
                 self.assert_healthy(session)
-
-    def test_missing_extension_cannot_bypass_a_saved_headphone_volume_ceiling(self):
-        self.damaged_extension_slots = ("slot_1", "slot_2")
-        session, applied, data = self.headphone_boot()
-        self.assertEqual(applied[-1][2], 0)
-        path = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
-        self.assertEqual(session.fat().read(path), data)
-        self.assert_healthy(session)
-
 
 
 if __name__ == "__main__":

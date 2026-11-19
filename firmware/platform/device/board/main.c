@@ -379,7 +379,7 @@ void board_main(void)
     app_draw_start();
     board_display_service();
     board_extension_start();
-    if (board_trial_calls() == NULL) {
+    if (hal_system_extension_code() == NULL) {
         board_trial_fail();
     }
     debug_loop_boot(DEBUG_BOOT_EXTENSION);

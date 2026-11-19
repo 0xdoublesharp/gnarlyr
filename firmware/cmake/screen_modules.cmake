@@ -67,21 +67,18 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/core/format_chain.c
     src/settings/user_state.c
     src/settings/user_state_list.c
+    src/app/headphone_store.c
+    src/app/headphone_store_file.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_file.c
+    src/settings/headphone_profile.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
     src/app/modules/extension_module.c
     src/app/menu_hold.c
-    src/app/headphone_store.c
-    src/app/headphone_parameters.c
-    src/settings/headphone_file.c
-    src/settings/headphone_profile.c
     platform/device/board/file_remove.c
-    platform/device/board/trial_module.c
-    platform/device/board/trial_record.c
-    platform/device/logic/slot_copy.c
     platform/device/logic/fat_delete.c
-    platform/device/logic/updater_install.c
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
     platform/device/logic/rtc_registers.c
@@ -151,6 +148,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/settings_actions.c
     src/app/settings_actions_equalizer.c
     src/app/headphone_store_edit.c
+    src/app/headphone_store_file.c
     src/app/headphone_parameters.c
     src/settings/headphone_profile.c
     src/settings/headphone_profile_edit.c
@@ -222,6 +220,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/screens/card_format_screen.c
     src/app/headphone_editor.c
     src/app/headphone_store_edit.c
+    src/app/headphone_store_file.c
     src/app/headphone_parameters.c
     src/settings/headphone_profile.c
     src/app/audio_settings.c

@@ -6,7 +6,6 @@
 #include "app/extension.h"
 #include "hal/clock.h"
 #include "hal/system.h"
-#include "headphone_store.h"
 #include "standby.h"
 #include "ui/screen.h"
 #include "ui/wire_motion.h"
@@ -28,10 +27,8 @@ typedef struct ExtensionModuleEntry {
     void (*motion_draw)(WireMotion *motion, Canvas *canvas, const Theme *theme, Rect space);
     bool (*file_remove)(const char *path);
     void (*forget_time_file)(void);
-    void (*headphones_load)(HeadphoneStore *store);
     bool (*clock_set)(HalWallTime time);
     bool (*clock_restore)(int16_t offset_minutes);
-    const void *trial;
     HalRtcRead (*rtc_set)(uint32_t utc_s);
 #ifdef ECHO_DEBUG_LOOP
     HalRtcRead (*rtc_read)(void);

@@ -5,15 +5,17 @@
 #include "app/app.h"
 #include "board.h"
 #include "core/i18n.h"
+#include "core/seam.h"
 #include "device/fat.h"
 #include "device/key_ladder.h"
 #include "device/slot_copy.h"
 #include "device/update_trial.h"
 #include "emmc.h"
-#include "extension_entry.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/input.h"
 #include "hal/system.h"
+#include "headphone_store.h"
 #include "internal_volume.h"
 #include "mmc.h"
 #include "overlay.h"
@@ -51,12 +53,6 @@ static uint32_t power_since_ms;
 static uint32_t escape_since_ms;
 static bool power_released;
 __attribute__((section(".noinit"))) static TrialDiag diag;
-
-const TrialCalls *board_trial_calls(void)
-{
-    const ExtensionModuleEntry *code = hal_system_extension_code();
-    return code != NULL ? code->trial : NULL;
-}
 
 static uint32_t *copy_buffer(void)
 {
@@ -129,6 +125,20 @@ void board_trial_boot(void)
     if (entry != NULL) {
         entry->start(usb_session_shared(), copy_buffer());
     }
+}
+
+CORE_SEAM void headphone_store_load(HeadphoneStore *store)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    if (entry != NULL) {
+        entry->headphones_load(store);
+        return;
+    }
+    *store = (HeadphoneStore){.profiles = {.current = HEADPHONE_PROFILE_NONE},
+                              .active = {.left = REPLAY_GAIN_UNITY, .right = REPLAY_GAIN_UNITY},
+                              .load = STORE_UNREADABLE};
+    store->file.needs_reload = true;
+    hal_audio_set_headphones(store->active);
 }
 
 bool hal_system_settle_user_state(bool requested)

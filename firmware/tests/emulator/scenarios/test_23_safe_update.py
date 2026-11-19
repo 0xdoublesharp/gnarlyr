@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from echo_image_harness import (
     EchoImageHarness,
@@ -301,6 +302,30 @@ class EchoImageTest(EchoImageHarness):
         restored_again = self.start(restored, self.image)
         self.assertEqual(restored_again.run_to_first_frame(), "condition met")
         self.assertNotIn("trial_boot_module_start", restored_again.machine.reached)
+
+    def test_the_build_restored_by_a_rollback_loads_the_headphone_profile(self):
+        from test_16_extension import headphone_bank
+        from unicorn.arm_const import UC_ARM_REG_R2
+        newer = self.newer_image()
+        volume = self.debug_volume(root=[(IDENTITY.update_file, newer)])
+        volume.add_file("headphones.bin", headphone_bank(1, 12, 18) + bytes(512), None,
+                        IDENTITY.data_directory)
+        session = self.session(volume=volume, vbus=True)
+        self.assertEqual(self.boot_until_waiting_for_key(session), "reached board_wait_for_power_hold")
+        for attempt in (1, 2, 3):
+            session = self.start(session, newer)
+            self.assertEqual(session.run_to_first_frame(), "condition met")
+        rolling = self.start(session, newer)
+        self.assertEqual(rolling.run_until_reset(), "system reset requested")
+        self.assertEqual(self.trial_record(rolling), (TRIAL_ROLLED_BACK, 0))
+        restored = self.start(rolling, rolling.slot_image("slot_1") + self.image[-4:])
+        machine = restored.machine
+        ceilings = []
+        machine.hook_symbol("hal_audio_set_headphones",
+                            lambda: ceilings.append(machine.reg(UC_ARM_REG_R2) & 255))
+        self.assertEqual(restored.run_until_waiting_for_key(presses=0), "reached board_wait_for_key")
+        self.assertEqual(18, ceilings[-1], ceilings)
+        self.assert_healthy(restored)
 
     def test_a_non_enumerating_build_is_reset_by_power_and_rolled_back(self):
         newer = self.newer_image()

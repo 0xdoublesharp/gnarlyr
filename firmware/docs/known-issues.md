@@ -81,7 +81,7 @@ Also unchecked on a player by this project: confirming a trial after a session w
 - **A trial build that can't use internal storage at its start** can't count or roll back; maskrom is the way back.
 - **A trial update dated before slot 2's build** may never run if the boot ROM prefers the newer slot; the backup build then counts the starts and rolls the update back.
 - **Audio module damaged in both slots.** Lower-rate conversion and M4A demuxing require this module. If both copies fail validation, those tracks are refused; native-rate FLAC, MP3 and WAV remain available. A healthy copy in either slot is enough.
-- **Extension module damaged in both slots.** The updater's slot writing lives in the extension module, so with no intact copy an update copied over USB is refused ("Update failed") and recovery is through maskrom.
+- **Module 15 damaged in both slots.** The headphone profile loader lives in module 15, so with no intact copy the player applies a zero volume ceiling to the wired output and refuses profile edits, and trials are neither counted nor rolled back. An update copied over USB still installs, because the install lives in the USB overlay; it is the way out. Checked in the emulator only.
 - **USB code damaged in both slots.** The USB overlay is stored in both firmware slots. If it were damaged in both while the main code stayed intact, USB storage would be unavailable ("USB missing: reinstall update") and recovery would be through maskrom only.
 - **Language packs must fit the 18 KiB language window.** A pack's resident block plus its largest module segment must fit; the file itself may be larger. The glyph cache keeps 64 packed glyphs; built-in ASCII bypasses it. Additional script coverage still depends on the selected fonts.
 
