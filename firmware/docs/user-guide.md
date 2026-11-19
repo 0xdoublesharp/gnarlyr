@@ -272,9 +272,14 @@ Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and
 
 Cassette puts the title, artist and album inside a neon wireframe shell above the theme's perspective floor. The left reel empties and the right reel fills as the track advances; the spokes turn during playback and stop when paused.
 
-VU meters shows separate left and right neon dials. The bright needles follow the music with a gentle lag and a trailing echo; a small peak light marks a loud signal. Spectrum shows sixteen coloured frequency bars rising from the floor, with caps that briefly hold each peak. Both keep the title, artist, time and progress visible. Long labels end with an ellipsis.
+VU meters and Spectrum show a sunset: a striped sun sinking into the horizon above a glowing grid floor, whose lines brighten with the bass.
 
-The artwork uses your theme's colours in either orientation and at every text size. Pausing lets the needles and bars settle. Turning the screen off stops their updates.
+- **VU meters:** the sun is the meter. Its left half follows the left channel and its right half the right channel, lighting stripe by stripe from the horizon up as the music gets louder. Small marks beside the sun show 0, −6, −12 and −24 dB. On a loud peak the top of that half flashes white and PEAK lights above its L or R for half a second.
+- **Spectrum:** sixteen cyan frequency bars with white tops stand in front of the sun, each reflected in the floor. A pink cap above each bar briefly holds its peak.
+
+Both keep the title, artist, time and progress clear. Long labels end with an ellipsis. The scene uses your theme's colours in either orientation and at every text size; on Classic the sun becomes a dark eclipse. Pausing lets the sun and bars settle. Turning the screen off stops their updates.
+
+With VU meters or Spectrum selected, Cover Flow, an artist's albums and Up Next take a moment longer to open and appear without the sliding animation, because they come from another part of the firmware.
 
 All styles use the same time, progress bar and playback buttons. To move through the song, hold Menu and press or hold Vol+ or Vol−: a press moves about 1% of the song's length, and holding crosses the whole song in about 10 seconds, or about 3 seconds once the volume button has been held for about 2 seconds. Playback carries on from there when you let go (see Changing songs). Menu alone opens Quick Settings and holding Menu alone opens Lyrics, with the default button assignments.
 
