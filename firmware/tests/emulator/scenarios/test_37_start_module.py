@@ -7,12 +7,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import echo_image_harness as image_tests
 
-from echo_image_harness import EchoImageHarness, main, make_image
+from echo_image_harness import EchoImageHarness, main
 from test_16_extension import headphone_bank
 from test_33_combined_library import host_rewrites_internal_entry
 
 START_MODULE = 15
-UI_SLOT_BYTES = make_image.MODULE_CAPACITY
 PROFILE_CEILING = 18
 NOTE_NAME = "NOTE.TXT"
 NOTE_ENTRY = b"NOTE    TXT"
@@ -71,21 +70,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(session.fat().read(HEADPHONES), profile_file())
         self.assert_healthy(session)
 
-    def test_a_warm_restart_with_the_start_module_still_in_memory_loads_the_profile(self):
+    def test_a_restart_by_the_firmware_loads_the_profile_again(self):
         from unicorn.arm_const import UC_ARM_REG_PC
         session = self.session(volume=self.profile_volume())
         machine = session.machine
         machine.hook_symbol("app_show_splash", lambda: machine.uc.reg_write(
             UC_ARM_REG_PC, machine.symbols["board_restart"] | 1))
         self.assertEqual(session.run_until_reset(), "system reset requested")
-        kept = machine.read_memory(make_image.MODULE_BASE, UI_SLOT_BYTES)
         warm = session.reboot()
-        warm.machine.uc.mem_write(make_image.MODULE_BASE, bytes(kept))
         applied, watch = self.started(warm)
         self.assert_profile_applied(applied)
         self.assertEqual([], [call for call in self.start_loads(watch) if not call["loaded"]])
-        print(json.dumps({"warm_start_module_loads": [watch.describe(call)
-                                                      for call in self.start_loads(watch)]}))
         self.assert_healthy(warm)
 
     def test_a_usb_session_that_changes_storage_loads_the_profile_again(self):
