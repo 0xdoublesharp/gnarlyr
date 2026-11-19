@@ -34,9 +34,8 @@ BROWSE_SCRIPT = ["set Now Playing style=VU meters", "play", "down,down,play", "w
 
 
 class EchoImageTest(EchoImageHarness):
-    def styled_rig(self, style):
+    def styled_volume(self, style):
         from echo_emulator.fat_volume import Fat32Volume
-        from echo_emulator.playback import Rig
         settings = bytearray(self.saved_settings(4, 15, shuffle=0))
         settings[7] = 6
         settings[51] = (style & 1) << 5
@@ -46,8 +45,12 @@ class EchoImageTest(EchoImageHarness):
         volume.add_file("Moving.flac", source=MovingFlac())
         volume.add_directory(IDENTITY.data_directory)
         volume.add_file("settings.bin", settings, directory=IDENTITY.data_directory)
+        return volume
+
+    def styled_rig(self, style):
+        from echo_emulator.playback import Rig
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   volume=volume, module_elfs=self.module_elfs)
+                   volume=self.styled_volume(style), module_elfs=self.module_elfs)
 
     def swap_round(self, style):
         from echo_emulator.modules import ModuleWatch
@@ -223,6 +226,44 @@ class EchoImageTest(EchoImageHarness):
     def test_the_cover_style_starts_and_switches_off_with_the_wireframe_from_playing(self):
         loads = self.wireframe_round(COVER, "playing")
         print("\n[wireframe, Cover] loads %s" % loads)
+
+
+    def test_now_playing_falls_back_safely_when_a_usb_session_evicts_stage_and_no_copy_loads(self):
+        rig = self.styled_rig(VU)
+        machine, session = rig.machine, rig.session
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        rig.run_for(ANIMATE_MS)
+        stage, stage_overlay = self.module(machine, "stage")
+        playing, _ = self.module(machine, "playing")
+        self.assertTrue(stage_overlay.loaded(machine))
+        for slot in ("slot_1", "slot_2"):
+            for number in (stage, playing):
+                session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        machine.note("now_playing_fallback_attach")
+        machine.note("usb_session_storage_changed")
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertFalse(stage_overlay.loaded(machine))
+        rig.run_for(ANIMATE_MS)
+        windows = len(machine.panel.windows)
+        rig.press("back")
+        rig.run_for(1500)
+        self.assertGreater(machine.reached.get("now_playing_fallback_attach", 0), 0)
+        self.assertGreater(len(machine.panel.windows), windows)
+        quiet = rig.first_audio_after(machine.milliseconds() - 300) is None
+        pressed = rig.press("play")
+        rig.run_for(ANIMATE_MS)
+        if quiet:
+            self.assertIsNotNone(rig.first_audio_after(pressed))
+        else:
+            self.assertGreater(rig.audio.suspend_depth, 0)
+        print("\n[fallback after USB] playback %s by Play" % ("resumed" if quiet else "paused"))
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
 
 
 if __name__ == "__main__":

@@ -279,6 +279,19 @@ static void each_playing_module_attaches_its_own_now_playing_hooks(void)
     CHECK_EQUAL(6, fake_hal_module_loads());
 }
 
+static void the_resident_fallback_drops_every_style_hook(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    for (int style = NOW_PLAYING_CASSETTE; style <= NOW_PLAYING_SPECTRUM; style++) {
+        CHECK(attach_now_playing((NowPlayingStyle)style) != NULL);
+        CHECK(screens.now_playing.config.cassette_animate != NULL);
+        now_playing_fallback_attach(&screens.now_playing);
+        CHECK(screens.now_playing.config.cassette_draw == NULL);
+        CHECK(screens.now_playing.config.cassette_animate == NULL);
+    }
+}
+
 static void a_damaged_stage_module_hands_meter_styles_to_playing_and_is_not_retried(void)
 {
     reset();
@@ -303,6 +316,7 @@ int main(void)
         TEST_CASE(meter_styles_draw_now_playing_and_lists_from_the_stage_module),
         TEST_CASE(each_playing_module_attaches_its_own_now_playing_hooks),
         TEST_CASE(a_damaged_stage_module_hands_meter_styles_to_playing_and_is_not_retried),
+        TEST_CASE(the_resident_fallback_drops_every_style_hook),
         TEST_CASE(cassette_now_playing_requires_playing_and_reattaches_after_other_modules),
         TEST_CASE(screens_outside_every_module_belong_to_none),
         TEST_CASE(a_screen_belongs_to_the_module_whose_memory_holds_it),
