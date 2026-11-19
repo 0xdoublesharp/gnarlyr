@@ -265,3 +265,18 @@ echo_add_unit_test(NAME test_meter_now_playing
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+
+add_executable(meter_style_captures app/meter_style_captures.c app/fake_hal.c)
+target_link_libraries(meter_style_captures PRIVATE echo_app echo_library_fixtures echo_device_logic
+    echo_sim_glyphs echo_check echo_options m)
+target_include_directories(meter_style_captures PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/meter_style_frames)
+add_test(NAME meter_style_captures
+    COMMAND meter_style_captures ${CMAKE_CURRENT_BINARY_DIR}/meter_style_frames
+)
+
+echo_add_unit_test(NAME test_sunset_scene
+    SOURCES app/test_sunset_scene.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)

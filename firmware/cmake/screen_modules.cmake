@@ -121,6 +121,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_stage
     src/app/cassette_art.c
     src/app/modules/stage_module.c
     src/app/screens/meter_now_playing.c
+    src/app/screens/sunset_scene.c
+    src/app/screens/sunset_art.c
     src/app/screens/neon_art.c
     src/app/screens/wire_boot.c
     src/gfx/wireframe.c

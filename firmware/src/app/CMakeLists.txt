@@ -127,6 +127,8 @@ add_library(echo_app STATIC
     screens/neon_art.c
     screens/playing_work.c
     screens/meter_now_playing.c
+    screens/sunset_scene.c
+    screens/sunset_art.c
     screens/cassette_now_playing.c
     screens/now_playing_screen.c
     screens/now_playing_keys.c
