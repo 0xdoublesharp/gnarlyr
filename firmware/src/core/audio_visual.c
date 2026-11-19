@@ -118,6 +118,9 @@ AudioVisualLevels audio_visual_measure(AudioVisualWork *work, AudioVisualBuffer 
     uint32_t cursor = buffer.first % buffer.frames;
     uint32_t sum[2] = {0};
     int32_t mono = 0;
+    int32_t low = 0;
+    uint32_t bass = 0;
+    uint32_t grouped = 0;
     for (int bin = 0; bin < AUDIO_VISUAL_FFT; bin++) {
         work->real[bin] = 0;
         work->imag[bin] = 0;
@@ -132,10 +135,16 @@ AudioVisualLevels audio_visual_measure(AudioVisualWork *work, AudioVisualBuffer 
             }
             mono += sample;
         }
-        if (spectrum && (frame + 1) % stride == 0) {
-            int bin = (int)(frame / stride);
-            int window = AUDIO_VISUAL_FFT / 2 - absolute(bin - AUDIO_VISUAL_FFT / 2);
-            work->real[bin] = mono / (int32_t)(stride * 2) * window / (AUDIO_VISUAL_FFT / 2);
+        if (++grouped == stride) {
+            int32_t group = mono / (int32_t)(stride * 2);
+            if (spectrum) {
+                int bin = (int)(frame / stride);
+                int window = AUDIO_VISUAL_FFT / 2 - absolute(bin - AUDIO_VISUAL_FFT / 2);
+                work->real[bin] = group * window / (AUDIO_VISUAL_FFT / 2);
+            }
+            low += (group - low) / AUDIO_VISUAL_BASS_SMOOTHING;
+            bass += (uint32_t)absolute(low);
+            grouped = 0;
             mono = 0;
         }
         if (++cursor == buffer.frames) {
@@ -145,6 +154,7 @@ AudioVisualLevels audio_visual_measure(AudioVisualWork *work, AudioVisualBuffer 
     for (int channel = 0; channel < 2; channel++) {
         levels.mean[channel] = (uint16_t)(sum[channel] / count);
     }
+    levels.bass = (uint16_t)(bass / (count / stride > 0 ? count / stride : 1));
     if (spectrum) {
         bands(work, &levels);
     }

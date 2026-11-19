@@ -226,12 +226,13 @@ static void update_needles(MeterState *state, const AudioVisualLevels *levels, u
     }
 }
 
-static uint8_t energy_of(const MeterState *state, const AudioVisualLevels *levels, bool vu)
+static uint8_t energy_of(const AudioVisualLevels *levels, bool vu)
 {
-    uint8_t first = vu ? state->shown[0] : levels->band[0];
-    uint8_t second = vu ? state->shown[1] : levels->band[1];
-    uint8_t energy = first > second ? first : second;
-    return vu || energy > levels->band[2] ? energy : levels->band[2];
+    if (vu) {
+        return audio_visual_db(levels->bass);
+    }
+    uint8_t energy = levels->band[0] > levels->band[1] ? levels->band[0] : levels->band[1];
+    return energy > levels->band[2] ? energy : levels->band[2];
 }
 
 static void update(NowPlayingScreen *screen, const AudioVisualLevels *levels, uint32_t elapsed)
@@ -243,7 +244,7 @@ static void update(NowPlayingScreen *screen, const AudioVisualLevels *levels, ui
     } else {
         update_bars(state, levels, elapsed, screen->now_ms);
     }
-    uint8_t pulse = sunset_scene_pulse(state->pulse, energy_of(state, levels, vu));
+    uint8_t pulse = sunset_scene_pulse(state->pulse, energy_of(levels, vu));
     state->pulse = pulse < state->pulse && state->frame % 2 != 0 ? state->pulse : pulse;
 }
 

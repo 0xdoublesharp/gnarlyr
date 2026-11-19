@@ -6,7 +6,8 @@
 enum {
     AUDIO_VISUAL_FFT = 256,
     AUDIO_VISUAL_BANDS = 16,
-    AUDIO_VISUAL_FRAME_MS = 100
+    AUDIO_VISUAL_FRAME_MS = 100,
+    AUDIO_VISUAL_BASS_SMOOTHING = 32
 };
 
 typedef struct AudioVisualBuffer {
@@ -25,6 +26,7 @@ typedef struct AudioVisualWork {
 typedef struct AudioVisualLevels {
     uint16_t mean[2];
     uint16_t peak[2];
+    uint16_t bass;
     uint8_t band[AUDIO_VISUAL_BANDS];
 } AudioVisualLevels;
 

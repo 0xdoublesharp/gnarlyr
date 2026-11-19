@@ -387,6 +387,30 @@ static void the_floor_pulse_falls_one_step_every_other_tick(void)
     }
 }
 
+static uint8_t vu_pulse_for_tone(double hertz)
+{
+    start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
+    for (int frame = 0; frame < 512; frame++) {
+        int32_t value = (int32_t)(26000 * __builtin_sin(6.283185307179586 * hertz * frame / 44100));
+        samples[frame * 2] = (uint32_t)value << 16;
+        samples[frame * 2 + 1] = (uint32_t)value << 16;
+    }
+    screen.now_ms = 1000;
+    uint8_t highest = 0;
+    for (int tick = 0; tick < 12; tick++) {
+        animate_frames(1);
+        uint8_t pulse = playing_work_styles()->meter.pulse;
+        highest = pulse > highest ? pulse : highest;
+    }
+    return highest;
+}
+
+static void the_vu_floor_pulses_with_bass_but_not_with_treble(void)
+{
+    CHECK_EQUAL(0, vu_pulse_for_tone(8000));
+    CHECK(vu_pulse_for_tone(55) >= 2);
+}
+
 static int brightness(Color color)
 {
     return ((color >> 11) & 31) * 2 + ((color >> 5) & 63) + (color & 31) * 2;
@@ -465,6 +489,7 @@ int main(void)
         TEST_CASE(spectrum_bars_have_white_tops_and_striped_reflections),
         TEST_CASE(the_floor_lines_brighten_with_the_bass),
         TEST_CASE(the_floor_pulse_falls_one_step_every_other_tick),
+        TEST_CASE(the_vu_floor_pulses_with_bass_but_not_with_treble),
         TEST_CASE(every_theme_draws_the_scenery_in_its_own_colours),
         TEST_CASE(hidden_and_early_ticks_never_sample_or_send),
     };
