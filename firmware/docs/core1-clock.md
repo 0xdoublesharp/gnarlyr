@@ -76,8 +76,11 @@ changing only calculation divider bits 14:12 with the hardware write mask.
 Barriers complete the transition before decoding resumes. The existing SRAM
 response setting remains unchanged: 200 MHz is below stock's 300 MHz threshold.
 The idle SysTick reload follows the selected calculation clock: `core1_idle`
-rests 5 ms while waiting for input and 20 ms while both output slots are full
-(`core1_pace_rest_us`). While resting it lowers a clock above 100 MHz to 100 MHz
+rests 5 ms while waiting for input and, while both output slots are full, a
+quarter of the time a full 4,608-frame slot lasts at the stream's rate, at most
+20 ms (`core1_pace_rest_us`: 6 ms at 192 kHz, 12 ms at 96 kHz, 20 ms at 48 kHz
+and below), so it finds a slot core 0 has freed well before that slot's audio
+has played. While resting it lowers a clock above 100 MHz to 100 MHz
 and restores the selected clock after waking. Pause therefore does not hold a
 continuously running 200 MHz decoder. Stop gates/powers down core 1 as before.
 
