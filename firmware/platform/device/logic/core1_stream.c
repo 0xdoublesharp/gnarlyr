@@ -118,6 +118,16 @@ uint32_t core1_stream_handoff_frames(uint32_t min_block, uint32_t max_block, boo
     return min_block > least ? min_block : least;
 }
 
+uint32_t core1_stream_input_ms(uint32_t ring_bytes, AudioTrackInfo track)
+{
+    uint64_t bytes_per_s = (uint64_t)track.audio_bytes * track.stream.sample_rate;
+    if (bytes_per_s == 0 || track.stream.total_samples == 0) {
+        return UINT32_MAX;
+    }
+    uint64_t input_ms = (uint64_t)ring_bytes * 1000u * track.stream.total_samples / bytes_per_s;
+    return input_ms < UINT32_MAX ? (uint32_t)input_ms : UINT32_MAX;
+}
+
 static void adopt(Core1Stream *stream, uint32_t generation)
 {
     core1_stream_clock(stream->region, 100);
@@ -270,8 +280,21 @@ static bool decode_next(Core1Stream *stream)
     return true;
 }
 
+static void follow_hurry(Core1Stream *stream)
+{
+    uint32_t hurry = stream->region.control->hurry;
+    if (hurry == stream->hurry) {
+        return;
+    }
+    stream->hurry = hurry;
+    if (stream->region.hurry_clock != NULL) {
+        stream->region.hurry_clock();
+    }
+}
+
 bool core1_stream_step(Core1Stream *stream)
 {
+    follow_hurry(stream);
     volatile StreamControl *control = stream->region.control;
     uint32_t generation = control->generation;
     if (generation != stream->generation) {
@@ -388,6 +411,14 @@ CORE_SEAM void core1_source_fill(Core1Source *source)
         control->written = source->written;
     }
     source->refilling = source->written < target;
+}
+
+void core1_source_hurry(Core1Source *source)
+{
+    if (source->streaming) {
+        source->region.control->hurry++;
+        core1_publish();
+    }
 }
 
 static void advance_slot(Core1Source *source)

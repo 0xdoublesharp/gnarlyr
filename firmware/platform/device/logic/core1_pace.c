@@ -4,14 +4,14 @@ static const ClockGovernorLimits FROM_200 = {.window_us = 50000000,
                                              .pll_mhz = 0,
                                              .lowest_divider = 1,
                                              .highest_divider = 8,
-                                             .deepen_percent = 30,
+                                             .deepen_percent = 50,
                                              .raise_percent = 60,
                                              .hurry_percent = 90};
 static const ClockGovernorLimits FROM_100 = {.window_us = 50000000,
                                              .pll_mhz = 0,
                                              .lowest_divider = 2,
                                              .highest_divider = 8,
-                                             .deepen_percent = 30,
+                                             .deepen_percent = 50,
                                              .raise_percent = 60,
                                              .hurry_percent = 90};
 

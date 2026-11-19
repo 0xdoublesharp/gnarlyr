@@ -45,6 +45,7 @@ typedef struct StreamControl {
     VorbisModes vorbis_modes;
     uint32_t vorbis_config_generation;
     uint32_t vorbis_start_generation;
+    uint32_t hurry;
 } StreamControl;
 
 typedef struct StreamRegion {
@@ -53,6 +54,7 @@ typedef struct StreamRegion {
     volatile uint8_t *ring;
     uint32_t ring_bytes;
     void (*request_clock)(uint32_t mhz);
+    void (*hurry_clock)(void);
 } StreamRegion;
 
 typedef enum Core1DecodeResult {
@@ -99,6 +101,7 @@ typedef struct Core1Stream {
     uint32_t largest;
     uint32_t filled;
     uint32_t first_sample;
+    uint32_t hurry;
     bool finished;
     bool starved;
     bool holding;
@@ -109,6 +112,7 @@ void core1_stream_clock(StreamRegion region, uint32_t mhz);
 bool core1_stream_step(Core1Stream *stream);
 bool core1_stream_waiting_for_room(const Core1Stream *stream);
 uint32_t core1_stream_handoff_frames(uint32_t min_block, uint32_t max_block, bool fits_any_room);
+uint32_t core1_stream_input_ms(uint32_t ring_bytes, AudioTrackInfo track);
 
 typedef enum Core1Format {
     CORE1_FORMAT_FLAC,
@@ -154,4 +158,5 @@ typedef struct Core1Source {
 void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
                        FlacDecoder *decoder, uint32_t fill_budget);
 void core1_source_fill(Core1Source *source);
+void core1_source_hurry(Core1Source *source);
 AudioSource core1_source_interface(Core1Source *source, Core1Format format);

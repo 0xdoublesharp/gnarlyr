@@ -609,6 +609,33 @@ static bool slot_counts_up(uint32_t slot)
     return true;
 }
 
+static int hurries;
+
+static void count_hurry(void)
+{
+    hurries++;
+}
+
+static void a_resume_from_core_0_hurries_core_1_once(void)
+{
+    start_fake(512, 100);
+    hurries = 0;
+    stream.region.hurry_clock = count_hurry;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(0, hurries);
+    source.streaming = true;
+    source.region = stream.region;
+    core1_source_hurry(&source);
+    core1_stream_step(&stream);
+    CHECK_EQUAL(1, hurries);
+    core1_stream_step(&stream);
+    CHECK_EQUAL(1, hurries);
+    source.streaming = false;
+    core1_source_hurry(&source);
+    core1_stream_step(&stream);
+    CHECK_EQUAL(1, hurries);
+}
+
 static void the_first_small_block_is_handed_over_at_once(void)
 {
     start_fake(512, 100);
@@ -714,6 +741,18 @@ static void large_blocks_keep_one_block_per_hand_off(void)
     CHECK_EQUAL(4096u, control.slots[1].first_sample);
 }
 
+static void the_input_ring_lasts_as_long_as_the_stream_takes_to_read_it(void)
+{
+    AudioTrackInfo dsd128 = {.stream = {.sample_rate = 88200, .total_samples = 882000},
+                             .audio_bytes = 14112000};
+    CHECK_EQUAL(23u, core1_stream_input_ms(32768, dsd128));
+    AudioTrackInfo unknown = {.stream = {.sample_rate = 44100, .total_samples = 0},
+                              .audio_bytes = 1000};
+    CHECK_EQUAL(UINT32_MAX, core1_stream_input_ms(32768, unknown));
+    unknown = (AudioTrackInfo){.stream = {.sample_rate = 44100, .total_samples = 44100}};
+    CHECK_EQUAL(UINT32_MAX, core1_stream_input_ms(32768, unknown));
+}
+
 static void a_full_hand_off_holds_at_least_the_bound_core_0_rests_on(void)
 {
     CHECK_EQUAL(4097u, core1_stream_handoff_frames(512, 512, false));
@@ -746,6 +785,7 @@ int main(void)
         TEST_CASE(an_mp3_describes_its_stream),
         TEST_CASE(an_mp3_opened_part_way_starts_counting_from_there),
         TEST_CASE(a_file_that_is_not_mp3_is_refused),
+        TEST_CASE(a_resume_from_core_0_hurries_core_1_once),
         TEST_CASE(the_first_small_block_is_handed_over_at_once),
         TEST_CASE(small_blocks_are_gathered_while_core_0_holds_the_other_slot),
         TEST_CASE(a_gathering_slot_is_handed_over_once_core_0_empties_the_other),
@@ -754,6 +794,7 @@ int main(void)
         TEST_CASE(the_end_after_a_gathered_slot_waits_for_a_free_slot),
         TEST_CASE(large_blocks_keep_one_block_per_hand_off),
         TEST_CASE(a_full_hand_off_holds_at_least_the_bound_core_0_rests_on),
+        TEST_CASE(the_input_ring_lasts_as_long_as_the_stream_takes_to_read_it),
     };
     int failures = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(opened.bytes);

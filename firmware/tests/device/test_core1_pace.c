@@ -75,6 +75,21 @@ static void a_core_1_that_never_rests_returns_to_its_ceiling_after_one_window(vo
     CHECK_EQUAL(200u, core1_pace_mhz(governor.divider));
 }
 
+static void a_boosted_core_1_settles_at_the_lowest_clock_that_keeps_up(void)
+{
+    ClockGovernor governor;
+    clock_governor_start(&governor, core1_pace_limits(100), at(0, 0));
+    governor.divider = 8;
+    CHECK(clock_governor_update(&governor, at(50000000, 2500000)));
+    CHECK_EQUAL(100u, core1_pace_mhz(governor.divider));
+    CHECK(clock_governor_update(&governor, at(100000000, 40500000)));
+    CHECK_EQUAL(24u, governor.busy_percent);
+    CHECK_EQUAL(50u, core1_pace_mhz(governor.divider));
+    CHECK(!clock_governor_update(&governor, at(150000000, 66500000)));
+    CHECK_EQUAL(48u, governor.busy_percent);
+    CHECK_EQUAL(50u, core1_pace_mhz(governor.divider));
+}
+
 static void the_window_is_counted_in_units_across_the_32_bit_wrap(void)
 {
     ClockGovernor governor;
@@ -93,6 +108,7 @@ int main(void)
         TEST_CASE(the_requested_clock_is_the_ceiling),
         TEST_CASE(a_light_load_steps_down_to_25_megahertz_and_hurrying_restores_the_ceiling),
         TEST_CASE(a_core_1_that_never_rests_returns_to_its_ceiling_after_one_window),
+        TEST_CASE(a_boosted_core_1_settles_at_the_lowest_clock_that_keeps_up),
         TEST_CASE(the_window_is_counted_in_units_across_the_32_bit_wrap),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

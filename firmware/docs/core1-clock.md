@@ -52,18 +52,33 @@ are outside this implementation.
 
 The audio HAL sets the PLL to 200 MHz before starting a decoder and keeps it
 there until audio/core 1 shut down. `core1_divider_for` still selects /2 for
-startup. Only the DSD, Vorbis and APE programs install `StreamRegion.request_clock`;
-the stream resets that request to 100 MHz on adoption or cancellation. DSD
-requests after validating its transport header; Vorbis requests after validating
-its setup; APE requests after validating its stream header. Requests never depend on untrusted filename extensions.
+startup. Every program serves its stream through `core1_serve`, which installs
+`StreamRegion.request_clock` and `StreamRegion.hurry_clock`; the stream resets the
+request to 100 MHz on adoption or cancellation, so a seek or a track change within
+the same program starts at 100 MHz whatever the clock was before. The DSD, Vorbis
+and APE programs also install the request in their decoders' own regions and raise
+it to 200 MHz where their format needs it: DSD after validating its transport
+header, Vorbis after validating its setup, APE after validating its stream header.
+Requests never depend on untrusted filename extensions.
+
+Within that ceiling a clock governor (`core1_pace`, `ClockGovernorLimits`) measures
+core 1's idle share over 0.5 s windows. It halves the clock, down to 25 MHz, when
+the load would stay at or below 50% at half the clock, and doubles it above 60%;
+a window at least 90% busy returns to the ceiling at once, and later windows step
+down again to the lowest clock that keeps the load at or below 60%. `core1_serve`
+runs the check after every decoded step as well as in each rest. When playback
+resumes, core 0 increments `StreamControl.hurry`; core 1 then returns to its
+ceiling and restarts the window before decoding further, because a paused stream
+lets the governor fall to 25 MHz while its slots are full.
 
 The core-1 startup helper writes `0x70000000 | divider_field` to CRU `0x40180014`,
 changing only calculation divider bits 14:12 with the hardware write mask.
 Barriers complete the transition before decoding resumes. The existing SRAM
 response setting remains unchanged: 200 MHz is below stock's 300 MHz threshold.
-The 1 ms idle SysTick reload follows the selected calculation clock. While
-waiting for input or output slots, `core1_idle` lowers the clock to 100 MHz and
-restores the requested clock after waking. Pause therefore does not hold a
+The idle SysTick reload follows the selected calculation clock: `core1_idle`
+rests 5 ms while waiting for input and 20 ms while both output slots are full
+(`core1_pace_rest_us`). While resting it lowers a clock above 100 MHz to 100 MHz
+and restores the selected clock after waking. Pause therefore does not hold a
 continuously running 200 MHz decoder. Stop gates/powers down core 1 as before.
 
 Core 0's coasting writes only system-divider bits 2:0. Its

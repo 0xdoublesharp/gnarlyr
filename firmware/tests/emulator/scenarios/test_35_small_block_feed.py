@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import EchoImageHarness, main
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig
+from echo_emulator.core1 import CONTROL
 from echo_emulator.power import DecoderLoad, PowerMeter
 
 SECONDS = 16
@@ -27,6 +28,14 @@ FIRST_STEP_LIMIT_MS = 250
 PAUSED_DARK_MS = 3000
 RECOVERY_MS = 1500
 PLAY_KEY = 250
+LOWEST_CORE1_MHZ = 25
+TRACK_CHANGE_WATCH_MS = 300
+TRACK_CHANGE_LIMIT_MS = 2000
+TRACK_CHANGE_SLOW_LIMIT_US = 50000
+WINDOW_OFFSETS_MS = (0, 125, 250, 375)
+DSD128_RATE = 5644800
+DSD_OUTPUT_RATE = 88200
+DSD_PATTERN_FRAMES = 22050
 NEXT_KEY = 100
 SCREEN_TIMEOUT_LIMIT_MS = 40000
 BLOCKS_OFFSET = 12
@@ -50,14 +59,27 @@ CASES = {
                                                    "-b:a", "96k"]),
     "opus48_20ms_96k": ("08 Opus 96k.opus", 48000, ["-c:a", "libopus", "-frame_duration", "20",
                                                     "-b:a", "96k"]),
+    "opus48_20ms_96k_next": ("09 Opus 96k next.opus", 48000, ["-c:a", "libopus",
+                                                            "-frame_duration", "20",
+                                                            "-b:a", "96k"]),
+    "dsd128_stereo": ("05 DSD128.dsf", 88200, None),
     "vorbis44": ("09 Vorbis.ogg", 44100, ["-c:a", "vorbis", "-strict", "-2"]),
     "flac44": ("10 FLAC 44k.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"]),
 }
 
 
+def dsd128_stereo(seconds):
+    from dsd_fixture import dsf, signal
+    data, samples = signal(DSD128_RATE, DSD_PATTERN_FRAMES)
+    repeats = seconds * DSD_OUTPUT_RATE // DSD_PATTERN_FRAMES
+    return dsf([channel * repeats for channel in data], DSD128_RATE, samples * repeats)
+
+
 def encoded(case):
     name, rate, codec = CASES[case][:3]
     seconds = CASES[case][3] if len(CASES[case]) > 3 else SECONDS
+    if codec is None:
+        return name, dsd128_stereo(seconds)
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / name
         command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
@@ -215,11 +237,11 @@ class EchoImageTest(EchoImageHarness):
         rig.machine.hold_power(start, TAP_MS)
         rig.machine.run(until_ms=start + TAP_MS + 50)
 
-    def resumed_in_the_dark(self, case):
+    def resumed_in_the_dark(self, case, paused_ms=PAUSED_DARK_MS):
         rig, meter, frames = self.feed_rig(case)
         rig.press("play")
         self.tap_power(rig)
-        rig.run_for(PAUSED_DARK_MS)
+        rig.run_for(paused_ms)
         resumed_ms = rig.machine.milliseconds()
         rig.machine.press_key(PLAY_KEY, delay_ms=10, hold_ms=TAP_MS)
         rig.run_for(RECOVERY_MS)
@@ -285,6 +307,38 @@ class EchoImageTest(EchoImageHarness):
         rig.machine.run(until_ms=released + RECOVERY_MS)
         self.assertEqual(48000, rig.audio.rate)
         self.dark_then_lit(rig, meter, case, skipped_ms)
+        self.assert_healthy(rig.session)
+
+    def test_a_resume_anywhere_in_core_1s_load_window_keeps_heavy_streams_fed(self):
+        for case in ("dsd128_stereo", "opus48_2_5ms"):
+            for offset_ms in WINDOW_OFFSETS_MS:
+                with self.subTest(case=case, offset_ms=offset_ms):
+                    for result in self.resumed_in_the_dark(case, PAUSED_DARK_MS + offset_ms):
+                        self.assert_fed(result)
+
+    def test_a_track_change_in_the_same_core_1_program_starts_at_its_full_clock(self):
+        volume = Fat32Volume()
+        for case in ("opus48_20ms_96k", "opus48_20ms_96k_next"):
+            volume.add_file(*encoded(case))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs)
+        decoder = DecoderLoad(rig.audio, self.elf.parent)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        rig.press("play")
+        rig.run_for(PAUSED_DARK_MS)
+        self.assertEqual(LOWEST_CORE1_MHZ, decoder.mhz)
+        generation = decoder.core.word(CONTROL)
+        released = rig.machine.press_ladder([(PLAY_KEY, TAP_MS), (NEXT_KEY, TAP_MS),
+                                             (PLAY_KEY, TAP_MS)])
+        rig.machine.run(until=lambda: decoder.core.word(CONTROL) != generation,
+                        until_ms=released + TRACK_CHANGE_LIMIT_MS)
+        self.assertNotEqual(generation, decoder.core.word(CONTROL))
+        before = dict(decoder.clock_us)
+        rig.run_for(TRACK_CHANGE_WATCH_MS)
+        slow_us = decoder.clock_us[LOWEST_CORE1_MHZ] - before.get(LOWEST_CORE1_MHZ, 0)
+        self.assertLess(slow_us, TRACK_CHANGE_SLOW_LIMIT_US, dict(decoder.clock_us))
         self.assert_healthy(rig.session)
 
     def test_192_khz_flac_opus_vorbis_and_44_khz_flac_stay_fed_with_the_screen_off(self):

@@ -161,8 +161,16 @@ void core1_idle(const Core1Stream *stream)
     follow_load();
 }
 
+static void hurry_clock(void)
+{
+    clock_governor_hurry(&governor, reading());
+    use_timer(core1_pace_mhz(governor.divider), timer_us);
+}
+
 void core1_serve(Core1Stream *stream)
 {
+    stream->region.request_clock = core1_request_clock;
+    stream->region.hurry_clock = hurry_clock;
     for (;;) {
         if (core1_stream_step(stream)) {
             follow_load();

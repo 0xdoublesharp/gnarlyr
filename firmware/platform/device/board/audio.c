@@ -589,6 +589,9 @@ void hal_audio_release(void)
 CORE_COLD void hal_audio_resume(void)
 {
     ensure_engine();
+    if (using_core1) {
+        core1_source_hurry(&core1_source);
+    }
     if (transferring) {
         bool quiet = output_is_suspended_and_muted();
         dmac_resume();
@@ -1039,6 +1042,14 @@ static uint32_t smallest(uint32_t a, uint32_t b, uint32_t c)
     return least < c ? least : c;
 }
 
+static uint32_t input_ms(void)
+{
+    if (!using_core1) {
+        return UINT32_MAX;
+    }
+    return core1_stream_input_ms(core1_source.region.ring_bytes, engine.decode_track);
+}
+
 uint32_t board_audio_plan_rest(bool dark)
 {
     uint32_t rate = engine_ready ? audio_engine_rate(&engine) : 0;
@@ -1046,6 +1057,8 @@ uint32_t board_audio_plan_rest(bool dark)
     if (dark && transferring && !tone_active && stream_service == NULL && rate != 0) {
         uint32_t ring_ms = RING_FRAMES * MILLISECONDS_PER_SECOND / rate;
         rest_ms = smallest(LONGEST_REST_MS, ring_ms / RING_SERVICES, handoff_ms());
+        uint32_t input_limit_ms = input_ms() / RING_SERVICES;
+        rest_ms = rest_ms < input_limit_ms ? rest_ms : input_limit_ms;
     }
     return rest_ms;
 }
