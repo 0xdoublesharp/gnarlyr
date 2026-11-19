@@ -1,4 +1,5 @@
 add_library(echo_gfx STATIC
+    art_codec.c
     canvas.c
     color.c
     font.c

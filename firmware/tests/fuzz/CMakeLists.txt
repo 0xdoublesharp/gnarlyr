@@ -17,6 +17,7 @@ function(echo_add_fuzzer name)
 endfunction()
 
 echo_add_fuzzer(track_tags LIBRARIES echo_library_scan)
+echo_add_fuzzer(art_codec LIBRARIES echo_gfx)
 echo_add_fuzzer(timed_metadata
     LIBRARIES echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/library
