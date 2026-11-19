@@ -354,6 +354,24 @@ static void a_cutoff_just_before_a_granule_correction_admits_no_earlier_sound(vo
     }
 }
 
+static void vorbis_block_sizes_are_given_in_pcm_frames_and_gather_to_them(void)
+{
+    reset(4096);
+    AudioTrackInfo info = {0};
+    CHECK(interface.open(interface.context, "low48", 0, &info));
+    CHECK_EQUAL(256u, info.stream.min_block);
+    CHECK_EQUAL(2048u, info.stream.max_block);
+    CHECK_EQUAL(2048u, control.max_block);
+    uint32_t largest = 0;
+    AudioFrame frame;
+    while (lagging_frame(LAGS[sizeof LAGS / sizeof LAGS[0] - 1], &frame) == AUDIO_FRAME_READY) {
+        largest = frame.samples > largest ? frame.samples : largest;
+        interface.release(interface.context);
+    }
+    CHECK(largest > (uint32_t)FLAC_MAX_BLOCK - 2048u);
+    interface.close(interface.context);
+}
+
 static void failed_open_setup_and_timeout_release_the_file_and_preserve_track_info(void)
 {
     reset(4096);
@@ -456,6 +474,7 @@ int main(void)
         TEST_CASE(real_files_stream_and_resume_with_bounded_ring_refills),
         TEST_CASE(a_granule_correction_keeps_every_gathered_sample_at_its_position),
         TEST_CASE(a_cutoff_just_before_a_granule_correction_admits_no_earlier_sound),
+        TEST_CASE(vorbis_block_sizes_are_given_in_pcm_frames_and_gather_to_them),
         TEST_CASE(failed_open_setup_and_timeout_release_the_file_and_preserve_track_info),
         TEST_CASE(failed_reads_after_configuration_and_during_playback_are_errors),
         TEST_CASE(reopening_discards_full_pcm_slots_from_the_previous_generation),

@@ -5,6 +5,11 @@
 #include "device/opus_track.h"
 #include "device/vorbis_track.h"
 
+static uint16_t pcm_frames(const OggTrack *track, uint16_t block)
+{
+    return track->opus ? block : (uint16_t)(block / 2u);
+}
+
 void core1_ogg_begin(Core1Source *source, const OggTrack *track, Core1OggStart start)
 {
     source->input = (FlacInput){core1_ogg_read, source->ogg, OGG_VIRTUAL_END};
@@ -23,8 +28,8 @@ void core1_ogg_begin(Core1Source *source, const OggTrack *track, Core1OggStart s
     control->sample_rate = track->rate;
     control->channels = track->channels;
     control->bits_per_sample = 24;
-    control->min_block = track->min_block;
-    control->max_block = track->max_block;
+    control->min_block = pcm_frames(track, track->min_block);
+    control->max_block = pcm_frames(track, track->max_block);
     control->total_samples = track->samples;
     control->tail_trim = 0;
     control->first_sample = start.first_sample;
@@ -62,8 +67,8 @@ bool core1_open_ogg(void *context, const char *path, uint32_t start_ms, AudioTra
     }
     *track = (AudioTrackInfo){.stream = {.sample_rate = ogg.rate,
                                          .channels = ogg.channels,
-                                         .min_block = ogg.min_block,
-                                         .max_block = ogg.max_block,
+                                         .min_block = pcm_frames(&ogg, ogg.min_block),
+                                         .max_block = pcm_frames(&ogg, ogg.max_block),
                                          .total_samples = ogg.samples},
                               .audio_bytes = ogg.file_bytes - ogg.data_offset,
                               .codec = ogg.opus ? AUDIO_CODEC_OPUS : AUDIO_CODEC_VORBIS};
