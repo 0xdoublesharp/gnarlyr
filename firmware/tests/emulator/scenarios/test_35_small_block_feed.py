@@ -20,6 +20,9 @@ DARK_SETTLE_MS = 1500
 MEASURE_MS = 3000
 TAP_MS = 120
 FED_MS = 40
+START_DELAYS_MS = tuple(range(0, 41, 4))
+WINDOW_SHIFTS_MS = (0, 5, 11)
+RING_FRAMES = 14000
 ROW_GAP_LIMIT_MS = 250
 FRAME_PACER_FAST_FRAMES = 6
 ROW_CYCLE_WATCH_MS = 16000
@@ -50,6 +53,9 @@ CASES = {
     "flac44_lead": ("07 Lead.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"], 60),
     "flac44_row": ("02 A song title just too long for a list row.flac", 44100,
                    ["-c:a", "flac", "-sample_fmt", "s16"]),
+    "flac176_512": ("02 FLAC 176k small blocks.flac", 176400,
+                    ["-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24",
+                     "-frame_size", "512"]),
     "flac192_512": ("02 FLAC 192k small blocks.flac", 192000,
                     ["-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24",
                      "-frame_size", "512"]),
@@ -75,7 +81,16 @@ def dsd128_stereo(seconds):
     return dsf([channel * repeats for channel in data], DSD128_RATE, samples * repeats)
 
 
+ENCODED = {}
+
+
 def encoded(case):
+    if case not in ENCODED:
+        ENCODED[case] = encode(case)
+    return ENCODED[case]
+
+
+def encode(case):
     name, rate, codec = CASES[case][:3]
     seconds = CASES[case][3] if len(CASES[case]) > 3 else SECONDS
     if codec is None:
@@ -91,7 +106,7 @@ def encoded(case):
 
 
 class EchoImageTest(EchoImageHarness):
-    def feed_rig(self, case):
+    def feed_rig(self, case, start_delay_ms=0):
         name, data = encoded(case)
         volume = Fat32Volume()
         volume.add_file(name, data)
@@ -103,6 +118,7 @@ class EchoImageTest(EchoImageHarness):
         rig.machine.hook_symbol("frame_pacer_done",
                                 lambda: frames.append(rig.machine.milliseconds()))
         rig.open_songs()
+        rig.run_for(start_delay_ms)
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
         self.assertEqual(CASES[case][1], rig.audio.rate)
@@ -112,13 +128,13 @@ class EchoImageTest(EchoImageHarness):
         stats = rig.machine.symbols["stats"]
         return struct.unpack("<I", rig.machine.read_memory(stats + BLOCKS_OFFSET, 4))[0]
 
-    def measure(self, rig, meter, frames, case, dark, tap=True):
+    def measure(self, rig, meter, frames, case, dark, tap=True, settle_ms=DARK_SETTLE_MS):
         machine = rig.machine
         if dark and tap:
             start = machine.milliseconds() + 20
             machine.hold_power(start, TAP_MS)
             machine.run(until_ms=start + TAP_MS + 50)
-        rig.run_for(DARK_SETTLE_MS)
+        rig.run_for(settle_ms)
         first_ms, first_blocks = machine.milliseconds(), self.blocks(rig)
         result = meter.measure(rig, rig.session.card, MEASURE_MS)
         level = rig.audio.levels[-1][1] if rig.audio.levels else 0
@@ -340,6 +356,36 @@ class EchoImageTest(EchoImageHarness):
         slow_us = decoder.clock_us[LOWEST_CORE1_MHZ] - before.get(LOWEST_CORE1_MHZ, 0)
         self.assertLess(slow_us, TRACK_CHANGE_SLOW_LIMIT_US, dict(decoder.clock_us))
         self.assert_healthy(rig.session)
+
+    def sweep_start_phases(self, case, dark):
+        for index, delay_ms in enumerate(START_DELAYS_MS):
+            with self.subTest(case=case, dark=dark, delay_ms=delay_ms):
+                rig, meter, frames = self.feed_rig(case, delay_ms)
+                since_ms = rig.machine.milliseconds()
+                shift_ms = WINDOW_SHIFTS_MS[index % len(WINDOW_SHIFTS_MS)]
+                result = self.measure(rig, meter, frames, case, dark,
+                                      settle_ms=DARK_SETTLE_MS + shift_ms)
+                window_ms = rig.machine.milliseconds() - MEASURE_MS
+                lowest = min(level for stamp, level in rig.audio.levels if stamp >= window_ms)
+                print(json.dumps({"case": case, "dark": dark, "delay_ms": delay_ms,
+                                  "shift_ms": shift_ms,
+                                  "lowest_ms": round(lowest * 1000 / rig.audio.rate, 1)}))
+                self.assertEqual(0, result["underruns"], result)
+                self.assertEqual(0, result["output_underruns"], result)
+                self.assertGreaterEqual(lowest, RING_FRAMES // 4, (delay_ms, shift_ms))
+                self.assertEqual([], rig.audio.underruns(since_ms)[:5], (delay_ms, shift_ms))
+
+    def test_192_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True)
+
+    def test_192_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_on(self):
+        self.sweep_start_phases("flac192_512", False)
+
+    def test_176_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True)
+
+    def test_176_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_on(self):
+        self.sweep_start_phases("flac176_512", False)
 
     def test_192_khz_flac_opus_vorbis_and_44_khz_flac_stay_fed_with_the_screen_off(self):
         for case in ("flac192_512", "opus48_20ms", "vorbis44", "flac44"):
