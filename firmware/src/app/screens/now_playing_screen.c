@@ -362,7 +362,9 @@ static void update(void *context, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     refresh(now_playing, now_ms);
-    now_playing->scrub.target_ms = now_playing_scrub_preview(&now_playing->scrub, now_ms);
+    if (now_playing->scrub.active) {
+        now_playing->scrub.target_ms = now_playing_scrub_preview(&now_playing->scrub, now_ms);
+    }
     if (!now_playing->config.player->cassette.flip) {
         now_playing->flip_prompted = false;
     } else if (!now_playing->flip_prompted && now_playing->config.flip != NULL) {

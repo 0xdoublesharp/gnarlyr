@@ -303,6 +303,9 @@ static void follow_scrub(uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = &app.screens.now_playing;
     NowPlayingScrub *scrub = &now_playing->scrub;
+    if (!scrub->active && !app.scrub_swallow) {
+        return;
+    }
     bool shown = app.display_on && top_screen() == &now_playing->screen && !app.saying_goodbye &&
                  hal_power_cable() == scrub->cable;
     bool cancelling = (app.raw_held & (1u << KEY_PLAY | 1u << KEY_BACK)) != 0;
@@ -2523,7 +2526,7 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     marquee_watch_start();
     render_frame();
     NowPlayingScreen *now_playing = &app.screens.now_playing;
-    if (top_screen() == &now_playing->screen) {
+    if (now_playing->scrub.active && top_screen() == &now_playing->screen) {
         now_playing->scrub.shown_ms = now_playing->scrub.target_ms;
     }
     follow_marquees(now_ms);
