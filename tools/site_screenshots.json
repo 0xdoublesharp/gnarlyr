@@ -7,25 +7,25 @@
   "demo": {
     "tracks": [
       {
-        "title": "A Walk",
-        "artist": "Tycho",
-        "album": "Dive",
+        "title": "First Light",
+        "artist": "Cedar & Sky",
+        "album": "Long Way Home",
         "seconds": 30,
         "album_index": 0,
         "track_index": 0
       },
       {
-        "title": "Awake",
-        "artist": "Tycho",
-        "album": "Awake",
+        "title": "Night Drive",
+        "artist": "Cedar & Sky",
+        "album": "Daybreak",
         "seconds": 30,
         "album_index": 9,
         "track_index": 0
       },
       {
-        "title": "Montana",
-        "artist": "Tycho",
-        "album": "Awake",
+        "title": "Soft Focus",
+        "artist": "Cedar & Sky",
+        "album": "Daybreak",
         "seconds": 30,
         "album_index": 9,
         "track_index": 1
@@ -42,7 +42,7 @@
       "artist": "{firmware_name} Demo"
     },
     "audio_source": "tone",
-    "real_albums": true
+    "licensed_artwork": true
   },
   "screens": [
     {
@@ -1563,7 +1563,7 @@
     {
       "name": "artist-albums",
       "file": "artist-albums.png",
-      "expected_title": "Tycho",
+      "expected_title": "Cedar & Sky",
       "keys": [
         "play",
         "down",
@@ -1968,7 +1968,7 @@
     {
       "name": "track-actions",
       "file": "track-actions.png",
-      "expected_title": "A Walk",
+      "expected_title": "First Light",
       "keys": [
         "play",
         "down",

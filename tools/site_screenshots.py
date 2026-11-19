@@ -117,7 +117,7 @@ def create_demo(config, work, env, source_root=ROOT):
     card.mkdir()
     demo = config.get("demo", {})
     tracks = demo.get("tracks", [])
-    artwork = artwork_albums() if demo.get("real_albums") else None
+    artwork = artwork_albums() if demo.get("licensed_artwork") else None
     if not 1 <= len(tracks) <= 32:
         raise ValueError("Demo needs 1–32 tracks")
     for index, track in enumerate(tracks):
@@ -219,7 +219,7 @@ def render_case(case, context):
     if case.get("combined_library"):
         internal = work / (case["name"] + "-internal")
         internal.mkdir()
-        shutil.copyfile(next(card.glob("*/*.flac")), internal / "A Walk.flac")
+        shutil.copyfile(next(card.glob("*/*.flac")), internal / "Sample.flac")
         run([source_root / "firmware/.venv/bin/python", source_root / "firmware/tools/library_index.py",
              "--music", card, "--internal", internal, "--output", system / "library.db"],
             work / (case["name"] + "-index.log"), env)

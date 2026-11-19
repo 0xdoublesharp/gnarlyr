@@ -1,125 +1,146 @@
 {
   "version": 1,
+  "sample_albums": true,
   "albums": [
     {
-      "artist": "Tycho",
-      "title": "Dive",
-      "year": "2011",
+      "artist": "Cedar & Sky",
+      "title": "Long Way Home",
       "tracks": [
-        "A Walk",
-        "Hours"
+        "First Light",
+        "The Long Way"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/46/be/ed/46beed8a-5d0f-1077-cbeb-aace15e69f44/cover.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/dive/679251532?uo=4",
-      "sha256": "f498f4558fbde111969e6403faa3af6cd81a6469d499e0e6482b35798ff5b125"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1519681393784-d120267933ba",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "23a1929780fde6d42167f536f9cb744d0398b3ea8b443cd25569394f2faafee4"
     },
     {
-      "artist": "Boards of Canada",
-      "title": "Music Has the Right to Children",
-      "year": "1998",
+      "artist": "The Night Shift",
+      "title": "After Hours",
       "tracks": [
-        "Wildlife Analysis",
-        "An Eagle In Your Mind"
+        "Night Drive",
+        "Last Train"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Features125/v4/b5/4c/c2/b54cc20d-03f5-f2c4-4a0d-9b51ad65af89/dj.txuslqgv.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/music-has-the-right-to-children/281116024?uo=4",
-      "sha256": "e1dba00bde26d2e7f6b3c2c2fd5122b32330be3c1ec5d854076a43fdff9acf05"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "024674a68ba0a7e253e118f43a6472a2c009454c90ab014f2130e299d07cc792"
     },
     {
-      "artist": "Daft Punk",
-      "title": "Discovery",
-      "year": "2001",
+      "artist": "Mira Sol",
+      "title": "Slow Mornings",
       "tracks": [
-        "One More Time",
-        "Aerodynamic"
+        "Soft Focus",
+        "Open Window"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/fd/4a/77/fd4a77db-0ebc-d043-41a2-f32fa1bb0fb4/dj.qrikkdwj.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/discovery/697194953?uo=4",
-      "sha256": "6eef5694bf531b3f34c8fc4e70323d18a6908a27053e44de0cd71e4fb5802dd9"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1500534623283-312aade485b7?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1500534623283-312aade485b7",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "eccaa5efb10bd1d9d43a7ee09b764cb5fb10b789b9e1eea13c231174408a3a66"
     },
     {
-      "artist": "Nujabes",
-      "title": "Metaphorical Music",
-      "year": "2003",
+      "artist": "Studio North",
+      "title": "Side Streets",
       "tracks": [
-        "Blessing It (feat. Substantial & Pase Rock) [Remix]",
-        "Horn In the Middle"
+        "Around the Corner",
+        "City Lights"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/f3/20/32/f3203208-39f4-3d87-2bfb-918d7593bc38/HPD4.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/metaphorical-music/1078898175?uo=4",
-      "sha256": "8d7729d203cc82fff54f055a116f847cc486838837537073e9a5657ff6944c95"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1469474968028-56623f02e42e",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "ef7c6119f480430fcef98f1b52053059f0bbb41e11b56ee83d67ee8512ef4cc3"
     },
     {
-      "artist": "Bonobo",
-      "title": "Black Sands",
-      "year": "2010",
+      "artist": "June Atlas",
+      "title": "Open Water",
       "tracks": [
-        "Prelude",
-        "Kiara"
+        "Tide Lines",
+        "Far Shore"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/c1/bf/c2/c1bfc295-9310-5e5d-0322-7deee6dd4128/5021392584195.png/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/black-sands/416292276?uo=4",
-      "sha256": "54ca51579dde2a763789d7796696e15f63d763bf831291265391fac5714191a8"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1470770841072-f978cf4d019e",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "45d6a31e2dd13600ac43d992e947ba2667d7b91bc81a30c4471f40f8295ba467"
     },
     {
-      "artist": "Air",
-      "title": "Moon Safari",
-      "year": "1998",
+      "artist": "Paper Planes",
+      "title": "Weekend Tapes",
       "tracks": [
-        "La Femme d'argent",
-        "Sexy Boy"
+        "Saturday",
+        "One More Song"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/d1/f9/26/d1f926e7-e996-7166-3744-0710a82177ac/017046664455.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/moon-safari/693063670?uo=4",
-      "sha256": "2e6a67593e68203f16cacaf6c79c8de467b05537d7ec558f5ca5de709a48c4b3"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1470252649378-9c29740c9fa8",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "6bd349829eb847ee0afb5a08b6f095d2f21e4a1498f4347d8e853b280f592614"
     },
     {
-      "artist": "Massive Attack",
-      "title": "Mezzanine",
-      "year": "1998",
+      "artist": "Luma Field",
+      "title": "Static Bloom",
       "tracks": [
-        "Angel",
-        "Risingson"
+        "Signals",
+        "Soft Edges"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/0a/98/55/0a98555b-8d9d-3b46-660a-b91261557d17/00724384559953.rgb.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/mezzanine/724466069?uo=4",
-      "sha256": "fb2119235c4b64d764c496133aa56488daad76e08017a09fc7a02294daa7b445"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1441974231531-c6227db76b6e",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "b22f1d2ac3fcffd740575f52a12e0881ed733d88a27a95aca587b02f3a4ace5c"
     },
     {
-      "artist": "Portishead",
-      "title": "Dummy",
-      "year": "1994",
+      "artist": "Coastline",
+      "title": "Quiet Hours",
       "tracks": [
-        "Mysterons",
-        "Sour Times"
+        "The Harbor",
+        "Dusk"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/c1/71/93/c1719342-df7d-e9c5-c87c-53dae5afb289/00042282855329.rgb.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/dummy/1440653096?uo=4",
-      "sha256": "c16842a4560d2cd537c4dabfe8e5e80cb3dfa359db766daf6ec7d29a19323d90"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1501785888041-af3ef285b470",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "c159d780b4bafdcb0beeb65fa1931080862367109e7c5eb37b1209f3734f3856"
     },
     {
-      "artist": "Aphex Twin",
-      "title": "Selected Ambient Works 85-92",
-      "year": "1992",
+      "artist": "Violet Arc",
+      "title": "Neon Weather",
       "tracks": [
-        "Xtal",
-        "Tha"
+        "Rain Lines",
+        "Streetlight"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/5f/b3/e0/5fb3e08d-c2cd-3da4-6ad7-c5dc61803683/cover.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/selected-ambient-works-85-92/1668862636?uo=4",
-      "sha256": "0bc035a5f912ccdddd8dac3083df57fd946c5ffff0151c8708f03e2fc290f038"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1475924156734-496f6cac6ec1?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1475924156734-496f6cac6ec1",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "a23bac71e20c830a5cc1ef5ff32f056838aad1969c20ad11bf1391c83833de08"
     },
     {
-      "artist": "Tycho",
-      "title": "Awake",
-      "year": "2014",
+      "artist": "Cedar & Sky",
+      "title": "Daybreak",
       "tracks": [
-        "Awake",
-        "Montana"
+        "Night Drive",
+        "Soft Focus"
       ],
-      "artwork": "https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/7b/b8/d6/7bb8d640-dfdc-1473-3948-4060af9a3819/804297820828.jpg/600x600bb.jpg",
-      "source": "https://music.apple.com/us/album/awake/793928184?uo=4",
-      "sha256": "d7ccf02205a369a132c1efa34eff450a195fbea85ba5eb3685e68c57a49a0483"
+      "year": "2026",
+      "artwork": "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=600&h=600&q=85&fm=jpg",
+      "source": "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d",
+      "license": "Unsplash License",
+      "license_url": "https://unsplash.com/license",
+      "sha256": "c0dbfac0fe90797a0c215418ee3453a0fdc29408bbc33a87659298104136e11f"
     }
   ]
 }
