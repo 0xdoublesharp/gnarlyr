@@ -207,51 +207,59 @@ add_library(echo_device_logic STATIC
     wav_source.c
     wide_divide.c
 )
+set(ECHO_DEVICE_LOGIC_LTO_SOURCES
+    backlight.c
+    board_pins.c
+    bt_module.c
+    core1_control.c
+    dac_sequence.c
+    fat_create.c
+    fat_reserve.c
+    headset_dips.c
+    headset_monitor.c
+    headset_remote.c
+    jack_sense.c
+    key_ladder.c
+    loader_request.c
+    mp3_signature.c
+    mp4_signature.c
+    panel.c
+    panic_text.c
+    pll.c
+    start_record.c
+    storage_mount.c
+    usb_plug.c
+    wall_clock.c
+    watchdog.c
+    wide_divide.c
+    workspace_loan.c
+)
+set(ECHO_DEVICE_LOGIC_LTO_SOURCES ${ECHO_DEVICE_LOGIC_LTO_SOURCES} PARENT_SCOPE)
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
-        backlight.c
         battery_gauge.c
-        board_pins.c
-        bt_module.c
         clock_governor.c
-        core1_pace.c
-        core1_control.c
         core1_open.c
-        core1_open_mp3.c
         core1_open_flac.c
-        dac_sequence.c
+        core1_open_mp3.c
+        core1_pace.c
         debug_report.c
         emmc_layout.c
         equalizer_design.c
         exfat_create.c
-        fat_create.c
         fat_delete.c
         fat_layout.c
         fat_names.c
-        fat_reserve.c
         flac_source.c
         flac_source_open.c
-        headset_dips.c
-        headset_monitor.c
-        headset_remote.c
         image_crc.c
-        jack_sense.c
-        key_ladder.c
         key_ladder_model.c
-        loader_request.c
         m4a_stream.c
         mp3_probe.c
-        mp3_signature.c
         mp4_demux.c
-    mp4_signature.c
         msc.c
-        panel.c
-        panic_text.c
-        pll.c
         sd_card.c
         slot_copy.c
-        start_record.c
-        storage_mount.c
         time_file.c
         update_names.c
         update_trial.c
@@ -264,13 +272,11 @@ if(CMAKE_CROSSCOMPILING)
         usb_forced.c
         usb_leave.c
         usb_level.c
-        usb_plug.c
-        wall_clock.c
-        watchdog.c
-        wide_divide.c
         volume_space.c
-        workspace_loan.c
         PROPERTIES COMPILE_OPTIONS -Os
+    )
+    set_source_files_properties(${ECHO_DEVICE_LOGIC_LTO_SOURCES}
+        PROPERTIES COMPILE_OPTIONS "-Os;-flto;-ffat-lto-objects;-g"
     )
 endif()
 target_include_directories(echo_device_logic PUBLIC include)

@@ -825,7 +825,24 @@ foreach(pack_file ${ECHO_LANGUAGE_PACK_FILES})
     list(APPEND ECHO_LANGUAGE_PACK_ARGUMENTS --language-pack ${pack_file})
 endforeach()
 
+set(ECHO_DEVICE_LOGIC_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/device_logic_objects.txt)
+file(GENERATE OUTPUT ${ECHO_DEVICE_LOGIC_OBJECTS}
+    CONTENT "$<JOIN:$<TARGET_OBJECTS:echo_device_logic>,\n>\n")
+set(ECHO_LTO_LOGIC_ARGUMENTS "")
+foreach(source IN LISTS ECHO_DEVICE_LOGIC_LTO_SOURCES)
+    list(APPEND ECHO_LTO_LOGIC_ARGUMENTS --lto-source ${source})
+endforeach()
+foreach(program core1 core1_mp3 core1_m4a core1_vorbis core1_opus core1_dsd core1_ape core1_wma)
+    list(APPEND ECHO_LTO_LOGIC_ARGUMENTS --core1-map ${CMAKE_CURRENT_BINARY_DIR}/echo_${program}.map)
+endforeach()
+
 add_custom_target(echo_device_image ALL
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_lto_logic.py
+        --main $<TARGET_FILE:echo_device>
+        --objects ${ECHO_DEVICE_LOGIC_OBJECTS}
+        --overlay $<TARGET_FILE:echo_rescan_overlay>
+        --overlay $<TARGET_FILE:echo_usb_overlay>
+        ${ECHO_LTO_LOGIC_ARGUMENTS}
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
         --build ${CMAKE_BINARY_DIR}
         --elf $<TARGET_FILE:echo_device>
@@ -875,6 +892,8 @@ add_custom_target(echo_device_image ALL
         ${ECHO_LANGUAGE_PACK_FILES}
         ${PROJECT_SOURCE_DIR}/tools/make_image.py
         ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
+        ${PROJECT_SOURCE_DIR}/tools/check_lto_logic.py
+        ${ECHO_DEVICE_LOGIC_OBJECTS}
         ${PROJECT_SOURCE_DIR}/tools/identity.py
         ${FIRMWARE_IDENTITY_FILE}
     VERBATIM
