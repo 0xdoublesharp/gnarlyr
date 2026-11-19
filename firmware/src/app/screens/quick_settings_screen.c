@@ -31,7 +31,7 @@ typedef struct QuickRow {
     void (*choose)(void *settings, int index);
 } QuickRow;
 
-static EqualizerPresets presets;
+static EqualizerPresets quick_presets;
 static const char *headphone_names[HEADPHONE_PROFILE_LIMIT + 1];
 static char slot_names[HEADPHONE_PROFILE_LIMIT][HEADPHONE_PROFILE_NAME_BYTES];
 
@@ -82,6 +82,21 @@ static const char *const *headphone_labels(const SettingsContext *settings)
         }
     }
     return headphone_names;
+}
+
+static void refresh_labels(const SettingsContext *settings)
+{
+    if (quick_presets.option_count == 0) {
+        equalizer_presets_scan(&quick_presets);
+    }
+    headphone_labels(settings);
+}
+
+static void values_update(void *context, uint32_t now_ms)
+{
+    ChoiceScreen *values = context;
+    values->now_ms = now_ms;
+    refresh_labels(values->config.context);
 }
 
 static void headphone_choose(void *context, int index)
@@ -195,7 +210,9 @@ static Screen *open_values(QuickSettingsScreen *panel, const QuickRow *row)
                            .choose = row->choose,
                            .context = &panel->config.settings,
                            .theme = panel->config.theme};
-    return choice_screen_init(&panel->values, config);
+    Screen *screen = choice_screen_init(&panel->values, config);
+    screen->update = values_update;
+    return screen;
 }
 
 static ScreenAction select_row(void *context, int index)
@@ -237,7 +254,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     QuickSettingsScreen *panel = context;
     refresh_selection(panel, now_ms);
-    equalizer_presets_scan(&presets);
+    equalizer_presets_scan(&quick_presets);
     list_view_fit_rows(&panel->list,
                        list_view_rows_in(&panel->list, rows_area(panel->config.theme).height));
 }
@@ -252,7 +269,9 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 
 static void update(void *context, uint32_t now_ms)
 {
-    refresh_selection(context, now_ms);
+    QuickSettingsScreen *panel = context;
+    refresh_selection(panel, now_ms);
+    refresh_labels(&panel->config.settings);
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -276,7 +295,7 @@ static void draw(void *context, Canvas *canvas)
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config)
 {
     *panel = (QuickSettingsScreen){.config = config};
-    panel->config.settings.presets = &presets;
+    panel->config.settings.presets = &quick_presets;
     panel->model = (ListModel){.context = panel,
                                .count = count,
                                .label = label,

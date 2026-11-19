@@ -5763,6 +5763,33 @@ static void a_meter_style_without_an_intact_stage_draws_cover_after_quick_settin
     CHECK_EQUAL(1, fake_hal_module_refusals());
 }
 
+static void leaving_the_style_list_by_menu_or_hold_back_changes_nothing(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    int depth = app_screen_depth();
+    tap(KEY_MENU);
+    move_up(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing style"));
+    move_down(2);
+    tap(KEY_MENU);
+    wait_ms(300);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(depth, app_screen_depth());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    Settings settings;
+    CHECK(!saved_settings(&settings) || settings_now_playing_style(&settings) == NOW_PLAYING_COVER);
+    tap(KEY_MENU);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing style"));
+    move_down(2);
+    hold_back();
+    CHECK_EQUAL(1, app_screen_depth());
+    CHECK(!saved_settings(&settings) || settings_now_playing_style(&settings) == NOW_PLAYING_COVER);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+}
+
 static void choosing_a_song_in_up_next_plays_it(void)
 {
     start_app_with_library();
@@ -8539,6 +8566,7 @@ int main(void)
         TEST_CASE(quick_settings_switches_every_now_playing_style_pair_while_paused),
         TEST_CASE(a_style_chosen_in_quick_settings_is_kept_across_a_restart),
         TEST_CASE(a_meter_style_without_an_intact_stage_draws_cover_after_quick_settings),
+        TEST_CASE(leaving_the_style_list_by_menu_or_hold_back_changes_nothing),
         TEST_CASE(choosing_a_song_in_up_next_plays_it),
         TEST_CASE(holding_play_on_a_song_offers_up_next),
         TEST_CASE(add_to_favorite_playlist_writes_a_playlist_file),
