@@ -319,9 +319,12 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         _, equalizer = self.module(machine, "equalizer")
         self.assertTrue(equalizer.loaded(machine))
+        machine.note("usb_session_storage_changed")
         machine.host_ejects()
         machine.vbus = True
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertFalse(equalizer.loaded(machine))
+        machine.vbus = False
         windows = len(machine.panel.windows)
         rig.run_for(1500)
         self.assertTrue(equalizer.loaded(machine))

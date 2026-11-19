@@ -89,14 +89,9 @@ static void refresh_labels(const SettingsContext *settings)
     if (quick_presets.option_count == 0) {
         equalizer_presets_scan(&quick_presets);
     }
-    headphone_labels(settings);
-}
-
-static void values_update(void *context, uint32_t now_ms)
-{
-    ChoiceScreen *values = context;
-    values->now_ms = now_ms;
-    refresh_labels(values->config.context);
+    if (headphone_names[0] == NULL) {
+        headphone_labels(settings);
+    }
 }
 
 static void headphone_choose(void *context, int index)
@@ -199,6 +194,15 @@ static bool opens(const void *context, int index)
     return kind == QUICK_SUBMENU || kind == QUICK_PUSH;
 }
 
+static void draw_values(void *context, Canvas *canvas)
+{
+    const ChoiceScreen *values = context;
+    const Theme *theme = values->config.theme;
+    refresh_labels(values->config.context);
+    header_draw(canvas, theme, values->config.title);
+    list_view_draw(&values->list, canvas, theme_content_area(theme), values->now_ms);
+}
+
 static Screen *open_values(QuickSettingsScreen *panel, const QuickRow *row)
 {
     ChoiceConfig config = {.title = i18n_text(row->title),
@@ -211,7 +215,7 @@ static Screen *open_values(QuickSettingsScreen *panel, const QuickRow *row)
                            .context = &panel->config.settings,
                            .theme = panel->config.theme};
     Screen *screen = choice_screen_init(&panel->values, config);
-    screen->update = values_update;
+    screen->draw = draw_values;
     return screen;
 }
 
@@ -269,15 +273,14 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 
 static void update(void *context, uint32_t now_ms)
 {
-    QuickSettingsScreen *panel = context;
-    refresh_selection(panel, now_ms);
-    refresh_labels(&panel->config.settings);
+    refresh_selection(context, now_ms);
 }
 
 static void draw(void *context, Canvas *canvas)
 {
     QuickSettingsScreen *panel = context;
     const Theme *theme = panel->config.theme;
+    refresh_labels(&panel->config.settings);
     canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
     header_draw(canvas, theme, panel->screen.title);
     Rect area = rows_area(theme);
