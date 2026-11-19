@@ -21,6 +21,9 @@ TAP_MS = 120
 FED_MS = 40
 ROW_GAP_LIMIT_MS = 250
 FRAME_PACER_FAST_FRAMES = 6
+ROW_CYCLE_WATCH_MS = 16000
+MARQUEE_PAUSE_MS = 1200
+FIRST_STEP_LIMIT_MS = 250
 BLOCKS_OFFSET = 12
 SMALL_BLOCK_TITLE = "01 FLAC 96k 24-bit small blocks 3 min"
 CASES = {
@@ -29,6 +32,9 @@ CASES = {
                     "-frame_size", "512"]),
     "flac44_long_title": ("03 A title far too long for any list row on this player, so it has to "
                           "scroll sideways.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"]),
+    "flac44_short": ("01 Short.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"]),
+    "flac44_row": ("02 A song title just too long for a list row.flac", 44100,
+                   ["-c:a", "flac", "-sample_fmt", "s16"]),
     "flac192_512": ("02 FLAC 192k small blocks.flac", 192000,
                     ["-c:a", "flac", "-sample_fmt", "s32", "-bits_per_raw_sample", "24",
                      "-frame_size", "512"]),
@@ -170,6 +176,28 @@ class EchoImageTest(EchoImageHarness):
         self.assertLessEqual(lit["frames"], MEASURE_MS * 12 // 1000, measures)
         self.assertEqual(0, dark["frames"], measures)
         self.assert_healthy(session)
+
+    def test_every_marquee_cycle_of_a_long_row_steps_on_time_after_its_pause(self):
+        from unicorn.arm_const import UC_ARM_REG_R2
+        volume = Fat32Volume()
+        for case in ("flac44_short", "flac44_row"):
+            volume.add_file(*encoded(case))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs)
+        machine = rig.machine
+        changed = []
+        machine.hook_symbol("frame_pacer_done", lambda: changed.append(machine.milliseconds())
+                            if machine.reg(UC_ARM_REG_R2) & 0xFF else None)
+        rig.open_songs()
+        pressed_ms = rig.press("next")
+        rig.run_for(ROW_CYCLE_WATCH_MS)
+        moved = [stamp for stamp in changed if stamp >= pressed_ms]
+        gaps = [later - earlier for earlier, later in zip(moved, moved[1:])]
+        print(json.dumps({"changed": moved, "gaps": gaps}))
+        pauses = [gap for gap in gaps if gap >= MARQUEE_PAUSE_MS]
+        self.assertGreaterEqual(len(pauses), 1, gaps)
+        self.assertLessEqual(max(gaps), MARQUEE_PAUSE_MS + FIRST_STEP_LIMIT_MS, gaps)
+        self.assert_healthy(rig.session)
 
     def test_192_khz_flac_opus_vorbis_and_44_khz_flac_stay_fed_with_the_screen_off(self):
         for case in ("flac192_512", "opus48_20ms", "vorbis44", "flac44"):

@@ -55,6 +55,7 @@
 #include "ui/fade.h"
 #include "ui/header.h"
 #include "ui/label.h"
+#include "ui/marquee.h"
 #include "ui/message_screen.h"
 #include "ui/screen_stack.h"
 #include "ui/slide.h"
@@ -163,6 +164,8 @@ typedef struct AppState {
     bool view_stamp_known;
     uint32_t view_stamp;
     uint32_t view_checked_ms;
+    uint32_t marquee_due_ms;
+    bool marquee_due;
     bool frame_sent;
     Fade splash;
     Fade goodbye;
@@ -2398,12 +2401,29 @@ CORE_SEAM void app_step(void)
     animate(drawer, top_screen(), app.display_on && !fade_running() && !slide_running(), now_ms);
 }
 
+static bool marquee_step_reached(uint32_t now_ms)
+{
+    if (!app.marquee_due || !deadline_reached(now_ms, app.marquee_due_ms)) {
+        return false;
+    }
+    app.marquee_due = false;
+    return true;
+}
+
+static void follow_marquees(uint32_t now_ms)
+{
+    uint32_t wait_ms = marquee_watch_wait_ms();
+    app.marquee_due = wait_ms != MARQUEE_STILL;
+    app.marquee_due_ms = now_ms + wait_ms;
+}
+
 static void render_when_due(uint32_t now_ms, uint32_t started_us)
 {
     if (!app.display_on) {
         return;
     }
     app.render_wanted |= view_changed(now_ms);
+    app.render_wanted |= marquee_step_reached(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
     if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;
@@ -2412,7 +2432,9 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     app.render_wanted = false;
     frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
     app.frame_sent = false;
+    marquee_watch_start();
     render_frame();
+    follow_marquees(now_ms);
     frame_pacer_done(&app.pacer, now_ms, app.frame_sent, urgent);
     light_after_first_frame();
     frame_stats_record(&app.frame_stats, hal_clock_microseconds() - started_us);
