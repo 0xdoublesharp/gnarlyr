@@ -1,3 +1,4 @@
+#include "artist_album.h"
 #include "browse_sections.h"
 #include "modules/modules.h"
 #include "screens/cassette_now_playing.h"
@@ -52,4 +53,5 @@ const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .sections = browse_sections_range,
     .now_playing_attach = attach,
     .wire_boot = wire_boot_fade,
-    .artist_strip = artist_strip};
+    .artist_strip = artist_strip,
+    .only_album = artist_album_only};

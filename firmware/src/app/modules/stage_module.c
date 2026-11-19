@@ -1,3 +1,4 @@
+#include "artist_album.h"
 #include "browse_sections.h"
 #include "modules/modules.h"
 #include "screens/meter_now_playing.h"
@@ -21,4 +22,5 @@ const PlayingModuleEntry STAGE_MODULE_ENTRY = {.module =
                                                .section = browse_sections_at,
                                                .sections = browse_sections_range,
                                                .now_playing_attach = attach,
-                                               .wire_boot = wire_boot_fade};
+                                               .wire_boot = wire_boot_fade,
+                                               .only_album = artist_album_only};

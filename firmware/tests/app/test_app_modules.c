@@ -262,6 +262,35 @@ static void opening_albums_and_genres_under_a_meter_style_needs_no_module_load(v
     }
 }
 
+static int artist_loads(int row)
+{
+    start_app_with_style(NOW_PLAYING_VU);
+    open_music();
+    move_down(1);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(row);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    return fake_hal_module_loads();
+}
+
+static void artists_load_playing_only_for_an_album_strip(void)
+{
+    int single = 0;
+    int strip = 0;
+    for (int row = 0; row < 8; row++) {
+        int loads = artist_loads(row);
+        bool on_strip = SCREEN_MODULE_PLAYING == (int)fake_hal_loaded_module();
+        CHECK_EQUAL(on_strip ? 2 : 1, loads);
+        CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
+        strip += on_strip ? 1 : 0;
+        single += on_strip ? 0 : 1;
+    }
+    CHECK(single > 0);
+    CHECK(strip > 0);
+}
+
 static void cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact(void)
 {
     start_app_with_style(NOW_PLAYING_SPECTRUM);
@@ -764,6 +793,7 @@ int main(void)
         TEST_CASE(home_art_loads_playing_and_cover_flow_reuses_it),
         TEST_CASE(a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module),
         TEST_CASE(opening_albums_and_genres_under_a_meter_style_needs_no_module_load),
+        TEST_CASE(artists_load_playing_only_for_an_album_strip),
         TEST_CASE(cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact),
         TEST_CASE(a_damaged_stage_module_leaves_meter_styles_on_the_playing_module),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),

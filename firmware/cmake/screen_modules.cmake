@@ -114,6 +114,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/library/sort_key.c
     src/library/sort_fold_table.c
     src/app/browse_sections.c
+    src/app/artist_album.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_stage
     src/app/board_cover_layout.c
@@ -132,6 +133,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_stage
     src/library/sort_key.c
     src/library/sort_fold_table.c
     src/app/browse_sections.c
+    src/app/artist_album.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     platform/device/board/storage_list.c

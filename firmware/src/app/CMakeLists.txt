@@ -89,6 +89,7 @@ add_library(echo_app STATIC
     modules/views_module.c
     modules/playing_module.c
     modules/stage_module.c
+    artist_album.c
     player.c
     plug_modes.c
     screen_modules.c
