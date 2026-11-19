@@ -48,7 +48,7 @@ uint32_t now_playing_scrub_rate(uint32_t duration_ms, uint32_t held_ms)
 
 uint32_t now_playing_scrub_step(uint32_t duration_ms, uint32_t held_ms, uint32_t elapsed_ms)
 {
-    uint32_t elapsed = clamp_ms(elapsed_ms, 0, NOW_PLAYING_SCRUB_GAP_MAX_MS);
+    uint32_t elapsed = clamp_ms(elapsed_ms, 0, NOW_PLAYING_SCRUB_ELAPSED_MAX_MS);
     uint32_t step = now_playing_scrub_rate(duration_ms, held_ms) * elapsed / 1000u;
     return step < NOW_PLAYING_SEEK_STEP_MIN_MS ? NOW_PLAYING_SEEK_STEP_MIN_MS : step;
 }
@@ -56,12 +56,14 @@ uint32_t now_playing_scrub_step(uint32_t duration_ms, uint32_t held_ms, uint32_t
 int32_t now_playing_scrub_delta(NowPlayingScrub *scrub, uint32_t move, uint32_t duration_ms,
                                 uint32_t now_ms)
 {
-    uint32_t elapsed = now_ms - scrub->last_ms;
+    uint32_t kind = move % 3u;
     uint32_t step = now_playing_seek_step(duration_ms);
-    if ((move & 1u) != 0 && elapsed <= NOW_PLAYING_SCRUB_GAP_MAX_MS) {
-        step = now_playing_scrub_step(duration_ms, now_ms - scrub->started_ms, elapsed);
+    if (kind == 2u && scrub->held) {
+        step = now_playing_scrub_step(duration_ms, now_ms - scrub->started_ms,
+                                      now_ms - scrub->last_ms);
     } else {
         scrub->started_ms = now_ms;
+        scrub->held = kind != 0u;
     }
     scrub->last_ms = now_ms;
     return move < NOW_PLAYING_SEEK_COMMANDS / 2 ? (int32_t)step : -(int32_t)step;
@@ -71,8 +73,8 @@ static NowPlayingCommand chord_command_for(KeyEvent event)
 {
     uint32_t back = event.key == KEY_VOLUME_UP ? 0u : 1u;
     if (event.chord == KEY_CHORD_MENU) {
-        uint32_t held = event.gesture == KEY_GESTURE_REPEAT ? 1u : 0u;
-        return (NowPlayingCommand)((uint32_t)NOW_PLAYING_SEEK_FORWARD + back * 2u + held);
+        return (NowPlayingCommand)((uint32_t)NOW_PLAYING_SEEK_FORWARD + back * 3u +
+                                   (uint32_t)event.gesture);
     }
     if (event.gesture == KEY_GESTURE_REPEAT) {
         return NOW_PLAYING_NONE;
@@ -101,17 +103,29 @@ NowPlayingCommand now_playing_command_for(KeyEvent event)
     return NOW_PLAYING_NONE;
 }
 
-static void seek_by(NowPlayingScreen *now_playing, uint32_t move, uint32_t now_ms)
+static bool seek_once(NowPlayingScreen *now_playing, uint32_t move, uint32_t now_ms)
 {
     Player *player = now_playing->config.player;
+    NowPlayingScrub *scrub = &now_playing->scrub;
+    player_queue_cancel(player);
     player_catch_up(player);
     PlayerStatus status = player_status(player);
     if (!status.has_track || status.duration_ms == 0) {
-        return;
+        return true;
     }
-    int32_t delta_ms =
-        now_playing_scrub_delta(&now_playing->scrub, move, status.duration_ms, now_ms);
-    player_seek(player, now_playing_scrub_target(status.position_ms, status.duration_ms, delta_ms));
+    uint32_t token = player_token(player);
+    scrub->held = scrub->held && scrub->token == token;
+    scrub->token = token;
+    int32_t delta_ms = now_playing_scrub_delta(scrub, move, status.duration_ms, now_ms);
+    uint32_t target = now_playing_scrub_target(status.position_ms, status.duration_ms, delta_ms);
+    return player_seek_on(player, token, target);
+}
+
+static void seek_by(NowPlayingScreen *now_playing, uint32_t move, uint32_t now_ms)
+{
+    if (!seek_once(now_playing, move, now_ms)) {
+        seek_once(now_playing, move, now_ms);
+    }
 }
 
 void now_playing_player_command(NowPlayingScreen *now_playing, NowPlayingCommand command,

@@ -516,18 +516,38 @@ CORE_SEAM void player_skip(Player *player, int direction)
     }
 }
 
-void player_seek(Player *player, uint32_t position_ms)
+uint32_t player_token(const Player *player)
 {
-    player_queue_cancel(player);
-    player_catch_up(player);
-    if (!player->has_track) {
-        return;
-    }
+    return player->current_token;
+}
+
+static void seek_current(Player *player, uint32_t position_ms)
+{
     player->rewind_pause = RESUME_REWIND_NONE;
     if (player->loaded) {
         hal_audio_seek(player->start_ms + position_ms);
     } else {
         player->paused_position_ms = position_ms;
+    }
+}
+
+bool player_seek_on(Player *player, uint32_t token, uint32_t position_ms)
+{
+    player_queue_cancel(player);
+    player_catch_up(player);
+    if (!player->has_track || player->current_token != token) {
+        return false;
+    }
+    seek_current(player, position_ms);
+    return true;
+}
+
+void player_seek(Player *player, uint32_t position_ms)
+{
+    player_queue_cancel(player);
+    player_catch_up(player);
+    if (player->has_track) {
+        seek_current(player, position_ms);
     }
 }
 

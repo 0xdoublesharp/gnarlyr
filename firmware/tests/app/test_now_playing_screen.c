@@ -85,9 +85,9 @@ static void holding_menu_and_tapping_volume_moves_one_step(void)
 
 static void holding_menu_and_holding_volume_moves_one_step_then_scrubs_by_time(void)
 {
-    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD,
+    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD_START,
                 menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0));
-    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK,
+    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK_START,
                 menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_LONG_PRESS, 0));
     CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD_HELD,
                 menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 1));
@@ -201,7 +201,8 @@ static void a_held_scrub_step_is_the_rate_times_the_time_since_the_last_step(voi
     CHECK_EQUAL(2160, now_playing_scrub_step(180000, 0, 120));
     CHECK_EQUAL(7200, now_playing_scrub_step(180000, 2000, 120));
     CHECK_EQUAL(72000, now_playing_scrub_step(36000000, 2000, 120));
-    CHECK_EQUAL(600000, now_playing_scrub_step(36000000, 2000, NOW_PLAYING_SCRUB_GAP_MAX_MS));
+    CHECK_EQUAL(600000, now_playing_scrub_step(36000000, 2000, NOW_PLAYING_SCRUB_ELAPSED_MAX_MS));
+    CHECK_EQUAL(600000, now_playing_scrub_step(UINT32_MAX, UINT32_MAX, UINT32_MAX));
 }
 
 static void a_held_scrub_step_moves_at_least_one_second(void)
@@ -210,6 +211,14 @@ static void a_held_scrub_step_moves_at_least_one_second(void)
     CHECK_EQUAL(1000, now_playing_scrub_step(30000, 2000, 30));
     CHECK_EQUAL(1000, now_playing_scrub_step(180000, 0, 0));
 }
+
+enum {
+    FORWARD_TAP = NOW_PLAYING_SEEK_FORWARD - NOW_PLAYING_SEEK_FORWARD,
+    FORWARD_START = NOW_PLAYING_SEEK_FORWARD_START - NOW_PLAYING_SEEK_FORWARD,
+    FORWARD_HELD = NOW_PLAYING_SEEK_FORWARD_HELD - NOW_PLAYING_SEEK_FORWARD,
+    BACK_TAP = NOW_PLAYING_SEEK_BACK - NOW_PLAYING_SEEK_FORWARD,
+    BACK_HELD = NOW_PLAYING_SEEK_BACK_HELD - NOW_PLAYING_SEEK_FORWARD
+};
 
 static int32_t scrub_for(uint32_t move, uint32_t duration_ms, uint32_t interval_ms,
                          uint32_t until_ms)
@@ -226,37 +235,46 @@ static int32_t scrub_for(uint32_t move, uint32_t duration_ms, uint32_t interval_
 
 static void a_held_scrub_moves_the_same_distance_at_any_repeat_rate(void)
 {
-    int32_t tenths = scrub_for(1, 180000, 100, 1000);
+    int32_t tenths = scrub_for(FORWARD_HELD, 180000, 100, 1000);
     CHECK_EQUAL(1800 + 18000, tenths);
-    CHECK_EQUAL(tenths, scrub_for(1, 180000, 150, 1000));
-    CHECK_EQUAL(-tenths, scrub_for(3, 180000, 150, 1000));
+    CHECK_EQUAL(tenths, scrub_for(FORWARD_HELD, 180000, 150, 1000));
+    CHECK_EQUAL(-tenths, scrub_for(BACK_HELD, 180000, 150, 1000));
 }
 
 static void a_tap_or_the_start_of_a_hold_moves_one_fine_step(void)
 {
     NowPlayingScrub scrub = {0};
-    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, 0, 180000, 9000));
-    CHECK_EQUAL(-1800, now_playing_scrub_delta(&scrub, 2, 180000, 9100));
-    CHECK_EQUAL(1800 + 2160, scrub_for(1, 180000, 120, 120));
+    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_TAP, 180000, 9000));
+    CHECK_EQUAL(-1800, now_playing_scrub_delta(&scrub, BACK_TAP, 180000, 9100));
+    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_START, 180000, 9200));
+    CHECK_EQUAL(1800 + 2160, scrub_for(FORWARD_HELD, 180000, 120, 120));
 }
 
-static void a_held_scrub_after_a_long_gap_starts_over_with_a_fine_step(void)
+static void a_held_scrub_without_its_start_begins_with_a_fine_step(void)
 {
     NowPlayingScrub scrub = {0};
-    now_playing_scrub_delta(&scrub, 0, 180000, 9000);
-    CHECK_EQUAL(1800,
-                now_playing_scrub_delta(&scrub, 1, 180000, 9001 + NOW_PLAYING_SCRUB_GAP_MAX_MS));
-    CHECK_EQUAL(18000,
-                now_playing_scrub_delta(&scrub, 1, 180000, 10001 + NOW_PLAYING_SCRUB_GAP_MAX_MS));
+    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9000));
+    CHECK_EQUAL(2160, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9120));
+    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_TAP, 180000, 9240));
+    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9360));
+}
+
+static void a_held_scrub_after_a_slow_step_keeps_its_speed_and_counts_at_most_a_second(void)
+{
+    NowPlayingScrub scrub = {0};
+    now_playing_scrub_delta(&scrub, FORWARD_START, 180000, 9000);
+    CHECK_EQUAL(18000, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 10201));
+    CHECK_EQUAL(60000, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 11401));
+    CHECK_EQUAL(7200, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 11521));
 }
 
 static void a_held_scrub_speeds_up_one_and_a_half_seconds_after_the_long_press(void)
 {
     NowPlayingScrub scrub = {0};
-    now_playing_scrub_delta(&scrub, 0, 180000, 9000);
-    CHECK_EQUAL(14400, now_playing_scrub_delta(&scrub, 1, 180000, 9800));
-    CHECK_EQUAL(12582, now_playing_scrub_delta(&scrub, 1, 180000, 10499));
-    CHECK_EQUAL(30060, now_playing_scrub_delta(&scrub, 1, 180000, 11000));
+    now_playing_scrub_delta(&scrub, FORWARD_START, 180000, 9000);
+    CHECK_EQUAL(14400, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9800));
+    CHECK_EQUAL(12582, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 10499));
+    CHECK_EQUAL(30060, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 11000));
 }
 
 static void menu_opens_quick_settings(void)
@@ -627,7 +645,8 @@ int main(void)
         TEST_CASE(a_held_scrub_step_moves_at_least_one_second),
         TEST_CASE(a_held_scrub_moves_the_same_distance_at_any_repeat_rate),
         TEST_CASE(a_tap_or_the_start_of_a_hold_moves_one_fine_step),
-        TEST_CASE(a_held_scrub_after_a_long_gap_starts_over_with_a_fine_step),
+        TEST_CASE(a_held_scrub_without_its_start_begins_with_a_fine_step),
+        TEST_CASE(a_held_scrub_after_a_slow_step_keeps_its_speed_and_counts_at_most_a_second),
         TEST_CASE(a_held_scrub_speeds_up_one_and_a_half_seconds_after_the_long_press),
         TEST_CASE(menu_opens_quick_settings),
         TEST_CASE(back_leaves_and_a_long_back_goes_home),

@@ -2420,6 +2420,80 @@ static void holding_menu_and_holding_volume_scrubs_faster_the_longer_it_is_held(
     CHECK(title_is("Now Playing"));
 }
 
+static uint32_t next_menu_scrub_move(uint32_t *last, uint32_t pause_ms)
+{
+    int seeks = fake_hal_audio_seek_count();
+    for (int count = 0; count < 400 && fake_hal_audio_seek_count() == seeks; count++) {
+        now_ms += 10;
+        step();
+    }
+    uint32_t moved = fake_hal_audio_last_seek() - *last;
+    *last = fake_hal_audio_last_seek();
+    now_ms += pause_ms;
+    return moved;
+}
+
+static void a_slow_seek_during_a_menu_hold_keeps_the_hold_speeding_up(void)
+{
+    play_on_now_playing();
+    fake_hal_audio_set_position(0);
+    step();
+    press_key(KEY_MENU);
+    press_key(KEY_VOLUME_UP);
+    uint32_t last = 0;
+    CHECK_EQUAL(1000, next_menu_scrub_move(&last, 1200));
+    CHECK_EQUAL(6000, next_menu_scrub_move(&last, 1200));
+    CHECK_EQUAL(20000, next_menu_scrub_move(&last, 1200));
+    CHECK_EQUAL(20000, next_menu_scrub_move(&last, 1200));
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_MENU);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
+static void a_menu_hold_into_the_next_track_starts_again_with_a_fine_step(void)
+{
+    play_on_now_playing();
+    CHECK(fake_hal_audio_queued_path() != NULL);
+    fake_hal_audio_set_position(0);
+    step();
+    press_key(KEY_MENU);
+    press_key(KEY_VOLUME_UP);
+    uint32_t last = 0;
+    uint32_t moved = 0;
+    for (int count = 0; count < 40 && moved <= NOW_PLAYING_SEEK_STEP_MIN_MS; count++) {
+        moved = next_menu_scrub_move(&last, 0);
+    }
+    CHECK(moved > NOW_PLAYING_SEEK_STEP_MIN_MS);
+    fake_hal_audio_finish_track();
+    last = 0;
+    CHECK_EQUAL(NOW_PLAYING_SEEK_STEP_MIN_MS, next_menu_scrub_move(&last, 0));
+    CHECK_EQUAL(fake_hal_audio_token(), fake_hal_audio_last_seek_token());
+    CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
+    release_key(KEY_VOLUME_UP);
+    release_key(KEY_MENU);
+}
+
+static void a_menu_tap_as_the_next_track_begins_seeks_within_the_track_that_plays(void)
+{
+    int on_next = 0;
+    for (int reads = 1; reads <= 30; reads++) {
+        play_on_now_playing();
+        fake_hal_audio_set_position(50000);
+        step();
+        uint32_t first = fake_hal_audio_token();
+        press_key(KEY_MENU);
+        press_key(KEY_VOLUME_UP);
+        fake_hal_audio_finish_track_after_reads(reads);
+        release_key(KEY_VOLUME_UP);
+        fake_hal_audio_finish_track_after_reads(0);
+        release_key(KEY_MENU);
+        bool next = fake_hal_audio_last_seek_token() != first;
+        CHECK_EQUAL(next ? 1000u : 51000u, fake_hal_audio_last_seek());
+        on_next += next ? 1 : 0;
+    }
+    CHECK(on_next > 0 && on_next < 30);
+}
+
 static void holding_menu_and_tapping_volume_moves_one_step_each_way(void)
 {
     play_on_now_playing();
@@ -8113,6 +8187,9 @@ int main(void)
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),
         TEST_CASE(holding_menu_and_holding_volume_scrubs_by_the_time_held),
         TEST_CASE(holding_menu_and_holding_volume_scrubs_faster_the_longer_it_is_held),
+        TEST_CASE(a_slow_seek_during_a_menu_hold_keeps_the_hold_speeding_up),
+        TEST_CASE(a_menu_hold_into_the_next_track_starts_again_with_a_fine_step),
+        TEST_CASE(a_menu_tap_as_the_next_track_begins_seeks_within_the_track_that_plays),
         TEST_CASE(holding_menu_and_tapping_volume_moves_one_step_each_way),
         TEST_CASE(a_menu_scrub_while_paused_stays_paused_at_the_new_place),
         TEST_CASE(menu_held_long_around_a_volume_press_opens_neither_lyrics_nor_quick_settings),

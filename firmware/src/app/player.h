@@ -183,6 +183,8 @@ void player_jump(Player *player, int32_t delta_ms);
 void player_toggle_pause(Player *player);
 void player_skip(Player *player, int direction);
 void player_seek(Player *player, uint32_t position_ms);
+bool player_seek_on(Player *player, uint32_t token, uint32_t position_ms);
+uint32_t player_token(const Player *player);
 PlayerOutput player_output(void);
 uint8_t player_volume(const Player *player, PlayerOutput output);
 void player_set_volume(Player *player, PlayerOutput output, uint8_t level);
