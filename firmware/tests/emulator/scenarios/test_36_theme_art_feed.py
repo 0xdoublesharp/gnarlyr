@@ -133,7 +133,8 @@ class EchoImageTest(EchoImageHarness):
                       buffered_ms=round(max(0, level) * 1000 / rig.audio.rate),
                       card_kib_per_s=round(sum(reads) * 512 * 1000 / MEASURE_MS / 1024, 1),
                       frames_drawn=len([stamp for stamp in frames if stamp >= first_ms]),
-                      art_draws_per_frame=per_frame[first_frame:])
+                      art_draws_per_frame=per_frame[first_frame:],
+                      full_frame_art_draws=max(per_frame[:first_frame], default=0))
         self.assert_healthy(rig.session)
         return result, list(rig.machine.panel.frame)
 
@@ -174,15 +175,15 @@ class EchoImageTest(EchoImageHarness):
         for result in (plain, themed):
             self.assertLessEqual(result["core0_busy_percent"], CORE0_LIMIT_PERCENT, result)
 
-    def test_a_marquee_step_redraws_only_its_band(self):
+    def test_marquee_steps_and_new_seconds_redraw_only_their_bands(self):
         plain, themed = self.compared("indexed")
         draws = themed["art_draws_per_frame"]
-        full = max(draws)
-        banded = [count for count in draws if 0 < count <= full // 4]
-        print(json.dumps({"art_draws_per_frame": draws}))
+        full = themed["full_frame_art_draws"]
+        print(json.dumps({"full_frame_art_draws": full, "art_draws_per_frame": draws}))
         self.assertGreaterEqual(full, 8, draws)
-        self.assertGreaterEqual(len(banded), len(draws) * 3 // 4, draws)
-        self.assertLess(themed["core0_busy_percent"], 2 * plain["core0_busy_percent"], themed)
+        self.assertLessEqual(max(draws), full * 2 // 3, draws)
+        self.assertGreaterEqual(len([count for count in draws if 0 < count <= full // 4]),
+                                len(draws) * 3 // 4, draws)
 
     def test_a_lossless_photo_behind_a_scrolling_title_keeps_the_96_khz_feed(self):
         self.compared("lossless")

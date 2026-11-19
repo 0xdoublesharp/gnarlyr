@@ -387,10 +387,10 @@ static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas, bool
         return;
     }
     canvas_fill_rect(canvas, (Rect){left, top, size, size}, theme->colors.backdrop_top);
-    cassette_art_draw(canvas,
-                      (Rect){left + (size - CASSETTE_WIDTH) / 2, top + (size - CASSETTE_HEIGHT) / 2,
-                             CASSETTE_WIDTH, CASSETTE_HEIGHT},
-                      theme,
+    Rect tape = {left + (size - CASSETTE_WIDTH) / 2, top + (size - CASSETTE_HEIGHT) / 2,
+                 CASSETTE_WIDTH, CASSETTE_HEIGHT};
+    marquee_watch_area(MARQUEE_BAND_TAPE, tape);
+    cassette_art_draw(canvas, tape, theme,
                       (CassetteTape){shown_position(now_playing), now_playing->status.duration_ms,
                                      FIRMWARE_SHORT_NAME});
 }
@@ -458,6 +458,7 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
                         : now_playing_progress_width(shown_position(now_playing),
                                                      now_playing->status.duration_ms, bar.width);
     Color fill = volume ? theme->colors.accent_alt : theme->colors.accent;
+    marquee_watch_area(MARQUEE_BAND_TIME, (Rect){bar.x, bar.y - 1, bar.width, bar.height + 2});
     canvas_fill_rect(canvas, bar, theme->colors.divider);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
     int cursor = filled > 1 ? filled - 2 : 0;
@@ -498,6 +499,7 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     Rect area =
         line_area(theme, layout(now_playing)->times_top, layout(now_playing)->small_line_height);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    marquee_watch_area(MARQUEE_BAND_TIME, area);
     Rect icon = {area.x, area.y + (area.height - TRANSPORT_ICON) / 2, TRANSPORT_ICON,
                  TRANSPORT_ICON};
     IconId state = now_playing->status.state == PLAYER_PAUSED ? ICON_PAUSE : ICON_PLAY;
@@ -653,6 +655,7 @@ static void draw(void *context, Canvas *canvas)
                     settings_now_playing_style(now_playing->config.settings) != NOW_PLAYING_COVER &&
                     now_playing->config.cassette_draw != NULL;
     if (cassette) {
+        marquee_watch_area(MARQUEE_BAND_TIME, content);
         now_playing->config.cassette_draw(now_playing, canvas);
     } else {
         draw_cover(now_playing, canvas, artwork);
