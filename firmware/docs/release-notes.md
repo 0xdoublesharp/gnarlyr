@@ -44,6 +44,7 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 
 - **VU meters and Spectrum are a sunset scene.** A striped sun sits on the horizon over a grid floor whose lines brighten with the bass. In VU meters the sun is the meter: its left and right halves light from the horizon up with each channel, marks beside it show 0 to −24 dB, and a peak flashes its top and lights a chrome PEAK. In Spectrum, bars in the theme's accent colour stand in front of the sun with striped reflections on the floor. The scene follows all five built-in themes; title, artist, time and progress are unchanged.
 - With VU meters or Spectrum selected, opening Cover Flow, an artist's albums or Up Next loads them separately and skips the sliding animation.
+- **Quick Settings changes the Now Playing style.** Tap Menu on Now Playing and press ▶ on the Now Playing row to step through Cover, Cassette, VU meters and Spectrum. Closing the panel shows the new style without interrupting playback; it is the same setting as Settings → Now Playing style.
 - Checked in the simulator, the host tests and the ARM emulator, where both styles use no more processor time than the previous meters and a 96 kHz, 24-bit FLAC stayed fed with the screen on. Not yet checked on the player.
 
 ## Unreleased: safe updates and recovery

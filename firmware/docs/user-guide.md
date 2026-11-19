@@ -255,9 +255,9 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 
 Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and Vol− to the previous row; ▶ changes the selected value immediately. Back closes the panel and hold Back goes Home. Menu returns to Now Playing.
 
-The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphones (Off and your four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), A–B repeat (Off, A set, A–B; see [A–B repeat](#ab-repeat)), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Settings → Home screen can also put Up Next on Home. Hold Menu on Now Playing still opens Lyrics directly.
+The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphones (Off and your four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), A–B repeat (Off, A set, A–B; see [A–B repeat](#ab-repeat)), Now Playing (Cover, Cassette, VU meters, Spectrum; see [Now Playing style](#now-playing-style)), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Settings → Home screen can also put Up Next on Home. Hold Menu on Now Playing still opens Lyrics directly.
 
-Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Play on Playback speed steps to the next speed (after 3× it returns to 0.5×), applies it at once and saves it.
+Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Play on Playback speed steps to the next speed (after 3× it returns to 0.5×), applies it at once and saves it. Play on Now Playing steps to the next style (after Spectrum it returns to Cover) and saves it as Settings → Now Playing style; Now Playing shows the new style when you close the panel, and playback carries on.
 ## Long lists and whole artists
 
 In Artists, Album artists, Albums, Songs, Genres, Playlists and Favorites, hold Vol+ or Vol− to move faster, then jump to the start of each letter section. The same gesture works in name-sorted search results and filter choices, genre albums, and the name-sorted folders and files on Folders, Audiobooks and Podcasts. The badge shows the current letter and disappears shortly after release. Accents and a leading “The” follow the library's sorting; digits and symbols show **#**, at their place in the sort order. Small sections are kept, and holding stops at the ends. Lists that fit on one screen keep their ordinary scrolling.
@@ -268,7 +268,7 @@ Hold ▶ on an artist or album artist to open **Play all** and **Shuffle albums*
 
 ## Now Playing style
 
-Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and **Spectrum**. Cover is the default, and your choice stays after a restart.
+Settings → Now Playing style offers **Cover**, **Cassette**, **VU meters** and **Spectrum**. Cover is the default, and your choice stays after a restart. To change it while listening, tap Menu on Now Playing and press ▶ on the Now Playing row of Quick Settings; the new style appears when you close the panel. Both places change the same setting.
 
 Cassette puts the title, artist and album inside a neon wireframe shell above the theme's perspective floor. The left reel empties and the right reel fills as the track advances; the spokes turn during playback and stop when paused.
 
