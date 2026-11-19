@@ -34,6 +34,30 @@ def pack():
     return bytes(data)
 
 
+def art_pack(slot, rows):
+    import tempfile
+    from PIL import Image
+    manifest = json.loads((ROOT / "examples/themes/pocket-scope/theme.json").read_text())
+    manifest["assets"] = [{"slot": slot, "file": "art.png", "orientation": "landscape"}]
+    with tempfile.TemporaryDirectory() as directory:
+        folder = Path(directory)
+        image = Image.new("RGB", (len(rows[0]), len(rows)))
+        image.putdata([pixel for row in rows for pixel in row])
+        image.save(folder / "art.png")
+        (folder / "theme.json").write_text(json.dumps(manifest))
+        return theme_pack.build(folder)
+
+
+def stripes(width=480, height=222):
+    return [[((x * 7) & 255, (y * 5) & 255, ((x + y) * 3) & 255) for x in range(width)]
+            for y in range(height)]
+
+
+def rgb565(pixel):
+    red, green, blue = pixel
+    return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3)
+
+
 def selection(identity):
     data = bytearray(1024)
     data[28:45] = identity + b"\0"
@@ -91,6 +115,34 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(background, ((18 >> 3) << 11) | ((16 >> 2) << 5) | (34 >> 3))
         self.assertEqual(session.machine.watchdog_resets, 0)
         self.assert_healthy(session)
+
+    def test_the_first_frame_of_the_splash_shows_the_pack_splash_art(self):
+        rows = stripes()
+        art = [rgb565(pixel) for row in rows for pixel in row]
+        session = self.session(volume=volume(art_pack("splash", rows), active=True))
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        frame = session.machine.panel.frame
+        share = sum(1 for shown, wanted in zip(frame, art) if shown == wanted) / len(art)
+        self.assertGreaterEqual(share, 0.5, share)
+        self.assert_healthy(session)
+
+    def home_art_share(self, damaged_slots):
+        import make_image
+        rows = stripes()
+        art = [rgb565(pixel) for row in rows for pixel in row]
+        session = self.session(volume=volume(art_pack("home", rows), active=True))
+        for slot in damaged_slots:
+            session.change_module(slot, make_image.EXTENSION_MODULE_NUMBER, 600,
+                                  lambda byte: byte ^ 0xFF)
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        session.machine.run(until_ms=session.machine.milliseconds() + 1500)
+        frame = session.machine.panel.frame
+        self.assert_healthy(session)
+        return sum(1 for shown, wanted in zip(frame, art) if shown == wanted) / len(art)
+
+    def test_home_art_comes_from_the_extension_and_falls_back_to_the_palette_without_it(self):
+        self.assertGreaterEqual(self.home_art_share(()), 0.3)
+        self.assertLessEqual(self.home_art_share(("slot_1", "slot_2")), 0.01)
 
 
 if __name__ == "__main__":

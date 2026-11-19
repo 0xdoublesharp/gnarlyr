@@ -375,6 +375,9 @@ void board_main(void)
     debug_loop_boot(DEBUG_BOOT_APP);
     explain_missing_text();
     board_trial_report();
+    if (app_theme_pack_active()) {
+        board_extension_start();
+    }
     app_show_splash();
     app_draw_start();
     board_display_service();

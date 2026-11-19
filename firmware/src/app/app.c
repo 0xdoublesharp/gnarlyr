@@ -2479,6 +2479,11 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
         (DebugFrameSources){&app.frame_stats, &app.update_stats, &app.draw_stats, &app.send_stats});
 }
 
+bool app_theme_pack_active(void)
+{
+    return app.themes.active;
+}
+
 bool app_charging(void)
 {
     return app.charging;

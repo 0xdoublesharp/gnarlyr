@@ -725,6 +725,7 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             hal_clock_set_wall=extension_hal_clock_set_wall
             hal_clock_restore_wall=extension_hal_clock_restore_wall
             hal_file_remove=extension_hal_file_remove
+            theme_art_module_draw=extension_theme_art_module_draw
             standby_follow=extension_standby_follow
             standby_frame=extension_standby_frame
             wire_motion_draw=extension_wire_motion_draw

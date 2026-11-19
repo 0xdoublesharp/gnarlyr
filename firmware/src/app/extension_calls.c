@@ -5,6 +5,7 @@
 #include "hal/audio.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "theme_runtime.h"
 
 static const ExtensionModuleEntry *extension(void)
 {
@@ -73,6 +74,12 @@ bool hal_file_remove(const char *path)
 {
     const ExtensionModuleEntry *code = extension();
     return code != NULL && code->file_remove(path);
+}
+
+bool theme_art_module_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
+{
+    const ExtensionModuleEntry *code = extension();
+    return code != NULL && code->theme_draw(theme, canvas, slot, area);
 }
 
 bool hal_clock_set_wall(HalWallTime time)

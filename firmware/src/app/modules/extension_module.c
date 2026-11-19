@@ -4,6 +4,7 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "screen_modules.h"
+#include "theme_runtime.h"
 
 #ifdef ECHO_DEVICE_MODULE
 #include "board.h"
@@ -23,6 +24,7 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .motion_fit = wire_motion_fit,
     .motion_draw = wire_motion_draw,
     .file_remove = hal_file_remove,
+    .theme_draw = theme_art_module_draw,
     .clock_set = hal_clock_set_wall,
     .clock_restore = hal_clock_restore_wall,
 #ifdef ECHO_DEVICE_MODULE
