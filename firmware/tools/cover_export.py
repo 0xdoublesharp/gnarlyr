@@ -224,9 +224,15 @@ def chosen_picture(pictures):
     return pictures[0][1] if pictures else None
 
 
-def folder_art(root, relative_paths):
+def music_path(root, relative, internal):
+    if internal is not None and library_index.drive_root(relative):
+        return internal / relative.partition("/")[2]
+    return root / relative
+
+
+def folder_art(root, relative_paths, internal=None):
     for folder in dict.fromkeys(posixpath.dirname(relative) for relative in relative_paths):
-        image = folder_image(root / folder)
+        image = folder_image(music_path(root, folder, internal))
         if image is not None:
             try:
                 return Art(image.read_bytes(), image, posixpath.join(folder, image.name))
@@ -269,19 +275,20 @@ def usable(art):
     return Art(art.data, art.file, art.relative, art.picture_length, image)
 
 
-def embedded_art(root, first):
-    picture = chosen_picture(embedded_pictures(root / first))
-    return None if picture is None else Art(picture, root / first, first, len(picture))
+def embedded_art(root, relative, internal=None):
+    path = music_path(root, relative, internal)
+    picture = chosen_picture(embedded_pictures(path))
+    return None if picture is None else Art(picture, path, relative, len(picture))
 
 
-def locate_art(root, relative_paths, embedded_only=False):
+def locate_art(root, relative_paths, embedded_only=False, internal=None):
     if not relative_paths:
         return None
     for relative in relative_paths:
-        art = usable(embedded_art(root, relative))
+        art = usable(embedded_art(root, relative, internal))
         if art is not None:
             return art
-    return None if embedded_only else usable(folder_art(root, relative_paths))
+    return None if embedded_only else usable(folder_art(root, relative_paths, internal))
 
 
 def find_art(root, relative_paths):
@@ -426,12 +433,12 @@ def converted(art, convert):
         return None
 
 
-def collect_covers(root, sources, convert=unchanged, describe=None):
+def collect_covers(root, sources, convert=unchanged, describe=None, *, internal=None):
     covers = CoverSet()
     for source in artwork_sources(sources):
         if source.key in covers.records:
             continue
-        art = locate_art(root, source.paths, source.embedded_only)
+        art = locate_art(root, source.paths, source.embedded_only, internal)
         image = converted(art, convert)
         if image is None:
             covers.missing.append(f"{source.artist} - {source.title}")

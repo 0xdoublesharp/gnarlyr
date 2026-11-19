@@ -109,7 +109,7 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | font packs | 1 | `tools/glyph_pack.py` |
 | discovery preferences | 1 | |
 | debug screenshots | 1 | `tools/echo_debug.py` |
-| `scan.bin` | `DSSC` | the music fingerprint and the firmware tag that made it; no version |
+| `scan.bin` | `DSS2` | the card and internal music fingerprints, firmware tag, internal state and generation in a 52-byte record |
 
 `resume.bin` and `upnext.bin` from earlier builds are no longer read or created; the session journal holds that state.
 
