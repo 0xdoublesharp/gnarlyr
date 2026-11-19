@@ -83,13 +83,21 @@ bool sunset_art_peak_lit(const MeterState *meter, int channel, uint32_t now_ms)
     return meter->peak_until[channel] != 0 && (int32_t)(meter->peak_until[channel] - now_ms) > 0;
 }
 
+SunsetArt sunset_art_make(const Theme *theme, Rect stage, const MeterState *meter, bool sun_meter)
+{
+    const ThemeColors *colors = &theme->colors;
+    return (SunsetArt){.theme = theme,
+                       .scene = sunset_scene_of(theme, stage),
+                       .meter = meter,
+                       .sun_meter = sun_meter,
+                       .crown = color_between(colors->accent_alt, colors->text, 1, 2),
+                       .base = color_between(colors->accent_alt, colors->danger, 1, 2)};
+}
+
 static Color sun_hot(const SunsetArt *art, int y)
 {
-    const ThemeColors *colors = &art->theme->colors;
     int top = sunset_scene_top(&art->scene);
-    return color_between(color_between(colors->accent_alt, colors->text, 1, 2),
-                         color_between(colors->accent_alt, colors->danger, 1, 2), y - top,
-                         art->scene.horizon - top);
+    return color_between(art->crown, art->base, y - top, art->scene.horizon - top);
 }
 
 static Color half_ink(const SunsetArt *art, int side, int y, Color hot)

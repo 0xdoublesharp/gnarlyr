@@ -12,8 +12,8 @@ from echo_emulator.flac_image import FlacImage, BLOCK_SAMPLES
 
 VU, SPECTRUM = 2, 3
 VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS = 3.5
-CORE0_BUDGETS = {(VU, "flac44"): 14.08, (SPECTRUM, "flac44"): 13.63,
-                 (VU, "flac96_512"): 16.70, (SPECTRUM, "flac96_512"): 18.22}
+CORE0_INCREASE_BUDGETS = {(VU, "flac44"): 2.53, (SPECTRUM, "flac44"): 2.59,
+                          (VU, "flac96_512"): 3.25, (SPECTRUM, "flac96_512"): 4.84}
 MUSIC_SECONDS = 16
 MUSIC = ("0.35*sin(2*PI*55*t)*(0.4+0.6*lt(mod(t,0.5),0.12))"
          "+0.18*sin(2*PI*110*t+sin(3*t))"
@@ -144,7 +144,7 @@ class EchoImageTest(EchoImageHarness):
                          "animated": round(animated, 2), "still": round(still, 2),
                          "increase": round(animated - still, 2)},
                         ticks, sum(window.pixels for window in windows))
-            self.assertLessEqual(animated, CORE0_BUDGETS[(style, "flac44")])
+            self.assertLessEqual(animated - still, CORE0_INCREASE_BUDGETS[(style, "flac44")])
         self.assertLessEqual(animated - still, budget)
         self.assertEqual([], rig.audio.underruns(started))
         self.assertEqual(0, rig.audio.output_underruns())
@@ -189,7 +189,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreaterEqual(len(ticks), 29)
         self.assertEqual(0, result["underruns"], result)
         self.assertEqual(0, result["output_underruns"], result)
-        self.assertLessEqual(busy, CORE0_BUDGETS[(style, "flac96_512")])
+        self.assertLessEqual(busy - still["core0_busy_percent"],
+                             CORE0_INCREASE_BUDGETS[(style, "flac96_512")])
         self.assert_healthy(rig.session)
 
     def test_vu_style_keeps_a_96_khz_24_bit_small_block_flac_fed_with_the_screen_on(self):

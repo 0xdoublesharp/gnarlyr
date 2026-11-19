@@ -2,6 +2,7 @@
 
 #include "core/hash.h"
 #include "core/seam.h"
+#include "gfx/strip_renderer.h"
 #include "hal/audio.h"
 #include "hal/bluetooth.h"
 #include "hal/display.h"
@@ -56,8 +57,9 @@ static SunsetArt art_of(const NowPlayingScreen *screen)
 {
     const Theme *theme = screen->config.theme;
     bool vu = settings_now_playing_style(screen->config.settings) == NOW_PLAYING_VU;
-    return (SunsetArt){theme, sunset_scene_of(theme, meter_now_playing_layout(theme).stage),
-                       meter(), screen->now_ms, vu};
+    SunsetArt art = sunset_art_make(theme, meter_now_playing_layout(theme).stage, meter(), vu);
+    art.now_ms = screen->now_ms;
+    return art;
 }
 
 void meter_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
@@ -92,8 +94,12 @@ static void render(SunsetArt *art, Rect area)
     if (rect_is_empty(visible)) {
         return;
     }
-    neon_art_render(visible, art->theme->colors.background, (FrameDrawer){draw_motion, art},
-                    (FrameSink){send_motion, NULL});
+    StripRenderer renderer = {.strip_pixels = playing_work_styles()->neon.pixels,
+                              .area = visible,
+                              .strip_height = PLAYING_NEON_PIXELS / visible.width,
+                              .drawer_paints_everything = true};
+    strip_renderer_render(&renderer, (FrameDrawer){draw_motion, art},
+                          (FrameSink){send_motion, NULL});
 }
 
 static Rect rows_between(int x, int width, int first, int second)
