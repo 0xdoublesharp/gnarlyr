@@ -533,6 +533,196 @@ static void a_full_input_ring_waits_for_half_a_ring_then_refills_in_bounded_burs
     opened = (Fixture){0};
 }
 
+typedef struct FakeDecoder {
+    uint32_t next;
+    uint32_t block;
+    uint32_t blocks_left;
+    uint32_t jump_at;
+    bool in_place;
+    int32_t pcm[FLAC_MAX_CHANNELS][FLAC_MAX_BLOCK];
+} FakeDecoder;
+
+static FakeDecoder fake;
+
+static void fake_start(void *context, FlacInput input, FlacInfo info, uint32_t first_sample,
+                       const bool *starved)
+{
+    (void)context;
+    (void)input;
+    (void)info;
+    (void)first_sample;
+    (void)starved;
+}
+
+static Core1DecodeResult fake_decode(void *context, Core1Block *block)
+{
+    FakeDecoder *decoder = context;
+    if (decoder->blocks_left == 0) {
+        return CORE1_FINISHED;
+    }
+    decoder->blocks_left--;
+    if (decoder->next == decoder->jump_at) {
+        decoder->next += 1000;
+    }
+    for (int channel = 0; channel < FLAC_MAX_CHANNELS; channel++) {
+        int32_t *to = decoder->in_place ? block->out[channel] : decoder->pcm[channel];
+        for (uint32_t index = 0; index < decoder->block; index++) {
+            to[index] = (int32_t)(decoder->next + index);
+        }
+        block->channels[channel] = to;
+    }
+    block->first_sample = decoder->next;
+    block->samples = decoder->block;
+    block->position = 0;
+    decoder->next += decoder->block;
+    return CORE1_DECODED;
+}
+
+static void start_fake(uint32_t block, uint32_t blocks)
+{
+    memset(&control, 0, sizeof control);
+    fake = (FakeDecoder){.block = block, .blocks_left = blocks, .jump_at = UINT32_MAX};
+    StreamRegion region = {
+        .control = &control, .samples = samples, .ring = ring, .ring_bytes = BIG_RING_BYTES};
+    core1_stream_init(&stream, region, (Core1Decoder){fake_start, fake_decode, &fake, false});
+    control.channels = 2;
+    control.max_block = block;
+    control.generation = 1;
+    CHECK(core1_stream_step(&stream));
+}
+
+static void step_until_full(uint32_t slot)
+{
+    for (int round = 0; round < 64 && control.slots[slot].state != STREAM_SLOT_FULL; round++) {
+        core1_stream_step(&stream);
+    }
+}
+
+static bool slot_counts_up(uint32_t slot)
+{
+    for (uint32_t index = 0; index < control.slots[slot].samples; index++) {
+        int32_t expected = (int32_t)(control.slots[slot].first_sample + index);
+        if (samples[slot][0][index] != expected || samples[slot][1][index] != expected) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void the_first_small_block_is_handed_over_at_once(void)
+{
+    start_fake(512, 100);
+    CHECK(core1_stream_step(&stream));
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
+    CHECK_EQUAL(512u, control.slots[0].samples);
+    CHECK_EQUAL(0u, control.slots[0].first_sample);
+}
+
+static void small_blocks_are_gathered_while_core_0_holds_the_other_slot(void)
+{
+    start_fake(512, 100);
+    step_until_full(0);
+    step_until_full(1);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
+    CHECK_EQUAL((uint32_t)FLAC_MAX_BLOCK, control.slots[1].samples);
+    CHECK_EQUAL(512u, control.slots[1].first_sample);
+    CHECK(slot_counts_up(1));
+    CHECK(!core1_stream_step(&stream));
+    CHECK(core1_stream_waiting_for_room(&stream));
+}
+
+static void a_gathering_slot_is_handed_over_once_core_0_empties_the_other(void)
+{
+    start_fake(512, 100);
+    step_until_full(0);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_EMPTY, control.slots[1].state);
+    control.slots[0].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
+    CHECK_EQUAL(3u * 512u, control.slots[1].samples);
+    CHECK(slot_counts_up(1));
+}
+
+static void a_block_that_does_not_follow_starts_the_next_hand_off(void)
+{
+    start_fake(512, 100);
+    fake.jump_at = 3 * 512;
+    step_until_full(0);
+    step_until_full(1);
+    CHECK_EQUAL(2u * 512u, control.slots[1].samples);
+    CHECK(slot_counts_up(1));
+    control.slots[0].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    control.slots[1].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
+    CHECK_EQUAL(3u * 512u + 1000u, control.slots[0].first_sample);
+    CHECK(slot_counts_up(0));
+}
+
+static void a_jump_written_in_place_hands_over_the_gathered_slot_with_its_own_positions(void)
+{
+    start_fake(512, 100);
+    fake.in_place = true;
+    fake.jump_at = 3 * 512;
+    step_until_full(0);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
+    CHECK_EQUAL(2u * 512u, control.slots[1].samples);
+    CHECK_EQUAL(512u, control.slots[1].first_sample);
+    CHECK(slot_counts_up(1));
+    CHECK(!core1_stream_step(&stream));
+    control.slots[0].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    control.slots[1].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
+    CHECK_EQUAL(3u * 512u + 1000u, control.slots[0].first_sample);
+    CHECK_EQUAL(3u * 512u, control.slots[0].samples);
+    CHECK(slot_counts_up(0));
+}
+
+static void the_end_after_a_gathered_slot_waits_for_a_free_slot(void)
+{
+    start_fake(512, 3);
+    step_until_full(0);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
+    CHECK_EQUAL((uint32_t)AUDIO_FRAME_READY, control.slots[1].result);
+    CHECK_EQUAL(2u * 512u, control.slots[1].samples);
+    CHECK(!core1_stream_step(&stream));
+    control.slots[0].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
+    CHECK_EQUAL((uint32_t)AUDIO_FRAME_END, control.slots[0].result);
+}
+
+static void large_blocks_keep_one_block_per_hand_off(void)
+{
+    start_fake(4096, 100);
+    step_until_full(0);
+    step_until_full(1);
+    CHECK_EQUAL(4096u, control.slots[1].samples);
+    CHECK_EQUAL(4096u, control.slots[1].first_sample);
+}
+
+static void a_full_hand_off_holds_at_least_the_bound_core_0_rests_on(void)
+{
+    CHECK_EQUAL(4097u, core1_stream_handoff_frames(512, 512, false));
+    CHECK_EQUAL(4096u, core1_stream_handoff_frames(4096, 4096, false));
+    CHECK_EQUAL(3457u, core1_stream_handoff_frames(1152, 1152, false));
+    CHECK_EQUAL((uint32_t)FLAC_MAX_BLOCK, core1_stream_handoff_frames(120, 4608, true));
+    CHECK_EQUAL(1152u, core1_stream_handoff_frames(1152, 4608, false));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -556,6 +746,14 @@ int main(void)
         TEST_CASE(an_mp3_describes_its_stream),
         TEST_CASE(an_mp3_opened_part_way_starts_counting_from_there),
         TEST_CASE(a_file_that_is_not_mp3_is_refused),
+        TEST_CASE(the_first_small_block_is_handed_over_at_once),
+        TEST_CASE(small_blocks_are_gathered_while_core_0_holds_the_other_slot),
+        TEST_CASE(a_gathering_slot_is_handed_over_once_core_0_empties_the_other),
+        TEST_CASE(a_block_that_does_not_follow_starts_the_next_hand_off),
+        TEST_CASE(a_jump_written_in_place_hands_over_the_gathered_slot_with_its_own_positions),
+        TEST_CASE(the_end_after_a_gathered_slot_waits_for_a_free_slot),
+        TEST_CASE(large_blocks_keep_one_block_per_hand_off),
+        TEST_CASE(a_full_hand_off_holds_at_least_the_bound_core_0_rests_on),
     };
     int failures = test_run_all(cases, TEST_CASE_COUNT(cases));
     free(opened.bytes);

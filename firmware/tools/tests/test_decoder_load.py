@@ -25,6 +25,12 @@ def fill_slot_one_program():
     return vectors + code + struct.pack("<I", slot_state(1))
 
 
+def fill_slot_one_once_slot_zero_empties_program():
+    vectors = struct.pack("<II", RAM_BASE + 0x10000, 0x09)
+    code = struct.pack("<8H", 0x4803, 0x6801, 0x2900, 0xD1FC, 0x2101, 0x6141, 0xBF30, 0xE7FE)
+    return vectors + code + struct.pack("<I", slot_state(0))
+
+
 class Machine:
     def __init__(self):
         self.uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
@@ -33,8 +39,10 @@ class Machine:
     def hook_symbol(self, name, callback):
         pass
 
+    now = 0
+
     def microseconds(self):
-        return 0
+        return self.now
 
     def read_memory(self, address, size):
         return bytes(self.uc.mem_read(address, size))
@@ -52,11 +60,11 @@ class Audio:
         self.core1 = None
 
 
-def decoder_load(machine):
+def decoder_load(machine, program=None, wfi=WFI_ADDRESS):
     load = DecoderLoad(Audio(machine), Path("."))
-    load.core = Core1(fill_slot_one_program(), RING_BYTES)
+    load.core = Core1(program or fill_slot_one_program(), RING_BYTES)
     load.ring_bytes = RING_BYTES
-    load.wfi = WFI_ADDRESS
+    load.wfi = wfi
     load.mhz, load.reload, load.period_start = 100, 0, 0.0
     load.time_us = 0.0
     load.resting = False
@@ -71,20 +79,42 @@ class DecoderLoadTest(unittest.TestCase):
         machine.put(slot_state(0), SLOT_FULL)
         load = decoder_load(machine)
         load.wake()
+        load.copy_input()
+        load.run_until(1000)
         self.assertEqual(SLOT_FULL, load.core.word(slot_state(1)))
         machine.put(slot_state(0), SLOT_EMPTY)
         load.publish()
         self.assertEqual(SLOT_EMPTY, machine.word(slot_state(0)))
         self.assertEqual(SLOT_FULL, machine.word(slot_state(1)))
 
-    def test_stores_from_an_earlier_wake_are_not_published_again(self):
+    def test_stores_from_an_earlier_step_are_not_published_again(self):
         machine = Machine()
         load = decoder_load(machine)
         load.wake()
-        load.publish()
+        load.advance_to(1000)
         machine.put(slot_state(1), SLOT_EMPTY)
         load.publish()
         self.assertEqual(SLOT_EMPTY, machine.word(slot_state(1)))
+
+    def test_core_1_sees_a_slot_core_0_empties_during_a_wake_one_step_later(self):
+        machine = Machine()
+        machine.put(slot_state(0), SLOT_FULL)
+        load = decoder_load(machine, fill_slot_one_once_slot_zero_empties_program(), 0x14)
+        load.reload = 100 * 1000 - 1
+        load.next_wake_us = 10
+        load.step()
+        machine.now = 50
+        load.step()
+        self.assertTrue(load.awake)
+        machine.put(slot_state(0), SLOT_EMPTY)
+        machine.now = 100
+        load.step()
+        self.assertTrue(load.awake)
+        self.assertEqual(SLOT_EMPTY, machine.word(slot_state(1)))
+        machine.now = 150
+        load.step()
+        self.assertFalse(load.awake)
+        self.assertEqual(SLOT_FULL, machine.word(slot_state(1)))
 
 
 if __name__ == "__main__":

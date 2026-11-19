@@ -67,6 +67,8 @@ typedef struct Core1Block {
     uint32_t first_sample;
     uint32_t samples;
     uint32_t position;
+    int32_t *out[FLAC_MAX_CHANNELS];
+    uint32_t room;
 } Core1Block;
 
 typedef struct Core1Decoder {
@@ -74,6 +76,7 @@ typedef struct Core1Decoder {
                   const bool *starved);
     Core1DecodeResult (*decode)(void *context, Core1Block *block);
     void *context;
+    bool fits_any_room;
 } Core1Decoder;
 
 typedef struct Core1Flac {
@@ -86,19 +89,26 @@ Core1Decoder core1_flac_decoder(Core1Flac *flac, FlacDecoder *decoder);
 typedef struct Core1Stream {
     StreamRegion region;
     Core1Decoder decoder;
+    Core1Block held;
+    Core1DecodeResult held_result;
     uint32_t channels;
     uint32_t generation;
     uint32_t start_offset;
     uint32_t end_offset;
     uint32_t slot;
+    uint32_t largest;
+    uint32_t filled;
+    uint32_t first_sample;
     bool finished;
     bool starved;
+    bool holding;
 } Core1Stream;
 
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder);
 void core1_stream_clock(StreamRegion region, uint32_t mhz);
 bool core1_stream_step(Core1Stream *stream);
 bool core1_stream_waiting_for_room(const Core1Stream *stream);
+uint32_t core1_stream_handoff_frames(uint32_t min_block, uint32_t max_block, bool fits_any_room);
 
 typedef enum Core1Format {
     CORE1_FORMAT_FLAC,

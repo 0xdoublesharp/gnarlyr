@@ -100,6 +100,8 @@ bool sim_ogg_open(SimOgg *ogg, const char *path)
 static bool next_block(SimOgg *ogg)
 {
     while (ogg->taken == ogg->block.samples) {
+        ogg->block =
+            (Core1Block){.out = {ogg->samples[0][0], ogg->samples[0][1]}, .room = FLAC_MAX_BLOCK};
         Core1DecodeResult result = ogg->decoder.decode(ogg->decoder.context, &ogg->block);
         if (result != CORE1_DECODED) {
             ogg->failed = result != CORE1_FINISHED || ogg->next != ogg->track.samples;

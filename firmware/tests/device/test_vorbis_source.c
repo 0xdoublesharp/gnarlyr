@@ -24,6 +24,7 @@ static bool timeout_wait;
 static bool stale_generation;
 static bool fail_after_config;
 static uint32_t origin_shift;
+static uint64_t shift_above;
 static uint32_t wait_calls;
 
 static bool read_file(void *context, uint32_t offset, void *out, uint32_t count)
@@ -43,7 +44,7 @@ static void shift_granules(void)
     while (offset < file_size) {
         CHECK_EQUAL(OGG_PACKET_READY,
                     ogg_page_read((FlacInput){read_file, NULL, file_size}, offset, &page));
-        if (page.granule > 0 && page.granule != UINT64_MAX) {
+        if (page.granule > shift_above && page.granule != UINT64_MAX) {
             uint64_t granule = page.granule + origin_shift;
             bytes_put_le32(bytes + offset + 6, (uint32_t)granule);
             bytes_put_le32(bytes + offset + 10, (uint32_t)(granule >> 32));
@@ -132,6 +133,7 @@ static void reset(uint32_t budget)
     stale_generation = false;
     fail_after_config = false;
     origin_shift = 0;
+    shift_above = 0;
     wait_calls = 0;
     StreamRegion region = {
         .control = &control, .samples = samples, .ring = ring, .ring_bytes = sizeof ring};
@@ -233,6 +235,143 @@ static void real_files_stream_and_resume_with_bounded_ring_refills(void)
     compare_file("seek44", UINT32_MAX, 4096, 500);
 }
 
+enum {
+    CORRECTION = 1000,
+    CORRECTED_AFTER = 60000,
+    COLLECTED = 160000,
+    CUTOFF_BEFORE_CORRECTION = 1300,
+    PROMPT_FRAMES = 4
+};
+
+typedef struct Collected {
+    uint32_t positions[COLLECTED];
+    int32_t left[COLLECTED];
+    uint32_t count;
+    uint32_t largest;
+} Collected;
+
+static const uint32_t LAGS[] = {5, 7, 9, 11, 13, 17, 24};
+
+static Collected released_at_once;
+static Collected lagging;
+
+static void lag(uint32_t steps)
+{
+    for (uint32_t step = 0; step < steps; step++) {
+        core1_source_fill(&source);
+        core1_stream_step(&consumer);
+    }
+}
+
+static AudioFrameResult lagging_frame(uint32_t steps, AudioFrame *frame)
+{
+    if (steps == 0) {
+        return next_frame(frame);
+    }
+    for (uint32_t round = 0; round < 100000; round++) {
+        lag(steps);
+        AudioFrameResult result = interface.next(interface.context, frame);
+        if (result != AUDIO_FRAME_WAIT) {
+            return result;
+        }
+    }
+    return AUDIO_FRAME_WAIT;
+}
+
+static void collect_corrected(uint32_t cutoff, uint32_t steps, uint32_t prompt, Collected *out)
+{
+    reset(4096);
+    origin_shift = CORRECTION;
+    shift_above = CORRECTED_AFTER;
+    *out = (Collected){0};
+    AudioTrackInfo info = {0};
+    CHECK(interface.open(interface.context, "seek44", 0, &info));
+    source.skip_before = cutoff;
+    AudioFrame frame;
+    while (lagging_frame(prompt == 0 ? steps : 0, &frame) == AUDIO_FRAME_READY &&
+           out->count + frame.samples <= COLLECTED) {
+        prompt -= prompt != 0;
+        for (uint32_t at = 0; at < frame.samples; at++) {
+            out->positions[out->count] = frame.first_sample + at;
+            out->left[out->count] = frame.left[at];
+            out->count++;
+        }
+        out->largest = frame.samples > out->largest ? frame.samples : out->largest;
+        interface.release(interface.context);
+    }
+    interface.close(interface.context);
+}
+
+static uint32_t correction_index(const Collected *run)
+{
+    for (uint32_t index = 1; index < run->count; index++) {
+        if (run->positions[index] != run->positions[index - 1] + 1) {
+            return index;
+        }
+    }
+    return 0;
+}
+
+static void check_same_positions(void)
+{
+    CHECK_EQUAL(released_at_once.count, lagging.count);
+    CHECK(lagging.largest > 1024);
+    uint32_t count =
+        lagging.count < released_at_once.count ? lagging.count : released_at_once.count;
+    uint32_t mismatches = 0;
+    for (uint32_t index = 0; index < count; index++) {
+        mismatches += lagging.positions[index] != released_at_once.positions[index] ||
+                      lagging.left[index] != released_at_once.left[index];
+    }
+    CHECK_EQUAL(0u, mismatches);
+}
+
+static void a_granule_correction_keeps_every_gathered_sample_at_its_position(void)
+{
+    collect_corrected(0, 0, 0, &released_at_once);
+    uint32_t index = correction_index(&released_at_once);
+    CHECK(index > 0);
+    CHECK_EQUAL(released_at_once.positions[index - 1] + 1 + CORRECTION,
+                released_at_once.positions[index]);
+    for (uint32_t prompt = 0; prompt < PROMPT_FRAMES; prompt++) {
+        collect_corrected(0, LAGS[sizeof LAGS / sizeof LAGS[0] - 1], prompt, &lagging);
+        check_same_positions();
+    }
+}
+
+static void a_cutoff_just_before_a_granule_correction_admits_no_earlier_sound(void)
+{
+    collect_corrected(0, 0, 0, &released_at_once);
+    uint32_t index = correction_index(&released_at_once);
+    CHECK(index > CUTOFF_BEFORE_CORRECTION);
+    uint32_t cutoff = released_at_once.positions[index - CUTOFF_BEFORE_CORRECTION];
+    collect_corrected(cutoff, 0, 0, &released_at_once);
+    CHECK_EQUAL(cutoff, released_at_once.positions[0]);
+    for (uint32_t lags = 0; lags < sizeof LAGS / sizeof LAGS[0]; lags++) {
+        collect_corrected(cutoff, LAGS[lags], 0, &lagging);
+        CHECK_EQUAL(cutoff, lagging.positions[0]);
+        check_same_positions();
+    }
+}
+
+static void vorbis_block_sizes_are_given_in_pcm_frames_and_gather_to_them(void)
+{
+    reset(4096);
+    AudioTrackInfo info = {0};
+    CHECK(interface.open(interface.context, "low48", 0, &info));
+    CHECK_EQUAL(256u, info.stream.min_block);
+    CHECK_EQUAL(2048u, info.stream.max_block);
+    CHECK_EQUAL(2048u, control.max_block);
+    uint32_t largest = 0;
+    AudioFrame frame;
+    while (lagging_frame(LAGS[sizeof LAGS / sizeof LAGS[0] - 1], &frame) == AUDIO_FRAME_READY) {
+        largest = frame.samples > largest ? frame.samples : largest;
+        interface.release(interface.context);
+    }
+    CHECK(largest > (uint32_t)FLAC_MAX_BLOCK - 2048u);
+    interface.close(interface.context);
+}
+
 static void failed_open_setup_and_timeout_release_the_file_and_preserve_track_info(void)
 {
     reset(4096);
@@ -292,7 +431,9 @@ static void reopening_discards_full_pcm_slots_from_the_previous_generation(void)
     CHECK(interface.open(interface.context, "seek44", 0, &info));
     AudioFrame frame;
     CHECK_EQUAL(AUDIO_FRAME_READY, next_frame(&frame));
-    core1_stream_step(&consumer);
+    for (int step = 0; step < 64 && control.slots[1].state != STREAM_SLOT_FULL; step++) {
+        core1_stream_step(&consumer);
+    }
     CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
     CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
     uint32_t previous = source.generation;
@@ -331,6 +472,9 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(real_files_stream_and_resume_with_bounded_ring_refills),
+        TEST_CASE(a_granule_correction_keeps_every_gathered_sample_at_its_position),
+        TEST_CASE(a_cutoff_just_before_a_granule_correction_admits_no_earlier_sound),
+        TEST_CASE(vorbis_block_sizes_are_given_in_pcm_frames_and_gather_to_them),
         TEST_CASE(failed_open_setup_and_timeout_release_the_file_and_preserve_track_info),
         TEST_CASE(failed_reads_after_configuration_and_during_playback_are_errors),
         TEST_CASE(reopening_discards_full_pcm_slots_from_the_previous_generation),

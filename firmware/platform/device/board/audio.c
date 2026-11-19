@@ -1023,10 +1023,13 @@ bool board_audio_running_low(void)
            audio_engine_buffered(&engine, consumed) < RING_FRAMES / 2;
 }
 
-static uint32_t block_ms(void)
+static uint32_t handoff_ms(void)
 {
     FlacInfo stream = engine.decode_track.stream;
-    uint32_t frames = source_kind == SOURCE_WAV ? WAV_SOURCE_BLOCK_FRAMES : stream.min_block;
+    uint32_t frames = source_kind == SOURCE_WAV
+                          ? WAV_SOURCE_BLOCK_FRAMES
+                          : core1_stream_handoff_frames(stream.min_block, stream.max_block,
+                                                        source_kind == SOURCE_OPUS);
     return stream.sample_rate == 0 ? 0 : frames * MILLISECONDS_PER_SECOND / stream.sample_rate;
 }
 
@@ -1042,7 +1045,7 @@ uint32_t board_audio_plan_rest(bool dark)
     rest_ms = 0;
     if (dark && transferring && !tone_active && stream_service == NULL && rate != 0) {
         uint32_t ring_ms = RING_FRAMES * MILLISECONDS_PER_SECOND / rate;
-        rest_ms = smallest(LONGEST_REST_MS, ring_ms / RING_SERVICES, block_ms());
+        rest_ms = smallest(LONGEST_REST_MS, ring_ms / RING_SERVICES, handoff_ms());
     }
     return rest_ms;
 }

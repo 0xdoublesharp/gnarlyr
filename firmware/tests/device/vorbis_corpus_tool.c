@@ -103,7 +103,7 @@ static bool compare(FlacInput input, const OggTrack *track, FILE *reference, uin
                   NULL);
     uint32_t next = target;
     for (uint32_t count = 0; count < 100000; count++) {
-        Core1Block block;
+        Core1Block block = {.out = {samples[0][0], samples[0][1]}, .room = FLAC_MAX_BLOCK};
         Core1DecodeResult result = decoder.decode(decoder.context, &block);
         peak = vorbis.decoder.memory.peak > peak ? vorbis.decoder.memory.peak : peak;
         if (result != CORE1_DECODED) {

@@ -57,6 +57,7 @@ PLL_MHZ = 200
 WFI = 0xBF30
 IDLE_SEARCH_BYTES = 512
 WAKES_PER_STEP = 64
+WRITTEN_OFFSET = 40
 
 
 class DecoderLoad:
@@ -66,9 +67,13 @@ class DecoderLoad:
     cycle of the clock it has selected (CRU 0x14 bits 14:12 under the write mask, from the 200 MHz
     PLL). SysTick counts that time: reads of the current value follow it, every wrap adds a period
     to the program's elapsed counter as its tick handler would, and WFI ends at the next wrap.
-    Decoded slots reach core 0 only once the time spent decoding them has passed. A publish carries
-    only the control bytes core 1 stored during that wake, as its stores would on the chip, so a slot
-    core 0 emptied in the meantime stays empty.
+    A wake runs in steps that follow core 0's time. Each time core 0 refills the input, core 1 runs
+    until it catches up with core 0's clock or reaches WFI, its results reach core 0 at once, and
+    it then takes a copy of core 0's control block and the input added since the last step. Core 1
+    therefore works from what core 0 had shared at the previous step: it never sees a release
+    before core 0 made it, and sees a slot core 0 empties during a long wake one step later. A
+    publish carries only the control bytes core 1 stored since the previous step, so a slot core 0
+    emptied in the meantime stays empty.
     """
 
     def __init__(self, audio, directory):
@@ -81,8 +86,9 @@ class DecoderLoad:
         self.busy_us = 0.0
         self.clock_us = Counter()
         self.next_wake_us = 0.0
-        self.publish_at_us = None
+        self.awake = False
         self.ring_bytes = 0
+        self.copied = None
         self.stored = set()
         audio.core1 = self
         self.machine.hook_symbol("core1_source_fill", self.step)
@@ -101,6 +107,8 @@ class DecoderLoad:
         self.mhz, self.reload, self.period_start = 100, 0, 0.0
         self.time_us = self.machine.microseconds()
         self.resting = False
+        self.awake = False
+        self.copied = None
         self.watch()
         self.active = self.core.boot()
         self.next_wake_us = self.time_us
@@ -189,53 +197,74 @@ class DecoderLoad:
             return self.time_us
         return self.period_start + period * (int((self.time_us - self.period_start) // period) + 1)
 
-    def run_until_rest(self):
+    def run_until(self, limit_us):
         self.resting = False
         started = self.time_us
         for _ in range(100000):
-            self.core.run_slice()
-            if self.resting:
+            if self.resting or self.time_us >= limit_us:
                 break
+            self.core.run_slice()
         else:
             raise RuntimeError("decoder did not reach WFI")
         self.busy_us += self.time_us - started
-        self.core.pc = (self.wfi + 2) | 1
+        if self.resting:
+            self.core.pc = (self.wfi + 2) | 1
 
     def publish(self):
         machine, core = self.machine, self.core
-        machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
+        if self.stored:
+            machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
         for address in sorted(self.stored):
             machine.uc.mem_write(address, bytes(core.uc.mem_read(address, 1)))
         self.stored.clear()
 
-    def wake(self):
+    def copy_input(self):
         machine, core = self.machine, self.core
+        control = machine.read_memory(CONTROL, CONTROL_BYTES)
+        generation, written = struct.unpack_from("<I", control, 0)[0], \
+            struct.unpack_from("<I", control, WRITTEN_OFFSET)[0]
+        core.uc.mem_write(CONTROL, control)
+        start = self.copied[1] if self.copied and self.copied[0] == generation else None
+        if start is None or written < start or written - start >= self.ring_bytes:
+            core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
+        elif written > start:
+            offset = start % self.ring_bytes
+            first = min(written - start, self.ring_bytes - offset)
+            core.uc.mem_write(RING + offset, machine.read_memory(RING + offset, first))
+            if written - start > first:
+                core.uc.mem_write(RING, machine.read_memory(RING, written - start - first))
+        self.copied = (generation, written)
+
+    def wake(self):
         rest_until = self.next_wake_us
         self.clock_us[self.mhz] += rest_until - self.time_us
         self.time_us = rest_until
         self.deliver()
         self.wakes += 1
-        core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
-        core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
         self.stored.clear()
-        self.run_until_rest()
+        self.awake = True
+
+    def advance_to(self, now):
+        self.run_until(now)
         self.deliver()
-        self.publish_at_us = self.time_us
-        self.next_wake_us = self.wake_at()
+        self.publish()
+        if self.resting:
+            self.awake = False
+            self.next_wake_us = self.wake_at()
 
     def step(self):
         if not self.active:
             return
         now = self.machine.microseconds()
         for _ in range(WAKES_PER_STEP):
-            if self.publish_at_us is not None:
-                if now < self.publish_at_us:
-                    return
-                self.publish()
-                self.publish_at_us = None
-            if now < self.next_wake_us:
-                return
-            self.wake()
+            if not self.awake:
+                if now < self.next_wake_us:
+                    break
+                self.wake()
+            self.advance_to(now)
+            if self.awake:
+                break
+        self.copy_input()
 
     def figures(self, first):
         return {"busy_us": self.busy_us, "wakes": self.wakes, "instructions": self.instructions,

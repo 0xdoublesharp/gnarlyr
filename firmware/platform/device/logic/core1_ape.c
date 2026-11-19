@@ -195,5 +195,5 @@ static Core1DecodeResult decode_ape(void *context, Core1Block *block)
 Core1Decoder core1_ape_decoder(Core1Ape *ape, uint8_t *buffer, StreamRegion region)
 {
     *ape = (Core1Ape){.region = region, .buffer = buffer};
-    return (Core1Decoder){start_ape, decode_ape, ape};
+    return (Core1Decoder){start_ape, decode_ape, ape, false};
 }

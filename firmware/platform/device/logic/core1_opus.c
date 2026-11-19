@@ -24,7 +24,6 @@ static void start_opus(void *context, FlacInput input, FlacInfo info, uint32_t f
     opus->staged = 0;
     opus->taken = 0;
     opus->first = 0;
-    opus->slot = 0;
     opus->origin_set = false;
     opus->audio_started = false;
     opus->anchored = first_sample == 0;
@@ -149,22 +148,21 @@ static void release(Core1Opus *opus, const OggRecord *record)
 
 static void publish(Core1Opus *opus, Core1Block *block)
 {
-    int32_t (*channels)[FLAC_MAX_BLOCK] = opus->region.samples[opus->slot];
     uint32_t width = opus->decoder.channels;
-    uint32_t count = core1_smaller(opus->staged - opus->taken, FLAC_MAX_BLOCK);
+    uint32_t count = core1_smaller(opus->staged - opus->taken, block->room);
     const int16_t *from = opus->work->pcm + opus->taken * width;
     for (uint32_t frame = 0; frame < count; frame++) {
         for (uint32_t channel = 0; channel < width; channel++) {
-            channels[channel][frame] = (int32_t)from[frame * width + channel] * 256;
+            block->out[channel][frame] = (int32_t)from[frame * width + channel] * 256;
         }
     }
-    *block = (Core1Block){.channels = {channels[0], channels[width - 1]},
-                          .first_sample = opus->first,
-                          .samples = count,
-                          .position = opus->position};
+    block->channels[0] = block->out[0];
+    block->channels[1] = block->out[width - 1];
+    block->first_sample = opus->first;
+    block->samples = count;
+    block->position = opus->position;
     opus->first += count;
     opus->taken += count;
-    opus->slot = (opus->slot + 1) % STREAM_SLOTS;
 }
 
 static Core1DecodeResult decode_opus(void *context, Core1Block *block)
@@ -188,5 +186,5 @@ static Core1DecodeResult decode_opus(void *context, Core1Block *block)
 Core1Decoder core1_opus_decoder(Core1Opus *opus, StreamRegion region)
 {
     *opus = (Core1Opus){.region = region};
-    return (Core1Decoder){start_opus, decode_opus, opus};
+    return (Core1Decoder){start_opus, decode_opus, opus, true};
 }

@@ -133,5 +133,5 @@ static Core1DecodeResult decode_m4a(void *context, Core1Block *block)
 Core1Decoder core1_m4a_decoder(Core1M4a *m4a)
 {
     *m4a = (Core1M4a){0};
-    return (Core1Decoder){start_m4a, decode_m4a, m4a};
+    return (Core1Decoder){start_m4a, decode_m4a, m4a, false};
 }

@@ -416,5 +416,5 @@ static Core1DecodeResult decode(void *context, Core1Block *block)
 Core1Decoder core1_dsd_decoder(Core1Dsd *dsd, StreamRegion region)
 {
     *dsd = (Core1Dsd){.region = region};
-    return (Core1Decoder){start, decode, dsd};
+    return (Core1Decoder){start, decode, dsd, false};
 }

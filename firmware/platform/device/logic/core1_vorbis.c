@@ -14,7 +14,6 @@ static void start_vorbis(void *context, FlacInput input, FlacInfo info, uint32_t
     vorbis->input = input;
     vorbis->position = 0;
     vorbis->next_sample = 0;
-    vorbis->slot = 0;
     vorbis->origin = 0;
     vorbis->origin_set = false;
     vorbis->region.control->vorbis_config_generation = 0;
@@ -91,7 +90,6 @@ static bool configure(Core1Vorbis *vorbis, const VorbisPacket *packet)
 
 static bool decode_audio(Core1Vorbis *vorbis, const VorbisPacket *packet, Core1Block *block)
 {
-    int32_t (*channels)[FLAC_MAX_BLOCK] = vorbis->region.samples[vorbis->slot];
     VorbisPacket normalized = *packet;
     if (normalized.granule != UINT64_MAX) {
         if (normalized.granule < vorbis->origin) {
@@ -108,7 +106,7 @@ static bool decode_audio(Core1Vorbis *vorbis, const VorbisPacket *packet, Core1B
         vorbis->positioned = true;
     }
     vorbis->audio_started = true;
-    VorbisPcm pcm = {.channels = {channels[0], channels[1]}, .capacity = FLAC_MAX_BLOCK};
+    VorbisPcm pcm = {.channels = {block->out[0], block->out[1]}, .capacity = block->room};
     if (!vorbis_decoder_decode(&vorbis->decoder, *packet, &pcm)) {
         return false;
     }
@@ -124,11 +122,11 @@ static bool decode_audio(Core1Vorbis *vorbis, const VorbisPacket *packet, Core1B
     if (frames > UINT32_MAX - vorbis->next_sample) {
         return false;
     }
-    *block = (Core1Block){.channels = {channels[0], channels[vorbis->decoder.channels > 1 ? 1 : 0]},
-                          .first_sample = vorbis->next_sample,
-                          .samples = frames};
+    block->channels[0] = block->out[0];
+    block->channels[1] = block->out[vorbis->decoder.channels > 1 ? 1 : 0];
+    block->first_sample = vorbis->next_sample;
+    block->samples = frames;
     vorbis->next_sample += frames;
-    vorbis->slot = (vorbis->slot + 1) % STREAM_SLOTS;
     return true;
 }
 
@@ -172,5 +170,5 @@ static Core1DecodeResult decode_vorbis(void *context, Core1Block *block)
 Core1Decoder core1_vorbis_decoder(Core1Vorbis *vorbis, StreamRegion region)
 {
     *vorbis = (Core1Vorbis){.region = region};
-    return (Core1Decoder){start_vorbis, decode_vorbis, vorbis};
+    return (Core1Decoder){start_vorbis, decode_vorbis, vorbis, false};
 }
