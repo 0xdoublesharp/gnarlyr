@@ -19,6 +19,7 @@ typedef struct PcProfile {
     PcRange code;
     PcRange idle;
     PcRange overlay;
+    PcRange modules;
     uint32_t samples;
     uint32_t idle_samples;
     uint32_t overlay_samples;
