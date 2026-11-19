@@ -828,7 +828,10 @@ endforeach()
 set(ECHO_DEVICE_LOGIC_OBJECTS ${CMAKE_CURRENT_BINARY_DIR}/device_logic_objects.txt)
 file(GENERATE OUTPUT ${ECHO_DEVICE_LOGIC_OBJECTS}
     CONTENT "$<JOIN:$<TARGET_OBJECTS:echo_device_logic>,\n>\n")
-set(ECHO_LTO_LOGIC_ARGUMENTS "")
+set(ECHO_OVERLAY_IMPORT_LIST ${CMAKE_CURRENT_BINARY_DIR}/overlay_imports.txt)
+list(JOIN ECHO_OVERLAY_IMPORTS "\n" ECHO_OVERLAY_IMPORT_TEXT)
+file(GENERATE OUTPUT ${ECHO_OVERLAY_IMPORT_LIST} CONTENT "${ECHO_OVERLAY_IMPORT_TEXT}\n")
+set(ECHO_LTO_LOGIC_ARGUMENTS --imports ${ECHO_OVERLAY_IMPORT_LIST} --imports ${ECHO_MODULE_IMPORTS})
 foreach(source IN LISTS ECHO_DEVICE_LOGIC_LTO_SOURCES)
     list(APPEND ECHO_LTO_LOGIC_ARGUMENTS --lto-source ${source})
 endforeach()
@@ -894,6 +897,8 @@ add_custom_target(echo_device_image ALL
         ${PROJECT_SOURCE_DIR}/tools/image_artifacts.py
         ${PROJECT_SOURCE_DIR}/tools/check_lto_logic.py
         ${ECHO_DEVICE_LOGIC_OBJECTS}
+        ${ECHO_OVERLAY_IMPORT_LIST}
+        ${ECHO_MODULE_IMPORTS}
         ${PROJECT_SOURCE_DIR}/tools/identity.py
         ${FIRMWARE_IDENTITY_FILE}
     VERBATIM

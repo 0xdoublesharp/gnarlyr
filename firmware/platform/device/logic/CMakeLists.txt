@@ -213,7 +213,10 @@ set(ECHO_DEVICE_LOGIC_LTO_SOURCES
     bt_module.c
     core1_control.c
     dac_sequence.c
+    exfat_create.c
     fat_create.c
+    fat_layout.c
+    fat_names.c
     fat_reserve.c
     headset_dips.c
     headset_monitor.c
@@ -226,6 +229,7 @@ set(ECHO_DEVICE_LOGIC_LTO_SOURCES
     panel.c
     panic_text.c
     pll.c
+    sd_card.c
     start_record.c
     storage_mount.c
     usb_plug.c
@@ -246,10 +250,7 @@ if(CMAKE_CROSSCOMPILING)
         debug_report.c
         emmc_layout.c
         equalizer_design.c
-        exfat_create.c
         fat_delete.c
-        fat_layout.c
-        fat_names.c
         flac_source.c
         flac_source_open.c
         image_crc.c
@@ -258,7 +259,6 @@ if(CMAKE_CROSSCOMPILING)
         mp3_probe.c
         mp4_demux.c
         msc.c
-        sd_card.c
         slot_copy.c
         time_file.c
         update_names.c

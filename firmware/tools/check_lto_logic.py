@@ -4,8 +4,10 @@ Those files are built as fat LTO objects: the main program links their intermedi
 everything else links their regular code. That is safe only while each of them
 - is linked into no core 1 program,
 - holds no variables, so the main program and an overlay never keep two copies of one state,
-- is reached by the rescan and USB overlays only through their own copy, never through the
-  main program's, which link-time optimisation may inline, specialise or drop.
+- is reached by the rescan and USB overlays through the main program's copy only for symbols
+  the main program exports anyway (ECHO_OVERLAY_IMPORTS or a module import list), which the
+  linker keeps global with their normal calling convention; anything else link-time
+  optimisation may inline, specialise or drop, so an overlay must use its own copy.
 The image build runs this check and stops on any violation.
 """
 import argparse
@@ -159,7 +161,19 @@ def overlay_uses(overlay, addresses):
     return sorted(used)
 
 
-def problems_for(path, maps, main, overlays):
+def hidden_uses(overlay, addresses, exported):
+    return [symbol for symbol in overlay_uses(overlay, addresses) if symbol not in exported]
+
+
+def read_exported(paths):
+    names = set()
+    for path in paths:
+        for token in Path(path).read_text(encoding="utf-8").split():
+            names.add(token.rpartition("=")[2])
+    return names
+
+
+def problems_for(path, maps, main, overlays, exported):
     member = Path(path).name
     elf = read_elf(path)
     found = []
@@ -171,9 +185,10 @@ def problems_for(path, maps, main, overlays):
         found.append(f"{member} holds variables: {', '.join(state)}")
     addresses = main_addresses(main, defined_names(elf))
     for name, overlay in overlays.items():
-        used = overlay_uses(overlay, addresses)
-        if used:
-            found.append(f"{name} uses the main program's {', '.join(used)} from {member}")
+        hidden = hidden_uses(overlay, addresses, exported)
+        if hidden:
+            found.append(f"{name} uses the main program's {', '.join(hidden)} from {member}, "
+                         "which no import list exports")
     return found
 
 
@@ -194,6 +209,8 @@ def parse_arguments(argv):
                         help="an echo_device_logic source built for link-time optimisation")
     parser.add_argument("--core1-map", type=Path, action="append", default=[])
     parser.add_argument("--overlay", type=Path, action="append", default=[])
+    parser.add_argument("--imports", type=Path, action="append", default=[],
+                        help="a list of symbols the main program exports (NAME or --opt=NAME)")
     return parser.parse_args(argv)
 
 
@@ -206,8 +223,9 @@ def main(argv=None):
                 for path in arguments.core1_map}
         program = read_elf(arguments.main)
         overlays = {path.stem: read_elf(path) for path in arguments.overlay}
+        exported = read_exported(arguments.imports)
         found = [problem for path in paths
-                 for problem in problems_for(path, maps, program, overlays)]
+                 for problem in problems_for(path, maps, program, overlays, exported)]
     except (OSError, ValueError) as error:
         print("error: " + str(error), file=sys.stderr)
         return 1

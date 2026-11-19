@@ -1,5 +1,6 @@
 import struct
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -80,6 +81,19 @@ class OverlayUses(unittest.TestCase):
         self.assertEqual(["fat_le16"],
                          check.overlay_uses(overlay, {MAIN_FUNCTION & ~1: "fat_le16"}))
 
+    def test_a_use_of_an_exported_symbol_is_allowed(self):
+        code = branch_link(OVERLAY_BASE, MAIN_FUNCTION & ~1)
+        overlay = check.Elf((section(".overlay", code, address=OVERLAY_BASE),), ())
+        addresses = {MAIN_FUNCTION & ~1: "fat_le16"}
+        self.assertEqual([], check.hidden_uses(overlay, addresses, {"fat_le16"}))
+
+    def test_a_use_of_a_symbol_no_import_list_exports_is_reported(self):
+        code = branch_link(OVERLAY_BASE, MAIN_FUNCTION & ~1)
+        overlay = check.Elf((section(".overlay", code, address=OVERLAY_BASE),), ())
+        addresses = {MAIN_FUNCTION & ~1: "sd_card_address"}
+        self.assertEqual(["sd_card_address"],
+                         check.hidden_uses(overlay, addresses, {"sd_card_rca_argument"}))
+
     def test_an_overlay_with_its_own_copy_uses_nothing_of_the_main_program(self):
         code = branch_link(OVERLAY_BASE, OVERLAY_BASE + 0x40)
         overlay = check.Elf((section(".overlay", code, address=OVERLAY_BASE),), ())
@@ -94,6 +108,17 @@ class OverlayUses(unittest.TestCase):
                           symbol("helper", 1, value=MAIN_FUNCTION + 8)))
         self.assertEqual({MAIN_FUNCTION & ~1: "fat_le16"},
                          check.main_addresses(main, check.defined_names(elf)))
+
+
+class Exported(unittest.TestCase):
+    def test_plain_names_and_linker_options_both_name_exports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            overlay = Path(directory) / "overlay_imports.txt"
+            modules = Path(directory) / "module_imports.rsp"
+            overlay.write_text("fat_read_entry\napp_theme\n", encoding="utf-8")
+            modules.write_text("--require-defined=fat_le16\n", encoding="utf-8")
+            self.assertEqual({"fat_read_entry", "app_theme", "fat_le16"},
+                             check.read_exported([overlay, modules]))
 
 
 class LtoObjects(unittest.TestCase):
