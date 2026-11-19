@@ -18,7 +18,7 @@ enum {
 
 typedef struct SimScript {
     KeyScriptStep steps[SIM_SCRIPT_MAX_STEPS];
-    bool with_play[SIM_SCRIPT_MAX_STEPS];
+    uint8_t seed[SIM_SCRIPT_MAX_STEPS];
     int count;
 } SimScript;
 

@@ -39,15 +39,13 @@ typedef enum NowPlayingCommand {
 } NowPlayingCommand;
 
 enum {
-    NOW_PLAYING_SEEK_STEP_DIVISOR = 100,
-    NOW_PLAYING_SEEK_STEP_MIN_MS = 1000,
-    NOW_PLAYING_SEEK_STEP_MAX_MS = 30000,
+    NOW_PLAYING_SEEK_TAP_MS = 10000,
+    NOW_PLAYING_SCRUB_TAIL_MS = 1000,
     NOW_PLAYING_SCRUB_DIVISOR = 10,
     NOW_PLAYING_SCRUB_FAST_DIVISOR = 3,
     NOW_PLAYING_SCRUB_MAX_MS_PER_S = 60000,
     NOW_PLAYING_SCRUB_FAST_MAX_MS_PER_S = 600000,
     NOW_PLAYING_SCRUB_FAST_AFTER_MS = 1500,
-    NOW_PLAYING_SCRUB_ELAPSED_MAX_MS = 1000,
     NOW_PLAYING_SEEK_COMMANDS = NOW_PLAYING_SEEK_BACK_HELD - NOW_PLAYING_SEEK_FORWARD + 1,
     NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
     NOW_PLAYING_BADGE_MS = 700
@@ -66,9 +64,13 @@ struct NowPlayingScreen;
 
 typedef struct NowPlayingScrub {
     uint32_t started_ms;
-    uint32_t last_ms;
+    uint32_t base_ms;
+    uint32_t target_ms;
+    uint32_t shown_ms;
+    uint32_t duration_ms;
     uint32_t token;
-    bool held;
+    bool active;
+    bool back;
 } NowPlayingScrub;
 
 typedef struct NowPlayingConfig {
@@ -112,12 +114,12 @@ NowPlayingCommand now_playing_command_for(KeyEvent event);
 StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after);
 void now_playing_player_command(NowPlayingScreen *now_playing, NowPlayingCommand command,
                                 uint32_t now_ms);
-uint32_t now_playing_seek_step(uint32_t duration_ms);
 uint32_t now_playing_scrub_rate(uint32_t duration_ms, uint32_t held_ms);
-uint32_t now_playing_scrub_step(uint32_t duration_ms, uint32_t held_ms, uint32_t elapsed_ms);
-int32_t now_playing_scrub_delta(NowPlayingScrub *scrub, uint32_t move, uint32_t duration_ms,
-                                uint32_t now_ms);
+uint32_t now_playing_scrub_distance(uint32_t duration_ms, uint32_t held_ms);
+uint32_t now_playing_scrub_preview(const NowPlayingScrub *scrub, uint32_t now_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);
+bool now_playing_scrub_status(NowPlayingScreen *now_playing, PlayerStatus *status, uint32_t now_ms);
+void now_playing_scrub_commit(NowPlayingScreen *now_playing);
 const char *now_playing_codec_name(HalAudioCodec codec);
 void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacity);
 void now_playing_detail_text(const PlayerStatus *status, char *buffer, size_t capacity);

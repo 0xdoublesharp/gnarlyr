@@ -41,7 +41,10 @@ CHECK_GAP_MS = 150
 MP3 = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_192_48k_stereo_bare.mp3"
 MP3_REPEATS = 24
 LISTEN_MS = 2500
-END_SEEK_LIMIT_MS = 10000
+END_HOLD_MS = 600 + 4000
+END_PLAY_MS = 1500
+LAST_SECOND_LISTEN_MS = 800
+PREVIEW_HOLD_MS = 600 + 1500
 RESUMED_LISTEN_MS = 1200
 DARK_LISTEN_MS = 4000
 CORE1_INSTRUCTIONS_PER_US = 100
@@ -273,22 +276,22 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
         self.assert_healthy(rig.session)
 
-    def seek_until_the_track_changes(self, rig, layers):
-        from echo_emulator.machine import ADC_NO_KEY
-        machine = rig.machine
-        playing = layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8
-        machine.adc_key_value = MENU
-        machine.run(until_ms=machine.milliseconds() + TAP_MS)
-        machine.adc_key_value = VOLUME_KEYS[1]
-        self.assertEqual("condition met", machine.run(
-            until=lambda: layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8 != playing,
-            until_ms=machine.milliseconds() + END_SEEK_LIMIT_MS), layers.events())
-        machine.adc_key_value = MENU
-        machine.run(until_ms=machine.milliseconds() + TAP_MS)
-        machine.adc_key_value = ADC_NO_KEY
-        return machine.milliseconds()
+    def track_of(self, layers):
+        return layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8
 
-    def test_a_seek_to_the_end_while_paused_stays_silent_into_a_track_at_another_rate(self):
+    def scrub_to_the_end(self, rig, layers):
+        machine = rig.machine
+        seeks = []
+        machine.hook_symbol("hal_audio_seek", lambda: seeks.append(machine.milliseconds()))
+        released = machine.press_ladder([(MENU, TAP_MS), (VOLUME_KEYS[1], END_HOLD_MS),
+                                         (MENU, TAP_MS)])
+        machine.run(until_ms=released - TAP_MS)
+        self.assertEqual([], seeks, layers.events())
+        machine.run(until_ms=released + SETTLE_MS)
+        self.assertEqual(1, len(seeks), layers.events())
+        return released
+
+    def test_a_paused_scrub_to_the_end_waits_silently_then_plays_into_a_track_at_another_rate(self):
         rig = self.gesture_rig()
         layers = Layers(rig)
         rig.open_songs()
@@ -297,32 +300,63 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         paused = layers.snapshot()
         self.assertNotEqual(PLAYER_PLAYING, paused["app"], paused)
-        released = self.seek_until_the_track_changes(rig, layers)
+        released = self.scrub_to_the_end(rig, layers)
         rig.machine.run(until_ms=released + PREFILL_WAIT_MS)
         problem, state = self.lasting_problem(rig, layers)
         self.assertIsNone(problem, "%s\n%s" % (state, layers.events()))
         self.assertEqual(PLAYER_PAUSED, state["app"], "%s\n%s" % (state, layers.events()))
-        self.assertEqual(1, layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8)
+        self.assertEqual(0, self.track_of(layers), layers.events())
         self.assertFalse(Layers.audible(state), state)
-        self.assert_playing_cleanly(rig, layers, rig.press("play"), RESUMED_LISTEN_MS)
+        self.assert_playing_cleanly(rig, layers, rig.press("play"), LAST_SECOND_LISTEN_MS)
+        rig.run_for(END_PLAY_MS)
+        self.assertEqual(1, self.track_of(layers), layers.events())
+        self.assert_playing_cleanly(rig, layers, rig.machine.milliseconds(), RESUMED_LISTEN_MS)
         self.assert_healthy(rig.session)
 
-    def test_a_paused_seek_into_an_unreadable_track_moves_on_and_stays_paused(self):
+    def test_a_paused_scrub_to_the_end_plays_on_past_an_unreadable_track(self):
         rig = self.gesture_rig(REFUSED_TRACKS)
         layers = Layers(rig)
         rig.open_songs()
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
         rig.press("play")
-        released = self.seek_until_the_track_changes(rig, layers)
+        released = self.scrub_to_the_end(rig, layers)
         rig.machine.run(until_ms=released + PREFILL_WAIT_MS)
         problem, state = self.lasting_problem(rig, layers)
         self.assertIsNone(problem, "%s\n%s" % (state, layers.events()))
         self.assertEqual(PLAYER_PAUSED, state["app"], "%s\n%s" % (state, layers.events()))
-        self.assertEqual(2, layers.word(layers.symbols["loop"] + PLAYER_STATE_OFFSET) >> 8,
-                         layers.events())
+        self.assertEqual(0, self.track_of(layers), layers.events())
         self.assertFalse(Layers.audible(state), state)
-        self.assert_playing_cleanly(rig, layers, rig.press("play"), RESUMED_LISTEN_MS)
+        rig.press("play")
+        rig.run_for(END_PLAY_MS)
+        self.assertEqual(2, self.track_of(layers), layers.events())
+        self.assert_playing_cleanly(rig, layers, rig.machine.milliseconds(), RESUMED_LISTEN_MS)
+        self.assert_healthy(rig.session)
+
+    def test_a_menu_hold_previews_without_seeking_and_seeks_once_on_release(self):
+        rig = self.gesture_rig(LONG_TRACKS)
+        layers = Layers(rig)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        machine = rig.machine
+        seeks = []
+        machine.hook_symbol("hal_audio_seek", lambda: seeks.append(machine.milliseconds()))
+        volume = layers.byte("volume_value")
+        released = machine.press_ladder([(MENU, TAP_MS), (VOLUME_KEYS[1], PREVIEW_HOLD_MS),
+                                         (MENU, TAP_MS)])
+        machine.run(until_ms=released - TAP_MS)
+        self.assertEqual([], seeks, layers.events())
+        self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
+        gliding = released - TAP_MS - PREVIEW_HOLD_MS + 600
+        starved = [stamp for stamp, level in rig.audio.levels
+                   if gliding <= stamp < released - TAP_MS and level < 0]
+        self.assertEqual([], starved[:5])
+        machine.run(until_ms=released + SETTLE_MS)
+        self.assertEqual(1, len(seeks), layers.events())
+        self.assertEqual(0, self.track_of(layers), layers.events())
+        self.assertEqual(volume, layers.byte("volume_value"), layers.events())
+        self.assert_playing_cleanly(rig, layers, released, RESUMED_LISTEN_MS)
         self.assert_healthy(rig.session)
 
     def call(self, machine, name):

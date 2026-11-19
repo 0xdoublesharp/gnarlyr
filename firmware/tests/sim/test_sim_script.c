@@ -71,8 +71,8 @@ static void a_play_prefix_holds_play_around_the_step(void)
     SimScript script;
     CHECK(sim_script_parse("play+down,up", &script));
     CHECK_EQUAL(2, script.count);
-    CHECK(script.with_play[0]);
-    CHECK(!script.with_play[1]);
+    CHECK_EQUAL(KEY_CHORD_PLAY, script.seed[0]);
+    CHECK_EQUAL(KEY_CHORD_NONE, script.seed[1]);
     SimScriptEvent events[SIM_SCRIPT_MAX_EVENTS];
     CHECK_EQUAL(6, sim_script_schedule(&script, 0, events));
     CHECK_EQUAL(KEY_PLAY, events[0].key);
@@ -87,10 +87,26 @@ static void a_play_prefix_holds_play_around_the_step(void)
     CHECK(!sim_script_parse("play+jump", &script));
 }
 
+static void a_menu_prefix_holds_menu_around_the_step(void)
+{
+    SimScript script;
+    CHECK(sim_script_parse("menu+up:held", &script));
+    CHECK_EQUAL(KEY_CHORD_MENU, script.seed[0]);
+    SimScriptEvent events[SIM_SCRIPT_MAX_EVENTS];
+    CHECK_EQUAL(4, sim_script_schedule(&script, 0, events));
+    CHECK_EQUAL(KEY_MENU, events[0].key);
+    CHECK(events[0].pressed);
+    CHECK_EQUAL(SIM_SCRIPT_GAP_FRAMES + SIM_SCRIPT_HELD_FRAMES, events[2].frame);
+    CHECK_EQUAL(KEY_MENU, events[3].key);
+    CHECK(!events[3].pressed);
+    CHECK(!sim_script_parse("menu+", &script));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_play_prefix_holds_play_around_the_step),
+        TEST_CASE(a_menu_prefix_holds_menu_around_the_step),
         TEST_CASE(a_key_list_becomes_steps),
         TEST_CASE(a_bad_list_is_rejected),
         TEST_CASE(too_many_steps_are_rejected),

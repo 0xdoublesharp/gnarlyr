@@ -75,7 +75,7 @@ STR_RANDOM_ALBUM = Random album
 STR_RANDOM_ALBUM_HINT = Play any album
 
 # Now Playing and Up Next. {0} of {1} is the place in the queue; {0}-bit is the sample size.
-# The STR_SKIPPED_* toasts say what holding Play and tapping Vol+ or Vol- did: another song, the same song from its start, or nothing at the end of the queue. In STR_JUMPED_FORWARD and STR_JUMPED_BACK, {0} is how many seconds an audiobook or podcast jumped.
+# The STR_SKIPPED_* toasts say what holding Play and tapping Vol+ or Vol- did: another song, the same song from its start, or nothing at the end of the queue. In STR_JUMPED_FORWARD and STR_JUMPED_BACK, {0} is how many seconds an audiobook or podcast jumped. STR_SCRUB_PREVIEW marks the time shown while Menu and a volume button are held; the other STR_SCRUB_* toasts say why that gesture did nothing.
 STR_NOTHING_PLAYING = Nothing playing
 STR_NOTHING_IS_PLAYING = Nothing is playing
 STR_REPEAT_ONE = Repeat One
@@ -89,6 +89,9 @@ STR_SKIPPED_TO_START = Back to start
 STR_SKIPPED_NOTHING = No next track
 STR_JUMPED_FORWARD = +{0} s
 STR_JUMPED_BACK = -{0} s
+STR_SCRUB_PREVIEW = Preview
+STR_SCRUB_LENGTH_UNKNOWN = Length unknown
+STR_SCRUB_AB_REPEAT_ON = A-B repeat is on
 STR_RATE_UNSUPPORTED = {0} isn't supported
 STR_TYPE_UNSUPPORTED = File type not supported
 STR_M4A_UNSUPPORTED = Only AAC-LC and ALAC M4A play

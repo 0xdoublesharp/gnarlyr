@@ -84,6 +84,7 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
     now_playing->repeat_feedback_ms = 0;
     now_playing->feedback = NOW_PLAYING_FEEDBACK_NONE;
     now_playing->feedback_started_ms = 0;
+    now_playing->scrub = (NowPlayingScrub){0};
     now_playing->status = (PlayerStatus){.state = PLAYER_IDLE};
     now_playing->screen = (Screen){
         .title = i18n_text(STR_NOW_PLAYING),

@@ -18,3 +18,4 @@ int marquee_offset(MarqueeTiming timing, int text_width, int view_width, uint32_
 uint32_t marquee_wait_ms(MarqueeTiming timing, int text_width, int view_width, uint32_t elapsed_ms);
 void marquee_watch_start(void);
 uint32_t marquee_watch_wait_ms(void);
+void marquee_watch(uint32_t wait_ms);
