@@ -2102,10 +2102,6 @@ static bool prepare_step(void)
         }
     }
     app.prepare_pending = false;
-    if (app.headphones.load == STORE_UNREADABLE) {
-        headphone_store_load(&app.headphones);
-        set_start_volume(PLAYER_OUTPUT_WIRED, app.settings.settings.volume);
-    }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;
 }
