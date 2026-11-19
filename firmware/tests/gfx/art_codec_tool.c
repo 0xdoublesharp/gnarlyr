@@ -72,11 +72,17 @@ static int decode_row(const Payload *payload, int y, int from, int to)
         line[x - from] = under(x, y);
     }
     ArtSpan span = {line, from, to};
-    if (payload->codec == ART_CODEC_INDEXED) {
-        return art_row_indices_below(row, payload->entries) &&
-               art_row_indexed(&row, &palette, span);
+    bool checked = art_row_check(row, payload->codec, payload->entries, payload->alpha != 0);
+    bool structure = art_row_check(row, payload->codec, ART_PALETTE_MAX, payload->alpha != 0);
+    ArtRow decoded = row;
+    bool done = payload->codec == ART_CODEC_INDEXED
+                    ? art_row_indexed(&decoded, &palette, span)
+                    : art_row_lossless(&decoded, payload->alpha != 0, span);
+    if (structure != (done && decoded.at == row.end)) {
+        fprintf(stderr, "row %d: the check and the decoder disagree\n", y);
+        exit(3);
     }
-    return art_row_lossless(&row, payload->alpha != 0, span);
+    return checked;
 }
 
 int main(int argc, char **argv)

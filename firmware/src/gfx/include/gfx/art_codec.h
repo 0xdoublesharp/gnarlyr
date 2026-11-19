@@ -32,4 +32,4 @@ typedef struct ArtPalette {
 
 bool art_row_indexed(ArtRow *row, const ArtPalette *palette, ArtSpan span);
 bool art_row_lossless(ArtRow *row, bool alpha, ArtSpan span);
-bool art_row_indices_below(ArtRow row, uint32_t entries);
+bool art_row_check(ArtRow row, uint8_t codec, uint32_t entries, bool alpha);

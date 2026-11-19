@@ -64,6 +64,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         }
     }
     check_guards();
-    (void)art_row_indices_below((ArtRow){data + HEADER_BYTES, data + size, width}, data[4]);
+    ArtRow whole = {data + HEADER_BYTES, data + size, width};
+    bool checked = art_row_check(whole, (data[5] & 1) ? ART_CODEC_LOSSLESS : ART_CODEC_INDEXED,
+                                 ART_PALETTE_MAX, (data[5] & 2) != 0);
+    if (checked != (done && row.at == data + size)) {
+        abort();
+    }
     return 0;
 }

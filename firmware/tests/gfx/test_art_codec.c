@@ -126,10 +126,10 @@ static void a_truncated_indexed_packet_fails(void)
 static void indices_at_or_beyond_the_palette_are_reported(void)
 {
     static const uint8_t bytes[] = {0x01, 3, 4, 0x85, 2};
-    CHECK(art_row_indices_below(row_of(bytes, sizeof bytes, WIDTH), 5));
-    CHECK(!art_row_indices_below(row_of(bytes, sizeof bytes, WIDTH), 4));
+    CHECK(art_row_check(row_of(bytes, sizeof bytes, WIDTH), ART_CODEC_INDEXED, 5, false));
+    CHECK(!art_row_check(row_of(bytes, sizeof bytes, WIDTH), ART_CODEC_INDEXED, 4, false));
     static const uint8_t run[] = {0x87, 7};
-    CHECK(!art_row_indices_below(row_of(run, sizeof run, WIDTH), 7));
+    CHECK(!art_row_check(row_of(run, sizeof run, WIDTH), ART_CODEC_INDEXED, 7, false));
 }
 
 static void lossless_rows_start_from_black_and_repeat_the_previous_colour(void)
@@ -238,6 +238,25 @@ static void lossless_rejects_reserved_packets_and_short_input(void)
     }
 }
 
+static void a_row_check_accepts_exactly_the_rows_the_decoders_finish(void)
+{
+    static const uint8_t indexed[] = {0x82, 1, 0x04, 2, 3, 4, 5, 6};
+    CHECK(art_row_check(row_of(indexed, sizeof indexed, WIDTH), ART_CODEC_INDEXED, 7, false));
+    CHECK(!art_row_check(row_of(indexed, sizeof indexed, WIDTH), ART_CODEC_INDEXED, 6, false));
+    CHECK(!art_row_check(row_of(indexed, sizeof indexed - 1, WIDTH), ART_CODEC_INDEXED, 7, false));
+    static const uint8_t trailing[] = {0x87, 1, 0x00};
+    CHECK(!art_row_check(row_of(trailing, sizeof trailing, WIDTH), ART_CODEC_INDEXED, 7, false));
+    static const uint8_t lossless[] = {0xC2, 0xE8, 0x80, 0xFF, 0xFF, 0x03};
+    CHECK(art_row_check(row_of(lossless, sizeof lossless, WIDTH), ART_CODEC_LOSSLESS, 0, true));
+    CHECK(!art_row_check(row_of(lossless, sizeof lossless, WIDTH), ART_CODEC_LOSSLESS, 0, false));
+    static const uint8_t prefixed_skip[] = {0xE4, 0xC7};
+    CHECK(!art_row_check(row_of(prefixed_skip, sizeof prefixed_skip, WIDTH), ART_CODEC_LOSSLESS, 0,
+                         true));
+    static const uint8_t extra[] = {0x07, 0x00};
+    CHECK(!art_row_check(row_of(extra, sizeof extra, WIDTH), ART_CODEC_LOSSLESS, 0, false));
+    CHECK(!art_row_check(row_of(extra, 1, WIDTH), 3, 0, false));
+}
+
 int main(void)
 {
     const TestCase cases[] = {
@@ -256,6 +275,7 @@ int main(void)
         TEST_CASE(an_alpha_prefix_blends_exactly_the_next_packet),
         TEST_CASE(lossless_rows_write_only_their_span),
         TEST_CASE(lossless_rejects_reserved_packets_and_short_input),
+        TEST_CASE(a_row_check_accepts_exactly_the_rows_the_decoders_finish),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

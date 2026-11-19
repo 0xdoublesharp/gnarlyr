@@ -144,11 +144,13 @@ class ArtCodecTests(unittest.TestCase):
         for y in range(info["height"]):
             row = data[table[y]:table[y + 1]]
             if info["codec"] == art_codec.INDEXED:
-                pixels, _ = art_codec.decode_indexed_row(row, info["width"], info["colors"],
-                                                         info["alphas"], background[y])
+                pixels, used = art_codec.decode_indexed_row(row, info["width"], info["colors"],
+                                                            info["alphas"], background[y])
             else:
-                pixels, _ = art_codec.decode_lossless_row(row, info["width"], background[y],
-                                                          bool(info["alpha"]))
+                pixels, used = art_codec.decode_lossless_row(row, info["width"], background[y],
+                                                             bool(info["alpha"]))
+            if used != len(row):
+                raise ValueError("trailing bytes in a row")
             rows.append(pixels)
         return rows
 

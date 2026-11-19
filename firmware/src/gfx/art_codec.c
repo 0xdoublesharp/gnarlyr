@@ -186,16 +186,59 @@ bool art_row_lossless(ArtRow *row, bool alpha, ArtSpan span)
     return true;
 }
 
-bool art_row_indices_below(ArtRow row, uint32_t entries)
+static int check_indexed(const uint8_t **at, const uint8_t *end, uint32_t entries)
 {
-    for (const uint8_t *at = row.at; at < row.end;) {
-        uint32_t packet = *at++;
-        int count = packet & 0x80u ? 1 : (int)packet + 1;
-        for (int index = 0; index < count && at < row.end; index++) {
-            if (*at++ >= entries) {
-                return false;
-            }
+    uint32_t packet = *(*at)++;
+    int count = (int)(packet & 0x7Fu) + 1;
+    int bytes = packet & 0x80u ? 1 : count;
+    if (end - *at < bytes) {
+        return 0;
+    }
+    for (int index = 0; index < bytes; index++) {
+        if ((*at)[index] >= entries) {
+            return 0;
         }
     }
-    return true;
+    *at += bytes;
+    return count;
+}
+
+static int check_lossless(const uint8_t **at, const uint8_t *end, bool alpha)
+{
+    uint32_t packet = *(*at)++;
+    bool prefixed = packet >= 0xE1u && packet <= 0xEEu;
+    if (prefixed && alpha && *at < end) {
+        packet = *(*at)++;
+        if (packet >= 0xC0u) {
+            return 0;
+        }
+    }
+    if ((prefixed && !alpha) || packet >= 0xE0u || (packet >= 0xC0u && !alpha)) {
+        return 0;
+    }
+    static const uint8_t PER_PIXEL[4] = {0, 1, 2, 0};
+    int count = (int)(packet & (packet < 0xC0u ? 0x3Fu : 0x1Fu)) + 1;
+    int bytes = count * PER_PIXEL[packet >> 6];
+    if (end - *at < bytes) {
+        return 0;
+    }
+    *at += bytes;
+    return count;
+}
+
+bool art_row_check(ArtRow row, uint8_t codec, uint32_t entries, bool alpha)
+{
+    if (codec != ART_CODEC_INDEXED && codec != ART_CODEC_LOSSLESS) {
+        return false;
+    }
+    int x = 0;
+    while (x < row.width && row.at < row.end) {
+        int count = codec == ART_CODEC_INDEXED ? check_indexed(&row.at, row.end, entries)
+                                               : check_lossless(&row.at, row.end, alpha);
+        if (count == 0 || count > row.width - x) {
+            return false;
+        }
+        x += count;
+    }
+    return x == row.width && row.at == row.end;
 }
