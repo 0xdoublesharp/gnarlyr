@@ -695,7 +695,8 @@ static void shut_down(StringId text)
         return;
     }
     ScreenModule module = screen_modules_of(&app.screens, top_screen());
-    bool shared = module == SCREEN_MODULE_NONE || module == SCREEN_MODULE_PLAYING;
+    bool shared = module == SCREEN_MODULE_NONE || module == SCREEN_MODULE_PLAYING ||
+                  module == SCREEN_MODULE_STAGE;
     start_fade(&app.goodbye, GOODBYE_TIMINGS, text == STR_GOODBYE && shared);
     app.saying_goodbye = true;
 }
@@ -764,8 +765,8 @@ static ScreenAction now_playing_action(void)
 
 static bool now_playing_ready(void)
 {
-    const PlayingModuleEntry *entry =
-        (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING);
+    const PlayingModuleEntry *entry = (const PlayingModuleEntry *)screen_modules_use(
+        &app.screens, screen_modules_playing(&app.screens));
     if (entry != NULL) {
         entry->now_playing_attach(&app.screens.now_playing);
     } else {
@@ -1189,10 +1190,10 @@ const Theme *app_theme(void)
 
 static bool draw_wire_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
+    ScreenModule module = screen_modules_of(&app.screens, top_screen());
+    module = module == SCREEN_MODULE_PLAYING ? module : screen_modules_playing(&app.screens);
     const PlayingModuleEntry *entry =
-        app.wire_fade
-            ? (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING)
-            : NULL;
+        app.wire_fade ? (const PlayingModuleEntry *)screen_modules_use(&app.screens, module) : NULL;
     if (entry == NULL) {
         return false;
     }

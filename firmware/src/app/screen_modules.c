@@ -23,12 +23,19 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
                                 sizeof(SettingsModuleScreens)},
 };
 
+ScreenModule screen_modules_playing(const AppScreens *screens)
+{
+    NowPlayingStyle style = settings_now_playing_style(&screens->context.settings->settings);
+    return style >= NOW_PLAYING_VU && !screens->stage_missing ? SCREEN_MODULE_STAGE
+                                                              : SCREEN_MODULE_PLAYING;
+}
+
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
 {
     uintptr_t at = (uintptr_t)screen - (uintptr_t)screens;
     if (at - offsetof(AppScreens, browse) < sizeof(BrowsePool) ||
         screen == &screens->now_playing.screen) {
-        return SCREEN_MODULE_PLAYING;
+        return screen_modules_playing(screens);
     }
     for (int module = SCREEN_MODULE_NONE + 1; module < SCREEN_MODULE_COUNT; module++) {
         if (at - SPANS[module].offset < SPANS[module].size) {
@@ -92,6 +99,12 @@ const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule mo
         }
     }
     const ScreenModuleEntry *entry = hal_system_load_module((uint32_t)module);
+    if (module == SCREEN_MODULE_STAGE &&
+        (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module))) {
+        screens->stage_missing = true;
+        module = SCREEN_MODULE_PLAYING;
+        entry = hal_system_load_module((uint32_t)module);
+    }
     if (entry == NULL || entry->magic != SCREEN_MODULE_MAGIC(module)) {
         screens->home.config.panel.update = NULL;
         screens->home.config.panel.draw = NULL;
@@ -117,7 +130,8 @@ void screen_modules_prepare_home(AppScreens *screens)
 {
     HomeArt *art = &screens->home_art;
     if (!art->unavailable) {
-        ScreenModule module = art->module != 0 ? (ScreenModule)art->module : SCREEN_MODULE_PLAYING;
+        ScreenModule module =
+            art->module != 0 ? (ScreenModule)art->module : screen_modules_playing(screens);
         art->unavailable = screen_modules_use(screens, module) == NULL;
     }
 }

@@ -88,6 +88,7 @@ add_library(echo_app STATIC
     modules/equalizer_module.c
     modules/views_module.c
     modules/playing_module.c
+    modules/stage_module.c
     player.c
     plug_modes.c
     screen_modules.c

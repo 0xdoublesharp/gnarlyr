@@ -1,23 +1,15 @@
 #include "browse_sections.h"
 #include "modules/modules.h"
 #include "screens/cassette_now_playing.h"
-#include "screens/meter_now_playing.h"
 #include "settings_actions.h"
 
-static void style_draw(const NowPlayingScreen *screen, Canvas *canvas)
+static void attach(NowPlayingScreen *now_playing)
 {
-    if (settings_now_playing_style(screen->config.settings) == NOW_PLAYING_CASSETTE) {
-        cassette_now_playing_draw(screen, canvas);
-    } else {
-        meter_now_playing_draw(screen, canvas);
-    }
-}
-
-static bool style_animate(NowPlayingScreen *screen, FrameDiff *diff, bool visible)
-{
-    return settings_now_playing_style(screen->config.settings) == NOW_PLAYING_CASSETTE
-               ? cassette_now_playing_animate(screen, diff, visible)
-               : meter_now_playing_animate(screen, diff, visible);
+    bool cassette =
+        settings_now_playing_style(now_playing->config.settings) == NOW_PLAYING_CASSETTE;
+    now_playing_screen_attach(now_playing);
+    now_playing->config.cassette_draw = cassette ? cassette_now_playing_draw : NULL;
+    now_playing->config.cassette_animate = cassette ? cassette_now_playing_animate : NULL;
 }
 
 static Screen *open_artist(void *context, BrowseScreen *browse, BrowseQuery albums)
@@ -43,10 +35,6 @@ static Screen *open_artist(void *context, BrowseScreen *browse, BrowseQuery albu
 static void bind(AppScreens *screens)
 {
     const AppScreensContext *context = &screens->context;
-    screens->browse.config.artist = open_artist;
-    meter_now_playing_reset();
-    screens->now_playing.config.cassette_draw = style_draw;
-    screens->now_playing.config.cassette_animate = style_animate;
     PlayingModuleScreens *views = &screens->modules.playing;
     UpNextConfig up_next = {.library = &context->store->library,
                             .theme = context->theme,
@@ -73,5 +61,6 @@ const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_PLAYING, bind),
     .section = browse_sections_at,
     .sections = browse_sections_range,
-    .now_playing_attach = now_playing_screen_attach,
-    .wire_boot = wire_boot_fade};
+    .now_playing_attach = attach,
+    .wire_boot = wire_boot_fade,
+    .open_artist = open_artist};

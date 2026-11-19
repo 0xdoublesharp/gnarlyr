@@ -100,6 +100,19 @@ static bool toast_is(const char *expected)
     return app_toast_text() != NULL && strcmp(expected, app_toast_text()) == 0;
 }
 
+static void start_app_with_style(NowPlayingStyle style)
+{
+    fake_hal_reset();
+    add_player_files();
+    SettingsStore store;
+    settings_store_load(&store);
+    settings_set_now_playing_style(&store.settings, style);
+    CHECK(settings_store_save(&store));
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+}
+
 static void open_music(void)
 {
     tap(KEY_PLAY);
@@ -212,6 +225,70 @@ static void home_art_loads_playing_and_cover_flow_reuses_it(void)
     CHECK_EQUAL(COVER_FLOW_DEPTH, app_screen_depth());
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+}
+
+static void a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module(void)
+{
+    start_app_with_style(NOW_PLAYING_VU);
+    open_music();
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_loads());
+    move_down(6);
+    tap(KEY_PLAY);
+    CHECK(title_is("All Songs"));
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_BACK);
+    CHECK(title_is("All Songs"));
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_loads());
+}
+
+static void cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact(void)
+{
+    start_app_with_style(NOW_PLAYING_SPECTRUM);
+    open_cover_flow();
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(2, fake_hal_module_loads());
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    tap(KEY_MENU);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    wait_ms(200);
+    tap(KEY_BACK);
+    CHECK(title_is("Cover Flow"));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(6, fake_hal_module_loads());
+}
+
+static void a_damaged_stage_module_leaves_meter_styles_on_the_playing_module(void)
+{
+    start_app_with_style(NOW_PLAYING_VU);
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    open_cover_flow();
+    CHECK(title_is("Cover Flow"));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
+    tap(KEY_PLAY);
+    wait_ms(200);
+    CHECK(title_is("Now Playing"));
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK(fake_hal_module_refusals() <= 1);
 }
 
 static void a_module_in_the_slot_is_not_loaded_again(void)
@@ -669,6 +746,9 @@ int main(void)
         TEST_CASE(the_personal_tag_manager_opens_from_the_last_music_row),
         TEST_CASE(smart_lists_open_from_music_and_play_through_the_listening_module),
         TEST_CASE(home_art_loads_playing_and_cover_flow_reuses_it),
+        TEST_CASE(a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module),
+        TEST_CASE(cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact),
+        TEST_CASE(a_damaged_stage_module_leaves_meter_styles_on_the_playing_module),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),
         TEST_CASE(a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so),

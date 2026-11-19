@@ -170,20 +170,29 @@ static Screen *track_manage(void *context, uint16_t track, SongManage manage)
     return entry != NULL ? entry->manage(screens, track, manage) : NULL;
 }
 
-static int browse_section(const BrowseScreen *browse, int index)
+static const PlayingModuleEntry *browse_tools(const BrowseScreen *browse)
 {
     AppScreens *screens = browse->pool->config.tools_context;
-    const PlayingModuleEntry *entry =
-        (const PlayingModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_PLAYING);
+    return (const PlayingModuleEntry *)screen_modules_use(screens, screen_modules_playing(screens));
+}
+
+static int browse_section(const BrowseScreen *browse, int index)
+{
+    const PlayingModuleEntry *entry = browse_tools(browse);
     return entry != NULL ? entry->section(browse, index) : LIST_SECTION_BEFORE_LETTERS;
 }
 
 static ListSections browse_sections(const BrowseScreen *browse, int index)
 {
-    AppScreens *screens = browse->pool->config.tools_context;
-    const PlayingModuleEntry *entry =
-        (const PlayingModuleEntry *)screen_modules_use(screens, SCREEN_MODULE_PLAYING);
+    const PlayingModuleEntry *entry = browse_tools(browse);
     return entry != NULL ? entry->sections(browse, index) : (ListSections){0, 0};
+}
+
+static Screen *browse_artist(void *context, BrowseScreen *browse, BrowseQuery albums)
+{
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(context, SCREEN_MODULE_PLAYING);
+    return entry != NULL ? entry->open_artist(context, browse, albums) : NULL;
 }
 
 static Screen *track_info(void *context, uint16_t track)
@@ -270,6 +279,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .play_group = browse_play_group,
         .section = browse_section,
         .sections = browse_sections,
+        .artist = browse_artist,
         .tools_context = screens,
     };
     browse_pool_init(&screens->browse, browse);
