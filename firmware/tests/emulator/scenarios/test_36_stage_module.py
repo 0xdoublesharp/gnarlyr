@@ -290,6 +290,67 @@ class EchoImageTest(EchoImageHarness):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
+    def symbol_size(self, overlay, wanted):
+        from echo_emulator.machine import make_image
+        path = next(elf for elf in self.module_elfs if Path(elf).stem == overlay.name)
+        elf = Path(path).read_bytes()
+        header = make_image.ELF_HEADER.unpack_from(elf)
+        sections = [make_image.ELF_SECTION.unpack_from(elf, header[6] + index * make_image.ELF_SECTION.size)
+                    for index in range(header[12])]
+        for section in sections:
+            if section[1] != 2:
+                continue
+            names = sections[section[6]]
+            for position in range(section[5] // 16):
+                name, _, size, _, _, _ = struct.unpack_from("<IIIBBH", elf, section[4] + position * 16)
+                start = names[4] + name
+                if elf[start:elf.index(b"\x00", start)] == wanted.encode("ascii"):
+                    return size
+        self.fail("no symbol " + wanted)
+
+    def reload_with_a_value_list_open(self, row, title):
+        rig = self.styled_rig(COVER)
+        machine, session = rig.machine, rig.session
+        rig.open_songs()
+        self.assertIsNotNone(rig.first_audio_after(rig.play_song(1)))
+        rig.run_for(ANIMATE_MS)
+        rig.press("menu")
+        rig.press_many("next", row)
+        rig.press("play")
+        _, equalizer = self.module(machine, "equalizer")
+        self.assertTrue(equalizer.loaded(machine))
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        windows = len(machine.panel.windows)
+        rig.run_for(1500)
+        self.assertTrue(equalizer.loaded(machine))
+        self.assertGreater(len(machine.panel.windows), windows)
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        return rig, machine, equalizer
+
+    def test_the_equalizer_list_keeps_its_names_after_a_usb_session_reloads_the_module(self):
+        rig, machine, equalizer = self.reload_with_a_value_list_open(2, "Equalizer")
+        presets = equalizer.symbols["quick_presets"]
+        size = self.symbol_size(equalizer, "quick_presets")
+        option_count = struct.unpack("<i", machine.read_memory(presets + size - 4, 4))[0]
+        self.assertGreater(option_count, 0)
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[18])
+        self.assert_healthy(rig.session)
+
+    def test_the_headphone_list_keeps_its_names_after_a_usb_session_reloads_the_module(self):
+        rig, machine, equalizer = self.reload_with_a_value_list_open(3, "Headphones")
+        names = equalizer.symbols["headphone_names"]
+        pointers = struct.unpack("<5I", machine.read_memory(names, 20))
+        self.assertNotIn(0, pointers)
+        self.assertEqual(b"Off", machine.read_cstring(pointers[0]))
+        self.assertTrue(machine.read_cstring(pointers[4]))
+        self.assert_healthy(rig.session)
+
+
     def wireframe_round(self, style, name):
         from echo_emulator.modules import ModuleWatch
         session = self.styled_rig(style).session.reboot()
