@@ -211,6 +211,7 @@ if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         backlight.c
         battery_gauge.c
+        board_pins.c
         bt_module.c
         clock_governor.c
         core1_pace.c
@@ -236,6 +237,7 @@ if(CMAKE_CROSSCOMPILING)
         image_crc.c
         jack_sense.c
         key_ladder.c
+        key_ladder_model.c
         loader_request.c
         m4a_stream.c
         mp3_probe.c
@@ -250,6 +252,7 @@ if(CMAKE_CROSSCOMPILING)
         slot_copy.c
         start_record.c
         storage_mount.c
+        time_file.c
         update_names.c
         update_trial.c
         updater.c
@@ -258,10 +261,15 @@ if(CMAKE_CROSSCOMPILING)
         usb_audio.c
         usb_device.c
         usb_fallback.c
+        usb_forced.c
         usb_leave.c
         usb_level.c
+        usb_plug.c
+        wall_clock.c
+        watchdog.c
         wide_divide.c
         volume_space.c
+        workspace_loan.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()

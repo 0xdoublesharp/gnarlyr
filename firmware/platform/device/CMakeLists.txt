@@ -485,6 +485,7 @@ if(CMAKE_CROSSCOMPILING)
         board/update.c
         board/update_request.c
         board/wall_time.c
+        board/watchdog.c
         logic/rtc_registers.c
         board/usb_dac_session.c
         board/usb_listen.c
