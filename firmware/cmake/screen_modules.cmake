@@ -78,6 +78,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/modules/extension_module.c
     src/app/menu_hold.c
     src/app/theme_art.c
+    src/gfx/art_codec.c
     platform/device/board/file_remove.c
     platform/device/logic/fat_delete.c
     platform/device/board/debug_rtc.c
@@ -159,6 +160,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/cassette_art.c
     src/app/theme_pack.c
+    src/gfx/art_codec.c
     src/app/theme_runtime.c
     src/app/theme_catalog.c
     src/app/theme_picker.c

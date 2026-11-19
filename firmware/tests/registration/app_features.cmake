@@ -5,7 +5,7 @@ echo_add_unit_test(NAME test_theme_palette
 )
 
 echo_add_unit_test(NAME test_theme_pack
-    SOURCES app/test_theme_pack.c app/fake_hal.c
+    SOURCES app/test_theme_pack.c app/theme_fixture.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
@@ -126,7 +126,7 @@ add_test(NAME theme_pack_tool
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/tests/test_theme_pack_tool.py --validator $<TARGET_FILE:theme_pack_tool>)
 
 echo_add_unit_test(NAME test_theme_runtime
-    SOURCES app/test_theme_runtime.c app/fake_hal.c
+    SOURCES app/test_theme_runtime.c app/theme_fixture.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )

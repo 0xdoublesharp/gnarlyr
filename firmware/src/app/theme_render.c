@@ -10,7 +10,7 @@ void theme_runtime_close(ThemeRuntime *runtime)
         hal_file_close(&runtime->file);
     }
     runtime->active = false;
-    runtime->tile_valid = false;
+    runtime->art.index = -1;
 }
 
 void theme_runtime_apply(ThemeRuntime *runtime, Theme *theme)

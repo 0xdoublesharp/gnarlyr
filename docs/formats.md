@@ -74,7 +74,7 @@ Segments follow the index in order and end at the end of the file. A segment is 
 
 ## Theme packs: `.gnarlyr/themes/*.gtheme`
 
-Magic `DSTP`, version 1, a 512-byte header and an IEEE CRC-32 at byte 12. The selection file `/.gnarlyr/theme.bin` is a pair of `DSTS` version 1 store records. Full layout: [theme-format.md](theme-format.md).
+Magic `DSTP`, version 2, a 512-byte header, 24-byte image descriptors, an optional style table and indexed or lossless images, with an IEEE CRC-32 at byte 12. The selection file `/.gnarlyr/theme.bin` is a pair of `DSTS` version 1 store records. Full layout: [theme-format.md](theme-format.md).
 
 ## Store records
 

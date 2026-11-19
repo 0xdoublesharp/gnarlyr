@@ -94,7 +94,7 @@ bool theme_runtime_load(ThemeRuntime *runtime, const char *name)
         return false;
     }
     ThemePack *pack = theme_catalog_work();
-    if (!theme_pack_open(pack, (ByteSource){read_pack, &file}, file.size)) {
+    if (!theme_pack_open(pack, (ByteSource){read_pack, &file}, file.size, THEME_PACK_COMPLETE)) {
         hal_file_close(&file);
         return false;
     }
@@ -106,11 +106,10 @@ bool theme_runtime_load(ThemeRuntime *runtime, const char *name)
         runtime->pack.id[at] = pack->id[at];
     }
     for (unsigned at = 0; at < pack->asset_count; at++) {
-        const ThemeAsset *asset = &pack->assets[at];
-        runtime->pack.assets[at] = (ThemeAssetKey){asset->slot, asset->orientation,
-                                                   asset->text_size, asset->width, asset->height};
+        runtime->pack.assets[at] = pack->assets[at];
     }
     runtime->file = file;
+    runtime->art.index = -1;
     runtime->active = true;
     return true;
 }
@@ -123,15 +122,17 @@ void theme_runtime_restore(ThemeRuntime *runtime)
     runtime->shown_base =
         theme_catalog_same_id(runtime->saved_id, none) ? runtime->saved_base : APPEARANCE_NEON_NOIR;
     ThemeCatalog *catalog = theme_picker_catalog();
-    theme_catalog_scan(catalog);
-    for (unsigned at = 0; at < catalog->count; at++) {
-        if (catalog->entries[at].valid &&
-            theme_catalog_same_id(runtime->saved_id, catalog->entries[at].id)) {
-            if (theme_runtime_load(runtime, catalog->entries[at].filename)) {
-                runtime->shown_base = runtime->pack.base;
-            }
+    for (int attempt = 0; attempt < THEME_DAMAGED_REMEMBERED; attempt++) {
+        theme_catalog_scan(catalog);
+        int found = theme_catalog_find(catalog, runtime->saved_id);
+        if (found < 0) {
             return;
         }
+        if (theme_runtime_load(runtime, catalog->entries[found].filename)) {
+            runtime->shown_base = runtime->pack.base;
+            return;
+        }
+        theme_catalog_mark_damaged(catalog->entries[found].filename);
     }
 }
 
@@ -139,6 +140,7 @@ void theme_runtime_boot(ThemeRuntime *runtime)
 {
     theme_runtime_close(runtime);
     *runtime = (ThemeRuntime){.file = {.handle = -1}, .saved_base = APPEARANCE_NEON_NOIR};
+    theme_catalog_forget_damaged();
     load_selection(runtime);
     theme_runtime_restore(runtime);
 }

@@ -39,7 +39,7 @@ FUZZ_TARGETS = {
     "app_navigation": 128,
     "library_builder": 512,
     "cover_image": 1048576,
-    "theme_pack": 1024,
+    "theme_pack": 4096,
     "art_codec": 1030,
     "placeholder_art": 256,
     "play_queue": 256,

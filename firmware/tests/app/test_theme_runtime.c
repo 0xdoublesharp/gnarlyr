@@ -5,55 +5,55 @@
 #include "core/hash.h"
 #include "default_theme.h"
 #include "fake_hal.h"
+#include "gfx/art_codec.h"
 #include "hal/system.h"
 #include "modules/modules.h"
 #include "screens/listening_work.h"
+#include "theme_fixture.h"
 #include "theme_picker.h"
 
-static uint8_t first[540];
-static uint8_t second[540];
+static uint8_t first[1024];
+static uint8_t second[1024];
+static uint32_t first_length;
+static uint32_t second_length;
 static const char FIRST_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/first.gtheme";
 static const char SECOND_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/second.gtheme";
+static const ThemeFixtureArt TILE = {THEME_ART_LIST, 2, 255, 3, 2, ART_CODEC_LOSSLESS, 1};
+static const uint16_t SIDES[] = {2, 4, 3};
+static int pixel_mode;
 
-static void sample(uint8_t *bytes, uint8_t id)
+static Color fixture_pixel(int x, int y, int index)
 {
-    memset(bytes, 0, sizeof first);
-    memcpy(bytes, "DSTP", 4);
-    store_put16(bytes + 4, 1);
-    store_put16(bytes + 6, 512);
-    store_put32(bytes + 8, sizeof first);
-    bytes[16] = APPEARANCE_CLASSIC;
-    bytes[18] = 20;
-    bytes[19] = 1;
-    bytes[20] = id;
-    memcpy(bytes + 36, id == 1 ? "First" : "Second", id == 1 ? 6 : 7);
-    memcpy(bytes + 68, "Maker", 6);
-    memcpy(bytes + 100, "1.0.0", 6);
-    memcpy(bytes + 132, "CC0-1.0", 8);
-    for (int at = 0; at < 20; at++) {
-        store_put16(bytes + 452 + at * 2, at == 0 ? 0 : UINT16_MAX);
+    if (pixel_mode == 1) {
+        return (Color)(x ^ y);
     }
-    store_put16(bytes + 512, THEME_ART_LIST);
-    bytes[514] = 2;
-    bytes[515] = 255;
-    store_put16(bytes + 516, 3);
-    store_put16(bytes + 518, 2);
-    store_put32(bytes + 520, 528);
-    store_put32(bytes + 524, 12);
-    for (int at = 0; at < 6; at++) {
-        store_put16(bytes + 528 + at * 2, (uint16_t)(100 + at));
+    if (pixel_mode == 2) {
+        return (Color)(1000u * (unsigned)(index + 1) + (unsigned)(y * SIDES[index] + x));
     }
-    uint32_t crc = theme_pack_crc(UINT32_MAX, bytes, 12);
-    store_put32(bytes + 12, ~theme_pack_crc(crc, bytes + 16, sizeof first - 16));
+    return (Color)(100 + y * 3 + x);
+}
+
+static uint32_t build(uint8_t *bytes, uint32_t capacity, uint8_t id, const ThemeFixtureArt *art,
+                      uint8_t count)
+{
+    ThemeFixture fixture = {id, APPEARANCE_CLASSIC, count, art, fixture_pixel, NULL, 0};
+    return theme_fixture_build(bytes, capacity, &fixture);
+}
+
+static uint32_t sample(uint8_t *bytes, uint8_t id)
+{
+    pixel_mode = 0;
+    return build(bytes, sizeof first, id, &TILE, 1);
 }
 
 static void reset(void)
 {
     fake_hal_reset();
-    sample(first, 1);
-    sample(second, 2);
-    fake_hal_add_file(FIRST_PATH, first, sizeof first);
-    fake_hal_add_file(SECOND_PATH, second, sizeof second);
+    theme_catalog_forget_damaged();
+    first_length = sample(first, 1);
+    second_length = sample(second, 2);
+    fake_hal_add_file(FIRST_PATH, first, first_length);
+    fake_hal_add_file(SECOND_PATH, second, second_length);
 }
 
 static void a_saved_pack_survives_restart_and_a_damaged_or_missing_pack_falls_back(void)
@@ -148,29 +148,19 @@ static void strips_and_clipped_rectangles_match_a_full_render(void)
 
 static void full_images_stream_in_both_orientations_and_missing_art_uses_the_base(void)
 {
-    static uint8_t image[528 + 480 * 222 * 2];
+    static uint8_t image[4096 + 480 * 222 * 2 + 1000];
     static Color full[480 * 222];
     static Color strip[480 * 17];
     for (int portrait = 0; portrait < 2; portrait++) {
         reset();
         int width = portrait ? 222 : 480;
         int height = portrait ? 480 : 222;
-        memcpy(image, first, 528);
-        store_put32(image + 8, sizeof image);
-        store_put16(image + 512, THEME_ART_HOME);
-        image[514] = (uint8_t)portrait;
-        store_put16(image + 516, (uint16_t)width);
-        store_put16(image + 518, (uint16_t)height);
-        store_put32(image + 524, (uint32_t)width * (uint32_t)height * 2);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                store_put16(image + 528 + (y * width + x) * 2, (uint16_t)(x ^ y));
-            }
-        }
-        uint32_t crc = theme_pack_crc(UINT32_MAX, image, 12);
-        store_put32(image + 12, ~theme_pack_crc(crc, image + 16, sizeof image - 16));
+        ThemeFixtureArt art = {THEME_ART_HOME,   (uint8_t)portrait,  255, (uint16_t)width,
+                               (uint16_t)height, ART_CODEC_LOSSLESS, 0};
+        pixel_mode = 1;
+        uint32_t size = build(image, sizeof image, 3, &art, 1);
         static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/full.gtheme";
-        fake_hal_add_file(path, image, sizeof image);
+        fake_hal_add_file(path, image, size);
         ThemeRuntime runtime = {0};
         CHECK(theme_runtime_load(&runtime, "full.gtheme"));
         ThemeArtRequest request = {.area = {0, 0, width, height},
@@ -203,19 +193,13 @@ static void full_images_stream_in_both_orientations_and_missing_art_uses_the_bas
     }
 }
 
-static void put_tile(uint8_t *bytes, int index, uint16_t side, uint32_t offset)
+static uint32_t three_tiles(uint8_t *bytes, uint32_t capacity, uint8_t count)
 {
-    uint8_t *descriptor = bytes + 512 + index * 16;
-    store_put16(descriptor, THEME_ART_LIST);
-    descriptor[2] = (uint8_t)index;
-    descriptor[3] = 255;
-    store_put16(descriptor + 4, side);
-    store_put16(descriptor + 6, side);
-    store_put32(descriptor + 8, offset);
-    store_put32(descriptor + 12, (uint32_t)side * side * 2);
-    for (uint32_t at = 0; at < (uint32_t)side * side; at++) {
-        store_put16(bytes + offset + at * 2, (uint16_t)(1000u * (uint32_t)(index + 1) + at));
-    }
+    static const ThemeFixtureArt tiles[] = {{THEME_ART_LIST, 0, 255, 2, 2, ART_CODEC_LOSSLESS, 1},
+                                            {THEME_ART_LIST, 1, 255, 4, 4, ART_CODEC_INDEXED, 1},
+                                            {THEME_ART_LIST, 2, 255, 3, 3, ART_CODEC_LOSSLESS, 1}};
+    pixel_mode = 2;
+    return build(bytes, capacity, 3, tiles, count);
 }
 
 static Color tile_pixel(ThemeRuntime *runtime, uint8_t orientation, int x, int y)
@@ -230,18 +214,11 @@ static Color tile_pixel(ThemeRuntime *runtime, uint8_t orientation, int x, int y
 
 static void each_asset_of_a_pack_draws_its_own_pixels(void)
 {
-    static uint8_t pack[560 + 2 * 2 * 2 + 4 * 4 * 2 + 3 * 3 * 2];
+    static uint8_t pack[2048];
     reset();
-    memcpy(pack, first, 512);
-    store_put32(pack + 8, sizeof pack);
-    pack[19] = 3;
-    put_tile(pack, 0, 2, 560);
-    put_tile(pack, 1, 4, 568);
-    put_tile(pack, 2, 3, 600);
-    uint32_t crc = theme_pack_crc(UINT32_MAX, pack, 12);
-    store_put32(pack + 12, ~theme_pack_crc(crc, pack + 16, sizeof pack - 16));
+    uint32_t size = three_tiles(pack, sizeof pack, 3);
     static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/three.gtheme";
-    fake_hal_add_file(path, pack, sizeof pack);
+    fake_hal_add_file(path, pack, size);
     ThemeRuntime runtime = {0};
     CHECK(theme_runtime_load(&runtime, "three.gtheme"));
     CHECK_EQUAL(3000, tile_pixel(&runtime, 2, 0, 0));
@@ -255,18 +232,11 @@ static void each_asset_of_a_pack_draws_its_own_pixels(void)
 
 static void art_selection_prefers_exact_dimensions_then_falls_back(void)
 {
-    static uint8_t pack[560 + 2 * 2 * 2 + 4 * 4 * 2 + 3 * 3 * 2];
+    static uint8_t pack[2048];
     reset();
-    memcpy(pack, first, 512);
-    store_put32(pack + 8, sizeof pack);
-    pack[19] = 3;
-    put_tile(pack, 0, 2, 560);
-    put_tile(pack, 1, 4, 568);
-    put_tile(pack, 2, 3, 600);
-    uint32_t crc = theme_pack_crc(UINT32_MAX, pack, 12);
-    store_put32(pack + 12, ~theme_pack_crc(crc, pack + 16, sizeof pack - 16));
+    uint32_t size = three_tiles(pack, sizeof pack, 3);
     static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/fallback.gtheme";
-    fake_hal_add_file(path, pack, sizeof pack);
+    fake_hal_add_file(path, pack, size);
     ThemeRuntime runtime = {0};
     CHECK(theme_runtime_load(&runtime, "fallback.gtheme"));
     runtime.pack.assets[0].orientation = 2;
@@ -329,8 +299,6 @@ static void art_read_failures_close_the_active_pack(void)
                               (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_LIST}));
     fake_hal_fail_file_reads(NULL);
     CHECK(theme_runtime_load(&runtime, "first.gtheme"));
-    runtime.pack.assets[0].width = 8;
-    runtime.pack.assets[0].height = 8;
     fake_hal_fail_file_reads(FIRST_PATH);
     Canvas full = canvas_make(pixels, (Rect){0, 0, 8, 8});
     CHECK(!theme_runtime_draw(&runtime, &full,
@@ -341,17 +309,11 @@ static void art_read_failures_close_the_active_pack(void)
 
 static void streaming_art_closes_after_an_uncached_row_read_fails(void)
 {
-    static uint8_t pack[544 + 2 * 2 * 2 + 8 * 8 * 2];
+    static uint8_t pack[2048];
     reset();
-    memcpy(pack, first, 512);
-    store_put32(pack + 8, sizeof pack);
-    pack[19] = 2;
-    put_tile(pack, 0, 2, 544);
-    put_tile(pack, 1, 8, 552);
-    uint32_t crc = theme_pack_crc(UINT32_MAX, pack, 12);
-    store_put32(pack + 12, ~theme_pack_crc(crc, pack + 16, sizeof pack - 16));
+    uint32_t size = three_tiles(pack, sizeof pack, 2);
     static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/stream.gtheme";
-    fake_hal_add_file(path, pack, sizeof pack);
+    fake_hal_add_file(path, pack, size);
     ThemeRuntime runtime = {0};
     CHECK(theme_runtime_load(&runtime, "stream.gtheme"));
     static Color pixels[10 * 10];
@@ -443,22 +405,36 @@ static void invalid_selection_metadata_is_never_restored(void)
     }
 }
 
-static void damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version(void)
+static void damaged_packs_are_found_when_checked_and_an_older_intact_version_is_used(void)
 {
     reset();
     second[452] ^= 1;
     ThemeCatalog catalog;
     theme_catalog_scan(&catalog);
     CHECK_EQUAL(2, catalog.count);
-    CHECK(catalog.entries[0].valid);
+    CHECK(catalog.entries[1].valid);
+    second[4] = 1;
+    theme_fixture_seal(second, second_length);
+    theme_catalog_scan(&catalog);
     CHECK(!catalog.entries[1].valid);
-    sample(second, 1);
+    ThemeRuntime runtime = {0};
+    theme_runtime_boot(&runtime);
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    CHECK(theme_runtime_save(&runtime, -1));
+    second_length = sample(second, 1);
     memcpy(second + 100, "2.0.0", 6);
-    uint32_t crc = theme_pack_crc(UINT32_MAX, second, 12);
-    store_put32(second + 12, ~theme_pack_crc(crc, second + 16, sizeof second - 16));
+    theme_fixture_seal(second, second_length);
     theme_catalog_scan(&catalog);
     CHECK_EQUAL(1, catalog.count);
     CHECK(strcmp("second.gtheme", catalog.entries[0].filename) == 0);
+    second[452] ^= 1;
+    theme_runtime_boot(&runtime);
+    CHECK(runtime.active);
+    CHECK(strcmp("1.0.0", theme_picker_catalog()
+                              ->entries[theme_catalog_find(theme_picker_catalog(), runtime.pack.id)]
+                              .version) == 0);
+    theme_catalog_scan(&catalog);
+    CHECK_EQUAL(2, catalog.count);
 }
 
 static void every_torn_selection_write_keeps_a_whole_old_or_new_choice(void)
@@ -588,7 +564,7 @@ int main(void)
         TEST_CASE(shifted_repeated_and_portrait_art_use_the_general_draw_path),
         TEST_CASE(selection_storage_failures_are_retryable),
         TEST_CASE(invalid_selection_metadata_is_never_restored),
-        TEST_CASE(damaged_packs_stay_listed_and_duplicate_ids_choose_the_newest_version),
+        TEST_CASE(damaged_packs_are_found_when_checked_and_an_older_intact_version_is_used),
         TEST_CASE(every_torn_selection_write_keeps_a_whole_old_or_new_choice),
         TEST_CASE(cancelling_a_preview_restores_the_saved_pack_and_builtin_choices_clear_it),
         TEST_CASE(another_listening_work_owner_cannot_invalidate_active_art_or_the_catalogue),

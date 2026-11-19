@@ -50,6 +50,26 @@ static ThemeRuntime *runtime_of(ThemePicker *picker)
     return picker->screens->context.themes;
 }
 
+static void preview_pack(ThemePicker *picker, ThemeRuntime *runtime, int at)
+{
+    ThemeCatalog *catalog = theme_picker_catalog();
+    ThemeCatalogEntry *entry = &catalog->entries[at];
+    if (!entry->valid || theme_runtime_load(runtime, entry->filename)) {
+        return;
+    }
+    uint8_t id[16];
+    for (int byte = 0; byte < 16; byte++) {
+        id[byte] = entry->id[byte];
+    }
+    theme_catalog_mark_damaged(entry->filename);
+    theme_catalog_scan(catalog);
+    int next = theme_catalog_find(catalog, id);
+    if (next >= 0 && theme_runtime_load(runtime, catalog->entries[next].filename)) {
+        picker->preview = APPEARANCE_THEME_COUNT + next;
+        list_view_select(&picker->list, picker->preview, picker->now_ms);
+    }
+}
+
 static void preview(ThemePicker *picker)
 {
     if (picker->preview == picker->list.selected) {
@@ -64,10 +84,7 @@ static void preview(ThemePicker *picker)
     if (index < APPEARANCE_THEME_COUNT) {
         runtime->shown_base = (uint8_t)index;
     } else {
-        ThemeCatalogEntry *entry = &theme_picker_catalog()->entries[index - APPEARANCE_THEME_COUNT];
-        if (entry->valid && !theme_runtime_load(runtime, entry->filename)) {
-            entry->valid = false;
-        }
+        preview_pack(picker, runtime, index - APPEARANCE_THEME_COUNT);
     }
     default_theme_invalidate(picker->screens->context.styled_theme);
 }

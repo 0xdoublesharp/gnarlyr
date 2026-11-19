@@ -15,6 +15,7 @@ from echo_emulator.playback import Rig
 from echo_emulator.power import DecoderLoad, PowerMeter
 from test_35_small_block_feed import encoded, FED_MS
 from unicorn.arm_const import UC_ARM_REG_SP
+import art_codec
 import theme_pack
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -46,16 +47,11 @@ def photo_pixels(seed=7):
     return rows
 
 
-def rgb565(pixel):
-    red, green, blue = pixel
-    return ((red >> 3) << 11) | ((green >> 2) << 5) | (blue >> 3)
-
-
-def built_pack(rows):
+def built_pack(rows, codec="lossless"):
     from PIL import Image
     manifest = json.loads((ROOT / "examples/themes/pocket-scope/theme.json").read_text())
     manifest["assets"] = [{"slot": "now_playing", "file": "now_playing.png",
-                           "orientation": "landscape"}]
+                           "orientation": "landscape", "codec": codec, "dither": "none"}]
     with tempfile.TemporaryDirectory() as directory:
         folder = Path(directory)
         image = Image.new("RGB", (WIDTH, HEIGHT))
@@ -63,6 +59,13 @@ def built_pack(rows):
         image.save(folder / "now_playing.png")
         (folder / "theme.json").write_text(json.dumps(manifest))
         return theme_pack.build(folder)
+
+
+def drawn_art(pack):
+    asset = theme_pack.check(pack)["assets"][0]
+    payload = pack[asset["offset"]:asset["offset"] + asset["bytes"]]
+    rows = art_codec.decode(payload, WIDTH, HEIGHT, [[0] * WIDTH for _ in range(HEIGHT)])
+    return [value for row in rows for value in row]
 
 
 def selection(identity):
@@ -125,23 +128,24 @@ class EchoImageTest(EchoImageHarness):
         return sum(1 for shown, wanted in zip(frame, art) if shown == wanted) / len(art)
 
     def report(self, results):
-        keys = ("themed", "underruns", "output_underruns", "buffered_ms", "frames_drawn",
+        keys = ("themed", "codec", "underruns", "output_underruns", "buffered_ms", "frames_drawn",
                 "core0_busy_percent", "core0_passes_per_s", "card_kib_per_s", "stack_peak_bytes",
                 "art_share")
-        print(json.dumps([{key: result[key] for key in keys} for result in results]))
+        print(json.dumps([{key: result.get(key) for key in keys} for result in results]))
         destination = os.environ.get("ECHO_FEED_REPORT")
         if destination:
             with open(destination, "a", encoding="utf-8") as output:
                 for result in results:
                     output.write(json.dumps(result) + "\n")
 
-    def test_theme_background_with_a_scrolling_title_keeps_the_96_khz_feed(self):
-        rows = photo_pixels()
-        art = [rgb565(pixel) for row in rows for pixel in row]
+    def compared(self, codec):
+        pack = built_pack(photo_pixels(), codec)
+        art = drawn_art(pack)
         plain, plain_frame = self.measured(None)
-        themed, themed_frame = self.measured(built_pack(rows))
+        themed, themed_frame = self.measured(pack)
         plain["art_share"] = round(self.art_share(plain_frame, art), 3)
         themed["art_share"] = round(self.art_share(themed_frame, art), 3)
+        themed["codec"] = codec
         self.report([plain, themed])
         self.assertLessEqual(plain["art_share"], PLAIN_SHARE_MAX, plain)
         self.assertGreaterEqual(themed["art_share"], ART_SHARE_MIN, themed)
@@ -150,8 +154,15 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(0, result["output_underruns"], result)
             self.assertGreaterEqual(result["buffered_ms"], FED_MS, result)
             self.assertGreaterEqual(result["frames_drawn"], MEASURE_MS * 3 // 1000, result)
+        return plain, themed
+
+    def test_theme_background_with_a_scrolling_title_keeps_the_96_khz_feed(self):
+        plain, themed = self.compared("indexed")
+        for result in (plain, themed):
             self.assertLessEqual(result["core0_busy_percent"], CORE0_LIMIT_PERCENT, result)
 
+    def test_a_lossless_photo_behind_a_scrolling_title_keeps_the_96_khz_feed(self):
+        self.compared("lossless")
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

@@ -11,11 +11,20 @@ typedef struct ThemeArtwork {
     ThemeAssetKey assets[THEME_PACK_MAX_ASSETS];
 } ThemeArtwork;
 
+typedef struct ThemeArtCache {
+    uint32_t offset;
+    uint32_t bytes;
+    uint32_t table;
+    uint16_t width;
+    uint16_t height;
+    uint8_t codec;
+    uint8_t alpha;
+    int8_t index;
+} ThemeArtCache;
+
 typedef struct ThemeRuntime {
     ThemeArtwork pack;
-    Color tile[32];
-    uint32_t tile_offset;
-    bool tile_valid;
+    ThemeArtCache art;
     HalFile file;
     uint8_t saved_id[16];
     uint32_t generation;
