@@ -274,8 +274,8 @@ Cassette puts the title, artist and album inside a neon wireframe shell above th
 
 VU meters and Spectrum show a sunset: a striped sun sinking into the horizon above a glowing grid floor, whose lines brighten with the bass.
 
-- **VU meters:** the sun is the meter. Its left half follows the left channel and its right half the right channel, lighting stripe by stripe from the horizon up as the music gets louder. Small marks beside the sun show 0, −6, −12 and −24 dB. On a loud peak the top of that half flashes white and PEAK lights above its L or R for half a second.
-- **Spectrum:** sixteen cyan frequency bars with white tops stand in front of the sun, each reflected in the floor. A pink cap above each bar briefly holds its peak.
+- **VU meters:** the sun is the meter. Its left half follows the left channel and its right half the right channel, filling with light from the horizon up as the music gets louder. Small marks beside the sun show 0, −6, −12 and −24 dB. On a loud peak the top of that half flashes (white on the dark themes, dark on Classic) and PEAK lights above its L or R for half a second.
+- **Spectrum:** sixteen frequency bars in the theme's accent colour (cyan on Neon Noir), each topped with a bright line, stand in front of the sun and are reflected in the floor. A cap above each bar briefly holds its peak.
 
 Both keep the title, artist, time and progress clear. Long labels end with an ellipsis. The scene uses your theme's colours in either orientation and at every text size; on Classic the sun becomes a dark eclipse. Pausing lets the sun and bars settle. Turning the screen off stops their updates.
 
