@@ -663,7 +663,7 @@ static void a_block_that_does_not_follow_starts_the_next_hand_off(void)
     CHECK(slot_counts_up(0));
 }
 
-static void a_jump_written_in_place_moves_the_gathered_slot_to_end_with_it(void)
+static void a_jump_written_in_place_hands_over_the_gathered_slot_with_its_own_positions(void)
 {
     start_fake(512, 100);
     fake.in_place = true;
@@ -672,13 +672,20 @@ static void a_jump_written_in_place_moves_the_gathered_slot_to_end_with_it(void)
     core1_stream_step(&stream);
     core1_stream_step(&stream);
     core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
+    CHECK_EQUAL(2u * 512u, control.slots[1].samples);
+    CHECK_EQUAL(512u, control.slots[1].first_sample);
+    CHECK(slot_counts_up(1));
+    CHECK(!core1_stream_step(&stream));
     control.slots[0].state = STREAM_SLOT_EMPTY;
     core1_stream_step(&stream);
-    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[1].state);
-    CHECK_EQUAL(4u * 512u, control.slots[1].samples);
-    CHECK_EQUAL(5u * 512u + 1000u, control.slots[1].first_sample + control.slots[1].samples);
-    CHECK_EQUAL(512, samples[1][0][0]);
-    CHECK_EQUAL((int32_t)(3u * 512u + 1000u), samples[1][1][2u * 512u]);
+    core1_stream_step(&stream);
+    control.slots[1].state = STREAM_SLOT_EMPTY;
+    core1_stream_step(&stream);
+    CHECK_EQUAL(STREAM_SLOT_FULL, control.slots[0].state);
+    CHECK_EQUAL(3u * 512u + 1000u, control.slots[0].first_sample);
+    CHECK_EQUAL(3u * 512u, control.slots[0].samples);
+    CHECK(slot_counts_up(0));
 }
 
 static void the_end_after_a_gathered_slot_waits_for_a_free_slot(void)
@@ -743,7 +750,7 @@ int main(void)
         TEST_CASE(small_blocks_are_gathered_while_core_0_holds_the_other_slot),
         TEST_CASE(a_gathering_slot_is_handed_over_once_core_0_empties_the_other),
         TEST_CASE(a_block_that_does_not_follow_starts_the_next_hand_off),
-        TEST_CASE(a_jump_written_in_place_moves_the_gathered_slot_to_end_with_it),
+        TEST_CASE(a_jump_written_in_place_hands_over_the_gathered_slot_with_its_own_positions),
         TEST_CASE(the_end_after_a_gathered_slot_waits_for_a_free_slot),
         TEST_CASE(large_blocks_keep_one_block_per_hand_off),
         TEST_CASE(a_full_hand_off_holds_at_least_the_bound_core_0_rests_on),

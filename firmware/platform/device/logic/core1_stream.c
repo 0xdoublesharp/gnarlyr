@@ -199,10 +199,9 @@ static bool written_in_place(const Core1Block *block)
 
 static bool append(Core1Stream *stream, const Core1Block *block)
 {
-    bool in_place = written_in_place(block);
     bool joins =
         stream->filled == 0 || block->first_sample == stream->first_sample + stream->filled;
-    if (block->samples > room(stream) || (!in_place && !joins)) {
+    if (block->samples > room(stream) || (block->samples != 0 && !joins)) {
         return false;
     }
     stream->region.control->released = stream->start_offset + block->position;
@@ -210,9 +209,10 @@ static bool append(Core1Stream *stream, const Core1Block *block)
         return true;
     }
     copy_channels(stream, block);
+    if (stream->filled == 0) {
+        stream->first_sample = block->first_sample;
+    }
     stream->filled += block->samples;
-    uint32_t end = block->first_sample + block->samples;
-    stream->first_sample = end >= stream->filled ? end - stream->filled : 0;
     return true;
 }
 
@@ -230,7 +230,8 @@ static void take(Core1Stream *stream, Core1DecodeResult result, const Core1Block
         }
         return;
     }
-    bool overran = result == CORE1_DECODED && written_in_place(block);
+    bool overran =
+        result == CORE1_DECODED && written_in_place(block) && block->samples > room(stream);
     if (stream->filled != 0 && !overran) {
         publish_slot(stream, AUDIO_FRAME_READY);
         stream->held = *block;
