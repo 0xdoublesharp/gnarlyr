@@ -1,5 +1,7 @@
 #include "device/core1_pace.h"
 
+#include "codec/flac.h"
+
 static const ClockGovernorLimits FROM_200 = {.window_us = 50000000,
                                              .pll_mhz = 0,
                                              .lowest_divider = 1,
@@ -24,9 +26,17 @@ uint32_t core1_pace_units(uint32_t cycles, uint32_t mhz)
                                      : cycles * (CORE1_PACE_UNIT_MHZ / mhz);
 }
 
-uint32_t core1_pace_rest_us(bool waiting_for_room)
+uint32_t core1_pace_rest_us(bool waiting_for_room, uint32_t sample_rate)
 {
-    return waiting_for_room ? CORE1_PACE_ROOM_REST_US : CORE1_PACE_REST_US;
+    if (!waiting_for_room) {
+        return CORE1_PACE_REST_US;
+    }
+    if (sample_rate == 0) {
+        return CORE1_PACE_ROOM_REST_US;
+    }
+    uint64_t check_us =
+        (uint64_t)FLAC_MAX_BLOCK * 1000000u / sample_rate / CORE1_PACE_ROOM_CHECKS_PER_SLOT;
+    return check_us < CORE1_PACE_ROOM_REST_US ? (uint32_t)check_us : CORE1_PACE_ROOM_REST_US;
 }
 
 uint32_t core1_pace_rest_mhz(uint32_t mhz)

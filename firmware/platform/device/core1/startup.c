@@ -150,7 +150,8 @@ void core1_idle(const Core1Stream *stream)
     bool waiting = core1_stream_waiting_for_room(stream);
     uint32_t running = clock_mhz;
     uint32_t start = units_now();
-    use_timer(core1_pace_rest_mhz(running), core1_pace_rest_us(waiting));
+    use_timer(core1_pace_rest_mhz(running),
+              core1_pace_rest_us(waiting, stream->region.control->sample_rate));
     __asm__ volatile("wfi" ::: "memory");
     use_timer(running, timer_us);
     uint32_t idle = units_now() - start;

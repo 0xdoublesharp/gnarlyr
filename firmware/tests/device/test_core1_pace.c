@@ -17,8 +17,18 @@ static void units_are_hundred_megahertz_cycles_at_every_clock(void)
 
 static void core_1_rests_longer_only_while_it_waits_for_room(void)
 {
-    CHECK_EQUAL(5000u, core1_pace_rest_us(false));
-    CHECK_EQUAL(20000u, core1_pace_rest_us(true));
+    CHECK_EQUAL(5000u, core1_pace_rest_us(false, 44100));
+    CHECK_EQUAL(20000u, core1_pace_rest_us(true, 44100));
+}
+
+static void at_high_rates_core_1_checks_for_room_four_times_a_slot(void)
+{
+    CHECK_EQUAL(6000u, core1_pace_rest_us(true, 192000));
+    CHECK_EQUAL(6530u, core1_pace_rest_us(true, 176400));
+    CHECK_EQUAL(12000u, core1_pace_rest_us(true, 96000));
+    CHECK_EQUAL(20000u, core1_pace_rest_us(true, 48000));
+    CHECK_EQUAL(20000u, core1_pace_rest_us(true, 0));
+    CHECK_EQUAL(5000u, core1_pace_rest_us(false, 192000));
 }
 
 static void core_1_rests_at_no_more_than_100_megahertz(void)
@@ -103,6 +113,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(units_are_hundred_megahertz_cycles_at_every_clock),
         TEST_CASE(core_1_rests_longer_only_while_it_waits_for_room),
+        TEST_CASE(at_high_rates_core_1_checks_for_room_four_times_a_slot),
         TEST_CASE(core_1_rests_at_no_more_than_100_megahertz),
         TEST_CASE(each_clock_maps_to_its_divider_field),
         TEST_CASE(the_requested_clock_is_the_ceiling),
