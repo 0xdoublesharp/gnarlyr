@@ -83,18 +83,18 @@ static void holding_menu_and_tapping_volume_moves_one_step(void)
     CHECK_EQUAL(NOW_PLAYING_SEEK_BACK, menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 0));
 }
 
-static void holding_menu_and_holding_volume_keeps_stepping_and_speeds_up(void)
+static void holding_menu_and_holding_volume_moves_one_step_then_scrubs_by_time(void)
 {
     CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD,
                 menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0));
-    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK, menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 2));
-    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD,
-                menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 12));
-    CHECK_EQUAL(
-        NOW_PLAYING_SEEK_FORWARD_FAST,
-        menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, NOW_PLAYING_SEEK_FAST_AFTER_REPEATS));
-    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK_FAST,
-                menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 200));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK,
+                menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_LONG_PRESS, 0));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD_HELD,
+                menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 1));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD_HELD,
+                menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 200));
+    CHECK_EQUAL(NOW_PLAYING_SEEK_BACK_HELD,
+                menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 2));
 }
 
 static void the_skip_toasts_name_the_direction(void)
@@ -145,44 +145,118 @@ static void the_seek_target_of_an_unknown_length_stays_put(void)
     CHECK_EQUAL(3000, now_playing_scrub_target(3000, 0, -6000));
 }
 
-static void a_seek_step_is_one_percent_of_the_length(void)
+static void a_tapped_seek_step_is_one_percent_of_the_length(void)
 {
-    CHECK_EQUAL(2000, now_playing_seek_step(200000, false));
-    CHECK_EQUAL(3120, now_playing_seek_step(312000, false));
-    CHECK_EQUAL(12345, now_playing_seek_step(1234567, false));
+    CHECK_EQUAL(2000, now_playing_seek_step(200000));
+    CHECK_EQUAL(3120, now_playing_seek_step(312000));
+    CHECK_EQUAL(12345, now_playing_seek_step(1234567));
 }
 
-static void after_about_two_seconds_a_seek_step_is_three_percent_of_the_length(void)
+static void a_tapped_seek_step_stays_between_one_and_thirty_seconds(void)
 {
-    CHECK_EQUAL(6000, now_playing_seek_step(200000, true));
-    CHECK_EQUAL(9360, now_playing_seek_step(312000, true));
-    CHECK_EQUAL(13, NOW_PLAYING_SEEK_FAST_AFTER_REPEATS);
+    CHECK_EQUAL(1000, now_playing_seek_step(1));
+    CHECK_EQUAL(1000, now_playing_seek_step(45000));
+    CHECK_EQUAL(1000, now_playing_seek_step(100099));
+    CHECK_EQUAL(30000, now_playing_seek_step(3000000));
+    CHECK_EQUAL(30000, now_playing_seek_step(UINT32_MAX));
 }
 
-static void a_seek_step_stays_between_one_and_thirty_seconds(void)
+static void a_held_scrub_crosses_a_three_minute_track_in_ten_seconds_then_three(void)
 {
-    CHECK_EQUAL(1000, now_playing_seek_step(1, false));
-    CHECK_EQUAL(1000, now_playing_seek_step(45000, false));
-    CHECK_EQUAL(1000, now_playing_seek_step(100099, false));
-    CHECK_EQUAL(30000, now_playing_seek_step(3000000, false));
-    CHECK_EQUAL(30000, now_playing_seek_step(14400000, false));
+    CHECK_EQUAL(18000, now_playing_scrub_rate(180000, 0));
+    CHECK_EQUAL(60000, now_playing_scrub_rate(180000, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
 }
 
-static void a_fast_seek_step_stays_between_three_seconds_and_two_minutes(void)
+static void a_held_scrub_of_an_hour_moves_one_minute_then_ten_minutes_a_second(void)
 {
-    CHECK_EQUAL(3000, now_playing_seek_step(1, true));
-    CHECK_EQUAL(3000, now_playing_seek_step(45000, true));
-    CHECK_EQUAL(120000, now_playing_seek_step(4000000, true));
-    CHECK_EQUAL(120000, now_playing_seek_step(14400000, true));
-    CHECK_EQUAL(120000, now_playing_seek_step(UINT32_MAX, true));
+    CHECK_EQUAL(60000, now_playing_scrub_rate(3600000, 0));
+    CHECK_EQUAL(600000, now_playing_scrub_rate(3600000, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
 }
 
-static void a_seek_delta_follows_the_direction_and_speed_of_the_move(void)
+static void a_held_scrub_of_ten_hours_keeps_the_same_caps(void)
 {
-    CHECK_EQUAL(2000, now_playing_seek_delta(0, 200000));
-    CHECK_EQUAL(6000, now_playing_seek_delta(1, 200000));
-    CHECK_EQUAL(-2000, now_playing_seek_delta(2, 200000));
-    CHECK_EQUAL(-6000, now_playing_seek_delta(3, 200000));
+    CHECK_EQUAL(60000, now_playing_scrub_rate(36000000, 0));
+    CHECK_EQUAL(600000, now_playing_scrub_rate(36000000, 5000));
+    CHECK_EQUAL(60000, now_playing_scrub_rate(UINT32_MAX, 0));
+    CHECK_EQUAL(600000, now_playing_scrub_rate(UINT32_MAX, UINT32_MAX));
+}
+
+static void a_held_scrub_speeds_up_after_about_two_seconds(void)
+{
+    CHECK_EQUAL(1500, NOW_PLAYING_SCRUB_FAST_AFTER_MS);
+    CHECK_EQUAL(18000, now_playing_scrub_rate(180000, NOW_PLAYING_SCRUB_FAST_AFTER_MS - 1));
+    CHECK_EQUAL(60000, now_playing_scrub_rate(180000, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
+}
+
+static void the_scrub_caps_are_reached_at_ten_and_thirty_minutes(void)
+{
+    CHECK_EQUAL(59999, now_playing_scrub_rate(599999, 0));
+    CHECK_EQUAL(60000, now_playing_scrub_rate(600000, 0));
+    CHECK_EQUAL(599999, now_playing_scrub_rate(1799997, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
+    CHECK_EQUAL(600000, now_playing_scrub_rate(1800000, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
+}
+
+static void a_held_scrub_step_is_the_rate_times_the_time_since_the_last_step(void)
+{
+    CHECK_EQUAL(2160, now_playing_scrub_step(180000, 0, 120));
+    CHECK_EQUAL(7200, now_playing_scrub_step(180000, 2000, 120));
+    CHECK_EQUAL(72000, now_playing_scrub_step(36000000, 2000, 120));
+    CHECK_EQUAL(600000, now_playing_scrub_step(36000000, 2000, NOW_PLAYING_SCRUB_GAP_MAX_MS));
+}
+
+static void a_held_scrub_step_moves_at_least_one_second(void)
+{
+    CHECK_EQUAL(1000, now_playing_scrub_step(5000, 0, 120));
+    CHECK_EQUAL(1000, now_playing_scrub_step(30000, 2000, 30));
+    CHECK_EQUAL(1000, now_playing_scrub_step(180000, 0, 0));
+}
+
+static int32_t scrub_for(uint32_t move, uint32_t duration_ms, uint32_t interval_ms,
+                         uint32_t until_ms)
+{
+    NowPlayingScrub scrub = {0};
+    int32_t moved = now_playing_scrub_delta(&scrub, move - 1u, duration_ms, 5000);
+    uint32_t at_ms = 0;
+    while (at_ms < until_ms) {
+        at_ms += until_ms - at_ms < interval_ms ? until_ms - at_ms : interval_ms;
+        moved += now_playing_scrub_delta(&scrub, move, duration_ms, 5000 + at_ms);
+    }
+    return moved;
+}
+
+static void a_held_scrub_moves_the_same_distance_at_any_repeat_rate(void)
+{
+    int32_t tenths = scrub_for(1, 180000, 100, 1000);
+    CHECK_EQUAL(1800 + 18000, tenths);
+    CHECK_EQUAL(tenths, scrub_for(1, 180000, 150, 1000));
+    CHECK_EQUAL(-tenths, scrub_for(3, 180000, 150, 1000));
+}
+
+static void a_tap_or_the_start_of_a_hold_moves_one_fine_step(void)
+{
+    NowPlayingScrub scrub = {0};
+    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, 0, 180000, 9000));
+    CHECK_EQUAL(-1800, now_playing_scrub_delta(&scrub, 2, 180000, 9100));
+    CHECK_EQUAL(1800 + 2160, scrub_for(1, 180000, 120, 120));
+}
+
+static void a_held_scrub_after_a_long_gap_starts_over_with_a_fine_step(void)
+{
+    NowPlayingScrub scrub = {0};
+    now_playing_scrub_delta(&scrub, 0, 180000, 9000);
+    CHECK_EQUAL(1800,
+                now_playing_scrub_delta(&scrub, 1, 180000, 9001 + NOW_PLAYING_SCRUB_GAP_MAX_MS));
+    CHECK_EQUAL(18000,
+                now_playing_scrub_delta(&scrub, 1, 180000, 10001 + NOW_PLAYING_SCRUB_GAP_MAX_MS));
+}
+
+static void a_held_scrub_speeds_up_one_and_a_half_seconds_after_the_long_press(void)
+{
+    NowPlayingScrub scrub = {0};
+    now_playing_scrub_delta(&scrub, 0, 180000, 9000);
+    CHECK_EQUAL(14400, now_playing_scrub_delta(&scrub, 1, 180000, 9800));
+    CHECK_EQUAL(12582, now_playing_scrub_delta(&scrub, 1, 180000, 10499));
+    CHECK_EQUAL(30060, now_playing_scrub_delta(&scrub, 1, 180000, 11000));
 }
 
 static void menu_opens_quick_settings(void)
@@ -535,18 +609,26 @@ int main(void)
         TEST_CASE(holding_play_and_tapping_volume_skips),
         TEST_CASE(holding_play_and_holding_volume_skips_once_without_repeating),
         TEST_CASE(holding_menu_and_tapping_volume_moves_one_step),
-        TEST_CASE(holding_menu_and_holding_volume_keeps_stepping_and_speeds_up),
+        TEST_CASE(holding_menu_and_holding_volume_moves_one_step_then_scrubs_by_time),
         TEST_CASE(the_skip_toasts_name_the_direction),
         TEST_CASE(skip_toasts_say_what_the_skip_did),
         TEST_CASE(play_toggles_pause_and_a_long_play_does_nothing_more),
         TEST_CASE(the_seek_target_stays_inside_the_track),
         TEST_CASE(the_seek_target_of_an_unknown_length_stays_put),
         TEST_CASE(scrubbing_a_track_of_unknown_length_leaves_its_position),
-        TEST_CASE(a_seek_step_is_one_percent_of_the_length),
-        TEST_CASE(after_about_two_seconds_a_seek_step_is_three_percent_of_the_length),
-        TEST_CASE(a_seek_step_stays_between_one_and_thirty_seconds),
-        TEST_CASE(a_fast_seek_step_stays_between_three_seconds_and_two_minutes),
-        TEST_CASE(a_seek_delta_follows_the_direction_and_speed_of_the_move),
+        TEST_CASE(a_tapped_seek_step_is_one_percent_of_the_length),
+        TEST_CASE(a_tapped_seek_step_stays_between_one_and_thirty_seconds),
+        TEST_CASE(a_held_scrub_crosses_a_three_minute_track_in_ten_seconds_then_three),
+        TEST_CASE(a_held_scrub_of_an_hour_moves_one_minute_then_ten_minutes_a_second),
+        TEST_CASE(a_held_scrub_of_ten_hours_keeps_the_same_caps),
+        TEST_CASE(a_held_scrub_speeds_up_after_about_two_seconds),
+        TEST_CASE(the_scrub_caps_are_reached_at_ten_and_thirty_minutes),
+        TEST_CASE(a_held_scrub_step_is_the_rate_times_the_time_since_the_last_step),
+        TEST_CASE(a_held_scrub_step_moves_at_least_one_second),
+        TEST_CASE(a_held_scrub_moves_the_same_distance_at_any_repeat_rate),
+        TEST_CASE(a_tap_or_the_start_of_a_hold_moves_one_fine_step),
+        TEST_CASE(a_held_scrub_after_a_long_gap_starts_over_with_a_fine_step),
+        TEST_CASE(a_held_scrub_speeds_up_one_and_a_half_seconds_after_the_long_press),
         TEST_CASE(menu_opens_quick_settings),
         TEST_CASE(back_leaves_and_a_long_back_goes_home),
         TEST_CASE(power_is_left_to_the_system),

@@ -2321,42 +2321,94 @@ static void releasing_play_after_a_chord_does_not_pause(void)
     CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
 }
 
-static uint32_t seek_step(bool fast)
+static uint32_t seek_step(void)
 {
-    return now_playing_seek_step(app_player_status().duration_ms, fast);
+    return now_playing_seek_step(app_player_status().duration_ms);
 }
 
-static void holding_menu_and_holding_volume_scrubs_faster_the_longer_it_is_held(void)
+typedef struct ScrubTrace {
+    uint32_t slow_steps;
+    bool uneven;
+    uint32_t fast_ms;
+    uint32_t fast_at;
+    uint32_t last_ms;
+    uint32_t last_at;
+} ScrubTrace;
+
+static void trace_seek(ScrubTrace *trace, uint32_t elapsed_ms, uint32_t moved)
 {
-    play_on_now_playing();
+    uint32_t at = fake_hal_audio_last_seek();
+    if (trace->fast_ms == 0 && moved > NOW_PLAYING_SEEK_STEP_MIN_MS) {
+        trace->fast_ms = elapsed_ms;
+        trace->fast_at = at;
+    } else if (trace->fast_ms == 0) {
+        trace->slow_steps++;
+    } else {
+        trace->uneven = trace->uneven || moved <= NOW_PLAYING_SEEK_STEP_MIN_MS;
+    }
+    trace->last_ms = elapsed_ms;
+    trace->last_at = at;
+}
+
+static ScrubTrace menu_scrub_at_pace(uint32_t pace_ms, uint32_t hold_ms)
+{
     fake_hal_audio_set_position(0);
     step();
-    uint8_t volume = fake_hal_audio_volume();
-    uint32_t normal = seek_step(false);
-    uint32_t fast = seek_step(true);
+    ScrubTrace trace = {0};
     press_key(KEY_MENU);
     press_key(KEY_VOLUME_UP);
     uint32_t pressed_ms = now_ms - 40;
     int seeks = fake_hal_audio_seek_count();
     uint32_t last = 0;
-    uint32_t first_step = 0;
-    uint32_t fast_at_ms = 0;
-    for (int count = 0; count < 300 && fast_at_ms == 0; count++) {
-        now_ms += 10;
+    while (now_ms - pressed_ms < hold_ms) {
+        now_ms += pace_ms;
         step();
-        if (fake_hal_audio_seek_count() == seeks) {
-            continue;
+        if (fake_hal_audio_seek_count() != seeks) {
+            seeks = fake_hal_audio_seek_count();
+            trace_seek(&trace, now_ms - pressed_ms, fake_hal_audio_last_seek() - last);
+            last = fake_hal_audio_last_seek();
         }
-        seeks = fake_hal_audio_seek_count();
-        uint32_t moved = fake_hal_audio_last_seek() - last;
-        first_step = first_step == 0 ? moved : first_step;
-        fast_at_ms = moved == fast ? now_ms - pressed_ms : 0;
-        last = fake_hal_audio_last_seek();
     }
     release_key(KEY_VOLUME_UP);
     release_key(KEY_MENU);
-    CHECK_EQUAL(normal, first_step);
-    CHECK(fast_at_ms >= 2000 && fast_at_ms <= 2300);
+    return trace;
+}
+
+static bool scrubbed_a_third_of_the_length_a_second(ScrubTrace trace)
+{
+    uint32_t duration = app_player_status().duration_ms;
+    uint32_t rate = now_playing_scrub_rate(duration, NOW_PLAYING_SCRUB_FAST_AFTER_MS);
+    uint32_t expected = rate * (trace.last_ms - trace.fast_ms) / 1000;
+    uint32_t moved = trace.last_at - trace.fast_at;
+    bool slow = trace.fast_at - trace.slow_steps * NOW_PLAYING_SEEK_STEP_MIN_MS <= 3000;
+    return !trace.uneven && slow && trace.last_ms - trace.fast_ms >= 1200 &&
+           moved + 20 >= expected && moved <= expected + 20;
+}
+
+static void holding_menu_and_holding_volume_scrubs_by_the_time_held(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    CHECK_EQUAL(PLAYING_POSITION_MS, app_player_status().duration_ms);
+    ScrubTrace quick = menu_scrub_at_pace(10, 3400);
+    CHECK(scrubbed_a_third_of_the_length_a_second(quick));
+    CHECK_EQUAL(1 + (2100 - 600) / 120, quick.slow_steps);
+    ScrubTrace slow = menu_scrub_at_pace(35, 3400);
+    CHECK(scrubbed_a_third_of_the_length_a_second(slow));
+    CHECK(app_player_status().position_ms < PLAYING_POSITION_MS);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(title_is("Now Playing"));
+}
+
+static void holding_menu_and_holding_volume_scrubs_faster_the_longer_it_is_held(void)
+{
+    play_on_now_playing();
+    uint8_t volume = fake_hal_audio_volume();
+    uint32_t normal = seek_step();
+    ScrubTrace trace = menu_scrub_at_pace(10, 2400);
+    CHECK(trace.fast_ms >= 2000 && trace.fast_ms <= 2300);
     CHECK(playing_path_is(HELLS_BELLS_PATH));
     CHECK_EQUAL(volume, fake_hal_audio_volume());
     CHECK(app_toast_text() == NULL);
@@ -2374,7 +2426,7 @@ static void holding_menu_and_tapping_volume_moves_one_step_each_way(void)
     fake_hal_audio_set_position(PLAYING_POSITION_MS / 2);
     step();
     uint8_t volume = fake_hal_audio_volume();
-    uint32_t normal = seek_step(false);
+    uint32_t normal = seek_step();
     int seeks = fake_hal_audio_seek_count();
     menu_chord_tap(KEY_VOLUME_UP);
     CHECK_EQUAL(seeks + 1, fake_hal_audio_seek_count());
@@ -2580,11 +2632,10 @@ static void both_chords_work_the_same_with_the_screen_off(void)
     fake_hal_audio_set_position(0);
     step();
     menu_chord_tap(KEY_VOLUME_UP);
-    CHECK_EQUAL(seek_step(false), fake_hal_audio_last_seek());
+    CHECK_EQUAL(seek_step(), fake_hal_audio_last_seek());
     fake_hal_audio_set_position(0);
     step();
-    menu_chord_hold(KEY_VOLUME_UP, 1200);
-    CHECK(app_player_status().position_ms > seek_step(false));
+    CHECK(scrubbed_a_third_of_the_length_a_second(menu_scrub_at_pace(35, 3400)));
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     tap(KEY_VOLUME_UP);
     CHECK_EQUAL(volume + 1, fake_hal_audio_volume());
@@ -3012,6 +3063,8 @@ static void the_fallback_now_playing_skips_on_a_chord(void)
     chord_tap(KEY_VOLUME_UP);
     CHECK(playing_path_is(SHOOT_TO_THRILL_PATH));
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(scrubbed_a_third_of_the_length_a_second(menu_scrub_at_pace(35, 3400)));
+    CHECK(fake_hal_loaded_module() != SCREEN_MODULE_PLAYING);
     fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
 }
 
@@ -8058,6 +8111,7 @@ int main(void)
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),
+        TEST_CASE(holding_menu_and_holding_volume_scrubs_by_the_time_held),
         TEST_CASE(holding_menu_and_holding_volume_scrubs_faster_the_longer_it_is_held),
         TEST_CASE(holding_menu_and_tapping_volume_moves_one_step_each_way),
         TEST_CASE(a_menu_scrub_while_paused_stays_paused_at_the_new_place),

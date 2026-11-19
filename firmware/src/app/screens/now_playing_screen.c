@@ -154,7 +154,6 @@ int now_playing_volume_width(uint8_t volume, int width)
 
 static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand command)
 {
-    Player *player = now_playing->config.player;
     switch (command) {
     case NOW_PLAYING_LEAVE:
         return screen_action_pop();
@@ -168,7 +167,7 @@ static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand
     case NOW_PLAYING_HOME:
         return screen_action_pop_to_root();
     default:
-        now_playing_player_command(player, command);
+        now_playing_player_command(now_playing, command, now_playing->now_ms);
         break;
     }
     return screen_action_none();

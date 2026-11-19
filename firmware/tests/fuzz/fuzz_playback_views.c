@@ -47,8 +47,9 @@ static void exercise_helpers(const uint8_t *data, size_t size)
     int32_t delta = (int32_t)get32(data, size, 10);
     uint32_t target = now_playing_scrub_target(position, duration, delta);
     fuzz_require(duration == 0 ? target == position : target <= duration);
-    fuzz_require(now_playing_seek_step(duration, (second & 4u) != 0) <=
-                 NOW_PLAYING_SEEK_FAST_MAX_MS);
+    fuzz_require(now_playing_seek_step(duration) <= NOW_PLAYING_SEEK_STEP_MAX_MS);
+    fuzz_require(now_playing_scrub_step(duration, position, (uint32_t)delta) <=
+                 NOW_PLAYING_SCRUB_FAST_MAX_MS_PER_S);
     now_playing_progress_width(position, duration, first);
     now_playing_volume_width(first, second);
     NowPlayingFeedback feedback =

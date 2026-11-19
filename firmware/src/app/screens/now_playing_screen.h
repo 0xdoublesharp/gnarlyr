@@ -30,20 +30,23 @@ typedef enum NowPlayingCommand {
     NOW_PLAYING_HOME,
     NOW_PLAYING_QUICK_SETTINGS,
     NOW_PLAYING_SEEK_FORWARD,
-    NOW_PLAYING_SEEK_FORWARD_FAST,
+    NOW_PLAYING_SEEK_FORWARD_HELD,
     NOW_PLAYING_SEEK_BACK,
-    NOW_PLAYING_SEEK_BACK_FAST,
+    NOW_PLAYING_SEEK_BACK_HELD,
     NOW_PLAYING_LYRICS
 } NowPlayingCommand;
 
 enum {
     NOW_PLAYING_SEEK_STEP_DIVISOR = 100,
-    NOW_PLAYING_SEEK_FAST_FACTOR = 3,
     NOW_PLAYING_SEEK_STEP_MIN_MS = 1000,
     NOW_PLAYING_SEEK_STEP_MAX_MS = 30000,
-    NOW_PLAYING_SEEK_FAST_MAX_MS = 120000,
-    NOW_PLAYING_SEEK_FAST_AFTER_REPEATS = 13,
-    NOW_PLAYING_SEEK_COMMANDS = NOW_PLAYING_SEEK_BACK_FAST - NOW_PLAYING_SEEK_FORWARD + 1,
+    NOW_PLAYING_SCRUB_DIVISOR = 10,
+    NOW_PLAYING_SCRUB_FAST_DIVISOR = 3,
+    NOW_PLAYING_SCRUB_MAX_MS_PER_S = 60000,
+    NOW_PLAYING_SCRUB_FAST_MAX_MS_PER_S = 600000,
+    NOW_PLAYING_SCRUB_FAST_AFTER_MS = 1500,
+    NOW_PLAYING_SCRUB_GAP_MAX_MS = 1000,
+    NOW_PLAYING_SEEK_COMMANDS = NOW_PLAYING_SEEK_BACK_HELD - NOW_PLAYING_SEEK_FORWARD + 1,
     NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
     NOW_PLAYING_BADGE_MS = 700
 };
@@ -58,6 +61,11 @@ typedef enum NowPlayingFeedback {
 } NowPlayingFeedback;
 
 struct NowPlayingScreen;
+
+typedef struct NowPlayingScrub {
+    uint32_t started_ms;
+    uint32_t last_ms;
+} NowPlayingScrub;
 
 typedef struct NowPlayingConfig {
     Player *player;
@@ -90,6 +98,7 @@ typedef struct NowPlayingScreen {
     uint8_t tape_side;
     NowPlayingFeedback feedback;
     uint32_t feedback_started_ms;
+    NowPlayingScrub scrub;
     char title[NOW_PLAYING_TEXT_CAPACITY];
     char artist[NOW_PLAYING_TEXT_CAPACITY];
     char album[NOW_PLAYING_TEXT_CAPACITY];
@@ -97,9 +106,13 @@ typedef struct NowPlayingScreen {
 
 NowPlayingCommand now_playing_command_for(KeyEvent event);
 StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after);
-void now_playing_player_command(Player *player, NowPlayingCommand command);
-uint32_t now_playing_seek_step(uint32_t duration_ms, bool fast);
-int32_t now_playing_seek_delta(uint32_t move, uint32_t duration_ms);
+void now_playing_player_command(NowPlayingScreen *now_playing, NowPlayingCommand command,
+                                uint32_t now_ms);
+uint32_t now_playing_seek_step(uint32_t duration_ms);
+uint32_t now_playing_scrub_rate(uint32_t duration_ms, uint32_t held_ms);
+uint32_t now_playing_scrub_step(uint32_t duration_ms, uint32_t held_ms, uint32_t elapsed_ms);
+int32_t now_playing_scrub_delta(NowPlayingScrub *scrub, uint32_t move, uint32_t duration_ms,
+                                uint32_t now_ms);
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms);
 const char *now_playing_codec_name(HalAudioCodec codec);
 void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacity);
