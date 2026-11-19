@@ -49,10 +49,10 @@ class CacheConfinementTest(unittest.TestCase):
         os.link(self.victim, target)
         self.assert_preserved(lambda: echo_sync.write_card_file(target, b"new library", self.spec))
 
-    def test_forgetting_a_fingerprint_refuses_a_symlink(self):
+    def test_scan_publication_refuses_a_symlink(self):
         target = self.folder / "scan.bin"
         target.symlink_to(self.victim)
-        self.assert_preserved(lambda: echo_sync.forget_fingerprint(target))
+        self.assert_preserved(lambda: echo_sync.check_cache_targets(self.folder))
 
     def test_a_dangling_symlink_never_creates_a_file_outside_the_card(self):
         missing = self.outside / "new.bin"
@@ -79,7 +79,8 @@ class CacheConfinementTest(unittest.TestCase):
             with mock.patch.object(echo_sync.cover_export, "collect_covers") as collect:
                 with contextlib.redirect_stdout(io.StringIO()):
                     with self.assertRaises(echo_sync.SyncError):
-                        echo_sync.sync(self.card, echo_sync.card_volume("fat32"), options)
+                        drive = echo_sync.MusicDrive(self.card, echo_sync.card_volume("fat32"))
+                        echo_sync.sync(echo_sync.MusicDrives(drive), options)
                 collect.assert_not_called()
 
     def test_sync_refuses_a_visible_media_symlink_before_parsing_or_writing(self):
@@ -87,14 +88,16 @@ class CacheConfinementTest(unittest.TestCase):
         with mock.patch.object(echo_sync.library_index, "scan", return_value=([], [], [])) as scan:
             with contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(echo_sync.SyncError):
-                    echo_sync.sync(self.card, echo_sync.card_volume("fat32"), echo_sync.SyncOptions(covers=False))
+                    drive = echo_sync.MusicDrive(self.card, echo_sync.card_volume("fat32"))
+                    echo_sync.sync(echo_sync.MusicDrives(drive), echo_sync.SyncOptions(covers=False))
             scan.assert_not_called()
         self.assertEqual([], list(self.folder.iterdir()))
         self.assertEqual(self.original, self.victim.read_bytes())
 
     def test_cli_reports_an_unsafe_cache_as_an_error_without_a_traceback_or_writes(self):
         (self.folder / self.spec.name).symlink_to(self.victim)
-        with mock.patch.object(echo_sync, "detect_volume", return_value=echo_sync.card_volume("fat32")):
+        with (mock.patch.object(echo_sync, "detect_volume", return_value=echo_sync.card_volume("fat32")),
+              mock.patch.object(echo_sync, "mounted_player_drives", return_value=[])):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as output:
                 self.assertEqual(2, echo_sync.main([str(self.card), "--no-covers"]))
         self.assertIn("echo_sync:", output.getvalue())
@@ -111,7 +114,7 @@ class CacheConfinementTest(unittest.TestCase):
             with mock.patch.object(echo_sync, "build_library", return_value=(empty, valid)) as rebuild:
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual([], echo_sync.album_sources(self.card, None, path))
-                rebuild.assert_called_once_with(self.card)
+                rebuild.assert_called_once_with(self.card, None)
 
 
 class SimulatedPowerLoss(BaseException):
@@ -258,15 +261,12 @@ class PublicationFaultTest(unittest.TestCase):
             echo_sync.write_card_file(self.path, self.new, self.spec)
         self.assertEqual(self.new[16:], self.decoded(self.path.read_bytes()))
 
-    def test_zero_length_writes_and_empty_fingerprints_do_not_loop(self):
+    def test_zero_length_writes_do_not_loop(self):
         class RefusingFile:
             def write(self, _):
                 return 0
         with self.assertRaisesRegex(OSError, "stopped"):
             echo_sync.write_all(RefusingFile(), b"payload")
-        self.path.write_bytes(b"")
-        echo_sync.forget_fingerprint(self.path)
-        self.assertEqual(b"", self.path.read_bytes())
 
 
 if __name__ == "__main__":
