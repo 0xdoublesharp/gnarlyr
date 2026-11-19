@@ -193,11 +193,69 @@ static void playback_speed_steps_applies_and_wraps_to_the_slowest(void)
     CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
 }
 
-static void lyrics_and_up_next_open_and_back_returns_to_the_panel(void)
+static void the_a_b_row_marks_a_then_b_then_clears_and_stays_open(void)
 {
     start_with(settings_defaults());
     open_panel();
     select_row(8);
+    static const uint8_t states[] = {1, 2, 0};
+    for (int index = 0; index < 3; index++) {
+        tap(KEY_PLAY);
+        CHECK_EQUAL(states[index], app_player_status().ab_repeat);
+        CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
+        CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    }
+}
+
+static void finish_until_idle(void)
+{
+    for (int count = 0; count < 40 && app_player_status().state != PLAYER_IDLE; count++) {
+        fake_hal_audio_finish_track();
+        wait_ms(50);
+    }
+    CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
+}
+
+static void a_b_marks_end_with_playback_and_the_row_says_nothing_is_playing(void)
+{
+    start_with(settings_defaults());
+    open_panel();
+    select_row(8);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    finish_until_idle();
+    CHECK_EQUAL(0, app_player_status().ab_repeat);
+    CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, app_player_status().ab_repeat);
+    CHECK(app_toast_text() != NULL && strcmp(app_toast_text(), "Nothing is playing") == 0);
+}
+
+static void setting_b_cancels_an_end_of_track_sleep_timer(void)
+{
+    start_with(settings_defaults());
+    open_panel();
+    select_row(5);
+    for (int option = 0; option < SLEEP_END_TRACK; option++) {
+        tap(KEY_PLAY);
+    }
+    CHECK(fake_hal_audio_queued_path() == NULL);
+    select_row(3);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(2, app_player_status().ab_repeat);
+    CHECK(app_toast_text() != NULL && strcmp(app_toast_text(), "Sleep timer off") == 0);
+    tap(KEY_PLAY);
+    CHECK_EQUAL(0, app_player_status().ab_repeat);
+    CHECK(fake_hal_audio_queued_path() != NULL);
+}
+
+static void lyrics_and_up_next_open_and_back_returns_to_the_panel(void)
+{
+    start_with(settings_defaults());
+    open_panel();
+    select_row(9);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Lyrics") == 0);
     tap(KEY_BACK);
@@ -237,6 +295,9 @@ int main(void)
         TEST_CASE(replay_gain_and_transitions_reuse_saved_settings),
         TEST_CASE(playback_speed_steps_applies_and_wraps_to_the_slowest),
         TEST_CASE(lyrics_and_up_next_open_and_back_returns_to_the_panel),
+        TEST_CASE(the_a_b_row_marks_a_then_b_then_clears_and_stays_open),
+        TEST_CASE(a_b_marks_end_with_playback_and_the_row_says_nothing_is_playing),
+        TEST_CASE(setting_b_cancels_an_end_of_track_sleep_timer),
         TEST_CASE(the_panel_owns_volume_and_play_even_with_playback_remaps),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

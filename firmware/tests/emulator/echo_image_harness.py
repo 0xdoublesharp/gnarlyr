@@ -158,6 +158,10 @@ MODULE_REUSE_LIMIT_US = 100
 MODULE_PREFIX = "echo_module_"
 MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW = 6
 SETTINGS_PATH = "/" + IDENTITY.data_directory + "/settings.bin"
+BUTTONS_FILE_BYTES = 32
+PLAYBACK_BUTTON_COUNT = 8
+PLAYBACK_MENU_HOLD = 7
+BUTTON_ACTION_AB_REPEAT = 4
 SETTINGS_REPEAT_FIELD = 12
 REPEAT_ALL = 2
 SETTINGS_REPEAT_ROW = 2
@@ -191,6 +195,15 @@ def seal_settings(data):
     data = bytearray(data)
     data[54:58] = struct.pack("<I", fnv1a(data[:54]))
     data[74:78] = struct.pack("<I", fnv1a(data[58:74]))
+    return bytes(data)
+
+
+def buttons_file(actions):
+    data = bytearray(BUTTONS_FILE_BYTES)
+    data[0:6] = b"DSBT" + bytes((1, PLAYBACK_BUTTON_COUNT))
+    for button, action in actions.items():
+        data[8 + button] = action
+    data[28:32] = struct.pack("<I", fnv1a(data[:28]))
     return bytes(data)
 
 

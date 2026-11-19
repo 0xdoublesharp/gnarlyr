@@ -72,9 +72,6 @@ static void disc(Canvas *canvas, Rect area, Color color)
 
 static uint32_t tape_position(const NowPlayingScreen *screen)
 {
-    if (screen->scrubbing) {
-        return screen->scrub_position_ms;
-    }
     return screen->status.state == PLAYER_PLAYING ? screen->reel_position_ms
                                                   : screen->status.position_ms;
 }
@@ -192,11 +189,6 @@ void cassette_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
         label_draw(canvas, footer,
                    (Label){{layout.body.x + layout.body.width - 30, y, 18, 18}, i18n_text(side)});
     }
-    if (screen->scrubbing) {
-        Rect head = {layout.body.x + layout.body.width / 4, y, layout.body.width / 2, 18};
-        label_line(canvas, (Label){head, i18n_text(STR_SEEKING)},
-                   (TextStyle){theme->fonts.small, theme->colors.text, false});
-    }
     draw_reels(screen, canvas);
 }
 
@@ -216,7 +208,6 @@ static void send_reels(void *context, Rect area, const Color *pixels)
 CORE_SEAM bool cassette_now_playing_animate(NowPlayingScreen *screen, FrameDiff *diff, bool visible)
 {
     bool playing = visible && screen->status.has_track && screen->status.state == PLAYER_PLAYING &&
-                   !screen->scrubbing &&
                    !now_playing_feedback_visible(screen->feedback, screen->feedback_started_ms,
                                                  screen->now_ms);
     CassetteNowPlayingLayout layout = cassette_now_playing_layout(screen->config.theme);

@@ -18,14 +18,15 @@ typedef enum KeyGesture {
 typedef enum KeyBehavior {
     KEY_BEHAVIOR_TAP_OR_HOLD,
     KEY_BEHAVIOR_REPEAT,
-    KEY_BEHAVIOR_TAP_HOLD_REPEAT
+    KEY_BEHAVIOR_TAP_HOLD_REPEAT,
+    KEY_BEHAVIOR_HOLD_AT_RELEASE
 } KeyBehavior;
 
 typedef struct KeyEvent {
     Key key;
     KeyGesture gesture;
     uint8_t repeats;
-    bool chord;
+    uint8_t chord;
 } KeyEvent;
 
 typedef struct KeyTiming {
@@ -42,7 +43,7 @@ typedef struct KeyConfig {
 
 typedef struct KeyState {
     bool held;
-    bool chord;
+    uint8_t chord;
     uint8_t behavior;
     bool long_press_sent;
     bool release_queued;
@@ -63,11 +64,12 @@ typedef struct KeyTracker {
 void key_tracker_init(KeyTracker *tracker, const KeyConfig *config);
 void key_tracker_set_behavior(KeyTracker *tracker, Key key, KeyBehavior behavior);
 void key_tracker_key_down(KeyTracker *tracker, Key key, uint32_t now_ms);
-void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms);
+void key_tracker_chord_down(KeyTracker *tracker, Key key, uint32_t now_ms, uint8_t chord);
 void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms);
 void key_tracker_resume(KeyTracker *tracker, Key key, uint32_t now_ms);
 void key_tracker_cancel(KeyTracker *tracker, Key key);
 void key_tracker_forget(KeyTracker *tracker, Key key);
+void key_tracker_follow_behavior(KeyTracker *tracker, Key key);
 void key_tracker_release_all(KeyTracker *tracker);
 void key_tracker_update(KeyTracker *tracker, uint32_t now_ms);
 bool key_tracker_next_event(KeyTracker *tracker, KeyEvent *event);

@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "core/key_tracker.h"
+#include "core/string_builder.h"
 #include "ui/screen.h"
 #include "ui/theme.h"
 
@@ -29,3 +30,4 @@ typedef struct KeyTestScreen {
 
 void key_test_screen_init(KeyTestScreen *test, const Theme *theme);
 Key key_test_band(uint16_t reading);
+void key_test_event_text(KeyEvent event, StringBuilder *builder);

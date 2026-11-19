@@ -6,6 +6,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "gfx/text.h"
+#include "screen_snapshot.h"
 #include "screens/quick_settings_screen.h"
 #include "settings_actions.h"
 #include "text_spy.h"
@@ -63,9 +64,9 @@ static void choose(int index)
 static void navigation_wraps_and_back_closes_without_changing_a_value(void)
 {
     start();
-    CHECK_EQUAL(9, panel.model.count(&panel));
+    CHECK_EQUAL(10, panel.model.count(&panel));
     press(KEY_VOLUME_DOWN);
-    CHECK_EQUAL(8, panel.list.selected);
+    CHECK_EQUAL(9, panel.list.selected);
     CHECK_EQUAL(SCREEN_ACTION_PUSH, press(KEY_PLAY).type);
     CHECK(press(KEY_PLAY).target == &up_next);
     press(KEY_VOLUME_UP);
@@ -73,10 +74,10 @@ static void navigation_wraps_and_back_closes_without_changing_a_value(void)
     CHECK_EQUAL(SCREEN_ACTION_POP, press(KEY_BACK).type);
     CHECK_EQUAL(SHUFFLE_OFF, player.shuffle);
     CHECK_EQUAL(0, fake_hal_write_count());
-    list_view_select(&panel.list, 7, 100);
+    list_view_select(&panel.list, 8, 100);
     CHECK(press(KEY_PLAY).target == &lyrics);
     panel.screen.enter(&panel, 200);
-    CHECK_EQUAL(7, panel.list.selected);
+    CHECK_EQUAL(8, panel.list.selected);
 }
 
 static void every_eq_preset_and_used_slot_cycles_and_persists(void)
@@ -160,16 +161,16 @@ static void speed_is_hidden_until_a_complete_available_hook_is_supplied(void)
     speed_cycles = 0;
     panel.config.speed =
         (QuickSettingsSpeed){&speed_available, speed_is_available, speed_value, cycle_speed};
-    CHECK_EQUAL(9, panel.model.count(&panel));
-    speed_available = true;
     CHECK_EQUAL(10, panel.model.count(&panel));
+    speed_available = true;
+    CHECK_EQUAL(11, panel.model.count(&panel));
     CHECK(strcmp(panel.model.label(&panel, 4), i18n_text(STR_PLAYBACK_SPEED)) == 0);
     CHECK(strcmp(panel.model.detail(&panel, 4), "1.25x") == 0);
     choose(4);
     CHECK_EQUAL(1, speed_cycles);
     CHECK(!power.sleep_timer_active);
     panel.config.speed.cycle = NULL;
-    CHECK_EQUAL(9, panel.model.count(&panel));
+    CHECK_EQUAL(10, panel.model.count(&panel));
 }
 
 static void losing_speed_support_keeps_the_selection_inside_the_panel(void)
@@ -178,10 +179,10 @@ static void losing_speed_support_keeps_the_selection_inside_the_panel(void)
     speed_available = true;
     panel.config.speed =
         (QuickSettingsSpeed){&speed_available, speed_is_available, speed_value, cycle_speed};
-    list_view_select(&panel.list, 9, 100);
+    list_view_select(&panel.list, 10, 100);
     speed_available = false;
     panel.screen.update(&panel, 200);
-    CHECK_EQUAL(8, panel.list.selected);
+    CHECK_EQUAL(9, panel.list.selected);
     CHECK(press(KEY_PLAY).target == &up_next);
 }
 
@@ -223,6 +224,56 @@ static void failed_saves_are_reported_and_headphone_selection_stays_committed(vo
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
 }
 
+enum {
+    AB_ROW = 7
+};
+
+static bool row_detail_is(int row, StringId expected)
+{
+    return strcmp(i18n_text(expected), panel.model.detail(&panel, row)) == 0;
+}
+
+static void a_b_repeat_sets_a_then_b_then_clears(void)
+{
+    start();
+    player.loaded = true;
+    CHECK(strcmp(i18n_text(STR_AB_LOOP), panel.model.label(&panel, AB_ROW)) == 0);
+    CHECK(row_detail_is(AB_ROW, STR_OFF));
+    choose(AB_ROW);
+    CHECK_EQUAL(1, player.ab_repeat);
+    CHECK(row_detail_is(AB_ROW, STR_AB_ROW_A));
+    choose(AB_ROW);
+    CHECK_EQUAL(2, player.ab_repeat);
+    CHECK(row_detail_is(AB_ROW, STR_AB_ROW_LOOP));
+    choose(AB_ROW);
+    CHECK_EQUAL(0, player.ab_repeat);
+    CHECK(row_detail_is(AB_ROW, STR_OFF));
+    CHECK_EQUAL('\0', toast.text[0]);
+}
+
+static void a_b_with_b_before_a_keeps_a_and_says_why(void)
+{
+    start();
+    player.loaded = true;
+    choose(AB_ROW);
+    fake_hal_audio_refuse_repeat_b(true);
+    choose(AB_ROW);
+    CHECK_EQUAL(1, player.ab_repeat);
+    CHECK(row_detail_is(AB_ROW, STR_AB_ROW_A));
+    CHECK(strcmp(toast.text, i18n_text(STR_AB_B_AFTER_A)) == 0);
+    fake_hal_audio_refuse_repeat_b(false);
+    choose(AB_ROW);
+    CHECK_EQUAL(2, player.ab_repeat);
+}
+
+static void a_b_without_a_track_stays_off(void)
+{
+    start();
+    choose(AB_ROW);
+    CHECK_EQUAL(0, player.ab_repeat);
+    CHECK(row_detail_is(AB_ROW, STR_OFF));
+}
+
 static void all_rows_fit_every_theme_orientation_and_text_size(void)
 {
     start();
@@ -251,6 +302,44 @@ static void all_rows_fit_every_theme_orientation_and_text_size(void)
     }
 }
 
+static bool shown_whole(const char *text)
+{
+    for (int index = 0; index < text_spy_count(); index++) {
+        const TextSpyEntry *entry = text_spy_entry(index);
+        if (strcmp(entry->shown, text) == 0 && strcmp(entry->rest, text) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void the_a_b_row_fits_every_text_size_and_orientation(void)
+{
+    static const StringId values[] = {STR_OFF, STR_AB_ROW_A, STR_AB_ROW_LOOP};
+    start();
+    player.loaded = true;
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            for (int state = 0; state < 3; state++) {
+                theme = BOARD_THEME;
+                default_theme_set_text_size(&theme, (TextSize)size);
+                default_theme_set_orientation(&theme, (Orientation)orientation);
+                panel.screen.enter(&panel, 100);
+                player.ab_repeat = (uint8_t)state;
+                list_view_select(&panel.list, AB_ROW, 100);
+                Canvas canvas = canvas_make(
+                    pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+                text_spy_reset();
+                panel.screen.draw(&panel, &canvas);
+                CHECK(shown_whole(i18n_text(STR_AB_LOOP)));
+                CHECK(shown_whole(i18n_text(values[state])));
+                screen_snapshot_write(&canvas, "quick-settings-ab",
+                                      (orientation * TEXT_SIZE_COUNT + size) * 3 + state);
+            }
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -263,6 +352,10 @@ int main(void)
         TEST_CASE(replay_gain_and_transitions_update_the_player_and_keep_other_settings),
         TEST_CASE(failed_saves_are_reported_and_headphone_selection_stays_committed),
         TEST_CASE(all_rows_fit_every_theme_orientation_and_text_size),
+        TEST_CASE(a_b_repeat_sets_a_then_b_then_clears),
+        TEST_CASE(a_b_with_b_before_a_keeps_a_and_says_why),
+        TEST_CASE(a_b_without_a_track_stays_off),
+        TEST_CASE(the_a_b_row_fits_every_text_size_and_orientation),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

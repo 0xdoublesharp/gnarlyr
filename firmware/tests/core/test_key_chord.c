@@ -13,7 +13,7 @@ static void a_play_release_and_volume_press_at_once_start_a_chord(void)
     KeyChord chord = allowed_chord();
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_PLAY, false, 36583));
     CHECK_EQUAL(KEY_CHORD_START, key_chord_take(&chord, KEY_VOLUME_DOWN, true, 36583));
-    CHECK(chord.play_held);
+    CHECK_EQUAL(KEY_CHORD_PLAY, chord.held);
 }
 
 static void a_volume_press_after_an_idle_reading_is_not_a_chord(void)
@@ -21,15 +21,15 @@ static void a_volume_press_after_an_idle_reading_is_not_a_chord(void)
     KeyChord chord = allowed_chord();
     key_chord_take(&chord, KEY_PLAY, false, 200);
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 215));
-    CHECK(!chord.play_held);
+    CHECK_EQUAL(KEY_CHORD_NONE, chord.held);
 }
 
 static void another_key_between_play_and_volume_is_not_a_chord(void)
 {
     KeyChord chord = allowed_chord();
     key_chord_take(&chord, KEY_PLAY, false, 200);
-    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_MENU, true, 200));
-    key_chord_take(&chord, KEY_MENU, false, 300);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_BACK, true, 200));
+    key_chord_take(&chord, KEY_BACK, false, 300);
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 300));
 }
 
@@ -40,7 +40,7 @@ static void play_coming_back_as_the_volume_key_lets_go_keeps_the_chord(void)
     key_chord_take(&chord, KEY_VOLUME_UP, true, 100);
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, false, 300));
     CHECK_EQUAL(KEY_CHORD_DROP, key_chord_take(&chord, KEY_PLAY, true, 300));
-    CHECK(chord.play_held);
+    CHECK_EQUAL(KEY_CHORD_PLAY, chord.held);
     key_chord_take(&chord, KEY_PLAY, false, 400);
     CHECK_EQUAL(KEY_CHORD_START, key_chord_take(&chord, KEY_VOLUME_UP, true, 400));
 }
@@ -63,7 +63,7 @@ static void the_volume_key_letting_go_to_idle_ends_the_chord(void)
     key_chord_take(&chord, KEY_VOLUME_UP, true, 100);
     key_chord_take(&chord, KEY_VOLUME_UP, false, 300);
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_PLAY, true, 500));
-    CHECK(!chord.play_held);
+    CHECK_EQUAL(KEY_CHORD_NONE, chord.held);
 }
 
 static void a_play_press_under_a_volume_key_held_first_still_counts(void)
@@ -87,7 +87,83 @@ static void a_play_release_without_a_press_the_app_saw_is_not_a_chord(void)
     KeyChord chord = {.allowed = true};
     key_chord_take(&chord, KEY_PLAY, false, 100);
     CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 100));
-    CHECK(!chord.play_held);
+    CHECK_EQUAL(KEY_CHORD_NONE, chord.held);
+}
+
+static KeyChord allowed_menu_chord(void)
+{
+    KeyChord chord = {.allowed = true};
+    key_chord_take(&chord, KEY_MENU, true, 50);
+    return chord;
+}
+
+static void a_menu_release_and_volume_press_at_once_start_a_menu_chord(void)
+{
+    KeyChord chord = allowed_menu_chord();
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_MENU, false, 700));
+    CHECK_EQUAL(KEY_CHORD_START, key_chord_take(&chord, KEY_VOLUME_UP, true, 700));
+    CHECK_EQUAL(KEY_CHORD_MENU, chord.held);
+}
+
+static void menu_coming_back_as_the_volume_key_lets_go_is_dropped(void)
+{
+    KeyChord chord = allowed_menu_chord();
+    key_chord_take(&chord, KEY_MENU, false, 100);
+    key_chord_take(&chord, KEY_VOLUME_DOWN, true, 100);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_DOWN, false, 900));
+    CHECK_EQUAL(KEY_CHORD_DROP, key_chord_take(&chord, KEY_MENU, true, 900));
+    CHECK_EQUAL(KEY_CHORD_MENU, chord.held);
+    key_chord_take(&chord, KEY_MENU, false, 1000);
+    CHECK_EQUAL(KEY_CHORD_START, key_chord_take(&chord, KEY_VOLUME_UP, true, 1000));
+    CHECK_EQUAL(KEY_CHORD_MENU, chord.held);
+}
+
+static void the_other_seed_coming_back_is_not_dropped(void)
+{
+    KeyChord chord = allowed_chord();
+    key_chord_take(&chord, KEY_PLAY, false, 100);
+    key_chord_take(&chord, KEY_VOLUME_UP, true, 100);
+    key_chord_take(&chord, KEY_VOLUME_UP, false, 300);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_MENU, true, 300));
+    CHECK_EQUAL(KEY_CHORD_NONE, chord.held);
+}
+
+static void a_play_chord_after_a_menu_press_names_play(void)
+{
+    KeyChord chord = allowed_menu_chord();
+    key_chord_take(&chord, KEY_MENU, false, 100);
+    key_chord_take(&chord, KEY_PLAY, true, 100);
+    key_chord_take(&chord, KEY_PLAY, false, 400);
+    CHECK_EQUAL(KEY_CHORD_START, key_chord_take(&chord, KEY_VOLUME_UP, true, 400));
+    CHECK_EQUAL(KEY_CHORD_PLAY, chord.held);
+}
+
+static void outside_the_chord_screens_a_menu_release_never_arms_a_chord(void)
+{
+    KeyChord chord = {.allowed = false};
+    key_chord_take(&chord, KEY_MENU, true, 50);
+    key_chord_take(&chord, KEY_MENU, false, 100);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 100));
+    CHECK_EQUAL(KEY_CHORD_NONE, chord.held);
+}
+
+static void a_back_release_never_arms_a_chord(void)
+{
+    KeyChord chord = {.allowed = true};
+    key_chord_take(&chord, KEY_BACK, true, 50);
+    key_chord_take(&chord, KEY_BACK, false, 100);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_VOLUME_UP, true, 100));
+}
+
+static void a_power_tap_during_a_menu_chord_still_drops_the_returning_menu(void)
+{
+    KeyChord chord = allowed_menu_chord();
+    key_chord_take(&chord, KEY_MENU, false, 100);
+    key_chord_take(&chord, KEY_VOLUME_UP, true, 100);
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_POWER, true, 150));
+    CHECK_EQUAL(KEY_CHORD_PASS, key_chord_take(&chord, KEY_POWER, false, 200));
+    key_chord_take(&chord, KEY_VOLUME_UP, false, 300);
+    CHECK_EQUAL(KEY_CHORD_DROP, key_chord_take(&chord, KEY_MENU, true, 300));
 }
 
 int main(void)
@@ -102,6 +178,13 @@ int main(void)
         TEST_CASE(a_play_press_under_a_volume_key_held_first_still_counts),
         TEST_CASE(outside_the_chord_screens_a_play_release_never_arms_a_chord),
         TEST_CASE(a_play_release_without_a_press_the_app_saw_is_not_a_chord),
+        TEST_CASE(a_menu_release_and_volume_press_at_once_start_a_menu_chord),
+        TEST_CASE(menu_coming_back_as_the_volume_key_lets_go_is_dropped),
+        TEST_CASE(the_other_seed_coming_back_is_not_dropped),
+        TEST_CASE(a_play_chord_after_a_menu_press_names_play),
+        TEST_CASE(outside_the_chord_screens_a_menu_release_never_arms_a_chord),
+        TEST_CASE(a_back_release_never_arms_a_chord),
+        TEST_CASE(a_power_tap_during_a_menu_chord_still_drops_the_returning_menu),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

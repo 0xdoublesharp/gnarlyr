@@ -20,6 +20,7 @@ add_library(echo_core STATIC
     headphone_audio_switch.c
     i18n.c
     key_chord.c
+    key_crossing.c
     key_lock.c
     key_script.c
     key_tracker.c

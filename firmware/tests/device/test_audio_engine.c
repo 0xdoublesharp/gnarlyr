@@ -1603,12 +1603,28 @@ static void ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advan
     exact_loop(50, 2332, 3152);
 }
 
+static void a_b_at_or_before_a_is_refused_without_restarting(void)
+{
+    start_engine();
+    CHECK(play_range("lpc_16_44k_stereo", 0, 200, 7));
+    pump_until_full(0);
+    audio_engine_observe(&engine, 2000);
+    CHECK_EQUAL(1, audio_engine_repeat_mark(&engine, false));
+    uint32_t produced = engine.produced;
+    audio_engine_observe(&engine, 1500);
+    CHECK_EQUAL(1, audio_engine_repeat_mark(&engine, false));
+    CHECK_EQUAL(produced, engine.produced);
+    CHECK_EQUAL(2000, engine.repeat_a);
+    CHECK_EQUAL(1, engine.repeat_state);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_zero_sleep_deadline_and_rearming_stay_bounded),
         TEST_CASE(arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level),
         TEST_CASE(ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advancing),
+        TEST_CASE(a_b_at_or_before_a_is_refused_without_restarting),
         TEST_CASE(sleep_fades_in_the_pcm_stage_and_cancel_restores_unity),
         TEST_CASE(headphones_compose_before_clipping_at_native_and_converted_rates),
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),

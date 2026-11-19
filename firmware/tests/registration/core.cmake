@@ -9,6 +9,7 @@ echo_add_unit_test(NAME test_frame_stats SOURCES core/test_frame_stats.c LIBRARI
 echo_add_unit_test(NAME test_key_tracker SOURCES core/test_key_tracker.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_lock SOURCES core/test_key_lock.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_key_chord SOURCES core/test_key_chord.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_key_crossing SOURCES core/test_key_crossing.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_utf8 SOURCES core/test_utf8.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_string_builder SOURCES core/test_string_builder.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_format SOURCES core/test_format.c LIBRARIES echo_core)

@@ -24,6 +24,14 @@ enum {
     PLAYER_PATH_CAPACITY = 260
 };
 
+typedef enum PlayerMark {
+    PLAYER_MARK_NO_TRACK,
+    PLAYER_MARK_A,
+    PLAYER_MARK_B,
+    PLAYER_MARK_REFUSED,
+    PLAYER_MARK_CLEARED
+} PlayerMark;
+
 typedef enum PlayerState {
     PLAYER_IDLE,
     PLAYER_PLAYING,
@@ -209,4 +217,4 @@ void player_set_transitions(Player *player, bool fade, uint8_t tenths);
 
 void player_set_stop_after_track(Player *player, bool stop);
 
-void player_repeat_mark(Player *player);
+PlayerMark player_repeat_mark(Player *player);

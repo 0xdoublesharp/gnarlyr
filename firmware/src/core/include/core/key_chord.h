@@ -13,14 +13,15 @@ typedef enum KeyChordAction {
 
 typedef enum KeyChordLast {
     KEY_CHORD_LAST_OTHER,
-    KEY_CHORD_LAST_PLAY_RELEASE,
+    KEY_CHORD_LAST_PLAY_RELEASE = KEY_CHORD_PLAY,
+    KEY_CHORD_LAST_MENU_RELEASE = KEY_CHORD_MENU,
     KEY_CHORD_LAST_VOLUME_RELEASE
 } KeyChordLast;
 
 typedef struct KeyChord {
     bool allowed;
-    bool play_down;
-    bool play_held;
+    uint8_t down;
+    uint8_t held;
     uint8_t last;
     uint32_t time_ms;
 } KeyChord;

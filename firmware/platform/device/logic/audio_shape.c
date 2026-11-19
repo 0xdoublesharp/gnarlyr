@@ -28,9 +28,12 @@ uint8_t audio_engine_repeat_mark(AudioEngine *engine, bool clear)
         engine->repeat_state = 1;
         return 1;
     }
+    if (engine->repeat_state == 1 && !clear && sample <= engine->repeat_a) {
+        return 1;
+    }
     if (engine->repeat_state == 2 || clear) {
         engine->repeat_state = 0;
-    } else if (sample > engine->repeat_a) {
+    } else {
         engine->repeat_b = sample;
         engine->repeat_state = 2;
         sample = engine->repeat_a;

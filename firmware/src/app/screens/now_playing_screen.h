@@ -28,26 +28,15 @@ typedef enum NowPlayingCommand {
     NOW_PLAYING_VOLUME_DOWN,
     NOW_PLAYING_LEAVE,
     NOW_PLAYING_HOME,
-    NOW_PLAYING_SCRUB_START,
-    NOW_PLAYING_SCRUB_FORWARD,
-    NOW_PLAYING_SCRUB_FORWARD_FAST,
-    NOW_PLAYING_SCRUB_BACK,
-    NOW_PLAYING_SCRUB_BACK_FAST,
-    NOW_PLAYING_SCRUB_COMMIT,
-    NOW_PLAYING_SCRUB_CANCEL,
     NOW_PLAYING_QUICK_SETTINGS,
     NOW_PLAYING_SEEK_FORWARD,
     NOW_PLAYING_SEEK_FORWARD_FAST,
     NOW_PLAYING_SEEK_BACK,
     NOW_PLAYING_SEEK_BACK_FAST,
-    NOW_PLAYING_LYRICS,
-    NOW_PLAYING_REPEAT_MARK,
-    NOW_PLAYING_SCRUB_TAP_FORWARD,
-    NOW_PLAYING_SCRUB_TAP_BACK
+    NOW_PLAYING_LYRICS
 } NowPlayingCommand;
 
 enum {
-    NOW_PLAYING_SCRUB_TAP_MS = 5000,
     NOW_PLAYING_SEEK_STEP_DIVISOR = 100,
     NOW_PLAYING_SEEK_FAST_FACTOR = 3,
     NOW_PLAYING_SEEK_STEP_MIN_MS = 1000,
@@ -67,10 +56,6 @@ typedef enum NowPlayingFeedback {
     NOW_PLAYING_FEEDBACK_PAUSE,
     NOW_PLAYING_FEEDBACK_PLAY
 } NowPlayingFeedback;
-
-typedef struct NowPlayingKeys {
-    bool scrubbing;
-} NowPlayingKeys;
 
 struct NowPlayingScreen;
 
@@ -94,8 +79,6 @@ typedef struct NowPlayingScreen {
     PlayerStatus status;
     Screen *destination;
     bool flip_prompted;
-    bool scrubbing;
-    uint32_t scrub_position_ms;
     uint32_t repeat_feedback_ms;
     bool has_text;
     uint16_t text_track;
@@ -112,7 +95,7 @@ typedef struct NowPlayingScreen {
     char album[NOW_PLAYING_TEXT_CAPACITY];
 } NowPlayingScreen;
 
-NowPlayingCommand now_playing_command_for(KeyEvent event, NowPlayingKeys keys);
+NowPlayingCommand now_playing_command_for(KeyEvent event);
 StringId now_playing_skip_outcome(bool next, PlayerStatus before, PlayerStatus after);
 void now_playing_player_command(Player *player, NowPlayingCommand command);
 uint32_t now_playing_seek_step(uint32_t duration_ms, bool fast);

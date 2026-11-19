@@ -248,39 +248,94 @@ static void a_custom_play_tap_does_not_run_after_a_chord(void)
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
 }
 
-static void configured_seek_round_trip(bool screen_off)
+static void configured_a_b_round_trip(bool screen_off)
 {
     Settings settings = settings_defaults();
-    settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_SEEK;
-    settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = BUTTON_ACTION_NEXT;
+    settings.button_actions[PLAYBACK_MENU_HOLD] = BUTTON_ACTION_AB_REPEAT;
     start_with(settings);
-    fake_hal_audio_set_position(30000);
-    wait_ms(40);
-    uint16_t track = app_player_status().track;
-    int plays = fake_hal_audio_play_count();
-    int seeks = fake_hal_audio_seek_count();
-    tap(KEY_PLAY);
-    CHECK_EQUAL(seeks, fake_hal_audio_seek_count());
     if (screen_off) {
         tap(KEY_POWER);
         CHECK(!fake_hal_display_on());
     }
-    tap(KEY_VOLUME_UP);
-    CHECK(fake_hal_display_on());
-    CHECK_EQUAL(track, app_player_status().track);
-    CHECK_EQUAL(plays, fake_hal_audio_play_count());
-    CHECK_EQUAL(seeks, fake_hal_audio_seek_count());
-    tap(KEY_PLAY);
-    CHECK_EQUAL(seeks + 1, fake_hal_audio_seek_count());
-    CHECK_EQUAL(35000, fake_hal_audio_last_seek());
-    CHECK_EQUAL(track, app_player_status().track);
-    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    static const uint8_t states[] = {1, 2, 0};
+    for (int index = 0; index < 3; index++) {
+        hold(KEY_MENU, 900);
+        CHECK_EQUAL(states[index], app_player_status().ab_repeat);
+        CHECK_EQUAL(screen_off, !fake_hal_display_on());
+        CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    }
+    if (!screen_off) {
+        CHECK(strcmp(app_screen_title(), "Now Playing") == 0);
+    }
 }
 
-static void a_mapped_seek_owns_the_rocker_and_play_until_it_commits(void)
+static void a_mapped_a_b_repeat_sets_a_then_b_then_clears(void)
 {
-    configured_seek_round_trip(false);
-    configured_seek_round_trip(true);
+    configured_a_b_round_trip(false);
+    configured_a_b_round_trip(true);
+}
+
+static void a_mapped_play_hold_waits_for_release_so_a_chord_still_skips(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_PLAY_HOLD] = BUTTON_ACTION_HOME;
+    start_with(settings);
+    uint16_t first = app_player_status().track;
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
+    for (int count = 0; count < 30; count++) {
+        wait_ms(40);
+    }
+    CHECK(strcmp(app_screen_title(), "Now Playing") == 0);
+    tap(KEY_VOLUME_UP);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    wait_ms(40);
+    CHECK(app_player_status().track != first);
+    CHECK(strcmp(app_screen_title(), "Now Playing") == 0);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    hold(KEY_PLAY, 900);
+    wait_ms(1000);
+    CHECK(strcmp(app_screen_title(), "Now Playing") != 0);
+}
+
+static void a_mapped_a_b_refused_b_says_why(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_MENU_HOLD] = BUTTON_ACTION_AB_REPEAT;
+    start_with(settings);
+    hold(KEY_MENU, 900);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    fake_hal_audio_refuse_repeat_b(true);
+    hold(KEY_MENU, 900);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    CHECK(app_toast_text() != NULL && strcmp(app_toast_text(), "B must come after A") == 0);
+    fake_hal_audio_refuse_repeat_b(false);
+}
+
+static void a_play_hold_begun_on_a_list_follows_the_screen_going_dark(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_PLAY_HOLD] = BUTTON_ACTION_PLAY_PAUSE;
+    start_with(settings);
+    tap(KEY_BACK);
+    CHECK(strcmp(app_screen_title(), "Now Playing") != 0);
+    uint16_t first = app_player_status().track;
+    uint32_t timeout = settings_screen_timeout_ms(&settings);
+    for (uint32_t waited = 0; waited + 300 < timeout; waited += 40) {
+        wait_ms(40);
+    }
+    CHECK(fake_hal_display_on());
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
+    for (int count = 0; count < 25; count++) {
+        wait_ms(40);
+    }
+    CHECK(!fake_hal_display_on());
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    tap(KEY_VOLUME_UP);
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    wait_ms(40);
+    CHECK(app_player_status().track != first);
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(!fake_hal_display_on());
 }
 
 int main(void)
@@ -296,7 +351,10 @@ int main(void)
         TEST_CASE(reset_buttons_restores_the_live_controls_and_saved_defaults),
         TEST_CASE(a_custom_volume_tap_keeps_the_play_chord_skip),
         TEST_CASE(a_custom_play_tap_does_not_run_after_a_chord),
-        TEST_CASE(a_mapped_seek_owns_the_rocker_and_play_until_it_commits),
+        TEST_CASE(a_mapped_a_b_repeat_sets_a_then_b_then_clears),
+        TEST_CASE(a_mapped_play_hold_waits_for_release_so_a_chord_still_skips),
+        TEST_CASE(a_mapped_a_b_refused_b_says_why),
+        TEST_CASE(a_play_hold_begun_on_a_list_follows_the_screen_going_dark),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

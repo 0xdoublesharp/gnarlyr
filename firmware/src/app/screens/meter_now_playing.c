@@ -321,7 +321,7 @@ static void update_needles(NowPlayingScreen *screen, const AudioVisualLevels *le
 CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *diff, bool visible)
 {
     playing_work_styles();
-    bool active = visible && screen->status.has_track && !screen->scrubbing &&
+    bool active = visible && screen->status.has_track &&
                   !now_playing_feedback_visible(screen->feedback, screen->feedback_started_ms,
                                                 screen->now_ms);
     if (!active) {

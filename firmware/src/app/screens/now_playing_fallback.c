@@ -39,8 +39,7 @@ static ScreenAction fallback_key(void *context, KeyEvent event, uint32_t now_ms)
     NowPlayingScreen *now_playing = context;
     (void)now_ms;
     if (event.chord) {
-        now_playing_player_command(now_playing->config.player,
-                                   now_playing_command_for(event, (NowPlayingKeys){0}));
+        now_playing_player_command(now_playing->config.player, now_playing_command_for(event));
         return screen_action_none();
     }
     if (event.gesture != KEY_GESTURE_PRESS) {
@@ -80,8 +79,6 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
     now_playing->destination = NULL;
     now_playing->flip_prompted = false;
     now_playing->has_text = false;
-    now_playing->scrubbing = false;
-    now_playing->scrub_position_ms = 0;
     now_playing->reel_frame = UINT32_MAX;
     now_playing->reel_position_ms = 0;
     now_playing->tape_side = 0;
@@ -99,7 +96,6 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
 
 void now_playing_fallback_attach(NowPlayingScreen *now_playing)
 {
-    now_playing->scrubbing = false;
     now_playing->screen.enter = NULL;
     now_playing->screen.handle_key = fallback_key;
     now_playing->screen.update = fallback_update;

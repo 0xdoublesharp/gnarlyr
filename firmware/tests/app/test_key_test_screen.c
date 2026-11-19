@@ -122,8 +122,11 @@ static void the_key_test_fits_every_text_size_and_orientation(void)
             read_at(DOWN_READING, 36583);
             read_at(PLAY_READING, 36700);
             read_at(IDLE_READING, 36800);
-            test.screen.handle_key(
-                &test, (KeyEvent){.key = KEY_VOLUME_DOWN, .gesture = KEY_GESTURE_PRESS}, 36583);
+            test.screen.handle_key(&test,
+                                   (KeyEvent){.key = KEY_VOLUME_DOWN,
+                                              .gesture = KEY_GESTURE_LONG_PRESS,
+                                              .chord = KEY_CHORD_MENU},
+                                   36583);
             read_at(PLAY_READING, 37000);
             Canvas canvas = canvas_make(
                 pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
@@ -141,6 +144,25 @@ static void the_key_names_read_plainly(void)
     CHECK(strcmp("Vol-", i18n_text(STR_KEY_VOLUME_DOWN)) == 0);
 }
 
+static bool event_text_is(KeyEvent event, const char *expected)
+{
+    char text[64];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    key_test_event_text(event, &builder);
+    return strcmp(expected, text) == 0;
+}
+
+static void each_chord_names_the_key_held_under_it(void)
+{
+    CHECK(event_text_is((KeyEvent){.key = KEY_VOLUME_UP}, "Vol+ tap"));
+    CHECK(event_text_is((KeyEvent){.key = KEY_VOLUME_UP, .chord = KEY_CHORD_PLAY},
+                        "Play + Vol+ tap"));
+    CHECK(event_text_is((KeyEvent){.key = KEY_VOLUME_DOWN,
+                                   .gesture = KEY_GESTURE_LONG_PRESS,
+                                   .chord = KEY_CHORD_MENU},
+                        "Menu + Vol- hold"));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -151,6 +173,7 @@ int main(void)
         TEST_CASE(entering_again_starts_a_new_history),
         TEST_CASE(the_key_test_fits_every_text_size_and_orientation),
         TEST_CASE(the_key_names_read_plainly),
+        TEST_CASE(each_chord_names_the_key_held_under_it),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

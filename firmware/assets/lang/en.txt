@@ -83,7 +83,6 @@ STR_REPEAT_ALL = Repeat All
 STR_BIT_DEPTH = {0}-bit
 STR_PLACE = {0} of {1}
 STR_VOLUME = Volume
-STR_SEEKING = Menu: A-B, Play: seek
 STR_SKIPPED_TO_NEXT = Next track
 STR_SKIPPED_TO_PREVIOUS = Previous track
 STR_SKIPPED_TO_START = Back to start
@@ -434,7 +433,6 @@ STR_CONTROLS = Controls
 STR_RESET_BUTTONS = Reset buttons
 STR_BUTTON_DEFAULT = Default
 STR_BUTTON_PLAY_PAUSE = Play / Pause
-STR_BUTTON_SEEK = Seek
 STR_BUTTON_NEXT = Next track
 STR_BUTTON_PREVIOUS = Previous track
 STR_BUTTON_VOLUME_UP = Volume +
@@ -893,7 +891,8 @@ STR_ABOUT_KEYS = Keys
 
 # Key test in developer builds (Settings > About > Keys). The key names follow the player's keys
 # in order; the gestures are a tap, a hold and a repeat while held.
-# In STR_KEY_TEST_EVENT and STR_KEY_TEST_CHORD {0} is a key and {1} a gesture (the chord is Play held, then that key); in STR_KEY_TEST_ENTRY {0} is a time in
+# In STR_KEY_TEST_EVENT {0} is a key and {1} a gesture; in STR_KEY_TEST_CHORD {0} is the key held first (Play or Menu),
+# {1} the key pressed under it and {2} the gesture; in STR_KEY_TEST_ENTRY {0} is a time in
 # milliseconds, {1} the key reading and {2} the key that reading stands for.
 STR_KEY_VOLUME_UP = Vol+
 STR_KEY_VOLUME_DOWN = Vol-
@@ -905,7 +904,7 @@ STR_KEY_TAP = tap
 STR_KEY_HOLD = hold
 STR_KEY_REPEAT = repeat
 STR_KEY_TEST_EVENT = {0} {1}
-STR_KEY_TEST_CHORD = Play + {0} {1}
+STR_KEY_TEST_CHORD = {0} + {1} {2}
 STR_KEY_TEST_ENTRY = {0} ms · {1} · {2}
 STR_KEY_TEST_HINT = Power: exit
 STR_KEY_TEST_CAUTION = Holding Power and Vol+ for 3 s with a computer cable starts recovery mode.
@@ -935,6 +934,9 @@ STR_REPLAY_GAIN_AUTO = Auto
 STR_AB_OFF = A-B off
 STR_AB_A = A set, B next
 STR_AB_LOOP = A-B repeat
+STR_AB_ROW_A = A set
+STR_AB_ROW_LOOP = A–B
+STR_AB_B_AFTER_A = B must come after A
 
 STR_CHARGE_DISABLED = Charging off
 
