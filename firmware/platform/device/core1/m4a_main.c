@@ -24,9 +24,5 @@ void core1_main(void)
     }
     core1_stream_init(&stream, core1_region_m4a(), core1_m4a_decoder(&m4a));
     core1_idle_start();
-    for (;;) {
-        if (!core1_stream_step(&stream)) {
-            core1_idle(&stream);
-        }
-    }
+    core1_serve(&stream);
 }

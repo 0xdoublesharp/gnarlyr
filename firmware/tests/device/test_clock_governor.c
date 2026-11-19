@@ -13,6 +13,13 @@ static const ClockGovernorLimits CORE1 = {.window_us = 500000,
                                           .deepen_percent = 60,
                                           .raise_percent = 80};
 
+static const ClockGovernorLimits SATURATING = {.window_us = 500000,
+                                               .lowest_divider = 2,
+                                               .highest_divider = 8,
+                                               .deepen_percent = 50,
+                                               .raise_percent = 70,
+                                               .hurry_percent = 90};
+
 static ClockGovernorReading at(uint32_t now_us, uint32_t idle)
 {
     return (ClockGovernorReading){.now_us = now_us, .idle = idle};
@@ -106,6 +113,34 @@ static void the_counters_may_wrap(void)
     CHECK_EQUAL(10u, governor.busy_percent);
 }
 
+static void a_saturated_window_returns_to_the_fastest_divider_at_once(void)
+{
+    ClockGovernor governor;
+    clock_governor_start(&governor, &SATURATING, at(0, 0));
+    governor.divider = 8;
+    CHECK(clock_governor_update(&governor, at(500000, 25000)));
+    CHECK_EQUAL(95u, governor.busy_percent);
+    CHECK_EQUAL(2u, governor.divider);
+}
+
+static void a_heavy_window_below_the_hurry_share_raises_one_step(void)
+{
+    ClockGovernor governor;
+    clock_governor_start(&governor, &SATURATING, at(0, 0));
+    governor.divider = 8;
+    CHECK(clock_governor_update(&governor, at(500000, 100000)));
+    CHECK_EQUAL(4u, governor.divider);
+}
+
+static void without_a_hurry_share_a_saturated_window_raises_one_step(void)
+{
+    ClockGovernor governor;
+    clock_governor_start(&governor, &CORE0, at(0, 0));
+    governor.divider = 8;
+    CHECK(clock_governor_update(&governor, at(500000, 0)));
+    CHECK_EQUAL(4u, governor.divider);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -118,6 +153,9 @@ int main(void)
         TEST_CASE(hurrying_returns_to_the_fastest_divider_and_restarts_the_window),
         TEST_CASE(idle_counted_in_cycles_follows_the_divided_clock),
         TEST_CASE(the_counters_may_wrap),
+        TEST_CASE(a_saturated_window_returns_to_the_fastest_divider_at_once),
+        TEST_CASE(a_heavy_window_below_the_hurry_share_raises_one_step),
+        TEST_CASE(without_a_hurry_share_a_saturated_window_raises_one_step),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

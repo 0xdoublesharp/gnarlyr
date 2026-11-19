@@ -25,9 +25,5 @@ void core1_main(void)
     region.ring_bytes = DSD_RING_BYTES;
     core1_stream_init(&stream, region, core1_dsd_decoder(&dsd, region));
     core1_idle_start();
-    for (;;) {
-        if (!core1_stream_step(&stream)) {
-            core1_idle(&stream);
-        }
-    }
+    core1_serve(&stream);
 }

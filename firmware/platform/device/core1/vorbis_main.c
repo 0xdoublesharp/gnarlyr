@@ -37,9 +37,5 @@ void core1_main(void)
     region.request_clock = core1_request_clock;
     core1_stream_init(&stream, region, core1_vorbis_decoder(&vorbis, region));
     core1_idle_start();
-    for (;;) {
-        if (!core1_stream_step(&stream)) {
-            core1_idle(&stream);
-        }
-    }
+    core1_serve(&stream);
 }

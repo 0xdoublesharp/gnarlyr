@@ -6927,6 +6927,35 @@ static void a_dark_screen_from_a_script_wakes_on_a_key_as_after_the_timeout(void
     CHECK(fake_hal_display_on());
 }
 
+typedef struct DarkState {
+    bool display_on;
+    uint32_t pass_ms;
+    uint32_t clock_mhz;
+} DarkState;
+
+static DarkState dark_state(void)
+{
+    return (DarkState){fake_hal_display_on(), app_pass_interval_ms(), hal_system_clock_mhz()};
+}
+
+static void a_script_screen_off_reaches_the_same_dark_state_as_a_power_tap(void)
+{
+    start_app();
+    wait_ms(1000);
+    tap(KEY_POWER);
+    wait_ms(1000);
+    DarkState tapped = dark_state();
+    CHECK(!tapped.display_on);
+    tap(KEY_POWER);
+    wait_ms(1000);
+    CHECK(fake_hal_display_on());
+    run_script("build any\nscreen off\n", 1000);
+    DarkState scripted = dark_state();
+    CHECK_EQUAL(tapped.display_on, scripted.display_on);
+    CHECK_EQUAL(tapped.pass_ms, scripted.pass_ms);
+    CHECK_EQUAL(tapped.clock_mhz, scripted.clock_mhz);
+}
+
 static void a_soak_waits_its_minutes_and_records_both_ends(void)
 {
     start_app();
@@ -8296,6 +8325,7 @@ int main(void)
         TEST_CASE(a_shutdown_right_after_a_script_cancels_its_reconnect),
         TEST_CASE(screen_off_darkens_the_screen_at_once_and_screen_on_lights_it),
         TEST_CASE(a_dark_screen_from_a_script_wakes_on_a_key_as_after_the_timeout),
+        TEST_CASE(a_script_screen_off_reaches_the_same_dark_state_as_a_power_tap),
         TEST_CASE(a_soak_waits_its_minutes_and_records_both_ends),
         TEST_CASE(a_soak_with_the_screen_on_and_music_playing_says_so),
         TEST_CASE(a_soak_adds_its_minutes_to_the_scripts_time_limit_and_outlasts_auto_off),

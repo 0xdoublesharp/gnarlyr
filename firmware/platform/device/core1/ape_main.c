@@ -26,9 +26,5 @@ void core1_main(void)
     uint8_t *snapshot = (uint8_t *)(uintptr_t)(CORE1_STREAM_RING + APE_RING_BYTES);
     core1_stream_init(&stream, region, core1_ape_decoder(&ape, snapshot, region));
     core1_idle_start();
-    for (;;) {
-        if (!core1_stream_step(&stream)) {
-            core1_idle(&stream);
-        }
-    }
+    core1_serve(&stream);
 }

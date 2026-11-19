@@ -10,6 +10,7 @@ typedef struct ClockGovernorLimits {
     uint8_t highest_divider;
     uint8_t deepen_percent;
     uint8_t raise_percent;
+    uint8_t hurry_percent;
 } ClockGovernorLimits;
 
 typedef struct ClockGovernorReading {

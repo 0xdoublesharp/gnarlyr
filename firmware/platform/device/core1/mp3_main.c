@@ -25,9 +25,5 @@ void core1_main(void)
     core1_stream_init(&stream, region,
                       core1_mp3_decoder(&mp3, &decoder, region.control, core1_mp3_tail()));
     core1_idle_start();
-    for (;;) {
-        if (!core1_stream_step(&stream)) {
-            core1_idle(&stream);
-        }
-    }
+    core1_serve(&stream);
 }

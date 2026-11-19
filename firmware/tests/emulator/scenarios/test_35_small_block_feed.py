@@ -13,7 +13,7 @@ from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig
 from echo_emulator.power import DecoderLoad, PowerMeter
 
-SECONDS = 9
+SECONDS = 16
 SETTLE_MS = 1000
 DARK_SETTLE_MS = 1500
 MEASURE_MS = 3000
@@ -24,6 +24,11 @@ FRAME_PACER_FAST_FRAMES = 6
 ROW_CYCLE_WATCH_MS = 16000
 MARQUEE_PAUSE_MS = 1200
 FIRST_STEP_LIMIT_MS = 250
+PAUSED_DARK_MS = 3000
+RECOVERY_MS = 1500
+PLAY_KEY = 250
+NEXT_KEY = 100
+SCREEN_TIMEOUT_LIMIT_MS = 40000
 BLOCKS_OFFSET = 12
 SMALL_BLOCK_TITLE = "01 FLAC 96k 24-bit small blocks 3 min"
 CASES = {
@@ -33,6 +38,7 @@ CASES = {
     "flac44_long_title": ("03 A title far too long for any list row on this player, so it has to "
                           "scroll sideways.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"]),
     "flac44_short": ("01 Short.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"]),
+    "flac44_lead": ("07 Lead.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"], 60),
     "flac44_row": ("02 A song title just too long for a list row.flac", 44100,
                    ["-c:a", "flac", "-sample_fmt", "s16"]),
     "flac192_512": ("02 FLAC 192k small blocks.flac", 192000,
@@ -40,17 +46,22 @@ CASES = {
                      "-frame_size", "512"]),
     "opus48_20ms": ("08 Opus.opus", 48000, ["-c:a", "libopus", "-frame_duration", "20",
                                             "-b:a", "160k"]),
+    "opus48_2_5ms": ("08 Opus 2.5 ms.opus", 48000, ["-c:a", "libopus", "-frame_duration", "2.5",
+                                                   "-b:a", "96k"]),
+    "opus48_20ms_96k": ("08 Opus 96k.opus", 48000, ["-c:a", "libopus", "-frame_duration", "20",
+                                                    "-b:a", "96k"]),
     "vorbis44": ("09 Vorbis.ogg", 44100, ["-c:a", "vorbis", "-strict", "-2"]),
     "flac44": ("10 FLAC 44k.flac", 44100, ["-c:a", "flac", "-sample_fmt", "s16"]),
 }
 
 
 def encoded(case):
-    name, rate, codec = CASES[case]
+    name, rate, codec = CASES[case][:3]
+    seconds = CASES[case][3] if len(CASES[case]) > 3 else SECONDS
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / name
         command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
-                   "sine=frequency=440:sample_rate=%d:duration=%d" % (rate, SECONDS),
+                   "sine=frequency=440:sample_rate=%d:duration=%d" % (rate, seconds),
                    "-af", "volume=0.1", "-ac", "2", "-ar", str(rate), "-map_metadata", "-1",
                    "-fflags", "+bitexact"] + codec + [str(path)]
         subprocess.run(command, check=True)
@@ -79,9 +90,9 @@ class EchoImageTest(EchoImageHarness):
         stats = rig.machine.symbols["stats"]
         return struct.unpack("<I", rig.machine.read_memory(stats + BLOCKS_OFFSET, 4))[0]
 
-    def measure(self, rig, meter, frames, case, dark):
+    def measure(self, rig, meter, frames, case, dark, tap=True):
         machine = rig.machine
-        if dark:
+        if dark and tap:
             start = machine.milliseconds() + 20
             machine.hold_power(start, TAP_MS)
             machine.run(until_ms=start + TAP_MS + 50)
@@ -197,6 +208,83 @@ class EchoImageTest(EchoImageHarness):
         pauses = [gap for gap in gaps if gap >= MARQUEE_PAUSE_MS]
         self.assertGreaterEqual(len(pauses), 1, gaps)
         self.assertLessEqual(max(gaps), MARQUEE_PAUSE_MS + FIRST_STEP_LIMIT_MS, gaps)
+        self.assert_healthy(rig.session)
+
+    def tap_power(self, rig):
+        start = rig.machine.milliseconds() + 20
+        rig.machine.hold_power(start, TAP_MS)
+        rig.machine.run(until_ms=start + TAP_MS + 50)
+
+    def resumed_in_the_dark(self, case):
+        rig, meter, frames = self.feed_rig(case)
+        rig.press("play")
+        self.tap_power(rig)
+        rig.run_for(PAUSED_DARK_MS)
+        resumed_ms = rig.machine.milliseconds()
+        rig.machine.press_key(PLAY_KEY, delay_ms=10, hold_ms=TAP_MS)
+        rig.run_for(RECOVERY_MS)
+        dark = self.measure(rig, meter, frames, case, True, tap=False)
+        self.tap_power(rig)
+        rig.run_for(RECOVERY_MS)
+        lit = self.measure(rig, meter, frames, case, False)
+        self.assertTrue(dark["panel_asleep"], dark)
+        self.assertFalse(lit["panel_asleep"], lit)
+        self.assertEqual([], rig.audio.underruns(resumed_ms)[:5], case)
+        return dark, lit
+
+    def test_playback_resumed_with_the_screen_off_after_a_pause_stays_fed(self):
+        for case in ("opus48_20ms_96k", "opus48_2_5ms", "flac96_512", "vorbis44"):
+            with self.subTest(case=case):
+                for result in self.resumed_in_the_dark(case):
+                    self.assert_fed(result)
+
+    def panel_asleep(self, rig):
+        return bool(rig.machine.read_memory(rig.machine.symbols["panel_asleep"], 1)[0])
+
+    def wait_for_the_screen_timeout(self, rig):
+        machine = rig.machine
+        machine.run(until=lambda: self.panel_asleep(rig),
+                    until_ms=machine.milliseconds() + SCREEN_TIMEOUT_LIMIT_MS)
+        self.assertTrue(self.panel_asleep(rig))
+
+    def dark_then_lit(self, rig, meter, case, since_ms):
+        dark = self.measure(rig, meter, [], case, True, tap=False)
+        self.tap_power(rig)
+        rig.run_for(RECOVERY_MS)
+        lit = self.measure(rig, meter, [], case, False)
+        self.assertTrue(dark["panel_asleep"], dark)
+        self.assertFalse(lit["panel_asleep"], lit)
+        for result in (dark, lit):
+            self.assert_fed(result)
+        self.assertEqual([], rig.audio.underruns(since_ms)[:5], case)
+
+    def test_opus_started_after_the_screen_timeout_stays_fed_after_the_screen_wakes(self):
+        case = "opus48_20ms_96k"
+        rig, meter, frames = self.feed_rig(case)
+        rig.press("play")
+        self.wait_for_the_screen_timeout(rig)
+        rig.run_for(PAUSED_DARK_MS)
+        resumed_ms = rig.machine.milliseconds()
+        rig.machine.press_key(PLAY_KEY, delay_ms=10, hold_ms=TAP_MS)
+        rig.run_for(RECOVERY_MS)
+        self.dark_then_lit(rig, meter, case, resumed_ms)
+        volume = Fat32Volume()
+        for name in ("flac44_lead", case):
+            volume.add_file(*encoded(name))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs)
+        DecoderLoad(rig.audio, self.elf.parent)
+        meter = PowerMeter(rig.machine)
+        rig.open_songs()
+        rig.play_song(1)
+        self.wait_for_the_screen_timeout(rig)
+        rig.run_for(PAUSED_DARK_MS)
+        skipped_ms = rig.machine.milliseconds()
+        released = rig.machine.press_ladder([(PLAY_KEY, TAP_MS), (NEXT_KEY, TAP_MS),
+                                             (PLAY_KEY, TAP_MS)])
+        rig.machine.run(until_ms=released + RECOVERY_MS)
+        self.assertEqual(48000, rig.audio.rate)
+        self.dark_then_lit(rig, meter, case, skipped_ms)
         self.assert_healthy(rig.session)
 
     def test_192_khz_flac_opus_vorbis_and_44_khz_flac_stay_fed_with_the_screen_off(self):

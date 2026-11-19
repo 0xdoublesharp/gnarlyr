@@ -80,6 +80,7 @@ class DecoderLoad:
         self.machine = audio.machine
         self.directory = directory
         self.core = None
+        self.program = None
         self.active = False
         self.instructions = 0
         self.wakes = 0
@@ -94,8 +95,9 @@ class DecoderLoad:
         self.machine.hook_symbol("core1_source_fill", self.step)
 
     def start(self, program):
-        if self.active:
+        if self.active and program == self.program:
             return 1
+        self.program = program
         name = PROGRAMS[program]
         self.ring_bytes = RING_BYTES.get(program, 65536)
         self.core = Core1((self.directory / (name + ".bin")).read_bytes(), self.ring_bytes)

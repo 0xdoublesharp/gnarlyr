@@ -161,6 +161,17 @@ void core1_idle(const Core1Stream *stream)
     follow_load();
 }
 
+void core1_serve(Core1Stream *stream)
+{
+    for (;;) {
+        if (core1_stream_step(stream)) {
+            follow_load();
+        } else {
+            core1_idle(stream);
+        }
+    }
+}
+
 static void zero_bss(void)
 {
     for (uint32_t *word = &core1_bss_start; word < &core1_bss_end; word++) {

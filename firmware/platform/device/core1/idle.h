@@ -7,3 +7,4 @@
 void core1_idle_start(void);
 void core1_idle(const Core1Stream *stream);
 void core1_request_clock(uint32_t mhz);
+void core1_serve(Core1Stream *stream);

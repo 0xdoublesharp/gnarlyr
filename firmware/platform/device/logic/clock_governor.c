@@ -43,6 +43,9 @@ static uint32_t next_divider(const ClockGovernor *governor, uint32_t busy)
 {
     const ClockGovernorLimits *limits = governor->limits;
     uint32_t divider = governor->divider;
+    if (limits->hurry_percent != 0 && busy >= limits->hurry_percent) {
+        return limits->lowest_divider;
+    }
     if (busy > limits->raise_percent && divider / STEP >= limits->lowest_divider) {
         return divider / STEP;
     }

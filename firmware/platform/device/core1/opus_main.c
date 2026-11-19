@@ -30,9 +30,5 @@ void core1_main(void)
     StreamRegion region = core1_region_opus();
     core1_stream_init(&stream, region, core1_opus_decoder(&opus, region));
     core1_idle_start();
-    for (;;) {
-        if (!core1_stream_step(&stream)) {
-            core1_idle(&stream);
-        }
-    }
+    core1_serve(&stream);
 }
