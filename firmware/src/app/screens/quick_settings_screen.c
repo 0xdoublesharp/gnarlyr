@@ -18,6 +18,7 @@ enum {
     SLEEP,
     TRANSITIONS,
     REPLAY_GAIN,
+    AB_REPEAT,
     LYRICS,
     UP_NEXT,
     ROW_COUNT
@@ -25,9 +26,10 @@ enum {
 
 static EqualizerPresets presets;
 
-static const StringId LABELS[] = {
-    STR_SHUFFLE,     STR_REPEAT,      STR_EQUALIZER,   STR_HEADPHONES, STR_PLAYBACK_SPEED,
-    STR_SLEEP_TIMER, STR_TRANSITIONS, STR_REPLAY_GAIN, STR_LYRICS,     STR_UP_NEXT};
+static const StringId LABELS[] = {STR_SHUFFLE,     STR_REPEAT,         STR_EQUALIZER,
+                                  STR_HEADPHONES,  STR_PLAYBACK_SPEED, STR_SLEEP_TIMER,
+                                  STR_TRANSITIONS, STR_REPLAY_GAIN,    STR_AB_LOOP,
+                                  STR_LYRICS,      STR_UP_NEXT};
 static const StringId SHUFFLE_VALUES[] = {STR_OFF, STR_SHUFFLE_SONGS, STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_VALUES[] = {STR_OFF, STR_REPEAT_MODE_ONE, STR_REPEAT_MODE_ALL};
 static const StringId SLEEP_VALUES[] = {
@@ -35,6 +37,7 @@ static const StringId SLEEP_VALUES[] = {
     STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM,
                                          STR_REPLAY_GAIN_AUTO};
+static const StringId AB_VALUES[] = {STR_OFF, STR_AB_ROW_A, STR_AB_ROW_LOOP};
 
 static bool has_speed(const QuickSettingsScreen *panel)
 {
@@ -85,6 +88,8 @@ static const char *detail(const void *context, int index)
                                                                       : STR_OFF);
     case REPLAY_GAIN:
         return i18n_text(REPLAY_VALUES[settings->store->settings.replay_gain_mode]);
+    case AB_REPEAT:
+        return i18n_text(AB_VALUES[settings->player->ab_repeat % 3u]);
     default:
         return NULL;
     }
@@ -105,6 +110,15 @@ static void cycle_headphones(SettingsContext *settings)
     if (!headphone_store_commit(settings->headphones, &profiles, settings->player,
                                 settings->store)) {
         toast_show(settings->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    }
+}
+
+static void step_ab_repeat(SettingsContext *settings)
+{
+    uint8_t before = settings->player->ab_repeat;
+    player_repeat_mark(settings->player);
+    if (before == 1 && settings->player->ab_repeat == 1) {
+        toast_show(settings->toast, i18n_text(STR_AB_B_AFTER_A), hal_clock_milliseconds());
     }
 }
 
@@ -142,6 +156,9 @@ static ScreenAction select_row(void *context, int index)
     case REPLAY_GAIN:
         settings_action_choose_replay_gain(
             settings, (settings->store->settings.replay_gain_mode + 1) % REPLAY_GAIN_MODE_COUNT);
+        break;
+    case AB_REPEAT:
+        step_ab_repeat(settings);
         break;
     case LYRICS:
         return screen_action_push(panel->config.lyrics);

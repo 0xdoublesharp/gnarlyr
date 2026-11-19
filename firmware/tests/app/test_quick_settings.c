@@ -193,11 +193,25 @@ static void playback_speed_steps_applies_and_wraps_to_the_slowest(void)
     CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
 }
 
-static void lyrics_and_up_next_open_and_back_returns_to_the_panel(void)
+static void the_a_b_row_marks_a_then_b_then_clears_and_stays_open(void)
 {
     start_with(settings_defaults());
     open_panel();
     select_row(8);
+    static const uint8_t states[] = {1, 2, 0};
+    for (int index = 0; index < 3; index++) {
+        tap(KEY_PLAY);
+        CHECK_EQUAL(states[index], app_player_status().ab_repeat);
+        CHECK(strcmp(app_screen_title(), "Quick Settings") == 0);
+        CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    }
+}
+
+static void lyrics_and_up_next_open_and_back_returns_to_the_panel(void)
+{
+    start_with(settings_defaults());
+    open_panel();
+    select_row(9);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Lyrics") == 0);
     tap(KEY_BACK);
@@ -237,6 +251,7 @@ int main(void)
         TEST_CASE(replay_gain_and_transitions_reuse_saved_settings),
         TEST_CASE(playback_speed_steps_applies_and_wraps_to_the_slowest),
         TEST_CASE(lyrics_and_up_next_open_and_back_returns_to_the_panel),
+        TEST_CASE(the_a_b_row_marks_a_then_b_then_clears_and_stays_open),
         TEST_CASE(the_panel_owns_volume_and_play_even_with_playback_remaps),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

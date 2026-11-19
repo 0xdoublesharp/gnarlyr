@@ -114,6 +114,7 @@ const char *fake_hal_audio_queued_path(void);
 void fake_hal_audio_finish_track(void);
 void fake_hal_audio_fail_track(void);
 void fake_hal_audio_refuse_plays(int count);
+void fake_hal_audio_refuse_repeat_b(bool refuse);
 void fake_hal_audio_set_jack(HalAudioJack jack);
 void fake_hal_audio_set_dac_identity(int chip, DacIdentity identity);
 uint32_t fake_hal_dma_tone_rate(void);

@@ -52,6 +52,7 @@ typedef struct FakeAudio {
     uint32_t play_fade_ms;
     uint32_t sleep_remaining_ms;
     uint8_t repeat_state;
+    bool refuse_repeat_b;
     int seek_count;
     uint32_t last_seek_ms;
     uint8_t volume;
@@ -739,6 +740,11 @@ void fake_hal_audio_finish_track(void)
     fake.audio.play_end_ms = fake.audio.queued_end_ms;
     copy_path(fake.audio.playing_path, fake.audio.queued_path);
     fake.audio.has_queued = false;
+}
+
+void fake_hal_audio_refuse_repeat_b(bool refuse)
+{
+    fake.audio.refuse_repeat_b = refuse;
 }
 
 void fake_hal_audio_refuse_plays(int count)
@@ -2303,7 +2309,9 @@ uint32_t fake_hal_audio_sleep_remaining(void)
 
 uint8_t hal_audio_repeat_mark(bool clear)
 {
-    fake.audio.repeat_state = clear ? 0 : (uint8_t)((fake.audio.repeat_state + 1) % 3);
+    bool refused = !clear && fake.audio.repeat_state == 1 && fake.audio.refuse_repeat_b;
+    fake.audio.repeat_state =
+        clear ? 0 : (refused ? 1 : (uint8_t)((fake.audio.repeat_state + 1) % 3));
     return fake.audio.repeat_state;
 }
 

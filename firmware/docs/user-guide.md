@@ -254,7 +254,7 @@ In Cover Flow (Music → Cover Flow), the tile before the first album, with a sh
 
 Tap Menu on Now Playing for **Quick Settings**. Vol+ moves to the next row and Vol− to the previous row; ▶ changes the selected value immediately. Back closes the panel and hold Back goes Home. Menu returns to Now Playing.
 
-The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphones (Off and your four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Settings → Home screen can also put Up Next on Home. Hold Menu on Now Playing still opens Lyrics directly.
+The rows are Shuffle (Off, Songs, Albums), Repeat (Off, One, All), Equalizer (presets, Custom and saved slots), Headphones (Off and your four profiles), Playback speed, Sleep timer, Transitions (Off or Fade), ReplayGain (Off, Track, Album, Auto), A–B repeat (Off, A set, A–B; see [A–B repeat](#ab-repeat)), Lyrics and Up Next. Each setting shows its current value. Lyrics and Up Next open their screens; Back returns to the selected panel row. Settings → Home screen can also put Up Next on Home. Hold Menu on Now Playing still opens Lyrics directly.
 
 Changes use the same saving and sound controls as Settings. Sleep timer runs for this session, just like Settings → Sleep timer. Transition length, custom EQ curves and headphone profile editing remain in Settings. Play on Playback speed steps to the next speed (after 3× it returns to 0.5×), applies it at once and saves it.
 ## Long lists and whole artists
@@ -652,7 +652,7 @@ Settings → Sleep timer turns the player off after 15–120 minutes, at End of 
 
 ## A–B repeat
 
-Give a button the A-B repeat action in Settings → Controls, for example Menu hold or Play hold. On Now Playing or with the screen off, that button marks A at the sound currently playing. Use it again later to mark B: the player repeats A through the sample before B. Use it a third time to clear the loop. “A set, B next”, “A-B repeat” and “A-B off” show the result on Now Playing. Moving through the song with Menu and a volume button does not move an A/B mark.
+On Now Playing, tap Menu for Quick Settings and press Play on A–B repeat to mark A at the sound currently playing. Press it again later to mark B: the player repeats A through the sample before B. A B at or before A is refused with “B must come after A”, and A stays. Press it a third time to clear the loop. The row shows Off, A set or A–B, and Now Playing shows “A set, B next”, “A-B repeat” and “A-B off”. A button given the A-B repeat action in Settings → Controls (for example Menu hold or Play hold) does the same on Now Playing and with the screen off. Moving through the song with Menu and a volume button does not move an A/B mark.
 
 Marks use source samples, including inside CUE tracks and audiobook chapters. A B mark must follow A. A pause keeps the loop and its output ready; seeking outside a loop returns to A. Changing tracks, handing audio to USB or restarting clears it. End-of-track/chapter sleep clears a loop so the track can finish. Timed sleep still fades and switches off during a loop. MP3 seeks retain the decoder’s existing approximate positioning.
 

@@ -839,7 +839,7 @@ static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
     for (int turn = 0; turn < 8; turn++) {
         tap(KEY_MENU);
         if (turn == 0) {
-            move_down(9);
+            move_down(10);
         }
         tap(KEY_PLAY);
         CHECK(title_is("Up Next"));
@@ -5426,7 +5426,7 @@ static void choosing_a_song_in_up_next_plays_it(void)
     start_app_with_library();
     play_first_album_track();
     tap(KEY_MENU);
-    move_down(9);
+    move_down(10);
     tap(KEY_PLAY);
     move_down(1);
     tap(KEY_PLAY);
