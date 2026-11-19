@@ -440,16 +440,16 @@ A visible 100 ms tick caps the meters at 10 frames per second and samples at mos
 
 **Checks.** Native checks compare FFT bins with a double DFT, ballistics with a damped reference curve, logarithmic band coverage, stereo/ring-wrap levels, decay, clipping, style persistence and old-file defaults (`test_audio_visual`), the scene geometry (`test_sunset_scene`) and the rendering (`test_meter_now_playing`): after partial redraws the panel equals a full redraw in all five themes, both orientations and both styles, only the stage changes, the halves light from the horizon, the crown and PEAK hold for 500 ms, the marks, bar tops, striped reflections and pulse colours are where they should be, an 8 kHz tone leaves the VU floor still while a 55 Hz tone pulses it, a new track, an in-place style change and a theme change repaint the stage, and the scene keeps each theme's colours. `meter_style_captures` renders every text size, orientation, style and level (quiet, loud, peaking), each theme and a 24-tick motion sequence with the glyph packs, failing if any frame differs from a full redraw; give it a directory to keep the frames.
 
-ARM scenarios (`test_22_meter_styles`) compare each style's core 0 busy share during 44.1 kHz FLAC with a moving level and a 96 kHz, 24-bit FLAC with 512-sample blocks and a music-like signal, screen on, and require no ring or output underruns. In medium landscape the emulator measured, against the previous needle and bar styles on the same base:
+ARM scenarios (`test_22_meter_styles`) compare each style's core 0 busy share during 44.1 kHz FLAC with a moving level and a 96 kHz, 24-bit FLAC with 512-sample blocks and a music-like signal, screen on, with the same window after the meter tick is stubbed out, and require no ring or output underruns. Absolute shares moved by up to half a point between builds with identical meter code, because the 3 s windows fall on different parts of the track, so each scenario fails when the rise over the stubbed meter exceeds the previous styles' rise on `main` a580bd04. In medium landscape the emulator measured (busy share, then rise over the stubbed meter):
 
-| Case | Previous styles | Sunset Drive |
+| Case | Previous styles (`main` a580bd04) | Sunset Drive |
 |---|---|---|
-| VU, 44.1 kHz FLAC | 14.08 % | 11.88 % |
-| Spectrum, 44.1 kHz FLAC | 13.63 % | 13.39 % |
-| VU, 96 kHz 24-bit 512-sample FLAC | 16.70 % | 14.07 % |
-| Spectrum, 96 kHz 24-bit 512-sample FLAC | 18.22 % | 17.96 % |
+| VU, 44.1 kHz FLAC | 14.05 % (+2.53) | 11.67 % (+0.64) |
+| Spectrum, 44.1 kHz FLAC | 13.55 % (+2.59) | 13.22 % (+2.15) |
+| VU, 96 kHz 24-bit 512-sample FLAC | 16.77 % (+3.25) | 13.83 % (+0.92) |
+| Spectrum, 96 kHz 24-bit 512-sample FLAC | 18.04 % (+4.84) | 17.99 % (+4.62) |
 
-The scenarios fail above the previous figures. All windows had zero ring and output underruns. Only medium landscape was measured; the portrait VU sun is larger, and its cost has not been measured. The emulator sends DMA pushes instantly, so panel time is not charged; these figures describe the emulator, and physical throughput and analog output remain player checks.
+All windows had zero ring and output underruns. Only medium landscape was measured; the portrait VU sun is larger, and its cost has not been measured. The meter's strips skip the background clear, because its layers paint every stage pixel. The emulator sends DMA pushes instantly, so panel time is not charged; these figures describe the emulator, and physical throughput and analog output remain player checks.
 
 ## Rendering
 

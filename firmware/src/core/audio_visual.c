@@ -141,9 +141,10 @@ AudioVisualLevels audio_visual_measure(AudioVisualWork *work, AudioVisualBuffer 
                 int bin = (int)(frame / stride);
                 int window = AUDIO_VISUAL_FFT / 2 - absolute(bin - AUDIO_VISUAL_FFT / 2);
                 work->real[bin] = group * window / (AUDIO_VISUAL_FFT / 2);
+            } else {
+                low += (group - low) / AUDIO_VISUAL_BASS_SMOOTHING;
+                bass += (uint32_t)absolute(low);
             }
-            low += (group - low) / AUDIO_VISUAL_BASS_SMOOTHING;
-            bass += (uint32_t)absolute(low);
             grouped = 0;
             mono = 0;
         }

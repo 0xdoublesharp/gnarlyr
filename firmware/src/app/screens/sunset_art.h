@@ -16,9 +16,12 @@ typedef struct SunsetArt {
     const MeterState *meter;
     uint32_t now_ms;
     bool sun_meter;
+    Color crown;
+    Color base;
 } SunsetArt;
 
 typedef void (*SunsetLayer)(const SunsetArt *art, Canvas *canvas);
 
+SunsetArt sunset_art_make(const Theme *theme, Rect stage, const MeterState *meter, bool sun_meter);
 void sunset_art_draw(const SunsetArt *art, Canvas *canvas);
 bool sunset_art_peak_lit(const MeterState *meter, int channel, uint32_t now_ms);
