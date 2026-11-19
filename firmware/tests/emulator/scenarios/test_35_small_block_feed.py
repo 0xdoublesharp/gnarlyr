@@ -37,6 +37,9 @@ DSD128_RATE = 5644800
 DSD_OUTPUT_RATE = 88200
 DSD_PATTERN_FRAMES = 22050
 NEXT_KEY = 100
+MENU_KEY = 350
+PREVIEW_LEAD_MS = 800
+PREVIEW_TAIL_MS = 400
 SCREEN_TIMEOUT_LIMIT_MS = 40000
 BLOCKS_OFFSET = 12
 SMALL_BLOCK_TITLE = "01 FLAC 96k 24-bit small blocks 3 min"
@@ -156,6 +159,28 @@ class EchoImageTest(EchoImageHarness):
         self.assert_fed(result)
         self.assertLessEqual(result["frames_drawn"], MEASURE_MS * 12 // 1000, result)
         self.assertGreaterEqual(result["frames_drawn"], MEASURE_MS * 3 // 1000, result)
+        self.assertLessEqual(result["core0_busy_percent"], 60, result)
+        self.assert_healthy(rig.session)
+
+    def test_a_menu_scrub_preview_during_96_khz_playback_redraws_at_most_ten_times_a_second(self):
+        rig, meter, frames = self.feed_rig("flac96_512")
+        machine = rig.machine
+        rig.run_for(DARK_SETTLE_MS)
+        hold_ms = PREVIEW_LEAD_MS + MEASURE_MS + PREVIEW_TAIL_MS
+        start = machine.milliseconds() + 20
+        machine.press_ladder([(MENU_KEY, TAP_MS), (NEXT_KEY, hold_ms), (MENU_KEY, TAP_MS)])
+        machine.run(until_ms=start + TAP_MS + PREVIEW_LEAD_MS)
+        first_ms = machine.milliseconds()
+        result = meter.measure(rig, rig.session.card, MEASURE_MS)
+        drawn = len([stamp for stamp in frames if first_ms <= stamp < first_ms + MEASURE_MS])
+        print(json.dumps({"case": "flac96_512 preview", "frames_drawn": drawn,
+                          "underruns": result["underruns"],
+                          "output_underruns": result["output_underruns"],
+                          "core0_busy_percent": result["core0_busy_percent"]}))
+        self.assertEqual(0, result["underruns"], result)
+        self.assertEqual(0, result["output_underruns"], result)
+        self.assertLessEqual(drawn, MEASURE_MS * 12 // 1000, result)
+        self.assertGreaterEqual(drawn, MEASURE_MS * 8 // 1000, result)
         self.assertLessEqual(result["core0_busy_percent"], 60, result)
         self.assert_healthy(rig.session)
 

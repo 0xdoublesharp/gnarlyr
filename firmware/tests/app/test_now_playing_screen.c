@@ -153,7 +153,8 @@ static void the_seek_target_stays_inside_the_track(void)
     CHECK_EQUAL(199000, now_playing_scrub_target(200000, 200000, -1000));
     CHECK_EQUAL(199500, now_playing_scrub_target(199500, 200000, 0));
     CHECK_EQUAL(600, now_playing_scrub_target(600, 800, 100));
-    CHECK_EQUAL(0, now_playing_scrub_target(600, 800, -100));
+    CHECK_EQUAL(500, now_playing_scrub_target(600, 800, -100));
+    CHECK_EQUAL(1780, now_playing_scrub_target(1800, 2000, -20));
 }
 
 static void the_seek_target_of_an_unknown_length_stays_put(void)
@@ -256,6 +257,16 @@ static void the_preview_stays_inside_the_track(void)
     CHECK_EQUAL(179500, now_playing_scrub_preview(&at_end, 6000));
     at_end.back = true;
     CHECK_EQUAL(177700, now_playing_scrub_preview(&at_end, 5100));
+}
+
+static void a_backward_preview_leaves_the_last_second_at_the_normal_rate(void)
+{
+    NowPlayingScrub chapter = {
+        .started_ms = 5000, .base_ms = 1800, .duration_ms = 2000, .active = true, .back = true};
+    CHECK_EQUAL(1780, now_playing_scrub_preview(&chapter, 5100));
+    NowPlayingScrub part = {
+        .started_ms = 5000, .base_ms = 600, .duration_ms = 800, .active = true, .back = true};
+    CHECK_EQUAL(592, now_playing_scrub_preview(&part, 5100));
 }
 
 static void a_release_stamped_before_the_hold_began_stays_at_the_start(void)
@@ -782,6 +793,7 @@ int main(void)
         TEST_CASE(the_preview_glides_from_where_the_hold_began),
         TEST_CASE(the_preview_stays_inside_the_track),
         TEST_CASE(a_release_stamped_before_the_hold_began_stays_at_the_start),
+        TEST_CASE(a_backward_preview_leaves_the_last_second_at_the_normal_rate),
         TEST_CASE(a_preview_released_where_it_began_moves_nothing),
         TEST_CASE(menu_opens_quick_settings),
         TEST_CASE(back_leaves_and_a_long_back_goes_home),

@@ -63,8 +63,8 @@ static void menu_to_volume_through_the_play_band_reads_as_menu_to_volume(void)
     CHECK_EQUAL(0, out.count);
     take(KEY_VOLUME_DOWN, true, 150, WATCH_MENU);
     CHECK_EQUAL(2, out.count);
-    CHECK(step_is(0, KEY_MENU, false, 150));
-    CHECK(step_is(1, KEY_VOLUME_DOWN, true, 150));
+    CHECK(step_is(0, KEY_MENU, false, 100));
+    CHECK(step_is(1, KEY_VOLUME_DOWN, true, 100));
 }
 
 static void volume_back_to_menu_through_the_play_band_reads_as_volume_to_menu(void)
@@ -75,8 +75,8 @@ static void volume_back_to_menu_through_the_play_band_reads_as_volume_to_menu(vo
     take(KEY_PLAY, false, 550, WATCH_BOTH);
     take(KEY_MENU, true, 550, WATCH_BOTH);
     CHECK_EQUAL(2, out.count);
-    CHECK(step_is(0, KEY_VOLUME_UP, false, 550));
-    CHECK(step_is(1, KEY_MENU, true, 550));
+    CHECK(step_is(0, KEY_VOLUME_UP, false, 500));
+    CHECK(step_is(1, KEY_MENU, true, 500));
 }
 
 static void volume_through_the_play_band_to_idle_drops_the_play_blip(void)
@@ -87,7 +87,7 @@ static void volume_through_the_play_band_to_idle_drops_the_play_blip(void)
     take(KEY_PLAY, false, 540, WATCH_BOTH);
     settle(540);
     CHECK_EQUAL(1, out.count);
-    CHECK(step_is(0, KEY_VOLUME_UP, false, 540));
+    CHECK(step_is(0, KEY_VOLUME_UP, false, 500));
 }
 
 static void a_volume_release_is_not_watched_outside_a_menu_chord(void)

@@ -9,6 +9,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
+#include "hal/power.h"
 #include "home_art.h"
 #include "neon_art.h"
 #include "playback/spoken.h"
@@ -201,7 +202,8 @@ static void scrub_begin(NowPlayingScreen *now_playing, bool back)
                                            .duration_ms = status.duration_ms,
                                            .token = player_token(now_playing->config.player),
                                            .active = true,
-                                           .back = back};
+                                           .back = back,
+                                           .cable = hal_power_cable()};
 }
 
 static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand command)

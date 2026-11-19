@@ -241,6 +241,17 @@ static void a_held_hold_repeat_key_long_presses_then_repeats(void)
     CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
 }
 
+static void a_hold_repeat_release_stamped_before_its_long_press_is_a_tap(void)
+{
+    KeyTracker tracker = hold_repeat_tracker();
+    key_tracker_key_down(&tracker, KEY_VOLUME_UP, 1000);
+    key_tracker_update(&tracker, 1000 + LONG_PRESS_MS + 40);
+    CHECK_EQUAL(KEY_GESTURE_LONG_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    key_tracker_key_up(&tracker, KEY_VOLUME_UP, 1000 + LONG_PRESS_MS - 50);
+    CHECK_EQUAL(KEY_GESTURE_PRESS, next_gesture(&tracker, KEY_VOLUME_UP));
+    CHECK_EQUAL(NO_EVENT, next_gesture(&tracker, KEY_VOLUME_UP));
+}
+
 static void hold_repeats_count_up_from_the_long_press(void)
 {
     KeyTracker tracker = hold_repeat_tracker();
@@ -499,6 +510,7 @@ int main(void)
         TEST_CASE(slow_consumers_receive_only_the_newest_volume_repeat),
         TEST_CASE(released_volume_keys_do_not_deliver_stale_repeats),
         TEST_CASE(hold_repeats_count_up_from_the_long_press),
+        TEST_CASE(a_hold_repeat_release_stamped_before_its_long_press_is_a_tap),
         TEST_CASE(forgetting_a_key_withdraws_only_its_latest_release),
         TEST_CASE(forgetting_a_key_leaves_other_keys_newer_events),
         TEST_CASE(releasing_every_key_forgets_holds_and_queued_events),

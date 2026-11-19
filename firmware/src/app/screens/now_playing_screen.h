@@ -41,6 +41,7 @@ typedef enum NowPlayingCommand {
 enum {
     NOW_PLAYING_SEEK_TAP_MS = 10000,
     NOW_PLAYING_SCRUB_TAIL_MS = 1000,
+    NOW_PLAYING_SCRUB_CANCEL_MS = 250,
     NOW_PLAYING_SCRUB_DIVISOR = 10,
     NOW_PLAYING_SCRUB_FAST_DIVISOR = 3,
     NOW_PLAYING_SCRUB_MAX_MS_PER_S = 60000,
@@ -69,8 +70,11 @@ typedef struct NowPlayingScrub {
     uint32_t shown_ms;
     uint32_t duration_ms;
     uint32_t token;
+    uint32_t release_ms;
     bool active;
     bool back;
+    bool releasing;
+    bool cable;
 } NowPlayingScrub;
 
 typedef struct NowPlayingConfig {

@@ -255,21 +255,33 @@ static void run_player_command(NowPlayingCommand command);
 static void combo_screenshot(void);
 static void use_screen_key_behaviors(void);
 
-static bool scrub_swallows(Key key, bool pressed)
+static Key scrub_key(const NowPlayingScrub *scrub)
 {
-    NowPlayingScrub *scrub = &app.screens.now_playing.scrub;
-    if (!pressed || key == KEY_POWER) {
-        scrub->active = scrub->active && !pressed;
-        return false;
+    return scrub->back ? KEY_VOLUME_DOWN : KEY_VOLUME_UP;
+}
+
+static bool scrub_swallows(Key key, bool pressed, uint32_t time_ms)
+{
+    NowPlayingScreen *now_playing = &app.screens.now_playing;
+    NowPlayingScrub *scrub = &now_playing->scrub;
+    if (scrub->active && pressed) {
+        if (key == KEY_POWER) {
+            scrub->active = false;
+        } else if (key >= KEY_PLAY) {
+            app.scrub_swallow = true;
+        } else if (scrub->releasing) {
+            now_playing_scrub_commit(now_playing);
+        }
+    } else if (scrub->active && key == scrub_key(scrub)) {
+        scrub->releasing = true;
+        scrub->release_ms = time_ms;
     }
-    app.scrub_swallow |= scrub->active && key >= KEY_PLAY;
-    scrub->active = scrub->active && key < KEY_PLAY;
-    return app.scrub_swallow;
+    return app.scrub_swallow && pressed && key != KEY_POWER;
 }
 
 static void pass_key(Key key, bool pressed, uint32_t time_ms, uint8_t chord)
 {
-    if (scrub_swallows(key, pressed)) {
+    if (scrub_swallows(key, pressed, time_ms)) {
         return;
     }
     if (!pressed) {
@@ -287,17 +299,19 @@ static bool chord_screen(void)
            top_screen()->keys == SCREEN_KEYS_TEST;
 }
 
-static void follow_scrub(void)
+static void follow_scrub(uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = &app.screens.now_playing;
     NowPlayingScrub *scrub = &now_playing->scrub;
-    Key key = scrub->back ? KEY_VOLUME_DOWN : KEY_VOLUME_UP;
-    bool shown = app.display_on && top_screen() == &now_playing->screen;
-    bool held = app.keys.states[key].held;
-    if (scrub->active && shown && !held) {
+    bool shown = app.display_on && top_screen() == &now_playing->screen && !app.saying_goodbye &&
+                 hal_power_cable() == scrub->cable;
+    bool cancelling = (app.raw_held & (1u << KEY_PLAY | 1u << KEY_BACK)) != 0;
+    if (scrub->active && scrub->releasing && shown && !cancelling) {
         now_playing_scrub_commit(now_playing);
     }
-    scrub->active = scrub->active && shown && held;
+    bool waiting = scrub->releasing ? now_ms - scrub->release_ms < NOW_PLAYING_SCRUB_CANCEL_MS
+                                    : app.keys.states[scrub_key(scrub)].held;
+    scrub->active = scrub->active && shown && waiting;
     app.scrub_swallow = app.scrub_swallow && (app.raw_held & ~(1u << KEY_POWER)) != 0;
 }
 
@@ -347,6 +361,8 @@ static void settle_crossing(uint32_t now_ms)
 static void drop_seed_gestures(void)
 {
     key_crossing_reset(&app.crossing);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_UP);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_DOWN);
     key_tracker_forget(&app.keys, KEY_MENU);
     key_tracker_forget(&app.keys, KEY_PLAY);
 }
@@ -398,7 +414,6 @@ static bool loader_gesture_key(Key key)
 
 static void start_loader_keys(void)
 {
-    app.screens.now_playing.scrub.active = false;
     key_tracker_cancel(&app.keys, KEY_POWER);
     key_tracker_cancel(&app.keys, KEY_VOLUME_UP);
     key_tracker_cancel(&app.keys, KEY_VOLUME_DOWN);
@@ -2405,7 +2420,6 @@ CORE_SEAM void app_step(void)
         debug_loop_boot(DEBUG_BOOT_INTERACTIVE);
         dispatch_key_events(now_ms);
     }
-    follow_scrub();
     if (app.power.standby_active) {
         update_power(now_ms);
         return;
@@ -2438,6 +2452,7 @@ CORE_SEAM void app_step(void)
         debug_loop_follow(now_ms, &app.player);
         update_power(now_ms);
     }
+    follow_scrub(now_ms);
     if (app.powered_off || app.charging) {
         return;
     }
@@ -2491,6 +2506,9 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
 {
     if (!app.display_on) {
         return;
+    }
+    if (app.screens.now_playing.scrub.active) {
+        app.pacer.fast_frames = 0;
     }
     app.render_wanted |= view_changed(now_ms);
     app.render_wanted |= marquee_step_reached(now_ms);
@@ -2624,7 +2642,6 @@ void app_wake(void)
 void app_resume_after_usb(void)
 {
     bool locked = app.lock.locked;
-    app.screens.now_playing.scrub.active = false;
     key_tracker_release_all(&app.keys);
     app.lock = (KeyLock){.locked = locked};
     app.raw_held = 0;

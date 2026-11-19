@@ -112,11 +112,11 @@ void key_tracker_key_up(KeyTracker *tracker, Key key, uint32_t now_ms)
     if (!state->held) {
         return;
     }
-    if (!repeats(tracker, key) && !state->long_press_sent && !state->hold_only) {
+    bool due = long_press_due(tracker, key, now_ms);
+    bool early = state->long_press_sent && repeats_after_hold(tracker, key) && !due;
+    if (early || (!repeats(tracker, key) && !state->long_press_sent && !state->hold_only)) {
         uint32_t queued = tracker->queue_length;
-        push_event(tracker, key,
-                   long_press_due(tracker, key, now_ms) ? KEY_GESTURE_LONG_PRESS
-                                                        : KEY_GESTURE_PRESS);
+        push_event(tracker, key, due ? KEY_GESTURE_LONG_PRESS : KEY_GESTURE_PRESS);
         state->release_queued = tracker->queue_length != queued;
     }
     state->held = false;

@@ -32,10 +32,8 @@ uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, in
     if (duration_ms == 0) {
         return position_ms;
     }
-    uint32_t end = last_playable(duration_ms);
-    if (delta_ms >= 0) {
-        end = clamp_ms(position_ms, end, duration_ms);
-    }
+    uint32_t end = delta_ms >= 0 ? clamp_ms(position_ms, last_playable(duration_ms), duration_ms)
+                                 : duration_ms;
     return target < 0 ? 0 : clamp_ms(target > UINT32_MAX ? UINT32_MAX : (uint32_t)target, 0, end);
 }
 
@@ -131,6 +129,7 @@ void now_playing_player_command(NowPlayingScreen *now_playing, NowPlayingCommand
         break;
     }
     if (seek < NOW_PLAYING_SEEK_COMMANDS && seek % 3u == 0u) {
+        now_playing->scrub.active = false;
         int32_t delta = seek != 0u ? -NOW_PLAYING_SEEK_TAP_MS : NOW_PLAYING_SEEK_TAP_MS;
         if (!seek_once(now_playing, delta, now_ms)) {
             seek_once(now_playing, delta, now_ms);
