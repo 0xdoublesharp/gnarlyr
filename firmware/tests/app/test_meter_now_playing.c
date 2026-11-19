@@ -230,6 +230,27 @@ static void a_peak_flashes_its_sun_crown_white_and_lights_peak_for_half_a_second
     CHECK(!peak_label_lit(&canvas, 0));
 }
 
+static void a_peak_that_lights_and_goes_out_is_restored_by_partial_redraws(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Canvas canvas = start(orientation, TEXT_SIZE_LARGE, APPEARANCE_SUNSET, NOW_PLAYING_VU);
+        screen.now_ms = 1000;
+        draw_fresh(&canvas);
+        hal_display_write(0, 0, canvas.bounds.width, canvas.bounds.height, pixels);
+        for (int frame = 0; frame < 512; frame++) {
+            samples[frame * 2] = (uint32_t)32767 << 16;
+            samples[frame * 2 + 1] = (uint32_t)32767 << 16;
+        }
+        animate_frames(2);
+        CHECK_EQUAL(0, partial_mismatches(&canvas));
+        CHECK(peak_label_lit(&canvas, 1));
+        memset(samples, 0, sizeof samples);
+        animate_frames(8);
+        CHECK_EQUAL(0, partial_mismatches(&canvas));
+        CHECK(!peak_label_lit(&canvas, 1));
+    }
+}
+
 static void an_unlit_crown_stays_dark_after_long_uptime(void)
 {
     Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
@@ -377,6 +398,7 @@ int main(void)
         TEST_CASE(the_sun_halves_light_from_the_horizon_with_each_channel),
         TEST_CASE(a_peak_flashes_its_sun_crown_white_and_lights_peak_for_half_a_second),
         TEST_CASE(an_unlit_crown_stays_dark_after_long_uptime),
+        TEST_CASE(a_peak_that_lights_and_goes_out_is_restored_by_partial_redraws),
         TEST_CASE(scale_marks_sit_beside_each_half_of_the_sun),
         TEST_CASE(spectrum_bars_have_white_tops_and_striped_reflections),
         TEST_CASE(the_floor_lines_brighten_with_the_bass),

@@ -16,7 +16,7 @@ typedef struct PlayingModuleEntry {
     ListSections (*sections)(const BrowseScreen *browse, int index);
     void (*now_playing_attach)(NowPlayingScreen *now_playing);
     void (*wire_boot)(Canvas *canvas, const Theme *theme, const Fade *fade, const char *text);
-    Screen *(*open_artist)(void *context, BrowseScreen *browse, BrowseQuery albums);
+    Screen *(*artist_strip)(AppScreens *screens, BrowseScreen *browse, BrowseQuery albums);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {

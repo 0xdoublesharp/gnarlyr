@@ -190,9 +190,19 @@ static ListSections browse_sections(const BrowseScreen *browse, int index)
 
 static Screen *browse_artist(void *context, BrowseScreen *browse, BrowseQuery albums)
 {
+    const Library *library = browse->pool->config.library;
+    BrowseQuery album = albums;
+    BrowseItem only;
+    if (browse->query.kind != BROWSE_ARTISTS && browse->query.kind != BROWSE_ALBUM_ARTISTS) {
+        return NULL;
+    }
+    if (browse_count(library, albums) == 1 && browse_item(library, albums, 0, &only) &&
+        browse_child(albums, only, &album)) {
+        return browse_pool_open(browse->pool, browse->level + 1, album);
+    }
     const PlayingModuleEntry *entry =
         (const PlayingModuleEntry *)screen_modules_use(context, SCREEN_MODULE_PLAYING);
-    return entry != NULL ? entry->open_artist(context, browse, albums) : NULL;
+    return entry != NULL ? entry->artist_strip(context, browse, albums) : NULL;
 }
 
 static Screen *track_info(void *context, uint16_t track)

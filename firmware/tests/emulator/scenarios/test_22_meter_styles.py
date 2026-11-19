@@ -12,8 +12,8 @@ from echo_emulator.flac_image import FlacImage, BLOCK_SAMPLES
 
 VU, SPECTRUM = 2, 3
 VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS = 3.5
-CORE0_BUDGETS = {(VU, "flac44"): 14.1, (SPECTRUM, "flac44"): 13.7,
-                 (VU, "flac96_512"): 16.7, (SPECTRUM, "flac96_512"): 18.3}
+CORE0_BUDGETS = {(VU, "flac44"): 14.08, (SPECTRUM, "flac44"): 13.63,
+                 (VU, "flac96_512"): 16.70, (SPECTRUM, "flac96_512"): 18.22}
 MUSIC_SECONDS = 16
 MUSIC = ("0.35*sin(2*PI*55*t)*(0.4+0.6*lt(mod(t,0.5),0.12))"
          "+0.18*sin(2*PI*110*t+sin(3*t))"

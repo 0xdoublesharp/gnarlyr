@@ -6,6 +6,10 @@
 #include "playing_work.h"
 #include "sunset_scene.h"
 
+enum {
+    SUNSET_LAYERS = 4
+};
+
 typedef struct SunsetArt {
     const Theme *theme;
     SunsetScene scene;

@@ -1,7 +1,5 @@
 #include "sunset_art.h"
 
-#include <stddef.h>
-
 #include "core/i18n.h"
 #include "ui/label.h"
 
@@ -105,20 +103,38 @@ static Color half_ink(const SunsetArt *art, int side, int y, Color hot)
     return lit ? hot : color_between(sky_at(art, y), hot, 1, 4);
 }
 
-static void sun_row(const SunsetArt *art, Canvas *canvas, int y)
+typedef void (*SunsetRow)(const SunsetArt *art, Canvas *canvas, int y, int half);
+
+static void disc_row(const SunsetArt *art, Canvas *canvas, int y, int half)
+{
+    canvas_fill_rect(canvas, (Rect){art->scene.sun.x - half, y, half * 2, 1}, sun_hot(art, y));
+}
+
+static void meter_row(const SunsetArt *art, Canvas *canvas, int y, int half)
+{
+    int x = art->scene.sun.x;
+    Color hot = sun_hot(art, y);
+    canvas_fill_rect(canvas, (Rect){x - half, y, half - 1, 1}, half_ink(art, 0, y, hot));
+    canvas_fill_rect(canvas, (Rect){x + 2, y, half - 1, 1}, half_ink(art, 1, y, hot));
+}
+
+static bool sun_rows(const SunsetArt *art, Canvas *canvas, SunsetRow row)
 {
     const SunsetScene *scene = &art->scene;
-    int half = sunset_scene_half_width(scene, y);
-    if (half <= 0 || sunset_scene_slat_gap(scene, y)) {
-        return;
+    int top = sunset_scene_top(scene);
+    Rect disc = {scene->sun.x - scene->radius - 8, top, scene->radius * 2 + 16,
+                 scene->horizon - top};
+    if (!touches(canvas, disc)) {
+        return false;
     }
-    Color hot = sun_hot(art, y);
-    if (!art->sun_meter) {
-        canvas_fill_rect(canvas, (Rect){scene->sun.x - half, y, half * 2, 1}, hot);
-        return;
+    int last = smaller(canvas->clip.y + canvas->clip.height, scene->horizon);
+    for (int y = larger(canvas->clip.y, top); y < last; y++) {
+        int half = sunset_scene_half_width(scene, y);
+        if (half > 0 && !sunset_scene_slat_gap(scene, y)) {
+            row(art, canvas, y, half);
+        }
     }
-    canvas_fill_rect(canvas, (Rect){scene->sun.x - half, y, half - 1, 1}, half_ink(art, 0, y, hot));
-    canvas_fill_rect(canvas, (Rect){scene->sun.x + 2, y, half - 1, 1}, half_ink(art, 1, y, hot));
+    return true;
 }
 
 static void marks(const SunsetArt *art, Canvas *canvas)
@@ -136,18 +152,12 @@ static void marks(const SunsetArt *art, Canvas *canvas)
 
 static void sun(const SunsetArt *art, Canvas *canvas)
 {
-    const SunsetScene *scene = &art->scene;
-    int top = sunset_scene_top(scene);
-    Rect disc = {scene->sun.x - scene->radius - 8, top, scene->radius * 2 + 16,
-                 scene->horizon - top};
-    if (!touches(canvas, disc)) {
-        return;
-    }
-    int last = smaller(canvas->clip.y + canvas->clip.height, scene->horizon);
-    for (int y = larger(canvas->clip.y, top); y < last; y++) {
-        sun_row(art, canvas, y);
-    }
-    if (art->sun_meter) {
+    sun_rows(art, canvas, disc_row);
+}
+
+static void sun_meter(const SunsetArt *art, Canvas *canvas)
+{
+    if (sun_rows(art, canvas, meter_row)) {
         marks(art, canvas);
     }
 }
@@ -303,12 +313,8 @@ static void band(const SunsetArt *art, Canvas *canvas, int index)
                      art->theme->colors.accent_alt);
 }
 
-static void front(const SunsetArt *art, Canvas *canvas)
+static void bars(const SunsetArt *art, Canvas *canvas)
 {
-    if (art->sun_meter) {
-        labels(art, canvas);
-        return;
-    }
     for (int index = 0; index < AUDIO_VISUAL_BANDS; index++) {
         band(art, canvas, index);
     }
@@ -316,12 +322,14 @@ static void front(const SunsetArt *art, Canvas *canvas)
 
 void sunset_art_draw(const SunsetArt *art, Canvas *canvas)
 {
-    static const SunsetLayer LAYERS[] = {sky, sun, grid, front};
+    static const SunsetLayer SPECTRUM[SUNSET_LAYERS] = {sky, sun, grid, bars};
+    static const SunsetLayer METER[SUNSET_LAYERS] = {sky, sun_meter, grid, labels};
+    const SunsetLayer *layers = art->sun_meter ? METER : SPECTRUM;
     Canvas stage = canvas_clipped(canvas, art->scene.stage);
     if (rect_is_empty(stage.clip)) {
         return;
     }
-    for (size_t layer = 0; layer < sizeof LAYERS / sizeof LAYERS[0]; layer++) {
-        LAYERS[layer](art, &stage);
+    for (int layer = 0; layer < SUNSET_LAYERS; layer++) {
+        layers[layer](art, &stage);
     }
 }

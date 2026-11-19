@@ -25,9 +25,9 @@ static const ModuleSpan SPANS[SCREEN_MODULE_COUNT] = {
 
 ScreenModule screen_modules_playing(const AppScreens *screens)
 {
-    NowPlayingStyle style = settings_now_playing_style(&screens->context.settings->settings);
-    return style >= NOW_PLAYING_VU && !screens->stage_missing ? SCREEN_MODULE_STAGE
-                                                              : SCREEN_MODULE_PLAYING;
+    const SettingsStore *store = screens->context.settings;
+    bool meter = store != NULL && settings_now_playing_style(&store->settings) >= NOW_PLAYING_VU;
+    return meter && !screens->stage_missing ? SCREEN_MODULE_STAGE : SCREEN_MODULE_PLAYING;
 }
 
 ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)

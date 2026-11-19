@@ -12,19 +12,8 @@ static void attach(NowPlayingScreen *now_playing)
     now_playing->config.cassette_animate = cassette ? cassette_now_playing_animate : NULL;
 }
 
-static Screen *open_artist(void *context, BrowseScreen *browse, BrowseQuery albums)
+static Screen *artist_strip(AppScreens *screens, BrowseScreen *browse, BrowseQuery albums)
 {
-    AppScreens *screens = context;
-    const Library *library = browse->pool->config.library;
-    BrowseQuery album = albums;
-    BrowseItem only;
-    if (browse->query.kind != BROWSE_ARTISTS && browse->query.kind != BROWSE_ALBUM_ARTISTS) {
-        return NULL;
-    }
-    if (browse_count(library, albums) == 1 && browse_item(library, albums, 0, &only) &&
-        browse_child(albums, only, &album)) {
-        return browse_pool_open(browse->pool, browse->level + 1, album);
-    }
     CoverFlowScreen *strip = &screens->modules.playing.artist_albums;
     strip->albums = albums;
     strip->parent = browse;
@@ -63,4 +52,4 @@ const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .sections = browse_sections_range,
     .now_playing_attach = attach,
     .wire_boot = wire_boot_fade,
-    .open_artist = open_artist};
+    .artist_strip = artist_strip};

@@ -246,6 +246,22 @@ static void a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module(v
     CHECK_EQUAL(1, fake_hal_module_loads());
 }
 
+static void opening_albums_and_genres_under_a_meter_style_needs_no_module_load(void)
+{
+    for (int row = 3; row <= 4; row++) {
+        start_app_with_style(NOW_PLAYING_VU);
+        open_music();
+        move_down(row);
+        tap(KEY_PLAY);
+        wait_ms(SLIDE_DURATION_MS);
+        tap(KEY_PLAY);
+        wait_ms(SLIDE_DURATION_MS);
+        CHECK_EQUAL(ALBUM_DEPTH, app_screen_depth());
+        CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+        CHECK_EQUAL(1, fake_hal_module_loads());
+    }
+}
+
 static void cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact(void)
 {
     start_app_with_style(NOW_PLAYING_SPECTRUM);
@@ -747,6 +763,7 @@ int main(void)
         TEST_CASE(smart_lists_open_from_music_and_play_through_the_listening_module),
         TEST_CASE(home_art_loads_playing_and_cover_flow_reuses_it),
         TEST_CASE(a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module),
+        TEST_CASE(opening_albums_and_genres_under_a_meter_style_needs_no_module_load),
         TEST_CASE(cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact),
         TEST_CASE(a_damaged_stage_module_leaves_meter_styles_on_the_playing_module),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
