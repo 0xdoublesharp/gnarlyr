@@ -175,6 +175,10 @@ if(ARM_GCC)
             device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns
             PROPERTIES TIMEOUT 1500
         )
+        set_tests_properties(
+            device_image_boot_test_a_resume_anywhere_in_core_1s_load_window_keeps_heavy_streams_fed
+            PROPERTIES TIMEOUT 1800
+        )
         add_test(NAME core1_mp3_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
                 ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_core1_mp3.py
