@@ -1,12 +1,9 @@
 #include "device/core1_opus.h"
 
+#include "core/bytes.h"
+
 #include "device/core1_ogg.h"
 #include "device/core1_source_private.h"
-
-static uint32_t little16(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8;
-}
 
 static void start_opus(void *context, FlacInput input, FlacInfo info, uint32_t first_sample,
                        const bool *starved)
@@ -48,8 +45,8 @@ static bool configure(Core1Opus *opus, const OggRecord *record)
         head[9] != opus->region.control->channels) {
         return false;
     }
-    uint32_t gain = little16(head + 16);
-    opus->pre_skip = little16(head + 10);
+    uint32_t gain = bytes_le16(head + 16);
+    opus->pre_skip = bytes_le16(head + 10);
     return opus_decode_init(&opus->decoder, opus->state, sizeof opus->state, opus->work->scratch,
                             sizeof opus->work->scratch, OPUS_RATE, head[9]) == OPUS_DECODE_OK &&
            opus_decode_set_gain(&opus->decoder, (int32_t)gain - (gain >= 32768 ? 65536 : 0)) ==

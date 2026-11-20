@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     TYPE_STANDARD_DEVICE_IN = 0x80,
     TYPE_STANDARD_INTERFACE_IN = 0x81,
@@ -146,12 +148,6 @@ static uint16_t packet_size(UsbSpeed speed)
     return speed == USB_SPEED_HIGH ? USB_HIGH_SPEED_PACKET_SIZE : USB_PACKET_SIZE;
 }
 
-static void put_packet_size(uint8_t *bytes, uint16_t size)
-{
-    bytes[0] = (uint8_t)size;
-    bytes[1] = (uint8_t)(size >> 8);
-}
-
 static UsbReply configuration(UsbDevice *device, uint8_t type, UsbSpeed speed, UsbSetup setup)
 {
     uint8_t *reply = device->configuration_reply;
@@ -159,8 +155,8 @@ static UsbReply configuration(UsbDevice *device, uint8_t type, UsbSpeed speed, U
         reply[index] = CONFIGURATION_DESCRIPTOR[index];
     }
     reply[CONFIGURATION_TYPE_OFFSET] = type;
-    put_packet_size(reply + BULK_IN_PACKET_OFFSET, packet_size(speed));
-    put_packet_size(reply + BULK_OUT_PACKET_OFFSET, packet_size(speed));
+    bytes_put_le16(reply + BULK_IN_PACKET_OFFSET, packet_size(speed));
+    bytes_put_le16(reply + BULK_OUT_PACKET_OFFSET, packet_size(speed));
     return data(reply, sizeof CONFIGURATION_DESCRIPTOR, setup);
 }
 

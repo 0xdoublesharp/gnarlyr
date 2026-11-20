@@ -1,5 +1,7 @@
 #include "library/covers.h"
 
+#include "core/bytes.h"
+
 enum {
     MAGIC_SIZE = 4,
     VERSION_FIELD = 4,
@@ -15,16 +17,6 @@ enum {
 
 static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'C', 'V'};
 
-static uint16_t u16_at(const uint8_t *bytes, uint32_t offset)
-{
-    return (uint16_t)(bytes[offset] | bytes[offset + 1] << BITS_PER_BYTE);
-}
-
-static uint32_t u32_at(const uint8_t *bytes, uint32_t offset)
-{
-    return (uint32_t)u16_at(bytes, offset) | (uint32_t)u16_at(bytes, offset + 2) << 16;
-}
-
 static bool header_valid(const uint8_t *header)
 {
     for (int index = 0; index < MAGIC_SIZE; index++) {
@@ -32,9 +24,9 @@ static bool header_valid(const uint8_t *header)
             return false;
         }
     }
-    return u16_at(header, VERSION_FIELD) == COVERS_VERSION &&
-           u16_at(header, FULL_FIELD) == COVER_FULL_SIZE &&
-           u16_at(header, HALF_FIELD) == COVER_HALF_SIZE;
+    return bytes_le16(header + VERSION_FIELD) == COVERS_VERSION &&
+           bytes_le16(header + FULL_FIELD) == COVER_FULL_SIZE &&
+           bytes_le16(header + HALF_FIELD) == COVER_HALF_SIZE;
 }
 
 bool covers_open(Covers *covers, ByteSource source, uint32_t size)
@@ -45,7 +37,7 @@ bool covers_open(Covers *covers, ByteSource source, uint32_t size)
         !header_valid(header)) {
         return false;
     }
-    uint32_t count = u16_at(header, COUNT_FIELD);
+    uint32_t count = bytes_le16(header + COUNT_FIELD);
     uint64_t needed = COVERS_HEADER_SIZE + (uint64_t)count * (COVERS_ENTRY_SIZE + RECORD_BYTES);
     if (needed > size) {
         return false;
@@ -61,8 +53,8 @@ static bool read_entry(const Covers *covers, uint32_t position, uint32_t *key, u
     if (!covers->source.read(covers->source.context, offset, entry, sizeof entry)) {
         return false;
     }
-    *key = u32_at(entry, 0);
-    *record = u32_at(entry, 4);
+    *key = bytes_le32(entry);
+    *record = bytes_le32(entry + 4);
     return true;
 }
 
@@ -92,7 +84,7 @@ static void unpack_pixels(uint16_t *pixels, uint32_t count)
 {
     const uint8_t *bytes = (const uint8_t *)pixels;
     for (uint32_t index = 0; index < count; index++) {
-        uint16_t value = u16_at(bytes, index * BYTES_PER_PIXEL);
+        uint16_t value = (uint16_t)bytes_le16(bytes + index * BYTES_PER_PIXEL);
         pixels[index] = value;
     }
 }

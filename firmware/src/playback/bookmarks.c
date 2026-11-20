@@ -1,5 +1,6 @@
 #include "playback/bookmarks.h"
 
+#include "core/bytes.h"
 #include "core/hash.h"
 
 enum {
@@ -18,28 +19,6 @@ enum {
 };
 
 static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'B', 'K'};
-
-static void put_u16(uint8_t *bytes, uint32_t offset, uint32_t value)
-{
-    bytes[offset] = (uint8_t)value;
-    bytes[offset + 1] = (uint8_t)(value >> BITS_PER_BYTE);
-}
-
-static void put_u32(uint8_t *bytes, uint32_t offset, uint32_t value)
-{
-    put_u16(bytes, offset, value & 0xFFFFu);
-    put_u16(bytes, offset + 2, value >> 16);
-}
-
-static uint16_t get_u16(const uint8_t *bytes, uint32_t offset)
-{
-    return (uint16_t)(bytes[offset] | bytes[offset + 1] << BITS_PER_BYTE);
-}
-
-static uint32_t get_u32(const uint8_t *bytes, uint32_t offset)
-{
-    return (uint32_t)get_u16(bytes, offset) | (uint32_t)get_u16(bytes, offset + 2) << 16;
-}
 
 static int find_index(const Bookmarks *bookmarks, uint32_t key)
 {
@@ -93,10 +72,10 @@ bool bookmark_finished(Bookmark bookmark)
 
 static void encode_record(Bookmark bookmark, uint8_t *record)
 {
-    put_u32(record, KEY_OFFSET, bookmark.key);
-    put_u32(record, TRACK_OFFSET, bookmark.track_key);
-    put_u32(record, POSITION_OFFSET, bookmark.position_ms);
-    put_u16(record, CHAPTER_OFFSET, bookmark.chapter);
+    bytes_put_le32(record + KEY_OFFSET, bookmark.key);
+    bytes_put_le32(record + TRACK_OFFSET, bookmark.track_key);
+    bytes_put_le32(record + POSITION_OFFSET, bookmark.position_ms);
+    bytes_put_le16(record + CHAPTER_OFFSET, bookmark.chapter);
     record[FLAGS_OFFSET] = bookmark.flags;
     record[FLAGS_OFFSET + 1] = 0;
 }
@@ -106,24 +85,24 @@ uint32_t bookmarks_encode(const Bookmarks *bookmarks, uint8_t *bytes)
     for (int index = 0; index < MAGIC_SIZE; index++) {
         bytes[index] = MAGIC[index];
     }
-    put_u16(bytes, VERSION_FIELD, VERSION);
-    put_u16(bytes, COUNT_FIELD, bookmarks->count);
-    put_u32(bytes, COUNT_FIELD + 2, 0);
+    bytes_put_le16(bytes + VERSION_FIELD, VERSION);
+    bytes_put_le16(bytes + COUNT_FIELD, bookmarks->count);
+    bytes_put_le32(bytes + COUNT_FIELD + 2, 0);
     for (uint16_t index = 0; index < bookmarks->count; index++) {
         encode_record(bookmarks->entries[index],
                       bytes + RECORDS_FIELD + (uint32_t)index * BOOKMARK_RECORD_SIZE);
     }
     uint32_t checksum_field = RECORDS_FIELD + (uint32_t)bookmarks->count * BOOKMARK_RECORD_SIZE;
-    put_u32(bytes, checksum_field, hash_update(HASH_START, bytes, checksum_field));
+    bytes_put_le32(bytes + checksum_field, hash_update(HASH_START, bytes, checksum_field));
     return checksum_field + CHECKSUM_SIZE;
 }
 
 static Bookmark decode_record(const uint8_t *record)
 {
-    return (Bookmark){.key = get_u32(record, KEY_OFFSET),
-                      .track_key = get_u32(record, TRACK_OFFSET),
-                      .position_ms = get_u32(record, POSITION_OFFSET),
-                      .chapter = get_u16(record, CHAPTER_OFFSET),
+    return (Bookmark){.key = bytes_le32(record + KEY_OFFSET),
+                      .track_key = bytes_le32(record + TRACK_OFFSET),
+                      .position_ms = bytes_le32(record + POSITION_OFFSET),
+                      .chapter = (uint16_t)bytes_le16(record + CHAPTER_OFFSET),
                       .flags = record[FLAGS_OFFSET]};
 }
 
@@ -137,8 +116,8 @@ static bool header_valid(const uint8_t *bytes, uint32_t length)
             return false;
         }
     }
-    uint32_t count = get_u16(bytes, COUNT_FIELD);
-    return get_u16(bytes, VERSION_FIELD) == VERSION && count <= BOOKMARKS_CAPACITY &&
+    uint32_t count = bytes_le16(bytes + COUNT_FIELD);
+    return bytes_le16(bytes + VERSION_FIELD) == VERSION && count <= BOOKMARKS_CAPACITY &&
            length >= RECORDS_FIELD + count * BOOKMARK_RECORD_SIZE + CHECKSUM_SIZE;
 }
 
@@ -148,9 +127,9 @@ bool bookmarks_decode(const uint8_t *bytes, uint32_t length, Bookmarks *bookmark
     if (!header_valid(bytes, length)) {
         return false;
     }
-    uint16_t count = get_u16(bytes, COUNT_FIELD);
+    uint16_t count = (uint16_t)bytes_le16(bytes + COUNT_FIELD);
     uint32_t checksum_field = RECORDS_FIELD + (uint32_t)count * BOOKMARK_RECORD_SIZE;
-    if (get_u32(bytes, checksum_field) != hash_update(HASH_START, bytes, checksum_field)) {
+    if (bytes_le32(bytes + checksum_field) != hash_update(HASH_START, bytes, checksum_field)) {
         return false;
     }
     for (uint16_t index = 0; index < count; index++) {

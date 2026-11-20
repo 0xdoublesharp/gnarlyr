@@ -1,5 +1,6 @@
 #include "library/library.h"
 
+#include "core/bytes.h"
 #include "core/hash.h"
 #include "core/utf8.h"
 #include "library/library_content.h"
@@ -32,16 +33,6 @@ static const uint16_t RECORD_SIZES[LIBRARY_SECTION_COUNT] = {
     [LIBRARY_LINKS] = INDEX_SIZE,       [LIBRARY_STRINGS] = STRING_SIZE,
 };
 
-static uint16_t u16_at(const uint8_t *bytes, uint32_t offset)
-{
-    return (uint16_t)(bytes[offset] | bytes[offset + 1] << BITS_PER_BYTE);
-}
-
-static uint32_t u32_at(const uint8_t *bytes, uint32_t offset)
-{
-    return (uint32_t)u16_at(bytes, offset) | (uint32_t)u16_at(bytes, offset + 2) << 16;
-}
-
 static bool read_source(const Library *library, uint32_t offset, void *buffer, uint32_t length)
 {
     return library->source.read(library->source.context, offset, buffer, length);
@@ -61,10 +52,10 @@ static LibrarySectionInfo decode_section(const uint8_t *header, int section)
 {
     uint32_t entry = (uint32_t)(SECTION_TABLE + section * SECTION_ENTRY_SIZE);
     return (LibrarySectionInfo){
-        .offset = u32_at(header, entry),
-        .count = u32_at(header, entry + 4),
-        .record_size = u16_at(header, entry + 8),
-        .music = u16_at(header, entry + 10),
+        .offset = bytes_le32(header + entry),
+        .count = bytes_le32(header + entry + 4),
+        .record_size = (uint16_t)bytes_le16(header + entry + 8),
+        .music = (uint16_t)bytes_le16(header + entry + 10),
     };
 }
 
@@ -80,10 +71,10 @@ static LibraryStatus decode_header(Library *library, const uint8_t *header, uint
     if (!magic_matches(header)) {
         return LIBRARY_BAD_MAGIC;
     }
-    if (u16_at(header, VERSION_FIELD) != LIBRARY_VERSION) {
+    if (bytes_le16(header + VERSION_FIELD) != LIBRARY_VERSION) {
         return LIBRARY_BAD_VERSION;
     }
-    if (u16_at(header, SECTION_COUNT_FIELD) != LIBRARY_SECTION_COUNT) {
+    if (bytes_le16(header + SECTION_COUNT_FIELD) != LIBRARY_SECTION_COUNT) {
         return LIBRARY_BAD_LAYOUT;
     }
     for (int section = 0; section < LIBRARY_SECTION_COUNT; section++) {
@@ -171,17 +162,17 @@ bool library_read_track(const Library *library, uint32_t index, LibraryTrack *tr
         return false;
     }
     *track = (LibraryTrack){
-        .title = u32_at(record, 0),
-        .path = u32_at(record, 4),
-        .album = u16_at(record, 8),
-        .artist = u16_at(record, 10),
-        .genre = u16_at(record, 12),
-        .folder = u16_at(record, 14),
-        .duration_ms = u32_at(record, 16),
+        .title = bytes_le32(record),
+        .path = bytes_le32(record + 4),
+        .album = (uint16_t)bytes_le16(record + 8),
+        .artist = (uint16_t)bytes_le16(record + 10),
+        .genre = (uint16_t)bytes_le16(record + 12),
+        .folder = (uint16_t)bytes_le16(record + 14),
+        .duration_ms = bytes_le32(record + 16),
         .disc = record[20],
         .number = record[21],
-        .start_ms = u32_at(record, 24),
-        .end_ms = u32_at(record, 28),
+        .start_ms = bytes_le32(record + 24),
+        .end_ms = bytes_le32(record + 28),
     };
     return true;
 }
@@ -193,13 +184,13 @@ bool library_read_album(const Library *library, uint32_t index, LibraryAlbum *al
         return false;
     }
     *album = (LibraryAlbum){
-        .title = u32_at(record, 0),
-        .album_artist = u16_at(record, 4),
-        .genre = u16_at(record, 6),
-        .year = u16_at(record, 8),
-        .first_track = u16_at(record, 10),
-        .track_count = u16_at(record, 12),
-        .cover = u16_at(record, 14),
+        .title = bytes_le32(record),
+        .album_artist = (uint16_t)bytes_le16(record + 4),
+        .genre = (uint16_t)bytes_le16(record + 6),
+        .year = (uint16_t)bytes_le16(record + 8),
+        .first_track = (uint16_t)bytes_le16(record + 10),
+        .track_count = (uint16_t)bytes_le16(record + 12),
+        .cover = (uint16_t)bytes_le16(record + 14),
     };
     return true;
 }
@@ -217,9 +208,9 @@ bool library_read_group(const Library *library, LibrarySection section, uint32_t
         return false;
     }
     *group = (LibraryGroup){
-        .name = u32_at(record, 0),
-        .first_link = u32_at(record, 4),
-        .link_count = u16_at(record, 8),
+        .name = bytes_le32(record),
+        .first_link = bytes_le32(record + 4),
+        .link_count = (uint16_t)bytes_le16(record + 8),
     };
     return true;
 }
@@ -231,12 +222,12 @@ bool library_read_folder(const Library *library, uint32_t index, LibraryFolder *
         return false;
     }
     *folder = (LibraryFolder){
-        .name = u32_at(record, 0),
-        .parent = u16_at(record, 4),
-        .subfolder_count = u16_at(record, 6),
-        .first_link = u32_at(record, 8),
-        .track_count = u16_at(record, 12),
-        .flags = u16_at(record, 14),
+        .name = bytes_le32(record),
+        .parent = (uint16_t)bytes_le16(record + 4),
+        .subfolder_count = (uint16_t)bytes_le16(record + 6),
+        .first_link = bytes_le32(record + 8),
+        .track_count = (uint16_t)bytes_le16(record + 12),
+        .flags = (uint16_t)bytes_le16(record + 14),
     };
     return true;
 }
@@ -253,7 +244,7 @@ bool library_read_index(const Library *library, LibrarySection section, uint32_t
     if (!is_index_section(section) || !read_record(library, section, position, record)) {
         return false;
     }
-    *value = u16_at(record, 0);
+    *value = (uint16_t)bytes_le16(record);
     return true;
 }
 

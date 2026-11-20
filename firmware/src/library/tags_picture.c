@@ -124,7 +124,7 @@ static bool block_word(TagPictureReader *reader, uint32_t offset, uint32_t *valu
 {
     uint8_t word[4];
     bool read = base64_read(reader, offset, word, sizeof word);
-    *value = tag_be32(word);
+    *value = bytes_be32(word);
     return read;
 }
 

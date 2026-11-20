@@ -87,9 +87,9 @@ static void read_properties(const TagReader *reader, uint32_t start, uint32_t en
     while (cursor + DFF_CHUNK_HEADER <= end && tag_read(reader, cursor, chunk, sizeof chunk)) {
         uint64_t size = tag_be64(chunk + 4);
         if (same(chunk, "FS  ")) {
-            sound->rate = tag_be32(chunk + 12);
+            sound->rate = bytes_be32(chunk + 12);
         } else if (same(chunk, "CHNL")) {
-            sound->channels = tag_be16(chunk + 12);
+            sound->channels = bytes_be16(chunk + 12);
         } else if (same(chunk, "CMPR")) {
             sound->uncompressed = same(chunk + 12, "DSD ");
         }
@@ -115,7 +115,7 @@ static void diin(TagReader *reader, uint32_t start, uint32_t end)
         TagField field = same(chunk, "DIAR") ? TAG_ARTIST : TAG_TITLE;
         if ((same(chunk, "DIAR") || same(chunk, "DITI")) && size >= 4 && !reader->present[field] &&
             tag_read(reader, body, chunk + 12, 4)) {
-            uint32_t count = tag_be32(chunk + 12);
+            uint32_t count = bytes_be32(chunk + 12);
             uint8_t text[TRACK_TAG_TEXT_CAPACITY];
             uint32_t wanted = count < sizeof text ? count : sizeof text;
             if (count <= size - 4 && tag_read(reader, body + 4, text, wanted)) {
@@ -171,12 +171,12 @@ bool tags_read_dff(TagReader *reader)
 
 static uint32_t aiff_rate(const uint8_t *bytes)
 {
-    uint32_t exponent = tag_be16(bytes);
+    uint32_t exponent = bytes_be16(bytes);
     if (exponent < 16395 || exponent > 16400 || (bytes[2] & 0x80u) == 0 ||
-        tag_be32(bytes + 6) != 0) {
+        bytes_be32(bytes + 6) != 0) {
         return 0;
     }
-    uint32_t mantissa = tag_be32(bytes + 2);
+    uint32_t mantissa = bytes_be32(bytes + 2);
     uint32_t shift = 16414 - exponent;
     uint32_t rate = mantissa >> shift;
     return (rate << shift) == mantissa && rate >= 8000 && rate <= 192000 ? rate : 0;
@@ -189,7 +189,7 @@ bool tags_read_aiff(TagReader *reader)
         (!same(bytes + 8, "AIFF") && !same(bytes + 8, "AIFC"))) {
         return false;
     }
-    uint32_t size = tag_be32(bytes + 4);
+    uint32_t size = bytes_be32(bytes + 4);
     if (size < 4 || size > reader->size - 8) {
         return false;
     }
@@ -199,7 +199,7 @@ bool tags_read_aiff(TagReader *reader)
         if (!tag_read(reader, cursor, bytes, 8)) {
             return false;
         }
-        uint32_t length = tag_be32(bytes + 4);
+        uint32_t length = bytes_be32(bytes + 4);
         uint32_t body = cursor + 8;
         if (length > end - body || (length & 1u) > end - body - length) {
             return false;
@@ -209,7 +209,7 @@ bool tags_read_aiff(TagReader *reader)
             if (rate == 0) {
                 return false;
             }
-            tag_set_duration(reader, tag_be32(bytes + 2), rate);
+            tag_set_duration(reader, bytes_be32(bytes + 2), rate);
             common = true;
         } else if (same(bytes, "ID3 ")) {
             uint32_t tag_size = 0;

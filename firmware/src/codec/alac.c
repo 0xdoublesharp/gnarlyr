@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     ALAC_TAG_BITS = 3,
     ALAC_TAG_SCE = 0,
@@ -79,25 +81,20 @@ typedef struct AlacElement {
     bool escape;
 } AlacElement;
 
-static uint32_t read_be32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 | bytes[3];
-}
-
 bool alac_parse_cookie(const uint8_t *bytes, uint32_t length, AlacConfig *config)
 {
     if (bytes == NULL || config == NULL || length < ALAC_COOKIE_BYTES || bytes[4] != 0) {
         return false;
     }
     AlacConfig parsed = {
-        .frame_length = read_be32(bytes),
+        .frame_length = bytes_be32(bytes),
         .bit_depth = bytes[5],
         .pb = bytes[6],
         .mb = bytes[7],
         .kb = bytes[8],
         .channels = bytes[9],
         .max_run = (uint16_t)((bytes[10] << 8) | bytes[11]),
-        .sample_rate = read_be32(bytes + 20),
+        .sample_rate = bytes_be32(bytes + 20),
     };
     if (!alac_config_supported(&parsed)) {
         return false;

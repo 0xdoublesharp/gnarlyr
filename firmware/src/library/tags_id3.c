@@ -70,12 +70,6 @@ typedef struct Frame {
     bool unsync;
 } Frame;
 
-static uint32_t synchsafe(const uint8_t *bytes)
-{
-    return (uint32_t)(bytes[0] & 0x7F) << 21 | (uint32_t)(bytes[1] & 0x7F) << 14 |
-           (uint32_t)(bytes[2] & 0x7F) << 7 | (uint32_t)(bytes[3] & 0x7F);
-}
-
 static bool synchsafe_bytes(const uint8_t *bytes)
 {
     return ((bytes[0] | bytes[1] | bytes[2] | bytes[3]) & 0x80) == 0;
@@ -362,7 +356,7 @@ static TagEncoding gain_frame_encoding(const uint8_t *data, uint32_t length)
     if (data[0] == ENCODING_UTF8) {
         return TAG_UTF8;
     }
-    return data[0] == ENCODING_UTF16BE || (length >= 3 && tag_be16(data + 1) == 0xFEFF)
+    return data[0] == ENCODING_UTF16BE || (length >= 3 && bytes_be16(data + 1) == 0xFEFF)
                ? TAG_UTF16BE
                : TAG_UTF16LE;
 }
@@ -414,9 +408,9 @@ static uint32_t frame_size_of(const Id3Tag *tag, const uint8_t *header)
         return (uint32_t)header[3] << 16 | (uint32_t)header[4] << 8 | header[5];
     }
     if (tag->version == 4 && synchsafe_bytes(header + 4)) {
-        return synchsafe(header + 4);
+        return bytes_synchsafe(header + 4);
     }
-    return tag_be32(header + 4);
+    return bytes_be32(header + 4);
 }
 
 static bool usable_frame(const Id3Tag *tag, const uint8_t *header, Frame *frame)
@@ -470,7 +464,7 @@ static uint32_t extended_header_size(const TagReader *reader, const Id3Tag *tag,
     if (!tag_read(reader, offset, size, 4)) {
         return 0;
     }
-    return tag->version == 4 ? synchsafe(size) : tag_be32(size) + 4;
+    return tag->version == 4 ? bytes_synchsafe(size) : bytes_be32(size) + 4;
 }
 
 uint32_t tags_skip_id3v2(const TagReader *reader, bool stop_at_empty)
@@ -479,7 +473,7 @@ uint32_t tags_skip_id3v2(const TagReader *reader, bool stop_at_empty)
     uint8_t header[HEADER_SIZE];
     while (tag_read(reader, offset, header, sizeof header) &&
            tag_same_text((const char *)header, 3, "ID3")) {
-        uint32_t size = synchsafe(header + 6);
+        uint32_t size = bytes_synchsafe(header + 6);
         if ((stop_at_empty && size == 0) || size > reader->size - offset - HEADER_SIZE) {
             break;
         }
@@ -496,7 +490,7 @@ bool tags_read_id3v2(TagReader *reader, uint32_t offset, uint32_t *tag_size)
         return false;
     }
     Id3Tag tag = {.start = offset, .version = header[3], .unsync = (header[5] & FLAG_UNSYNC) != 0};
-    uint32_t size = synchsafe(header + 6);
+    uint32_t size = bytes_synchsafe(header + 6);
     *tag_size = HEADER_SIZE + size + ((header[5] & FLAG_FOOTER) != 0 ? HEADER_SIZE : 0);
     tag.end = offset + HEADER_SIZE + size;
     if (tag.end > reader->size) {

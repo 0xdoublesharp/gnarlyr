@@ -1,5 +1,7 @@
 #include "device/dsd_stream.h"
 
+#include "core/bytes.h"
+
 #include "device/core1_source_private.h"
 #include "dsd_filter_table.h"
 
@@ -7,12 +9,6 @@ _Static_assert(DSD_RING_BYTES + sizeof(DsdWorkspace) <= 131072,
                "DSD input and workspace must fit core 1 ring RAM");
 _Static_assert((int)DSD_OUTPUT_FRAMES <= (int)FLAC_MAX_BLOCK,
                "a DSD output block must fit a core 1 slot");
-
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static void start(void *context, FlacInput input, FlacInfo info, uint32_t first,
                   const bool *starved)
@@ -78,15 +74,15 @@ static Core1DecodeResult configure(Core1Dsd *dsd)
     if (!dsd->input.read(dsd->input.context, 0, header, sizeof header)) {
         return CORE1_STARVED;
     }
-    uint32_t rate = little32(header + 4);
-    dsd->channels = little32(header + 8);
-    dsd->layout = little32(header + 12);
-    dsd->bit_count = little32(header + 16) | (uint64_t)little32(header + 20) << 32;
-    dsd->first = little32(header + 24);
-    if (little32(header) != 0x50445344u ||
+    uint32_t rate = bytes_le32(header + 4);
+    dsd->channels = bytes_le32(header + 8);
+    dsd->layout = bytes_le32(header + 12);
+    dsd->bit_count = bytes_le32(header + 16) | (uint64_t)bytes_le32(header + 20) << 32;
+    dsd->first = bytes_le32(header + 24);
+    if (bytes_le32(header) != 0x50445344u ||
         (rate != 2822400 && rate != 5644800 && rate != 11289600) || dsd->channels < 1 ||
         dsd->channels > 2 || dsd->layout > 2 ||
-        little32(header + 28) != (dsd->layout == 0 ? 0u : DSD_BLOCK_BYTES)) {
+        bytes_le32(header + 28) != (dsd->layout == 0 ? 0u : DSD_BLOCK_BYTES)) {
         return CORE1_FAILED;
     }
     dsd->ratio = rate / 2822400;

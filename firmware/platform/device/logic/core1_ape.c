@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 #if !defined(__arm__)
 #include <setjmp.h>
 #include <string.h>
@@ -19,12 +21,6 @@ _Noreturn void demac_fail(void)
 #else
     longjmp(checkpoint, 1);
 #endif
-}
-
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
 }
 
 static void start_ape(void *context, FlacInput input, FlacInfo info, uint32_t first_sample,
@@ -48,11 +44,11 @@ static Core1DecodeResult configure(Core1Ape *ape)
     if (!ape->input.read(ape->input.context, 0, header, sizeof header)) {
         return CORE1_STARVED;
     }
-    ApeTrack track = {.version = (uint16_t)little32(header),
-                      .level = (uint16_t)little32(header + 4),
-                      .bits = (uint16_t)little32(header + 8),
-                      .channels = (uint16_t)little32(header + 12),
-                      .rate = little32(header + 16)};
+    ApeTrack track = {.version = (uint16_t)bytes_le32(header),
+                      .level = (uint16_t)bytes_le32(header + 4),
+                      .bits = (uint16_t)bytes_le32(header + 8),
+                      .channels = (uint16_t)bytes_le32(header + 12),
+                      .rate = bytes_le32(header + 16)};
     if (!ape_track_allowed(&track) || track.version < 3970 || track.version > 3990) {
         return CORE1_FAILED;
     }
@@ -74,9 +70,9 @@ static Core1DecodeResult begin_frame(Core1Ape *ape)
     if (!ape->input.read(ape->input.context, ape->position, header, sizeof header)) {
         return CORE1_STARVED;
     }
-    uint32_t bytes = little32(header);
-    uint32_t samples = little32(header + 4);
-    uint32_t skip = little32(header + 8);
+    uint32_t bytes = bytes_le32(header);
+    uint32_t samples = bytes_le32(header + 4);
+    uint32_t skip = bytes_le32(header + 8);
     if (bytes == 0) {
         return CORE1_FINISHED;
     }
@@ -91,7 +87,7 @@ static Core1DecodeResult begin_frame(Core1Ape *ape)
     ape->consumed = 0;
     ape->first_byte = 3 - (int)skip;
     ape->decoder.currentframeblocks = (int)samples;
-    ape->next_sample = little32(header + 12);
+    ape->next_sample = bytes_le32(header + 12);
     ape->crc = ape_initcrc();
     return CORE1_DECODED;
 }

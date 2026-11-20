@@ -40,7 +40,7 @@ bool tags_mp4_read_atom(const TagReader *reader, uint32_t offset, uint32_t limit
         !tag_read(reader, offset, header, ATOM_HEADER)) {
         return false;
     }
-    uint64_t size = tag_be32(header);
+    uint64_t size = bytes_be32(header);
     uint32_t body = offset + ATOM_HEADER;
     if (size == 1) {
         if (!tag_read(reader, body, header + 8, 8)) {
@@ -104,10 +104,10 @@ static void read_duration(TagReader *reader, const Mp4Atom *trak)
     uint32_t unit = 0;
     uint64_t length = 0;
     if (data[0] == 0 && amount >= 20) {
-        unit = tag_be32(data + 12);
-        length = tag_be32(data + 16);
+        unit = bytes_be32(data + 12);
+        length = bytes_be32(data + 16);
     } else if (data[0] == 1 && amount >= 32) {
-        unit = tag_be32(data + 20);
+        unit = bytes_be32(data + 20);
         length = tag_be64(data + 24);
     }
     if (unit > 0) {
@@ -171,7 +171,7 @@ static void read_value(TagReader *reader, const Mp4Item *item, const Mp4Atom *da
     if (item->numeric) {
         tag_mark_present(reader, item->field);
         if (length >= 4) {
-            offer_number(reader, item->field, tag_be16(value + 2));
+            offer_number(reader, item->field, bytes_be16(value + 2));
         }
     } else {
         tag_offer(reader, item->field, value, length, TAG_UTF8);
@@ -182,7 +182,7 @@ static void read_old_genre(TagReader *reader, const Mp4Atom *data)
 {
     uint8_t value[2];
     if (data->end - data->body >= 10 && tag_read(reader, data->body + 8, value, 2)) {
-        uint32_t index = tag_be16(value);
+        uint32_t index = bytes_be16(value);
         if (index >= 1) {
             tag_offer_decoded(reader, TAG_GENRE, tags_id3_genre(index - 1));
         }
@@ -215,7 +215,7 @@ static void read_gain_data(TagReader *reader, const Mp4Atom *data, ReplayGainFie
     uint8_t value[64];
     uint32_t length = data->end - data->body;
     if (length < 8 || length - 8 > sizeof value || !tag_read(reader, data->body, head, 8) ||
-        tag_be32(head) != 1 || !tag_read(reader, data->body + 8, value, length - 8)) {
+        bytes_be32(head) != 1 || !tag_read(reader, data->body + 8, value, length - 8)) {
         return;
     }
     (void)replay_gain_offer(&reader->replay_gain, field, (const char *)value, length - 8);

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "gfx/art_codec.h"
 #include "ui/icons.h"
 
@@ -45,12 +46,6 @@ static int find_key(const ThemeRuntime *runtime, ThemeArtRequest request)
         }
     }
     return best;
-}
-
-static uint32_t get32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
 }
 
 static bool size_fits(const uint8_t *bytes, uint16_t slot)
@@ -98,8 +93,8 @@ static bool describe(ThemeRuntime *runtime, int index)
     }
     uint32_t entries = bytes[16] == ART_CODEC_INDEXED ? bytes[17] + 1u : 0;
     uint32_t nibbles = entries > 0 ? (bytes[18] + 1u) / 2 : 0;
-    runtime->art = (ThemeArtCache){get32(bytes + 8),
-                                   get32(bytes + 12),
+    runtime->art = (ThemeArtCache){bytes_le32(bytes + 8),
+                                   bytes_le32(bytes + 12),
                                    THEME_PACK_PAYLOAD_HEAD_BYTES + entries * 2 + nibbles,
                                    (uint16_t)(bytes[4] | bytes[5] << 8),
                                    (uint16_t)(bytes[6] | bytes[7] << 8),

@@ -2,13 +2,7 @@
 
 #include <string.h>
 
-static void put_length(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-    bytes[2] = (uint8_t)(value >> 16);
-    bytes[3] = (uint8_t)(value >> 24);
-}
+#include "core/bytes.h"
 
 bool m4a_stream_start(M4aStream *stream, FlacInput file, const Mp4Track *track,
                       uint32_t first_sample)
@@ -27,7 +21,7 @@ bool m4a_stream_start(M4aStream *stream, FlacInput file, const Mp4Track *track,
 static void begin_config(M4aStream *stream)
 {
     uint32_t size = 1u + stream->track.config_size;
-    put_length(stream->head, size);
+    bytes_put_le32(stream->head, size);
     stream->head[M4A_RECORD_HEADER_BYTES] = stream->track.codec;
     memcpy(stream->head + M4A_RECORD_HEADER_BYTES + 1, stream->track.config,
            stream->track.config_size);
@@ -38,7 +32,7 @@ static void begin_config(M4aStream *stream)
 
 static void begin_end(M4aStream *stream)
 {
-    put_length(stream->head, 0);
+    bytes_put_le32(stream->head, 0);
     stream->head_size = M4A_RECORD_HEADER_BYTES;
     stream->body_size = 0;
     stream->ended = true;
@@ -59,7 +53,7 @@ static bool begin_sample(M4aStream *stream)
     if (offset > stream->file.size || size > stream->file.size - offset) {
         return false;
     }
-    put_length(stream->head, size);
+    bytes_put_le32(stream->head, size);
     stream->head_size = M4A_RECORD_HEADER_BYTES;
     stream->body_size = size;
     stream->body_offset = offset;

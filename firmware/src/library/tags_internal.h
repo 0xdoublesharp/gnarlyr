@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/bytes.h"
 #include "image/image_reader.h"
 #include "library/replay_gain.h"
 #include "library/track_tags.h"
@@ -71,8 +72,6 @@ bool tag_read(const TagReader *reader, uint32_t offset, void *buffer, uint32_t l
 uint16_t tag_le16(const uint8_t *bytes);
 uint32_t tag_le32(const uint8_t *bytes);
 uint64_t tag_le64(const uint8_t *bytes);
-uint16_t tag_be16(const uint8_t *bytes);
-uint32_t tag_be32(const uint8_t *bytes);
 uint64_t tag_be64(const uint8_t *bytes);
 bool tag_same_text(const char *text, uint32_t length, const char *wanted);
 bool tag_same_text_folded(const char *text, uint32_t length, const char *wanted);

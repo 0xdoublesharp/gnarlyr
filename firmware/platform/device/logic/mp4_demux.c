@@ -1,6 +1,7 @@
 #include "device/mp4_demux.h"
 
 #include "codec/alac.h"
+#include "core/bytes.h"
 
 #include <stddef.h>
 
@@ -73,12 +74,6 @@ typedef struct Mp4Box {
     uint32_t type;
 } Mp4Box;
 
-static uint32_t big_endian(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 |
-           (uint32_t)bytes[3];
-}
-
 static bool read_bytes(FlacInput input, uint32_t offset, void *buffer, uint32_t length)
 {
     return offset <= input.size && length <= input.size - offset &&
@@ -91,7 +86,7 @@ static bool read_word(FlacInput input, uint32_t offset, uint32_t *value)
     if (!read_bytes(input, offset, bytes, sizeof bytes)) {
         return false;
     }
-    *value = big_endian(bytes);
+    *value = bytes_be32(bytes);
     return true;
 }
 
@@ -101,12 +96,12 @@ static bool read_box(FlacInput input, uint32_t at, uint32_t limit, Mp4Box *box)
     if (at > limit || limit - at < BOX_HEADER || !read_bytes(input, at, header, BOX_HEADER)) {
         return false;
     }
-    uint32_t size = big_endian(header);
+    uint32_t size = bytes_be32(header);
     size = size == 0 ? limit - at : size;
     if (size < BOX_HEADER || size > limit - at) {
         return false;
     }
-    *box = (Mp4Box){.body = at + BOX_HEADER, .end = at + size, .type = big_endian(header + 4)};
+    *box = (Mp4Box){.body = at + BOX_HEADER, .end = at + size, .type = bytes_be32(header + 4)};
     return true;
 }
 
@@ -272,8 +267,8 @@ static bool read_alac(FlacInput input, const Mp4Box *entry, Mp4Track *track)
         !read_bytes(input, cookie.body + FULL_BOX, track->config, ALAC_COOKIE)) {
         return false;
     }
-    AlacConfig config = {.frame_length = big_endian(track->config),
-                         .sample_rate = big_endian(track->config + ALAC_COOKIE_RATE_AT),
+    AlacConfig config = {.frame_length = bytes_be32(track->config),
+                         .sample_rate = bytes_be32(track->config + ALAC_COOKIE_RATE_AT),
                          .bit_depth = track->config[5],
                          .kb = track->config[8],
                          .channels = track->config[9]};
@@ -490,7 +485,7 @@ typedef struct EditRange {
 
 static uint64_t big_wide(const uint8_t *bytes)
 {
-    return (uint64_t)big_endian(bytes) << 32 | big_endian(bytes + 4);
+    return (uint64_t)bytes_be32(bytes) << 32 | bytes_be32(bytes + 4);
 }
 
 static bool read_edit(FlacInput input, const Mp4Box *trak, EditRange *edit)
@@ -501,16 +496,16 @@ static bool read_edit(FlacInput input, const Mp4Box *trak, EditRange *edit)
     if (!find_box(input, trak, 0, EDTS, &container) ||
         !find_box(input, &container, 0, ELST, &box) || box.end - box.body < 8 ||
         !read_bytes(input, box.body, bytes, 8) || bytes[0] > 1 || bytes[1] != 0 || bytes[2] != 0 ||
-        bytes[3] != 0 || big_endian(bytes + 4) != 1) {
+        bytes[3] != 0 || bytes_be32(bytes + 4) != 1) {
         return false;
     }
     uint32_t size = bytes[0] == 0 ? 20 : 28;
     if (box.end - box.body < size || !read_bytes(input, box.body, bytes, size) ||
-        big_endian(bytes + size - 4) != 0x00010000) {
+        bytes_be32(bytes + size - 4) != 0x00010000) {
         return false;
     }
-    edit->duration = bytes[0] == 0 ? big_endian(bytes + 8) : big_wide(bytes + 8);
-    edit->media_time = bytes[0] == 0 ? big_endian(bytes + 12) : big_wide(bytes + 16);
+    edit->duration = bytes[0] == 0 ? bytes_be32(bytes + 8) : big_wide(bytes + 8);
+    edit->media_time = bytes[0] == 0 ? bytes_be32(bytes + 12) : big_wide(bytes + 16);
     uint64_t limit = bytes[0] == 0 ? INT32_MAX : INT64_MAX;
     return edit->duration != 0 && edit->media_time <= limit;
 }
@@ -623,7 +618,7 @@ static bool size_at(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, u
             return false;
         }
         for (uint32_t item = 0; item < count; item++) {
-            cursor->window[item] = big_endian(bytes + 4 * item);
+            cursor->window[item] = bytes_be32(bytes + 4 * item);
         }
         cursor->window_first = index;
         cursor->window_count = count;
