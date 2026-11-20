@@ -1,5 +1,6 @@
 #pragma once
 
+#include "path_file.h"
 #include "playback/mix_identity.h"
 
 enum {
@@ -9,11 +10,6 @@ enum {
     PERSONAL_TAG_ROW_BYTES = 8 + MIX_RECORD_MAX,
     PERSONAL_TAG_CATALOG_BYTES = 4 + PERSONAL_TAG_LIMIT * PERSONAL_TAG_NAME_BYTES
 };
-
-typedef struct PersonalTagFile {
-    const char *path;
-    uint32_t size;
-} PersonalTagFile;
 
 typedef struct PersonalTagStorage {
     StoreFile files[2];
@@ -43,7 +39,7 @@ typedef struct PersonalTagChange {
 
 typedef struct PersonalTags {
     const Library *library;
-    PersonalTagFile files[2];
+    PathFile files[2];
     PersonalTagStorage storage;
     StoreHeader headers[2];
     StoreLoad banks[2];

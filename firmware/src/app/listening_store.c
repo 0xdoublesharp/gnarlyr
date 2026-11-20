@@ -14,29 +14,21 @@ enum {
 
 static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t length)
 {
-    const ListeningFile *source = context;
-    HalFile file;
-    if (!hal_file_open(&file, source->path)) {
-        return false;
-    }
-    bool read = offset <= file.size && length <= file.size - offset &&
-                hal_file_read(file, offset, bytes, length);
-    hal_file_close(&file);
+    bool read = path_file_read(context, offset, bytes, length);
     hal_system_keep_alive();
     return read;
 }
 
 static bool write_file(void *context, uint32_t offset, const void *bytes, uint32_t length)
 {
-    const ListeningFile *file = context;
-    bool written = hal_file_write_at(file->path, offset, bytes, length);
+    bool written = path_file_write(context, offset, bytes, length);
     hal_system_keep_alive();
     return written;
 }
 
-StoreFile listening_store_file(ListeningFile *file, const char *path, uint32_t bytes)
+StoreFile listening_store_file(PathFile *file, const char *path, uint32_t bytes)
 {
-    file->path = path;
+    *file = (PathFile){path, bytes};
     return (StoreFile){.source = {read_file, file}, .write = write_file, .size = bytes};
 }
 

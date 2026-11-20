@@ -1,17 +1,13 @@
 #pragma once
 
 #include "hal/storage.h"
+#include "path_file.h"
 #include "playback/session_journal.h"
 #include "playback/track_order.h"
 
-typedef struct PlayerFile {
-    const char *path;
-    uint32_t size;
-} PlayerFile;
-
 typedef struct PlayerStorage {
-    PlayerFile session_file;
-    PlayerFile order_file;
+    PathFile session_file;
+    PathFile order_file;
     SessionJournal journal;
     TrackOrder order;
 } PlayerStorage;

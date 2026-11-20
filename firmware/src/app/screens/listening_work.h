@@ -28,7 +28,7 @@ enum {
 typedef struct ListeningWork {
     ListeningTop top;
     ListeningExport export_job;
-    ListeningFile export_file;
+    PathFile export_file;
     ListeningTally tallies[LISTENING_TALLY_CAPACITY];
     char names[LISTENING_TOP_COUNT][LISTENING_NAME_BYTES];
     char times[LISTENING_TOP_COUNT][LISTENING_VALUE_BYTES];
@@ -42,7 +42,7 @@ typedef struct RecapWork {
     ListeningLog log;
     HalFile handle;
     ListeningTally tallies[LISTENING_TALLY_CAPACITY];
-    ListeningFile cache;
+    PathFile cache;
     WireMotion still;
     char names[LISTENING_RECAP_GROUPS][LISTENING_RECAP_TOP][RECAP_NAME_BYTES];
     char artists[RECAP_NAMED_GROUPS][LISTENING_RECAP_TOP][RECAP_NAME_BYTES];

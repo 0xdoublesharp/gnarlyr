@@ -16,6 +16,7 @@ add_library(echo_app STATIC
     discovery_playback.c
     order_publish.c
     order_adopt.c
+    path_file.c
     personal_tags.c
     player_jump.c
     player_storage.c

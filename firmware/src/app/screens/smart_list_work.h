@@ -36,7 +36,7 @@ typedef struct SmartListRows {
 
 typedef struct SmartListWork {
     TrackKeys keys;
-    ListeningFile file;
+    PathFile file;
     union {
         TrackKeysUpdate update;
         SmartListRanking ranking;
