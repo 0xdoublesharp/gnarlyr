@@ -12,6 +12,7 @@ function(echo_add_fuzzer name)
     target_link_libraries(fuzz_${name} PRIVATE echo_fuzz_support echo_options ${FUZZ_LIBRARIES})
     if(FUZZ_SOURCES MATCHES "fake_hal.c")
         target_link_libraries(fuzz_${name} PRIVATE echo_device_logic)
+        set_target_properties(fuzz_${name} PROPERTIES ENABLE_EXPORTS ON)
     endif()
     target_link_options(fuzz_${name} PRIVATE -fsanitize=fuzzer)
 endfunction()
@@ -72,6 +73,17 @@ echo_add_fuzzer(app_navigation
         ${PROJECT_SOURCE_DIR}/tests/library
 )
 target_compile_definitions(fuzz_app_navigation PRIVATE
+    ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
+)
+echo_add_fuzzer(app_lifecycle
+    SOURCES ../app/fake_hal.c ../library/memory_source.c ../library/fixture_library.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES
+        ${PROJECT_SOURCE_DIR}/src/app
+        ${PROJECT_SOURCE_DIR}/tests/app
+        ${PROJECT_SOURCE_DIR}/tests/library
+)
+target_compile_definitions(fuzz_app_lifecycle PRIVATE
     ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
 )
 echo_add_fuzzer(playback_views

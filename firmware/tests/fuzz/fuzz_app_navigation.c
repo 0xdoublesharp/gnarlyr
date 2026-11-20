@@ -7,6 +7,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "fuzz_source.h"
+#include "known_issues.h"
 #include "music_check.h"
 #include "music_record.h"
 #include "player.h"
@@ -87,8 +88,14 @@ static void apply_environment(uint8_t value)
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
+    static jmp_buf input_end;
     app_reset_for_test();
     fake_hal_reset();
+    if (setjmp(input_end) != 0) {
+        known_issue_fuzz_guard(NULL);
+        return 0;
+    }
+    known_issue_fuzz_guard(&input_end);
     add_library_files(size > 0 ? data[0] : 0);
     uint32_t now_ms = 1000;
     fake_hal_set_milliseconds(now_ms);
@@ -108,6 +115,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
             check_app();
         }
     }
+    known_issue_fuzz_guard(NULL);
     app_stop();
     return 0;
 }

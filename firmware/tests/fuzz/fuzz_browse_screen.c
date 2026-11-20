@@ -48,6 +48,14 @@ static void draw_screen(Screen *screen, const Theme *theme)
     screen->draw(screen->context, &canvas);
 }
 
+static Screen *manage_song(void *context, uint16_t track, SongManage manage)
+{
+    (void)context;
+    (void)track;
+    (void)manage;
+    return NULL;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     if (size == 0) {
@@ -66,7 +74,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     browse_pool_init(&pool, (BrowsePoolConfig){.library = &fixture.library,
                                                .theme = &BOARD_THEME,
                                                .player = &player,
-                                               .now_playing = &now_playing});
+                                               .now_playing = &now_playing,
+                                               .manage = manage_song});
     Screen *active =
         browse_pool_open(&pool, 0, browse_root_query((BrowseKind)(data[0] % ROOT_COUNT)));
     fuzz_require(active != NULL);

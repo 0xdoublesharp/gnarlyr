@@ -67,6 +67,9 @@ void fake_hal_set_usb_connect_pending(bool pending);
 int fake_hal_rescan_loads(void);
 void fake_hal_break_module(uint32_t module, bool broken);
 void fake_hal_evict_module(void);
+void fake_hal_load_usb_overlay(void);
+void fake_hal_borrow_module(uint32_t module);
+int fake_hal_usb_overlay_loads(void);
 uint32_t fake_hal_loaded_module(void);
 int fake_hal_module_loads(void);
 int fake_hal_module_refusals(void);
@@ -191,6 +194,8 @@ void fake_hal_set_card(HalCardInfo info, bool result);
 int fake_hal_card_formats(void);
 
 void fake_hal_fail_internal_writes(const char *path);
+void fake_hal_fail_internal_writes_at(int index, const char *path);
+void fake_hal_fail_internal_reads(const char *path);
 
 void fake_hal_set_charging_host(bool host);
 

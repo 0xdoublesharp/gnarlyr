@@ -96,6 +96,7 @@ class Overlay:
         if len(content) <= header or self.stored[header:] != content[header:]:
             raise ValueError("the overlay ELF does not belong to the image")
         self.image_offset = image_offset
+        self.elf_path = elf_path
         self.name = Path(elf_path).stem
         self.symbols = load_symbols(elf_path, base, base + capacity)
         self.names = {}

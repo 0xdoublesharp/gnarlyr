@@ -37,6 +37,7 @@ FUZZ_TARGETS = {
     "personal_tags": 320,
     "browse_screen": 256,
     "app_navigation": 128,
+    "app_lifecycle": 160,
     "library_builder": 512,
     "cover_image": 1048576,
     "theme_pack": 4096,
@@ -129,6 +130,13 @@ FUZZ_SEEDS = {
         bytes(range(48)),
         bytes([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13]) * 4,
         bytes([0x20, 0x41, 0x62, 0x83, 0xa4, 0xc5, 0xe0, 0xff]) * 6,
+    ],
+    "app_lifecycle": [
+        bytes(range(96)),
+        bytes([0, 0x30, 102, 0, 0, 0, 0, 0, 2, 13, 20, 0, 0, 32, 64, 13, 20, 32]),
+        bytes([0, 0x30, 13, 17, 32, 0, 32, 5, 32, 32, 34, 64, 13, 17, 32, 34]),
+        bytes([0, 0x32, 32, 0, 0, 0, 0, 0, 0, 0, 32, 32, 4, 10, 4, 21, 4, 4]),
+        bytes([1, 0x70, 6, 13, 36, 8, 8, 24, 102, 0, 0, 0, 0, 0, 2, 13, 20, 32]),
     ],
     "library_builder": [
         bytes(range(128)),

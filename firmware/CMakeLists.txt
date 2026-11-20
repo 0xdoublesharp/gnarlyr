@@ -41,12 +41,14 @@ set(ECHO_LANGUAGES en CACHE STRING "Language packs built into the image, the def
 include(cmake/project_options.cmake)
 include(cmake/language_packs.cmake)
 include(cmake/screen_modules.cmake)
+include(cmake/host_module_guard.cmake)
 
 add_subdirectory(src)
 add_subdirectory(platform/device/logic)
 if(ECHO_BUILD_DEVICE)
     echo_take_module_sources()
 endif()
+echo_host_module_guard()
 
 if(ECHO_BUILD_SIM)
     add_subdirectory(platform/sim)

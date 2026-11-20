@@ -148,6 +148,11 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(len(firmware.FUZZ_SEEDS["app_navigation"]), 3)
         self.assertTrue(all(len(seed) <= 128 for seed in firmware.FUZZ_SEEDS["app_navigation"]))
 
+    def test_app_lifecycle_target_is_bounded_and_seeded(self):
+        self.assertEqual(firmware.FUZZ_TARGETS["app_lifecycle"], 160)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["app_lifecycle"]), 5)
+        self.assertTrue(all(len(seed) <= 160 for seed in firmware.FUZZ_SEEDS["app_lifecycle"]))
+
     def test_library_builder_target_is_bounded_and_seeded(self):
         self.assertEqual(firmware.FUZZ_TARGETS["library_builder"], 512)
         seeds = firmware.FUZZ_SEEDS["library_builder"]
