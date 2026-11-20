@@ -311,6 +311,38 @@ static void a_mapped_a_b_refused_b_says_why(void)
     fake_hal_audio_refuse_repeat_b(false);
 }
 
+static void menu_chord(Key volume, uint32_t held_ms)
+{
+    fake_hal_queue_transition(KEY_MENU, true, now_ms);
+    wait_ms(40);
+    hold(volume, held_ms);
+    fake_hal_queue_transition(KEY_MENU, false, now_ms);
+    wait_ms(40);
+}
+
+static void a_lone_a_mark_stays_through_a_scrub_and_a_loop_declines_it(void)
+{
+    Settings settings = settings_defaults();
+    settings.button_actions[PLAYBACK_MENU_HOLD] = BUTTON_ACTION_AB_REPEAT;
+    start_with(settings);
+    hold(KEY_MENU, 900);
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    int seeks = fake_hal_audio_seek_count();
+    menu_chord(KEY_VOLUME_UP, 0);
+    CHECK_EQUAL(seeks + 1, fake_hal_audio_seek_count());
+    menu_chord(KEY_VOLUME_UP, 1600);
+    CHECK_EQUAL(seeks + 2, fake_hal_audio_seek_count());
+    CHECK_EQUAL(1, app_player_status().ab_repeat);
+    hold(KEY_MENU, 900);
+    CHECK_EQUAL(2, app_player_status().ab_repeat);
+    menu_chord(KEY_VOLUME_UP, 0);
+    CHECK(app_toast_text() != NULL && strcmp(app_toast_text(), "A-B repeat is on") == 0);
+    menu_chord(KEY_VOLUME_DOWN, 1600);
+    CHECK_EQUAL(seeks + 2, fake_hal_audio_seek_count());
+    CHECK_EQUAL(2, app_player_status().ab_repeat);
+    CHECK(strcmp(app_screen_title(), "Now Playing") == 0);
+}
+
 static void a_play_hold_begun_on_a_list_follows_the_screen_going_dark(void)
 {
     Settings settings = settings_defaults();
@@ -354,6 +386,7 @@ int main(void)
         TEST_CASE(a_mapped_a_b_repeat_sets_a_then_b_then_clears),
         TEST_CASE(a_mapped_play_hold_waits_for_release_so_a_chord_still_skips),
         TEST_CASE(a_mapped_a_b_refused_b_says_why),
+        TEST_CASE(a_lone_a_mark_stays_through_a_scrub_and_a_loop_declines_it),
         TEST_CASE(a_play_hold_begun_on_a_list_follows_the_screen_going_dark),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

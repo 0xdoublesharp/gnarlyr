@@ -2,17 +2,25 @@
 
 #include <string.h>
 
-static const char CHORD_PREFIX[] = "play+";
+static const char PLAY_PREFIX[] = "play+";
+static const char MENU_PREFIX[] = "menu+";
+
+static bool prefixed(const char *text, size_t length, const char *prefix)
+{
+    size_t size = strlen(prefix);
+    return length > size && strncmp(text, prefix, size) == 0;
+}
 
 static bool parse_step(const char *text, size_t length, SimScript *script)
 {
-    size_t prefix = sizeof CHORD_PREFIX - 1;
-    bool chord = length > prefix && strncmp(text, CHORD_PREFIX, prefix) == 0;
-    size_t skip = chord ? prefix : 0;
+    uint8_t seed = prefixed(text, length, PLAY_PREFIX)   ? KEY_CHORD_PLAY
+                   : prefixed(text, length, MENU_PREFIX) ? KEY_CHORD_MENU
+                                                         : KEY_CHORD_NONE;
+    size_t skip = seed == KEY_CHORD_NONE ? 0 : sizeof PLAY_PREFIX - 1;
     if (!key_script_parse_step(text + skip, length - skip, &script->steps[script->count])) {
         return false;
     }
-    script->with_play[script->count++] = chord;
+    script->seed[script->count++] = seed;
     return true;
 }
 
@@ -44,9 +52,10 @@ int sim_script_schedule(const SimScript *script, uint32_t first_frame, SimScript
     for (int index = 0; index < script->count; index++) {
         const KeyScriptStep *step = &script->steps[index];
         uint32_t hold = key_script_hold_ms(step->hold) / SIM_SCRIPT_FRAME_MS;
-        bool chord = script->with_play[index];
+        bool chord = script->seed[index] != KEY_CHORD_NONE;
+        Key seed = script->seed[index] == KEY_CHORD_MENU ? KEY_MENU : KEY_PLAY;
         if (chord) {
-            events[count++] = (SimScriptEvent){.frame = frame, .key = KEY_PLAY, .pressed = true};
+            events[count++] = (SimScriptEvent){.frame = frame, .key = seed, .pressed = true};
             frame += SIM_SCRIPT_GAP_FRAMES;
         }
         events[count++] = (SimScriptEvent){.frame = frame, .key = step->key, .pressed = true};
@@ -54,7 +63,7 @@ int sim_script_schedule(const SimScript *script, uint32_t first_frame, SimScript
             (SimScriptEvent){.frame = frame + hold, .key = step->key, .pressed = false};
         frame += hold + SIM_SCRIPT_GAP_FRAMES;
         if (chord) {
-            events[count++] = (SimScriptEvent){.frame = frame, .key = KEY_PLAY, .pressed = false};
+            events[count++] = (SimScriptEvent){.frame = frame, .key = seed, .pressed = false};
             frame += SIM_SCRIPT_GAP_FRAMES;
         }
     }

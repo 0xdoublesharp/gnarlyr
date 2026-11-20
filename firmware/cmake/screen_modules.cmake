@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial stage)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
@@ -94,12 +94,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/cassette_art.c
     src/app/modules/playing_module.c
     src/app/screens/cassette_now_playing.c
-    src/app/screens/meter_now_playing.c
     src/app/screens/neon_art.c
     src/app/screens/wire_boot.c
     src/gfx/wireframe.c
     src/app/screens/playing_work.c
-    src/core/audio_visual.c
     src/app/screens/cover_flow_screen.c
     src/app/board_cover_layout.c
     src/app/cover_cache_half.c
@@ -115,6 +113,26 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/library/sort_key.c
     src/library/sort_fold_table.c
     src/app/browse_sections.c
+    src/app/artist_album.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_stage
+    src/app/board_cover_layout.c
+    src/app/screens/now_playing_screen.c
+    src/app/cassette_art.c
+    src/app/modules/stage_module.c
+    src/app/screens/meter_now_playing.c
+    src/app/screens/sunset_scene.c
+    src/app/screens/sunset_art.c
+    src/app/screens/neon_art.c
+    src/app/screens/wire_boot.c
+    src/gfx/wireframe.c
+    src/app/screens/playing_work.c
+    src/core/audio_visual.c
+    src/library/sort_initial.c
+    src/library/sort_key.c
+    src/library/sort_fold_table.c
+    src/app/browse_sections.c
+    src/app/artist_album.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     platform/device/board/storage_list.c
@@ -209,6 +227,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
 set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
     src/app/language_module.c)
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
+list(APPEND ECHO_SCREEN_MODULE_SOURCES_stage ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
 set(ECHO_SCREEN_MODULE_SOURCES_settings
     platform/device/board/storage_list.c

@@ -40,6 +40,12 @@ Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music playe
 
 To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues>. Include the version from Settings → About → Firmware, what you did and what happened. Attach the report files from the hidden `.gnarlyr/debug` folder on the player's internal drive. The full list is in [known issues](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/known-issues.md#beta-testers).
 
+## Unreleased: Sunset Drive meters
+
+- **VU meters and Spectrum are a sunset scene.** A striped sun sits on the horizon over a grid floor whose lines brighten with the bass. In VU meters the sun is the meter: its left and right halves light from the horizon up with each channel, marks beside it show 0 to −24 dB, and a peak flashes its top and lights a chrome PEAK. In Spectrum, bars in the theme's accent colour stand in front of the sun with striped reflections on the floor. The scene follows all five built-in themes; title, artist, time and progress are unchanged.
+- With VU meters or Spectrum selected, opening Cover Flow, an artist's albums or Up Next loads them separately and skips the sliding animation.
+- Checked in the simulator, the host tests and the ARM emulator, where both styles use no more processor time than the previous meters and a 96 kHz, 24-bit FLAC stayed fed with the screen on. Not yet checked on the player.
+
 ## Unreleased: safe updates and recovery
 
 - An update installs on trial into slot 1; slot 2 keeps the build that was running. The trial ends, and the new build is copied into slot 2 ("Saving this version as the backup"), after a USB session in which the computer wrote to internal storage and then ejected the drives. Copy any small file before ejecting: a session whose drives opened read-only, or that wrote nothing, leaves the trial running.
@@ -61,7 +67,7 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - Settings → Power → Standby when switched off makes a tap of Power, and auto off, pause and power down the output and Bluetooth for an instant return; Power off after (30 min, 2 h or 8 h) then switches the player off.
 - Settings → Status bar → Status bar offers Compact: smaller icons, the percentage inside the battery and more list rows.
 - Holding Power and pressing Vol+ or Vol− skips tracks, also while the buttons are locked. Settings → Controls → Hold Menu chooses what holding Menu does.
-- On Now Playing and with the screen off, hold ▶ and press Vol+ or Vol− to skip, one track per press however long the keys are held. Hold Menu and press Vol+ or Vol− to move through the song by about 1% of its length, or hold them to cross the whole song in about 10 seconds, about 3 seconds after the first 2 seconds, at most 1 minute per second and then 10 minutes per second; playback carries on from where you let go and a paused song stays paused. Holding ▶ alone no longer opens seeking. ▶ and Menu holds there act when the key is let go, so a long hold can still become one of these. Checked with host tests and emulator scenarios only; not yet checked on a player.
+- On Now Playing and with the screen off, hold ▶ and press Vol+ or Vol− to skip, one track per press however long the keys are held. Hold Menu and tap Vol+ or Vol− to move 10 s. Hold Menu and hold a volume button to preview: the music keeps playing while the time and progress bar, marked Preview, glide across the whole song in about 10 seconds, about 3 seconds after the first 2 seconds, at most 1 minute per second and then 10 minutes per second; letting go of the volume button jumps once to the place shown, and a paused song stays paused. Pressing ▶ as you let go, or Power, cancels. Moves stop 1 second before the end. With the screen off, taps move 10 s and holds do nothing. Holding ▶ alone no longer opens seeking. ▶ and Menu holds there act when the key is let go, so a long hold can still become one of these. Checked with host tests and emulator scenarios only; not yet checked on a player.
 - Holding Play on a song offers Hide track and Delete file.
 - Recap → Highlights shows a month, a year or all time as a short run of cards.
 - Bluetooth has its own volume, separate from the wired one, starting at 50 of 60.

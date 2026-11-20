@@ -55,7 +55,7 @@ uint32_t marquee_watch_wait_ms(void)
     return watching ? soonest_wait_ms : MARQUEE_STILL;
 }
 
-static void watch(uint32_t wait_ms)
+void marquee_watch(uint32_t wait_ms)
 {
     if (!watching || wait_ms < soonest_wait_ms) {
         soonest_wait_ms = wait_ms;
@@ -98,7 +98,7 @@ int marquee_offset_in(MarqueeTiming timing, int text_width, Rect area, uint32_t 
     if (cycle_ms == 0) {
         return 0;
     }
-    watch(wait_in_cycle(timing, cycle_ms, elapsed_ms));
+    marquee_watch(wait_in_cycle(timing, cycle_ms, elapsed_ms));
     marquee_watch_area(MARQUEE_BAND_TEXT, area);
     return offset_in_cycle(timing, cycle_ms, elapsed_ms);
 }

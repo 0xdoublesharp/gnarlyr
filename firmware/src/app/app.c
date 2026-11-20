@@ -67,6 +67,7 @@
 #include "wall_time.h"
 
 enum {
+    NOW_PLAYING_RETRY_MS = 2000,
     PASS_BUSY_MS = 1,
     PASS_SCREEN_ON_MS = 4,
     PASS_SCREEN_OFF_MS = 10,
@@ -148,6 +149,9 @@ typedef struct AppState {
     bool light_after_frame;
     StringId goodbye_text;
     Toast toast;
+    uint32_t toast_composed;
+    uint32_t now_playing_magic;
+    uint32_t now_playing_retry_ms;
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
     StatusBarState status_bar;
@@ -191,6 +195,7 @@ typedef struct AppState {
     KeyChord chord;
     KeyCrossing crossing;
     uint8_t raw_held;
+    bool scrub_swallow;
     bool loader_keys;
     HalBattery charge_battery;
     HalAudioJack listener_jack;
@@ -258,8 +263,35 @@ static void run_player_command(NowPlayingCommand command);
 static void combo_screenshot(void);
 static void use_screen_key_behaviors(void);
 
+static Key scrub_key(const NowPlayingScrub *scrub)
+{
+    return scrub->back ? KEY_VOLUME_DOWN : KEY_VOLUME_UP;
+}
+
+static bool scrub_swallows(Key key, bool pressed, uint32_t time_ms)
+{
+    NowPlayingScreen *now_playing = &app.screens.now_playing;
+    NowPlayingScrub *scrub = &now_playing->scrub;
+    if (scrub->active && pressed) {
+        if (key == KEY_POWER) {
+            scrub->active = false;
+        } else if (key >= KEY_PLAY) {
+            app.scrub_swallow = true;
+        } else if (scrub->releasing) {
+            now_playing_scrub_commit(now_playing);
+        }
+    } else if (scrub->active && key == scrub_key(scrub)) {
+        scrub->releasing = true;
+        scrub->release_ms = time_ms;
+    }
+    return app.scrub_swallow && pressed && key != KEY_POWER;
+}
+
 static void pass_key(Key key, bool pressed, uint32_t time_ms, uint8_t chord)
 {
+    if (scrub_swallows(key, pressed, time_ms)) {
+        return;
+    }
     if (!pressed) {
         key_tracker_key_up(&app.keys, key, time_ms);
     } else if (chord != KEY_CHORD_NONE) {
@@ -273,6 +305,25 @@ static bool chord_screen(void)
 {
     return !app.display_on || top_screen() == &app.screens.now_playing.screen ||
            top_screen()->keys == SCREEN_KEYS_TEST;
+}
+
+static void follow_scrub(uint32_t now_ms)
+{
+    NowPlayingScreen *now_playing = &app.screens.now_playing;
+    NowPlayingScrub *scrub = &now_playing->scrub;
+    if (!scrub->active && !app.scrub_swallow) {
+        return;
+    }
+    bool shown = app.display_on && top_screen() == &now_playing->screen && !app.saying_goodbye &&
+                 hal_power_cable() == scrub->cable;
+    bool cancelling = (app.raw_held & (1u << KEY_PLAY | 1u << KEY_BACK)) != 0;
+    if (scrub->active && scrub->releasing && shown && !cancelling) {
+        now_playing_scrub_commit(now_playing);
+    }
+    bool waiting = scrub->releasing ? now_ms - scrub->release_ms < NOW_PLAYING_SCRUB_CANCEL_MS
+                                    : app.keys.states[scrub_key(scrub)].held;
+    scrub->active = scrub->active && shown && waiting;
+    app.scrub_swallow = app.scrub_swallow && (app.raw_held & ~(1u << KEY_POWER)) != 0;
 }
 
 static uint8_t pass_through_chord(KeyStep step)
@@ -321,6 +372,8 @@ static void settle_crossing(uint32_t now_ms)
 static void drop_seed_gestures(void)
 {
     key_crossing_reset(&app.crossing);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_UP);
+    key_tracker_cancel(&app.keys, KEY_VOLUME_DOWN);
     key_tracker_forget(&app.keys, KEY_MENU);
     key_tracker_forget(&app.keys, KEY_PLAY);
 }
@@ -699,7 +752,8 @@ static void shut_down(StringId text)
         return;
     }
     ScreenModule module = screen_modules_of(&app.screens, top_screen());
-    bool shared = module == SCREEN_MODULE_NONE || module == SCREEN_MODULE_PLAYING;
+    bool shared = module == SCREEN_MODULE_NONE || module == SCREEN_MODULE_PLAYING ||
+                  module == SCREEN_MODULE_STAGE;
     start_fade(&app.goodbye, GOODBYE_TIMINGS, text == STR_GOODBYE && shared);
     app.saying_goodbye = true;
 }
@@ -768,14 +822,27 @@ static ScreenAction now_playing_action(void)
 
 static bool now_playing_ready(void)
 {
-    const PlayingModuleEntry *entry =
-        (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING);
+    if (top_screen() == &app.screens.now_playing.screen && app.now_playing_magic == 0 &&
+        app.now_playing_retry_ms != 0 && !deadline_reached(app.now_ms, app.now_playing_retry_ms)) {
+        return true;
+    }
+    const PlayingModuleEntry *entry = (const PlayingModuleEntry *)screen_modules_use(
+        &app.screens, screen_modules_playing(&app.screens));
     if (entry != NULL) {
         entry->now_playing_attach(&app.screens.now_playing);
+        app.now_playing_magic = entry->module.magic;
     } else {
         now_playing_fallback_attach(&app.screens.now_playing);
+        app.now_playing_magic = 0;
+        app.now_playing_retry_ms = (app.now_ms + NOW_PLAYING_RETRY_MS) | 1u;
     }
     return true;
+}
+
+static bool now_playing_owned(void)
+{
+    const ScreenModuleEntry *loaded = hal_system_loaded_module();
+    return loaded != NULL && loaded->magic == app.now_playing_magic;
 }
 
 static bool screen_ready(const Screen *screen)
@@ -1065,7 +1132,8 @@ static void dispatch_key_events(uint32_t now_ms)
 {
     KeyEvent event;
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
-        app.render_urgent = true;
+        app.render_urgent |=
+            event.gesture != KEY_GESTURE_REPEAT || !app.screens.now_playing.scrub.active;
         debug_loop_key(event);
         if (top_screen()->keys == SCREEN_KEYS_TEST &&
             (event.key != KEY_POWER || event.gesture == KEY_GESTURE_PRESS)) {
@@ -1193,10 +1261,10 @@ const Theme *app_theme(void)
 
 static bool draw_wire_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
+    ScreenModule module = screen_modules_of(&app.screens, top_screen());
+    module = module == SCREEN_MODULE_PLAYING ? module : screen_modules_playing(&app.screens);
     const PlayingModuleEntry *entry =
-        app.wire_fade
-            ? (const PlayingModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_PLAYING)
-            : NULL;
+        app.wire_fade ? (const PlayingModuleEntry *)screen_modules_use(&app.screens, module) : NULL;
     if (entry == NULL) {
         return false;
     }
@@ -1461,12 +1529,21 @@ static void mask_motion(const void *owner)
     }
 }
 
+static void compose_toast(void)
+{
+    uint32_t shown = app.toast.visible ? app.toast.until_ms | 1u : 0;
+    if (shown != app.toast_composed) {
+        app.toast_composed = shown;
+        frame_diff_mask(&app.frame_diff, app.frame_diff.masked);
+    }
+}
+
 static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_t now_ms)
 {
     NowPlayingScreen *playing = &app.screens.now_playing;
     if (owner == &playing->screen &&
         settings_now_playing_style(&app.settings.settings) != NOW_PLAYING_COVER &&
-        playing->config.cassette_animate != NULL) {
+        now_playing_owned() && playing->config.cassette_animate != NULL) {
         app.render_wanted |= playing->config.cassette_animate(playing, &app.frame_diff, visible);
         return;
     }
@@ -2423,6 +2500,7 @@ CORE_SEAM void app_step(void)
         debug_loop_follow(now_ms, &app.player);
         update_power(now_ms);
     }
+    follow_scrub(now_ms);
     if (app.powered_off || app.charging) {
         return;
     }
@@ -2450,6 +2528,7 @@ CORE_SEAM void app_step(void)
         follow_destination(&app.screens.now_playing.destination, now_ms);
     }
     follow_destination(&app.screens.shortcut_destination, now_ms);
+    compose_toast();
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
     FrameDrawer drawer = {.draw = draw_frame, .context = &app};
@@ -2491,6 +2570,9 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     if (!app.display_on) {
         return;
     }
+    if (app.screens.now_playing.scrub.active) {
+        app.pacer.fast_frames = 0;
+    }
     bool changed = view_changed(now_ms);
     bool stepped = marquee_step_reached(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
@@ -2508,6 +2590,10 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     marquee_watch_start();
     render_frame();
     app.band_mask = 0;
+    NowPlayingScreen *now_playing = &app.screens.now_playing;
+    if (now_playing->scrub.active && top_screen() == &now_playing->screen) {
+        now_playing->scrub.shown_ms = now_playing->scrub.target_ms;
+    }
     follow_marquees(now_ms);
     frame_pacer_done(&app.pacer, now_ms, app.frame_sent, urgent);
     light_after_first_frame();

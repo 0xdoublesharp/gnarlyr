@@ -370,7 +370,7 @@ BUDGET_FLOORS = {
 }
 BUDGET_MODULES = {"views", "settings", "library", "listening", "dsp", "ogg", "process", "extension",
                   "playing", "effects", "source", "dsd",
-                  "equalizer", "ape_wma", "trial"}
+                  "equalizer", "ape_wma", "trial", "stage"}
 BUDGET_MAPS = {"echo_usb_overlay.map", "echo_rescan_overlay.map", "echo_core1.map", "echo_core1_mp3.map",
                "echo_core1_dsd.map", "echo_core1_m4a.map", "echo_core1_vorbis.map", "echo_core1_opus.map",
                "echo_core1_ape.map", "echo_core1_wma.map"}

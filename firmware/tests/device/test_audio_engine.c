@@ -385,6 +385,22 @@ static void a_range_ending_at_the_end_of_the_file_hands_over_to_the_next_track(v
     CHECK(ring_holds("odd_blocks_16", 0, 1590, 3001, 16));
 }
 
+static void a_seek_for_a_track_that_has_handed_over_stays_in_the_next_track(void)
+{
+    start_engine();
+    CHECK(play_file("odd_blocks_16", 0, 3));
+    queue_file("lpc_16_44k_stereo", 4);
+    pump_until_full(0);
+    audio_engine_pump(&engine, 3001 + 441);
+    CHECK_EQUAL(4u, audio_engine_status(&engine).token);
+    uint32_t playing_ms = audio_engine_status(&engine).position_ms;
+    CHECK(audio_engine_seek_on(&engine, 3, 60));
+    CHECK_EQUAL(4u, audio_engine_status(&engine).token);
+    CHECK_EQUAL(playing_ms, audio_engine_status(&engine).position_ms);
+    CHECK(audio_engine_seek_on(&engine, 4, 60));
+    CHECK_EQUAL(60u, audio_engine_status(&engine).position_ms);
+}
+
 static void the_status_describes_the_playing_tracks_stream(void)
 {
     start_engine();
@@ -1659,6 +1675,7 @@ int main(void)
         TEST_CASE(a_range_of_the_same_file_that_does_not_follow_reopens_it),
         TEST_CASE(seeking_inside_a_range_keeps_its_end),
         TEST_CASE(a_range_ending_at_the_end_of_the_file_hands_over_to_the_next_track),
+        TEST_CASE(a_seek_for_a_track_that_has_handed_over_stays_in_the_next_track),
         TEST_CASE(the_status_describes_the_playing_tracks_stream),
         TEST_CASE(the_stream_description_follows_the_audio_into_the_next_track),
         TEST_CASE(a_next_track_at_another_rate_waits_for_the_ring_to_drain),

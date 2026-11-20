@@ -98,6 +98,30 @@ static void ring_wrap_trimmed_channels_and_silence_are_measured(void)
     }
 }
 
+static AudioVisualLevels tone_levels(double hertz, uint32_t rate)
+{
+    for (int frame = 0; frame < AUDIO_VISUAL_FFT * 2; frame++) {
+        int32_t value = (int32_t)(16384 * sin(6.283185307179586 * hertz * frame / rate));
+        words[frame * 2] = (uint32_t)value << 16;
+        words[frame * 2 + 1] = (uint32_t)value << 16;
+    }
+    return audio_visual_measure(&work, (AudioVisualBuffer){words, 512, 0, 512, rate}, false);
+}
+
+static void the_bass_level_follows_low_tones_and_ignores_treble(void)
+{
+    for (uint32_t rate = 22050; rate <= 44100; rate += 22050) {
+        AudioVisualLevels low = tone_levels(55, rate);
+        AudioVisualLevels high = tone_levels(8000, rate);
+        CHECK(low.bass > 5000);
+        CHECK(high.bass < low.bass / 16);
+        CHECK(high.mean[0] > 9000);
+    }
+    memset(words, 0, sizeof words);
+    CHECK_EQUAL(
+        0, audio_visual_measure(&work, (AudioVisualBuffer){words, 512, 0, 512, 44100}, false).bass);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -105,6 +129,7 @@ int main(void)
         TEST_CASE(ballistics_match_a_300_ms_reference_with_small_overshoot),
         TEST_CASE(logarithmic_bands_cover_each_positive_bin_once),
         TEST_CASE(ring_wrap_trimmed_channels_and_silence_are_measured),
+        TEST_CASE(the_bass_level_follows_low_tones_and_ignores_treble),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

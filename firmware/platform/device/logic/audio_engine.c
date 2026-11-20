@@ -328,6 +328,12 @@ CORE_COLD bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms)
     return started;
 }
 
+bool audio_engine_seek_on(AudioEngine *engine, uint32_t token, uint32_t position_ms)
+{
+    AudioEngineStatus status = audio_engine_status(engine);
+    return audio_engine_seek(engine, status.token == token ? position_ms : status.position_ms);
+}
+
 void audio_engine_pause(AudioEngine *engine)
 {
     if (engine->state == AUDIO_ENGINE_PLAYING) {

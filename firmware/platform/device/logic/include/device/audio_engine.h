@@ -192,6 +192,7 @@ const char *audio_engine_current_path(const AudioEngine *engine);
 bool audio_engine_queue_needs_restart(const AudioEngine *engine, const AudioEngineTrack *track);
 void audio_engine_queue_next(AudioEngine *engine, const AudioEngineTrack *track);
 bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms);
+bool audio_engine_seek_on(AudioEngine *engine, uint32_t token, uint32_t position_ms);
 void audio_engine_pause(AudioEngine *engine);
 void audio_engine_resume(AudioEngine *engine);
 void audio_engine_stop(AudioEngine *engine);

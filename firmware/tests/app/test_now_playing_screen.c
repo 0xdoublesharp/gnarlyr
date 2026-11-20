@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "board_layout.h"
 #include "check.h"
 #include "core/frame_pacer.h"
 #include "core/i18n.h"
@@ -79,13 +80,13 @@ static void holding_play_and_holding_volume_skips_once_without_repeating(void)
     CHECK_EQUAL(NOW_PLAYING_NONE, chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 40));
 }
 
-static void holding_menu_and_tapping_volume_moves_one_step(void)
+static void holding_menu_and_tapping_volume_moves_ten_seconds(void)
 {
     CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD, menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 0));
     CHECK_EQUAL(NOW_PLAYING_SEEK_BACK, menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 0));
 }
 
-static void holding_menu_and_holding_volume_moves_one_step_then_scrubs_by_time(void)
+static void holding_menu_and_holding_volume_starts_and_keeps_a_preview(void)
 {
     CHECK_EQUAL(NOW_PLAYING_SEEK_FORWARD_START,
                 menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0));
@@ -97,6 +98,18 @@ static void holding_menu_and_holding_volume_moves_one_step_then_scrubs_by_time(v
                 menu_chord_command(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 200));
     CHECK_EQUAL(NOW_PLAYING_SEEK_BACK_HELD,
                 menu_chord_command(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 2));
+}
+
+static void a_gesture_outside_the_known_ones_runs_no_command(void)
+{
+    for (int gesture = KEY_GESTURE_REPEAT + 1; gesture <= UINT8_MAX; gesture++) {
+        for (int key = 0; key < KEY_COUNT; key++) {
+            KeyGesture odd = (KeyGesture)gesture;
+            CHECK_EQUAL(NOW_PLAYING_NONE, command((Key)key, odd));
+            CHECK_EQUAL(NOW_PLAYING_NONE, chord_command((Key)key, odd, 0));
+            CHECK_EQUAL(NOW_PLAYING_NONE, menu_chord_command((Key)key, odd, 0));
+        }
+    }
 }
 
 static void the_skip_toasts_name_the_direction(void)
@@ -138,7 +151,12 @@ static void the_seek_target_stays_inside_the_track(void)
 {
     CHECK_EQUAL(65000, now_playing_scrub_target(60000, 200000, 5000));
     CHECK_EQUAL(0, now_playing_scrub_target(3000, 200000, -5000));
-    CHECK_EQUAL(200000, now_playing_scrub_target(198000, 200000, 15000));
+    CHECK_EQUAL(199000, now_playing_scrub_target(198000, 200000, 15000));
+    CHECK_EQUAL(199000, now_playing_scrub_target(200000, 200000, -1000));
+    CHECK_EQUAL(199500, now_playing_scrub_target(199500, 200000, 0));
+    CHECK_EQUAL(600, now_playing_scrub_target(600, 800, 100));
+    CHECK_EQUAL(500, now_playing_scrub_target(600, 800, -100));
+    CHECK_EQUAL(1780, now_playing_scrub_target(1800, 2000, -20));
 }
 
 static void the_seek_target_of_an_unknown_length_stays_put(void)
@@ -147,20 +165,14 @@ static void the_seek_target_of_an_unknown_length_stays_put(void)
     CHECK_EQUAL(3000, now_playing_scrub_target(3000, 0, -6000));
 }
 
-static void a_tapped_seek_step_is_one_percent_of_the_length(void)
+static void a_tap_moves_ten_seconds(void)
 {
-    CHECK_EQUAL(2000, now_playing_seek_step(200000));
-    CHECK_EQUAL(3120, now_playing_seek_step(312000));
-    CHECK_EQUAL(12345, now_playing_seek_step(1234567));
-}
-
-static void a_tapped_seek_step_stays_between_one_and_thirty_seconds(void)
-{
-    CHECK_EQUAL(1000, now_playing_seek_step(1));
-    CHECK_EQUAL(1000, now_playing_seek_step(45000));
-    CHECK_EQUAL(1000, now_playing_seek_step(100099));
-    CHECK_EQUAL(30000, now_playing_seek_step(3000000));
-    CHECK_EQUAL(30000, now_playing_seek_step(UINT32_MAX));
+    CHECK_EQUAL(10000, NOW_PLAYING_SEEK_TAP_MS);
+    CHECK_EQUAL(70000, now_playing_scrub_target(60000, 200000, NOW_PLAYING_SEEK_TAP_MS));
+    CHECK_EQUAL(50000, now_playing_scrub_target(60000, 200000, -NOW_PLAYING_SEEK_TAP_MS));
+    CHECK_EQUAL(0, now_playing_scrub_target(4000, 200000, -NOW_PLAYING_SEEK_TAP_MS));
+    CHECK_EQUAL(199000, now_playing_scrub_target(195000, 200000, NOW_PLAYING_SEEK_TAP_MS));
+    CHECK_EQUAL(199500, now_playing_scrub_target(199500, 200000, NOW_PLAYING_SEEK_TAP_MS));
 }
 
 static void a_held_scrub_crosses_a_three_minute_track_in_ten_seconds_then_three(void)
@@ -198,85 +210,81 @@ static void the_scrub_caps_are_reached_at_ten_and_thirty_minutes(void)
     CHECK_EQUAL(600000, now_playing_scrub_rate(1800000, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
 }
 
-static void a_held_scrub_step_is_the_rate_times_the_time_since_the_last_step(void)
+static void the_preview_distance_is_the_rate_times_the_time_held(void)
 {
-    CHECK_EQUAL(2160, now_playing_scrub_step(180000, 0, 120));
-    CHECK_EQUAL(7200, now_playing_scrub_step(180000, 2000, 120));
-    CHECK_EQUAL(72000, now_playing_scrub_step(36000000, 2000, 120));
-    CHECK_EQUAL(600000, now_playing_scrub_step(36000000, 2000, NOW_PLAYING_SCRUB_ELAPSED_MAX_MS));
-    CHECK_EQUAL(600000, now_playing_scrub_step(UINT32_MAX, UINT32_MAX, UINT32_MAX));
+    CHECK_EQUAL(0, now_playing_scrub_distance(180000, 0));
+    CHECK_EQUAL(18000, now_playing_scrub_distance(180000, 1000));
+    CHECK_EQUAL(27000, now_playing_scrub_distance(180000, NOW_PLAYING_SCRUB_FAST_AFTER_MS));
+    CHECK_EQUAL(27000 + 60000, now_playing_scrub_distance(180000, 2500));
+    CHECK_EQUAL(90000 + 600000, now_playing_scrub_distance(3600000, 2500));
 }
 
-static void a_held_scrub_step_moves_at_least_one_second(void)
+static void the_preview_distance_never_passes_the_length(void)
 {
-    CHECK_EQUAL(1000, now_playing_scrub_step(5000, 0, 120));
-    CHECK_EQUAL(1000, now_playing_scrub_step(30000, 2000, 30));
-    CHECK_EQUAL(1000, now_playing_scrub_step(180000, 0, 0));
+    CHECK_EQUAL(180000, now_playing_scrub_distance(180000, 10000));
+    CHECK_EQUAL(36000000, now_playing_scrub_distance(36000000, UINT32_MAX));
+    CHECK_EQUAL(UINT32_MAX, now_playing_scrub_distance(UINT32_MAX, UINT32_MAX));
+    CHECK_EQUAL(0, now_playing_scrub_distance(0, 5000));
 }
 
-enum {
-    FORWARD_TAP = NOW_PLAYING_SEEK_FORWARD - NOW_PLAYING_SEEK_FORWARD,
-    FORWARD_START = NOW_PLAYING_SEEK_FORWARD_START - NOW_PLAYING_SEEK_FORWARD,
-    FORWARD_HELD = NOW_PLAYING_SEEK_FORWARD_HELD - NOW_PLAYING_SEEK_FORWARD,
-    BACK_TAP = NOW_PLAYING_SEEK_BACK - NOW_PLAYING_SEEK_FORWARD,
-    BACK_HELD = NOW_PLAYING_SEEK_BACK_HELD - NOW_PLAYING_SEEK_FORWARD
-};
-
-static int32_t scrub_for(uint32_t move, uint32_t duration_ms, uint32_t interval_ms,
-                         uint32_t until_ms)
+static NowPlayingScrub preview_from(uint32_t base_ms, bool back)
 {
-    NowPlayingScrub scrub = {0};
-    int32_t moved = now_playing_scrub_delta(&scrub, move - 1u, duration_ms, 5000);
-    uint32_t at_ms = 0;
-    while (at_ms < until_ms) {
-        at_ms += until_ms - at_ms < interval_ms ? until_ms - at_ms : interval_ms;
-        moved += now_playing_scrub_delta(&scrub, move, duration_ms, 5000 + at_ms);
-    }
-    return moved;
+    return (NowPlayingScrub){.started_ms = 5000,
+                             .base_ms = base_ms,
+                             .duration_ms = 180000,
+                             .active = true,
+                             .back = back};
 }
 
-static void a_held_scrub_moves_the_same_distance_at_any_repeat_rate(void)
+static void the_preview_glides_from_where_the_hold_began(void)
 {
-    int32_t tenths = scrub_for(FORWARD_HELD, 180000, 100, 1000);
-    CHECK_EQUAL(1800 + 18000, tenths);
-    CHECK_EQUAL(tenths, scrub_for(FORWARD_HELD, 180000, 150, 1000));
-    CHECK_EQUAL(-tenths, scrub_for(BACK_HELD, 180000, 150, 1000));
+    NowPlayingScrub forward = preview_from(60000, false);
+    NowPlayingScrub back = preview_from(60000, true);
+    CHECK_EQUAL(60000, now_playing_scrub_preview(&forward, 5000));
+    CHECK_EQUAL(61800, now_playing_scrub_preview(&forward, 5100));
+    CHECK_EQUAL(78000, now_playing_scrub_preview(&forward, 6000));
+    CHECK_EQUAL(42000, now_playing_scrub_preview(&back, 6000));
+    CHECK_EQUAL(147000, now_playing_scrub_preview(&forward, 7500));
 }
 
-static void a_tap_or_the_start_of_a_hold_moves_one_fine_step(void)
+static void the_preview_stays_inside_the_track(void)
 {
-    NowPlayingScrub scrub = {0};
-    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_TAP, 180000, 9000));
-    CHECK_EQUAL(-1800, now_playing_scrub_delta(&scrub, BACK_TAP, 180000, 9100));
-    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_START, 180000, 9200));
-    CHECK_EQUAL(1800 + 2160, scrub_for(FORWARD_HELD, 180000, 120, 120));
+    NowPlayingScrub forward = preview_from(170000, false);
+    NowPlayingScrub back = preview_from(10000, true);
+    CHECK_EQUAL(179000, now_playing_scrub_preview(&forward, 6000));
+    CHECK_EQUAL(0, now_playing_scrub_preview(&back, 6000));
+    NowPlayingScrub past_end = preview_from(190000, true);
+    CHECK_EQUAL(172000, now_playing_scrub_preview(&past_end, 6000));
+    NowPlayingScrub at_end = preview_from(179500, false);
+    CHECK_EQUAL(179500, now_playing_scrub_preview(&at_end, 6000));
+    at_end.back = true;
+    CHECK_EQUAL(177700, now_playing_scrub_preview(&at_end, 5100));
 }
 
-static void a_held_scrub_without_its_start_begins_with_a_fine_step(void)
+static void a_backward_preview_leaves_the_last_second_at_the_normal_rate(void)
 {
-    NowPlayingScrub scrub = {0};
-    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9000));
-    CHECK_EQUAL(2160, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9120));
-    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_TAP, 180000, 9240));
-    CHECK_EQUAL(1800, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9360));
+    NowPlayingScrub chapter = {
+        .started_ms = 5000, .base_ms = 1800, .duration_ms = 2000, .active = true, .back = true};
+    CHECK_EQUAL(1780, now_playing_scrub_preview(&chapter, 5100));
+    NowPlayingScrub part = {
+        .started_ms = 5000, .base_ms = 600, .duration_ms = 800, .active = true, .back = true};
+    CHECK_EQUAL(592, now_playing_scrub_preview(&part, 5100));
 }
 
-static void a_held_scrub_after_a_slow_step_keeps_its_speed_and_counts_at_most_a_second(void)
+static void a_release_stamped_before_the_hold_began_stays_at_the_start(void)
 {
-    NowPlayingScrub scrub = {0};
-    now_playing_scrub_delta(&scrub, FORWARD_START, 180000, 9000);
-    CHECK_EQUAL(18000, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 10201));
-    CHECK_EQUAL(60000, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 11401));
-    CHECK_EQUAL(7200, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 11521));
+    NowPlayingScrub forward = preview_from(60000, false);
+    CHECK_EQUAL(60000, now_playing_scrub_preview(&forward, 4990));
+    CHECK_EQUAL(60000, now_playing_scrub_preview(&forward, 0));
 }
 
-static void a_held_scrub_speeds_up_one_and_a_half_seconds_after_the_long_press(void)
+static void a_preview_released_where_it_began_moves_nothing(void)
 {
-    NowPlayingScrub scrub = {0};
-    now_playing_scrub_delta(&scrub, FORWARD_START, 180000, 9000);
-    CHECK_EQUAL(14400, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 9800));
-    CHECK_EQUAL(12582, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 10499));
-    CHECK_EQUAL(30060, now_playing_scrub_delta(&scrub, FORWARD_HELD, 180000, 11000));
+    NowPlayingScreen screen = {.scrub = preview_from(60000, false)};
+    screen.scrub.shown_ms = 60000;
+    now_playing_scrub_commit(&screen);
+    CHECK(!screen.scrub.active);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
 }
 
 static void menu_opens_quick_settings(void)
@@ -578,12 +586,145 @@ static void scrubbing_a_track_of_unknown_length_leaves_its_position(void)
     CHECK_EQUAL(0, playback_view.status.duration_ms);
     press_on_view(KEY_VOLUME_UP, KEY_GESTURE_PRESS, 0, KEY_CHORD_MENU);
     press_on_view(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0, KEY_CHORD_MENU);
+    CHECK(!playback_view.scrub.active);
     press_on_view(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 20, KEY_CHORD_MENU);
     press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_REPEAT, 20, KEY_CHORD_MENU);
     CHECK_EQUAL(42000, player_status(&unknown_length_player).position_ms);
     unknown_length_player.loaded = true;
     press_on_view(KEY_VOLUME_UP, KEY_GESTURE_REPEAT, 20, KEY_CHORD_MENU);
     press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 0, KEY_CHORD_MENU);
+    CHECK_EQUAL(0, fake_hal_audio_seek_count());
+}
+
+static Player preview_player;
+
+static void start_preview_view(int orientation, int size)
+{
+    start_passive_view();
+    default_theme_set_text_size(&playback_theme, (TextSize)size);
+    default_theme_set_orientation(&playback_theme, (Orientation)orientation);
+    preview_player = (Player){.has_track = true, .current_token = 7};
+    playback_view.config.player = &preview_player;
+    playback_view.has_text = true;
+    strcpy(playback_view.title, "Scrub preview");
+    playback_view.scrub = (NowPlayingScrub){
+        .started_ms = 5000, .base_ms = 2000, .duration_ms = 20000, .token = 7, .active = true};
+}
+
+static uint32_t rows_hash(int top, int height)
+{
+    uint32_t hash = 2166136261u;
+    int width = playback_theme.metrics.screen_width;
+    for (int y = top; y < top + height; y++) {
+        for (int x = 0; x < width; x++) {
+            hash = (hash ^ playback_pixels[y * width + x]) * 16777619u;
+        }
+    }
+    return hash;
+}
+
+typedef struct DrawnRows {
+    uint32_t bar;
+    uint32_t times;
+    uint32_t icon;
+} DrawnRows;
+
+static DrawnRows rows_drawn_at(uint32_t position_ms, uint32_t now_ms)
+{
+    Canvas canvas = canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                        playback_theme.metrics.screen_height});
+    canvas_fill_rect(&canvas, canvas.bounds, playback_theme.colors.background);
+    draw_passive_view(position_ms, now_ms);
+    const NowPlayingLayout *layout = board_now_playing_layout(&playback_theme);
+    int line = layout->small_line_height;
+    int padding = playback_theme.metrics.padding;
+    uint32_t icon = 2166136261u;
+    for (int y = layout->times_top; y < layout->times_top + line; y++) {
+        for (int x = padding; x < padding + 12; x++) {
+            icon =
+                (icon ^ playback_pixels[y * playback_theme.metrics.screen_width + x]) * 16777619u;
+        }
+    }
+    return (DrawnRows){rows_hash(layout->progress_top - 3, layout->progress_height + 6),
+                       rows_hash(layout->times_top, line), icon};
+}
+
+static bool rows_equal(DrawnRows left, DrawnRows right)
+{
+    return left.bar == right.bar && left.times == right.times && left.icon == right.icon;
+}
+
+static DrawnRows preview_drawn(uint32_t base_ms, uint32_t real_ms, uint32_t now_ms)
+{
+    playback_view.scrub.base_ms = base_ms;
+    return rows_drawn_at(real_ms, now_ms);
+}
+
+static void the_progress_bar_and_time_follow_the_preview_target(void)
+{
+    start_preview_view(0, TEXT_SIZE_MEDIUM);
+    DrawnRows moved = preview_drawn(2000, 2000, 6000);
+    CHECK(rows_equal(preview_drawn(4000, 9000, 5000), moved));
+    CHECK(!rows_equal(preview_drawn(2000, 2000, 5000), moved));
+}
+
+static void the_preview_is_labelled_and_keeps_the_play_state(void)
+{
+    start_preview_view(0, TEXT_SIZE_MEDIUM);
+    DrawnRows preview = preview_drawn(4000, 4000, 5000);
+    playback_view.scrub.active = false;
+    DrawnRows plain = rows_drawn_at(4000, 5000);
+    CHECK(preview.bar != plain.bar);
+    CHECK(preview.times != plain.times);
+    CHECK_EQUAL(plain.icon, preview.icon);
+}
+
+static void a_preview_from_another_track_shows_the_real_position(void)
+{
+    start_preview_view(0, TEXT_SIZE_MEDIUM);
+    preview_player.current_token = 8;
+    DrawnRows stale = rows_drawn_at(2000, 6000);
+    playback_view.scrub.active = false;
+    CHECK(rows_equal(rows_drawn_at(2000, 6000), stale));
+}
+
+static void the_preview_wins_over_the_volume_bar(void)
+{
+    start_preview_view(0, TEXT_SIZE_MEDIUM);
+    DrawnRows preview = rows_drawn_at(2000, 6000);
+    playback_view.feedback = NOW_PLAYING_FEEDBACK_VOLUME;
+    playback_view.feedback_started_ms = 5900;
+    CHECK(rows_equal(rows_drawn_at(2000, 6000), preview));
+}
+
+static void the_preview_is_drawn_in_every_text_size_and_orientation(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start_preview_view(orientation, size);
+            Canvas canvas =
+                canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                    playback_theme.metrics.screen_height});
+            DrawnRows moved = preview_drawn(2000, 2000, 6000);
+            screen_snapshot_write(&canvas, "scrub-preview", orientation * 3 + size);
+            CHECK(rows_equal(preview_drawn(4000, 9000, 5000), moved));
+        }
+    }
+}
+
+static Toast scrub_toast;
+
+static void scrubbing_an_unknown_length_says_so(void)
+{
+    start_unknown_length_view();
+    scrub_toast = (Toast){0};
+    playback_view.config.toast = &scrub_toast;
+    press_on_view(KEY_VOLUME_UP, KEY_GESTURE_LONG_PRESS, 0, KEY_CHORD_MENU);
+    CHECK(!playback_view.scrub.active);
+    CHECK(scrub_toast.visible && strcmp("Length unknown", scrub_toast.text) == 0);
+    scrub_toast = (Toast){0};
+    press_on_view(KEY_VOLUME_DOWN, KEY_GESTURE_PRESS, 0, KEY_CHORD_MENU);
+    CHECK(scrub_toast.visible && strcmp("Length unknown", scrub_toast.text) == 0);
     CHECK_EQUAL(0, fake_hal_audio_seek_count());
 }
 
@@ -730,28 +871,34 @@ int main(void)
         TEST_CASE(volume_keys_alone_only_change_the_volume),
         TEST_CASE(holding_play_and_tapping_volume_skips),
         TEST_CASE(holding_play_and_holding_volume_skips_once_without_repeating),
-        TEST_CASE(holding_menu_and_tapping_volume_moves_one_step),
-        TEST_CASE(holding_menu_and_holding_volume_moves_one_step_then_scrubs_by_time),
+        TEST_CASE(holding_menu_and_tapping_volume_moves_ten_seconds),
+        TEST_CASE(a_gesture_outside_the_known_ones_runs_no_command),
+        TEST_CASE(holding_menu_and_holding_volume_starts_and_keeps_a_preview),
         TEST_CASE(the_skip_toasts_name_the_direction),
         TEST_CASE(skip_toasts_say_what_the_skip_did),
         TEST_CASE(play_toggles_pause_and_a_long_play_does_nothing_more),
         TEST_CASE(the_seek_target_stays_inside_the_track),
         TEST_CASE(the_seek_target_of_an_unknown_length_stays_put),
         TEST_CASE(scrubbing_a_track_of_unknown_length_leaves_its_position),
-        TEST_CASE(a_tapped_seek_step_is_one_percent_of_the_length),
-        TEST_CASE(a_tapped_seek_step_stays_between_one_and_thirty_seconds),
+        TEST_CASE(the_progress_bar_and_time_follow_the_preview_target),
+        TEST_CASE(the_preview_is_labelled_and_keeps_the_play_state),
+        TEST_CASE(a_preview_from_another_track_shows_the_real_position),
+        TEST_CASE(scrubbing_an_unknown_length_says_so),
+        TEST_CASE(the_preview_wins_over_the_volume_bar),
+        TEST_CASE(the_preview_is_drawn_in_every_text_size_and_orientation),
+        TEST_CASE(a_tap_moves_ten_seconds),
         TEST_CASE(a_held_scrub_crosses_a_three_minute_track_in_ten_seconds_then_three),
         TEST_CASE(a_held_scrub_of_an_hour_moves_one_minute_then_ten_minutes_a_second),
         TEST_CASE(a_held_scrub_of_ten_hours_keeps_the_same_caps),
         TEST_CASE(a_held_scrub_speeds_up_after_about_two_seconds),
         TEST_CASE(the_scrub_caps_are_reached_at_ten_and_thirty_minutes),
-        TEST_CASE(a_held_scrub_step_is_the_rate_times_the_time_since_the_last_step),
-        TEST_CASE(a_held_scrub_step_moves_at_least_one_second),
-        TEST_CASE(a_held_scrub_moves_the_same_distance_at_any_repeat_rate),
-        TEST_CASE(a_tap_or_the_start_of_a_hold_moves_one_fine_step),
-        TEST_CASE(a_held_scrub_without_its_start_begins_with_a_fine_step),
-        TEST_CASE(a_held_scrub_after_a_slow_step_keeps_its_speed_and_counts_at_most_a_second),
-        TEST_CASE(a_held_scrub_speeds_up_one_and_a_half_seconds_after_the_long_press),
+        TEST_CASE(the_preview_distance_is_the_rate_times_the_time_held),
+        TEST_CASE(the_preview_distance_never_passes_the_length),
+        TEST_CASE(the_preview_glides_from_where_the_hold_began),
+        TEST_CASE(the_preview_stays_inside_the_track),
+        TEST_CASE(a_release_stamped_before_the_hold_began_stays_at_the_start),
+        TEST_CASE(a_backward_preview_leaves_the_last_second_at_the_normal_rate),
+        TEST_CASE(a_preview_released_where_it_began_moves_nothing),
         TEST_CASE(menu_opens_quick_settings),
         TEST_CASE(back_leaves_and_a_long_back_goes_home),
         TEST_CASE(power_is_left_to_the_system),

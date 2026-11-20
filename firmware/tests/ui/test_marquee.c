@@ -86,6 +86,18 @@ static void drawing_marquees_keeps_the_soonest_step_until_the_next_frame(void)
     CHECK_EQUAL(MARQUEE_STILL, marquee_watch_wait_ms());
 }
 
+static void another_animation_can_ask_for_the_next_step_too(void)
+{
+    marquee_watch_start();
+    marquee_watch(MARQUEE_STEP_MS);
+    CHECK_EQUAL(MARQUEE_STEP_MS, marquee_watch_wait_ms());
+    marquee_watch(MARQUEE_STEP_MS - 40);
+    marquee_watch(MARQUEE_STEP_MS);
+    CHECK_EQUAL(MARQUEE_STEP_MS - 40, marquee_watch_wait_ms());
+    marquee_watch_start();
+    CHECK_EQUAL(MARQUEE_STILL, marquee_watch_wait_ms());
+}
+
 static void a_zero_speed_never_scrolls(void)
 {
     MarqueeTiming still = {.pause_ms = PAUSE_MS, .speed_px_per_s = 0, .gap_px = GAP};
@@ -160,6 +172,7 @@ int main(void)
         TEST_CASE(the_first_step_is_due_one_step_after_the_pause),
         TEST_CASE(a_moving_marquee_is_due_at_its_next_step_and_at_the_end_of_its_cycle),
         TEST_CASE(drawing_marquees_keeps_the_soonest_step_until_the_next_frame),
+        TEST_CASE(another_animation_can_ask_for_the_next_step_too),
         TEST_CASE(a_zero_speed_never_scrolls),
         TEST_CASE(very_wide_text_does_not_overflow_its_scroll_duration),
         TEST_CASE(text_and_gap_widths_are_added_without_signed_overflow),

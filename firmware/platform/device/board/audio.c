@@ -607,8 +607,9 @@ CORE_COLD static void seek_to(uint32_t position_ms, bool paused)
 {
     ensure_engine();
     ensure_audio_clock();
+    uint32_t token = engine.segments[0].token;
     restart_transfer();
-    restart_output(audio_engine_seek(&engine, position_ms), paused);
+    restart_output(audio_engine_seek_on(&engine, token, position_ms), paused);
 }
 
 CORE_SEAM CORE_COLD void hal_audio_seek(uint32_t position_ms)

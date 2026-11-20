@@ -34,7 +34,7 @@ static void replay(KeyCrossing *crossing, KeyCrossingOut *out)
 static void leave_play(KeyCrossing *crossing, KeyCrossingOut *out)
 {
     if (volume_key((Key)crossing->from)) {
-        emit(out, (Key)crossing->from, false, crossing->play_ms);
+        emit(out, (Key)crossing->from, false, crossing->from_ms);
         crossing->state = CROSSING_IDLE;
         return;
     }
@@ -65,8 +65,8 @@ static bool settle_left(KeyCrossing *crossing, KeyStep step, KeyCrossingOut *out
         return false;
     }
     if (step.key != (Key)crossing->from) {
-        emit(out, (Key)crossing->from, false, step.time_ms);
-        emit(out, step.key, true, step.time_ms);
+        emit(out, (Key)crossing->from, false, crossing->from_ms);
+        emit(out, step.key, true, crossing->from_ms);
     }
     crossing->state = CROSSING_IDLE;
     return true;

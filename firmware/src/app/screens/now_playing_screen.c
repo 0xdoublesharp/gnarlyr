@@ -9,6 +9,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "gfx/image.h"
+#include "hal/power.h"
 #include "home_art.h"
 #include "neon_art.h"
 #include "playback/spoken.h"
@@ -152,9 +153,66 @@ int now_playing_volume_width(uint8_t volume, int width)
     return level * width / SETTINGS_VOLUME_MAX;
 }
 
+static uint32_t clamp_ms(uint32_t value, uint32_t high)
+{
+    return value > high ? high : value;
+}
+
+uint32_t now_playing_scrub_rate(uint32_t duration_ms, uint32_t held_ms)
+{
+    if (held_ms >= NOW_PLAYING_SCRUB_FAST_AFTER_MS) {
+        return clamp_ms(duration_ms / NOW_PLAYING_SCRUB_FAST_DIVISOR,
+                        NOW_PLAYING_SCRUB_FAST_MAX_MS_PER_S);
+    }
+    return clamp_ms(duration_ms / NOW_PLAYING_SCRUB_DIVISOR, NOW_PLAYING_SCRUB_MAX_MS_PER_S);
+}
+
+uint32_t now_playing_scrub_distance(uint32_t duration_ms, uint32_t held_ms)
+{
+    uint32_t slow_ms = clamp_ms(held_ms, NOW_PLAYING_SCRUB_FAST_AFTER_MS);
+    uint64_t moved =
+        ((uint64_t)now_playing_scrub_rate(duration_ms, 0) * slow_ms +
+         (uint64_t)now_playing_scrub_rate(duration_ms, NOW_PLAYING_SCRUB_FAST_AFTER_MS) *
+             (held_ms - slow_ms)) /
+        MS_PER_SECOND;
+    return moved < duration_ms ? (uint32_t)moved : duration_ms;
+}
+
+uint32_t now_playing_scrub_preview(const NowPlayingScrub *scrub, uint32_t now_ms)
+{
+    uint32_t held_ms = now_ms - scrub->started_ms;
+    uint32_t distance =
+        clamp_ms(now_playing_scrub_distance(scrub->duration_ms, held_ms > INT32_MAX ? 0 : held_ms),
+                 INT32_MAX);
+    return now_playing_scrub_target(scrub->base_ms, scrub->duration_ms,
+                                    scrub->back ? -(int32_t)distance : (int32_t)distance);
+}
+
+static void scrub_begin(NowPlayingScreen *now_playing, bool back)
+{
+    PlayerStatus status;
+    if (!now_playing_scrub_status(now_playing, &status, now_playing->now_ms)) {
+        return;
+    }
+    uint32_t base = now_playing_scrub_target(status.position_ms, status.duration_ms, 0);
+    now_playing->scrub = (NowPlayingScrub){.started_ms = now_playing->now_ms,
+                                           .base_ms = base,
+                                           .target_ms = base,
+                                           .shown_ms = base,
+                                           .duration_ms = status.duration_ms,
+                                           .token = player_token(now_playing->config.player),
+                                           .active = true,
+                                           .back = back,
+                                           .cable = hal_power_cable()};
+}
+
 static ScreenAction run_command(NowPlayingScreen *now_playing, NowPlayingCommand command)
 {
     switch (command) {
+    case NOW_PLAYING_SEEK_FORWARD_START:
+    case NOW_PLAYING_SEEK_BACK_START:
+        scrub_begin(now_playing, command == NOW_PLAYING_SEEK_BACK_START);
+        break;
     case NOW_PLAYING_LEAVE:
         return screen_action_pop();
     case NOW_PLAYING_QUICK_SETTINGS:
@@ -304,6 +362,9 @@ static void update(void *context, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
     refresh(now_playing, now_ms);
+    if (now_playing->scrub.active) {
+        now_playing->scrub.target_ms = now_playing_scrub_preview(&now_playing->scrub, now_ms);
+    }
     if (!now_playing->config.player->cassette.flip) {
         now_playing->flip_prompted = false;
     } else if (!now_playing->flip_prompted && now_playing->config.flip != NULL) {
@@ -351,9 +412,19 @@ static Rect column_area(const NowPlayingScreen *now_playing, int top, int height
     return (Rect){left, top, theme->metrics.screen_width - left - theme->metrics.padding, height};
 }
 
+static bool previewing(const NowPlayingScreen *now_playing)
+{
+    const NowPlayingScrub *scrub = &now_playing->scrub;
+    return scrub->active && now_playing->config.player != NULL &&
+           scrub->token == player_token(now_playing->config.player);
+}
+
 static uint32_t shown_position(const NowPlayingScreen *now_playing)
 {
     const PlayerStatus *status = &now_playing->status;
+    if (previewing(now_playing)) {
+        return now_playing_scrub_preview(&now_playing->scrub, now_playing->now_ms);
+    }
     return status->state == PLAYER_PLAYING && status->position_ms < status->duration_ms
                ? status->position_ms / MS_PER_SECOND * MS_PER_SECOND
                : status->position_ms;
@@ -453,7 +524,8 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
     const Theme *theme = now_playing->config.theme;
     Rect bar =
         line_area(theme, layout(now_playing)->progress_top, layout(now_playing)->progress_height);
-    bool volume = showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME);
+    bool preview = previewing(now_playing);
+    bool volume = !preview && showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME);
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
                         : now_playing_progress_width(shown_position(now_playing),
                                                      now_playing->status.duration_ms, bar.width);
@@ -461,8 +533,10 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
     marquee_watch_area(MARQUEE_BAND_TIME, (Rect){bar.x, bar.y - 1, bar.width, bar.height + 2});
     canvas_fill_rect(canvas, bar, theme->colors.divider);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
-    int cursor = filled > 1 ? filled - 2 : 0;
-    canvas_fill_rect(canvas, (Rect){bar.x + cursor, bar.y - 1, 2, bar.height + 2},
+    int reach = preview ? 3 : 1;
+    int cursor = filled > reach ? filled - reach - 1 : 0;
+    canvas_fill_rect(canvas,
+                     (Rect){bar.x + cursor, bar.y - reach, reach + 1, bar.height + 2 * reach},
                      theme->colors.text);
 }
 
@@ -491,7 +565,12 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     format_duration(position_ms, elapsed, sizeof elapsed);
     format_duration(remaining_ms, remaining + 1, sizeof remaining - 1);
     const char *left = elapsed;
-    if (showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME)) {
+    const char *right = remaining;
+    bool preview = previewing(now_playing);
+    if (preview) {
+        right = i18n_text(STR_SCRUB_PREVIEW);
+        marquee_watch(MARQUEE_STEP_MS);
+    } else if (showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME)) {
         left = i18n_text(STR_VOLUME);
         StringBuilder level = string_builder_make(remaining, sizeof remaining);
         string_builder_append_unsigned(&level, now_playing->status.volume);
@@ -507,7 +586,8 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
     area.x += TRANSPORT_ICON + theme->metrics.detail_gap;
     area.width -= TRANSPORT_ICON + theme->metrics.detail_gap;
     label_draw(canvas, style, (Label){.area = area, .text = left});
-    draw_right_aligned(canvas, style, area, remaining);
+    style.color = preview ? theme->colors.accent : style.color;
+    draw_right_aligned(canvas, style, area, right);
 }
 
 static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)

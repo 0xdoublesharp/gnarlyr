@@ -1,5 +1,7 @@
 #include "now_playing_screen.h"
 
+#include "core/i18n.h"
+
 static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
                                     NowPlayingCommand hold)
 {
@@ -14,59 +16,25 @@ static NowPlayingCommand by_gesture(KeyGesture gesture, NowPlayingCommand press,
     return NOW_PLAYING_NONE;
 }
 
+static uint32_t clamp_ms(uint32_t value, uint32_t low, uint32_t high)
+{
+    return value < low ? low : (value > high ? high : value);
+}
+
+static uint32_t last_playable(uint32_t duration_ms)
+{
+    return duration_ms > NOW_PLAYING_SCRUB_TAIL_MS ? duration_ms - NOW_PLAYING_SCRUB_TAIL_MS : 0;
+}
+
 uint32_t now_playing_scrub_target(uint32_t position_ms, uint32_t duration_ms, int32_t delta_ms)
 {
     int64_t target = (int64_t)position_ms + delta_ms;
     if (duration_ms == 0) {
         return position_ms;
     }
-    if (target < 0) {
-        return 0;
-    }
-    return target > duration_ms ? duration_ms : (uint32_t)target;
-}
-
-static uint32_t clamp_ms(uint32_t value, uint32_t low, uint32_t high)
-{
-    return value < low ? low : (value > high ? high : value);
-}
-
-uint32_t now_playing_seek_step(uint32_t duration_ms)
-{
-    return clamp_ms(duration_ms / NOW_PLAYING_SEEK_STEP_DIVISOR, NOW_PLAYING_SEEK_STEP_MIN_MS,
-                    NOW_PLAYING_SEEK_STEP_MAX_MS);
-}
-
-uint32_t now_playing_scrub_rate(uint32_t duration_ms, uint32_t held_ms)
-{
-    if (held_ms >= NOW_PLAYING_SCRUB_FAST_AFTER_MS) {
-        return clamp_ms(duration_ms / NOW_PLAYING_SCRUB_FAST_DIVISOR, 0,
-                        NOW_PLAYING_SCRUB_FAST_MAX_MS_PER_S);
-    }
-    return clamp_ms(duration_ms / NOW_PLAYING_SCRUB_DIVISOR, 0, NOW_PLAYING_SCRUB_MAX_MS_PER_S);
-}
-
-uint32_t now_playing_scrub_step(uint32_t duration_ms, uint32_t held_ms, uint32_t elapsed_ms)
-{
-    uint32_t elapsed = clamp_ms(elapsed_ms, 0, NOW_PLAYING_SCRUB_ELAPSED_MAX_MS);
-    uint32_t step = now_playing_scrub_rate(duration_ms, held_ms) * elapsed / 1000u;
-    return step < NOW_PLAYING_SEEK_STEP_MIN_MS ? NOW_PLAYING_SEEK_STEP_MIN_MS : step;
-}
-
-int32_t now_playing_scrub_delta(NowPlayingScrub *scrub, uint32_t move, uint32_t duration_ms,
-                                uint32_t now_ms)
-{
-    uint32_t kind = move % 3u;
-    uint32_t step = now_playing_seek_step(duration_ms);
-    if (kind == 2u && scrub->held) {
-        step = now_playing_scrub_step(duration_ms, now_ms - scrub->started_ms,
-                                      now_ms - scrub->last_ms);
-    } else {
-        scrub->started_ms = now_ms;
-        scrub->held = kind != 0u;
-    }
-    scrub->last_ms = now_ms;
-    return move < NOW_PLAYING_SEEK_COMMANDS / 2 ? (int32_t)step : -(int32_t)step;
+    uint32_t end = delta_ms >= 0 ? clamp_ms(position_ms, last_playable(duration_ms), duration_ms)
+                                 : duration_ms;
+    return target < 0 ? 0 : clamp_ms(target > UINT32_MAX ? UINT32_MAX : (uint32_t)target, 0, end);
 }
 
 static NowPlayingCommand chord_command_for(KeyEvent event)
@@ -84,6 +52,9 @@ static NowPlayingCommand chord_command_for(KeyEvent event)
 
 NowPlayingCommand now_playing_command_for(KeyEvent event)
 {
+    if ((uint32_t)event.gesture > KEY_GESTURE_REPEAT) {
+        return NOW_PLAYING_NONE;
+    }
     if (event.chord != KEY_CHORD_NONE) {
         return chord_command_for(event);
     }
@@ -103,28 +74,37 @@ NowPlayingCommand now_playing_command_for(KeyEvent event)
     return NOW_PLAYING_NONE;
 }
 
-static bool seek_once(NowPlayingScreen *now_playing, uint32_t move, uint32_t now_ms)
+bool now_playing_scrub_status(NowPlayingScreen *now_playing, PlayerStatus *status, uint32_t now_ms)
 {
     Player *player = now_playing->config.player;
-    NowPlayingScrub *scrub = &now_playing->scrub;
-    player_queue_cancel(player);
     player_catch_up(player);
-    PlayerStatus status = player_status(player);
-    if (!status.has_track || status.duration_ms == 0) {
-        return true;
+    *status = player_status(player);
+    bool unknown = status->duration_ms == 0;
+    bool refused = status->has_track && (unknown || status->ab_repeat == 2);
+    if (refused && now_playing->config.toast != NULL) {
+        toast_show(now_playing->config.toast,
+                   i18n_text(unknown ? STR_SCRUB_LENGTH_UNKNOWN : STR_SCRUB_AB_REPEAT_ON), now_ms);
     }
-    uint32_t token = player_token(player);
-    scrub->held = scrub->held && scrub->token == token;
-    scrub->token = token;
-    int32_t delta_ms = now_playing_scrub_delta(scrub, move, status.duration_ms, now_ms);
-    uint32_t target = now_playing_scrub_target(status.position_ms, status.duration_ms, delta_ms);
-    return player_seek_on(player, token, target);
+    return status->has_track && !refused;
 }
 
-static void seek_by(NowPlayingScreen *now_playing, uint32_t move, uint32_t now_ms)
+static bool seek_once(NowPlayingScreen *now_playing, int32_t delta_ms, uint32_t now_ms)
 {
-    if (!seek_once(now_playing, move, now_ms)) {
-        seek_once(now_playing, move, now_ms);
+    PlayerStatus status;
+    if (!now_playing_scrub_status(now_playing, &status, now_ms)) {
+        return true;
+    }
+    Player *player = now_playing->config.player;
+    uint32_t target = now_playing_scrub_target(status.position_ms, status.duration_ms, delta_ms);
+    return target == status.position_ms || player_seek_on(player, player_token(player), target);
+}
+
+void now_playing_scrub_commit(NowPlayingScreen *now_playing)
+{
+    NowPlayingScrub *scrub = &now_playing->scrub;
+    scrub->active = false;
+    if (scrub->shown_ms != scrub->base_ms) {
+        player_seek_on(now_playing->config.player, scrub->token, scrub->shown_ms);
     }
 }
 
@@ -148,7 +128,11 @@ void now_playing_player_command(NowPlayingScreen *now_playing, NowPlayingCommand
     default:
         break;
     }
-    if (seek < NOW_PLAYING_SEEK_COMMANDS) {
-        seek_by(now_playing, seek, now_ms);
+    if (seek < NOW_PLAYING_SEEK_COMMANDS && seek % 3u == 0u) {
+        now_playing->scrub.active = false;
+        int32_t delta = seek != 0u ? -NOW_PLAYING_SEEK_TAP_MS : NOW_PLAYING_SEEK_TAP_MS;
+        if (!seek_once(now_playing, delta, now_ms)) {
+            seek_once(now_playing, delta, now_ms);
+        }
     }
 }
