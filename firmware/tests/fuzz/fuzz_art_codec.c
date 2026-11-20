@@ -66,9 +66,12 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
     check_guards();
     ArtRow whole = {data + HEADER_BYTES, data + size, width};
-    bool checked = art_row_check(whole, (data[5] & 1) ? ART_CODEC_LOSSLESS : ART_CODEC_INDEXED,
-                                 ART_PALETTE_MAX, (data[5] & 2) != 0);
-    if (checked != (done && row.at == data + size)) {
+    bool lossless = (data[5] & 1) != 0;
+    bool checked = art_row_check(whole, lossless ? ART_CODEC_LOSSLESS : ART_CODEC_INDEXED,
+                                 lossless ? ART_PALETTE_MAX : palette.entries, (data[5] & 2) != 0);
+    bool decoded = done && row.at == data + size;
+    bool strict = lossless || (from == 0 && to == width);
+    if (checked ? !decoded : decoded && strict) {
         abort();
     }
     return 0;
