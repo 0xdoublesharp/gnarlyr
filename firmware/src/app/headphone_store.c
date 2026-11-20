@@ -8,7 +8,7 @@ void headphone_store_load(HeadphoneStore *store)
                               .active = headphone_audio_defaults()};
     store->load = headphone_file_open(&store->file, headphone_store_file(), &store->profiles);
     store->active = headphone_store_parameters(&store->profiles);
-    if (store->file.needs_reload) {
+    if (store->load != STORE_READY && store->load != STORE_EMPTY) {
         store->active.ceiling = 0;
     }
     hal_audio_set_headphones(store->active);

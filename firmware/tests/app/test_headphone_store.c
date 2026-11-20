@@ -144,6 +144,36 @@ static void an_unreadable_profile_file_applies_no_volume_until_a_load_succeeds(v
     CHECK_EQUAL(18, hal_audio_headphones().ceiling);
 }
 
+static void corrupt_both_banks(void)
+{
+    uint8_t garbage[HEADPHONE_FILE_BYTES / 2];
+    memset(garbage, 0x5A, sizeof garbage);
+    CHECK(hal_internal_file_write_at(HEADPHONE_STORE_PATH, 0, garbage, sizeof garbage));
+    CHECK(
+        hal_internal_file_write_at(HEADPHONE_STORE_PATH, sizeof garbage, garbage, sizeof garbage));
+}
+
+static void a_corrupt_profile_file_applies_no_volume_until_a_profile_is_saved(void)
+{
+    reset();
+    HeadphoneProfiles candidate = capped_profile();
+    CHECK(headphone_store_commit(&store, &candidate, &player, &settings));
+    corrupt_both_banks();
+    headphone_store_load(&store);
+    CHECK_EQUAL(STORE_CORRUPT, store.load);
+    CHECK_EQUAL(0, store.active.ceiling);
+    CHECK_EQUAL(0, hal_audio_headphones().ceiling);
+    player_change_volume(&player, 60);
+    CHECK_EQUAL(0, fake_hal_audio_volume());
+    CHECK(headphone_store_commit(&store, &candidate, &player, &settings));
+    CHECK_EQUAL(18, hal_audio_headphones().ceiling);
+    CHECK_EQUAL(0, player.volume);
+    HeadphoneStore restored;
+    headphone_store_load(&restored);
+    CHECK_EQUAL(STORE_READY, restored.load);
+    CHECK_EQUAL(18, restored.active.ceiling);
+}
+
 static void a_profile_caps_music_usb_and_restored_levels_before_hardware_volume(void)
 {
     reset();
@@ -282,6 +312,7 @@ int main(void)
         TEST_CASE(a_commit_saves_through_its_own_file_callbacks_after_the_loader_is_gone),
         TEST_CASE(a_missing_profile_file_blocks_saves_until_it_is_made),
         TEST_CASE(an_unreadable_profile_file_applies_no_volume_until_a_load_succeeds),
+        TEST_CASE(a_corrupt_profile_file_applies_no_volume_until_a_profile_is_saved),
         TEST_CASE(a_profile_caps_music_usb_and_restored_levels_before_hardware_volume),
         TEST_CASE(switching_off_attenuation_lowers_both_saved_mode_volumes),
         TEST_CASE(rejected_edits_preserve_audio_and_the_current_settings_version),

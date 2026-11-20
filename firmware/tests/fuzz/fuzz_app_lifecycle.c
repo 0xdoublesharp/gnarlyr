@@ -200,13 +200,14 @@ static uint32_t stored_size(const char *path)
     return fake_hal_internal_file_bytes(path, &size) != NULL ? size : 0;
 }
 
-static HeadphoneProfiles stored_profiles(void)
+static HeadphoneProfiles stored_profiles(StoreLoad *load)
 {
     HeadphoneProfiles profiles = headphone_profiles_defaults();
     HeadphoneFile file;
     StoreFile source = {.source = {read_headphones, NULL},
                         .size = stored_size(HEADPHONE_STORE_PATH)};
-    if (headphone_file_open(&file, source, &profiles) != STORE_READY) {
+    *load = headphone_file_open(&file, source, &profiles);
+    if (*load != STORE_READY) {
         profiles = headphone_profiles_defaults();
     }
     return profiles;
@@ -238,7 +239,12 @@ static void check_headphones(void)
         }
         return;
     }
-    HeadphoneProfiles stored = stored_profiles();
+    StoreLoad load;
+    HeadphoneProfiles stored = stored_profiles(&load);
+    if (load != STORE_READY && load != STORE_EMPTY && applied.ceiling != 0) {
+        fprintf(stderr, "applied ceiling %d, stored profiles load %d\n", applied.ceiling, load);
+        violated("the applied ceiling is not 0 while headphones.bin holds no readable profile");
+    }
     const HeadphoneProfiles *memory = app_headphone_profiles();
     if (!same_profiles(&stored, memory)) {
         fprintf(stderr, "stored count %d current %d, memory count %d current %d\n", stored.count,
@@ -555,6 +561,14 @@ static void seed_profiles(uint8_t config)
     (void)headphone_file_save(&store.file, &profiles);
 }
 
+static void corrupt_profiles(void)
+{
+    uint8_t garbage[HEADPHONE_FILE_BYTES / 2];
+    memset(garbage, 0x5A, sizeof garbage);
+    (void)hal_internal_file_write_at(HEADPHONE_STORE_PATH, 0, garbage, sizeof garbage);
+    (void)hal_internal_file_write_at(HEADPHONE_STORE_PATH, sizeof garbage, garbage, sizeof garbage);
+}
+
 static void seed_equalizer(void)
 {
     EqualizerSlots slots = {0};
@@ -623,6 +637,8 @@ static void start(const uint8_t *data, size_t size)
     expected = (Expected){.blocked = (config & 64u) != 0 && (config & 16u) != 0};
     if (expected.blocked) {
         fake_hal_fail_internal_reads(HEADPHONE_STORE_PATH);
+    } else if ((config & 128u) != 0 && (config & 16u) != 0) {
+        corrupt_profiles();
     }
     now_ms += 10;
     fake_hal_set_milliseconds(now_ms);
