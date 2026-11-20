@@ -15,6 +15,7 @@ from echo_image_harness import (
     struct,
     summary,
 )
+from echo_emulator.emmc import SLOT_2_AT_HALF_MIB
 
 
 class EchoImageTest(EchoImageHarness):
@@ -68,6 +69,34 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(installed.run_to_first_frame(), "condition met")
         self.assertEqual(len(installed.panel.lit_sweeps()), 1)
         self.assert_healthy(installed)
+
+    def test_after_a_cut_trial_install_the_developer_request_fills_slot_1_before_slot_2(self):
+        newer = self.newer_image()
+        session = self.session(files=[(IDENTITY.update_file, newer, None),
+                                      (BOTH_SLOTS_REQUEST, b"BOTH SLOTS\n", None)], vbus=True,
+                               system_mib=SLOT_2_AT_HALF_MIB)
+        self.interrupt_slot_1_install(session, newer)
+        session.machine.note("updater_install")
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        session.machine.stop_at("board_wait_for_power_hold")
+        self.assertEqual(session.run_until_waiting_for_key(presses=1),
+                         "reached board_wait_for_power_hold")
+        self.assert_healthy(session)
+        self.assertEqual(session.machine.reached["updater_install"], 1)
+        volume_start = session.layout["volume_start"]
+        inside = {name: range(session.layout[name], session.layout[name] + SLOT_SECTORS)
+                  for name in ("slot_1", "slot_2")}
+        writes = [item for item in session.card.writes if item[1] < volume_start]
+        by_slot = {name: [stamp for stamp, lba, _ in writes if lba in span]
+                   for name, span in inside.items()}
+        self.assertEqual(len(writes), len(by_slot["slot_1"]) + len(by_slot["slot_2"]))
+        self.assertLess(max(by_slot["slot_1"]), min(by_slot["slot_2"]))
+        self.assert_every_write_read_back(
+            [item for item in session.card.accesses if item[0] != "W" or item[1] < volume_start])
+        self.assertEqual(session.slot_image("slot_1"), newer[:self.session_module.SLOT_BYTES])
+        self.assertEqual(session.slot_image("slot_2"), newer[:self.session_module.SLOT_BYTES])
+        self.assertFalse(session.file_exists(BOTH_SLOTS_REQUEST))
+        self.assertIsNone(self.trial_record(session))
 
     def test_the_running_image_offered_again_is_not_written(self):
         session = self.session(files=[(IDENTITY.update_file, self.image, None)], vbus=True)

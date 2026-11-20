@@ -344,6 +344,56 @@ static void a_block_that_reads_back_wrong_fails_the_install(void)
     CHECK_EQUAL(-1, first_write_into(SLOT_1));
 }
 
+static void with_slot_1_invalid_the_only_bootable_slot_2_is_overwritten_last(void)
+{
+    uint8_t *image = valid_image(7);
+    uint8_t *kept = valid_image(8);
+    reset(image, IMAGE_SIZE);
+    memcpy(storage.sectors + (size_t)SLOT_2 * 512, kept, FW_END);
+    memset(storage.sectors + (size_t)SLOT_1 * 512, 0xFF, CHUNK_SECTORS * 512);
+    UpdateStorage storage_target = target();
+    UpdateFile update = source();
+    CHECK(updater_install(&update, &storage_target, progress(), install_buffer));
+    CHECK(slot_holds(SLOT_1, image));
+    CHECK(slot_holds(SLOT_2, image));
+    CHECK(last_write_into(SLOT_1) < first_write_into(SLOT_2));
+    CHECK_EQUAL(image[0], storage.log[last_write_into(SLOT_1)].first_byte);
+    CHECK_EQUAL(SLOT_1, storage.log[last_write_into(SLOT_1)].lba);
+    CHECK(!progress_went_backwards);
+    free(kept);
+}
+
+static void with_slot_1_invalid_a_failed_slot_1_write_leaves_slot_2_untouched(void)
+{
+    uint8_t *image = valid_image(9);
+    uint8_t *kept = valid_image(10);
+    reset(image, IMAGE_SIZE);
+    memcpy(storage.sectors + (size_t)SLOT_2 * 512, kept, FW_END);
+    storage.fail_lba = SLOT_1 + 2 * CHUNK_SECTORS;
+    UpdateStorage storage_target = target();
+    UpdateFile update = source();
+    CHECK(!updater_install(&update, &storage_target, progress(), install_buffer));
+    CHECK_EQUAL(-1, first_write_into(SLOT_2));
+    CHECK(slot_holds(SLOT_2, kept));
+    free(kept);
+}
+
+static void with_both_slots_valid_slot_2_is_written_first(void)
+{
+    uint8_t *image = valid_image(11);
+    uint8_t *kept = valid_image(12);
+    reset(image, IMAGE_SIZE);
+    memcpy(storage.sectors + (size_t)SLOT_1 * 512, kept, FW_END);
+    memcpy(storage.sectors + (size_t)SLOT_2 * 512, kept, FW_END);
+    UpdateStorage storage_target = target();
+    UpdateFile update = source();
+    CHECK(updater_install(&update, &storage_target, progress(), install_buffer));
+    CHECK(slot_holds(SLOT_1, image));
+    CHECK(slot_holds(SLOT_2, image));
+    CHECK(last_write_into(SLOT_2) < first_write_into(SLOT_1));
+    free(kept);
+}
+
 static void images_that_could_not_boot_are_invalid(void)
 {
     check_invalid(broken_image(0x200, 0x03060000), IMAGE_SIZE);
@@ -408,6 +458,9 @@ int main(void)
         TEST_CASE(chunks_that_already_match_are_not_rewritten),
         TEST_CASE(a_write_failure_in_slot_2_leaves_slot_1_untouched),
         TEST_CASE(a_block_that_reads_back_wrong_fails_the_install),
+        TEST_CASE(with_slot_1_invalid_the_only_bootable_slot_2_is_overwritten_last),
+        TEST_CASE(with_slot_1_invalid_a_failed_slot_1_write_leaves_slot_2_untouched),
+        TEST_CASE(with_both_slots_valid_slot_2_is_written_first),
         TEST_CASE(an_update_file_is_removed_unless_its_install_failed),
         TEST_CASE(without_scratch_memory_nothing_is_checked_or_written),
     };
