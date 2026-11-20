@@ -22,6 +22,16 @@ static bool read_memory(void *context, uint32_t offset, void *destination, uint3
     return true;
 }
 
+static void check_refused(const ApeTrack *track, const ApeTrack *before)
+{
+    size_t flag = offsetof(ApeTrack, unsupported);
+    const uint8_t *bytes = (const uint8_t *)track;
+    ApeTrack expected = *before;
+    fuzz_require(bytes[flag] <= 1);
+    ((uint8_t *)&expected)[flag] = bytes[flag];
+    fuzz_require(memcmp(track, &expected, sizeof expected) == 0);
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     fuzz_require(size <= UINT32_MAX);
@@ -31,7 +41,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     memset(&track, 0xA5, sizeof track);
     ApeTrack before = track;
     if (!ape_track_probe(input, &track)) {
-        fuzz_require(memcmp(&track, &before, sizeof track) == 0);
+        check_refused(&track, &before);
         return 0;
     }
     fuzz_require(ape_track_allowed(&track));
