@@ -10,6 +10,7 @@
 #include "playing_work.h"
 #include "sunset_art.h"
 #include "ui/label.h"
+#include "ui/toast.h"
 
 enum {
     METER_PEAK_LEVEL = 30000,
@@ -58,7 +59,9 @@ static SunsetArt art_of(const NowPlayingScreen *screen)
     const Theme *theme = screen->config.theme;
     bool vu = settings_now_playing_style(screen->config.settings) == NOW_PLAYING_VU;
     SunsetArt art = sunset_art_make(theme, meter_now_playing_layout(theme).stage, meter(), vu);
+    const Toast *toast = screen->config.toast;
     art.now_ms = screen->now_ms;
+    art.hole = toast != NULL && toast->visible ? toast_area(toast, theme) : (Rect){0};
     return art;
 }
 
@@ -88,9 +91,8 @@ static void send_motion(void *context, Rect area, const Color *pixels)
     hal_display_write(area.x, area.y, area.width, area.height, pixels);
 }
 
-static void render(SunsetArt *art, Rect area)
+static void render_strips(SunsetArt *art, Rect visible)
 {
-    Rect visible = rect_intersection(area, art->scene.stage);
     if (rect_is_empty(visible)) {
         return;
     }
@@ -100,6 +102,23 @@ static void render(SunsetArt *art, Rect area)
                               .drawer_paints_everything = true};
     strip_renderer_render(&renderer, (FrameDrawer){draw_motion, art},
                           (FrameSink){send_motion, NULL});
+}
+
+static void render(SunsetArt *art, Rect area)
+{
+    Rect visible = rect_intersection(area, art->scene.stage);
+    Rect hole = rect_intersection(visible, art->hole);
+    if (rect_is_empty(hole)) {
+        render_strips(art, visible);
+        return;
+    }
+    int right = hole.x + hole.width;
+    int bottom = hole.y + hole.height;
+    render_strips(art, (Rect){visible.x, visible.y, visible.width, hole.y - visible.y});
+    render_strips(art,
+                  (Rect){visible.x, bottom, visible.width, visible.y + visible.height - bottom});
+    render_strips(art, (Rect){visible.x, hole.y, hole.x - visible.x, hole.height});
+    render_strips(art, (Rect){right, hole.y, visible.x + visible.width - right, hole.height});
 }
 
 static Rect rows_between(int x, int width, int first, int second)

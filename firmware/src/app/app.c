@@ -148,6 +148,7 @@ typedef struct AppState {
     bool light_after_frame;
     StringId goodbye_text;
     Toast toast;
+    uint32_t toast_composed;
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
     StatusBarState status_bar;
@@ -1449,6 +1450,15 @@ static void mask_motion(const void *owner)
     }
 }
 
+static void compose_toast(void)
+{
+    uint32_t shown = app.toast.visible ? app.toast.until_ms | 1u : 0;
+    if (shown != app.toast_composed) {
+        app.toast_composed = shown;
+        frame_diff_mask(&app.frame_diff, app.frame_diff.masked);
+    }
+}
+
 static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_t now_ms)
 {
     NowPlayingScreen *playing = &app.screens.now_playing;
@@ -2433,6 +2443,7 @@ CORE_SEAM void app_step(void)
         follow_destination(&app.screens.now_playing.destination, now_ms);
     }
     follow_destination(&app.screens.shortcut_destination, now_ms);
+    compose_toast();
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
     FrameDrawer drawer = {.draw = draw_frame, .context = &app};
