@@ -272,13 +272,6 @@ static bool change_analog(const DacBus *bus, DacAnalog after)
            write_both(bus, 0x0F0010, 0x87) && write_both(bus, PCM_MUTE, 0xEC);
 }
 
-bool dac_sequence_gain(const DacBus *bus, bool high)
-{
-    return dac_sequence_power_down(bus) && write_both(bus, HEADPHONE_GAIN, gain_value(high)) &&
-           dac_sequence_power_up(bus) && write_both(bus, 0x0F0010, 0x87) &&
-           write_both(bus, PCM_MUTE, 0xEC);
-}
-
 static bool change_filter(const DacBus *bus, uint8_t filter)
 {
     if (!write_both(bus, PCM_MUTE, 0xEF)) {

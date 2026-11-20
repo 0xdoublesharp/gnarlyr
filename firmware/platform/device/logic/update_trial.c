@@ -69,15 +69,6 @@ UpdateTrialStep update_trial_boot(UpdateTrial *trial)
     return update_trial_charge(trial) ? UPDATE_TRIAL_STEP_CHARGED : UPDATE_TRIAL_STEP_NOTHING;
 }
 
-bool update_trial_settle(UpdateTrial *trial)
-{
-    if (trial->state != UPDATE_TRIAL_RUNNING || trial->attempts == 0) {
-        return false;
-    }
-    trial->attempts--;
-    return true;
-}
-
 UpdateTrialPromotion update_trial_promotion(UpdateTrialState state, UpdateTrialCheck check)
 {
     bool due =

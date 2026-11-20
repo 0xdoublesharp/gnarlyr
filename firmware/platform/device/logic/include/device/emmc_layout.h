@@ -28,7 +28,6 @@ typedef struct EmmcLayoutRead {
     uint32_t *scratch;
 } EmmcLayoutRead;
 
-bool emmc_layout_read(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors);
 bool emmc_layout_read_with(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors,
                            EmmcLayoutRead read);
 bool emmc_layout_in_volume(const EmmcLayout *layout, uint32_t lba, uint32_t count);

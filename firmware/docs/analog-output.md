@@ -4,7 +4,7 @@
 
 - `dac_sequence_power_down` mutes PCM, waits 150 ms, clears old status, enables PDN_DONE, asserts PDN_HP on both chips, waits for both completions, then asserts PDN_ASP. Read failure or a 150 ms completion timeout returns false before shutting down the serial port.
 - `dac_sequence_power_up` applies the pop-free settings before releasing ASP and HP, waits 12 ms, then restores the temporary settings. The caller keeps the external mute asserted until ready.
-- `dac_sequence_gain` powers down, writes Low `0x20` or High `0x31`, powers up and releases PCM mute. Failure leaves the output muted; the board keeps the previous choice and runs the full sequence again before any later unmute. It requires clocks to remain running throughout.
+- `dac_apply_analog` changes the gain and filter. A gain change, or a filter the chips' state leaves unknown, powers down, writes the gain (Low `0x20` or High `0x31`) and the filter, powers up and releases PCM mute; a filter change alone mutes PCM for 150 ms around the filter write. Failure leaves the output muted; the board keeps the previous choice and runs the full sequence again before any later unmute. It requires clocks to remain running throughout.
 
 Cold start uses the power-up helper. Power-off and pause standby use the power-down helper through `dac_output_off`. Runtime gain fades out before the helper and fades back only after success. After a failure the board treats the chips' gain and filter as unknown: retrying a choice always runs the sequence, and a pause, output change or new transfer runs it for the recorded choice before unmuting, staying muted if it fails again. Output enable keeps external mute asserted through its 10 ms settling delay.
 

@@ -67,17 +67,6 @@ static void each_boot_of_a_trial_is_charged_until_the_limit(void)
     CHECK_EQUAL(UPDATE_TRIAL_LIMIT, trial.attempts);
 }
 
-static void a_settled_boot_is_refunded(void)
-{
-    UpdateTrial trial = {UPDATE_TRIAL_RUNNING, 0};
-    for (int boot = 0; boot < 2 * UPDATE_TRIAL_LIMIT; boot++) {
-        CHECK_EQUAL(UPDATE_TRIAL_STEP_CHARGED, update_trial_boot(&trial));
-        CHECK(update_trial_settle(&trial));
-    }
-    CHECK_EQUAL(0, trial.attempts);
-    CHECK(!update_trial_settle(&trial));
-}
-
 static void a_usb_session_is_charged_on_top_of_the_boot(void)
 {
     UpdateTrial trial = {UPDATE_TRIAL_RUNNING, 0};
@@ -97,7 +86,6 @@ static void a_rollback_is_reported_at_every_start_until_its_record_is_cleared(vo
     CHECK_EQUAL(UPDATE_TRIAL_STEP_REPORT, update_trial_boot(&trial));
     CHECK_EQUAL(UPDATE_TRIAL_ROLLED_BACK, trial.state);
     CHECK(!update_trial_charge(&trial));
-    CHECK(!update_trial_settle(&trial));
 }
 
 static void without_a_running_trial_nothing_is_charged(void)
@@ -107,7 +95,6 @@ static void without_a_running_trial_nothing_is_charged(void)
         UpdateTrial trial = {states[index], 7};
         CHECK_EQUAL(UPDATE_TRIAL_STEP_NOTHING, update_trial_boot(&trial));
         CHECK(!update_trial_charge(&trial));
-        CHECK(!update_trial_settle(&trial));
         CHECK_EQUAL(7, trial.attempts);
     }
 }
@@ -170,7 +157,6 @@ int main(void)
         TEST_CASE(every_single_bit_change_invalidates_a_record),
         TEST_CASE(zeros_and_damaged_records_mean_no_trial),
         TEST_CASE(each_boot_of_a_trial_is_charged_until_the_limit),
-        TEST_CASE(a_settled_boot_is_refunded),
         TEST_CASE(a_usb_session_is_charged_on_top_of_the_boot),
         TEST_CASE(a_rollback_is_reported_at_every_start_until_its_record_is_cleared),
         TEST_CASE(without_a_running_trial_nothing_is_charged),

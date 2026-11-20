@@ -42,7 +42,9 @@ static void write_save_block(FakeDisk *disk, uint32_t lba)
 static bool read_layout(FakeDisk *disk, EmmcLayout *layout)
 {
     BlockDevice device = fake_disk_device(disk);
-    return emmc_layout_read(layout, &device, TOTAL_SECTORS);
+    static uint32_t scratch[EMMC_LAYOUT_SCRATCH_WORDS];
+    return emmc_layout_read_with(layout, &device, TOTAL_SECTORS,
+                                 (EmmcLayoutRead){EMMC_SLOT_2_HALF, scratch});
 }
 
 static void the_firmware_area_and_slots_follow_the_idb_system_size(void)

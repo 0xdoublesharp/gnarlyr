@@ -51,5 +51,4 @@ UpdateTrial update_trial_decode(const uint8_t *bytes);
 void update_trial_encode(UpdateTrial trial, uint8_t *bytes);
 UpdateTrialStep update_trial_boot(UpdateTrial *trial);
 bool update_trial_charge(UpdateTrial *trial);
-bool update_trial_settle(UpdateTrial *trial);
 UpdateTrialPromotion update_trial_promotion(UpdateTrialState state, UpdateTrialCheck check);
