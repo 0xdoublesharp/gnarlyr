@@ -28,6 +28,8 @@ enum {
     POINT_DOWN = 3,
     FIRST_SMALL = ICON_PLAY,
     FIRST_NARROW = ICON_BOLT,
+    FIRST_UNDRAWN = ICON_SHUFFLE,
+    UNDRAWN_SPAN = 32,
     KIND_SHIFT = 29,
     A_SHIFT = 22,
     B_SHIFT = 17,
@@ -58,6 +60,14 @@ enum {
 #define TRIANGLE(x0, y0, x1, y1, point) ICON_OP(OP_TRI, x0, y0, x1, y1, point)
 #define ACCENT(op) ((op) | ICON_ACCENT_BIT)
 #define LAST(op) ((op) | ICON_LAST_BIT)
+#define UNDRAWN(icon) (1u << ((icon) - FIRST_UNDRAWN))
+#define UNDRAWN_ICONS                                                                              \
+    (UNDRAWN(ICON_SHUFFLE) | UNDRAWN(ICON_DISPLAY) | UNDRAWN(ICON_THEME) | UNDRAWN(ICON_POWER) |   \
+     UNDRAWN(ICON_SLEEP) | UNDRAWN(ICON_CONTROLS) | UNDRAWN(ICON_START) | UNDRAWN(ICON_RESCAN) |   \
+     UNDRAWN(ICON_BLUETOOTH) | UNDRAWN(ICON_KEY_PLUS) | UNDRAWN(ICON_KEY_MINUS) |                  \
+     UNDRAWN(ICON_KEY_PLAY) | UNDRAWN(ICON_KEY_MENU) | UNDRAWN(ICON_SEEK))
+
+_Static_assert(ICON_SEEK - FIRST_UNDRAWN < UNDRAWN_SPAN, "UNDRAWN_ICONS holds one bit per icon");
 
 #define MUSIC_GLYPH                                                                                \
     ACCENT(DISC(1, 13, 6)), ACCENT(DISC(11, 11, 6)), LINE(5, 3, 5, 15), LINE(15, 1, 15, 13),       \
@@ -97,28 +107,11 @@ enum {
         ACCENT(FILL(1, 7, 18, 8)), ACCENT(FILL(3, 9, 16, 10)), ACCENT(FILL(5, 11, 14, 12)),        \
         ACCENT(FILL(5, 13, 14, 13)), ACCENT(FILL(4, 14, 8, 15)), ACCENT(FILL(11, 14, 15, 15)),     \
         ACCENT(FILL(4, 16, 6, 16)), LAST(ACCENT(FILL(13, 16, 15, 16)))
-#define SHUFFLE_GLYPH                                                                              \
-    LINE(1, 4, 4, 4), LINE(4, 4, 13, 13), LINE(13, 13, 17, 13), ACCENT(LINE(14, 10, 17, 13)),      \
-        ACCENT(LINE(17, 13, 14, 16)), LINE(1, 13, 4, 13), LINE(4, 13, 13, 4), LINE(13, 4, 17, 4),  \
-        ACCENT(LINE(14, 1, 17, 4)), LAST(ACCENT(LINE(17, 4, 14, 7)))
 #define REPEAT_GLYPH                                                                               \
     LINE(2, 9, 2, 5), LINE(2, 5, 4, 3), LINE(4, 3, 16, 3), ACCENT(LINE(13, 0, 16, 3)),             \
         ACCENT(LINE(16, 3, 13, 6)), LINE(16, 9, 16, 13), LINE(16, 13, 14, 15),                     \
         LINE(14, 15, 2, 15), ACCENT(LINE(5, 12, 2, 15)), LAST(ACCENT(LINE(2, 15, 5, 18)))
-#define DISPLAY_GLYPH                                                                              \
-    ACCENT(HALF_DISC(2, 2, 16, TOP)), LINE(0, 10, 18, 10), LINE(3, 14, 15, 14),                    \
-        LAST(LINE(6, 18, 12, 18))
-#define THEME_GLYPH RING(1, 1, 18), LAST(ACCENT(HALF_DISC(1, 1, 18, LEFT)))
-#define POWER_GLYPH OPEN_RING(2, 3, 16, 3), LAST(ACCENT(LINE(9, 0, 9, 9)))
-#define SLEEP_GLYPH ARC(1, 1, 18, LEFT), LAST(ICON_OP(OP_RING, 3, 1, 18, 3, LEFT))
 #define TIMEOUT_GLYPH RING(1, 1, 18), ACCENT(LINE(9, 4, 9, 9)), LAST(ACCENT(LINE(10, 10, 12, 12)))
-#define CONTROLS_GLYPH                                                                             \
-    BOX(4, 0, 15, 19), ACCENT(FILL(7, 4, 12, 5)), ACCENT(FILL(9, 2, 10, 7)),                       \
-        LAST(ACCENT(FILL(7, 14, 12, 15)))
-#define START_GLYPH                                                                                \
-    ACCENT(TRIANGLE(1, 1, 18, 8, POINT_UP)), BOX(4, 8, 15, 18), LAST(ACCENT(FILL(8, 12, 11, 18)))
-#define RESCAN_GLYPH                                                                               \
-    ARC(2, 2, 16, TOP | BOTTOM_RIGHT), LAST(ACCENT(TRIANGLE(3, 13, 8, 19, POINT_LEFT)))
 #define DIAGNOSTICS_GLYPH                                                                          \
     BOX(1, 1, 18, 14), ACCENT(LINE(4, 10, 7, 5)), ACCENT(LINE(7, 5, 11, 10)),                      \
         ACCENT(LINE(11, 10, 14, 5)), LINE(9, 15, 9, 16), LAST(LINE(6, 17, 12, 17))
@@ -132,15 +125,6 @@ enum {
     LINE(9, 5, 9, 15), ACCENT(TRIANGLE(7, 0, 12, 5, POINT_UP)), LINE(2, 6, 2, 7),                  \
         LINE(2, 8, 8, 11), ACCENT(DISC(1, 2, 4)), LINE(16, 8, 16, 10), LINE(11, 14, 16, 11),       \
         ACCENT(FILL(15, 4, 18, 7)), LAST(DISC(8, 16, 4))
-#define BLUETOOTH_GLYPH                                                                            \
-    LINE(9, 1, 9, 17), LINE(9, 1, 13, 5), LINE(13, 5, 5, 13), LINE(9, 17, 13, 13),                 \
-        LAST(LINE(13, 13, 5, 5))
-#define KEY_PLUS_GLYPH BOX(1, 1, 18, 18), ACCENT(LINE(9, 5, 9, 13)), LAST(ACCENT(LINE(5, 9, 13, 9)))
-#define KEY_MINUS_GLYPH BOX(1, 1, 18, 18), LAST(ACCENT(LINE(5, 9, 13, 9)))
-#define KEY_PLAY_GLYPH BOX(1, 1, 18, 18), LAST(ACCENT(TRIANGLE(7, 5, 13, 13, POINT_RIGHT)))
-#define KEY_MENU_GLYPH                                                                             \
-    BOX(1, 1, 18, 18), ACCENT(LINE(5, 5, 13, 5)), ACCENT(LINE(5, 9, 13, 9)),                       \
-        LAST(ACCENT(LINE(5, 13, 13, 13)))
 #define DISC_GLYPH LAST(DISC(0, 0, 20))
 #define HUB_GLYPH LAST(ICON_OP(OP_RING, 0, 0, 20, 5, TOP | BOTTOM))
 #define PLAY_GLYPH LAST(TRIANGLE(1, 0, 12, 12, POINT_RIGHT))
@@ -150,8 +134,6 @@ enum {
         LAST(FILL(11, 2, 12, 11))
 #define PREVIOUS_GLYPH                                                                             \
     FILL(1, 2, 2, 11), TRIANGLE(2, 2, 7, 11, POINT_LEFT), LAST(TRIANGLE(7, 2, 12, 11, POINT_LEFT))
-#define SEEK_GLYPH                                                                                 \
-    LINE(3, 6, 9, 6), TRIANGLE(0, 3, 3, 10, POINT_LEFT), LAST(TRIANGLE(10, 3, 13, 10, POINT_RIGHT))
 #define QUEUE_GLYPH                                                                                \
     LINE(1, 2, 11, 2), LINE(1, 6, 5, 6), LINE(1, 10, 5, 10),                                       \
         LAST(ACCENT(TRIANGLE(9, 7, 13, 13, POINT_RIGHT)))
@@ -177,33 +159,16 @@ enum {
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
 
 static const uint32_t GLYPHS[] = {
-    MUSIC_GLYPH,       AUDIOBOOK_GLYPH,
-    PODCAST_GLYPH,     NOW_PLAYING_GLYPH,
-    MIXTAPE_GLYPH,     AUDIO_GLYPH,
-    SETTINGS_GLYPH,    COVER_FLOW_GLYPH,
-    ARTIST_GLYPH,      ALBUM_ARTIST_GLYPH,
-    ALBUM_GLYPH,       GENRE_GLYPH,
-    FOLDER_GLYPH,      SONG_GLYPH,
-    PLAYLIST_GLYPH,    FAVORITE_GLYPH,
-    SHUFFLE_GLYPH,     REPEAT_GLYPH,
-    DISPLAY_GLYPH,     THEME_GLYPH,
-    POWER_GLYPH,       SLEEP_GLYPH,
-    TIMEOUT_GLYPH,     CONTROLS_GLYPH,
-    START_GLYPH,       RESCAN_GLYPH,
-    DIAGNOSTICS_GLYPH, GAIN_GLYPH,
-    JACK_GLYPH,        USB_GLYPH,
-    BLUETOOTH_GLYPH,   KEY_PLUS_GLYPH,
-    KEY_MINUS_GLYPH,   KEY_PLAY_GLYPH,
-    KEY_MENU_GLYPH,    DISC_GLYPH,
-    HUB_GLYPH,         SEARCH_GLYPH,
-    COMPUTER_GLYPH,    PLAY_GLYPH,
-    PAUSE_GLYPH,       NEXT_GLYPH,
-    PREVIOUS_GLYPH,    SEEK_GLYPH,
-    QUEUE_GLYPH,       SPEAKER_GLYPH,
-    ALBUM_SMALL_GLYPH, SHUFFLE_SMALL_GLYPH,
-    BOLT_GLYPH,        BLUETOOTH_SMALL_GLYPH,
-    LOCK_GLYPH,        SONG_SMALL_GLYPH,
-    PLUG_GLYPH,
+    MUSIC_GLYPH,       AUDIOBOOK_GLYPH,     PODCAST_GLYPH,     NOW_PLAYING_GLYPH,
+    MIXTAPE_GLYPH,     AUDIO_GLYPH,         SETTINGS_GLYPH,    COVER_FLOW_GLYPH,
+    ARTIST_GLYPH,      ALBUM_ARTIST_GLYPH,  ALBUM_GLYPH,       GENRE_GLYPH,
+    FOLDER_GLYPH,      SONG_GLYPH,          PLAYLIST_GLYPH,    FAVORITE_GLYPH,
+    REPEAT_GLYPH,      TIMEOUT_GLYPH,       DIAGNOSTICS_GLYPH, GAIN_GLYPH,
+    JACK_GLYPH,        USB_GLYPH,           DISC_GLYPH,        HUB_GLYPH,
+    SEARCH_GLYPH,      COMPUTER_GLYPH,      PLAY_GLYPH,        PAUSE_GLYPH,
+    NEXT_GLYPH,        PREVIOUS_GLYPH,      QUEUE_GLYPH,       SPEAKER_GLYPH,
+    ALBUM_SMALL_GLYPH, SHUFFLE_SMALL_GLYPH, BOLT_GLYPH,        BLUETOOTH_SMALL_GLYPH,
+    LOCK_GLYPH,        SONG_SMALL_GLYPH,    PLUG_GLYPH,
 };
 
 typedef struct Pen {
@@ -433,11 +398,18 @@ static Shape shape_of(const Pen *pen, uint32_t word)
                    .unit = stroke(pen, 1)};
 }
 
+static bool drawn(int icon)
+{
+    uint32_t offset = (uint32_t)(icon - FIRST_UNDRAWN);
+    return offset >= UNDRAWN_SPAN || ((UNDRAWN_ICONS >> offset) & 1u) == 0;
+}
+
 static const uint32_t *glyph(IconId icon)
 {
     const uint32_t *word = GLYPHS;
-    for (int index = ICON_NONE + 1; index < (int)icon; word++) {
-        index += (*word & ICON_LAST_BIT) != 0 ? 1 : 0;
+    for (int index = ICON_NONE + 1; index < (int)icon; index++) {
+        while (drawn(index) && (*word++ & ICON_LAST_BIT) == 0) {
+        }
     }
     return word;
 }
@@ -467,7 +439,8 @@ static Pen pen_for(Canvas *canvas, IconId icon, Rect area)
 void icon_draw(Canvas *canvas, IconId icon, Rect area, IconInk ink)
 {
     Canvas clipped = canvas_clipped(canvas, area);
-    if (icon <= ICON_NONE || icon >= ICON_COUNT || rect_is_empty(clipped.clip)) {
+    if (icon <= ICON_NONE || icon >= ICON_COUNT || !drawn((int)icon) ||
+        rect_is_empty(clipped.clip)) {
         return;
     }
     Pen pen = pen_for(&clipped, icon, area);

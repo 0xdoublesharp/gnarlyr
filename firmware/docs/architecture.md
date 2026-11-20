@@ -512,7 +512,7 @@ Now Playing does not use the wait-motion owner. Its cassette renderer has the se
 | Small, 14×14 cells | Play, Pause, Next, Previous, Seek, Queue, Speaker, Album (small), Shuffle (small) |
 | Narrow, 9×14 cells | Bolt, Bluetooth (small), Lock, Song (small) |
 
-The names are the `IconId` values in that order (`ICON_MUSIC` … `ICON_SONG_SMALL`). The status bar draws Play, Pause, Bluetooth (small), Lock, Song (small) or Album (small) beside Shuffle (small), and Bolt inside the battery on USB power; the Now Playing feedback badge draws Play, Pause, Next and Previous; the charge screen draws Bolt. No screen draws the others yet.
+The names are the `IconId` values in that order (`ICON_MUSIC` … `ICON_SONG_SMALL`). The status bar draws Play, Pause, Bluetooth (small), Lock, Song (small) or Album (small) beside Shuffle (small), and Bolt inside the battery on USB power; the Now Playing feedback badge draws Play, Pause, Next and Previous; the charge screen draws Bolt. Shuffle, Display, Theme, Power, Sleep, Controls, Start, Rescan, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu and Seek have no drawing: no screen showed them, so their glyphs were removed (188 bytes of resident table). Their IDs stay reserved in `UNDRAWN_ICONS` (`src/ui/icons.c`), because theme packs address icons by ID; `icon_draw` draws nothing for them and the glyph walk skips them.
 
 Sizes:
 
@@ -527,7 +527,8 @@ Adding an icon:
 2. Build it from the existing operation macros. An operation costs 4 bytes and no code. Coordinates are cells, both ends included; a stroke's thickness extends right and down from its cells.
 3. Accent ink marks the part that carries the meaning and the rest is main ink. The icon must still read when both inks are the same colour, as in the status bar.
 4. Overlap parts that join by a cell, so they stay joined at every size.
-5. In `tests/ui/test_icons.c`, list it in `MIRRORED` or `FLIPPED` if the design is symmetric left to right or top to bottom, and add its entry to `SHAPES`: put 0 there, run `test_icons`, and copy the number the failing check prints. A changed number for any other icon means its pixels changed.
+5. To draw a reserved ID, remove it from `UNDRAWN_ICONS` and from `UNDRAWN` in the test, and put its glyph at its place in `GLYPHS`.
+6. In `tests/ui/test_icons.c`, list it in `MIRRORED` or `FLIPPED` if the design is symmetric left to right or top to bottom, and add its entry to `SHAPES`: put 0 there, run `test_icons`, and copy the number the failing check prints. A changed number for any other icon means its pixels changed.
 6. Look at it at every size on the contact sheet: `build/dev/tests/icon_sheet FILE.png` draws all icons, ten to a row in `IconId` order, at 0.8, 1, 1.3, 2 and 3 times their grid, each on a panel the size of its box. Write the file to the Scratch volume, never into the repository.
 
 ## Boards

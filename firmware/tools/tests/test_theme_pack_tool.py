@@ -40,6 +40,23 @@ class ThemeToolTests(unittest.TestCase):
     def save(self, folder):
         (folder / "theme.json").write_text(json.dumps(self.manifest))
 
+    def test_icon_slots_keep_their_numbers_and_boxes(self):
+        names = (
+            "music", "audiobook", "podcast", "now_playing", "mixtape", "audio", "settings",
+            "cover_flow", "artist", "album_artist", "album", "genre", "folder", "song",
+            "playlist", "favorite", "shuffle", "repeat", "display", "theme", "power", "sleep",
+            "timeout", "controls", "start", "rescan", "diagnostics", "gain", "jack", "usb",
+            "bluetooth", "key_plus", "key_minus", "key_play", "key_menu", "disc", "hub", "search",
+            "computer", "play", "pause", "next", "previous", "seek", "queue", "speaker",
+            "album_small", "shuffle_small", "bolt", "bluetooth_small", "lock", "song_small",
+            "plug",
+)
+        for number, name in enumerate(names, start=1):
+            self.assertEqual(256 + number, theme_pack.SLOTS["icon_" + name])
+        self.assertEqual((20, 20), theme_pack.icon_box(theme_pack.SLOTS["icon_shuffle"]))
+        self.assertEqual((14, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_seek"]))
+        self.assertEqual((9, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_lock"]))
+
     def test_palette_and_all_metadata_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = self.folder(directory)
