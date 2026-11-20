@@ -269,7 +269,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/home_editor.c
     src/app/screens/bluetooth_screen.c
     src/app/bluetooth_link_ui.c
-    src/core/dac_identity.c
     src/ui/choice_screen.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library
