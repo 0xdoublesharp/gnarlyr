@@ -34,8 +34,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "firmware" / "tools"))
 from fnv import fnv1a
+from identity import parse as parse_identity, read as read_identity
 
-IDENTITY = json.loads((ROOT / "firmware" / "identity.json").read_text(encoding="utf-8"))
+IDENTITY = read_identity()
 DATA_DIRECTORY = IDENTITY["data_directory"]
 IDENTITY_NOTE = (f"This checkout's firmware is {IDENTITY['name']} {IDENTITY['version']}: the player is the USB "
                  f"device of that name, its folder is {IDENTITY['data_directory']}, and an image must carry "

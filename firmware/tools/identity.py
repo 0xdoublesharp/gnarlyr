@@ -18,8 +18,19 @@ class Identity:
     former_ids: tuple
 
 
+def parse(text):
+    fields = json.loads(text)
+    if not isinstance(fields, dict):
+        raise ValueError("identity.json does not hold an object")
+    return fields
+
+
+def read(path=IDENTITY_FILE):
+    return parse(path.read_text(encoding="utf-8"))
+
+
 def load(path=IDENTITY_FILE):
-    fields = json.loads(path.read_text(encoding="utf-8"))
+    fields = read(path)
     return Identity(**{**fields, "former_ids": tuple(fields["former_ids"])})
 
 

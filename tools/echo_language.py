@@ -85,7 +85,7 @@ class Snapshot:
             self.drawable = self.format.drawable_from_config(
                 json.loads(self.show("firmware/assets/fonts/fonts.json")),
                 json.loads(self.show("firmware/assets/fonts/glyph_pack.json")))
-            identity = json.loads(self.show("firmware/identity.json"))
+            identity = api.parse_identity(self.show("firmware/identity.json"))
             if identity["data_directory"] != api.DATA_DIRECTORY or identity["name"] != api.IDENTITY["name"]:
                 raise ValueError("the installed firmware identity differs from this tool")
             self.check_settings_layout()
