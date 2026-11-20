@@ -94,7 +94,9 @@ static void favorite_albums_are_collected_in_album_order(void)
     favorites_toggle(list, library_album_key(library, 3));
     favorites_toggle(list, library_album_key(library, 1));
     uint16_t albums[FIXTURE_ALBUMS];
-    CHECK_EQUAL(2, favorites_collect_albums(list, library, albums, FIXTURE_ALBUMS));
+    CHECK_EQUAL(
+        2, favorites_collect(list, library,
+                             (FavoritesCollector){.albums = albums, .capacity = FIXTURE_ALBUMS}));
     CHECK_EQUAL(1, albums[0]);
     CHECK_EQUAL(3, albums[1]);
 }
@@ -107,7 +109,8 @@ static void collecting_stops_at_the_capacity(void)
         favorites_toggle(list, library_album_key(library, album));
     }
     uint16_t albums[2];
-    CHECK_EQUAL(2, favorites_collect_albums(list, library, albums, 2));
+    CHECK_EQUAL(
+        2, favorites_collect(list, library, (FavoritesCollector){.albums = albums, .capacity = 2}));
     CHECK_EQUAL(1, albums[1]);
 }
 
@@ -117,7 +120,9 @@ static void albums_that_left_the_library_are_not_collected(void)
     Favorites *list = empty_favorites();
     favorites_toggle(list, 0x12345678u);
     uint16_t albums[FIXTURE_ALBUMS];
-    CHECK_EQUAL(0, favorites_collect_albums(list, library, albums, FIXTURE_ALBUMS));
+    CHECK_EQUAL(
+        0, favorites_collect(list, library,
+                             (FavoritesCollector){.albums = albums, .capacity = FIXTURE_ALBUMS}));
 }
 
 int main(void)

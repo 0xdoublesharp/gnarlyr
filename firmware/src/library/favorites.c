@@ -147,10 +147,3 @@ uint16_t favorites_collect(const Favorites *favorites, const Library *library,
     }
     return found;
 }
-
-uint16_t favorites_collect_albums(const Favorites *favorites, const Library *library,
-                                  uint16_t *albums, uint16_t capacity)
-{
-    FavoritesCollector collector = {.albums = albums, .capacity = capacity};
-    return favorites_collect(favorites, library, collector);
-}
