@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from echo_image_harness import EchoImageHarness, main, IDENTITY, fnv1a
 from echo_emulator.fat_volume import Fat32Volume
-from echo_emulator.playback import Rig
+from echo_emulator.playback import Rig, KEYS, CHORD_STEP_MS
 from echo_emulator.power import DecoderLoad, PowerMeter
 from test_35_small_block_feed import encoded, FED_MS
 from unicorn.arm_const import UC_ARM_REG_SP
@@ -32,6 +32,11 @@ ART_SHARE_MIN = 0.25
 PLAIN_SHARE_MAX = 0.01
 CORE0_LIMIT_PERCENT = 60
 CASE = "flac96_512"
+TOAST_MS = 1500
+TOAST_PHASES = 5
+TOAST_PHASE_MS = 23
+TOAST_GAP_MS = 2500
+CLEARED_WITHIN_MS = 250
 
 
 def photo_pixels(seed=7):
@@ -215,6 +220,40 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreaterEqual(home_share, ART_SHARE_MIN, home_share)
         self.assert_fed(themed)
         self.assertLessEqual(themed["core0_busy_percent"], CORE0_LIMIT_PERCENT, themed)
+
+    def test_a_toast_ending_during_a_scrolling_title_redraws_the_whole_screen(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
+        pack = built_pack(photo_pixels())
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=feed_volume(pack), module_elfs=self.module_elfs)
+        machine = rig.machine
+        frames, draws, shown = [], [0], []
+        def frame_done():
+            frames.append((machine.milliseconds(), draws[0]))
+            draws[0] = 0
+        def art_drawn():
+            draws[0] += 1
+        machine.hook_symbol("frame_pacer_done", frame_done)
+        machine.hook_symbol("theme_art_module_draw", art_drawn)
+        machine.hook_symbol("toast_show", lambda: shown.append(machine.milliseconds()))
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        full = max(count for _, count in frames)
+        chord = [(KEYS["play"], CHORD_STEP_MS), (KEYS["next"], CHORD_STEP_MS),
+                 (KEYS["play"], CHORD_STEP_MS)]
+        for phase in range(TOAST_PHASES):
+            machine.press_ladder(chord)
+            rig.run_for(TOAST_GAP_MS + phase * TOAST_PHASE_MS)
+        self.assertGreaterEqual(len(shown), TOAST_PHASES, shown)
+        for stamp in shown:
+            ended = stamp + TOAST_MS
+            whole = [count for at, count in frames
+                     if ended <= at <= ended + CLEARED_WITHIN_MS and count >= full // 2]
+            self.assertTrue(whole, (stamp, full, [(at, count) for at, count in frames
+                                                  if ended - 200 <= at <= ended + 400]))
+        self.assert_healthy(rig.session)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

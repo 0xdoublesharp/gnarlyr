@@ -2494,7 +2494,7 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     bool stepped = marquee_step_reached(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
     bool quiet = !app.render_wanted && !urgent && app.pacer.fast_frames == 0;
-    uint8_t mask = quiet ? bands_for(stepped, changed && app.view_time_only) : 0;
+    uint8_t mask = quiet && (!changed || app.view_time_only) ? bands_for(stepped, changed) : 0;
     app.render_wanted |= changed || stepped;
     if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;

@@ -624,6 +624,38 @@ static void play_first_album_track(void);
 static void chord_tap(Key volume);
 static bool toast_is(const char *expected);
 
+static int first_written_row_after(uint32_t duration_ms)
+{
+    fake_hal_forget_display_writes();
+    wait_ms(duration_ms);
+    FakeDisplayWrites writes = fake_hal_display_writes();
+    return writes.count > 0 ? writes.first.y : -1;
+}
+
+static void a_battery_change_on_a_marquee_step_redraws_the_whole_screen(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80, .millivolts = 3900});
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.orientation = ORIENTATION_PORTRAIT;
+    store.settings.text_size = TEXT_SIZE_LARGE;
+    store.settings.battery_percent = true;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    play_first_album_track();
+    for (int count = 0; count < 30; count++) {
+        wait_ms(100);
+    }
+    int header = expected_theme()->metrics.header_height;
+    int marquee = first_written_row_after(100);
+    CHECK(marquee > header);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 79, .millivolts = 3890});
+    int first = first_written_row_after(100);
+    CHECK(first >= 0);
+    CHECK(first < header);
+}
+
 static void an_artist_strip_opens_their_album_with_only_their_songs(void)
 {
     start_app_with_library();
@@ -8096,6 +8128,7 @@ int main(void)
         TEST_CASE(a_cue_sheet_in_folders_opens_its_songs_and_plays_from_the_chosen_one),
         TEST_CASE(album_rows_show_a_chevron_and_track_rows_do_not),
         TEST_CASE(an_artist_leads_to_their_albums),
+        TEST_CASE(a_battery_change_on_a_marquee_step_redraws_the_whole_screen),
         TEST_CASE(an_artist_strip_opens_their_album_with_only_their_songs),
         TEST_CASE(an_artist_with_one_album_opens_that_album),
         TEST_CASE(holding_play_on_an_artist_strip_plays_all_their_albums),
