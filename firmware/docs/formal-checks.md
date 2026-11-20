@@ -267,7 +267,7 @@ The base spec has weak fairness on power-on, on every firmware step, on a broken
 | `update_both_request_literal` | same, `PreviousImageKept` | violated | violated as expected | 685 (456) | 7 s |
 | `update_two_images` | updates `A` and `B`, 1 cut | violated: `KnownGoodKept` | violated as expected | 75,633 (53,375), 35 steps | 17 s |
 | `update_two_images_other` | same, every other invariant and `TrialResolves` | passed | passed | 451,734 (322,268), depth 127 | 63 s |
-| `update_trial_waits` | base spec, no owner fairness | violated: liveness | violated as expected | 22,350 (15,716) | 10 s |
+| `update_trial_waits` | base spec, no owner fairness | violated: liveness | violated as expected | 24,910 (17,387); TLC stops where it finds the counterexample, so counts vary between runs | 10 s |
 | `update_settings_literal` | 1 cut, `RollbackRestoresSettings` | violated | violated as expected | 7,485 (5,116) | 8 s |
 | `update_lost_continuity_pass` | 2 cuts, `RestoredBuildCanSave` | violated | violated as expected | 16,082 (10,146) | 8 s |
 | `update_torn_sectors` | 1 cut, sector writes may tear | violated: `SettingsAvailable` | violated as expected | 29 (25), 5 steps | 7 s |
