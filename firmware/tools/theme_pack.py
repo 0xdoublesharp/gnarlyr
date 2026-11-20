@@ -241,9 +241,8 @@ NOW_PLAYING_INDEXED = ("now_playing: an image behind Now Playing raises processo
                        "battery life while the screen is on")
 
 
-def now_playing_check(slot, codec):
-    if slot == SLOTS["now_playing"] and codec == art_codec.LOSSLESS:
-        raise ValueError(NOW_PLAYING_LOSSLESS)
+def lossless_now_playing(slot, codec):
+    return slot == SLOTS["now_playing"] and codec == art_codec.LOSSLESS
 
 
 def descriptor_check(asset):
@@ -281,7 +280,7 @@ def payload_check(data, asset):
                      [[0] * asset["width"] for _ in range(asset["height"])])
 
 
-def check(data, verify_key=None):
+def check(data, verify_key=None, *, installed=False):
     if len(data) < HEADER_BYTES or len(data) > MAX_BYTES:
         raise ValueError("pack size is outside 512 bytes to 2 MiB")
     data = bytes(data)
@@ -315,7 +314,10 @@ def check(data, verify_key=None):
     for index in range(count):
         asset = descriptor(data, index)
         descriptor_check(asset)
-        now_playing_check(asset["slot"], asset["codec"])
+        if lossless_now_playing(asset["slot"], asset["codec"]):
+            if not installed:
+                raise ValueError(NOW_PLAYING_LOSSLESS)
+            asset["fallback"] = "theme-background"
         variant = (asset["slot"], asset["orientation"], asset["text_size"])
         if variant in seen or asset["offset"] != next_offset or asset["offset"] + asset["bytes"] > end:
             raise ValueError("duplicate, overlapping, missing or truncated asset")
@@ -339,8 +341,12 @@ def check(data, verify_key=None):
                     raise ValueError("invalid Ed25519ph signature")
                 info["signature"] = "verified"
     info["warnings"] = contrast_warnings(struct.unpack_from("<20H", data, 452))
-    if any(asset["slot"] == SLOTS["now_playing"] for asset in info["assets"]):
+    if any(asset["slot"] == SLOTS["now_playing"] and asset["codec"] == art_codec.INDEXED
+           for asset in info["assets"]):
         info["warnings"].append(NOW_PLAYING_INDEXED)
+    if any("fallback" in asset for asset in info["assets"]):
+        info["warnings"].append("now_playing: the player uses the theme background colour in place "
+                                "of lossless artwork")
     if styles:
         info["warnings"].append("style: " + ", ".join(style_names(styles)) +
                                 " are checked and kept but not yet applied by the firmware")
@@ -431,7 +437,7 @@ def build(folder, sign_key=None, report=None):
         flags = TILE if slot == 3 and width <= 64 and height <= 64 else 0
         dimensions(slot, orientation, size, width, height, flags)
         settings = asset_settings(asset, manifest)
-        if slot == SLOTS["now_playing"] and settings["codec"] == "lossless":
+        if lossless_now_playing(slot, CODECS[settings["codec"]]):
             raise ValueError(f"{asset['file']}: {NOW_PLAYING_LOSSLESS}")
         width, height, payload, stats = encode_asset(path, slot, settings)
         struct.pack_into("<HBBHHIIBBBBBbbB", data, HEADER_BYTES + index * DESCRIPTOR_BYTES, slot,
@@ -467,23 +473,37 @@ def read_capped(path):
     return bytes(data)
 
 
-def preview(data, folder):
+def rgb888(value):
+    return (value >> 11) << 3, ((value >> 5) & 63) << 2, (value & 31) << 3
+
+
+def preview_image(data, asset):
+    width, height = asset["width"], asset["height"]
+    if asset.get("fallback") == "theme-background":
+        background, = struct.unpack_from("<H", data, 452)
+        return Image.new("RGB", (width, height), rgb888(background))
+    payload = data[asset["offset"]:asset["offset"] + asset["bytes"]]
+    under = [[0x7BEF if (x // 8 + y // 8) % 2 else 0xC618 for x in range(width)]
+             for y in range(height)]
+    rows = art_codec.decode(payload, width, height, under)
+    image = Image.new("RGB", (width, height))
+    image.putdata([rgb888(value) for row in rows for value in row])
+    return image
+
+
+def write_previews(data, folder, assets):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     written = []
-    for index, asset in enumerate(check(data)["assets"]):
-        payload = data[asset["offset"]:asset["offset"] + asset["bytes"]]
-        width, height = asset["width"], asset["height"]
-        under = [[0x7BEF if (x // 8 + y // 8) % 2 else 0xC618 for x in range(width)]
-                 for y in range(height)]
-        rows = art_codec.decode(payload, width, height, under)
-        image = Image.new("RGB", (width, height))
-        image.putdata([((value >> 11) << 3, ((value >> 5) & 63) << 2, (value & 31) << 3)
-                       for row in rows for value in row])
+    for index, asset in enumerate(assets):
         name = f"{index:02d}-slot{asset['slot']}-o{asset['orientation']}-t{asset['text_size']}.png"
-        image.save(folder / name)
+        preview_image(data, asset).save(folder / name)
         written.append(name)
     return written
+
+
+def preview(data, folder):
+    return write_previews(data, folder, check(data)["assets"])
 
 
 def main():
@@ -491,11 +511,14 @@ def main():
     parser.add_argument("folder", type=Path, nargs="?")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check", type=Path)
+    parser.add_argument("--installed", action="store_true", help="check using the player's installed artwork rules")
     parser.add_argument("--preview", type=Path, help="decode every image, including ones not drawn yet, and write each as a PNG")
     parser.add_argument("--sign-key", type=Path, help="32-byte Ed25519 private seed; never included in the pack")
     parser.add_argument("--verify-key", type=Path, help="32-byte public key or 64 hex digits")
     parser.add_argument("--public-key-out", type=Path)
     args = parser.parse_args()
+    if args.installed and not args.check:
+        parser.error("--installed requires --check")
     try:
         report = []
         if args.check:
@@ -508,13 +531,13 @@ def main():
             if destination.is_dir():
                 destination /= check(data)["id"] + ".gtheme"
             destination.write_bytes(data)
-        info = check(data, args.verify_key)
+        info = check(data, args.verify_key, installed=args.installed)
         if report:
             info["encoding"] = report
             info["warnings"] += [f"{entry['file']}: {entry['psnr_db']} dB after quantisation"
                                  for entry in report if entry["psnr_db"] < 30]
         if args.preview:
-            info["previews"] = preview(data, args.preview)
+            info["previews"] = write_previews(data, args.preview, info["assets"])
         if args.public_key_out:
             if args.sign_key is None:
                 parser.error("--public-key-out requires --sign-key")

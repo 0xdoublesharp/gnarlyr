@@ -138,6 +138,51 @@ class ThemeToolTests(unittest.TestCase):
                                     capture_output=True, text=True, check=True)
             self.assertTrue(any("battery" in text for text in json.loads(result.stdout)["warnings"]))
 
+    def test_installed_preview_uses_palette_for_lossless_now_playing_and_checks_every_payload(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.new("RGB", (480, 222), (255, 0, 0)).save(folder / "photo.png")
+            Image.new("RGB", (3, 2), (0, 0, 255)).save(folder / "list.png")
+            self.home_copy(folder)
+            self.manifest["palette"]["background"] = "#123456"
+            self.manifest["assets"].append({"slot": "list", "file": "list.png", "codec": "lossless"})
+            self.save(folder)
+            data = bytearray(theme_pack.build(folder))
+            struct.pack_into("<H", data, theme_pack.HEADER_BYTES, theme_pack.SLOTS["now_playing"])
+
+            def with_crc():
+                struct.pack_into("<I", data, 12, zlib.crc32(data[:12] + data[16:]))
+                return bytes(data)
+
+            pack = folder / "installed.gtheme"
+            pack.write_bytes(with_crc())
+            if VALIDATOR:
+                subprocess.run([VALIDATOR, "--check", str(pack)], check=True, capture_output=True)
+            preview = folder / "preview"
+            command = [sys.executable, str(Path(theme_pack.__file__)), "--check", str(pack)]
+            strict = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(1, strict.returncode)
+            self.assertIn(theme_pack.NOW_PLAYING_LOSSLESS, strict.stderr)
+            inspected = subprocess.run(command + ["--installed", "--preview", str(preview)],
+                                       capture_output=True, text=True)
+            self.assertEqual(0, inspected.returncode, inspected.stderr)
+            info = json.loads(inspected.stdout)
+            self.assertEqual("theme-background", info["assets"][0]["fallback"])
+            self.assertNotIn("fallback", info["assets"][1])
+            self.assertNotIn(theme_pack.NOW_PLAYING_INDEXED, info["warnings"])
+            self.assertEqual(2, len(info["previews"]))
+            for name, size, color in zip(info["previews"], ((480, 222), (3, 2)),
+                                         ((16, 52, 80), (0, 0, 248))):
+                with Image.open(preview / name) as image:
+                    self.assertEqual(size, image.size)
+                    self.assertEqual(tuple((value, value) for value in color), image.getextrema())
+            self.assertEqual(bytes(data), pack.read_bytes())
+            data[theme_pack.descriptor(data, 0)["offset"]] = 255
+            pack.write_bytes(with_crc())
+            rejected = subprocess.run(command + ["--installed"], capture_output=True, text=True)
+            self.assertEqual(1, rejected.returncode)
+            self.assertIn("payload header", rejected.stderr)
+
     def test_style_entries_and_the_cassette_label_warn_that_they_are_not_yet_applied(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = self.folder(directory)

@@ -15,7 +15,9 @@ python3 firmware/tools/theme_pack.py examples/themes/pocket-scope --output /Volu
 python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
 ```
 
-The build prints each image's codec, size, compression ratio and PSNR against plain RGB565 conversion, and warns below 30 dB. `--preview DIR` decodes every image in the pack with the player's decoder and writes it as a PNG, transparent parts over a grey checkerboard. It includes images the firmware does not draw yet, such as `cassette_label` (What the firmware draws, above), and shows each image on its own, not on a screen. `--check` runs the same complete validation the player runs when it selects a pack.
+The build prints each image's codec, size, compression ratio and PSNR against plain RGB565 conversion, and warns below 30 dB. `--preview DIR` decodes every image in the pack with the player's decoder and writes it as a PNG, transparent parts over a grey checkerboard. It includes images the firmware does not draw yet, such as `cassette_label` (What the firmware draws, above), and shows each image on its own, not on a screen. `--check` runs the same complete validation the player runs when it selects a pack, and refuses lossless Now Playing art as a new installation would.
+
+To preview a pack already on a player, use `--check FILE --installed --preview DIR`. With `--installed`, the tool still checks every image payload, including lossless Now Playing art. The player hides that art and draws the theme background instead, so the tool marks the variant with `"fallback": "theme-background"` in its JSON and exports a solid PNG in the pack's background colour for the slot. Without `--preview`, the same command returns the pack information without exporting PNGs.
 
 Copy the resulting file into `.gnarlyr/themes` on the SD card, or internal storage when using no card. Eject normally, then open Settings → Theme. The five built-ins precede installed packs. Highlight previews; Play saves; Back cancels. The simulator uses the same files and validator: with `--card`, put packs in that card directory's `.gnarlyr/themes`; without a card, put them in `<system-dir>/themes`.
 
