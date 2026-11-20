@@ -491,6 +491,24 @@ static void a_pass_without_a_new_build_or_a_request_touches_nothing(void)
     CHECK(find_data(USER_STATE_INTERNAL, "newer/", "settings.bin") == NULL);
 }
 
+static void a_continuity_pass_run_again_after_a_cut_changes_nothing(void)
+{
+    reset();
+    FakeFile *mark = put(USER_STATE_INTERNAL, USER_STATE_MARK_PATH, USER_STATE_MARK_BYTES);
+    user_state_mark("build-trial", 0, mark->bytes);
+    settings_file("", 2);
+    put_store(USER_STATE_MUSIC, "", "session.bin", "DSSJ", 2);
+    CHECK(user_state_run(&IO, "build-restored", true));
+    CHECK(find_data(USER_STATE_INTERNAL, "", "settings.bin") == NULL);
+    CHECK(find_data(USER_STATE_INTERNAL, "newer/", "settings.bin") != NULL);
+    static FakeFile settled[FILE_SLOTS];
+    memcpy(settled, files, sizeof files);
+    creates = 0;
+    CHECK(user_state_run(&IO, "build-restored", true));
+    CHECK_EQUAL(0, creates);
+    CHECK_EQUAL(0, memcmp(settled, files, sizeof files));
+}
+
 static void a_bad_restore_request_reports_failure_and_is_cleared(void)
 {
     reset();
@@ -523,6 +541,7 @@ int main(void)
         TEST_CASE(a_first_run_only_writes_the_mark),
         TEST_CASE(a_failed_backup_keeps_the_previous_build_mark_for_a_retry),
         TEST_CASE(a_pass_without_a_new_build_or_a_request_touches_nothing),
+        TEST_CASE(a_continuity_pass_run_again_after_a_cut_changes_nothing),
         TEST_CASE(a_bad_restore_request_reports_failure_and_is_cleared),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

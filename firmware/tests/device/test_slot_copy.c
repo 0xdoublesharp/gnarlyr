@@ -191,6 +191,23 @@ static void a_damaged_header_copy_makes_a_slot_invalid(void)
     free(bytes);
 }
 
+static void an_erased_source_header_is_never_taken_as_copied(void)
+{
+    reset();
+    uint8_t *kept = image(12);
+    uint8_t *part = image(13);
+    memset(part, 0xFF, CHUNK_SECTORS * 512);
+    memcpy(sectors + (size_t)SLOT_1 * 512, part, FW_END);
+    memcpy(sectors + (size_t)SLOT_2 * 512, kept, FW_END);
+    SlotCopyJob job = {&STORAGE, NULL, SLOT_1, SLOT_2, buffer, {NULL, NULL}, CHUNKS};
+    CHECK(!slot_copy_run(&job));
+    CHECK(!slot_copy_is_valid(&STORAGE, SLOT_1, buffer));
+    CHECK_EQUAL(SLOT_2, log_entries[first_write_into(SLOT_2)].lba);
+    CHECK_EQUAL(0xFF, log_entries[first_write_into(SLOT_2)].first_byte);
+    free(kept);
+    free(part);
+}
+
 static void every_copy_io_failure_is_reported(void)
 {
     enum {
@@ -231,6 +248,7 @@ int main(void)
         TEST_CASE(a_file_is_written_into_one_slot_header_last),
         TEST_CASE(a_valid_slot_is_copied_into_the_other_and_matching_chunks_are_kept),
         TEST_CASE(a_damaged_header_copy_makes_a_slot_invalid),
+        TEST_CASE(an_erased_source_header_is_never_taken_as_copied),
         TEST_CASE(every_copy_io_failure_is_reported),
     };
     int result = test_run_all(cases, TEST_CASE_COUNT(cases));

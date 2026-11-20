@@ -89,12 +89,15 @@ static void a_usb_session_is_charged_on_top_of_the_boot(void)
     CHECK_EQUAL(UPDATE_TRIAL_STEP_ROLL_BACK, update_trial_boot(&trial));
 }
 
-static void a_rollback_is_reported_once(void)
+static void a_rollback_is_reported_at_every_start_until_its_record_is_cleared(void)
 {
     UpdateTrial trial = {UPDATE_TRIAL_ROLLED_BACK, 3};
     CHECK_EQUAL(UPDATE_TRIAL_STEP_REPORT, update_trial_boot(&trial));
-    CHECK_EQUAL(UPDATE_TRIAL_NONE, trial.state);
-    CHECK_EQUAL(UPDATE_TRIAL_STEP_NOTHING, update_trial_boot(&trial));
+    CHECK_EQUAL(UPDATE_TRIAL_ROLLED_BACK, trial.state);
+    CHECK_EQUAL(UPDATE_TRIAL_STEP_REPORT, update_trial_boot(&trial));
+    CHECK_EQUAL(UPDATE_TRIAL_ROLLED_BACK, trial.state);
+    CHECK(!update_trial_charge(&trial));
+    CHECK(!update_trial_settle(&trial));
 }
 
 static void without_a_running_trial_nothing_is_charged(void)
@@ -124,6 +127,41 @@ static void the_started_record_constant_is_running_with_no_attempts(void)
     CHECK(memcmp(STARTED, bytes, sizeof bytes) == 0);
 }
 
+static UpdateTrialPromotion promotion(UpdateTrialState state, bool confirmed, bool valid,
+                                      bool running)
+{
+    return update_trial_promotion(state, (UpdateTrialCheck){confirmed, valid, running});
+}
+
+static void a_confirmed_trial_running_from_a_valid_slot_1_is_promoted(void)
+{
+    CHECK_EQUAL(UPDATE_TRIAL_PROMOTE, promotion(UPDATE_TRIAL_RUNNING, true, true, true));
+    CHECK_EQUAL(UPDATE_TRIAL_PROMOTE, promotion(UPDATE_TRIAL_PROMOTING, false, true, true));
+}
+
+static void a_due_promotion_with_an_invalid_slot_1_ends_the_trial_without_copying(void)
+{
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_RUNNING, true, false, true));
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_RUNNING, true, false, false));
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_PROMOTING, false, false, true));
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_PROMOTING, true, false, false));
+}
+
+static void a_build_not_running_from_slot_1_is_not_promoted(void)
+{
+    CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_RUNNING, true, true, false));
+    CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_PROMOTING, true, true, false));
+}
+
+static void without_a_due_promotion_nothing_changes(void)
+{
+    for (int valid = 0; valid <= 1; valid++) {
+        CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_RUNNING, false, valid, true));
+        CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_NONE, true, valid, true));
+        CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_ROLLED_BACK, true, valid, true));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -134,10 +172,14 @@ int main(void)
         TEST_CASE(each_boot_of_a_trial_is_charged_until_the_limit),
         TEST_CASE(a_settled_boot_is_refunded),
         TEST_CASE(a_usb_session_is_charged_on_top_of_the_boot),
-        TEST_CASE(a_rollback_is_reported_once),
+        TEST_CASE(a_rollback_is_reported_at_every_start_until_its_record_is_cleared),
         TEST_CASE(without_a_running_trial_nothing_is_charged),
         TEST_CASE(the_charge_stops_at_its_largest_value),
         TEST_CASE(the_started_record_constant_is_running_with_no_attempts),
+        TEST_CASE(a_confirmed_trial_running_from_a_valid_slot_1_is_promoted),
+        TEST_CASE(a_due_promotion_with_an_invalid_slot_1_ends_the_trial_without_copying),
+        TEST_CASE(a_build_not_running_from_slot_1_is_not_promoted),
+        TEST_CASE(without_a_due_promotion_nothing_changes),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

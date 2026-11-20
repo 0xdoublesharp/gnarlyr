@@ -35,8 +35,21 @@ typedef enum UpdateTrialStep {
     UPDATE_TRIAL_STEP_REPORT
 } UpdateTrialStep;
 
+typedef enum UpdateTrialPromotion {
+    UPDATE_TRIAL_KEEP,
+    UPDATE_TRIAL_PROMOTE,
+    UPDATE_TRIAL_CLEAR
+} UpdateTrialPromotion;
+
+typedef struct UpdateTrialCheck {
+    bool confirmed;
+    bool slot_1_valid;
+    bool running_slot_1;
+} UpdateTrialCheck;
+
 UpdateTrial update_trial_decode(const uint8_t *bytes);
 void update_trial_encode(UpdateTrial trial, uint8_t *bytes);
 UpdateTrialStep update_trial_boot(UpdateTrial *trial);
 bool update_trial_charge(UpdateTrial *trial);
 bool update_trial_settle(UpdateTrial *trial);
+UpdateTrialPromotion update_trial_promotion(UpdateTrialState state, UpdateTrialCheck check);

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build, regenerate and check firmware; install-device explicitly accesses the player."""
+"""Build, regenerate and check firmware; install-device explicitly accesses the player; formal runs tools/formal.py."""
 import argparse
 import json
 import os
@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import sys
 
 from echo_debug import IDENTITY
 
@@ -588,7 +589,8 @@ def run_analyze(parts, env, python, jobs):
 
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz", "analyze", "regen", "sizes", "install-device"))
+    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz", "analyze", "regen", "sizes",
+                                           "install-device", "formal"))
     parser.add_argument("--check", action="store_true", help="regen: fail if generated sources or assets are stale")
     parser.add_argument("--existing", action="store_true", help="sizes: read existing release/device builds without rebuilding")
     parser.add_argument("--dry-run", action="store_true", help="install-device: freeze, prove and back up without installing")
@@ -645,7 +647,12 @@ def arguments():
     return parser, args
 
 
-def main():
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["formal"]:
+        from formal import main as formal
+
+        return formal(argv[1:])
     parser, args = arguments()
     env, python = environment(args.build_jobs or args.jobs)
     if args.action in ("regen", "sizes", "install-device"):
@@ -715,6 +722,6 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        raise SystemExit(main())
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(str(error)) from None

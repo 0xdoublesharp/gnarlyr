@@ -61,7 +61,6 @@ bool update_trial_charge(UpdateTrial *trial)
 UpdateTrialStep update_trial_boot(UpdateTrial *trial)
 {
     if (trial->state == UPDATE_TRIAL_ROLLED_BACK) {
-        *trial = (UpdateTrial){UPDATE_TRIAL_NONE, 0};
         return UPDATE_TRIAL_STEP_REPORT;
     }
     if (trial->state == UPDATE_TRIAL_RUNNING && trial->attempts >= UPDATE_TRIAL_LIMIT) {
@@ -77,4 +76,17 @@ bool update_trial_settle(UpdateTrial *trial)
     }
     trial->attempts--;
     return true;
+}
+
+UpdateTrialPromotion update_trial_promotion(UpdateTrialState state, UpdateTrialCheck check)
+{
+    bool due =
+        (state == UPDATE_TRIAL_RUNNING && check.confirmed) || state == UPDATE_TRIAL_PROMOTING;
+    if (!due) {
+        return UPDATE_TRIAL_KEEP;
+    }
+    if (!check.slot_1_valid) {
+        return UPDATE_TRIAL_CLEAR;
+    }
+    return check.running_slot_1 ? UPDATE_TRIAL_PROMOTE : UPDATE_TRIAL_KEEP;
 }

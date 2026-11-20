@@ -50,10 +50,20 @@ static bool write_checked(const SlotCopyJob *job, uint32_t chunk)
            same_words(job->buffer, back, CHUNK_WORDS);
 }
 
+static bool erased(const uint32_t *words)
+{
+    for (uint32_t index = 0; index < CHUNK_WORDS; index++) {
+        if (words[index] != 0xFFFFFFFFu) {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool copy_chunk(const SlotCopyJob *job, uint32_t chunk)
 {
     uint32_t *target = job->buffer + CHUNK_WORDS;
-    if (!read_source(job, chunk) ||
+    if (!read_source(job, chunk) || (chunk == 0 && erased(job->buffer)) ||
         !read_slot(job->storage, job->to + chunk * CHUNK_SECTORS, CHUNK_SECTORS, target)) {
         return false;
     }

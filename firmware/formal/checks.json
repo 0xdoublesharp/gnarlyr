@@ -1,0 +1,571 @@
+{
+  "cbmc": {
+    "checks": [
+      "--bounds-check",
+      "--pointer-check",
+      "--pointer-overflow-check",
+      "--signed-overflow-check",
+      "--div-by-zero-check",
+      "--undefined-shift-check"
+    ],
+    "harnesses": {
+      "canary": {
+        "entry": "canary",
+        "sources": [],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 16
+        },
+        "unwind": 18,
+        "uninitialized": true,
+        "expect": "failed",
+        "timeout": 1800,
+        "failures": [
+          "count_marks.array_bounds.1",
+          "count_marks.uninitialized_local.1"
+        ]
+      },
+      "library_database": {
+        "entry": "library_database",
+        "sources": [
+          "src/library/library.c",
+          "src/library/library_content.c",
+          "src/core/utf8.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 160,
+          "FORMAL_TEXT_BYTES": 16,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 40,
+        "timeout": 1800,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "scan_record": {
+        "entry": "scan_record",
+        "sources": [
+          "src/app/music_check.c",
+          "src/app/music_record.c",
+          "src/library/music_fingerprint.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hal.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 528,
+          "FORMAL_VERSION_BYTES": 24
+        },
+        "unwind": 26,
+        "timeout": 1800,
+        "includes": [
+          "src/app"
+        ]
+      },
+      "tags_id3v2": {
+        "entry": "track_tags",
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 64,
+          "FORMAL_TAG_FORMAT": "TAG_FORMAT_MP3",
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 4,
+        "timeout": 1800,
+        "unwinding_assertions": false,
+        "checks": [
+          "--object-bits",
+          "12"
+        ],
+        "default": false
+      },
+      "tags_flac": {
+        "entry": "track_tags",
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 96,
+          "FORMAL_TAG_FORMAT": "TAG_FORMAT_FLAC",
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 6,
+        "timeout": 1800,
+        "unwinding_assertions": false,
+        "checks": [
+          "--object-bits",
+          "12"
+        ],
+        "default": false
+      },
+      "tags_mp4": {
+        "entry": "track_tags",
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 96,
+          "FORMAL_TAG_FORMAT": "TAG_FORMAT_MP4",
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 6,
+        "timeout": 1800,
+        "unwinding_assertions": false,
+        "checks": [
+          "--object-bits",
+          "12"
+        ],
+        "default": false
+      },
+      "tags_vorbis_comment": {
+        "entry": "vorbis_comment",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 64,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 4,
+        "timeout": 1800,
+        "unwinding_assertions": false,
+        "checks": [
+          "--object-bits",
+          "12"
+        ]
+      },
+      "cue_sheet": {
+        "entry": "cue_sheet",
+        "sources": [
+          "src/library/cue_sheet.c",
+          "src/library/playlist_reader.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 64,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 4,
+        "timeout": 1800,
+        "unwinding_assertions": false,
+        "checks": [
+          "--object-bits",
+          "12"
+        ],
+        "default": false
+      },
+      "playlist_reader": {
+        "entry": "playlist_reader",
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 64,
+          "FORMAL_TEXT_BYTES": 12,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 4,
+        "timeout": 1800,
+        "unwinding_assertions": false,
+        "checks": [
+          "--object-bits",
+          "12"
+        ]
+      },
+      "settings_codec": {
+        "entry": "settings_codec",
+        "sources": [
+          "src/settings/settings.c",
+          "src/core/format_chain.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 96
+        },
+        "unwind": 98,
+        "timeout": 1800
+      },
+      "playback_store": {
+        "entry": "playback_store",
+        "sources": [
+          "src/playback/store.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 1100,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 514,
+        "timeout": 1800
+      },
+      "user_state_records": {
+        "entry": "user_state_records",
+        "sources": [
+          "src/settings/user_state.c",
+          "src/settings/user_state_list.c",
+          "platform/device/logic/update_trial.c",
+          "src/core/format_chain.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 16
+        },
+        "unwind": 24,
+        "timeout": 1800
+      },
+      "language_pack": {
+        "entry": "language_pack",
+        "includes": [
+          "formal/cbmc/catalogue"
+        ],
+        "sources": [
+          "src/core/i18n.c",
+          "src/core/string_builder.c",
+          "src/core/utf8.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "preinclude": [
+          "builtins.h"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 128,
+          "FORMAL_LANGUAGE_MEMORY": 32
+        },
+        "unwind": 132,
+        "timeout": 1800
+      },
+      "language_loader": {
+        "entry": "language_loader",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/language.c",
+          "src/app/language_module.c",
+          "src/core/string_builder.c",
+          "src/core/utf8.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hal.c",
+          "i18n.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 256,
+          "FORMAL_LANGUAGE_MEMORY": 192,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 20,
+        "timeout": 1800
+      },
+      "theme_pack_v1": {
+        "entry": "theme_pack",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_pack.c",
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "nondet_bodies": [
+          "theme_pack_crc"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 640,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 130,
+        "timeout": 1800,
+        "checks": [
+          "--unsigned-overflow-check",
+          "--object-bits",
+          "12"
+        ],
+        "unwinding_assertions": false,
+        "default": false
+      }
+    }
+  },
+  "tla": {
+    "version": "1.7.4",
+    "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+    "sha1": "bee4a54f3ee3d4afc347c3240ec2d9e93b075104",
+    "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "models": {
+      "update_rollback": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollback.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_witness_rollback": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWitnessRollback.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "RollbackWitness"
+      },
+      "update_witness_promotion": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWitnessPromotion.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "PromotionWitness"
+      },
+      "update_witness_clear": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWitnessClear.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "ClearWitness"
+      },
+      "update_promotes_partial_slot": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackPromote.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_promotes_partial_slot_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackPromoteBefore.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "AlwaysBootable"
+      },
+      "update_write_failure": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackFailures.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_write_failure_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackFailuresBefore.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "AlwaysBootable"
+      },
+      "update_write_failure_liveness": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackFailuresLiveness.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "temporal"
+      },
+      "update_both_request": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBoth.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_both_request_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBothBefore.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "AlwaysBootable"
+      },
+      "update_both_request_known_good": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBothKnownGood.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_both_request_literal": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBothLiteral.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "PreviousImageKept"
+      },
+      "update_two_images": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackTwoImages.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "KnownGoodKept"
+      },
+      "update_two_images_other": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackTwoImagesRest.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_trial_waits": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWaits.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "temporal"
+      },
+      "update_settings_literal": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackLiteral.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "RollbackRestoresSettings"
+      },
+      "update_lost_continuity_pass": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackLostPass.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_lost_continuity_pass_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackLostPassBefore.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "RestoredBuildCanSave"
+      },
+      "update_torn_sectors": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackTorn.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "SettingsAvailable"
+      },
+      "update_rom_slot1_only": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackRom.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "AlwaysBootable"
+      },
+      "core_handoff": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoff.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "core_handoff_witness": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffWitness.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "NeverPlaysOut"
+      },
+      "core_handoff_window": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffWindow.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "core_handoff_window_before": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffWindowBefore.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "NoStaleFrame"
+      },
+      "core_handoff_reorder": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffReorder.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "core_handoff_reorder_before": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffReorderBefore.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "NoSlotReadWhileWritten"
+      }
+    }
+  }
+}

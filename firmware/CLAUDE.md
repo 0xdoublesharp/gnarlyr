@@ -50,6 +50,8 @@ python3 tools/firmware.py sim --card /path/to/music
 
 Opt-in long fuzzing (`fuzz --long`) and static analysis with a stack bound (`analyze`): `docs/robustness-checks.md`.
 
+The CBMC harnesses and TLA+ models run only on demand (`python3 tools/firmware.py formal`), never in `test` or CI on push: `docs/formal-checks.md`.
+
 ### Emulator scenarios
 
 Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `device_image_boot_<test_name>`, so they run side by side. Use them this way:

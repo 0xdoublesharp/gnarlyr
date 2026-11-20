@@ -36,7 +36,8 @@ typedef struct UsbReconnect {
 
 enum {
     USB_SETTLE_CHANGED = 1,
-    USB_SETTLE_ASKED = 2
+    USB_SETTLE_ASKED = 2,
+    USB_SETTLE_ROLLED_BACK = 4
 };
 
 typedef struct UsbTrial {

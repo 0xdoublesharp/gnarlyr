@@ -7,6 +7,7 @@
 #include "core/string_builder.h"
 #include "device/slot_copy.h"
 #include "headphone_store.h"
+#include "internal_volume.h"
 #include "overlay.h"
 #include "screen_modules.h"
 #include "trial_module.h"
@@ -85,14 +86,26 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
         roll_back(&disk, buffer);
         return;
     }
-    if (!record_write(disk.volume, trial)) {
+    bool rolled_back = step == UPDATE_TRIAL_STEP_REPORT;
+    if (!rolled_back && !record_write(disk.volume, trial)) {
         return;
     }
     shared->trial.running = trial.state == UPDATE_TRIAL_RUNNING;
     shared->trial.promoting = trial.state == UPDATE_TRIAL_PROMOTING;
-    shared->trial.rolled_back = step == UPDATE_TRIAL_STEP_REPORT;
-    shared->trial.settle =
-        shared->trial.running || shared->trial.rolled_back ? USB_SETTLE_CHANGED : 0;
+    shared->trial.rolled_back = rolled_back;
+    shared->trial.settle = shared->trial.running ? USB_SETTLE_CHANGED : 0;
+    shared->trial.settle |= rolled_back ? USB_SETTLE_CHANGED | USB_SETTLE_ROLLED_BACK : 0;
+}
+
+static bool settle(UsbShared *shared)
+{
+    bool rolled_back = (shared->trial.settle & USB_SETTLE_ROLLED_BACK) != 0;
+    bool settled = user_state_module_settle(shared);
+    FatVolume *volume = rolled_back ? internal_volume_mount() : NULL;
+    if (volume != NULL && record_read(volume).state == UPDATE_TRIAL_ROLLED_BACK) {
+        fat_delete(volume, UPDATE_TRIAL_PATH);
+    }
+    return settled;
 }
 
 static bool running_from_slot_1(const UpdateStorage *storage, uint32_t *buffer)
@@ -129,20 +142,40 @@ static void report_backup(void *context, uint32_t done, uint32_t total)
     }
 }
 
-static bool promotion_due(const TrialDisk *disk, const UsbShared *shared, uint32_t *buffer)
+static UpdateTrialPromotion promotion(const TrialDisk *disk, const UsbShared *shared,
+                                      uint32_t *buffer)
 {
     UpdateTrial trial = record_read(disk->volume);
-    bool confirmed = trial.state == UPDATE_TRIAL_RUNNING &&
-                     shared->last_session.end == HAL_USB_END_EJECTED &&
-                     shared->last_session.internal_write_ok;
-    return (confirmed || trial.state == UPDATE_TRIAL_PROMOTING) &&
-           running_from_slot_1(&disk->storage, buffer);
+    UpdateTrialCheck check = {.confirmed = shared->last_session.end == HAL_USB_END_EJECTED &&
+                                           shared->last_session.internal_write_ok,
+                              .slot_1_valid =
+                                  slot_copy_is_valid(&disk->storage, disk->storage.slot_1, buffer),
+                              .running_slot_1 = running_from_slot_1(&disk->storage, buffer)};
+    return update_trial_promotion(trial.state, check);
+}
+
+static bool end_trial(FatVolume *volume, UsbShared *shared)
+{
+    if (!record_write(volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
+        return false;
+    }
+    shared->trial.running = false;
+    shared->trial.promoting = false;
+    return true;
 }
 
 void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
 {
     TrialDisk disk;
-    if (!trial_record_open(&disk) || !promotion_due(&disk, shared, buffer)) {
+    if (!trial_record_open(&disk)) {
+        return;
+    }
+    UpdateTrialPromotion step = promotion(&disk, shared, buffer);
+    if (step == UPDATE_TRIAL_CLEAR) {
+        end_trial(disk.volume, shared);
+        return;
+    }
+    if (step != UPDATE_TRIAL_PROMOTE) {
         return;
     }
     uint32_t shown = 0;
@@ -150,9 +183,7 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
     if (record_write(disk.volume, (UpdateTrial){UPDATE_TRIAL_PROMOTING, 0}) &&
         trial_record_copy(&disk, disk.storage.slot_1, disk.storage.slot_2, buffer,
                           (UpdateProgress){report_backup, &shown}) &&
-        record_write(disk.volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
-        shared->trial.running = false;
-        shared->trial.promoting = false;
+        end_trial(disk.volume, shared)) {
         return;
     }
     app_show_notice(i18n_text(STR_UPDATE_FAILED), i18n_text(STR_UPDATE_FAILED_HINT));
@@ -161,4 +192,4 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
 
 const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
     SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_end, user_state_module_settle, headphone_store_load};
+    trial_boot_module_session_end, settle, headphone_store_load};
