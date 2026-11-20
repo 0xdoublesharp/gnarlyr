@@ -125,7 +125,7 @@ static bool store_up_next(Player *player, const UpNext *up_next)
     return player_store_session(player, &state);
 }
 
-static void save_up_next(Player *player)
+void player_save_up_next(Player *player)
 {
     player->up_next_revision++;
     (void)store_up_next(player, &player->up_next);
@@ -306,7 +306,7 @@ static void restart_track(Player *player)
     }
 }
 
-static bool start_playable(Player *player, uint32_t start_ms, int direction, bool wrap)
+bool player_start_playable(Player *player, uint32_t start_ms, int direction, bool wrap)
 {
     if (start_current(player, start_ms)) {
         return true;
@@ -327,7 +327,7 @@ static bool start_playable(Player *player, uint32_t start_ms, int direction, boo
     return false;
 }
 
-static bool start_up_next(Player *player)
+bool player_start_up_next(Player *player)
 {
     uint16_t track = 0;
     bool started = false;
@@ -340,7 +340,7 @@ static bool start_up_next(Player *player)
     if (!started) {
         player->from_up_next = false;
     }
-    save_up_next(player);
+    player_save_up_next(player);
     return started;
 }
 
@@ -357,12 +357,12 @@ static bool skip_holding_pause(Player *player, int direction, bool wrap)
 static bool move_and_start(Player *player, int direction, bool wrap)
 {
     if (!player->cassette.active && direction > 0 && player->up_next.count > 0 &&
-        start_up_next(player)) {
+        player_start_up_next(player)) {
         return true;
     }
     if (direction < 0 && player->from_up_next) {
         player->from_up_next = false;
-        return start_playable(player, 0, direction, wrap);
+        return player_start_playable(player, 0, direction, wrap);
     }
     PlayQueueCursor target;
     if (!play_queue_neighbor(&player->queue, direction, wrap && !player->cassette.active,
@@ -372,7 +372,7 @@ static bool move_and_start(Player *player, int direction, bool wrap)
     }
     player->from_up_next = false;
     play_queue_move_to(&player->queue, target);
-    return start_playable(player, 0, direction, wrap);
+    return player_start_playable(player, 0, direction, wrap);
 }
 
 void player_init(Player *player, const Library *library)
@@ -426,9 +426,9 @@ bool player_play_from(Player *player, PlayerListStart start)
                           .shuffle = in_order ? SHUFFLE_OFF : player->shuffle,
                           .seed = start.seed};
     if (!play_queue_build(&player->queue, player->library, plan) ||
-        !(start.exact_position
-              ? start_track(player, start.position_ms, false)
-              : start_playable(player, start.position_ms, 1, player->repeat == REPEAT_ALL))) {
+        !(start.exact_position ? start_track(player, start.position_ms, false)
+                               : player_start_playable(player, start.position_ms, 1,
+                                                       player->repeat == REPEAT_ALL))) {
         return false;
     }
     player_save(player);
@@ -624,7 +624,7 @@ static void take_next(Player *player)
         up_next_first(&player->up_next, &player->track);
         up_next_drop(&player->up_next, 1);
         player->from_up_next = true;
-        save_up_next(player);
+        player_save_up_next(player);
         return;
     case PLAYER_NEXT_SAME_SONG:
         return;
@@ -750,38 +750,6 @@ PlayerUpNextResult player_play_next(Player *player, uint16_t track)
 PlayerUpNextResult player_add_to_up_next(Player *player, uint16_t track)
 {
     return enqueue(player, track, false);
-}
-
-bool player_jump_to_up_next(Player *player, uint16_t index)
-{
-    player_queue_cancel(player);
-    if (index >= player->up_next.count) {
-        return false;
-    }
-    up_next_drop(&player->up_next, index);
-    player->hold_pause = player->state == PLAYER_PAUSED;
-    bool started = start_up_next(player);
-    player->hold_pause = false;
-    player_save(player);
-    return started;
-}
-
-bool player_jump_to_queue(Player *player, PlayQueueCursor cursor)
-{
-    if (!cassette_contains(&player->cassette, cursor.position)) {
-        return false;
-    }
-    player->cassette.flip = false;
-    player_queue_cancel(player);
-    up_next_clear(&player->up_next);
-    save_up_next(player);
-    player->from_up_next = false;
-    play_queue_move_to(&player->queue, cursor);
-    player->hold_pause = player->state == PLAYER_PAUSED;
-    bool started = start_playable(player, 0, 1, player->repeat == REPEAT_ALL);
-    player->hold_pause = false;
-    player_save(player);
-    return started;
 }
 
 void player_release_output(Player *player)

@@ -104,6 +104,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/core/random_below.c
     src/app/cover_placeholders.c
     src/app/screens/up_next_screen.c
+    src/app/player_jump.c
     src/app/queue_actions.c
     src/app/queue_edits.c
     src/ui/cover_flow.c

@@ -10,3 +10,6 @@ PlayerUpNextResult player_queue_insert(Player *player, uint16_t track, bool next
 bool player_queue_is_current(const Player *player);
 PlayerQueueEditResult player_commit_up_next(Player *player, const UpNext *candidate);
 PlayerQueueEditResult player_queue_begin(Player *player);
+void player_save_up_next(Player *player);
+bool player_start_playable(Player *player, uint32_t start_ms, int direction, bool wrap);
+bool player_start_up_next(Player *player);

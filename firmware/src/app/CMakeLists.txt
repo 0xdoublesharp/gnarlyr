@@ -17,6 +17,7 @@ add_library(echo_app STATIC
     order_publish.c
     order_adopt.c
     personal_tags.c
+    player_jump.c
     player_storage.c
     player_queue.c
     queue_edits.c
