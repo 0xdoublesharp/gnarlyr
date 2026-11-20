@@ -507,12 +507,32 @@ typedef struct BandCase {
     uint32_t first_position_ms;
     uint32_t next_position_ms;
     uint8_t bands;
+    bool preview;
 } BandCase;
+
+static Library preview_library;
+static Player preview_player;
+
+static void preview_scrub(void)
+{
+    preview_player =
+        (Player){.library = &preview_library, .has_track = true, .state = PLAYER_PAUSED};
+    playback_view.config.player = &preview_player;
+    playback_view.status.duration_ms = 200000;
+    playback_view.scrub = (NowPlayingScrub){.started_ms = 1000,
+                                            .base_ms = 30000,
+                                            .duration_ms = 200000,
+                                            .token = player_token(&preview_player),
+                                            .active = true};
+}
 
 static void check_band_case(BandCase band, bool art)
 {
     Rect screen = {0, 0, playback_theme.metrics.screen_width, playback_theme.metrics.screen_height};
     playback_theme.draw_art = art ? patterned_art : NULL;
+    if (band.preview) {
+        preview_scrub();
+    }
     frame_now_ms = band.first_ms;
     frame_position_ms = band.first_position_ms;
     marquee_watch_start();
@@ -537,10 +557,11 @@ static void check_band_case(BandCase band, bool art)
 static void a_band_frame_leaves_exactly_the_pixels_of_a_full_frame(void)
 {
     static const BandCase CASES[] = {
-        {1300, 1400, 5000, 5400, 1u << MARQUEE_BAND_TEXT},
-        {300, 400, 2000, 17000, 1u << MARQUEE_BAND_TIME | 1u << MARQUEE_BAND_TAPE},
+        {1300, 1400, 5000, 5400, 1u << MARQUEE_BAND_TEXT, false},
+        {300, 400, 2000, 17000, 1u << MARQUEE_BAND_TIME | 1u << MARQUEE_BAND_TAPE, false},
         {1300, 1400, 5900, 6100,
-         1u << MARQUEE_BAND_TEXT | 1u << MARQUEE_BAND_TIME | 1u << MARQUEE_BAND_TAPE},
+         1u << MARQUEE_BAND_TEXT | 1u << MARQUEE_BAND_TIME | 1u << MARQUEE_BAND_TAPE, false},
+        {1300, 1400, 5000, 5000, 1u << MARQUEE_BAND_TEXT, true},
     };
     for (int orientation = 0; orientation < 2; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {

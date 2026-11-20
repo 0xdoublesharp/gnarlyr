@@ -2359,6 +2359,13 @@ static uint32_t view_stamp(uint32_t *rest)
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
     stamp = stamp_add(stamp, app.themes.active);
+    const NowPlayingScreen *now_playing = &app.screens.now_playing;
+    uint32_t since = app.now_ms - now_playing->feedback_started_ms;
+    stamp =
+        stamp_add(stamp, (uint32_t)now_playing->feedback << 3 |
+                             (uint32_t)(since < NOW_PLAYING_BADGE_MS) << 2 |
+                             (uint32_t)(since < NOW_PLAYING_VOLUME_FEEDBACK_MS) << 1 |
+                             (app.now_ms - now_playing->repeat_feedback_ms < NOW_PLAYING_BADGE_MS));
     *rest = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
     return stamp_add(*rest, status.position_ms / VIEW_STAMP_POSITION_MS);
 }

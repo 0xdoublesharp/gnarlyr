@@ -657,6 +657,34 @@ static void a_battery_change_on_a_marquee_step_redraws_the_whole_screen(void)
     CHECK(first < header);
 }
 
+static void a_feedback_badge_that_ends_during_marquee_steps_is_cleared(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.orientation = ORIENTATION_PORTRAIT;
+    store.settings.text_size = TEXT_SIZE_LARGE;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    play_first_album_track();
+    for (int count = 0; count < 30; count++) {
+        wait_ms(100);
+    }
+    int marquee = first_written_row_after(100);
+    CHECK(marquee > expected_theme()->metrics.header_height);
+    uint32_t pressed = now_ms;
+    tap(KEY_PLAY);
+    while (now_ms - pressed < NOW_PLAYING_BADGE_MS) {
+        wait_ms(10);
+    }
+    int highest = marquee;
+    while (now_ms - pressed < NOW_PLAYING_BADGE_MS + 100) {
+        int row = first_written_row_after(10);
+        highest = row >= 0 && row < highest ? row : highest;
+    }
+    CHECK(highest < marquee);
+}
+
 static void an_artist_strip_opens_their_album_with_only_their_songs(void)
 {
     start_app_with_library();
@@ -8541,6 +8569,7 @@ int main(void)
         TEST_CASE(album_rows_show_a_chevron_and_track_rows_do_not),
         TEST_CASE(an_artist_leads_to_their_albums),
         TEST_CASE(a_battery_change_on_a_marquee_step_redraws_the_whole_screen),
+        TEST_CASE(a_feedback_badge_that_ends_during_marquee_steps_is_cleared),
         TEST_CASE(an_artist_strip_opens_their_album_with_only_their_songs),
         TEST_CASE(an_artist_with_one_album_opens_that_album),
         TEST_CASE(holding_play_on_an_artist_strip_plays_all_their_albums),
