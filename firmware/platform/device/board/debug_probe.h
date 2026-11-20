@@ -29,6 +29,7 @@ BoardBatteryReading board_debug_battery_raw(void);
 void board_debug_usb_powered(bool powered);
 bool board_debug_usb_is_powered(void);
 bool board_debug_usb_kept_on(void);
+void board_debug_keep_usb_on(bool kept_on);
 void board_debug_power_tick(uint32_t now_ms);
 void board_debug_power_poll(void);
 const PowerHistory *board_debug_power_history(void);

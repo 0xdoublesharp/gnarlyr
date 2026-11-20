@@ -467,6 +467,7 @@ if(CMAKE_CROSSCOMPILING)
         board/debug_rtc_calls.c
         board/debug_script_file.c
         board/debug_session.c
+        board/debug_usb_power.c
         board/extension.c
         board/glyphs.c
         board/high_ram.c

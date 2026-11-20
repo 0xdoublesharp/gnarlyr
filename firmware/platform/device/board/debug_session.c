@@ -286,18 +286,9 @@ void hal_system_save_report(uint32_t reason)
     board_stall_pause(false);
 }
 
-void hal_system_keep_usb_on(bool kept_on)
+void board_debug_keep_usb_on(bool kept_on)
 {
     usb_kept_on = kept_on;
-    if (usb_session_shared()->reconnect.in_session || board_usb_listening()) {
-        return;
-    }
-    if (kept_on && !usb_powered) {
-        usb_power_up();
-        set_bits(DCTL, DCTL_SOFT_DISCONNECT);
-    } else if (!kept_on && usb_powered) {
-        usb_power_down();
-    }
 }
 
 void board_debug_listen_stopped(void)

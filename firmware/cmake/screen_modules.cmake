@@ -321,6 +321,7 @@ else()
         platform/device/board/debug_battery_trace.c
         platform/device/board/debug_poke.c
         platform/device/board/debug_rtc_calls.c
+        platform/device/board/debug_usb_power.c
     )
 endif()
 
