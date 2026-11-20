@@ -108,6 +108,22 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(session.file_exists(STOCK_INSTALL_NAME))
         self.assert_healthy(session)
 
+    def test_after_a_cut_install_was_cleared_the_next_update_installs_on_trial(self):
+        newer = self.newer_image()
+        session = self.session(files=[(IDENTITY.update_file, newer, None)], vbus=True,
+                               system_mib=SLOT_2_AT_HALF_MIB)
+        self.interrupt_slot_1_install(session, newer)
+        session.machine.note("updater_install")
+        self.assertEqual(self.boot_until_waiting_for_key(session), "reached board_wait_for_power_hold")
+        self.assertEqual(session.machine.reached["trial_module_install"], 1)
+        self.assertNotIn("updater_install", session.machine.reached)
+        self.assert_healthy(session)
+        self.assertEqual(self.firmware_writes(session, "slot_2"), [])
+        self.assert_written_header_last(session, "slot_1", newer)
+        self.assertEqual(session.slot_image("slot_1"), self.slot_bytes(newer))
+        self.assertEqual(session.slot_image("slot_2"), self.slot_bytes(self.image))
+        self.assertEqual(self.trial_record(session), (TRIAL_RUNNING, 0))
+
     def test_a_trial_build_confirms_with_an_ejected_session_and_becomes_the_backup(self):
         newer = self.newer_image()
         trial = self.start(self.install_on_trial(newer), newer, vbus=True)
