@@ -372,7 +372,7 @@ Every core 0 and core 1 step has weak fairness. Stopping and opening streams are
 | `C1Decode` | `decode_next` `:264` with `next_block` `:255` (in-place output) |
 | `C1Recheck` | `:269` |
 | `C0Stop` | `core1_source_stop` `:349`, `generation = 0` `:353` |
-| `C0Open` | fields, fence, `generation =` at `core1_open.c:57`, `core1_open_flac.c:37`, `core1_open_mp3.c:63`, `core1_ogg_source.c:42`, `core1_ape_source.c:20`, `core1_wma_source.c:24`, `core1_dsd_source.c:50` |
+| `C0Open` | fields, fence, `generation =` at `core1_m4a_source.c:57`, `core1_open_flac.c:37`, `core1_open_mp3.c:63`, `core1_ogg_source.c:42`, `core1_ape_source.c:20`, `core1_wma_source.c:24`, `core1_dsd_source.c:50` |
 | `C0Drop` | `drop_stale_slots` `:372`, called at `:388` and `:439` |
 | `C0Look` | `next_frame` `:431`, state `:441`, fence `:444`, generation check `:445` |
 | `C0Read`, `C0LateRead` | `audio_engine.c:620` `copy_pending` reading `frame.left`/`right` |

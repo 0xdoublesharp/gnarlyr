@@ -501,6 +501,9 @@ endif()
 target_link_libraries(echo_device PRIVATE echo_app echo_device_logic echo_options echo_lto)
 list(TRANSFORM ECHO_OVERLAY_IMPORTS PREPEND "-Wl,--require-defined=" OUTPUT_VARIABLE
     ECHO_OVERLAY_IMPORT_OPTIONS)
+set(ECHO_EMULATOR_ENTRIES mp4_probe mp4_cursor_seek mp4_cursor_next)
+list(TRANSFORM ECHO_EMULATOR_ENTRIES PREPEND "-Wl,--require-defined=" OUTPUT_VARIABLE
+    ECHO_EMULATOR_ENTRY_OPTIONS)
 if(NOT ECHO_RELEASE)
     target_link_options(echo_device PRIVATE
         -Wl,--defsym=device_profile_bucket_shift=${ECHO_PROFILE_BUCKET_SHIFT})
@@ -508,6 +511,7 @@ endif()
 target_link_options(echo_device PRIVATE
     -flto -flto-partition=one
     ${ECHO_OVERLAY_IMPORT_OPTIONS}
+    ${ECHO_EMULATOR_ENTRY_OPTIONS}
     -T${ECHO_DEVICE_LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_CURRENT_BINARY_DIR}/echo_device.map
 )
@@ -688,12 +692,14 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
     add_library(${module_target}_objects OBJECT ${module_sources})
     target_compile_definitions(${module_target}_objects PRIVATE ECHO_DEVICE_MODULE)
     if(module STREQUAL "dsp")
-        target_link_libraries(${module_target}_objects PRIVATE echo_codec)
+        target_link_libraries(${module_target}_objects PRIVATE echo_device_logic echo_codec)
         target_compile_definitions(${module_target}_objects PRIVATE
             aiff_probe=audio_dsp_aiff
             mp4_probe=audio_dsp_probe
             mp4_cursor_seek=audio_dsp_seek
             mp4_cursor_next=audio_dsp_next
+            core1_open_m4a=audio_dsp_open_m4a
+            m4a_stream_read=audio_dsp_read_m4a
         )
     endif()
     if(module STREQUAL "process")

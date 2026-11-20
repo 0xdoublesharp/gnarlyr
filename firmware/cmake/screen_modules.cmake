@@ -35,6 +35,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_dsp
     platform/device/logic/aiff_format.c
     platform/device/logic/audio_interpolate.c
     platform/device/logic/audio_dsp_entry.c
+    platform/device/logic/core1_m4a_source.c
+    platform/device/logic/m4a_stream.c
     platform/device/logic/mp4_demux.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_dsd
