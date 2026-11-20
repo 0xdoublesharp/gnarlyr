@@ -670,6 +670,39 @@ static void the_picker_highlights_the_current_builtin_then_play_saves_the_previe
     CHECK(!runtime.previewing);
 }
 
+static void a_pack_changed_after_its_preview_is_not_saved(void)
+{
+    reset();
+    ThemeRuntime runtime = {0};
+    Theme theme = ECHO_THEME;
+    SettingsStore settings = {.settings = settings_defaults()};
+    settings.settings.appearance = APPEARANCE_SUNSET;
+    Toast toast = {0};
+    static AppScreens screens;
+    screens = (AppScreens){.context = {.theme = &theme,
+                                       .styled_theme = &theme,
+                                       .themes = &runtime,
+                                       .settings = &settings,
+                                       .toast = &toast}};
+    ThemePicker *picker = &screens.modules.views.themes;
+    theme_picker_init(picker, &screens);
+    picker->screen.enter(picker, 0);
+    for (int at = 0; at < 3; at++) {
+        picker->screen.handle_key(
+            picker, (KeyEvent){.key = KEY_VOLUME_UP, .gesture = KEY_GESTURE_PRESS}, 100);
+    }
+    CHECK(runtime.active);
+    first[first_length - 1] ^= 0xFF;
+    ScreenAction chosen = picker->screen.handle_key(
+        picker, (KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS}, 200);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, chosen.type);
+    CHECK_EQUAL(0, runtime.saved_id[0]);
+    CHECK(!runtime.active);
+    CHECK(toast.visible);
+    uint8_t stored = 0;
+    CHECK(!hal_internal_file_read(THEME_SELECTION_PATH, &stored, 1) || stored == 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -694,6 +727,7 @@ int main(void)
         TEST_CASE(another_listening_work_owner_cannot_invalidate_active_art_or_the_catalogue),
         TEST_CASE(a_failed_load_preserves_the_previous_validated_pack),
         TEST_CASE(the_picker_highlights_the_current_builtin_then_play_saves_the_previewed_pack),
+        TEST_CASE(a_pack_changed_after_its_preview_is_not_saved),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

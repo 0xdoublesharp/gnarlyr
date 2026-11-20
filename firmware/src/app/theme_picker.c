@@ -89,11 +89,28 @@ static void preview(ThemePicker *picker)
     default_theme_invalidate(picker->screens->context.styled_theme);
 }
 
+static bool pack_unchanged(ThemeRuntime *runtime, int at)
+{
+    const ThemeCatalogEntry *entry = &theme_picker_catalog()->entries[at];
+    uint8_t id[16];
+    for (int byte = 0; byte < 16; byte++) {
+        id[byte] = runtime->pack.id[byte];
+    }
+    if (runtime->active && theme_runtime_load(runtime, entry->filename) &&
+        theme_catalog_same_id(runtime->pack.id, id)) {
+        return true;
+    }
+    theme_catalog_mark_damaged(entry->filename);
+    theme_runtime_close(runtime);
+    return false;
+}
+
 static ScreenAction select_theme(void *context, int index)
 {
     ThemePicker *picker = context;
     ThemeRuntime *runtime = runtime_of(picker);
-    if (index >= APPEARANCE_THEME_COUNT && !runtime->active) {
+    if (index >= APPEARANCE_THEME_COUNT &&
+        !pack_unchanged(runtime, index - APPEARANCE_THEME_COUNT)) {
         toast_show(picker->screens->context.toast, i18n_text(STR_THEME_DAMAGED), picker->now_ms);
         return screen_action_none();
     }
