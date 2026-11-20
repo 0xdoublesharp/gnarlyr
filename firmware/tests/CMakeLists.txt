@@ -141,6 +141,8 @@ if(ARM_GCC)
         SKIP_RETURN_CODE 77
     )
     if(EXISTS ${PROJECT_SOURCE_DIR}/.venv/bin/python)
+        include(${PROJECT_SOURCE_DIR}/cmake/emulator_timeout.cmake)
+        echo_emulator_timeout(echo_scenario_timeout 900)
         file(GLOB echo_image_scenarios CONFIGURE_DEPENDS
             ${CMAKE_CURRENT_SOURCE_DIR}/emulator/scenarios/test_*.py)
         list(SORT echo_image_scenarios)
@@ -167,17 +169,25 @@ if(ARM_GCC)
                     SKIP_RETURN_CODE 77
                     LABELS echo_image
                     PROCESSORS 1
-                    TIMEOUT 900
+                    TIMEOUT ${echo_scenario_timeout}
                 )
             endforeach()
         endforeach()
+        echo_emulator_timeout(echo_parametric_timeout 1500)
         set_tests_properties(
             device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns
-            PROPERTIES TIMEOUT 1500
+            PROPERTIES TIMEOUT ${echo_parametric_timeout}
         )
+        echo_emulator_timeout(echo_resume_timeout 1800)
         set_tests_properties(
             device_image_boot_test_a_resume_anywhere_in_core_1s_load_window_keeps_heavy_streams_fed
-            PROPERTIES TIMEOUT 1800
+            PROPERTIES TIMEOUT ${echo_resume_timeout}
+        )
+        echo_emulator_timeout_hundredths(echo_timeout_hundredths)
+        add_test(NAME emulator_timeouts_follow_the_scale
+            COMMAND ${CMAKE_COMMAND} -DMODE=registered -DHUNDREDTHS=${echo_timeout_hundredths}
+                -DBUILD_DIR=${CMAKE_BINARY_DIR} -DMODULE=${PROJECT_SOURCE_DIR}/cmake/emulator_timeout.cmake
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/check_emulator_timeouts.cmake
         )
         add_test(NAME core1_mp3_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -185,10 +195,11 @@ if(ARM_GCC)
                 --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_mp3.bin
                 --tool $<TARGET_FILE:mp3_decode_tool>
         )
+        echo_emulator_timeout(echo_core1_mp3_timeout 180)
         set_tests_properties(core1_mp3_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 180
+            TIMEOUT ${echo_core1_mp3_timeout}
         )
         add_test(NAME core1_vorbis_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -196,10 +207,11 @@ if(ARM_GCC)
                 --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_vorbis.bin
                 --tool $<TARGET_FILE:ogg_packet_tool>
         )
+        echo_emulator_timeout(echo_core1_vorbis_timeout 180)
         set_tests_properties(core1_vorbis_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 180
+            TIMEOUT ${echo_core1_vorbis_timeout}
         )
         add_test(NAME core1_opus_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -207,10 +219,11 @@ if(ARM_GCC)
                 --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_opus.bin
                 --tool $<TARGET_FILE:ogg_packet_tool>
         )
+        echo_emulator_timeout(echo_core1_opus_timeout 600)
         set_tests_properties(core1_opus_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 600
+            TIMEOUT ${echo_core1_opus_timeout}
         )
         add_test(NAME core1_dsd_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -218,9 +231,10 @@ if(ARM_GCC)
                 --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_dsd.bin
                 --tool $<TARGET_FILE:dsd_stream_tool>
         )
+        echo_emulator_timeout(echo_core1_dsd_timeout 600)
         set_tests_properties(core1_dsd_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
-            TIMEOUT 600
+            TIMEOUT ${echo_core1_dsd_timeout}
         )
         add_test(NAME core1_wma_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -229,9 +243,10 @@ if(ARM_GCC)
                 --tool $<TARGET_FILE:wma_decode_tool>
                 --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/wma
         )
+        echo_emulator_timeout(echo_core1_wma_timeout 600)
         set_tests_properties(core1_wma_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
-            TIMEOUT 600
+            TIMEOUT ${echo_core1_wma_timeout}
         )
         add_test(NAME core1_ape_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -240,9 +255,10 @@ if(ARM_GCC)
                 --tool $<TARGET_FILE:ape_stream_tool>
                 --fixtures ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ape
         )
+        echo_emulator_timeout(echo_core1_ape_timeout 600)
         set_tests_properties(core1_ape_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
-            TIMEOUT 600
+            TIMEOUT ${echo_core1_ape_timeout}
         )
         add_test(NAME core1_m4a_decodes_in_emulator
             COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
@@ -250,15 +266,21 @@ if(ARM_GCC)
                 --program ${PROJECT_SOURCE_DIR}/build/device/platform/device/core1_m4a.bin
                 --tool $<TARGET_FILE:m4a_stream_tool>
         )
+        echo_emulator_timeout(echo_core1_m4a_timeout 300)
         set_tests_properties(core1_m4a_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 300
+            TIMEOUT ${echo_core1_m4a_timeout}
         )
     endif()
 else()
     message(STATUS "arm-none-eabi-gcc not found: the target_audit test is skipped")
 endif()
+
+add_test(NAME emulator_timeout_scale_arithmetic
+    COMMAND ${CMAKE_COMMAND} -DMODE=arithmetic -DMODULE=${PROJECT_SOURCE_DIR}/cmake/emulator_timeout.cmake
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/check_emulator_timeouts.cmake
+)
 
 set(ECHO_TOOLS_PYTHON ${PROJECT_SOURCE_DIR}/.venv/bin/python)
 if(EXISTS ${ECHO_TOOLS_PYTHON})
