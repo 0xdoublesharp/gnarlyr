@@ -643,6 +643,8 @@ class Machine:
     def idle_until_interrupt(self):
         systick = self.systick
         if systick.enabled and systick.tick_interrupt and systick.reload:
+            if systick.pending():
+                return
             period = systick.reload + 1
             remaining = period - (systick.elapsed() + 1) % period
             self.base_cycles += remaining
