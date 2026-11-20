@@ -139,6 +139,21 @@ static bool open_playlist(HalFile *file, const char *playlist)
     return hal_file_open(file, playlist) || (create(playlist) && hal_file_open(file, playlist));
 }
 
+static void remember(const Library *library, uint16_t track)
+{
+    uint16_t first = 0;
+    if (!favorite_playlist_list(library, track, &first)) {
+        return;
+    }
+    const LibraryExtraPlaylist *extra = library->extra;
+    FavoritePlaylistAdded added = {.fingerprint = library_fingerprint(library),
+                                   .count = (uint16_t)(extra->count - first)};
+    for (uint16_t index = 0; index < added.count; index++) {
+        added.tracks[index] = extra->tracks[first + index];
+    }
+    hal_file_write(FAVORITE_ADDED_PATH, &added, sizeof added);
+}
+
 FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t track)
 {
     LibraryTrack record;
@@ -151,7 +166,7 @@ FavoritePlaylistResult favorite_playlist_add(const Library *library, uint16_t tr
     FavoritePlaylistResult result = append(file, &block);
     hal_file_close(&file);
     if (result != FAVORITE_PLAYLIST_FAILED) {
-        favorite_playlist_remember(library, track);
+        remember(library, track);
     }
     if (result == FAVORITE_PLAYLIST_ADDED) {
         music_check_note_change(block.playlist + 1);

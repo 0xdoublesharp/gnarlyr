@@ -14,12 +14,6 @@ enum {
     NAME_CAPACITY = sizeof NAME + 1
 };
 
-typedef struct Added {
-    uint32_t fingerprint;
-    uint16_t count;
-    uint16_t tracks[LIBRARY_EXTRA_CAPACITY];
-} Added;
-
 static LibraryExtraPlaylist extra;
 static uint16_t indexed;
 
@@ -77,7 +71,7 @@ static bool copy_indexed(const Library *library)
 
 void favorite_playlist_attach(Library *library)
 {
-    Added added;
+    FavoritePlaylistAdded added;
     extra.name = NAME;
     extra.count = 0;
     library->extra = NULL;
@@ -102,18 +96,14 @@ void favorite_playlist_attach(Library *library)
     library->extra = &extra;
 }
 
-void favorite_playlist_remember(const Library *library, uint16_t track)
+bool favorite_playlist_list(const Library *library, uint16_t track, uint16_t *first_added)
 {
     if (library->extra != &extra || listed(track)) {
-        return;
+        return false;
     }
     list(track);
-    Added added = {.fingerprint = library_fingerprint(library),
-                   .count = (uint16_t)(extra.count - indexed)};
-    for (uint16_t index = 0; index < added.count; index++) {
-        added.tracks[index] = extra.tracks[indexed + index];
-    }
-    hal_file_write(FAVORITE_ADDED_PATH, &added, sizeof added);
+    *first_added = indexed;
+    return true;
 }
 
 const char *favorite_playlist_message(FavoritePlaylistResult result)
