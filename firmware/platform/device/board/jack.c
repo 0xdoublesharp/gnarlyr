@@ -1,3 +1,4 @@
+#include "jack.h"
 #include "board.h"
 #include "core/seam.h"
 #include "dac.h"
@@ -11,8 +12,8 @@
 #define PORT0_JACK_PULL 0x00200020u
 #define PORT2_JACK_PULL 0x00010001u
 
-static const GpioPin SINGLE_ENDED_SENSE = {0, 13};
-static const GpioPin BALANCED_SENSE = {2, 8};
+const GpioPin BOARD_JACK_SINGLE_ENDED = {0, 13};
+const GpioPin BOARD_JACK_BALANCED = {2, 8};
 
 static bool pins_ready;
 static HalJackPins boot_state;
@@ -31,24 +32,21 @@ static void prepare_pins(void)
     if (pins_ready) {
         return;
     }
-    boot_state = (HalJackPins){.single_ended = boot_pin(SINGLE_ENDED_SENSE),
-                               .balanced = boot_pin(BALANCED_SENSE)};
+    boot_state = (HalJackPins){.single_ended = boot_pin(BOARD_JACK_SINGLE_ENDED),
+                               .balanced = boot_pin(BOARD_JACK_BALANCED)};
     register_write(GRF_PORT0_PULL, PORT0_JACK_PULL);
     register_write(GRF_PORT2_PULL, PORT2_JACK_PULL);
-    gpio_mux(SINGLE_ENDED_SENSE, GPIO_FUNCTION_GPIO);
-    gpio_input(SINGLE_ENDED_SENSE);
-    gpio_mux(BALANCED_SENSE, GPIO_FUNCTION_GPIO);
-    gpio_input(BALANCED_SENSE);
+    gpio_mux(BOARD_JACK_SINGLE_ENDED, GPIO_FUNCTION_GPIO);
+    gpio_input(BOARD_JACK_SINGLE_ENDED);
+    gpio_mux(BOARD_JACK_BALANCED, GPIO_FUNCTION_GPIO);
+    gpio_input(BOARD_JACK_BALANCED);
     pins_ready = true;
 }
 
-HalJackPins hal_audio_jack_pins(void)
+HalJackPins board_jack_boot_pins(void)
 {
     prepare_pins();
-    HalJackPins pins = boot_state;
-    pins.single_ended.high = gpio_read(SINGLE_ENDED_SENSE);
-    pins.balanced.high = gpio_read(BALANCED_SENSE);
-    return pins;
+    return boot_state;
 }
 
 CORE_SEAM bool board_jack_poll(void)
@@ -57,7 +55,8 @@ CORE_SEAM bool board_jack_poll(void)
     if (board_bluetooth_routed() || board_bluetooth_settling()) {
         return false;
     }
-    JackKind reading = board_jack_kind(gpio_read(SINGLE_ENDED_SENSE), gpio_read(BALANCED_SENSE));
+    JackKind reading =
+        board_jack_kind(gpio_read(BOARD_JACK_SINGLE_ENDED), gpio_read(BOARD_JACK_BALANCED));
     if (sense.started && reading != sense.stable) {
         dac_path_guard(true);
     }
