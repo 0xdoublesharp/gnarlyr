@@ -14,6 +14,8 @@
 #include "trial_record.h"
 #include "usb_session.h"
 
+#define STOCK_LABEL "ECHO"
+
 enum {
     MESSAGE_CAPACITY = 96,
     PERCENT = 100,
@@ -190,6 +192,20 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
     board_wait_for_key();
 }
 
+static void rename_stock_label(void)
+{
+    FatVolume *volume = internal_volume_mount();
+    if (volume != NULL && !usb_session_shared()->reconnect.in_session) {
+        fat_fix_label(volume, FIRMWARE_NAME, STOCK_LABEL);
+    }
+}
+
+static void start_with_headphones(HeadphoneStore *store)
+{
+    rename_stock_label();
+    headphone_store_load(store);
+}
+
 const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
     SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_end, settle, headphone_store_load};
+    trial_boot_module_session_end, settle, start_with_headphones};

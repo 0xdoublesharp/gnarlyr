@@ -140,6 +140,7 @@ add_library(echo_device_logic STATIC
     fat_create.c
     fat_delete.c
     fat_extents.c
+    fat_label.c
     fat_layout.c
     fat_names.c
     fat_utf8.c

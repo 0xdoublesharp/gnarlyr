@@ -4,7 +4,6 @@
 
 #include "device/block_device.h"
 #include "emmc.h"
-#include "usb_session.h"
 
 static FatVolume volume;
 static bool tried;
@@ -16,9 +15,6 @@ FatVolume *internal_volume_mount(void)
         tried = true;
         BlockDevice device;
         mounted = emmc_volume_start(&device) && fat_mount(&volume, device);
-        if (mounted && !usb_session_shared()->reconnect.in_session) {
-            fat_fix_label(&volume, FIRMWARE_NAME, "ECHO");
-        }
     }
     return mounted ? &volume : NULL;
 }

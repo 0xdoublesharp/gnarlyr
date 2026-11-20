@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <string.h>
 
 #include "check.h"
 #include "device/storage_mount.h"
@@ -61,6 +62,37 @@ static void with_neither_nothing_is_mounted(void)
     CHECK_EQUAL(STORAGE_NONE, storage_mount(&volume, start_card, start_internal));
 }
 
+static uint8_t *card_sector(uint32_t lba)
+{
+    return card_disk.bytes + (size_t)lba * 512;
+}
+
+static uint8_t *root_label(void)
+{
+    return card_sector(volume.data_start + ((volume.root_cluster - 2) << volume.cluster_shift));
+}
+
+static void set_label(const char *label)
+{
+    memcpy(root_label(), label, 11);
+    memcpy(card_sector(volume.volume_start) + 71, label, 11);
+    memcpy(card_sector(volume.volume_start + 6) + 71, label, 11);
+}
+
+static void mounting_a_card_leaves_its_label_alone(void)
+{
+    static const char *const labels[] = {"ECHOCARD   ", "GNARLYSD   ", "gnarlysd   "};
+    for (unsigned index = 0; index < sizeof labels / sizeof labels[0]; index++) {
+        prepare(true, true);
+        CHECK_EQUAL(STORAGE_CARD, storage_mount(&volume, start_card, start_internal));
+        set_label(labels[index]);
+        CHECK_EQUAL(STORAGE_CARD, storage_mount(&volume, start_card, start_internal));
+        CHECK_EQUAL(0, card_disk.writes);
+        CHECK_EQUAL(0, memcmp(root_label(), labels[index], 11));
+        CHECK_EQUAL(0, memcmp(card_sector(volume.volume_start) + 71, labels[index], 11));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -68,6 +100,7 @@ int main(void)
         TEST_CASE(without_a_card_the_internal_volume_is_mounted),
         TEST_CASE(a_card_that_does_not_mount_falls_back_to_internal),
         TEST_CASE(with_neither_nothing_is_mounted),
+        TEST_CASE(mounting_a_card_leaves_its_label_alone),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

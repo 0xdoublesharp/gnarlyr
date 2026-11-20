@@ -65,7 +65,7 @@ Back up everything you want to keep on the microSD card. Formatting erases its m
 3. Press Play to continue. The second confirmation starts on Cancel; choose Erase card with a volume key, then press Play. Back cancels either confirmation.
 4. Keep the card inserted until formatting finishes. The library is rebuilt with only the music on internal storage; copy music to the card over USB to add it.
 
-Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named GnarlySD. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
+Cards through 32 GB use FAT32; larger cards use exFAT. The volume is named GnarlySD. Only formatting on the player names a card: a card formatted on a computer keeps the name you gave it. Internal storage, which FiiO's firmware names ECHO, is renamed Gnarlyr when Gnarlyr first starts. Internal storage keeps its files. This is a quick format: old file contents can remain recoverable until new files overwrite them.
 
 An interrupted format reports that the card needs formatting. Reinsert the card and choose Format card again before copying music.
 

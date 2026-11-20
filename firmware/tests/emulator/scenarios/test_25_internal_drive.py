@@ -4,15 +4,46 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
+    IDENTITY,
     EchoImageHarness,
     main,
 )
 
 LUN_PRESENT_OFFSET = 17
 OCR_WAIT_MS = 1000
+BACKUP_BOOT_SECTOR = 6
+STOCK_LABEL = "ECHO"
 
 
 class EchoImageTest(EchoImageHarness):
+    def label_sectors(self, session, volume):
+        start = session.layout["volume_start"]
+        return start + volume.cluster_lba(volume.root.first), start, start + BACKUP_BOOT_SECTOR
+
+    def labels(self, session, volume):
+        root, boot, backup = self.label_sectors(session, volume)
+        return (session.disk.read_sector(root)[:11], session.disk.read_sector(boot)[71:82],
+                session.disk.read_sector(backup)[71:82])
+
+    def label_writes(self, session, volume):
+        sectors = self.label_sectors(session, volume)
+        return [(lba, count) for _, lba, count in session.card.writes
+                if any(lba <= sector < lba + count for sector in sectors)]
+
+    def test_a_stock_echo_label_is_renamed_once_at_start_and_stays_renamed(self):
+        from echo_emulator.fat_volume import Fat32Volume
+        volume = self.debug_volume(Fat32Volume(label=STOCK_LABEL))
+        session = self.session(volume=volume)
+        session.run_to_first_frame()
+        renamed = IDENTITY.name.encode("ascii").ljust(11)
+        self.assertEqual(self.labels(session, volume), (renamed,) * 3)
+        self.assertTrue(self.label_writes(session, volume))
+        again = session.reboot()
+        again.run_to_first_frame()
+        self.assertEqual(self.label_writes(again, volume), [])
+        self.assertEqual(self.labels(again, volume), (renamed,) * 3)
+        self.assert_healthy(again)
+
     def test_a_lost_emmc_start_flag_is_noticed_and_the_internal_drive_is_offered_again(self):
         from unicorn.arm_const import UC_ARM_REG_R1
         script = ("build %s\nwait 100\n" % self.build_tag()).encode("ascii")
