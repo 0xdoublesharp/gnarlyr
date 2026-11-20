@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "board.h"
@@ -87,7 +88,8 @@ static void probe_dac(HalProbe *probe, uint32_t map)
 {
     uint8_t left = 0;
     uint8_t right = 0;
-    probe->allowed = dac_path_read_register(map, &left, &right);
+    probe->allowed = dac_path_is_up() && dac_read(NULL, DAC_LEFT_ADDRESS, map, &left) &&
+                     dac_read(NULL, DAC_RIGHT_ADDRESS, map, &right);
     probe->before = left;
     probe->after = right;
 }

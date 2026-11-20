@@ -224,7 +224,7 @@ static bool dac_write(void *context, uint8_t address, uint32_t map, uint8_t valu
     return i2c_send(frame, length);
 }
 
-static bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
+bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
 {
     (void)context;
     uint8_t frame[FRAME_CAPACITY];
@@ -636,10 +636,9 @@ bool dac_path_set_filter(uint8_t filter)
            set_analog((DacAnalog){.gain_high = analog.gain_high, .filter = filter});
 }
 
-bool dac_path_read_register(uint32_t map, uint8_t *left, uint8_t *right)
+bool dac_path_is_up(void)
 {
-    return dac_up && dac_read(NULL, DAC_LEFT_ADDRESS, map, left) &&
-           dac_read(NULL, DAC_RIGHT_ADDRESS, map, right);
+    return dac_up;
 }
 
 bool dac_path_is_muted(void)
