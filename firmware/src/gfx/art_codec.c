@@ -79,7 +79,7 @@ bool art_row_indexed(ArtRow *row, const ArtPalette *palette, ArtSpan span)
         x += count;
     }
     row->at = at;
-    return true;
+    return at == row->end;
 }
 
 static Color add_delta(Color previous, uint32_t delta)
@@ -183,7 +183,7 @@ bool art_row_lossless(ArtRow *row, bool alpha, ArtSpan span)
         x += count;
     }
     row->at = state.at;
-    return true;
+    return state.at == row->end;
 }
 
 static int check_indexed(const uint8_t **at, const uint8_t *end, uint32_t entries)

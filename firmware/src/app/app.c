@@ -2281,6 +2281,7 @@ static uint32_t view_stamp(uint32_t *rest)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
+    stamp = stamp_add(stamp, app.themes.active);
     *rest = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
     return stamp_add(*rest, status.position_ms / VIEW_STAMP_POSITION_MS);
 }

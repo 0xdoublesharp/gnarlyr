@@ -30,6 +30,9 @@ static Color fixture_pixel(int x, int y, int index)
     if (pixel_mode == 2) {
         return (Color)(1000u * (unsigned)(index + 1) + (unsigned)(y * SIDES[index] + x));
     }
+    if (pixel_mode == 3) {
+        return (Color)(0x1000 + ((x / 120 + y / 74) & 3));
+    }
     return (Color)(100 + y * 3 + x);
 }
 
@@ -228,6 +231,82 @@ static void a_lossless_now_playing_image_is_treated_as_absent_and_the_rest_appli
     theme_runtime_close(&runtime);
 }
 
+static uint32_t stored32(const uint8_t *bytes)
+{
+    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
+           (uint32_t)bytes[3] << 24;
+}
+
+static void poison_stack(void)
+{
+    volatile uint8_t junk[16384];
+    for (size_t at = 0; at < sizeof junk; at++) {
+        junk[at] = 0xA5;
+    }
+}
+
+typedef struct ChangedPack {
+    uint8_t *bytes;
+    uint32_t size;
+    ThemeRuntime runtime;
+} ChangedPack;
+
+static bool draw_slot(ChangedPack *pack, uint16_t slot, Color *pixels)
+{
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 480, 4});
+    canvas_clear(&canvas, 1234);
+    poison_stack();
+    ThemeArtRequest request = {
+        .area = {0, 0, slot == THEME_ART_LIST ? 2 : 480, slot == THEME_ART_LIST ? 2 : 222},
+        .slot = slot};
+    return theme_runtime_draw(&pack->runtime, &canvas, request);
+}
+
+static void reload(ChangedPack *pack)
+{
+    static uint8_t original[8192 + 480 * 222 * 2];
+    static const ThemeFixtureArt art[] = {
+        {THEME_ART_NOW_PLAYING, 0, 255, 480, 222, ART_CODEC_INDEXED, 0},
+        {THEME_ART_LIST, 2, 255, 2, 2, ART_CODEC_INDEXED, 1}};
+    reset();
+    pixel_mode = 3;
+    pack->size = build(original, sizeof original, 3, art, 2);
+    pack->bytes = original;
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/changed.gtheme";
+    fake_hal_add_file(path, original, pack->size);
+    pack->runtime = (ThemeRuntime){0};
+    CHECK(theme_runtime_load(&pack->runtime, "changed.gtheme"));
+}
+
+static void art_changed_on_the_card_after_validation_never_reaches_the_screen(void)
+{
+    static Color pixels[480 * 4];
+    static ChangedPack pack;
+    uint8_t *list = NULL;
+    reload(&pack);
+    CHECK(draw_slot(&pack, THEME_ART_NOW_PLAYING, pixels));
+    CHECK_EQUAL(0x1000, pixels[0]);
+    CHECK(draw_slot(&pack, THEME_ART_LIST, pixels));
+    pack.bytes[THEME_PACK_HEADER_BYTES + 16] = ART_CODEC_LOSSLESS;
+    pack.bytes[THEME_PACK_HEADER_BYTES + 17] = 0;
+    CHECK(!draw_slot(&pack, THEME_ART_NOW_PLAYING, pixels));
+    CHECK_EQUAL(1234, pixels[0]);
+    reload(&pack);
+    list = pack.bytes + THEME_PACK_HEADER_BYTES + THEME_PACK_ASSET_BYTES;
+    list[0] = THEME_ART_HOME;
+    CHECK(draw_slot(&pack, THEME_ART_NOW_PLAYING, pixels));
+    CHECK(!draw_slot(&pack, THEME_ART_LIST, pixels));
+    reload(&pack);
+    list = pack.bytes + THEME_PACK_HEADER_BYTES + THEME_PACK_ASSET_BYTES;
+    uint8_t *payload = pack.bytes + stored32(list + 8);
+    uint32_t entries = list[17] + 1u;
+    uint32_t first_row = stored32(payload + 4 + entries * 2);
+    payload[first_row + 1] = 200;
+    CHECK(draw_slot(&pack, THEME_ART_LIST, pixels));
+    CHECK_EQUAL(0, pixels[0]);
+    theme_runtime_close(&pack.runtime);
+}
+
 static uint32_t three_tiles(uint8_t *bytes, uint32_t capacity, uint8_t count)
 {
     static const ThemeFixtureArt tiles[] = {{THEME_ART_LIST, 0, 255, 2, 2, ART_CODEC_LOSSLESS, 1},
@@ -265,6 +344,16 @@ static void each_asset_of_a_pack_draws_its_own_pixels(void)
     theme_runtime_close(&runtime);
 }
 
+static void set_key(ThemeRuntime *runtime, uint8_t *bytes, int index, ThemeAssetKey key)
+{
+    uint8_t *descriptor = bytes + THEME_PACK_HEADER_BYTES + index * THEME_PACK_ASSET_BYTES;
+    descriptor[0] = (uint8_t)key.slot;
+    descriptor[1] = (uint8_t)(key.slot >> 8);
+    descriptor[2] = key.orientation;
+    descriptor[3] = key.text_size;
+    runtime->pack.assets[index] = key;
+}
+
 static void art_selection_prefers_exact_dimensions_then_falls_back(void)
 {
     static uint8_t pack[2048];
@@ -274,15 +363,14 @@ static void art_selection_prefers_exact_dimensions_then_falls_back(void)
     fake_hal_add_file(path, pack, size);
     ThemeRuntime runtime = {0};
     CHECK(theme_runtime_load(&runtime, "fallback.gtheme"));
-    runtime.pack.assets[0].orientation = 2;
-    runtime.pack.assets[1].orientation = 0;
-    runtime.pack.assets[2].orientation = 0;
-    runtime.pack.assets[2].text_size = 0;
+    set_key(&runtime, pack, 0, (ThemeAssetKey){THEME_ART_LIST, 2, 255});
+    set_key(&runtime, pack, 1, (ThemeAssetKey){THEME_ART_LIST, 0, 255});
+    set_key(&runtime, pack, 2, (ThemeAssetKey){THEME_ART_LIST, 0, 0});
     CHECK_EQUAL(3000, tile_pixel(&runtime, 0, 0, 0));
-    runtime.pack.assets[2].text_size = 1;
+    set_key(&runtime, pack, 2, (ThemeAssetKey){THEME_ART_LIST, 0, 1});
     CHECK_EQUAL(2000, tile_pixel(&runtime, 0, 0, 0));
     CHECK_EQUAL(1000, tile_pixel(&runtime, 1, 0, 0));
-    runtime.pack.assets[1].orientation = 2;
+    set_key(&runtime, pack, 1, (ThemeAssetKey){THEME_ART_LIST, 2, 255});
     CHECK_EQUAL(1000, tile_pixel(&runtime, 0, 0, 0));
     theme_runtime_close(&runtime);
 }
@@ -294,7 +382,7 @@ static void placed_art_obeys_its_bounds_and_clip(void)
     CHECK(theme_runtime_load(&runtime, "first.gtheme"));
     static Color pixels[10 * 10];
     Canvas canvas = canvas_make(pixels, (Rect){0, 0, 10, 10});
-    runtime.pack.assets[0].slot = THEME_ART_CASSETTE_LABEL;
+    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_CASSETTE_LABEL, 2, 255});
     CHECK(!theme_runtime_draw(
         &runtime, &canvas,
         (ThemeArtRequest){.area = {4, 5, 2, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
@@ -313,7 +401,7 @@ static void placed_art_obeys_its_bounds_and_clip(void)
     CHECK(theme_runtime_draw(
         &runtime, &canvas,
         (ThemeArtRequest){.area = {4, 20, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
-    runtime.pack.assets[0].slot = THEME_ART_ICON;
+    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_ICON, 2, 255});
     CHECK(theme_runtime_draw(&runtime, &canvas,
                              (ThemeArtRequest){.area = {1, 1, 3, 2}, .slot = THEME_ART_ICON}));
     theme_runtime_close(&runtime);
@@ -377,13 +465,12 @@ static void shifted_repeated_and_portrait_art_use_the_general_draw_path(void)
     Canvas repeated = canvas_make(pixels, (Rect){0, 1, 3, 2});
     CHECK(theme_runtime_draw(&runtime, &repeated,
                              (ThemeArtRequest){.area = {0, 1, 3, 2}, .slot = THEME_ART_LIST}));
-    runtime.pack.assets[0].slot = THEME_ART_CASSETTE_LABEL;
+    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_CASSETTE_LABEL, 2, 255});
     Canvas placed = canvas_make(pixels, (Rect){0, 0, 3, 2});
     CHECK(theme_runtime_draw(
         &runtime, &placed,
         (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
-    runtime.pack.assets[0].slot = THEME_ART_LIST;
-    runtime.pack.assets[0].orientation = 1;
+    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_LIST, 1, 255});
     Theme theme = ECHO_THEME;
     theme_runtime_apply(&runtime, &theme);
     theme.metrics.screen_width = 2;
@@ -592,6 +679,7 @@ int main(void)
         TEST_CASE(strips_and_clipped_rectangles_match_a_full_render),
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
         TEST_CASE(a_lossless_now_playing_image_is_treated_as_absent_and_the_rest_applies),
+        TEST_CASE(art_changed_on_the_card_after_validation_never_reaches_the_screen),
         TEST_CASE(each_asset_of_a_pack_draws_its_own_pixels),
         TEST_CASE(art_selection_prefers_exact_dimensions_then_falls_back),
         TEST_CASE(placed_art_obeys_its_bounds_and_clip),

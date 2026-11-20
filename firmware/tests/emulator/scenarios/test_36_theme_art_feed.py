@@ -37,6 +37,8 @@ TOAST_PHASES = 5
 TOAST_PHASE_MS = 23
 TOAST_GAP_MS = 2500
 CLEARED_WITHIN_MS = 250
+FAILED_RUN_MS = 1000
+ROWS_FROM = 2048
 
 
 def photo_pixels(seed=7):
@@ -253,6 +255,39 @@ class EchoImageTest(EchoImageHarness):
             self.assertTrue(whole, (stamp, full, [(at, count) for at, count in frames
                                                   if ended - 200 <= at <= ended + 400]))
         self.assert_healthy(rig.session)
+
+
+    def test_a_card_read_that_fails_during_a_band_redraw_falls_back_to_theme_colours(self):
+        pack = built_pack(photo_pixels())
+        art = drawn_art(pack)
+        asset = theme_pack.check(pack)["assets"][0]
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=feed_volume(pack), module_elfs=self.module_elfs)
+        machine, session = rig.machine, rig.session
+        frames, draws = [], [0]
+        def frame_done():
+            frames.append((machine.milliseconds(), draws[0]))
+            draws[0] = 0
+        def art_drawn():
+            draws[0] += 1
+        machine.hook_symbol("frame_pacer_done", frame_done)
+        machine.hook_symbol("theme_art_module_draw", art_drawn)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(SETTLE_MS)
+        self.assertGreaterEqual(self.art_share(machine.panel.frame, art), ART_SHARE_MIN)
+        sectors = list(session.file_sectors(THEMES + "/photo.gtheme"))
+        first = asset["offset"] + ROWS_FROM
+        for at in range(first // 512 + 1, (asset["offset"] + asset["bytes"]) // 512):
+            session.disk.write(sectors[at], bytes(512))
+        failed_at = machine.milliseconds()
+        rig.run_for(FAILED_RUN_MS)
+        after = [(at, count) for at, count in frames if at >= failed_at]
+        share = self.art_share(machine.panel.frame, art)
+        self.assertLessEqual(share, PLAIN_SHARE_MAX, (share, after))
+        self.assertTrue(any(count == 0 for _, count in after), after)
+        self.assertEqual([], rig.audio.underruns(failed_at))
+        self.assert_healthy(session)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,22 @@ static void an_indexed_literal_packet_writes_its_palette_colours(void)
     CHECK(row.at == bytes + sizeof bytes);
 }
 
+static void a_row_with_bytes_left_after_its_pixels_is_refused(void)
+{
+    reset_palette();
+    static const uint8_t indexed[] = {0x83, 1, 0x00};
+    static const uint8_t lossless[] = {0x03, 0x00};
+    Color out[4];
+    ArtRow row = row_of(indexed, sizeof indexed, 4);
+    CHECK(!art_row_indexed(&row, &palette, (ArtSpan){out, 0, 4}));
+    row = row_of(indexed, 2, 4);
+    CHECK(art_row_indexed(&row, &palette, (ArtSpan){out, 0, 4}));
+    row = row_of(lossless, sizeof lossless, 4);
+    CHECK(!art_row_lossless(&row, false, (ArtSpan){out, 0, 4}));
+    row = row_of(lossless, 1, 4);
+    CHECK(art_row_lossless(&row, false, (ArtSpan){out, 0, 4}));
+}
+
 static void an_indexed_run_packet_repeats_one_colour(void)
 {
     reset_palette();
@@ -261,6 +277,7 @@ int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(an_indexed_literal_packet_writes_its_palette_colours),
+        TEST_CASE(a_row_with_bytes_left_after_its_pixels_is_refused),
         TEST_CASE(an_indexed_run_packet_repeats_one_colour),
         TEST_CASE(an_indexed_row_writes_only_its_span),
         TEST_CASE(transparent_indexed_entries_leave_the_canvas_untouched),

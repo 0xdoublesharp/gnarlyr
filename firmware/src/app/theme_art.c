@@ -52,6 +52,17 @@ static uint32_t get32(const uint8_t *bytes)
            (uint32_t)bytes[3] << 24;
 }
 
+static bool descriptor_kept(const ThemeRuntime *runtime, int index, const uint8_t *bytes)
+{
+    const ThemeAssetKey *key = &runtime->pack.assets[index];
+    uint16_t slot = (uint16_t)(bytes[0] | bytes[1] << 8);
+    bool indexed = bytes[16] == ART_CODEC_INDEXED && bytes[18] <= bytes[17] + 1u;
+    bool lossless = bytes[16] == ART_CODEC_LOSSLESS && bytes[17] == 0 && bytes[18] <= 1 &&
+                    slot != THEME_ART_NOW_PLAYING;
+    return slot == key->slot && bytes[2] == key->orientation && bytes[3] == key->text_size &&
+           (indexed || lossless);
+}
+
 static bool describe(ThemeRuntime *runtime, int index)
 {
     uint8_t bytes[THEME_PACK_ASSET_BYTES];
@@ -60,7 +71,8 @@ static bool describe(ThemeRuntime *runtime, int index)
     }
     if (!hal_file_read(runtime->file,
                        THEME_PACK_HEADER_BYTES + (uint32_t)index * THEME_PACK_ASSET_BYTES, bytes,
-                       sizeof bytes)) {
+                       sizeof bytes) ||
+        !descriptor_kept(runtime, index, bytes)) {
         return false;
     }
     uint32_t entries = bytes[16] == ART_CODEC_INDEXED ? bytes[17] + 1u : 0;
@@ -83,6 +95,9 @@ static bool load_palette(ThemeRuntime *runtime, ArtPalette *palette)
     uint32_t colors = art->table - THEME_PACK_PAYLOAD_HEAD_BYTES;
     uint32_t nibbles = art->codec == ART_CODEC_INDEXED ? (art->alpha + 1u) / 2 : 0;
     uint32_t start = art->offset + THEME_PACK_PAYLOAD_HEAD_BYTES;
+    for (uint32_t at = (colors - nibbles) / 2; at < ART_PALETTE_MAX; at++) {
+        palette->colors[at] = 0;
+    }
     return colors == 0 ||
            (hal_file_read(runtime->file, start, palette->colors, colors - nibbles) &&
             hal_file_read(runtime->file, start + colors - nibbles, palette->alpha, nibbles));
@@ -143,13 +158,12 @@ static bool draw_line(const ArtJob *job, Canvas *canvas, Rect clip, Point origin
 {
     const ThemeArtCache *asset = job->asset;
     int row = (clip.y - origin.y) % asset->height;
-    Color *pixels =
-        canvas->pixels + (clip.y - canvas->bounds.y) * canvas->bounds.width - canvas->bounds.x;
+    Color *pixels = canvas->pixels + (clip.y - canvas->bounds.y) * canvas->bounds.width;
     for (int x = clip.x; x < clip.x + clip.width;) {
         int from = (x - origin.x) % asset->width;
         int to = from + clip.x + clip.width - x;
         to = to < asset->width ? to : asset->width;
-        if (!draw_row(job, row, (ArtSpan){pixels + x, from, to})) {
+        if (!draw_row(job, row, (ArtSpan){pixels + (x - canvas->bounds.x), from, to})) {
             return false;
         }
         x += to - from;
