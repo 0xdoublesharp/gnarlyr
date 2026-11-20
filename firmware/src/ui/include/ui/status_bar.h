@@ -29,7 +29,12 @@ enum {
     STATUS_BAR_POSITION = 2,
     STATUS_BAR_CLOCK = 4,
     STATUS_BAR_REPEAT = 8,
-    STATUS_BAR_PERCENT = 16
+    STATUS_BAR_PERCENT = 16,
+    STATUS_BAR_PLAYBACK = 32,
+    STATUS_BAR_BLUETOOTH = 64,
+    STATUS_BAR_LOCK = 128,
+    STATUS_BAR_SHUFFLE = 256,
+    STATUS_BAR_SLOTS = 9
 };
 
 typedef enum StatusShuffle {
@@ -58,10 +63,8 @@ typedef struct StatusBarState {
 } StatusBarState;
 
 typedef struct StatusBarLayout {
-    Rect areas[5];
-    int shift;
-    uint8_t items;
-    bool icons_visible;
+    Rect areas[STATUS_BAR_SLOTS];
+    uint16_t items;
 } StatusBarLayout;
 
 typedef struct StatusQueuePosition {
@@ -79,18 +82,15 @@ typedef struct StatusBatteryLook {
 } StatusBatteryLook;
 
 Rect status_bar_playback_area(const Theme *theme);
-Rect status_bar_bluetooth_area(const Theme *theme);
 Rect status_bar_battery_body(const Theme *theme);
 Rect status_bar_battery_area(const Theme *theme);
-Rect status_bar_lock_area(const Theme *theme);
-Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);
 int status_bar_left_end(const Theme *theme, StatusBarState state);
 Rect status_bar_clock_area(const Theme *theme, StatusBarState state);
 bool status_bar_clock_fits(const Theme *theme, StatusBarState state);
 void status_bar_position_text(StringBuilder *builder, StatusQueuePosition position);
 void status_bar_layout(const Theme *theme, const StatusBarState *state, StatusBarLayout *layout);
-uint8_t status_bar_items(const Theme *theme, const StatusBarState *state);
-Rect status_bar_item_area(const Theme *theme, const StatusBarState *state, uint8_t item);
+uint16_t status_bar_items(const Theme *theme, const StatusBarState *state);
+Rect status_bar_item_area(const Theme *theme, const StatusBarState *state, uint16_t item);
 StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState state);
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state);

@@ -1340,9 +1340,12 @@ static StatusBarState shown_status_bar(const AppState *state, const Screen *scre
     StatusBarState bar = state->status_bar;
     const Theme *theme = board_theme();
     const char *title = screen->title;
-    if (header_shows_title(theme, title)) {
+    if (title != NULL) {
         bar.title_width = screen->header_title_width != 0 ? screen->header_title_width
                                                           : text_width(theme->fonts.header, title);
+    }
+    if (is_compact(screen)) {
+        bar.playback = STATUS_PLAYBACK_NONE;
     }
     return bar;
 }
