@@ -407,9 +407,22 @@
         "timeout": 1800,
         "property": "PromotionWitness"
       },
+      "update_witness_clear": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWitnessClear.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "ClearWitness"
+      },
       "update_promotes_partial_slot": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackPromote.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_promotes_partial_slot_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackPromoteBefore.cfg",
         "expect": "violated",
         "timeout": 1800,
         "property": "AlwaysBootable"
@@ -417,13 +430,32 @@
       "update_write_failure": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackFailures.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_write_failure_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackFailuresBefore.cfg",
         "expect": "violated",
         "timeout": 1800,
         "property": "AlwaysBootable"
       },
+      "update_write_failure_liveness": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackFailuresLiveness.cfg",
+        "expect": "violated",
+        "timeout": 1800,
+        "property": "temporal"
+      },
       "update_both_request": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackBoth.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_both_request_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBothBefore.cfg",
         "expect": "violated",
         "timeout": 1800,
         "property": "AlwaysBootable"
@@ -471,6 +503,12 @@
       "update_lost_continuity_pass": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackLostPass.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "update_lost_continuity_pass_before": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackLostPassBefore.cfg",
         "expect": "violated",
         "timeout": 1800,
         "property": "RestoredBuildCanSave"
@@ -505,6 +543,12 @@
       "core_handoff_window": {
         "spec": "CoreHandoff.tla",
         "config": "CoreHandoffWindow.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "core_handoff_window_before": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffWindowBefore.cfg",
         "expect": "violated",
         "timeout": 1800,
         "property": "NoStaleFrame"
@@ -512,6 +556,12 @@
       "core_handoff_reorder": {
         "spec": "CoreHandoff.tla",
         "config": "CoreHandoffReorder.cfg",
+        "expect": "passed",
+        "timeout": 1800
+      },
+      "core_handoff_reorder_before": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffReorderBefore.cfg",
         "expect": "violated",
         "timeout": 1800,
         "property": "NoSlotReadWhileWritten"

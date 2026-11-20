@@ -1,11 +1,13 @@
 ---------------------------- MODULE CoreHandoff ----------------------------
 EXTENDS Naturals, FiniteSets
 
-CONSTANTS Capacity, Blocks, Total, MaxOpens, LoadsReorder, CoreOneWindowsShort
+CONSTANTS Capacity, Blocks, Total, MaxOpens, LoadsReorder, CoreOneWindowsShort,
+          CoreZeroChecksGeneration, ReleaseFenced
 
 ASSUME Capacity \in Nat \ {0} /\ Blocks \subseteq 1..Capacity /\ Blocks # {}
 ASSUME Total \in Nat /\ MaxOpens \in Nat \ {0}
 ASSUME LoadsReorder \in BOOLEAN /\ CoreOneWindowsShort \in BOOLEAN
+ASSUME CoreZeroChecksGeneration \in BOOLEAN /\ ReleaseFenced \in BOOLEAN
 
 Slots == {0, 1}
 Other(s) == 1 - s
@@ -200,7 +202,11 @@ C0Look ==
     /\ c0pc = "look"
     /\ IF state[c0slot] # "FULL"
          THEN /\ c0pc' = "play"
-              /\ UNCHANGED <<c0held, c0left, c0pos, stale, lost>>
+              /\ UNCHANGED <<state, c0held, c0left, c0pos, stale, lost>>
+         ELSE IF CoreZeroChecksGeneration /\ slotGen[c0slot] # c0gen
+           THEN /\ state' = [state EXCEPT ![c0slot] = "EMPTY"]
+                /\ c0pc' = "play"
+                /\ UNCHANGED <<c0held, c0left, c0pos, stale, lost>>
          ELSE /\ stale' = (stale \/ slotGen[c0slot] # c0gen)
               /\ IF slotResult[c0slot] = "END"
                    THEN /\ c0pc' = "done"
@@ -211,7 +217,9 @@ C0Look ==
                         /\ c0left' = slotCount[c0slot]
                         /\ c0pos' = 0
                         /\ UNCHANGED lost
-    /\ UNCHANGED <<shared, core1, c0gen, c0slot, c0expect, opens, conflict, outOfOrder>>
+              /\ UNCHANGED state
+    /\ UNCHANGED <<ctlGen, slotGen, slotFirst, slotCount, slotResult, data>>
+    /\ UNCHANGED <<core1, c0gen, c0slot, c0expect, opens, conflict, outOfOrder>>
 
 ReadFrame ==
     /\ c0left > 0
@@ -227,7 +235,7 @@ C0Read ==
 
 C0Release ==
     /\ c0pc = "read"
-    /\ c0left = 0 \/ LoadsReorder
+    /\ c0left = 0 \/ (LoadsReorder /\ ~ReleaseFenced)
     /\ state' = [state EXCEPT ![c0held] = "EMPTY"]
     /\ c0slot' = Other(c0slot)
     /\ IF c0left = 0

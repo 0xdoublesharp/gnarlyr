@@ -2,12 +2,13 @@
 EXTENDS Naturals, FiniteSets
 
 CONSTANTS NewImages, MaxCuts, MaxCopies, RomFallsBack, SectorAtomic, AllowBothRequest,
-          WritesFail, OwnerMayDeleteUpdate
+          WritesFail, OwnerMayDeleteUpdate, FixPromotion, FixBothOrder, FixRecordAfterPass
 
 ASSUME NewImages # {} /\ "G" \notin NewImages
 ASSUME MaxCuts \in Nat /\ MaxCopies \in Nat
 ASSUME RomFallsBack \in BOOLEAN /\ SectorAtomic \in BOOLEAN /\ AllowBothRequest \in BOOLEAN
 ASSUME WritesFail \in BOOLEAN /\ OwnerMayDeleteUpdate \in BOOLEAN
+ASSUME FixPromotion \in BOOLEAN /\ FixBothOrder \in BOOLEAN /\ FixRecordAfterPass \in BOOLEAN
 
 Images == {"G"} \cup NewImages
 Limit == 3
@@ -87,11 +88,14 @@ CopyBody ==
           /\ UNCHANGED slot
     /\ UNCHANGED <<rec, file, both, store, run, m, sess, bks, cp, env, fixed, ghost>>
 
+ErasedSource == FixPromotion /\ cp.hdr = NoImage
+
 CopyHead ==
     /\ pc = "cp_head"
-    /\ \/ /\ slot' = [slot EXCEPT ![cp.to].hdr = cp.hdr]
+    /\ \/ /\ ~ErasedSource
+          /\ slot' = [slot EXCEPT ![cp.to].hdr = cp.hdr]
           /\ Goto(cp.ok)
-       \/ /\ WritesFail
+       \/ /\ WritesFail \/ ErasedSource
           /\ Goto(cp.ko)
           /\ UNCHANGED slot
     /\ UNCHANGED <<rec, file, both, store, run, m, sess, bks, cp, env, fixed, ghost>>
@@ -114,7 +118,7 @@ Count ==
                                 !.trial = TRUE, !.settle = TRUE]
               /\ Goto("pass") /\ UNCHANGED cp
          [] rec.st = "ROLLED_BACK" ->
-              /\ rec' = NoRecord
+              /\ rec' = IF FixRecordAfterPass THEN rec ELSE NoRecord
               /\ m' = [m EXCEPT !.rolledback = TRUE, !.settle = TRUE]
               /\ Goto("pass") /\ UNCHANGED cp
          [] rec.st = "RUNNING" /\ rec.att >= Limit /\ Valid(2) ->
@@ -139,9 +143,11 @@ BackupSlot(build) ==
     ELSE IF \E s \in {1, 2} : bk[s].build = NoImage THEN CHOOSE s \in {1, 2} : bk[s].build = NoImage
     ELSE IF newest = 0 THEN 1 ELSE 3 - newest
 
+AfterPass == IF FixRecordAfterPass /\ rec.st = "ROLLED_BACK" THEN "rb_clear" ELSE "app"
+
 Pass ==
     /\ pc = "pass"
-    /\ CASE ~m.settle \/ mark = run.img -> Goto("app") /\ UNCHANGED <<bks, preTrial>>
+    /\ CASE ~m.settle \/ mark = run.img -> Goto(AfterPass) /\ UNCHANGED <<bks, preTrial>>
          [] m.settle /\ mark = NoImage -> Goto("mark") /\ UNCHANGED <<bks, preTrial>>
          [] OTHER -> /\ bks' = BackupSlot(mark) /\ Goto("bk_clear")
                      /\ preTrial' = IF m.trial THEN live ELSE preTrial
@@ -190,8 +196,12 @@ ReturnRemove ==
     /\ pc = "return_remove" /\ newer' = Absent /\ Goto("mark")
     /\ UNCHANGED <<disk, live, bk, newest, mark, run, m, sess, bks, cp, env, fixed, ghost>>
 
+RollbackClear ==
+    /\ pc = "rb_clear" /\ rec' = NoRecord /\ Goto("app")
+    /\ UNCHANGED <<slot, file, both, store, run, m, sess, bks, cp, env, fixed, ghost>>
+
 WriteMark ==
-    /\ pc = "mark" /\ mark' = run.img /\ Goto("app")
+    /\ pc = "mark" /\ mark' = run.img /\ Goto(AfterPass)
     /\ UNCHANGED <<disk, live, newer, bk, newest, run, m, sess, bks, cp, env, fixed, ghost>>
 
 Crash ==
@@ -240,7 +250,7 @@ SessionWith(f, b, c) ==
     /\ pc = "app"
     /\ Good(run.img)
     /\ rec' = IF m.due THEN [st |-> "RUNNING", att |-> IF m.charged THEN m.att + 1 ELSE m.att] ELSE rec
-    /\ m' = [m EXCEPT !.due = FALSE, !.charged = FALSE]
+    /\ m' = [m EXCEPT !.due = FALSE, !.charged = FALSE, !.rolledback = FALSE]
     /\ file' = f /\ both' = b /\ sess' = c
     /\ copies' = IF f # file /\ f \in Images THEN copies + 1 ELSE copies
     /\ Goto("updater")
@@ -256,7 +266,9 @@ Updater ==
          [] Valid(1) /\ slot[1].hdr = file ->
               file' = NoImage /\ Goto("sessend") /\ UNCHANGED <<cp, ownerBoth, fallbackBoth>>
          [] both \/ ~Valid(2) ->
-              /\ StartCopy(2, file, file, "u_slot1", "sessend")
+              /\ IF FixBothOrder /\ ~Valid(1) /\ Valid(2)
+                   THEN StartCopy(1, file, file, "u_slot2", "sessend")
+                   ELSE StartCopy(2, file, file, "u_slot1", "sessend")
               /\ ownerBoth' = (ownerBoth \/ both)
               /\ fallbackBoth' = (fallbackBoth \/ ~both)
               /\ UNCHANGED file
@@ -267,6 +279,11 @@ Updater ==
 UpdaterSlot1 ==
     /\ pc = "u_slot1"
     /\ StartCopy(1, slot[2].hdr, slot[2].ovl, "u_del", "sessend")
+    /\ UNCHANGED <<disk, store, run, m, sess, bks, env, fixed, ghost>>
+
+UpdaterSlot2 ==
+    /\ pc = "u_slot2"
+    /\ StartCopy(2, slot[1].hdr, slot[1].ovl, "u_del", "sessend")
     /\ UNCHANGED <<disk, store, run, m, sess, bks, env, fixed, ghost>>
 
 UpdaterDelete ==
@@ -295,14 +312,17 @@ TrialFailed ==
 
 RunningFromSlot1 == slot[1].ovl = run.img
 
-PromotionDue ==
+PromotionAsked ==
     /\ (m.trial /\ sess) \/ m.promoting
     /\ (rec.st = "RUNNING" /\ sess) \/ rec.st = "PROMOTING"
-    /\ RunningFromSlot1
+
+PromotionDue == PromotionAsked /\ RunningFromSlot1 /\ (FixPromotion => Valid(1))
+
+PromotionCleared == FixPromotion /\ PromotionAsked /\ ~Valid(1)
 
 SessionEnd ==
     /\ pc = "sessend"
-    /\ Goto(IF PromotionDue THEN "p_rec" ELSE "app")
+    /\ Goto(IF PromotionCleared THEN "p_clear" ELSE IF PromotionDue THEN "p_rec" ELSE "app")
     /\ sess' = FALSE
     /\ UNCHANGED <<disk, store, run, m, bks, cp, env, fixed, ghost>>
 
@@ -319,7 +339,14 @@ PromoteDelete ==
     /\ Goto("app")
     /\ UNCHANGED <<slot, file, both, store, run, sess, bks, cp, env, fixed, ghost>>
 
-RecordSteps == {"count", "rb_mark", "t_rec", "p_rec", "p_del", "u_del"}
+PromoteClear ==
+    /\ pc = "p_clear"
+    /\ rec' = NoRecord
+    /\ m' = [m EXCEPT !.trial = FALSE, !.promoting = FALSE]
+    /\ Goto("app")
+    /\ UNCHANGED <<slot, file, both, store, run, sess, bks, cp, env, fixed, ghost>>
+
+RecordSteps == {"count", "rb_mark", "rb_clear", "t_rec", "p_rec", "p_del", "p_clear", "u_del"}
 
 Cut ==
     /\ pc \notin {"off", "dead"}
@@ -335,10 +362,10 @@ Dead ==
 
 Steps ==
     \/ Count \/ RollbackMark \/ CopyErase \/ CopyBody \/ CopyHead
-    \/ Pass \/ BackupClear \/ BackupCopy \/ BackupName \/ SettleFiles
+    \/ RollbackClear \/ Pass \/ BackupClear \/ BackupCopy \/ BackupName \/ SettleFiles
     \/ AsideCopy \/ AsideRemove \/ ReturnCopy \/ ReturnRemove \/ WriteMark
-    \/ Updater \/ UpdaterSlot1 \/ UpdaterDelete \/ UpdaterBoth \/ UpdaterFile
-    \/ TrialRecord \/ TrialFailed \/ SessionEnd \/ PromoteRecord \/ PromoteDelete
+    \/ Updater \/ UpdaterSlot1 \/ UpdaterSlot2 \/ UpdaterDelete \/ UpdaterBoth \/ UpdaterFile
+    \/ TrialRecord \/ TrialFailed \/ SessionEnd \/ PromoteRecord \/ PromoteDelete \/ PromoteClear
 
 Next ==
     \/ PowerOn \/ Steps \/ Crash \/ Settle \/ ChangeSettings \/ TornSettings \/ Shutdown
@@ -380,8 +407,12 @@ TrialResolves == (rec.st = "RUNNING") ~> (rec.st # "RUNNING")
 
 TrialEnds == (rec.st \in {"RUNNING", "PROMOTING"}) ~> (rec.st = "NONE")
 
-RestoredBuildCanSave == (pc = "app" /\ Good(run.img) /\ rec.st = "NONE" /\ ~m.trial) => ~Refused
+RestoredBuildCanSave ==
+    (pc = "app" /\ Good(run.img) /\ rec.st \in {"NONE", "ROLLED_BACK"} /\ ~m.trial) => ~Refused
+
+RollbackPassDone == pc = "app" => rec.st # "ROLLED_BACK"
 
 RollbackWitness == ~AfterRollback
 PromotionWitness == ~(pc = "p_del")
+ClearWitness == ~(pc = "p_clear")
 =============================================================================
