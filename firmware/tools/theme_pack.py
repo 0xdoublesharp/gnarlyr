@@ -492,7 +492,7 @@ def main():
     parser.add_argument("folder", type=Path, nargs="?")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check", type=Path)
-    parser.add_argument("--preview", type=Path, help="write each asset as the player draws it")
+    parser.add_argument("--preview", type=Path, help="decode every image, including ones not drawn yet, and write each as a PNG")
     parser.add_argument("--sign-key", type=Path, help="32-byte Ed25519 private seed; never included in the pack")
     parser.add_argument("--verify-key", type=Path, help="32-byte public key or 64 hex digits")
     parser.add_argument("--public-key-out", type=Path)
