@@ -150,9 +150,6 @@ src/core/key_script.c: "play"
 src/core/key_script.c: "power"
 src/core/key_script.c: "up"
 
-# Digit tables.
-src/core/dac_identity.c: "0123456789ABCDEF"
-
 # Unit symbols and codec names.
 src/app/screens/equalizer_plot.c: "1 kHz"
 src/app/screens/equalizer_plot.c: "125 Hz"
@@ -171,7 +168,6 @@ src/app/screens/now_playing_screen.c: "MP3"
 src/app/screens/now_playing_screen.c: "WAV"
 src/core/format.c: " kHz"
 src/core/format.c: " kbps"
-src/core/format.c: " ms"
 
 # The developer build's extra Bluetooth lines (module state, link counters, message log).
 src/app/screens/bluetooth_screen.c: " frames"

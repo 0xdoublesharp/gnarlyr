@@ -3,8 +3,6 @@
 #include "core/string_builder.h"
 
 enum {
-    MICROSECONDS_PER_TENTH_MS = 100,
-    TENTHS_PER_MS = 10,
     MILLISECONDS_PER_SECOND = 1000,
     SECONDS_PER_MINUTE = 60,
     SECONDS_PER_HOUR = 3600,
@@ -26,16 +24,6 @@ static void append_two_digits(StringBuilder *builder, uint32_t value)
 static uint32_t rounded_units(uint32_t value, uint32_t unit)
 {
     return value / unit + (value % unit >= unit - unit / 2);
-}
-
-void format_milliseconds(uint32_t microseconds, char *buffer, size_t capacity)
-{
-    uint32_t tenths = rounded_units(microseconds, MICROSECONDS_PER_TENTH_MS);
-    StringBuilder builder = string_builder_make(buffer, capacity);
-    string_builder_append_unsigned(&builder, tenths / TENTHS_PER_MS);
-    string_builder_append_char(&builder, '.');
-    string_builder_append_unsigned(&builder, tenths % TENTHS_PER_MS);
-    string_builder_append(&builder, " ms");
 }
 
 void format_duration(uint32_t milliseconds, char *buffer, size_t capacity)

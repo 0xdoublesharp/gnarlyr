@@ -257,9 +257,6 @@ STR_ABOUT_NO_READING = No reading
 STR_ABOUT_CHARGING = {0} mV charging
 STR_ABOUT_FULL = {0} mV full
 STR_ABOUT_NOT_READ = Not read
-STR_ABOUT_SIMULATED = Simulated
-STR_ABOUT_PLAY_A_TRACK = Play a track
-STR_ABOUT_READ_FAILED = Read failed
 
 # Power, buttons and storage.
 STR_GOODBYE = Goodbye
