@@ -119,6 +119,24 @@ class ThemeToolTests(unittest.TestCase):
                                     capture_output=True, text=True, check=True)
             self.assertTrue(any("battery" in text for text in json.loads(result.stdout)["warnings"]))
 
+    def test_style_entries_and_the_cassette_label_warn_that_they_are_not_yet_applied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.new("RGB", (160, 48), (10, 20, 30)).save(folder / "label.png")
+            self.manifest["style"] = [{"kind": "scene", "target": "sun_radius", "value": 20}]
+            self.manifest["assets"] = [{"slot": "cassette_label", "file": "label.png"}]
+            self.save(folder)
+            warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
+            self.assertTrue(any("scene sun_radius" in text and "not yet applied" in text
+                                for text in warnings), warnings)
+            self.assertTrue(any("cassette_label" in text and "not yet drawn" in text
+                                for text in warnings), warnings)
+            self.manifest["style"] = []
+            self.manifest["assets"] = []
+            self.save(folder)
+            warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
+            self.assertFalse(any("not yet" in text for text in warnings), warnings)
+
     def home_copy(self, folder):
         self.manifest["assets"] = [{"slot": "home", "file": "photo.png",
                                     "orientation": "landscape", "codec": "lossless"}]

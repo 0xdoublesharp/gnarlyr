@@ -115,6 +115,16 @@ def style_entries(data):
         if not low <= value <= high or (kind == 4 and target == 1 and value not in (4, 6, 8)):
             raise ValueError("style value out of range")
         seen.add((kind, target))
+    return seen
+
+
+def style_names(pairs):
+    kinds = {number: name for name, number in STYLE_KINDS.items()}
+    names = []
+    for kind, target in sorted(pairs):
+        targets = {limit[0]: name for name, limit in STYLE_TARGETS[kind].items()}
+        names.append(kinds[kind] + " " + targets[target])
+    return names
 
 
 def style_table(entries):
@@ -300,7 +310,7 @@ def check(data, verify_key=None):
     next_offset = style_at + style_bytes
     if end < next_offset or zlib.crc32(data[:12] + data[16:end]) != expected:
         raise ValueError("CRC mismatch or truncated directory")
-    style_entries(data[style_at:next_offset])
+    styles = style_entries(data[style_at:next_offset])
     seen = set()
     for index in range(count):
         asset = descriptor(data, index)
@@ -331,6 +341,12 @@ def check(data, verify_key=None):
     info["warnings"] = contrast_warnings(struct.unpack_from("<20H", data, 452))
     if any(asset["slot"] == SLOTS["now_playing"] for asset in info["assets"]):
         info["warnings"].append(NOW_PLAYING_INDEXED)
+    if styles:
+        info["warnings"].append("style: " + ", ".join(style_names(styles)) +
+                                " are checked and kept but not yet applied by the firmware")
+    if any(asset["slot"] == SLOTS["cassette_label"] for asset in info["assets"]):
+        info["warnings"].append("cassette_label: the image is checked and kept but not yet drawn "
+                                "by the firmware")
     return info
 
 

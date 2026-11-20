@@ -2,6 +2,10 @@
 
 A `.gtheme` is data: metadata, a complete RGB565 palette, a bounded image directory, an optional style table and compressed images. It contains no executable content, scripts, fonts, shaders, bytecode, addresses, loaders or firmware patches. Copying a pack never flashes firmware. This page describes format version 2. Version 1 files are refused; rebuild them from their source folder. The format is independent of the language catalogue and the firmware release number.
 
+## What the firmware draws
+
+The current firmware applies a pack's palette (all 20 roles), its base theme, the horizon and header-rule flags, and these images: `home` behind Home and the Theme list, `now_playing` behind Now Playing (indexed only), `list` behind list screens, `splash` in the start-up splash, and the icons in the status bar and on Home. It checks and keeps the rest of a valid pack without using it: the `cassette_label` image and every style table entry. The builder and `--check` list those in their JSON `warnings` as not yet drawn or not yet applied, so a pack can carry them now and gain them when the firmware does.
+
 ## Making and installing a pack
 
 Put `theme.json` or `theme.toml` and PNG assets in one source folder. Build with Python 3 and Pillow:
@@ -181,7 +185,7 @@ Every payload has the same frame:
 
 ## Style table
 
-The style table follows the directory. Each 4-byte entry is `u8 kind, u8 target, u16 value`; each `(kind, target)` appears once. Unknown kinds or targets and out-of-range values are rejected. Firmware validates the table but no screen uses it yet; it reserves these parameters for the planned visualizer stages and Now Playing options:
+The style table follows the directory. Each 4-byte entry is `u8 kind, u8 target, u16 value`; each `(kind, target)` appears once. Unknown kinds or targets and out-of-range values are rejected. Firmware validates the table but no screen uses it yet, and the builder warns that each entry is not yet applied; it reserves these parameters for the planned visualizer stages and Now Playing options:
 
 | Kind | Manifest name | Targets and ranges |
 | --- | --- | --- |
