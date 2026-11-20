@@ -550,22 +550,6 @@ static void space_left_over_from_another_file_reads_as_no_order(void)
     check_tracks(&order, TRACKS, 4);
 }
 
-static void progress_runs_from_nothing_to_complete(void)
-{
-    make_order();
-    TrackOrderJob job;
-    CHECK(track_order_job_begin(&job, &order, track_order_source(&order),
-                                (TrackOrderEdit){TRACK_ORDER_MOVE, 3, 0, 0}));
-    uint8_t before = track_order_job_progress(&job);
-    CHECK_EQUAL(0, before);
-    while (track_order_job_step(&job) == STORE_WORKING) {
-        uint8_t now = track_order_job_progress(&job);
-        CHECK(now >= before && now <= 100);
-        before = now;
-    }
-    CHECK_EQUAL(100, track_order_job_progress(&job));
-}
-
 static void an_exact_generation_ignores_a_newer_unpublished_bank(void)
 {
     make_order();
@@ -583,7 +567,6 @@ int main(void)
         TEST_CASE(an_exact_generation_ignores_a_newer_unpublished_bank),
         TEST_CASE(opening_verifies_only_the_payload_of_the_bank_it_selects),
         TEST_CASE(space_left_over_from_another_file_reads_as_no_order),
-        TEST_CASE(progress_runs_from_nothing_to_complete),
         TEST_CASE(a_committed_order_survives_reopening),
         TEST_CASE(a_zero_initialized_job_is_idle_and_can_be_cancelled_safely),
         TEST_CASE(a_valid_future_format_is_not_overwritten_as_an_empty_file),

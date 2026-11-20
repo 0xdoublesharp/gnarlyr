@@ -9,8 +9,7 @@
 
 enum {
     HIRES_RATE = 48000,
-    HIRES_BITS = 16,
-    PERMILLE = 1000
+    HIRES_BITS = 16
 };
 
 _Static_assert((LISTENING_LOG_CAPACITY & (LISTENING_LOG_CAPACITY - 1)) == 0,
@@ -197,15 +196,4 @@ ListeningFormat listening_format_class(bool lossless, uint32_t sample_rate, uint
     }
     return sample_rate > HIRES_RATE || bits > HIRES_BITS ? LISTENING_FORMAT_HIRES
                                                          : LISTENING_FORMAT_LOSSLESS;
-}
-
-uint16_t listening_skip_permille(const ListeningTotals *totals)
-{
-    uint32_t plays = totals->plays;
-    uint32_t skips = totals->skips;
-    while (plays > UINT32_MAX / PERMILLE) {
-        plays >>= 1;
-        skips >>= 1;
-    }
-    return plays == 0 ? 0 : (uint16_t)(skips * PERMILLE / plays);
 }

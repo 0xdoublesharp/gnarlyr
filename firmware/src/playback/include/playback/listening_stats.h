@@ -6,27 +6,8 @@
 #include "playback/listening_log.h"
 
 enum {
-    LISTENING_TOP_COUNT = 10,
-    LISTENING_STREAK_WINDOW_DAYS = 64
+    LISTENING_TOP_COUNT = 10
 };
-
-typedef struct ListeningSummary {
-    ListeningTotals all_time;
-    ListeningTotals session;
-    ListeningTotals today;
-    ListeningTotals week;
-    uint16_t streak_days;
-    bool clock_known;
-} ListeningSummary;
-
-typedef struct ListeningSummaryJob {
-    ListeningCursor cursor;
-    ListeningSummary summary;
-    uint64_t days;
-    uint32_t today;
-    uint32_t newest;
-    StoreResult result;
-} ListeningSummaryJob;
 
 typedef enum ListeningGroup {
     LISTENING_BY_TRACK,
@@ -76,9 +57,6 @@ typedef struct ListeningTop {
     bool count_fresh;
     StoreResult result;
 } ListeningTop;
-
-void listening_summary_begin(ListeningSummaryJob *job, const ListeningLog *log, uint32_t now_s);
-StoreResult listening_summary_step(ListeningSummaryJob *job);
 
 bool listening_top_begin(ListeningTop *job, const ListeningLog *log, ListeningGroup group,
                          ListeningScratch scratch);

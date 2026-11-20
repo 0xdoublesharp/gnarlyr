@@ -141,7 +141,6 @@ static void counters_add_up_time_plays_skips_outputs_and_formats(void)
     CHECK_EQUAL(60000, counters->format_ms[LISTENING_FORMAT_LOSSY]);
     CHECK_EQUAL(254000, counters->format_ms[LISTENING_FORMAT_LOSSLESS]);
     CHECK_EQUAL(5000, counters->format_ms[LISTENING_FORMAT_HIRES]);
-    CHECK_EQUAL(333, listening_skip_permille(&counters->totals));
     CHECK_EQUAL(0, log_file.session.plays);
 }
 
@@ -531,16 +530,6 @@ static void lossless_above_48_khz_or_16_bits_is_high_resolution(void)
     CHECK_EQUAL(LISTENING_FORMAT_HIRES, listening_format_class(true, 88200, 16));
 }
 
-static void the_skip_rate_is_skips_per_thousand_plays(void)
-{
-    ListeningTotals totals = {0};
-    CHECK_EQUAL(0, listening_skip_permille(&totals));
-    totals = (ListeningTotals){.plays = 8, .skips = 2};
-    CHECK_EQUAL(250, listening_skip_permille(&totals));
-    totals = (ListeningTotals){.plays = UINT32_MAX, .skips = UINT32_MAX};
-    CHECK_EQUAL(1000, listening_skip_permille(&totals));
-}
-
 int main(void)
 {
     static const TestCase cases[] = {
@@ -572,7 +561,6 @@ int main(void)
         TEST_CASE(a_play_with_a_kind_outside_the_format_is_refused),
         TEST_CASE(a_play_counts_as_listened_from_half_its_length),
         TEST_CASE(lossless_above_48_khz_or_16_bits_is_high_resolution),
-        TEST_CASE(the_skip_rate_is_skips_per_thousand_plays),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
