@@ -29,7 +29,7 @@ if (config.licensed_artwork) {
 assert.equal(config.version, 1);
 assert(config.viewport.width >= 900 && config.viewport.width <= 1600);
 assert(config.viewport.height >= 700 && config.viewport.height <= 1200);
-const known = new Set(["library-dark", "library-light", "sync-preview", "player-library", "player-settings", "firmware-review", "languages", "mixtapes", "first-install", "setup-notice", "recovery"]);
+const known = new Set(["library-dark", "library-light", "sync-preview", "player-library", "player-settings", "firmware-review", "languages", "themes", "mixtapes", "first-install", "setup-notice", "recovery"]);
 assert(config.screens.length && config.screens.every((name) => known.has(name)));
 assert.equal(new Set(config.screens).size, config.screens.length);
 assert(config.albums.length >= 2 && config.albums.length <= 12);
@@ -168,6 +168,15 @@ try {
   await page.keyboard.press("Escape");
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   await cp(music, card, { recursive: true });
+  const theme = join(work, "pocket-scope.gtheme");
+  const packed = spawnSync(join(root, "firmware/.venv/bin/python"), [join(root, "firmware/tools/theme_pack.py"),
+    join(root, "examples/themes/pocket-scope"), "--output", theme], { env, encoding: "utf8", timeout: 30000 });
+  assert.equal(packed.status, 0, packed.stderr);
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await pick(theme);
+  await page.getByRole("button", { name: "Open pack", exact: true }).click();
+  await page.getByRole("heading", { name: "Pocket Scope", exact: true }).waitFor();
+  await shot("themes");
   await page.getByRole("button", { name: "Player library", exact: true }).click();
   await pick(card);
   await page.getByRole("button", { name: "Choose music drive", exact: true }).click();

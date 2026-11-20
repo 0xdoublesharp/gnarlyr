@@ -7,11 +7,19 @@
   "demo": {
     "tracks": [
       {
+        "title": "Priceless 2023",
+        "artist": "Bodhi McBoatface",
+        "album": "Priceless 2023",
+        "seconds": 30,
+        "album_index": 0,
+        "track_index": 0
+      },
+      {
         "title": "First Light",
         "artist": "Cedar & Sky",
         "album": "Long Way Home",
         "seconds": 30,
-        "album_index": 0,
+        "album_index": 1,
         "track_index": 0
       },
       {
@@ -19,7 +27,7 @@
         "artist": "Cedar & Sky",
         "album": "Daybreak",
         "seconds": 30,
-        "album_index": 9,
+        "album_index": 10,
         "track_index": 0
       },
       {
@@ -27,7 +35,7 @@
         "artist": "Cedar & Sky",
         "album": "Daybreak",
         "seconds": 30,
-        "album_index": 9,
+        "album_index": 10,
         "track_index": 1
       }
     ],
@@ -100,8 +108,31 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play"
       ]
+    },
+    {
+      "name": "scrub-preview",
+      "file": "scrub-preview.png",
+      "expected_title": "Now Playing",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "play",
+        "menu+down:held"
+      ],
+      "frames": 360
     },
     {
       "name": "up-next",
@@ -117,6 +148,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "menu",
         "up",
@@ -156,6 +189,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "menu:long"
       ]
@@ -822,6 +857,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "back:long",
         "down",
@@ -870,6 +907,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "back:long"
       ]
@@ -888,6 +927,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "menu"
       ],
@@ -908,6 +949,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "menu",
         "up"
@@ -1569,6 +1612,7 @@
         "down",
         "down",
         "play",
+        "down",
         "play"
       ]
     },
@@ -1737,6 +1781,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play"
       ]
     },
@@ -1764,6 +1810,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "down",
         "down",
@@ -1823,6 +1871,8 @@
         "down",
         "down",
         "play",
+        "down",
+        "down",
         "play",
         "down",
         "down",

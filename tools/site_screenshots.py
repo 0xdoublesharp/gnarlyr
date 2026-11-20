@@ -17,7 +17,7 @@ from site_album_art import albums as artwork_albums
 ROOT = Path(__file__).resolve().parents[1]
 SCRATCH = Path("/Volumes/Scratch/SnowskyEcho")
 DEFAULT_CONFIG = ROOT / "tools/site_screenshots.json"
-KEY = re.compile(r"(?:up|down|play|menu|back|power)(?::(?:long|held))?\Z")
+KEY = re.compile(r"(?:(?:play|menu)\+)?(?:up|down|play|menu|back|power)(?::(?:long|held))?\Z")
 NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
@@ -164,8 +164,16 @@ def create_demo(config, work, env, source_root=ROOT):
     python = source_root / "firmware/.venv/bin/python"
     run([python, source_root / "firmware/tools/library_index.py", "--music", card, "--output", library], work / "index.log", env)
     if artwork:
-        run([python, source_root / "firmware/tools/cover_export.py", "--music", card,
-             "--library", library, "--output", work / "covers.bin"], work / "covers.log", env)
+        # Reserve stamp and record space as the player does, so its idle cover
+        # refresh cannot shrink a tightly packed legacy fixture by one album.
+        prepare = (
+            "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
+            "import cover_export as c; sources=c.album_sources_from_library(Path(sys.argv[3]).read_bytes()); "
+            "covers=c.collect_covers(Path(sys.argv[2]), sources, c.cover_record); "
+            "Path(sys.argv[4]).write_bytes(c.encode_stamped(covers.records, covers.stamps, c.stamped_size(len(sources))))"
+        )
+        run([python, "-c", prepare, source_root / "firmware/tools", card, library,
+             work / "covers.bin"], work / "covers.log", env)
     return card, library
 
 

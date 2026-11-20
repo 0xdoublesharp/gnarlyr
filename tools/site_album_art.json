@@ -1,7 +1,18 @@
 {
   "version": 1,
-  "sample_albums": true,
   "albums": [
+    {
+      "artist": "Bodhi McBoatface",
+      "title": "Priceless 2023",
+      "year": "2023",
+      "tracks": [
+        "Priceless 2023"
+      ],
+      "artwork_file": "site/assets/artwork/priceless-2023.jpg",
+      "source": "Owner-selected embedded cover for Priceless 2023",
+      "permission": "Requested by the owner for website screenshots on 2026-11-19",
+      "sha256": "fd56146177c6d8f0d84077495a88d06408b815e6b7070508bb17b78302b21968"
+    },
     {
       "artist": "Cedar & Sky",
       "title": "Long Way Home",

@@ -1,10 +1,11 @@
-"""Fetch the pinned royalty-free artwork used by website screenshot fixtures."""
+"""Load owner-selected and royalty-free artwork for website screenshot fixtures."""
 import hashlib
 import json
 from pathlib import Path
 import urllib.request
 
 CATALOG = Path(__file__).with_name("site_album_art.json")
+ROOT = CATALOG.parent.parent
 CACHE = Path("/Volumes/Scratch/SnowskyEcho/tmp/site-refresh/art")
 
 
@@ -17,6 +18,11 @@ def albums():
     for album in catalog["albums"]:
         path = CACHE / (album["sha256"] + ".jpg")
         data = path.read_bytes() if path.is_file() else None
+        if data is None and album.get("artwork_file"):
+            source = (ROOT / album["artwork_file"]).resolve()
+            if not source.is_relative_to((ROOT / "site/assets/artwork").resolve()):
+                raise ValueError("Local screenshot artwork must be under site/assets/artwork")
+            data = source.read_bytes()
         if data is None:
             with urllib.request.urlopen(album["artwork"], timeout=30) as response:
                 data = response.read(5 * 1024 * 1024 + 1)
