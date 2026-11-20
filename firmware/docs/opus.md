@@ -4,7 +4,7 @@ Ogg Opus files (`.opus`) play through a separate core-1 program built from the f
 
 ## Source and configuration
 
-`third_party/opus` contains the unchanged source subset of the official [libopus 1.6.1 archive](https://www.opus-codec.org/downloads/); `VERSION` records the retained paths and the archive SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1`. `COPYING` keeps the upstream BSD-style terms, and `CREDITS.md` names the authors.
+`third_party/opus` contains the unchanged files of the official [libopus 1.6.1 archive](https://www.opus-codec.org/downloads/) that a firmware build compiles or includes, plus `src/opus_compare.c` for the vector check; `VERSION` records what was kept and the archive SHA-256 `6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1`. `COPYING` keeps the upstream BSD-style terms, and `CREDITS.md` names the authors.
 
 `platform/device/logic/opus.cmake` compiles the upstream `OPUS_SOURCES`, `CELT_SOURCES`, `SILK_SOURCES` and `SILK_SOURCES_FIXED` lists with `OPUS_BUILD`, `FIXED_POINT`, `DISABLE_FLOAT_API`, `ENABLE_HARDENING` and `PACKAGE_VERSION`, and force-includes `port/opus_support.h`. Neural enhancements, custom modes, the float API, SIMD dispatch and 96 kHz extensions are off; every standard Opus coding mode (SILK, hybrid, CELT) stays. Unused encoder objects are dropped by the linker.
 
