@@ -423,6 +423,7 @@ void core1_source_hurry(Core1Source *source)
 
 static void advance_slot(Core1Source *source)
 {
+    core1_publish();
     source->region.control->slots[source->slot].state = STREAM_SLOT_EMPTY;
     source->slot = (source->slot + 1) % STREAM_SLOTS;
 }
@@ -441,6 +442,10 @@ static AudioFrameResult next_frame(void *context, AudioFrame *frame)
             return AUDIO_FRAME_WAIT;
         }
         core1_observe();
+        if (slot->generation != source->generation) {
+            slot->state = STREAM_SLOT_EMPTY;
+            continue;
+        }
         if (slot->result != AUDIO_FRAME_READY) {
             return slot->result == AUDIO_FRAME_END ? AUDIO_FRAME_END : AUDIO_FRAME_ERROR;
         }
