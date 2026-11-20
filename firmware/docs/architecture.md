@@ -656,7 +656,7 @@ Host builds run under UndefinedBehaviorSanitizer. AddressSanitizer is opt-in (`E
 
 On the player the UI modules (views, settings, library, listening, equalizer, playing, stage) share one slot, and the USB and rescan overlays overwrite it. Loading one clears the code, data and BSS of the one before. The rule the checks enforce: after an eviction, nothing reads a pointer into the evicted module's memory or calls its code until the module is loaded again and its reload hook has run.
 
-**Host fake.** With Clang, `cmake/host_module_guard.cmake` gives every source that appears only in UI module lists (`cmake/screen_modules.cmake`, plus the UI sources every module carries) a forced-include header. The header places the file's text, data, read-only data and BSS in sections named after its owner set, the set of modules that list it, and the file is built with `-finstrument-functions-after-inlining`. A source that the extension, an audio bank or the shared list also names stays resident on the host, as the extension stays loaded on the player. `tests/support/module_guard.c` reads the section bounds from the linker (`section$start$` on Mach-O, weak `__start_`/`__stop_` on ELF) and keeps one state per owner set: untouched, live or evicted. The fake HAL reports each change: a load of another module, a refused load, the rescan overlay and `fake_hal_load_usb_overlay`.
+**Host fake.** With Clang, `cmake/host_module_guard.cmake` gives every source that appears only in UI module lists (`cmake/screen_modules.cmake`, plus the UI sources every module carries) a forced-include header. The header places the file's text, data, read-only data, relocated constants and BSS in sections named after its owner set, the set of modules that list it, and the file is built with `-finstrument-functions-after-inlining`. A source that the extension, an audio bank or the shared list also names stays resident on the host, as the extension stays loaded on the player. `tests/support/module_guard.c` reads the section bounds from the linker (`section$start$` on Mach-O, weak `__start_`/`__stop_` on ELF) and keeps one state per owner set: untouched, live or evicted. The fake HAL reports each change: a load of another module, a refused load, the rescan overlay and `fake_hal_load_usb_overlay`.
 
 - **Eviction:** the set's data, read-only data and BSS are filled with `0xA5`, so a pointer read from them is non-canonical on 64-bit hosts. Under AddressSanitizer the ranges are also poisoned, so any read or write is reported with its stack.
 - **Reload:** a load after an eviction, or of another module of the same set, restores the data from a snapshot taken before `main` and clears the BSS, as the loader does on the player.
@@ -670,6 +670,7 @@ What the host fake cannot see:
 
 - reads of evicted memory in the `dev` preset unless the poisoned value is used as a pointer (precise read detection needs AddressSanitizer, which the `fuzz` preset has);
 - string literals, which stay in the resident string pool;
+- on ELF hosts, writes to a module's read-only data and relocated constants: the loader maps them read-only there, so they keep their bytes and only AddressSanitizer marks them;
 - the extension, which is always resident on the host.
 
 **Lifecycle fuzzer.** `fuzz_app_lifecycle` drives:

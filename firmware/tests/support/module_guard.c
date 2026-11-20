@@ -53,6 +53,7 @@ typedef struct GuardRange {
 enum {
     RANGE_TEXT,
     RANGE_DATA,
+    RANGE_CONST,
     RANGE_RODATA,
     RANGE_BSS,
     RANGE_COUNT
@@ -98,14 +99,16 @@ typedef struct GuardSet {
     extern char guard_end_##n##kind[] __asm("section$end$" segment "$__em" #n "_" #kind);
 #define GUARD_DECLARE(n)                                                                           \
     GUARD_BOUND(n, "__TEXT", t)                                                                    \
-    GUARD_BOUND(n, "__DATA", d) GUARD_BOUND(n, "__DATA", r) GUARD_BOUND(n, "__DATA", b)
+    GUARD_BOUND(n, "__DATA", d)                                                                    \
+    GUARD_BOUND(n, "__DATA", c) GUARD_BOUND(n, "__DATA", r) GUARD_BOUND(n, "__DATA", b)
 #define GUARD_START(n, kind) guard_start_##n##kind
 #define GUARD_END(n, kind) guard_end_##n##kind
 #else
 #define GUARD_BOUND(n, kind)                                                                       \
     extern char __start_em##n##_##kind[] __attribute__((weak));                                    \
     extern char __stop_em##n##_##kind[] __attribute__((weak));
-#define GUARD_DECLARE(n) GUARD_BOUND(n, t) GUARD_BOUND(n, d) GUARD_BOUND(n, r) GUARD_BOUND(n, b)
+#define GUARD_DECLARE(n)                                                                           \
+    GUARD_BOUND(n, t) GUARD_BOUND(n, d) GUARD_BOUND(n, c) GUARD_BOUND(n, r) GUARD_BOUND(n, b)
 #define GUARD_START(n, kind) __start_em##n##_##kind
 #define GUARD_END(n, kind) __stop_em##n##_##kind
 #endif
@@ -115,6 +118,7 @@ GUARD_SETS(GUARD_DECLARE)
 #define GUARD_ROW(n)                                                                               \
     {{{GUARD_START(n, t), GUARD_END(n, t), NULL, NULL},                                            \
       {GUARD_START(n, d), GUARD_END(n, d), NULL, NULL},                                            \
+      {GUARD_START(n, c), GUARD_END(n, c), NULL, NULL},                                            \
       {GUARD_START(n, r), GUARD_END(n, r), NULL, NULL},                                            \
       {GUARD_START(n, b), GUARD_END(n, b), NULL, NULL}},                                           \
      0,                                                                                            \
@@ -235,6 +239,16 @@ static void poison_shadow(GuardRange *range)
 }
 #endif
 
+static bool writable(int kind)
+{
+#if defined(__APPLE__)
+    (void)kind;
+    return true;
+#else
+    return kind != RANGE_CONST && kind != RANGE_RODATA;
+#endif
+}
+
 __attribute__((constructor)) static void snapshot_pristine(void)
 {
     for (size_t set = 0; set < GUARD_CAPACITY; set++) {
@@ -242,7 +256,7 @@ __attribute__((constructor)) static void snapshot_pristine(void)
         for (int kind = RANGE_DATA; kind <= RANGE_RODATA; kind++) {
             GuardRange *range = &sets[set].ranges[kind];
             size_t bytes = range_bytes(range);
-            if (bytes != 0) {
+            if (bytes != 0 && writable(kind)) {
                 range->pristine = reserve(bytes);
                 raw_copy(range->pristine, range->start, bytes);
             }
@@ -269,7 +283,7 @@ static void refresh(GuardSet *set)
         unpoison(range);
         if (range->pristine != NULL) {
             memcpy(range->start, range->pristine, bytes);
-        } else {
+        } else if (writable(kind)) {
             memset(range->start, 0, bytes);
         }
         restore_shadow(range);
@@ -283,7 +297,9 @@ static void poison(GuardSet *set, const char *event, uint32_t module)
         size_t bytes = range_bytes(range);
         if (bytes != 0) {
             unpoison(range);
-            memset(range->start, GUARD_POISON, bytes);
+            if (writable(kind)) {
+                memset(range->start, GUARD_POISON, bytes);
+            }
             poison_shadow(range);
         }
     }

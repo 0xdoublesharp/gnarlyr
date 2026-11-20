@@ -41,9 +41,9 @@ function(echo_module_guard_header directory index output)
     endif()
     set(header ${directory}/module_guard_set_${name}.h)
     file(CONFIGURE OUTPUT ${header} CONTENT "${hash}if defined(__APPLE__)
-${hash}pragma clang section bss=\"__DATA,__em${name}_b\" data=\"__DATA,__em${name}_d\" rodata=\"__DATA,__em${name}_r\" relro=\"__DATA,__em${name}_r\" text=\"__TEXT,__em${name}_t,regular,pure_instructions\"
+${hash}pragma clang section bss=\"__DATA,__em${name}_b\" data=\"__DATA,__em${name}_d\" rodata=\"__DATA,__em${name}_c\" relro=\"__DATA,__em${name}_r\" text=\"__TEXT,__em${name}_t,regular,pure_instructions\"
 ${hash}else
-${hash}pragma clang section bss=\"em${name}_b\" data=\"em${name}_d\" rodata=\"em${name}_r\" relro=\"em${name}_r\" text=\"em${name}_t\"
+${hash}pragma clang section bss=\"em${name}_b\" data=\"em${name}_d\" rodata=\"em${name}_c\" relro=\"em${name}_r\" text=\"em${name}_t\"
 ${hash}endif
 ")
     set(${output} ${header} PARENT_SCOPE)
