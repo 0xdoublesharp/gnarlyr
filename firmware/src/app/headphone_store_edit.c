@@ -5,18 +5,14 @@
 #include "hal/audio.h"
 #include "hal/system.h"
 
-static bool lower_volumes(HeadphoneStore *store, HeadphoneAudio next, Player *player,
-                          SettingsStore *settings)
+static void lower_volumes(Player *player, const Settings *lowered)
 {
-    uint8_t music = headphone_audio_switch_volume(store->active, next, player->volume);
-    uint8_t usb = headphone_audio_switch_volume(store->active, next, settings->settings.dac_volume);
-    bool changed = player->volume != music;
-    player_set_volume(player, PLAYER_OUTPUT_WIRED, music);
-    settings->settings.dac_volume = usb;
-    settings_store_capture(settings, player_status(player));
-    hal_system_set_dac_volume(usb);
-    bool saved = settings_store_save(settings);
-    return (!changed || !player->has_track || player_save(player)) && saved;
+    bool changed = player->volume != lowered->volume;
+    player_set_volume(player, PLAYER_OUTPUT_WIRED, lowered->volume);
+    hal_system_set_dac_volume(lowered->dac_volume);
+    if (changed && player->has_track) {
+        player_save(player);
+    }
 }
 
 bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *profiles,
@@ -26,10 +22,19 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
         return false;
     }
     HeadphoneAudio next = headphone_store_parameters(profiles);
-    if (!lower_volumes(store, next, player, settings) ||
-        headphone_file_save(&store->file, profiles) != STORE_DONE) {
+    Settings kept = settings->settings;
+    Settings lowered = kept;
+    settings_capture(&lowered, player_status(player));
+    lowered.volume = headphone_audio_switch_volume(store->active, next, player->volume);
+    lowered.dac_volume = headphone_audio_switch_volume(store->active, next, kept.dac_volume);
+    if (!settings_store_publish(settings, &lowered)) {
         return false;
     }
+    if (headphone_file_save(&store->file, profiles) != STORE_DONE) {
+        settings_store_publish(settings, &kept);
+        return false;
+    }
+    lower_volumes(player, &lowered);
     store->profiles = *profiles;
     store->active = next;
     hal_audio_set_headphones(next);

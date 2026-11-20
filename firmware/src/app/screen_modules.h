@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "language.h"
@@ -29,11 +30,22 @@ typedef struct ScreenModuleEntry {
     void (*art_draw)(void *context, Canvas *canvas, Rect area);
     bool (*theme_draw)(const Theme *theme, Canvas *canvas, int slot, Rect area);
     bool (*use_language)(uint32_t module);
+    void (*reload)(struct AppScreens *screens);
 } ScreenModuleEntry;
 
 #define SCREEN_MODULE_ENTRY(number, bind_fn)                                                       \
-    {SCREEN_MODULE_MAGIC(number), (bind_fn),          home_art_update, home_art_draw,              \
-     theme_art_module_draw,       language_use_module}
+    {                                                                                              \
+        SCREEN_MODULE_MAGIC(number),                                                               \
+        (bind_fn),                                                                                 \
+        home_art_update,                                                                           \
+        home_art_draw,                                                                             \
+        theme_art_module_draw,                                                                     \
+        language_use_module,                                                                       \
+        NULL}
+
+#define SCREEN_MODULE_RELOADING_ENTRY(number, bind_fn, reload_fn)                                  \
+    {SCREEN_MODULE_MAGIC(number), (bind_fn),           home_art_update, home_art_draw,             \
+     theme_art_module_draw,       language_use_module, (reload_fn)}
 
 void screen_modules_prepare_home(struct AppScreens *screens);
 void screen_modules_cancel_previews(struct AppScreens *screens);

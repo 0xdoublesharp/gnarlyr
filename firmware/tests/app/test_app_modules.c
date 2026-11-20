@@ -102,6 +102,7 @@ static bool toast_is(const char *expected)
 
 static void start_app_with_style(NowPlayingStyle style)
 {
+    app_reset_for_test();
     fake_hal_reset();
     add_player_files();
     SettingsStore store;
@@ -334,6 +335,168 @@ static void a_damaged_stage_module_leaves_meter_styles_on_the_playing_module(voi
     CHECK(app_toast_text() == NULL || !toast_is(MISSING));
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     CHECK(fake_hal_module_refusals() <= 1);
+}
+
+static void play_from_cover_flow(void)
+{
+    open_cover_flow();
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    wait_ms(200);
+    CHECK(title_is("Now Playing"));
+}
+
+static NowPlayingStyle saved_style(void)
+{
+    SettingsStore store;
+    settings_store_load(&store);
+    return settings_now_playing_style(&store.settings);
+}
+
+static void cycle_style_in_quick_settings(int presses, bool first)
+{
+    tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    for (int count = 0; first && count < 3; count++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing style"));
+    for (int count = 0; count < presses; count++) {
+        tap(KEY_VOLUME_UP);
+    }
+    tap(KEY_PLAY);
+    CHECK(title_is("Quick Settings"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    tap(KEY_BACK);
+    wait_ms(200);
+    CHECK(title_is("Now Playing"));
+}
+
+static void quick_settings_swaps_the_now_playing_module_once_per_close(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    int loads = fake_hal_module_loads();
+    cycle_style_in_quick_settings(2, true);
+    CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 2, fake_hal_module_loads());
+    cycle_style_in_quick_settings(1, false);
+    CHECK_EQUAL(NOW_PLAYING_SPECTRUM, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 4, fake_hal_module_loads());
+    cycle_style_in_quick_settings(2, false);
+    CHECK_EQUAL(NOW_PLAYING_CASSETTE, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 6, fake_hal_module_loads());
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+}
+
+static void a_meter_style_chosen_in_quick_settings_without_an_intact_stage_shows_cover(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    cycle_style_in_quick_settings(2, true);
+    CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_refusals());
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+    cycle_style_in_quick_settings(1, false);
+    CHECK_EQUAL(NOW_PLAYING_SPECTRUM, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(1, fake_hal_module_refusals());
+    CHECK(app_toast_text() == NULL || !toast_is(MISSING));
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+}
+
+static void quick_settings_cycles_from_the_style_settings_chose(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    run_script("build any\nset Now Playing style=VU meters\n");
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    cycle_style_in_quick_settings(1, true);
+    CHECK_EQUAL(NOW_PLAYING_SPECTRUM, saved_style());
+    run_script("build any\nset Now Playing style=Cassette\n");
+    CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    cycle_style_in_quick_settings(1, false);
+    CHECK_EQUAL(NOW_PLAYING_VU, saved_style());
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+}
+
+static void start_app_with_menu_hold(uint8_t action)
+{
+    app_reset_for_test();
+    fake_hal_reset();
+    add_player_files();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.long_press_action = action;
+    CHECK(settings_store_save(&store));
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+}
+
+static void open_sleep_list(void)
+{
+    tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    move_down(5);
+    tap(KEY_PLAY);
+    CHECK(title_is("Sleep timer"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+}
+
+static void choose_from_the_sleep_list(void)
+{
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(title_is("Quick Settings"));
+    CHECK(app_toast_text() != NULL);
+}
+
+static void a_menu_hold_shortcut_over_a_value_list_gives_the_slot_back_in_the_same_step(void)
+{
+    start_app_with_menu_hold(4);
+    play_from_cover_flow();
+    open_sleep_list();
+    int loads = fake_hal_module_loads();
+    fake_hal_queue_transition(KEY_MENU, true, now_ms);
+    now_ms += 1000;
+    step();
+    CHECK(app_player_status().shuffle != SHUFFLE_OFF);
+    CHECK(title_is("Sleep timer"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 2, fake_hal_module_loads());
+    fake_hal_queue_transition(KEY_MENU, false, now_ms);
+    now_ms += 10;
+    step();
+    CHECK(title_is("Sleep timer"));
+    choose_from_the_sleep_list();
+}
+
+static void a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_drawing(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    open_sleep_list();
+    int loads = fake_hal_module_loads();
+    AppDacSettings dac = app_dac_settings();
+    dac.headphones = 0;
+    app_remember_dac(dac);
+    wait_ms(20);
+    CHECK(title_is("Sleep timer"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 2, fake_hal_module_loads());
+    choose_from_the_sleep_list();
 }
 
 static void open_now_playing_from_all_songs(void)
@@ -831,6 +994,11 @@ int main(void)
         TEST_CASE(artists_load_playing_only_for_an_album_strip),
         TEST_CASE(cover_flow_under_a_meter_style_swaps_modules_and_comes_back_intact),
         TEST_CASE(a_damaged_stage_module_leaves_meter_styles_on_the_playing_module),
+        TEST_CASE(quick_settings_swaps_the_now_playing_module_once_per_close),
+        TEST_CASE(a_meter_style_chosen_in_quick_settings_without_an_intact_stage_shows_cover),
+        TEST_CASE(quick_settings_cycles_from_the_style_settings_chose),
+        TEST_CASE(a_menu_hold_shortcut_over_a_value_list_gives_the_slot_back_in_the_same_step),
+        TEST_CASE(a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_drawing),
         TEST_CASE(a_missing_now_playing_module_is_retried_at_most_every_two_seconds),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),

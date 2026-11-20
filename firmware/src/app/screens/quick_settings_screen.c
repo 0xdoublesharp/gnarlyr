@@ -4,159 +4,247 @@
 
 #include "ab_repeat.h"
 #include "core/i18n.h"
+#include "core/string_builder.h"
+#include "equalizer_browser.h"
 #include "hal/clock.h"
 #include "settings_actions.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
 
-enum {
-    SHUFFLE,
-    REPEAT,
-    EQUALIZER,
-    HEADPHONES,
-    SPEED,
-    SLEEP,
-    TRANSITIONS,
-    REPLAY_GAIN,
-    AB_REPEAT,
-    LYRICS,
-    UP_NEXT,
-    ROW_COUNT
-};
+typedef enum QuickRowKind {
+    QUICK_CYCLE,
+    QUICK_SUBMENU,
+    QUICK_PUSH,
+    QUICK_ACTION
+} QuickRowKind;
 
-static EqualizerPresets presets;
+typedef struct QuickRow {
+    StringId label;
+    StringId title;
+    uint8_t kind;
+    uint8_t count;
+    uint8_t target;
+    const StringId *values;
+    int (*count_of)(const void *settings);
+    int (*current)(const void *settings);
+    const char *const *(*labels)(const SettingsContext *settings);
+    void (*choose)(void *settings, int index);
+} QuickRow;
 
-static const StringId LABELS[] = {STR_SHUFFLE,     STR_REPEAT,         STR_EQUALIZER,
-                                  STR_HEADPHONES,  STR_PLAYBACK_SPEED, STR_SLEEP_TIMER,
-                                  STR_TRANSITIONS, STR_REPLAY_GAIN,    STR_AB_LOOP,
-                                  STR_LYRICS,      STR_UP_NEXT};
+static const char *headphone_names[HEADPHONE_PROFILE_LIMIT + 1];
+static char slot_names[HEADPHONE_PROFILE_LIMIT][HEADPHONE_PROFILE_NAME_BYTES];
+
 static const StringId SHUFFLE_VALUES[] = {STR_OFF, STR_SHUFFLE_SONGS, STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_VALUES[] = {STR_OFF, STR_REPEAT_MODE_ONE, STR_REPEAT_MODE_ALL};
-static const StringId SLEEP_VALUES[] = {
-    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
-    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
+static const StringId TRANSITION_VALUES[] = {STR_OFF, STR_TRANSITION_FADE};
 static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM,
                                          STR_REPLAY_GAIN_AUTO};
 static const StringId AB_VALUES[] = {STR_OFF, STR_AB_ROW_A, STR_AB_ROW_LOOP};
+static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
+                                        STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
 
-static bool has_speed(const QuickSettingsScreen *panel)
+static const ChoiceConfig *browser_choice(const void *settings)
 {
-    QuickSettingsSpeed speed = panel->config.speed;
-    return speed.available != NULL && speed.value != NULL && speed.cycle != NULL &&
-           speed.available(speed.context);
+    const EqualizerBrowser *browser = ((const SettingsContext *)settings)->equalizer->context;
+    return &browser->choice.config;
 }
 
-static int row_of(const QuickSettingsScreen *panel, int index)
+static int equalizer_current(const void *settings)
 {
-    return index >= SPEED && !has_speed(panel) ? index + 1 : index;
+    const ChoiceConfig *choice = browser_choice(settings);
+    return choice->current(choice->context);
 }
 
-static int count(const void *context)
+static void equalizer_choose(void *settings, int index)
 {
-    return ROW_COUNT - (has_speed(context) ? 0 : 1);
+    const ChoiceConfig *choice = browser_choice(settings);
+    choice->choose(choice->context, index);
 }
 
-static const char *label(const void *context, int index)
+static int equalizer_count(const void *settings)
 {
-    return i18n_text(LABELS[row_of(context, index)]);
+    return EQUALIZER_PRESET_COUNT + ((const SettingsContext *)settings)->presets->slot_count;
 }
 
-static const char *detail(const void *context, int index)
+static const char *const *equalizer_labels(const SettingsContext *settings)
 {
-    const QuickSettingsScreen *panel = context;
-    const SettingsContext *settings = &panel->config.settings;
-    switch (row_of(panel, index)) {
-    case SHUFFLE:
-        return i18n_text(SHUFFLE_VALUES[settings_action_current_shuffle(settings)]);
-    case REPEAT:
-        return i18n_text(REPEAT_VALUES[settings_action_current_repeat(settings)]);
-    case EQUALIZER:
-        return settings_action_describe_equalizer(settings,
-                                                  settings_action_current_equalizer(settings));
-    case HEADPHONES: {
-        const HeadphoneProfiles *profiles = &settings->headphones->profiles;
-        return profiles->current == HEADPHONE_PROFILE_NONE
-                   ? i18n_text(STR_OFF)
-                   : profiles->slots[profiles->current].name;
+    return settings->presets->options;
+}
+
+static int speed_count(const void *settings)
+{
+    return settings_action_speed_available(settings) ? SETTINGS_SPEED_COUNT : 0;
+}
+
+static int headphone_current(const void *settings)
+{
+    const HeadphoneProfiles *profiles = &((const SettingsContext *)settings)->headphones->profiles;
+    return profiles->current == HEADPHONE_PROFILE_NONE ? 0 : profiles->current + 1;
+}
+
+static const char *const *headphone_labels(const SettingsContext *settings)
+{
+    const HeadphoneProfiles *profiles = &settings->headphones->profiles;
+    headphone_names[0] = i18n_text(STR_OFF);
+    for (int slot = 0; slot < HEADPHONE_PROFILE_LIMIT; slot++) {
+        headphone_names[slot + 1] =
+            slot < profiles->count ? profiles->slots[slot].name : slot_names[slot];
+        if (slot >= profiles->count) {
+            StringBuilder text =
+                string_builder_make(slot_names[slot], HEADPHONE_PROFILE_NAME_BYTES);
+            i18n_format_counts(&text, STR_HEADPHONE_SLOT, (uint32_t)slot + 1, 0);
+        }
     }
-    case SPEED:
-        return panel->config.speed.value(panel->config.speed.context);
-    case SLEEP:
-        return i18n_text(SLEEP_VALUES[settings_action_current_sleep(settings)]);
-    case TRANSITIONS:
-        return i18n_text(settings_action_current_transition(settings) ? STR_TRANSITION_FADE
-                                                                      : STR_OFF);
-    case REPLAY_GAIN:
-        return i18n_text(REPLAY_VALUES[settings->store->settings.replay_gain_mode]);
-    case AB_REPEAT:
-        return i18n_text(AB_VALUES[settings->player->ab_repeat % 3u]);
-    default:
-        return NULL;
-    }
+    return headphone_names;
 }
 
-static bool opens(const void *context, int index)
+static void headphone_choose(void *context, int index)
 {
-    return row_of(context, index) >= LYRICS;
-}
-
-static void cycle_headphones(SettingsContext *settings)
-{
+    SettingsContext *settings = context;
     HeadphoneProfiles profiles = settings->headphones->profiles;
     headphone_store_fill_slots(&profiles, settings->store->settings.crossfeed);
-    profiles.current = profiles.current == HEADPHONE_PROFILE_NONE ? 0
-                       : profiles.current + 1 < profiles.count    ? profiles.current + 1
-                                                                  : HEADPHONE_PROFILE_NONE;
+    profiles.current = index == 0 ? HEADPHONE_PROFILE_NONE : (uint8_t)(index - 1);
     if (!headphone_store_commit(settings->headphones, &profiles, settings->player,
                                 settings->store)) {
         toast_show(settings->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
     }
 }
 
+static int ab_current(const void *settings)
+{
+    return ((const SettingsContext *)settings)->player->ab_repeat % 3u;
+}
+
+static void ab_step(void *context, int index)
+{
+    (void)index;
+    SettingsContext *settings = context;
+    ab_repeat_step(settings->player, settings->power, settings->toast, hal_clock_milliseconds());
+}
+
+static const QuickRow ROWS[] = {
+    {STR_SHUFFLE, STR_SHUFFLE, QUICK_CYCLE, SHUFFLE_MODE_COUNT, 0, SHUFFLE_VALUES, NULL,
+     settings_action_current_shuffle, NULL, settings_action_choose_shuffle},
+    {STR_REPEAT, STR_REPEAT, QUICK_CYCLE, REPEAT_MODE_COUNT, 0, REPEAT_VALUES, NULL,
+     settings_action_current_repeat, NULL, settings_action_choose_repeat},
+    {STR_EQUALIZER, STR_EQUALIZER, QUICK_SUBMENU, 0, 0, NULL, equalizer_count, equalizer_current,
+     equalizer_labels, equalizer_choose},
+    {STR_HEADPHONES, STR_HEADPHONES, QUICK_SUBMENU, HEADPHONE_PROFILE_LIMIT + 1, 0, NULL, NULL,
+     headphone_current, headphone_labels, headphone_choose},
+    {STR_SPEED, STR_PLAYBACK_SPEED, QUICK_SUBMENU, 0, 0, SETTINGS_SPEED_LABELS, speed_count,
+     settings_action_current_speed, NULL, settings_action_choose_speed},
+    {STR_SLEEP_TIMER, STR_SLEEP_TIMER, QUICK_SUBMENU, SLEEP_TIMER_OPTION_COUNT, 0,
+     SETTINGS_ACTION_SLEEP_LABELS, NULL, settings_action_current_sleep, NULL,
+     settings_action_choose_sleep},
+    {STR_TRANSITIONS, STR_TRANSITIONS, QUICK_CYCLE, 2, 0, TRANSITION_VALUES, NULL,
+     settings_action_current_transition, NULL, settings_action_choose_transition},
+    {STR_REPLAY_GAIN, STR_REPLAY_GAIN, QUICK_SUBMENU, REPLAY_GAIN_MODE_COUNT, 0, REPLAY_VALUES,
+     NULL, settings_action_current_replay_gain, NULL, settings_action_choose_replay_gain},
+    {STR_AB_LOOP, STR_AB_LOOP, QUICK_ACTION, 3, 0, AB_VALUES, NULL, ab_current, NULL, ab_step},
+    {STR_NOW_PLAYING, STR_NOW_PLAYING_STYLE, QUICK_SUBMENU, 4, 0, STYLE_VALUES, NULL,
+     settings_action_current_now_playing, NULL, settings_action_choose_now_playing},
+    {STR_LYRICS, STR_LYRICS, QUICK_PUSH, 1, offsetof(QuickSettingsConfig, lyrics), NULL, NULL, NULL,
+     NULL, NULL},
+    {STR_UP_NEXT, STR_UP_NEXT, QUICK_PUSH, 1, offsetof(QuickSettingsConfig, up_next), NULL, NULL,
+     NULL, NULL, NULL},
+};
+
+enum {
+    ROW_COUNT = sizeof ROWS / sizeof ROWS[0]
+};
+
+static int value_count(const QuickSettingsScreen *panel, const QuickRow *row)
+{
+    return row->count_of != NULL ? row->count_of(&panel->config.settings) : row->count;
+}
+
+static const QuickRow *row_at(const QuickSettingsScreen *panel, int index)
+{
+    const QuickRow *row = ROWS;
+    while (value_count(panel, row) == 0 || index-- > 0) {
+        row++;
+    }
+    return row;
+}
+
+static int count(const void *context)
+{
+    int shown = 0;
+    for (int index = 0; index < ROW_COUNT; index++) {
+        shown += value_count(context, &ROWS[index]) > 0;
+    }
+    return shown;
+}
+
+static const char *label(const void *context, int index)
+{
+    return i18n_text(row_at(context, index)->label);
+}
+
+static const char *detail(const void *context, int index)
+{
+    const QuickSettingsScreen *panel = context;
+    const QuickRow *row = row_at(panel, index);
+    if (row->current == NULL) {
+        return NULL;
+    }
+    int current = row->current(&panel->config.settings);
+    return row->values != NULL ? i18n_text(row->values[current])
+                               : row->labels(&panel->config.settings)[current];
+}
+
+static bool opens(const void *context, int index)
+{
+    uint8_t kind = row_at(context, index)->kind;
+    return kind == QUICK_SUBMENU || kind == QUICK_PUSH;
+}
+
+static Screen *open_values(QuickSettingsScreen *panel, const QuickRow *row)
+{
+    panel->values_row = (uint8_t)(row - ROWS);
+    ChoiceConfig config = {.title = i18n_text(row->title),
+                           .options =
+                               row->labels != NULL ? row->labels(&panel->config.settings) : NULL,
+                           .option_ids = row->values,
+                           .option_count = value_count(panel, row),
+                           .current = row->current,
+                           .choose = row->choose,
+                           .context = &panel->config.settings,
+                           .theme = panel->config.theme};
+    return choice_screen_init(&panel->values, config);
+}
+
+void quick_settings_screen_refit(QuickSettingsScreen *panel)
+{
+    ChoiceScreen *values = &panel->values;
+    if (values->screen.context == NULL) {
+        return;
+    }
+    const QuickRow *row = &ROWS[panel->values_row];
+    int shown = value_count(panel, row);
+    values->config.option_count = shown;
+    values->config.options = row->labels != NULL ? row->labels(&panel->config.settings) : NULL;
+    if (values->list.selected >= shown && shown > 0) {
+        list_view_select(&values->list, shown - 1, values->now_ms);
+    }
+}
+
 static ScreenAction select_row(void *context, int index)
 {
     QuickSettingsScreen *panel = context;
+    const QuickRow *row = row_at(panel, index);
     SettingsContext *settings = &panel->config.settings;
-    switch (row_of(panel, index)) {
-    case SHUFFLE:
-        settings_action_choose_shuffle(settings, (settings_action_current_shuffle(settings) + 1) %
-                                                     SHUFFLE_MODE_COUNT);
+    switch (row->kind) {
+    case QUICK_PUSH:
+        return screen_action_push(*(Screen **)((char *)&panel->config + row->target));
+    case QUICK_SUBMENU:
+        return screen_action_push(open_values(panel, row));
+    case QUICK_CYCLE:
+        row->choose(settings, (row->current(settings) + 1) % row->count);
         break;
-    case REPEAT:
-        settings_action_choose_repeat(settings, (settings_action_current_repeat(settings) + 1) %
-                                                    REPEAT_MODE_COUNT);
-        break;
-    case EQUALIZER:
-        settings_action_choose_equalizer(settings,
-                                         (settings_action_current_equalizer(settings) + 1) %
-                                             (EQUALIZER_PRESET_COUNT + presets.slot_count));
-        break;
-    case HEADPHONES:
-        cycle_headphones(settings);
-        break;
-    case SPEED:
-        panel->config.speed.cycle(panel->config.speed.context);
-        break;
-    case SLEEP:
-        settings_action_choose_sleep(settings, (settings_action_current_sleep(settings) + 1) %
-                                                   SLEEP_TIMER_OPTION_COUNT);
-        break;
-    case TRANSITIONS:
-        settings_action_choose_transition(settings, !settings_action_current_transition(settings));
-        break;
-    case REPLAY_GAIN:
-        settings_action_choose_replay_gain(
-            settings, (settings->store->settings.replay_gain_mode + 1) % REPLAY_GAIN_MODE_COUNT);
-        break;
-    case AB_REPEAT:
-        ab_repeat_step(settings->player, settings->power, settings->toast,
-                       hal_clock_milliseconds());
-        break;
-    case LYRICS:
-        return screen_action_push(panel->config.lyrics);
-    case UP_NEXT:
-        return screen_action_push(panel->config.up_next);
+    default:
+        row->choose(settings, 0);
     }
     list_view_restart_marquee(&panel->list, panel->now_ms);
     return screen_action_none();
@@ -181,7 +269,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     QuickSettingsScreen *panel = context;
     refresh_selection(panel, now_ms);
-    equalizer_presets_scan(&presets);
+    equalizer_presets_scan(panel->config.settings.presets);
     list_view_fit_rows(&panel->list,
                        list_view_rows_in(&panel->list, rows_area(panel->config.theme).height));
 }
@@ -220,7 +308,6 @@ static void draw(void *context, Canvas *canvas)
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config)
 {
     *panel = (QuickSettingsScreen){.config = config};
-    panel->config.settings.presets = &presets;
     panel->model = (ListModel){.context = panel,
                                .count = count,
                                .label = label,

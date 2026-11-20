@@ -33,6 +33,61 @@ static HeadphoneProfiles named_profiles(void)
     return profiles;
 }
 
+static HeadphoneProfiles capped_profile(void)
+{
+    HeadphoneProfiles candidate = named_profiles();
+    candidate.current = 0;
+    candidate.slots[0].volume_ceiling = 18;
+    return candidate;
+}
+
+static void check_nothing_changed(uint8_t volume, uint8_t dac)
+{
+    CHECK_EQUAL(volume, player.volume);
+    CHECK_EQUAL(volume, fake_hal_audio_volume());
+    CHECK_EQUAL(dac, settings.settings.dac_volume);
+    CHECK_EQUAL(volume, settings.settings.volume);
+    SettingsStore stored;
+    settings_store_load(&stored);
+    CHECK_EQUAL(volume, stored.settings.volume);
+    CHECK_EQUAL(dac, stored.settings.dac_volume);
+    HeadphoneStore profiles;
+    headphone_store_load(&profiles);
+    CHECK_EQUAL(HEADPHONE_PROFILE_NONE, profiles.profiles.current);
+    CHECK_EQUAL(HEADPHONE_PROFILE_NONE, store.profiles.current);
+    CHECK_EQUAL(REPLAY_GAIN_UNITY, store.active.left);
+}
+
+static void start_loud(void)
+{
+    reset();
+    player_change_volume(&player, 60);
+    settings_store_capture(&settings, player_status(&player));
+    CHECK(settings_store_save(&settings));
+}
+
+static void a_failed_profile_write_changes_no_volume_and_no_stored_setting(void)
+{
+    start_loud();
+    uint8_t volume = player.volume;
+    uint8_t dac = settings.settings.dac_volume;
+    HeadphoneProfiles candidate = capped_profile();
+    fake_hal_fail_internal_writes(HEADPHONE_STORE_PATH);
+    CHECK(!headphone_store_commit(&store, &candidate, &player, &settings));
+    check_nothing_changed(volume, dac);
+}
+
+static void a_failed_settings_write_changes_no_volume_and_no_profile(void)
+{
+    start_loud();
+    uint8_t volume = player.volume;
+    uint8_t dac = settings.settings.dac_volume;
+    HeadphoneProfiles candidate = capped_profile();
+    fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
+    CHECK(!headphone_store_commit(&store, &candidate, &player, &settings));
+    check_nothing_changed(volume, dac);
+}
+
 static void missing_profiles_keep_neutral_sound_without_editor_state(void)
 {
     reset();
@@ -183,6 +238,8 @@ int main(void)
         TEST_CASE(spoken_word_alone_gets_skip_silence_and_speech_boost),
         TEST_CASE(the_active_profile_crossfeed_overrides_the_default),
         TEST_CASE(quick_setting_hooks_change_and_save_the_effects),
+        TEST_CASE(a_failed_profile_write_changes_no_volume_and_no_stored_setting),
+        TEST_CASE(a_failed_settings_write_changes_no_volume_and_no_profile),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -28,6 +28,7 @@
 enum {
     SETTINGS_CHOICE_COUNT = 40,
     SETTINGS_MAIN_CHOICE_COUNT = 31,
+    SETTINGS_SAFE_VOLUME_OPTIONS = 6,
     SETTINGS_STATUS_CHOICE = 20,
     SETTINGS_STATUS_COUNT = 6,
     SETTINGS_STANDBY_CHOICE = SETTINGS_MAIN_CHOICE_COUNT + 5,
@@ -128,6 +129,7 @@ struct SettingsScreens {
     ButtonSettings buttons;
     HeadphoneEditor headphones;
     LanguageList languages;
+    const char *safe_volume_options[SETTINGS_SAFE_VOLUME_OPTIONS];
     PlugChooser usb;
     CardFormatScreen card_format;
     bool card_needs_format;

@@ -18,12 +18,15 @@ typedef struct SettingsStore {
     bool has_saved;
     uint8_t saved_buttons[SETTINGS_BUTTONS_FILE_SIZE];
     bool has_saved_buttons;
+    bool values_failed;
 } SettingsStore;
 
 void settings_store_load(SettingsStore *store);
 bool settings_store_save(SettingsStore *store);
 bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset);
 void settings_store_capture(SettingsStore *store, PlayerStatus playback);
+void settings_capture(Settings *settings, PlayerStatus playback);
+bool settings_store_publish(SettingsStore *store, const Settings *next);
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed);
 void settings_store_apply_hardware(const Settings *settings);
 void settings_store_apply_equalizer(const Settings *settings);

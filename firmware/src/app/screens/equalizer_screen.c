@@ -59,13 +59,26 @@ static const char *band_gain(const void *context, int index)
     return equalizer->text[index];
 }
 
+static void adjusting_title(EqualizerScreen *equalizer, int index)
+{
+    StringBuilder builder = string_builder_make(equalizer->title, EQUALIZER_SCREEN_TITLE_CAPACITY);
+    i18n_format_text(&builder, STR_EQ_ADJUSTING, band_label(equalizer, index));
+}
+
 static ScreenAction start_adjusting(void *context, int index)
 {
     EqualizerScreen *equalizer = context;
-    StringBuilder builder = string_builder_make(equalizer->title, EQUALIZER_SCREEN_TITLE_CAPACITY);
-    i18n_format_text(&builder, STR_EQ_ADJUSTING, band_label(equalizer, index));
+    adjusting_title(equalizer, index);
     equalizer->adjusting = true;
     return screen_action_none();
+}
+
+void equalizer_screen_refit(EqualizerScreen *equalizer)
+{
+    refresh_text(equalizer);
+    if (equalizer->adjusting) {
+        adjusting_title(equalizer, equalizer->list.selected);
+    }
 }
 
 static void change_gain(EqualizerScreen *equalizer, int step)

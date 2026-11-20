@@ -794,7 +794,7 @@ STR_HEADPHONE_TRAVEL = Travel
 STR_HEADPHONE_SAVED = Profile saved
 
 STR_PEQ = Parametric EQ
-STR_PEQ_CUSTOM = Custom (parametric)
+STR_PEQ_CUSTOM = Parametric
 STR_PEQ_FILTER = Filter {0}
 STR_PEQ_PEAK = Peak
 STR_PEQ_LOW_SHELF = Low shelf
@@ -878,6 +878,7 @@ STR_STATUS_PLACE = {0}/{1}
 STR_QUICK_SETTINGS = Quick Settings
 STR_QUICK_SETTINGS_HINT = Play: change · Back: close
 STR_PLAYBACK_SPEED = Playback speed
+STR_SPEED = Speed
 STR_LISTENING_STATS = Recap
 
 STR_CLEAR_HISTORY = Clear history
@@ -929,7 +930,7 @@ STR_CHARGE_CHARGER = Charger
 STR_CHARGE_SUMMARY = {0} {1}
 
 STR_SLEEP_END_TRACK = End of track
-STR_SLEEP_END_CHAPTER = End of chapter/episode
+STR_SLEEP_END_CHAPTER = End of chapter
 STR_SLEEP_AT = Turning off: {0}
 
 STR_REPLAY_GAIN_AUTO = Auto

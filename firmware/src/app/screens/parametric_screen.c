@@ -112,6 +112,17 @@ static void response(ParametricScreen *editor)
     texts(editor);
 }
 
+void parametric_screen_refit(ParametricScreen *editor)
+{
+    SettingsEqualizerCurve curve = {.is_parametric = true, .parametric = editor->working};
+    equalizer_response_make(editor->response, &curve);
+    if (editor->shaping_mode) {
+        sound_shaping_screen_texts(editor);
+    } else {
+        texts(editor);
+    }
+}
+
 static void preview(ParametricScreen *editor)
 {
     response(editor);

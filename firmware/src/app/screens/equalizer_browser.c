@@ -28,6 +28,20 @@ static bool selected_curve(EqualizerBrowser *browser, SettingsEqualizerCurve *cu
     return equalizer_response_make(browser->response, curve);
 }
 
+void equalizer_browser_refit(EqualizerBrowser *browser)
+{
+    const EqualizerPresets *presets = browser->config.presets;
+    ChoiceScreen *choice = &browser->choice;
+    choice->config.options = presets->options;
+    choice->config.option_count = presets->option_count;
+    if (choice->list.selected >= presets->option_count) {
+        list_view_select(&choice->list, presets->option_count - 1, choice->now_ms);
+    }
+    browser->preview_index = -1;
+    SettingsEqualizerCurve curve;
+    browser->valid = selected_curve(browser, &curve);
+}
+
 static void refresh(EqualizerBrowser *browser)
 {
     if (browser->preview_index == browser->choice.list.selected) {

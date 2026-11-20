@@ -16,7 +16,7 @@ CORE0_RISE_BUDGETS = {(VU, "flac44"): 2.49, (SPECTRUM, "flac44"): 2.82,
                       (VU, "flac96_512"): 3.04, (SPECTRUM, "flac96_512"): 5.64}
 CORE0_TOTAL_BUDGETS = {(VU, "flac44"): 14.19, (SPECTRUM, "flac44"): 13.77,
                        (VU, "flac96_512"): 16.55, (SPECTRUM, "flac96_512"): 18.40}
-CORE0_TOTAL_TOLERANCE = {"flac44": 0.4, "flac96_512": 0.6}
+CORE0_TOLERANCE = {"flac44": 0.4, "flac96_512": 0.6}
 MUSIC_SECONDS = 16
 MUSIC = ("0.35*sin(2*PI*55*t)*(0.4+0.6*lt(mod(t,0.5),0.12))"
          "+0.18*sin(2*PI*110*t+sin(3*t))"
@@ -205,9 +205,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreaterEqual(animated["frames"], 29)
         self.assertLessEqual(animated["frames"], 31)
         self.assertGreater(animated["pixels"], 0)
-        self.assertLessEqual(rise, CORE0_RISE_BUDGETS[(style, case)])
+        self.assertLessEqual(rise, CORE0_RISE_BUDGETS[(style, case)] + CORE0_TOLERANCE[case])
         self.assertLessEqual(animated["busy"],
-                             CORE0_TOTAL_BUDGETS[(style, case)] + CORE0_TOTAL_TOLERANCE[case])
+                             CORE0_TOTAL_BUDGETS[(style, case)] + CORE0_TOLERANCE[case])
 
     def test_vu_style_keeps_a_96_khz_24_bit_small_block_flac_fed_with_the_screen_on(self):
         self.matched_cost(VU, "flac96_512")

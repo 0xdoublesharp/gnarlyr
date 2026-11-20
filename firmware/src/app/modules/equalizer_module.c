@@ -1,6 +1,7 @@
 #include "modules/modules.h"
 #include "music_walk.h"
-#include "settings_actions.h"
+
+static bool rebuilt;
 
 static void bind(AppScreens *screens)
 {
@@ -11,19 +12,27 @@ static void bind(AppScreens *screens)
                                               .headphones = context->headphones,
                                               .player = context->player,
                                               .power = context->power,
+                                              .equalizer = &own->browser.choice.screen,
+                                              .presets = own->presets,
                                               .toast = context->toast},
                                  .theme = context->theme,
                                  .lyrics = &screens->modules.views.lyrics.screen,
-                                 .up_next = &screens->modules.playing.up_next.screen,
-                                 .speed = {.context = &own->quick_settings.config.settings,
-                                           .available = settings_action_speed_available,
-                                           .value = settings_action_speed_text,
-                                           .cycle = settings_action_cycle_speed}};
+                                 .up_next = &screens->modules.playing.up_next.screen};
     quick_settings_screen_init(&own->quick_settings, quick);
+    rebuilt = true;
+}
+
+static void reload(AppScreens *screens)
+{
+    if (rebuilt) {
+        return;
+    }
+    rebuilt = true;
+    equalizer_ui_reload(&screens->modules.equalizer);
 }
 
 const ParametricModuleEntry EQUALIZER_MODULE_ENTRY = {
-    .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_EQUALIZER, bind),
+    .module = SCREEN_MODULE_RELOADING_ENTRY(SCREEN_MODULE_EQUALIZER, bind, reload),
     .load = parametric_store_read,
     .matching = parametric_store_slot,
     .music_walk = music_walk_run};

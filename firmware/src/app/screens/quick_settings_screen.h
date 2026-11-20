@@ -1,21 +1,14 @@
 #pragma once
 
 #include "settings_screens.h"
+#include "ui/choice_screen.h"
 #include "ui/list_view.h"
-
-typedef struct QuickSettingsSpeed {
-    void *context;
-    bool (*available)(const void *context);
-    const char *(*value)(const void *context);
-    void (*cycle)(void *context);
-} QuickSettingsSpeed;
 
 typedef struct QuickSettingsConfig {
     SettingsContext settings;
     const Theme *theme;
     Screen *lyrics;
     Screen *up_next;
-    QuickSettingsSpeed speed;
 } QuickSettingsConfig;
 
 typedef struct QuickSettingsScreen {
@@ -23,7 +16,10 @@ typedef struct QuickSettingsScreen {
     QuickSettingsConfig config;
     ListModel model;
     ListView list;
+    ChoiceScreen values;
     uint32_t now_ms;
+    uint8_t values_row;
 } QuickSettingsScreen;
 
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config);
+void quick_settings_screen_refit(QuickSettingsScreen *panel);

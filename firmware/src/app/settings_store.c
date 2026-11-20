@@ -84,26 +84,33 @@ static bool save_buttons(SettingsStore *store)
     return true;
 }
 
-static bool save_values(SettingsStore *store)
+static bool write_values(SettingsStore *store, const Settings *settings)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
-    if (!store->has_saved && hal_internal_file_read(SETTINGS_STORE_PATH, bytes, 5) &&
-        settings_file_newer(bytes, 5)) {
-        return true;
+    bool kept = !store->has_saved && hal_internal_file_read(SETTINGS_STORE_PATH, bytes, 5) &&
+                settings_file_newer(bytes, 5);
+    settings_encode(settings, bytes);
+    if (kept || ((!store->has_saved || !same_bytes(bytes, store->saved, sizeof bytes)) &&
+                 !hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes))) {
+        store->values_failed = true;
+        return false;
     }
-    settings_encode(&store->settings, bytes);
-    if (!store->has_saved || !same_bytes(bytes, store->saved, sizeof bytes)) {
-        if (!hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes)) {
-            return false;
-        }
-        remember(store, bytes);
-    }
+    remember(store, bytes);
     return true;
 }
 
 bool settings_store_save(SettingsStore *store)
 {
-    return save_values(store) && save_buttons(store);
+    return write_values(store, &store->settings) && save_buttons(store);
+}
+
+bool settings_store_publish(SettingsStore *store, const Settings *next)
+{
+    if (!write_values(store, next)) {
+        return false;
+    }
+    store->settings = *next;
+    return true;
 }
 
 bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset)
@@ -113,19 +120,24 @@ bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset)
     }
     int16_t previous = store->settings.clock_offset_minutes;
     store->settings.clock_offset_minutes = offset;
-    if (!save_values(store)) {
+    if (!write_values(store, &store->settings)) {
         store->settings.clock_offset_minutes = previous;
         return false;
     }
     return true;
 }
 
+void settings_capture(Settings *settings, PlayerStatus playback)
+{
+    settings->volume = playback.wired_volume;
+    settings->bluetooth_volume = playback.bluetooth_volume;
+    settings->shuffle = playback.shuffle;
+    settings->repeat = playback.repeat;
+}
+
 void settings_store_capture(SettingsStore *store, PlayerStatus playback)
 {
-    store->settings.volume = playback.wired_volume;
-    store->settings.bluetooth_volume = playback.bluetooth_volume;
-    store->settings.shuffle = playback.shuffle;
-    store->settings.repeat = playback.repeat;
+    settings_capture(&store->settings, playback);
 }
 
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed)

@@ -17,7 +17,7 @@
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    SAFE_VOLUME_OPTION_COUNT = 6,
+    SAFE_VOLUME_OPTION_COUNT = SETTINGS_SAFE_VOLUME_OPTIONS,
     SAFE_VOLUME_STEP = 6,
     SAFE_VOLUME_TEXT_CAPACITY = 4,
     MODE_ROW_FIRST = PLUG_MODE_COMPUTER,
@@ -29,9 +29,6 @@ static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFL
                                                              STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
                                                            STR_REPEAT_MODE_ALL};
-static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
-    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
-    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MINUTES_1,
                                                                  STR_MINUTES_5, STR_MINUTES_10};
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
@@ -419,11 +416,6 @@ static void choose_usb_answer(void *context, int index)
     choose_saved_plug_mode(context, (PlugMode)index, false);
 }
 
-static int current_replay_gain(const void *context)
-{
-    return settings_of(context)->replay_gain_mode;
-}
-
 static int current_prevent_clipping(const void *context)
 {
     return settings_of(context)->prevent_clipping ? 1 : 0;
@@ -461,7 +453,6 @@ static void choose_rewind(void *context, int index)
 
 static const char *const SAFE_VOLUME_LEVELS[SAFE_VOLUME_OPTION_COUNT] = {"",   "12", "18",
                                                                          "24", "30", "36"};
-static const char *safe_volume_options[SAFE_VOLUME_OPTION_COUNT];
 
 static int current_safe_volume(const void *context)
 {
@@ -495,12 +486,11 @@ static const char *describe_safe_volume(const void *context, int current)
 
 static void extend_safe_volume(SettingsScreens *screens, ChoiceConfig *config)
 {
-    (void)screens;
-    safe_volume_options[0] = i18n_text(STR_OFF);
+    screens->safe_volume_options[0] = i18n_text(STR_OFF);
     for (int index = 1; index < SAFE_VOLUME_OPTION_COUNT; index++) {
-        safe_volume_options[index] = SAFE_VOLUME_LEVELS[index];
+        screens->safe_volume_options[index] = SAFE_VOLUME_LEVELS[index];
     }
-    config->options = safe_volume_options;
+    config->options = screens->safe_volume_options;
     config->option_ids = NULL;
 }
 
@@ -666,24 +656,13 @@ static void choose_standby_timeout(void *context, int index)
 static const StringId STANDBY_OPTIONS[] = {STR_MINUTES_30, STR_STANDBY_HOURS_2,
                                            STR_STANDBY_HOURS_8};
 
-static int current_now_playing(const void *context)
-{
-    return (int)settings_now_playing_style(settings_of(context));
-}
-
-static void choose_now_playing(void *context, int index)
-{
-    settings_set_now_playing_style(editable_settings(context), (NowPlayingStyle)index);
-    settings_action_save(context);
-}
-
 static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_SHUFFLE, SHUFFLE_OPTIONS, SHUFFLE_MODE_COUNT, settings_action_current_shuffle,
      settings_action_choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, settings_action_current_repeat,
      settings_action_choose_repeat, NULL, NULL},
-    {STR_SLEEP_TIMER, SLEEP_OPTIONS, SLEEP_TIMER_OPTION_COUNT, settings_action_current_sleep,
-     settings_action_choose_sleep, NULL, NULL},
+    {STR_SLEEP_TIMER, SETTINGS_ACTION_SLEEP_LABELS, SLEEP_TIMER_OPTION_COUNT,
+     settings_action_current_sleep, settings_action_choose_sleep, NULL, NULL},
     {STR_AUTO_OFF, AUTO_OFF_OPTIONS, AUTO_OFF_OPTION_COUNT, current_auto_off, choose_auto_off, NULL,
      NULL},
     {STR_SCREEN_TIMEOUT, TIMEOUT_OPTIONS, SCREEN_TIMEOUT_OPTION_COUNT, current_timeout,
@@ -705,8 +684,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      NULL},
     {STR_EQUALIZER, EQUALIZER_PRESET_NAMES, EQUALIZER_PRESET_COUNT, current_equalizer,
      choose_equalizer, describe_equalizer, NULL},
-    {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT, current_replay_gain,
-     settings_action_choose_replay_gain, NULL, NULL},
+    {STR_REPLAY_GAIN, REPLAY_GAIN_OPTIONS, REPLAY_GAIN_MODE_COUNT,
+     settings_action_current_replay_gain, settings_action_choose_replay_gain, NULL, NULL},
     {STR_PREVENT_CLIPPING, OFF_ON_OPTIONS, 2, current_prevent_clipping, choose_prevent_clipping,
      NULL, NULL},
     {STR_START_SCREEN, START_OPTIONS, START_SCREEN_COUNT, current_start, choose_start, NULL, NULL},
@@ -745,7 +724,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_STARTUP_ANIMATION, OFF_ON_OPTIONS, 2, current_startup_animation, choose_startup_animation,
      NULL, NULL},
     [SETTINGS_NOW_PLAYING_CHOICE] = {STR_NOW_PLAYING_STYLE, NOW_PLAYING_OPTIONS, 4,
-                                     current_now_playing, choose_now_playing, NULL, NULL},
+                                     settings_action_current_now_playing,
+                                     settings_action_choose_now_playing, NULL, NULL},
 };
 
 static PlugState plug_state(const SettingsScreens *screens, PlugPlace place)

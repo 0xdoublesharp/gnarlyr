@@ -27,3 +27,4 @@ typedef struct EqualizerUi {
 void equalizer_ui_init(EqualizerUi *ui, SettingsStore *store, Player *player, Toast *toast,
                        const Theme *theme);
 void equalizer_ui_cancel(EqualizerUi *ui);
+void equalizer_ui_reload(EqualizerUi *ui);

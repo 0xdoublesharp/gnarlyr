@@ -195,6 +195,34 @@ static void invalid_options_and_failed_slot_writes_change_nothing(void)
     CHECK(!equalizer_presets_save_slot(&presets, 0, gains));
 }
 
+static void a_reload_rebuilds_the_names_count_and_selection_without_auditioning(void)
+{
+    reset();
+    fake_hal_add_eq_file("warm.txt", "GraphicEQ: 20 2; 20000 2\n");
+    fake_hal_add_eq_file("cool.txt", "GraphicEQ: 20 -2; 20000 -2\n");
+    open_browser();
+    int last = presets.option_count - 2;
+    highlight(last);
+    int before = previews;
+    fake_hal_clear_eq_files();
+    presets = (EqualizerPresets){0};
+    equalizer_presets_scan(&presets);
+    equalizer_browser_refit(&browser);
+    int count = browser.choice.model.count(&browser.choice);
+    CHECK_EQUAL(presets.option_count, count);
+    CHECK(count <= last);
+    CHECK(browser.choice.list.selected < count);
+    for (int option = 0; option < count; option++) {
+        CHECK(browser.choice.model.label(&browser.choice, option) != NULL);
+    }
+    CHECK_EQUAL(before, previews);
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    browser.choice.screen.draw(&browser, &canvas);
+    browser.choice.screen.update(&browser, 2000);
+    CHECK(browser.valid);
+    CHECK_EQUAL(0, commits);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -204,6 +232,7 @@ int main(void)
         TEST_CASE(an_invalid_file_restores_the_committed_sound_and_cannot_be_applied),
         TEST_CASE(file_errors_and_parametric_files_are_distinguished),
         TEST_CASE(invalid_options_and_failed_slot_writes_change_nothing),
+        TEST_CASE(a_reload_rebuilds_the_names_count_and_selection_without_auditioning),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

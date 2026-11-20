@@ -167,7 +167,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/modules/equalizer_module.c
     src/app/screens/quick_settings_screen.c
     src/app/settings_actions.c
-    src/app/settings_actions_equalizer.c
     src/app/headphone_store_edit.c
     src/app/headphone_parameters.c
     src/settings/headphone_profile.c

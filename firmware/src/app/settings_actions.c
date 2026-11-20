@@ -9,7 +9,7 @@ enum {
     MILLISECONDS_PER_MINUTE = 60000
 };
 
-static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
+const StringId SETTINGS_ACTION_SLEEP_LABELS[SLEEP_TIMER_OPTION_COUNT] = {
     STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
     STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 
@@ -19,18 +19,27 @@ static const Settings *settings_of(const void *context)
     return &settings->store->settings;
 }
 
-static Settings *editable_settings(void *context)
-{
-    SettingsContext *settings = context;
-    return &settings->store->settings;
-}
-
 void settings_action_save(SettingsContext *context)
 {
     settings_store_capture(context->store, player_status(context->player));
     if (!settings_store_save(context->store)) {
         toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
     }
+}
+
+void settings_action_candidate(SettingsContext *context, Settings *next)
+{
+    *next = context->store->settings;
+    settings_capture(next, player_status(context->player));
+}
+
+bool settings_action_publish(SettingsContext *context, const Settings *next)
+{
+    if (settings_store_publish(context->store, next)) {
+        return true;
+    }
+    toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    return false;
 }
 
 void settings_action_apply_and_save(SettingsContext *context)
@@ -48,8 +57,12 @@ int settings_action_current_shuffle(const void *context)
 void settings_action_choose_shuffle(void *context, int index)
 {
     SettingsContext *settings = context;
-    player_set_shuffle(settings->player, (ShuffleMode)index, hal_clock_microseconds());
-    settings_action_save(settings);
+    Settings next;
+    settings_action_candidate(settings, &next);
+    next.shuffle = (ShuffleMode)index;
+    if (settings_action_publish(settings, &next)) {
+        player_set_shuffle(settings->player, (ShuffleMode)index, hal_clock_microseconds());
+    }
 }
 
 int settings_action_current_repeat(const void *context)
@@ -61,8 +74,12 @@ int settings_action_current_repeat(const void *context)
 void settings_action_choose_repeat(void *context, int index)
 {
     SettingsContext *settings = context;
-    player_set_repeat(settings->player, (RepeatMode)index);
-    settings_action_save(settings);
+    Settings next;
+    settings_action_candidate(settings, &next);
+    next.repeat = (RepeatMode)index;
+    if (settings_action_publish(settings, &next)) {
+        player_set_repeat(settings->player, (RepeatMode)index);
+    }
 }
 
 int settings_action_current_sleep(const void *context)
@@ -89,7 +106,7 @@ void settings_action_choose_sleep(void *context, int index)
         string_builder_append(&message, i18n_text(STR_SLEEP_OFF));
     } else {
         i18n_format_text(&message, index >= SLEEP_END_TRACK ? STR_SLEEP_AT : STR_SLEEP_IN,
-                         i18n_text(SLEEP_OPTIONS[index]));
+                         i18n_text(SETTINGS_ACTION_SLEEP_LABELS[index]));
     }
     toast_show(settings->toast, settings->message, now_ms);
 }
@@ -102,10 +119,20 @@ void settings_action_apply_replay_gain(SettingsContext *context)
     settings_action_save(context);
 }
 
+int settings_action_current_replay_gain(const void *context)
+{
+    return settings_of(context)->replay_gain_mode;
+}
+
 void settings_action_choose_replay_gain(void *context, int index)
 {
-    editable_settings(context)->replay_gain_mode = (uint8_t)index;
-    settings_action_apply_replay_gain(context);
+    SettingsContext *settings = context;
+    Settings next;
+    settings_action_candidate(settings, &next);
+    next.replay_gain_mode = (uint8_t)index;
+    if (settings_action_publish(settings, &next)) {
+        player_set_replay_gain(settings->player, (ReplayGainMode)index, next.prevent_clipping);
+    }
 }
 
 void settings_action_apply_transitions(SettingsContext *context)
@@ -116,6 +143,19 @@ void settings_action_apply_transitions(SettingsContext *context)
     settings_action_save(context);
 }
 
+int settings_action_current_now_playing(const void *context)
+{
+    return (int)settings_now_playing_style(settings_of(context));
+}
+
+void settings_action_choose_now_playing(void *context, int index)
+{
+    Settings next;
+    settings_action_candidate(context, &next);
+    settings_set_now_playing_style(&next, (NowPlayingStyle)index);
+    settings_action_publish(context, &next);
+}
+
 int settings_action_current_transition(const void *context)
 {
     return settings_of(context)->track_transition != TRACK_TRANSITION_OFF ? 1 : 0;
@@ -124,9 +164,13 @@ int settings_action_current_transition(const void *context)
 void settings_action_choose_transition(void *context, int index)
 {
     SettingsContext *settings = context;
-    editable_settings(context)->track_transition =
-        index != 0 ? TRACK_TRANSITION_FADE : TRACK_TRANSITION_OFF;
-    settings_action_apply_transitions(settings);
+    Settings next;
+    settings_action_candidate(settings, &next);
+    next.track_transition = index != 0 ? TRACK_TRANSITION_FADE : TRACK_TRANSITION_OFF;
+    if (!settings_action_publish(settings, &next)) {
+        return;
+    }
+    player_set_transitions(settings->player, index != 0, next.transition_tenths);
     if (index != 0) {
         toast_show(settings->toast, i18n_text(STR_TRANSITIONS_IN_SHUFFLE),
                    hal_clock_milliseconds());
@@ -142,24 +186,16 @@ int settings_action_current_speed(const void *context)
 void settings_action_choose_speed(void *context, int index)
 {
     SettingsContext *settings = context;
-    editable_settings(context)->playback_speed = (uint8_t)index;
-    player_set_speed(settings->player, settings_speed_percent(index));
-    settings_action_save(settings);
+    Settings next;
+    settings_action_candidate(settings, &next);
+    next.playback_speed = (uint8_t)index;
+    if (settings_action_publish(settings, &next)) {
+        player_set_speed(settings->player, settings_speed_percent(index));
+    }
 }
 
 bool settings_action_speed_available(const void *context)
 {
     const SettingsContext *settings = context;
     return settings->store != NULL && settings->player != NULL;
-}
-
-const char *settings_action_speed_text(const void *context)
-{
-    return i18n_text(SETTINGS_SPEED_LABELS[settings_action_current_speed(context)]);
-}
-
-void settings_action_cycle_speed(void *context)
-{
-    settings_action_choose_speed(context, (settings_action_current_speed(context) + 1) %
-                                              SETTINGS_SPEED_COUNT);
 }
