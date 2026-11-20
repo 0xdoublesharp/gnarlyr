@@ -45,6 +45,10 @@ PREVIEW_LEAD_MS = 800
 PREVIEW_TAIL_MS = 400
 SCREEN_TIMEOUT_LIMIT_MS = 40000
 BLOCKS_OFFSET = 12
+CLOCK_CHANGE_MHZ = 96
+AUDIO_CLOCK_MHZ = 200
+CLOCK_CALL_LIMIT_MS = 3000
+CLOCK_SEEK_TOLERANCE_MS = 100
 SMALL_BLOCK_TITLE = "01 FLAC 96k 24-bit small blocks 3 min"
 CASES = {
     "flac96_512": (SMALL_BLOCK_TITLE + ".flac", 96000,
@@ -300,6 +304,46 @@ class EchoImageTest(EchoImageHarness):
             with self.subTest(case=case):
                 for result in self.resumed_in_the_dark(case):
                     self.assert_fed(result)
+
+    def call_clock_change(self, machine, mhz):
+        from echo_emulator.machine import TRAMPOLINE
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
+        returned = TRAMPOLINE + 0x904
+        machine.add_address_hook(returned, lambda: machine.stop("clock change returned"))
+        context = machine.uc.context_save()
+        machine.uc.reg_write(UC_ARM_REG_R0, mhz)
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["hal_system_set_clock_mhz"] | 1)
+        stopped = machine.run(until_ms=machine.milliseconds() + CLOCK_CALL_LIMIT_MS)
+        switched = machine.reg(UC_ARM_REG_R0)
+        machine.uc.context_restore(context)
+        self.assertEqual("clock change returned", stopped)
+        return switched
+
+    def test_a_clock_change_during_core_1_playback_resumes_at_the_played_position_and_stays_fed(self):
+        from unicorn.arm_const import UC_ARM_REG_R2
+        rig, meter, frames = self.feed_rig("flac96_512")
+        machine = rig.machine
+        seeks, starts = [], []
+        machine.hook_symbol("audio_engine_seek_on", lambda: seeks.append(machine.reg(UC_ARM_REG_R2)))
+        machine.hook_symbol("board_core1_start_stream", lambda: starts.append(machine.milliseconds()))
+        played_ms = rig.audio.elapsed_us(machine) // 1000
+        changed_ms = machine.milliseconds()
+        logged = len(machine.clock_log)
+        self.assertEqual(1, self.call_clock_change(machine, CLOCK_CHANGE_MHZ))
+        rates = [hz // 1000000 for _, hz in machine.clock_log[logged:]]
+        print(json.dumps({"played_ms": played_ms, "seeks": seeks, "starts": starts, "rates": rates}))
+        self.assertIn(CLOCK_CHANGE_MHZ, rates)
+        self.assertEqual(AUDIO_CLOCK_MHZ, rates[-1])
+        self.assertLess(rates.index(CLOCK_CHANGE_MHZ), len(rates) - 1)
+        self.assertEqual(1, len(seeks), seeks)
+        self.assertEqual(1, len(starts), starts)
+        self.assertLessEqual(abs(seeks[0] - played_ms), CLOCK_SEEK_TOLERANCE_MS, (seeks, played_ms))
+        rig.run_for(RECOVERY_MS)
+        result = self.measure(rig, meter, frames, "flac96_512 clock change", False)
+        self.assert_fed(result)
+        self.assertEqual([], rig.audio.underruns(changed_ms)[:5])
+        self.assert_healthy(rig.session)
 
     def panel_asleep(self, rig):
         return bool(rig.machine.read_memory(rig.machine.symbols["panel_asleep"], 1)[0])
