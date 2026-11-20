@@ -664,7 +664,7 @@ On the player the UI modules (views, settings, library, listening, equalizer, pl
 
 An entry hook was chosen over `mprotect` because module text is not page-aligned on ELF without a linker script, and the hook gives the call site for free. It was chosen over a guard in the entry tables because those cannot see stale callbacks held in resident screens.
 
-A set nobody has loaded since `fake_hal_reset` is not checked, so unit tests may call module code directly. A test that inspects a module after the app evicted it calls `fake_hal_borrow_module` first. `ECHO_MODULE_GUARD=report` with `ECHO_MODULE_GUARD_LOG=<file>` logs every trapped call and continues. `test_module_guard` proves that each detector fires.
+A set nobody has loaded since `fake_hal_reset` is not checked, so unit tests may call module code directly. A test that inspects a module after the app evicted it calls `fake_hal_borrow_module` first. `ECHO_MODULE_GUARD=report` with `ECHO_MODULE_GUARD_LOG=<file>` logs every trapped call and continues; `ECHO_MODULE_GUARD_TRACE=1` (or `stack`) prints every load and eviction. `test_module_guard` proves that each detector fires.
 
 What the host fake cannot see:
 
@@ -688,7 +688,14 @@ After every step it checks:
 - no saved graphic or parametric EQ slot is lost (there is no delete for slots);
 - the guard's call and memory checks.
 
-It decodes the stored files itself. Calls into equalizer code for that run inside `module_guard_oracle_begin`/`end`, which lend evicted sets and poison them again afterwards. Run it with `python3 tools/firmware.py fuzz --target app_lifecycle`.
+It decodes the stored files itself. Calls into equalizer code for that run inside `module_guard_oracle_begin`/`end`, which lend evicted sets and poison them again afterwards. A sleep expiry that powers the app off is followed by a cold start. Run it with `python3 tools/firmware.py fuzz --target app_lifecycle`.
+
+`test_app_lifecycle` runs the same harness in the host suite on fixed inputs and 16 generated ones. It takes these variables:
+
+- `ECHO_LIFECYCLE_INPUTS` and `ECHO_LIFECYCLE_SEED`: how many inputs to generate, and from which xorshift state;
+- `ECHO_LIFECYCLE_INPUT=<hex>`: replay one input;
+- `ECHO_LIFECYCLE_OPS`: the operation limit, 48 by default;
+- `ECHO_LIFECYCLE_TRACE=1`: print each operation.
 
 **Emulator.** `SlotOwnership` (`tools/echo_emulator/modules.py`) follows the owner of the slot through returns from `hal_system_load_module` and through writes to the slot header outside a load, which the overlays make. All UI modules link at the same address, so a stale pointer cannot be told apart by address alone. What it detects:
 
@@ -700,9 +707,18 @@ A stale pointer that happens to land on a function entry of the new module, or r
 
 **Known-issue switches.** A finding that the checks reproduce on `main`, but that belongs to another branch, is held open by a named switch in `tests/support/known_issues.c`, which the scenarios mirror. While a switch is open, the test that hits it tolerates or avoids the hit; it does not mute the detector. `ECHO_KNOWN_ISSUES=<name>[,<name>]` or `all` closes switches and enforces them. Remove a switch with the fix.
 
+A switch that tolerates a trapped call ends the fuzzer's current input there, so nothing runs on memory the player would not have.
+
 | Switch | Effect while open |
 |---|---|
-| `hold-menu-stale-update` | `test_app` tolerates the stale call during a configured Hold Menu shortcut from Now Playing; the fuzzer and the emulator stress take that shortcut only while settings or no module is in the slot; the emulator reproducer reports instead of failing |
+| `hold-menu-stale-update` | A Hold Menu shortcut loads Settings or Views while the previous module's screen is still on top. `test_app` tolerates the stale call. The fuzzer takes the shortcut only when the slot holds that module or none, and tolerates calls evicted by a shortcut load (the guard names that cause). The emulator stress takes the shortcut only with Settings or no module in the slot, and its reproducer reports instead of failing |
+| `equalizer-state-after-reload` | Custom EQ, Equalizer and Parametric EQ keep pointers into equalizer BSS across a reload. The fuzzer leaves those screens after each step and runs no evicting step while they are on top |
+| `blocked-profile-ceiling` | The fuzzer skips the check that the applied ceiling is 0 while `headphones.bin` cannot be read |
+| `home-art-after-overlay` | Home calls the art hook of the module an overlay overwrote. The fuzzer neither goes Home with a long Back while the slot is empty nor fails on calls into the shared UI art code after an overlay |
+| `slide-leaving-evicted` | A slide draws a leaving screen whose module was evicted. The fuzzer lets slides finish before evicting steps and tolerates stale calls made while a frame is drawn |
+| `discovery-work-after-rescan` | The library discovery work is not rebuilt after a rescan reload. The fuzzer leaves library screens after each step |
+| `safe-start-labels-after-reload` | Safe start volume draws NULL labels after a reload. The fuzzer leaves that screen and runs no evicting step while it is on top |
+| `preview-cancel-evicted` | Cancelling a Settings preview calls the evicted Settings module. The fuzzer tolerates calls made from `screen_modules_use` or `screen_modules_cancel_previews` |
 
 ## Echo image emulator test
 

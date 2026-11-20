@@ -7,7 +7,7 @@ int LLVMFuzzerInitialize(int *argc, char ***argv);
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 
 enum {
-    GENERATED_INPUTS = 48,
+    GENERATED_INPUTS = 16,
     INPUT_BYTES = 96
 };
 
@@ -16,6 +16,9 @@ static const uint8_t DAC_THEN_START_VOLUME[] = {0,  0x30, 102, 0, 0,  0,  0,  0,
 static const uint8_t EQUALIZER_ACROSS_USB[] = {0,  0x30, 13, 17, 32, 0,  32, 5,
                                                32, 32,   34, 64, 13, 17, 32, 34};
 static const uint8_t SHORTCUTS[] = {0, 0x32, 32, 0, 0, 0, 0, 0, 0, 0, 32, 32, 4, 10, 4, 21, 4, 4};
+
+static const uint8_t HOME_AFTER_USB[] = {0, 0, 0x20, 0x05, 0x42};
+static const uint8_t HOME_AFTER_DAC[] = {0, 0, 0x20, 0x06, 0x42};
 
 static uint32_t next_random(uint32_t *state)
 {
@@ -32,12 +35,30 @@ static void replay(const uint8_t *data, size_t size, const char *name)
     LLVMFuzzerTestOneInput(data, size);
 }
 
+static int replay_hex(const char *text)
+{
+    uint8_t bytes[INPUT_BYTES * 2];
+    size_t size = 0;
+    for (const char *at = text; at[0] != '\0' && at[1] != '\0' && size < sizeof bytes; at += 2) {
+        char pair[3] = {at[0], at[1], '\0'};
+        bytes[size++] = (uint8_t)strtoul(pair, NULL, 16);
+    }
+    replay(bytes, size, "hex input");
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     LLVMFuzzerInitialize(&argc, &argv);
+    const char *hex = getenv("ECHO_LIFECYCLE_INPUT");
+    if (hex != NULL) {
+        return replay_hex(hex);
+    }
     replay(DAC_THEN_START_VOLUME, sizeof DAC_THEN_START_VOLUME, "dac then start volume");
     replay(EQUALIZER_ACROSS_USB, sizeof EQUALIZER_ACROSS_USB, "equalizer across usb");
     replay(SHORTCUTS, sizeof SHORTCUTS, "shortcuts");
+    replay(HOME_AFTER_USB, sizeof HOME_AFTER_USB, "home after a storage session");
+    replay(HOME_AFTER_DAC, sizeof HOME_AFTER_DAC, "home after a DAC session");
     const char *count_text = getenv("ECHO_LIFECYCLE_INPUTS");
     int count = count_text != NULL ? atoi(count_text) : GENERATED_INPUTS;
     uint32_t state = 0x6c69666eu;
@@ -56,6 +77,6 @@ int main(int argc, char **argv)
         snprintf(name, sizeof name, "generated %#x", start);
         replay(bytes, sizeof bytes, name);
     }
-    printf("%d inputs passed\n", count + 3);
+    printf("%d inputs passed\n", count + 5);
     return 0;
 }

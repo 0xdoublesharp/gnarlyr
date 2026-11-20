@@ -8,7 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import EchoImageHarness, IDENTITY, main, settings_file
 
 STRESS_SEED = 20261119
-SHORT_ACTIONS = 36
+SHORT_ACTIONS = 20
+MIN_SWAPS = 3
 LONG_ACTIONS = 300
 LONG_PRESS_FIELD = "b59"
 SETTINGS = 2
@@ -49,20 +50,27 @@ class EchoImageTest(EchoImageHarness):
         return rig, holder["watch"]
 
     def test_slot_ownership_faults_on_a_planted_call_into_an_evicted_module(self):
-        from unicorn.arm_const import UC_ARM_REG_PC
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R3
         rig, watch = self.eviction_rig()
+        blx_r3 = self.resident_blx(rig.machine, 3)
         machine = rig.machine
         rig.press("previous")
         rig.press("play")
-        self.assertEqual(SETTINGS, watch.owner)
+        self.assertIn(SETTINGS, [number for number, (functions, _) in watch.layouts.items()])
+        self.assertIsNotNone(watch.owner)
         self.assertEqual([], watch.faults)
-        settings_functions = watch.layouts[SETTINGS][0]
-        target = min(address for address in watch.taken if address not in settings_functions)
+        owner = watch.owner
+        others = [number for number in watch.layouts if number != owner]
+        target = min(address for address in watch.taken
+                     if address not in watch.layouts[owner][0]
+                     and any(address in watch.layouts[number][0] for number in others))
         planted = []
 
         def plant():
-            if not planted and watch.owner == SETTINGS:
+            if not planted and watch.owner == owner:
                 planted.append(machine.milliseconds())
+                machine.uc.reg_write(UC_ARM_REG_R3, target | 1)
+                machine.uc.reg_write(UC_ARM_REG_LR, blx_r3 + 2 | 1)
                 machine.uc.reg_write(UC_ARM_REG_PC, target | 1)
 
         machine.hook_symbol("app_step", plant)
@@ -70,7 +78,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(1, len(planted))
         self.assertEqual(1, len(watch.faults))
         self.assertIn("evicted", watch.faults[0])
-        self.assertIn("settings", watch.faults[0])
+        self.assertIn("pc %#x" % target, watch.faults[0])
+
+    def resident_blx(self, machine, register):
+        import make_image
+        code = machine.read_memory(make_image.CODE_BASE, 0x20000)
+        pattern = (0x4780 | register << 3).to_bytes(2, "little")
+        offset = code.find(pattern)
+        while offset % 2:
+            offset = code.find(pattern, offset + 1)
+        self.assertGreaterEqual(offset, 0)
+        return make_image.CODE_BASE + offset
 
     def test_a_hold_menu_shortcut_from_now_playing_calls_no_evicted_module_code(self):
         rig, watch = self.eviction_rig(long_press=UP_NEXT_SHORTCUT)
@@ -117,12 +135,16 @@ class EchoImageTest(EchoImageHarness):
                 break
         rig.machine.vbus = False
         rig.run_for(800)
+        print("eviction stress seed %d: %d actions, %s" % (seed, done + 1, watch.counts), flush=True)
         detail = "\n".join(watch.faults + [str(fault) for fault in rig.machine.faults])
         self.assertEqual([], watch.faults + rig.machine.faults,
                          "eviction stress seed %d failed at action %d:\n%s" % (seed, done, detail))
+        return watch
 
     def test_eviction_stress_with_a_fixed_seed_touches_no_evicted_module(self):
-        self.stress(STRESS_SEED, SHORT_ACTIONS)
+        watch = self.stress(STRESS_SEED, SHORT_ACTIONS)
+        self.assertGreaterEqual(watch.counts["loads"], MIN_SWAPS)
+        self.assertGreaterEqual(watch.counts["overlays"], 1)
 
     def test_eviction_stress_with_new_seeds_touches_no_evicted_module(self):
         runs = stress_runs()

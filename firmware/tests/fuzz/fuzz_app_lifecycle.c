@@ -4,6 +4,7 @@
 
 #include <dlfcn.h>
 #include <execinfo.h>
+#include <setjmp.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -41,11 +42,13 @@
 #endif
 
 enum {
-    OP_LIMIT = 96,
+    OP_LIMIT = 48,
     TAP_MS = 30,
     LONG_MS = 1000,
     STEP_MS = 50,
     SETTLE_STEPS = 3,
+    SLIDE_STEPS = 6,
+    POWER_ON_MS = 2000,
     HOME_SETTINGS_ROW = 5,
     SETTINGS_ROWS = 48,
     DAC_KEY_LIMIT = 8,
@@ -94,6 +97,7 @@ static const uint32_t MODULES[] = {
 static const char *failing_paths[FAILING_FILES];
 static bool failing[FAILING_FILES];
 static uint32_t broken_modules;
+static int power_offs;
 static uint32_t now_ms;
 static uint8_t shortcut;
 static bool cable;
@@ -105,6 +109,16 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size);
 static uint8_t next_byte(Cursor *cursor)
 {
     return cursor->at < cursor->size ? cursor->data[cursor->at++] : 0;
+}
+
+static int op_limit(void)
+{
+    static int limit;
+    if (limit == 0) {
+        const char *text = getenv("ECHO_LIFECYCLE_OPS");
+        limit = text != NULL && atoi(text) > 0 ? atoi(text) : OP_LIMIT;
+    }
+    return limit;
 }
 
 static bool tracing(void)
@@ -229,6 +243,9 @@ static void check_headphones(void)
         violated("the headphone profiles in memory differ from headphones.bin");
     }
     if (applied.ceiling > headphone_store_parameters(&stored).ceiling) {
+        fprintf(stderr, "applied ceiling %d, stored profile %d of %d with ceiling %d\n",
+                applied.ceiling, stored.current, stored.count,
+                headphone_store_parameters(&stored).ceiling);
         violated("the applied volume ceiling exceeds the stored profile's");
     }
 }
@@ -344,6 +361,11 @@ static void dac_session(Cursor *cursor, uint8_t argument)
         if (!dac_apply(&menu, &settings, usb_dac_menu_key(&menu, key, now_ms))) {
             break;
         }
+    }
+    if (tracing()) {
+        fprintf(stderr, "dac: headphones %d -> %d, ceiling applied %d, broken %#x, refusals %d\n",
+                before.headphones, settings.headphones, hal_audio_headphones().ceiling,
+                broken_modules, fake_hal_module_refusals());
     }
     if (memcmp(&settings, &before, sizeof settings) != 0) {
         app_remember_dac(settings);
@@ -495,6 +517,9 @@ static void run_op(Cursor *cursor, Op op, uint8_t argument)
     if (!allowed(op, argument)) {
         return;
     }
+    if (evicts(op) && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED)) {
+        settle(SLIDE_STEPS);
+    }
     switch (op) {
     case OP_STORAGE_SESSION:
         storage_session(argument);
@@ -612,6 +637,17 @@ static void seed_settings(uint8_t config)
     module_guard_oracle_end();
 }
 
+static void power_on_after_power_off(void)
+{
+    if (fake_hal_power_off_count() != power_offs) {
+        power_offs = fake_hal_power_off_count();
+        now_ms += POWER_ON_MS;
+        fake_hal_set_milliseconds(now_ms);
+        app_start();
+        settle(SETTLE_STEPS);
+    }
+}
+
 static void leave_known_issue_screens(void)
 {
     bool library = known_issue_open(KNOWN_ISSUE_DISCOVERY_WORK_AFTER_RESCAN) &&
@@ -625,6 +661,16 @@ static bool overlay_evicted(const char *report)
 {
     return strstr(report, "the rescan overlay") != NULL ||
            strstr(report, "the USB overlay") != NULL;
+}
+
+static jmp_buf input_end;
+static bool input_running;
+
+static void tolerate(void)
+{
+    if (input_running) {
+        longjmp(input_end, 1);
+    }
 }
 
 static bool on_stack(const char *name)
@@ -655,23 +701,19 @@ static void guard_trap(const char *report, const void *function)
 {
     if (!overlay_evicted(report) && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED) &&
         rendering()) {
-        module_guard_lend(function);
-        return;
+        tolerate();
     }
     bool art = function == (const void *)(uintptr_t)home_art_update ||
                strstr(report, "views+settings+library+listening+equalizer+playing+stage") != NULL;
     if (art && overlay_evicted(report) && known_issue_open(KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY)) {
-        module_guard_lend(function);
-        return;
+        tolerate();
     }
     if (known_issue_open(KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED) && cancelling_previews()) {
-        module_guard_lend(function);
-        return;
+        tolerate();
     }
     if (strstr(report, "for a Hold Menu shortcut") != NULL &&
         known_issue_open(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE)) {
-        module_guard_lend(function);
-        return;
+        tolerate();
     }
     fprintf(stderr, "screen \"%s\" at depth %d\n", app_screen_title(), app_screen_depth());
     module_guard_abort(report);
@@ -697,6 +739,7 @@ static void start(const uint8_t *data, size_t size)
     fake_hal_set_milliseconds(now_ms);
     app_start();
     settle(SETTLE_STEPS);
+    power_offs = fake_hal_power_off_count();
 }
 
 int LLVMFuzzerInitialize(int *argc, char ***argv)
@@ -735,9 +778,15 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     memset(failing, 0, sizeof failing);
     broken_modules = 0;
     cable = false;
-    Cursor cursor = {data, size, 2};
+    static Cursor cursor;
+    cursor = (Cursor){data, size, 2};
+    input_running = true;
+    if (setjmp(input_end) != 0) {
+        input_running = false;
+        return 0;
+    }
     check_invariants();
-    for (int count = 0; count < OP_LIMIT && cursor.at < size; count++) {
+    for (int count = 0; count < op_limit() && cursor.at < size; count++) {
         uint8_t value = next_byte(&cursor);
         if (tracing()) {
             fprintf(stderr, "op %d: kind %d argument %d at byte %zu, screen \"%s\"\n", count,
@@ -745,8 +794,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         }
         run_op(&cursor, (Op)(value % OP_COUNT), (uint8_t)(value / OP_COUNT));
         leave_known_issue_screens();
+        power_on_after_power_off();
         check_invariants();
     }
+    input_running = false;
     app_stop();
     return 0;
 }

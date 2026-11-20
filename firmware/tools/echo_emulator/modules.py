@@ -1,7 +1,10 @@
 from pathlib import Path
 
 from unicorn import UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE
-from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0
+from unicorn.arm_const import (UC_ARM_REG_LR, UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2,
+                               UC_ARM_REG_R3, UC_ARM_REG_R4, UC_ARM_REG_R5, UC_ARM_REG_R6,
+                               UC_ARM_REG_R7, UC_ARM_REG_R8, UC_ARM_REG_R9, UC_ARM_REG_R10,
+                               UC_ARM_REG_R11, UC_ARM_REG_R12)
 
 import make_image
 
@@ -91,6 +94,11 @@ class ModuleWatch:
             "loaded" if call["loaded"] else "refused")
 
 
+CALL_REGISTERS = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R4,
+                  UC_ARM_REG_R5, UC_ARM_REG_R6, UC_ARM_REG_R7, UC_ARM_REG_R8, UC_ARM_REG_R9,
+                  UC_ARM_REG_R10, UC_ARM_REG_R11, UC_ARM_REG_R12)
+BLX_REGISTER_MASK = 0xFF87
+BLX_REGISTER = 0x4780
 SLOT_MODULE_NAMES = {1: "views", 2: "settings", 3: "library", 4: "listening", 9: "equalizer",
                      11: "playing", 16: "stage"}
 ELF_FUNCTION = 2
@@ -123,7 +131,7 @@ def module_layout(elf_path, first, last):
     return functions, end
 
 
-def address_taken(content, base, functions):
+def address_taken(content, functions):
     """Function entries whose Thumb address appears as a word in the module: the ones a pointer
     can hold, so the only ones a stale callback can reach."""
     taken = set()
@@ -153,6 +161,7 @@ class SlotOwnership:
         self.pending = None
         self.returns = set()
         self.history = []
+        self.counts = {"loads": 0, "overlays": 0, "refused": 0}
         self.faults = []
         self.empty_hooks = []
         self.extent_hook = None
@@ -163,7 +172,7 @@ class SlotOwnership:
                 continue
             functions, end = module_layout(overlay_path(overlay), SLOT_FIRST, SLOT_LAST)
             self.layouts[overlay.number] = (functions, end)
-            taken |= address_taken(overlay.stored, overlay.base, functions)
+            taken |= address_taken(overlay.stored, functions)
         self.taken = taken
         machine.hook_symbol(LOADER, self.load_entered)
         direct.hook_add(machine.uc, UC_HOOK_MEM_WRITE, self.slot_written, None, SLOT_FIRST,
@@ -215,6 +224,7 @@ class SlotOwnership:
         loaded = self.machine.reg(UC_ARM_REG_R0) != 0
         if loaded and module in self.layouts:
             if module != self.owner:
+                self.counts["loads"] += 1
                 self.record("loaded " + self.name(module))
             self.owner, self.state = module, "loaded"
         elif loaded:
@@ -222,6 +232,7 @@ class SlotOwnership:
             self.record("loaded module %d" % module)
         else:
             self.owner, self.state = None, "empty"
+            self.counts["refused"] += 1
             self.record("refused " + self.name(module))
         self.arm()
 
@@ -229,6 +240,7 @@ class SlotOwnership:
         if self.pending is not None or self.state == "overlay":
             return
         self.owner, self.state = None, "overlay"
+        self.counts["overlays"] += 1
         self.record("overwritten by " + self.machine.symbol_at(self.machine.current_pc()))
         self.arm()
 
@@ -238,13 +250,25 @@ class SlotOwnership:
             self.record("USB session over")
             self.arm()
 
+    def resident_call(self, address):
+        """Whether the block at `address` was entered by a `BLX Rm` in resident code whose register
+        still holds `address`, which is how resident code calls a module function pointer."""
+        machine = self.machine
+        lr = machine.reg(UC_ARM_REG_LR) & ~1
+        if not make_image.CODE_BASE <= lr < SLOT_FIRST:
+            return False
+        instruction = int.from_bytes(machine.read_memory(lr - 2, 2), "little")
+        if instruction & BLX_REGISTER_MASK != BLX_REGISTER:
+            return False
+        register = (instruction >> 3) & 0xF
+        return register < len(CALL_REGISTERS) and machine.reg(CALL_REGISTERS[register]) & ~1 == address
+
     def entered(self, address):
-        lr = self.machine.reg(UC_ARM_REG_LR) & ~1
-        if self.state == "overlay":
+        if self.state == "overlay" or not self.resident_call(address):
             return
         if self.owner is None:
             self.fault("call into the UI slot with no module loaded", address)
-        elif address not in self.layouts[self.owner][0] and not SLOT_FIRST <= lr <= SLOT_LAST:
+        elif address not in self.layouts[self.owner][0]:
             self.fault("call from resident code to a function of a module that was evicted", address)
 
     def in_loader(self):

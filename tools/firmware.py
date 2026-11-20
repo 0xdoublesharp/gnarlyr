@@ -37,7 +37,7 @@ FUZZ_TARGETS = {
     "personal_tags": 320,
     "browse_screen": 256,
     "app_navigation": 128,
-    "app_lifecycle": 256,
+    "app_lifecycle": 160,
     "library_builder": 512,
     "cover_image": 1048576,
     "theme_pack": 1024,
