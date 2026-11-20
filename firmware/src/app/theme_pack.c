@@ -226,6 +226,19 @@ static bool read_asset(ByteSource source, unsigned index, ThemeAsset *asset)
     return descriptor_valid(asset, bytes);
 }
 
+static bool key_taken(const ThemePack *pack, unsigned count, ThemeAssetKey key)
+{
+    for (unsigned previous = 0; previous < count; previous++) {
+        const ThemeAssetKey *other = &pack->assets[previous];
+        uint16_t slot = other->slot == THEME_PACK_HIDDEN ? THEME_ART_NOW_PLAYING : other->slot;
+        if (key.slot == slot && key.orientation == other->orientation &&
+            key.text_size == other->text_size) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool assets_valid(ThemePack *pack, ByteSource source, const ThemeLayout *layout)
 {
     uint32_t next = layout->payload;
@@ -236,13 +249,11 @@ static bool assets_valid(ThemePack *pack, ByteSource source, const ThemeLayout *
             return false;
         }
         ThemeAssetKey key = {asset.slot, asset.orientation, asset.text_size};
-        for (unsigned previous = 0; previous < at; previous++) {
-            const ThemeAssetKey *other = &pack->assets[previous];
-            if (key.slot == other->slot && key.orientation == other->orientation &&
-                key.text_size == other->text_size) {
-                return false;
-            }
+        if (key_taken(pack, at, key)) {
+            return false;
         }
+        bool refused = asset.slot == THEME_ART_NOW_PLAYING && asset.codec == ART_CODEC_LOSSLESS;
+        key.slot = refused ? THEME_PACK_HIDDEN : key.slot;
         pack->assets[at] = key;
         next += asset.bytes;
     }

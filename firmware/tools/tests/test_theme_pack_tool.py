@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+import zlib
 from pathlib import Path
 
 from PIL import Image
@@ -86,6 +87,43 @@ class ThemeToolTests(unittest.TestCase):
             self.save(folder)
             with self.assertRaises(ValueError):
                 theme_pack.build(folder)
+
+    def test_now_playing_refuses_lossless_and_warns_about_indexed_battery_cost(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.new("RGB", (480, 222), (40, 80, 120)).save(folder / "photo.png")
+            self.manifest["assets"] = [{"slot": "now_playing", "file": "photo.png",
+                                        "orientation": "landscape", "codec": "lossless"}]
+            self.save(folder)
+            with self.assertRaisesRegex(ValueError, "now_playing.*lossless.*indexed"):
+                theme_pack.build(folder)
+            self.manifest["assets"][0]["codec"] = "indexed"
+            self.save(folder)
+            data = theme_pack.build(folder)
+            warnings = theme_pack.check(data)["warnings"]
+            self.assertEqual(1, len([text for text in warnings
+                                     if "now_playing" in text and "battery" in text]))
+            hand_made = bytearray(theme_pack.build(self.home_copy(folder)))
+            struct.pack_into("<H", hand_made, theme_pack.HEADER_BYTES, theme_pack.SLOTS["now_playing"])
+            struct.pack_into("<I", hand_made, 12, zlib.crc32(hand_made[:12] + hand_made[16:]))
+            with self.assertRaisesRegex(ValueError, "now_playing.*lossless.*indexed"):
+                theme_pack.check(bytes(hand_made))
+            pack = folder / "hand.gtheme"
+            pack.write_bytes(hand_made)
+            result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check", str(pack)],
+                                    capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("now_playing", result.stderr)
+            pack.write_bytes(data)
+            result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check", str(pack)],
+                                    capture_output=True, text=True, check=True)
+            self.assertTrue(any("battery" in text for text in json.loads(result.stdout)["warnings"]))
+
+    def home_copy(self, folder):
+        self.manifest["assets"] = [{"slot": "home", "file": "photo.png",
+                                    "orientation": "landscape", "codec": "lossless"}]
+        self.save(folder)
+        return folder
 
     def test_previews_show_each_asset_as_drawn(self):
         with tempfile.TemporaryDirectory() as directory:

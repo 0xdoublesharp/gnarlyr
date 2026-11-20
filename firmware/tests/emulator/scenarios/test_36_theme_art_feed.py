@@ -4,6 +4,7 @@ import random
 import struct
 import sys
 import tempfile
+import zlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -47,11 +48,11 @@ def photo_pixels(seed=7):
     return rows
 
 
-def built_pack(rows, codec="lossless"):
+def built_pack(rows, assets=(("now_playing", "indexed"),)):
     from PIL import Image
     manifest = json.loads((ROOT / "examples/themes/pocket-scope/theme.json").read_text())
-    manifest["assets"] = [{"slot": "now_playing", "file": "now_playing.png",
-                           "orientation": "landscape", "codec": codec, "dither": "none"}]
+    manifest["assets"] = [{"slot": slot, "file": "now_playing.png", "orientation": "landscape",
+                           "codec": codec, "dither": "none"} for slot, codec in assets]
     with tempfile.TemporaryDirectory() as directory:
         folder = Path(directory)
         image = Image.new("RGB", (WIDTH, HEIGHT))
@@ -59,6 +60,14 @@ def built_pack(rows, codec="lossless"):
         image.save(folder / "now_playing.png")
         (folder / "theme.json").write_text(json.dumps(manifest))
         return theme_pack.build(folder)
+
+
+def hand_made_lossless_now_playing(pack):
+    data = bytearray(pack)
+    struct.pack_into("<H", data, theme_pack.HEADER_BYTES + theme_pack.DESCRIPTOR_BYTES,
+                     theme_pack.SLOTS["now_playing"])
+    struct.pack_into("<I", data, 12, zlib.crc32(data[:12] + data[16:]))
+    return bytes(data)
 
 
 def drawn_art(pack):
@@ -103,6 +112,7 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=feed_volume(pack), module_elfs=self.module_elfs)
         DecoderLoad(rig.audio, self.elf.parent)
+        home_frame = list(rig.machine.panel.frame)
         meter = PowerMeter(rig.machine)
         frames, draws = [], [0]
         per_frame = []
@@ -136,6 +146,7 @@ class EchoImageTest(EchoImageHarness):
                       art_draws_per_frame=per_frame[first_frame:],
                       full_frame_art_draws=max(per_frame[:first_frame], default=0))
         self.assert_healthy(rig.session)
+        result["home_frame"] = home_frame
         return result, list(rig.machine.panel.frame)
 
     def art_share(self, frame, art):
@@ -150,10 +161,11 @@ class EchoImageTest(EchoImageHarness):
         if destination:
             with open(destination, "a", encoding="utf-8") as output:
                 for result in results:
-                    output.write(json.dumps(result) + "\n")
+                    kept = {key: value for key, value in result.items() if key != "home_frame"}
+                    output.write(json.dumps(kept) + "\n")
 
     def compared(self, codec):
-        pack = built_pack(photo_pixels(), codec)
+        pack = built_pack(photo_pixels())
         art = drawn_art(pack)
         plain, plain_frame = self.measured(None)
         themed, themed_frame = self.measured(pack)
@@ -163,12 +175,15 @@ class EchoImageTest(EchoImageHarness):
         self.report([plain, themed])
         self.assertLessEqual(plain["art_share"], PLAIN_SHARE_MAX, plain)
         self.assertGreaterEqual(themed["art_share"], ART_SHARE_MIN, themed)
-        for result in (plain, themed):
+        self.assert_fed(plain, themed)
+        return plain, themed
+
+    def assert_fed(self, *results):
+        for result in results:
             self.assertEqual(0, result["underruns"], result)
             self.assertEqual(0, result["output_underruns"], result)
             self.assertGreaterEqual(result["buffered_ms"], FED_MS, result)
             self.assertGreaterEqual(result["frames_drawn"], MEASURE_MS * 3 // 1000, result)
-        return plain, themed
 
     def test_theme_background_with_a_scrolling_title_keeps_the_96_khz_feed(self):
         plain, themed = self.compared("indexed")
@@ -185,8 +200,21 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreaterEqual(len([count for count in draws if 0 < count <= full // 4]),
                                 len(draws) * 3 // 4, draws)
 
-    def test_a_lossless_photo_behind_a_scrolling_title_keeps_the_96_khz_feed(self):
-        self.compared("lossless")
+    def test_a_lossless_now_playing_image_draws_theme_colours_and_the_rest_of_the_pack_applies(self):
+        built = built_pack(photo_pixels(), (("home", "lossless"), ("splash", "lossless")))
+        art = drawn_art(built)
+        pack = hand_made_lossless_now_playing(built)
+        with self.assertRaisesRegex(ValueError, "now_playing"):
+            theme_pack.check(pack)
+        themed, frame = self.measured(pack)
+        themed["art_share"] = round(self.art_share(frame, art), 3)
+        themed["codec"] = "lossless"
+        home_share = self.art_share(themed["home_frame"], art)
+        self.report([themed])
+        self.assertLessEqual(themed["art_share"], PLAIN_SHARE_MAX, themed)
+        self.assertGreaterEqual(home_share, ART_SHARE_MIN, home_share)
+        self.assert_fed(themed)
+        self.assertLessEqual(themed["core0_busy_percent"], CORE0_LIMIT_PERCENT, themed)
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

@@ -193,6 +193,41 @@ static void full_images_stream_in_both_orientations_and_missing_art_uses_the_bas
     }
 }
 
+static void a_lossless_now_playing_image_is_treated_as_absent_and_the_rest_applies(void)
+{
+    static uint8_t image[8192 + 480 * 222 * 4];
+    static Color pixels[480 * 17];
+    reset();
+    static const ThemeFixtureArt art[] = {
+        {THEME_ART_NOW_PLAYING, 0, 255, 480, 222, ART_CODEC_LOSSLESS, 0},
+        {THEME_ART_LIST, 2, 255, 3, 2, ART_CODEC_LOSSLESS, 1},
+        {THEME_ART_NOW_PLAYING, 0, 255, 480, 222, ART_CODEC_LOSSLESS, 0}};
+    static const ThemeFixtureArt twice[] = {art[0], art[2]};
+    pixel_mode = 0;
+    uint32_t doubled = build(image, sizeof image, 4, twice, 2);
+    static const char doubled_path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/twice.gtheme";
+    fake_hal_add_file(doubled_path, image, doubled);
+    ThemeRuntime refused = {0};
+    CHECK(!theme_runtime_load(&refused, "twice.gtheme"));
+    reset();
+    pixel_mode = 0;
+    uint32_t size = build(image, sizeof image, 3, art, 2);
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/lossless.gtheme";
+    fake_hal_add_file(path, image, size);
+    ThemeRuntime runtime = {0};
+    CHECK(theme_runtime_load(&runtime, "lossless.gtheme"));
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 480, 17});
+    canvas_clear(&canvas, 1234);
+    ThemeArtRequest request = {.area = {0, 0, 480, 222}, .slot = THEME_ART_NOW_PLAYING};
+    CHECK(!theme_runtime_draw(&runtime, &canvas, request));
+    CHECK(runtime.active);
+    CHECK_EQUAL(1234, pixels[0]);
+    request = (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_LIST};
+    CHECK(theme_runtime_draw(&runtime, &canvas, request));
+    CHECK_EQUAL(100, pixels[0]);
+    theme_runtime_close(&runtime);
+}
+
 static uint32_t three_tiles(uint8_t *bytes, uint32_t capacity, uint8_t count)
 {
     static const ThemeFixtureArt tiles[] = {{THEME_ART_LIST, 0, 255, 2, 2, ART_CODEC_LOSSLESS, 1},
@@ -556,6 +591,7 @@ int main(void)
         TEST_CASE(pack_art_draws_with_no_ui_module_loaded),
         TEST_CASE(strips_and_clipped_rectangles_match_a_full_render),
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
+        TEST_CASE(a_lossless_now_playing_image_is_treated_as_absent_and_the_rest_applies),
         TEST_CASE(each_asset_of_a_pack_draws_its_own_pixels),
         TEST_CASE(art_selection_prefers_exact_dimensions_then_falls_back),
         TEST_CASE(placed_art_obeys_its_bounds_and_clip),

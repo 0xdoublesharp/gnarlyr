@@ -39,8 +39,8 @@ The complete examples are in [`../examples/themes`](../examples/themes). A JSON 
   "dither": "none",
   "palette": {},
   "assets": [
-    {"slot": "home", "file": "home.png", "orientation": "landscape"},
-    {"slot": "now_playing", "file": "photo.png", "orientation": "landscape", "codec": "lossless"},
+    {"slot": "home", "file": "home.png", "orientation": "landscape", "codec": "lossless"},
+    {"slot": "now_playing", "file": "photo.png", "orientation": "landscape", "dither": "fs"},
     {"slot": "list", "file": "list.png", "orientation": "any"},
     {"slot": "icon_music", "file": "music.png", "text_size": "small"}
   ],
@@ -55,7 +55,9 @@ PNG paths must remain inside the source folder, including after resolving symlin
 Each image chooses its encoding with `codec`, falling back to the manifest's `codec` and then to `indexed`:
 
 - `indexed` stores up to 256 colours per image. An image with at most 256 colour and alpha pairs after rounding to RGB565 and 4-bit alpha is stored exactly. Otherwise it is quantised: median cut for opaque images, fast octree for transparent icons. It is the fastest to draw and the smallest for flat art.
-- `lossless` stores every RGB565 pixel exactly. Use it for photographs whose quantisation is visible. It draws more slowly; see Rendering cost.
+- `lossless` stores every RGB565 pixel exactly. Use it for photographs whose quantisation is visible. It draws more slowly; see Rendering cost. It is refused in the `now_playing` slot and allowed in every other slot.
+
+Now Playing redraws its title, time and progress while music plays, so its background costs processor time for as long as the screen is on. The builder refuses a lossless `now_playing` image, names the slot and suggests `indexed`; `--check` refuses a pack that has one. It builds an indexed `now_playing` image with a warning in the JSON `warnings` list that the image raises processor load and shortens battery life while the screen is on. The player treats a lossless `now_playing` image in an installed pack as absent: Now Playing uses the theme's colours and the rest of the pack still applies.
 
 `dither` (per image or for the whole manifest) is `none`, `ordered` (the 4×4 ordered dither before RGB565 conversion) or `fs` (Floyd–Steinberg during quantisation, indexed only). RGB565 conversion truncates red and blue to five bits and green to six; alpha is rounded to four bits (0 transparent, 15 opaque).
 
@@ -142,7 +144,7 @@ The first payload starts right after the style table, the next one right after i
 | Slot | Manifest name | Dimensions and variants | Transparency |
 | --- | --- | --- | --- |
 | 1 | `home` | 480×222 landscape or 222×480 portrait; text size all | No |
-| 2 | `now_playing` | Same full-screen dimensions and variants | No |
+| 2 | `now_playing` | Same full-screen dimensions and variants; indexed only | No |
 | 3 | `list` | Same full-screen dimensions, or a repeating tile of 1–64 pixels on each side with the tile flag; text size all; tiles may use either orientation | No |
 | 4 | `splash` | Same full-screen dimensions and variants; drawn after `board_power_hold`, in the app splash only | No |
 | 5 | `cassette_label` | 160×48; named reservation for the cassette view, with orientation variants; text size all | No |
@@ -200,11 +202,13 @@ A failed candidate never partially replaces an active pack. A file that fails it
 
 The loader, parser, catalogue, selection writer and Theme screen live in the views module (module 1), which keeps the catalogue's work buffer in its own BSS; the catalogue rebuilds after the module is evicted. Drawing lives in the extension module (module 8), which stays loaded beside every UI module, so art also draws when no UI module is loaded. Only palette application and the drawing hook stay resident. Active metadata and the asset keys (slot, orientation, text size) are copied into resident caller-owned state; no pointers into evictable BSS survive.
 
-Rendering decodes only the rows and columns of the current redraw rectangle into the existing strip canvas. Each draw call reads the asset's descriptor and palette, then reads the row table in batches of 16 rows and the rows into a 1,024-byte window on the stack. The decoder bounds every packet against the row's bytes and width again, because the card can change after validation, and palette indices read a 256-entry buffer. No full-screen image buffer is allocated. A failed read or a malformed row disables pack artwork and falls back to ordinary drawing. Selection lives on internal storage in `/.gnarlyr/theme.bin`: two 512-byte `DSTS` version-1 store banks with generation, payload hash and verified read-back. Its 17-byte payload is the UUID plus built-in base index. Choosing a built-in stores a zero UUID. Removing a card cannot prevent startup. An unavailable views module leaves built-in drawing usable, and without the extension module every screen keeps its palette drawing.
+Rendering decodes only the rows and columns of the current redraw rectangle into the existing strip canvas. Each draw call reads the asset's descriptor and palette, then reads the row table in batches of 32 rows and the rows into a 4,608-byte window on the stack, starting on a 512-byte boundary so the card transfers it directly. The decoder bounds every packet against the row's bytes and width again, because the card can change after validation, and palette indices read a 256-entry buffer. No full-screen image buffer is allocated. A failed read or a malformed row disables pack artwork and falls back to ordinary drawing. Selection lives on internal storage in `/.gnarlyr/theme.bin`: two 512-byte `DSTS` version-1 store banks with generation, payload hash and verified read-back. Its 17-byte payload is the UUID plus built-in base index. Choosing a built-in stores a zero UUID. Removing a card cannot prevent startup. An unavailable views module leaves built-in drawing usable, and without the extension module every screen keeps its palette drawing.
 
 ### Rendering cost
 
 Measured by `firmware/tools/art_codec_bench.py` (Cortex-M3 at `-Os`, emulated instructions per output pixel; instructions, not cycles). On a study corpus of photographs, indexed rows cost 11–15 instructions per pixel and lossless rows 32–37; for flat and UI-like art, 4–8 and 5–16. A part of a row costs more per visible pixel, because a row decodes from its start: for columns 300–400 of a photograph, 35–56 indexed and 146–173 lossless. Prefer `indexed` behind text that scrolls.
+
+Behind Now Playing, in the emulator with a 96 kHz FLAC of 512-sample blocks and a scrolling title (`firmware/tests/emulator/scenarios/test_36_theme_art_feed.py`), core 0 is 12.7 % busy with a built-in theme and 17.4 % with an indexed full-screen photograph. A lossless photograph measured 23.7 %, which is why that slot refuses it. These are emulator figures, not battery measurements on the player.
 
 ## Optional signatures and trust
 

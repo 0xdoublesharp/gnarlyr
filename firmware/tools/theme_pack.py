@@ -225,6 +225,17 @@ def descriptor(data, index):
     return asset
 
 
+NOW_PLAYING_LOSSLESS = ("the now_playing slot refuses lossless images, which keep the processor too "
+                        "busy behind Now Playing; use \"codec\": \"indexed\" for this image")
+NOW_PLAYING_INDEXED = ("now_playing: an image behind Now Playing raises processor load and shortens "
+                       "battery life while the screen is on")
+
+
+def now_playing_check(slot, codec):
+    if slot == SLOTS["now_playing"] and codec == art_codec.LOSSLESS:
+        raise ValueError(NOW_PLAYING_LOSSLESS)
+
+
 def descriptor_check(asset):
     dimensions(asset["slot"], asset["orientation"], asset["text_size"], asset["width"],
                asset["height"], asset["flags"])
@@ -294,6 +305,7 @@ def check(data, verify_key=None):
     for index in range(count):
         asset = descriptor(data, index)
         descriptor_check(asset)
+        now_playing_check(asset["slot"], asset["codec"])
         variant = (asset["slot"], asset["orientation"], asset["text_size"])
         if variant in seen or asset["offset"] != next_offset or asset["offset"] + asset["bytes"] > end:
             raise ValueError("duplicate, overlapping, missing or truncated asset")
@@ -317,6 +329,8 @@ def check(data, verify_key=None):
                     raise ValueError("invalid Ed25519ph signature")
                 info["signature"] = "verified"
     info["warnings"] = contrast_warnings(struct.unpack_from("<20H", data, 452))
+    if any(asset["slot"] == SLOTS["now_playing"] for asset in info["assets"]):
+        info["warnings"].append(NOW_PLAYING_INDEXED)
     return info
 
 
@@ -400,7 +414,10 @@ def build(folder, sign_key=None, report=None):
             width, height = image.size
         flags = TILE if slot == 3 and width <= 64 and height <= 64 else 0
         dimensions(slot, orientation, size, width, height, flags)
-        width, height, payload, stats = encode_asset(path, slot, asset_settings(asset, manifest))
+        settings = asset_settings(asset, manifest)
+        if slot == SLOTS["now_playing"] and settings["codec"] == "lossless":
+            raise ValueError(f"{asset['file']}: {NOW_PLAYING_LOSSLESS}")
+        width, height, payload, stats = encode_asset(path, slot, settings)
         struct.pack_into("<HBBHHIIBBBBBbbB", data, HEADER_BYTES + index * DESCRIPTOR_BYTES, slot,
                          orientation, size, width, height, len(data), len(payload), payload[0],
                          payload[1], payload[2], flags, 0, 0, 0, 1)
