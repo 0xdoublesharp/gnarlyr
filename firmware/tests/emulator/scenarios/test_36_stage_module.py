@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from echo_image_harness import (
+    DAC_PROMPT_KEYS,
     EchoImageHarness,
     IDENTITY,
     KEY_BACK,
@@ -47,10 +48,10 @@ class EchoImageTest(EchoImageHarness):
         volume.add_file("settings.bin", settings, directory=IDENTITY.data_directory)
         return volume
 
-    def styled_rig(self, style):
+    def styled_rig(self, style, prepare=None):
         from echo_emulator.playback import Rig
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   volume=self.styled_volume(style), module_elfs=self.module_elfs)
+                   volume=self.styled_volume(style), module_elfs=self.module_elfs, prepare=prepare)
 
     def swap_round(self, style):
         from echo_emulator.modules import ModuleWatch
@@ -261,6 +262,52 @@ class EchoImageTest(EchoImageHarness):
         else:
             self.assertGreater(rig.audio.suspend_depth, 0)
         print("\n[fallback after USB] playback %s by Play" % ("resumed" if quiet else "paused"))
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
+
+
+    def test_now_playing_falls_back_and_stops_retrying_after_a_usb_dac_session_with_no_copy(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(VU, prepare=lambda machine: setattr(machine, "usb_answer", None))
+        machine, session = rig.machine, rig.session
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        rig.run_for(ANIMATE_MS)
+        stage, stage_overlay = self.module(machine, "stage")
+        playing, _ = self.module(machine, "playing")
+        self.assertTrue(stage_overlay.loaded(machine))
+        for slot in ("slot_1", "slot_2"):
+            for number in (stage, playing):
+                session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
+        machine.note("now_playing_fallback_attach")
+        machine.note("usb_dac_session")
+        machine.host_stays = True
+        machine.answer_usb_prompt(DAC_PROMPT_KEYS)
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        rig.run_for(ANIMATE_MS)
+        self.assertFalse(stage_overlay.loaded(machine))
+        windows = len(machine.panel.windows)
+        machine.vbus = False
+        rig.run_for(1500)
+        watch = ModuleWatch(session)
+        rig.run_for(4000)
+        failed = [call for call in watch.loads() if not call["loaded"]]
+        print("\n[after the DAC session] %d failed loads in 4 s, fallback attached %d times"
+              % (len(failed), machine.reached.get("now_playing_fallback_attach", 0)))
+        self.assertGreater(machine.reached.get("now_playing_fallback_attach", 0), 0)
+        self.assertLessEqual(len(failed), 3)
+        self.assertGreater(len(machine.panel.windows), windows)
+        quiet = rig.first_audio_after(machine.milliseconds() - 300) is None
+        pressed = rig.press("play")
+        rig.run_for(ANIMATE_MS)
+        if quiet:
+            self.assertIsNotNone(rig.first_audio_after(pressed))
+        else:
+            self.assertGreater(rig.audio.suspend_depth, 0)
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.watchdog_resets, 0)
         self.assert_healthy(session)
