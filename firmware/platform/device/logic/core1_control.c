@@ -1,4 +1,5 @@
 #include "device/core1_control.h"
+#include "core/seam.h"
 
 #include <stdbool.h>
 
@@ -81,7 +82,7 @@ static void set_domain_power(const Core1Bus *bus, bool off)
     bus->write(bus->context, PMU_POWER, off ? power | PMU_CORE1_DOMAIN : power);
 }
 
-Core1Result core1_power_up(const Core1Bus *bus, uint32_t pll_mhz, uint32_t divider)
+CORE_SEAM Core1Result core1_power_up(const Core1Bus *bus, uint32_t pll_mhz, uint32_t divider)
 {
     set_domain_power(bus, false);
     if (!wait_for_domain(bus, 0)) {
@@ -141,12 +142,12 @@ static bool wait_for_reply(const Core1Bus *bus, uint32_t timeout_ms)
     return true;
 }
 
-void core1_hold(const Core1Bus *bus)
+CORE_SEAM void core1_hold(const Core1Bus *bus)
 {
     bus->write(bus->context, CRU_RESETS_30, CORE1_HOLD);
 }
 
-void core1_prepare(const Core1Bus *bus)
+CORE_SEAM void core1_prepare(const Core1Bus *bus)
 {
     clear_shared(bus);
     bus->write(bus->context, MAILBOX_B2A_STATUS, MAILBOX_ALL_CHANNELS);
@@ -164,7 +165,7 @@ Core1Result core1_load(const Core1Bus *bus, const uint8_t *image, uint32_t lengt
     return CORE1_OK;
 }
 
-Core1Result core1_run(const Core1Bus *bus, uint32_t timeout_ms)
+CORE_SEAM Core1Result core1_run(const Core1Bus *bus, uint32_t timeout_ms)
 {
     bus->write(bus->context, CRU_RESETS_30, CORE1_RUN);
     if (!wait_for_reply(bus, timeout_ms)) {
@@ -191,7 +192,7 @@ void core1_park(const Core1Bus *bus)
     write_all(bus, writes, sizeof writes / sizeof writes[0]);
 }
 
-Core1Result core1_stop(const Core1Bus *bus)
+CORE_SEAM Core1Result core1_stop(const Core1Bus *bus)
 {
     core1_park(bus);
     bus->write(bus->context, GRF_SPEED, BUS_SPEED_SLOW);

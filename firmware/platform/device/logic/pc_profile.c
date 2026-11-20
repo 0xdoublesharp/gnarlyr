@@ -26,7 +26,7 @@ void pc_profile_sample(PcProfile *profile, uint32_t pc)
         profile->idle_samples++;
     } else if (inside(profile->code, address)) {
         count_code(profile, address);
-    } else if (inside(profile->overlay, address)) {
+    } else if (inside(profile->overlay, address) || inside(profile->modules, address)) {
         profile->overlay_samples++;
     } else {
         profile->other_samples++;

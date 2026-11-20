@@ -16,6 +16,8 @@ extern const uint8_t device_profile_code_base[];
 extern const uint8_t device_profile_code_bytes[];
 extern const uint8_t device_profile_overlay_base[];
 extern const uint8_t device_profile_overlay_bytes[];
+extern const uint8_t device_profile_module_base[];
+extern const uint8_t device_profile_module_bytes[];
 
 static PcProfile profile;
 static bool held;
@@ -35,6 +37,8 @@ static PcProfile *prepared(void)
         profile.idle = (PcRange){(uint32_t)(uintptr_t)board_profile_wait & ~1u, WAIT_BYTES};
         profile.overlay = (PcRange){value_of(device_profile_overlay_base),
                                     value_of(device_profile_overlay_bytes)};
+        profile.modules =
+            (PcRange){value_of(device_profile_module_base), value_of(device_profile_module_bytes)};
         profile.bucket_count = value_of(device_profile_bucket_count);
     }
     return &profile;
