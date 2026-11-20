@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import nm_symbols
+
 RUNTIME_PREFIX = "__"
 UNDEFINED = "Uw"
 OPTION = "--require-defined="
@@ -22,12 +24,8 @@ class ModuleImportError(Exception):
 def parse_nm(text):
     """(defined, undefined) global symbol names of one `nm -g` listing."""
     defined, undefined = set(), set()
-    for line in text.splitlines():
-        fields = line.split()
-        if len(fields) < 2 or fields[0].endswith(":"):
-            continue
-        kind, name = fields[-2], fields[-1]
-        (undefined if kind in UNDEFINED else defined).add(name)
+    for symbol in nm_symbols.parse(text):
+        (undefined if symbol.kind in UNDEFINED else defined).add(symbol.name)
     return defined, undefined - defined
 
 
@@ -64,7 +62,7 @@ def response_file(names):
 
 
 def run_nm(nm, path):
-    return subprocess.run([nm, "-g", str(path)], capture_output=True, text=True, check=True).stdout
+    return nm_symbols.run(nm, path, "-g", check=True).stdout
 
 
 def write_if_changed(path, text):
@@ -76,7 +74,7 @@ def write_if_changed(path, text):
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(
         description="Write the linker options that keep what the modules use in the main program")
-    parser.add_argument("--nm", default="arm-none-eabi-nm")
+    parser.add_argument("--nm", default=nm_symbols.DEFAULT_NM)
     parser.add_argument("--module", action="append", nargs="+", default=[],
                         metavar=("NAME", "OBJECT"), help="a module's name and its object files")
     parser.add_argument("--output", type=Path, required=True, help="the response file to write")

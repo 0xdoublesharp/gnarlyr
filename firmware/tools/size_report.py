@@ -8,13 +8,13 @@ attributed through the ELF's line information instead (`nm -S -l`, which needs -
 import argparse
 import re
 import shutil
-import subprocess
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
 import lang_pack
+import nm_symbols
 
 CODE_REGION = "CODE_RAM"
 DATA_REGION = "DATA_RAM"
@@ -38,7 +38,6 @@ INPUT_TAIL_LINE = re.compile(r"^\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)\s+(\S.*)$")
 FILL_LINE = re.compile(r"^ \*fill\*\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)")
 OUTPUT_LINE = re.compile(r"^(\.[\w.]+)\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)")
 MEMBER = re.compile(r"^(.*?)\(([^()]+)\)$")
-NM_LINE = re.compile(r"^([0-9a-f]+) ([0-9a-f]+) (\S) (\S+)(?:\t(.*):(\d+))?$")
 REGION_LINE = re.compile(r"^(\w+)\s+0x([0-9a-f]+)\s+0x([0-9a-f]+)\s+\w+$")
 SYMBOL_LINE = re.compile(r"^\s+0x([0-9a-f]+)\s+(\w+) = ")
 REGIONS_START = "Memory Configuration"
@@ -187,12 +186,8 @@ def object_name(origin):
 
 def parse_nm(text):
     """Symbol address -> source file, from `nm -S -l` output."""
-    files = {}
-    for line in text.splitlines():
-        match = NM_LINE.match(line)
-        if match and match.group(5):
-            files[int(match.group(1), 16)] = match.group(5)
-    return files
+    return {symbol.address: symbol.file for symbol in nm_symbols.parse(text)
+            if symbol.size is not None and symbol.line is not None}
 
 
 def attribute(piece, nm_files):
@@ -535,12 +530,11 @@ def report(device_map, overlay_map=None, nm_text="", top=25, objects=40, usb_ove
     return "\n".join(lines)
 
 
-def run_nm(elf, nm="arm-none-eabi-nm"):
+def run_nm(elf, nm=nm_symbols.DEFAULT_NM):
     """`nm -S -l` output for the ELF, or "" when nm isn't available."""
     if elf is None or not elf.exists() or shutil.which(nm) is None:
         return ""
-    result = subprocess.run([nm, "-S", "-l", str(elf)], capture_output=True, text=True,
-                            check=False)
+    result = nm_symbols.run(nm, elf, "-S", "-l")
     return result.stdout if result.returncode == 0 else ""
 
 
@@ -558,7 +552,7 @@ def parse_arguments(argv):
                         help="a language pack built into the image")
     parser.add_argument("--module-map", action="append", default=[], metavar="NAME=MAP",
                         help="a module's name and map file, in the order of the module numbers")
-    parser.add_argument("--nm", default="arm-none-eabi-nm", help="the nm to run on the ELF")
+    parser.add_argument("--nm", default=nm_symbols.DEFAULT_NM, help="the nm to run on the ELF")
     parser.add_argument("--top", type=int, default=25, help="how many symbols to list")
     parser.add_argument("--objects", type=int, default=40, help="how many objects to list")
     parser.add_argument("--summary", action="store_true", help="only the lines against the limits")

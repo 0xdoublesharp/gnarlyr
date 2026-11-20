@@ -35,6 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(ROOT / "firmware" / "tools"))
 from fnv import fnv1a
 from identity import parse as parse_identity, read as read_identity
+import nm_symbols
 
 IDENTITY = read_identity()
 DATA_DIRECTORY = IDENTITY["data_directory"]
@@ -85,9 +86,8 @@ DEFAULT_VOLUME_NAME = None
 INTERNAL_BYTES = range(1 << 30, (8 << 30) + 1)
 SAMPLE_MS = 1
 DEFAULT_TOP = 25
-ARM_NM = "arm-none-eabi-nm"
+ARM_NM = nm_symbols.DEFAULT_NM
 ARM_NM_FALLBACK = Path("/Volumes/Scratch/SnowskyEcho/tools/arm-15.3-expanded/Payload/bin") / ARM_NM
-NM_LINE = re.compile(r"^(\S+)\s*\|([0-9a-f]+)\|[^|]*\|\s*FUNC\|([0-9a-f]+)\|[^|]*\|[^\t]*(?:\t(.*):(\d+))?$")
 MAP_TEXT = ".text."
 SOURCE_ROOTS = ("/firmware/src/", "/firmware/platform/device/", "/firmware/platform/",
                 "/firmware/third_party/", "/firmware/")
@@ -384,12 +384,11 @@ def parse_nm(text, objects=None):
     its object from the linker map, when the map is given.
     """
     functions = {}
-    for line in text.splitlines():
-        match = NM_LINE.match(line)
-        if match and int(match.group(3), 16) > 0:
-            address = int(match.group(2), 16) & ~1
-            file = source_name(match.group(4)) if match.group(4) else (objects or {}).get(address, UNKNOWN_FILE)
-            functions.setdefault(address, (address, int(match.group(3), 16), match.group(1), file))
+    for symbol in nm_symbols.parse(text):
+        if symbol.type == "FUNC" and symbol.size:
+            address = symbol.address & ~1
+            file = source_name(symbol.file) if symbol.file else (objects or {}).get(address, UNKNOWN_FILE)
+            functions.setdefault(address, (address, symbol.size, symbol.name, file))
     return sorted(functions.values())
 
 
@@ -466,8 +465,7 @@ def run_nm(elf, nm=None):
         raise DebugError("nm_missing", f"{ARM_NM} is not on PATH; pass --nm")
     if not Path(elf).is_file():
         raise DebugError("elf_missing", f"{elf} is not a file")
-    result = subprocess.run([tool, "-S", "-l", "--defined-only", "-f", "sysv", str(elf)], check=False,
-                            capture_output=True, text=True)
+    result = nm_symbols.run(tool, elf, "-S", "-l", "--defined-only", "-f", "sysv")
     if result.returncode != 0:
         raise DebugError("nm_failed", result.stderr.strip() or "nm failed")
     return result.stdout
