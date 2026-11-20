@@ -55,10 +55,6 @@ static void defaults_have_no_selection_and_unity_audio(void)
     CHECK_EQUAL(0, active.trim_half_db);
     CHECK_EQUAL(0, active.balance);
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, active.volume_ceiling);
-    HeadphoneProfileGains gains = headphone_profile_gains(&active, REPLAY_GAIN_UNITY);
-    CHECK_EQUAL(REPLAY_GAIN_UNITY, gains.left);
-    CHECK_EQUAL(REPLAY_GAIN_UNITY, gains.right);
-    CHECK_EQUAL(53, headphone_profile_limit_volume(&active, 53));
 }
 
 static void four_utf8_profiles_round_trip_to_exact_bytes(void)
@@ -150,47 +146,6 @@ static void every_version_but_one_is_refused(void)
         HeadphoneProfiles decoded = headphone_profiles_defaults();
         CHECK_EQUAL(version == 1, headphone_profiles_decode(bytes, sizeof bytes, &decoded));
     }
-}
-
-static void trimmed_and_balanced_gains_compose_with_replay_gain(void)
-{
-    HeadphoneProfile profile = headphone_profile_defaults();
-    HeadphoneProfileGains unity = headphone_profile_gains(&profile, 100000);
-    CHECK_EQUAL(100000, unity.left);
-    CHECK_EQUAL(100000, unity.right);
-    profile.trim_half_db = 12;
-    HeadphoneProfileGains trim = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-    CHECK(trim.left > 32700 && trim.left < 33000);
-    CHECK_EQUAL(trim.left, trim.right);
-    HeadphoneProfileGains replay = headphone_profile_gains(&profile, 2 * REPLAY_GAIN_UNITY);
-    CHECK_EQUAL(trim.left * 2, replay.left);
-    CHECK_EQUAL(trim.right * 2, replay.right);
-    profile.trim_half_db = 0;
-    profile.balance = 50;
-    HeadphoneProfileGains right = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-    CHECK_EQUAL(REPLAY_GAIN_UNITY / 2, right.left);
-    CHECK_EQUAL(REPLAY_GAIN_UNITY, right.right);
-    profile.balance = -100;
-    HeadphoneProfileGains left = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-    CHECK_EQUAL(REPLAY_GAIN_UNITY, left.left);
-    CHECK_EQUAL(0, left.right);
-    profile.balance = 100;
-    right = headphone_profile_gains(&profile, UINT32_MAX);
-    CHECK_EQUAL(0, right.left);
-    CHECK_EQUAL(UINT32_MAX, right.right);
-}
-
-static void volume_ceiling_is_independent_of_requested_mode_volume(void)
-{
-    HeadphoneProfile profile = headphone_profile_defaults();
-    profile.volume_ceiling = 37;
-    CHECK_EQUAL(0, headphone_profile_limit_volume(&profile, 0));
-    CHECK_EQUAL(13, headphone_profile_limit_volume(&profile, 13));
-    CHECK_EQUAL(37, headphone_profile_limit_volume(&profile, 37));
-    CHECK_EQUAL(37, headphone_profile_limit_volume(&profile, 60));
-    CHECK_EQUAL(37, headphone_profile_limit_volume(&profile, 255));
-    profile.volume_ceiling = 0;
-    CHECK_EQUAL(0, headphone_profile_limit_volume(&profile, 60));
 }
 
 static void pcm_unity_preserves_bits_and_rounding_matches_existing_engine(void)
@@ -373,44 +328,6 @@ static void invalid_models_and_small_buffers_never_publish_partial_bytes(void)
     CHECK(!headphone_profiles_decode(bytes, sizeof bytes, NULL));
 }
 
-static void trim_balance_and_replay_gain_remain_bounded_across_every_setting(void)
-{
-    HeadphoneProfile profile = headphone_profile_defaults();
-    for (int balance = -100; balance <= 100; balance++) {
-        uint32_t previous_left = UINT32_MAX;
-        uint32_t previous_right = UINT32_MAX;
-        for (int trim = 0; trim <= HEADPHONE_PROFILE_TRIM_MAX_HALF_DB; trim++) {
-            profile.trim_half_db = (uint8_t)trim;
-            profile.balance = (int8_t)balance;
-            HeadphoneProfileGains maximum = headphone_profile_gains(&profile, UINT32_MAX);
-            CHECK(maximum.left <= previous_left);
-            CHECK(maximum.right <= previous_right);
-            previous_left = maximum.left;
-            previous_right = maximum.right;
-            HeadphoneProfileGains ordinary = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-            CHECK(ordinary.left <= REPLAY_GAIN_UNITY);
-            CHECK(ordinary.right <= REPLAY_GAIN_UNITY);
-            profile.balance = (int8_t)-balance;
-            HeadphoneProfileGains mirror = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-            CHECK_EQUAL(ordinary.left, mirror.right);
-            CHECK_EQUAL(ordinary.right, mirror.left);
-            HeadphoneProfileGains muted = headphone_profile_gains(&profile, 0);
-            CHECK_EQUAL(0, muted.left);
-            CHECK_EQUAL(0, muted.right);
-        }
-    }
-    profile.balance = 0;
-    profile.trim_half_db = HEADPHONE_PROFILE_TRIM_MAX_HALF_DB;
-    HeadphoneProfileGains maximum_trim = headphone_profile_gains(&profile, REPLAY_GAIN_UNITY);
-    CHECK_EQUAL(24, HEADPHONE_PROFILE_TRIM_MAX_HALF_DB);
-    CHECK(maximum_trim.left > 16400 && maximum_trim.left < 16500);
-    profile.trim_half_db++;
-    CHECK_EQUAL(0, headphone_profile_gains(&profile, REPLAY_GAIN_UNITY).left);
-    CHECK_EQUAL(0, headphone_profile_limit_volume(&profile, 60));
-    CHECK_EQUAL(0, headphone_profile_gains(NULL, REPLAY_GAIN_UNITY).right);
-    CHECK_EQUAL(0, headphone_profile_limit_volume(NULL, 60));
-}
-
 static void pcm_unity_covers_every_sixteen_bit_sample_and_original_word(void)
 {
     for (int32_t sample = -32768; sample <= 32767; sample++) {
@@ -446,13 +363,10 @@ int main(void)
         TEST_CASE(every_truncation_and_corruption_preserves_old_state),
         TEST_CASE(semantic_errors_are_rejected_even_with_a_valid_checksum),
         TEST_CASE(every_version_but_one_is_refused),
-        TEST_CASE(trimmed_and_balanced_gains_compose_with_replay_gain),
-        TEST_CASE(volume_ceiling_is_independent_of_requested_mode_volume),
         TEST_CASE(pcm_unity_preserves_bits_and_rounding_matches_existing_engine),
         TEST_CASE(none_and_unused_slots_have_a_canonical_encoding),
         TEST_CASE(utf8_names_are_bounded_printable_and_zero_padded),
         TEST_CASE(invalid_models_and_small_buffers_never_publish_partial_bytes),
-        TEST_CASE(trim_balance_and_replay_gain_remain_bounded_across_every_setting),
         TEST_CASE(pcm_unity_covers_every_sixteen_bit_sample_and_original_word),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

@@ -141,10 +141,3 @@ uint32_t headphone_profile_trim(uint8_t steps)
     }
     return trim;
 }
-
-uint8_t headphone_profile_limit_volume(const HeadphoneProfile *profile, uint8_t requested)
-{
-    return valid_levels(profile)
-               ? (requested < profile->volume_ceiling ? requested : profile->volume_ceiling)
-               : 0;
-}
