@@ -128,20 +128,40 @@ static void report_backup(void *context, uint32_t done, uint32_t total)
     }
 }
 
-static bool promotion_due(const TrialDisk *disk, const UsbShared *shared, uint32_t *buffer)
+static UpdateTrialPromotion promotion(const TrialDisk *disk, const UsbShared *shared,
+                                      uint32_t *buffer)
 {
     UpdateTrial trial = record_read(disk->volume);
-    bool confirmed = trial.state == UPDATE_TRIAL_RUNNING &&
-                     shared->last_session.end == HAL_USB_END_EJECTED &&
-                     shared->last_session.internal_write_ok;
-    return (confirmed || trial.state == UPDATE_TRIAL_PROMOTING) &&
-           running_from_slot_1(&disk->storage, buffer);
+    UpdateTrialCheck check = {.confirmed = shared->last_session.end == HAL_USB_END_EJECTED &&
+                                           shared->last_session.internal_write_ok,
+                              .slot_1_valid =
+                                  slot_copy_is_valid(&disk->storage, disk->storage.slot_1, buffer),
+                              .running_slot_1 = running_from_slot_1(&disk->storage, buffer)};
+    return update_trial_promotion(trial.state, check);
+}
+
+static bool end_trial(FatVolume *volume, UsbShared *shared)
+{
+    if (!record_write(volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
+        return false;
+    }
+    shared->trial.running = false;
+    shared->trial.promoting = false;
+    return true;
 }
 
 void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
 {
     TrialDisk disk;
-    if (!trial_record_open(&disk) || !promotion_due(&disk, shared, buffer)) {
+    if (!trial_record_open(&disk)) {
+        return;
+    }
+    UpdateTrialPromotion step = promotion(&disk, shared, buffer);
+    if (step == UPDATE_TRIAL_CLEAR) {
+        end_trial(disk.volume, shared);
+        return;
+    }
+    if (step != UPDATE_TRIAL_PROMOTE) {
         return;
     }
     uint32_t shown = 0;
@@ -149,9 +169,7 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
     if (record_write(disk.volume, (UpdateTrial){UPDATE_TRIAL_PROMOTING, 0}) &&
         trial_record_copy(&disk, disk.storage.slot_1, disk.storage.slot_2, buffer,
                           (UpdateProgress){report_backup, &shown}) &&
-        record_write(disk.volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
-        shared->trial.running = false;
-        shared->trial.promoting = false;
+        end_trial(disk.volume, shared)) {
         return;
     }
     app_show_notice(i18n_text(STR_UPDATE_FAILED), i18n_text(STR_UPDATE_FAILED_HINT));

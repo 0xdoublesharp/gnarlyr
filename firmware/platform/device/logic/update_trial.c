@@ -78,3 +78,16 @@ bool update_trial_settle(UpdateTrial *trial)
     trial->attempts--;
     return true;
 }
+
+UpdateTrialPromotion update_trial_promotion(UpdateTrialState state, UpdateTrialCheck check)
+{
+    bool due =
+        (state == UPDATE_TRIAL_RUNNING && check.confirmed) || state == UPDATE_TRIAL_PROMOTING;
+    if (!due) {
+        return UPDATE_TRIAL_KEEP;
+    }
+    if (!check.slot_1_valid) {
+        return UPDATE_TRIAL_CLEAR;
+    }
+    return check.running_slot_1 ? UPDATE_TRIAL_PROMOTE : UPDATE_TRIAL_KEEP;
+}

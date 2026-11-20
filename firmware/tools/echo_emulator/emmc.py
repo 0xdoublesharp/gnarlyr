@@ -17,6 +17,8 @@ IDB_TAG = 0x20A
 FIRMWARE_START = 0x2000
 SECTORS_PER_MIB = 0x800
 SLOT_2_OFFSET = 0x2800
+SLOT_2_AT_HALF_MIB = 2 * SLOT_2_OFFSET // SECTORS_PER_MIB
+SYSTEM_MIB = 96
 EXT_CSD_SECTOR_COUNT = 212
 READY_TRANSFER_STATUS = 0x900
 OCR_READY_SECTOR_MODE = 0xC0FF8080
@@ -281,7 +283,7 @@ def build_idb(system_mib):
     return bytes(block)
 
 
-def synthetic_emmc(machine, image, volume, system_mib=96):
+def synthetic_emmc(machine, image, volume, system_mib=SYSTEM_MIB):
     firmware_end = FIRMWARE_START + system_mib * SECTORS_PER_MIB
     disk = SparseDisk(firmware_end + volume.sector_count)
     for copy in range(IDB_COPIES):

@@ -288,13 +288,13 @@ class EchoImageHarness(unittest.TestCase):
         cls.module_elfs = image_artifacts.module_elfs(Path(cls.elf).parents[2])
 
     def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True,
-                usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False):
+                usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False, system_mib=None):
         return self.session_module.Session(image or self.image, self.elf, files=files,
                                            vbus_after_first_frame=vbus, volume=volume,
                                            usb_overlay_elf=self.usb_overlay_elf,
                                            rest_in_waits=rest_in_waits,
                                            module_elfs=self.module_elfs, usb_answer=usb_answer,
-                                           vbus_at_start=vbus_at_start)
+                                           vbus_at_start=vbus_at_start, system_mib=system_mib)
 
     def with_card(self, files=(), volume=None):
         return CardSlot(files, volume)
@@ -405,6 +405,17 @@ class EchoImageHarness(unittest.TestCase):
 
     def newer_image(self):
         return self.session_module.with_date(self.image, (2099, 1, 1))
+
+    def interrupt_slot_1_install(self, session, newer):
+        slot_bytes = self.session_module.SLOT_BYTES
+        partial = bytearray(newer[:slot_bytes])
+        chunk = CHUNK_SECTORS * 512
+        partial[:chunk] = b"\xff" * chunk
+        kept = make_image.USB_OVERLAY_OFFSET
+        partial[kept:] = self.image[kept:slot_bytes]
+        session.disk.write(session.layout["slot_1"], bytes(partial))
+        session.before = session.disk.snapshot()
+        return bytes(partial)
 
     def assert_update_refused(self, update):
         session = self.session(files=[update], vbus=True)

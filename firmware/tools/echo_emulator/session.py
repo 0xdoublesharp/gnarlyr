@@ -2,7 +2,7 @@ import struct
 
 import make_image
 
-from .emmc import EmmcCard, synthetic_emmc
+from .emmc import SYSTEM_MIB, EmmcCard, synthetic_emmc
 from .fat_reader import FatReader
 from .fat_volume import Fat32Volume, short_name
 from .machine import USB_ANSWER_FILE_TRANSFER, Machine
@@ -68,7 +68,8 @@ def with_brand(image, brand):
 class Session:
     def __init__(self, image, elf_path, files=(), vbus_after_first_frame=False, volume=None,
                  vbus_at_start=False, reuse=None, usb_overlay_elf=None, rest_in_waits=True,
-                 module_elfs=(), usb_answer=USB_ANSWER_FILE_TRANSFER, optional_hooks=()):
+                 module_elfs=(), usb_answer=USB_ANSWER_FILE_TRANSFER, optional_hooks=(),
+                 system_mib=None):
         self.image = image
         self.elf_path = elf_path
         self.usb_overlay_elf = usb_overlay_elf
@@ -81,7 +82,8 @@ class Session:
                 volume = Fat32Volume()
                 for name, data, size in files:
                     volume.add_file(name, data, size)
-            card, self.layout = synthetic_emmc(Clock(), self.image, volume)
+            card, self.layout = synthetic_emmc(Clock(), self.image, volume,
+                                                system_mib or SYSTEM_MIB)
         self.card = card
         self.disk = card.disk
         self.machine = Machine(self.image, elf_path, card, usb_overlay_elf, rest_in_waits,

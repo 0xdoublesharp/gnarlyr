@@ -21,6 +21,7 @@ from echo_image_harness import (
     struct,
     summary,
 )
+from echo_emulator.emmc import SLOT_2_AT_HALF_MIB
 from echo_emulator.machine import ADC_NO_KEY, VOLUME_UP_KEY_ADC
 import make_image
 import prove_upgrade
@@ -63,8 +64,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(sequence[-1], (start, CHUNK_SECTORS, struct.unpack_from("<I", image)[0]))
         self.assertNotIn(start, [lba for lba, _, _ in sequence[1:-1]])
 
-    def install_on_trial(self, update):
-        session = self.session(files=[(IDENTITY.update_file, update, None)], vbus=True)
+    def install_on_trial(self, update, system_mib=None):
+        session = self.session(files=[(IDENTITY.update_file, update, None)], vbus=True,
+                               system_mib=system_mib)
         session.machine.note("updater_install")
         self.assertEqual(self.boot_until_waiting_for_key(session), "reached board_wait_for_power_hold")
         self.assertEqual(session.machine.reached["trial_module_install"], 1)
@@ -180,6 +182,31 @@ class EchoImageTest(EchoImageHarness):
 
     def host_writes(self, machine):
         machine.stub_symbol("msc_write_proven", lambda machine: 1)
+
+    def test_a_cut_trial_install_is_never_promoted_over_the_build_in_slot_2(self):
+        newer = self.newer_image()
+        installed = self.install_on_trial(newer, SLOT_2_AT_HALF_MIB)
+        partial = self.interrupt_slot_1_install(installed, newer)
+        previous = self.start(installed, self.image, vbus=True)
+        machine = previous.machine
+        machine.host_ejects()
+        self.host_writes(machine)
+        machine.note("trial_boot_module_session_end")
+        self.assertEqual(previous.run_to_first_frame(), "condition met")
+        self.assertEqual(self.trial_record(previous), (TRIAL_RUNNING, 1))
+        self.assertEqual(previous.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertTrue(prove_upgrade.run_until_promoted(previous))
+        self.assert_healthy(previous)
+        self.assertEqual(machine.reached["trial_boot_module_session_end"], 1)
+        self.assertEqual(self.firmware_writes(previous, "slot_2"), [])
+        self.assertEqual(self.firmware_writes(previous, "slot_1"), [])
+        self.assertEqual(previous.slot_image("slot_2"), self.slot_bytes(self.image))
+        self.assertEqual(previous.slot_image("slot_1"), partial)
+        again = self.start(previous, self.image)
+        self.assertEqual(again.run_to_first_frame(), "condition met")
+        self.assertNotIn("trial_boot_module_start", again.machine.reached)
+        self.assertIsNone(self.trial_record(again))
+        summary("cut install kept slot 2", again)
 
     def test_a_trial_confirms_only_at_an_ejected_session_in_which_the_host_wrote(self):
         newer = self.newer_image()

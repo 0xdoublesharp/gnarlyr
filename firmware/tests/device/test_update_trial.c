@@ -124,6 +124,41 @@ static void the_started_record_constant_is_running_with_no_attempts(void)
     CHECK(memcmp(STARTED, bytes, sizeof bytes) == 0);
 }
 
+static UpdateTrialPromotion promotion(UpdateTrialState state, bool confirmed, bool valid,
+                                      bool running)
+{
+    return update_trial_promotion(state, (UpdateTrialCheck){confirmed, valid, running});
+}
+
+static void a_confirmed_trial_running_from_a_valid_slot_1_is_promoted(void)
+{
+    CHECK_EQUAL(UPDATE_TRIAL_PROMOTE, promotion(UPDATE_TRIAL_RUNNING, true, true, true));
+    CHECK_EQUAL(UPDATE_TRIAL_PROMOTE, promotion(UPDATE_TRIAL_PROMOTING, false, true, true));
+}
+
+static void a_due_promotion_with_an_invalid_slot_1_ends_the_trial_without_copying(void)
+{
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_RUNNING, true, false, true));
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_RUNNING, true, false, false));
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_PROMOTING, false, false, true));
+    CHECK_EQUAL(UPDATE_TRIAL_CLEAR, promotion(UPDATE_TRIAL_PROMOTING, true, false, false));
+}
+
+static void a_build_not_running_from_slot_1_is_not_promoted(void)
+{
+    CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_RUNNING, true, true, false));
+    CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_PROMOTING, true, true, false));
+}
+
+static void without_a_due_promotion_nothing_changes(void)
+{
+    for (int valid = 0; valid <= 1; valid++) {
+        CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_RUNNING, false, valid, true));
+        CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_NONE, true, valid, true));
+        CHECK_EQUAL(UPDATE_TRIAL_KEEP, promotion(UPDATE_TRIAL_ROLLED_BACK, true, valid, true));
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -138,6 +173,10 @@ int main(void)
         TEST_CASE(without_a_running_trial_nothing_is_charged),
         TEST_CASE(the_charge_stops_at_its_largest_value),
         TEST_CASE(the_started_record_constant_is_running_with_no_attempts),
+        TEST_CASE(a_confirmed_trial_running_from_a_valid_slot_1_is_promoted),
+        TEST_CASE(a_due_promotion_with_an_invalid_slot_1_ends_the_trial_without_copying),
+        TEST_CASE(a_build_not_running_from_slot_1_is_not_promoted),
+        TEST_CASE(without_a_due_promotion_nothing_changes),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
