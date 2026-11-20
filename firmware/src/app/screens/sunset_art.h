@@ -18,6 +18,7 @@ typedef struct SunsetArt {
     bool sun_meter;
     Color crown;
     Color base;
+    Rect hole;
 } SunsetArt;
 
 typedef void (*SunsetLayer)(const SunsetArt *art, Canvas *canvas);

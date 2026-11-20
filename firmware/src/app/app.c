@@ -67,6 +67,7 @@
 #include "wall_time.h"
 
 enum {
+    NOW_PLAYING_RETRY_MS = 2000,
     PASS_BUSY_MS = 1,
     PASS_SCREEN_ON_MS = 4,
     PASS_SCREEN_OFF_MS = 10,
@@ -148,6 +149,9 @@ typedef struct AppState {
     bool light_after_frame;
     StringId goodbye_text;
     Toast toast;
+    uint32_t toast_composed;
+    uint32_t now_playing_magic;
+    uint32_t now_playing_retry_ms;
     BluetoothLink bluetooth;
     uint32_t shown_refusals;
     StatusBarState status_bar;
@@ -765,14 +769,27 @@ static ScreenAction now_playing_action(void)
 
 static bool now_playing_ready(void)
 {
+    if (top_screen() == &app.screens.now_playing.screen && app.now_playing_magic == 0 &&
+        app.now_playing_retry_ms != 0 && !deadline_reached(app.now_ms, app.now_playing_retry_ms)) {
+        return true;
+    }
     const PlayingModuleEntry *entry = (const PlayingModuleEntry *)screen_modules_use(
         &app.screens, screen_modules_playing(&app.screens));
     if (entry != NULL) {
         entry->now_playing_attach(&app.screens.now_playing);
+        app.now_playing_magic = entry->module.magic;
     } else {
         now_playing_fallback_attach(&app.screens.now_playing);
+        app.now_playing_magic = 0;
+        app.now_playing_retry_ms = (app.now_ms + NOW_PLAYING_RETRY_MS) | 1u;
     }
     return true;
+}
+
+static bool now_playing_owned(void)
+{
+    const ScreenModuleEntry *loaded = hal_system_loaded_module();
+    return loaded != NULL && loaded->magic == app.now_playing_magic;
 }
 
 static bool screen_ready(const Screen *screen)
@@ -1451,12 +1468,21 @@ static void mask_motion(const void *owner)
     }
 }
 
+static void compose_toast(void)
+{
+    uint32_t shown = app.toast.visible ? app.toast.until_ms | 1u : 0;
+    if (shown != app.toast_composed) {
+        app.toast_composed = shown;
+        frame_diff_mask(&app.frame_diff, app.frame_diff.masked);
+    }
+}
+
 static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_t now_ms)
 {
     NowPlayingScreen *playing = &app.screens.now_playing;
     if (owner == &playing->screen &&
         settings_now_playing_style(&app.settings.settings) != NOW_PLAYING_COVER &&
-        now_playing_ready() && playing->config.cassette_animate != NULL) {
+        now_playing_owned() && playing->config.cassette_animate != NULL) {
         app.render_wanted |= playing->config.cassette_animate(playing, &app.frame_diff, visible);
         return;
     }
@@ -2435,6 +2461,7 @@ CORE_SEAM void app_step(void)
         follow_destination(&app.screens.now_playing.destination, now_ms);
     }
     follow_destination(&app.screens.shortcut_destination, now_ms);
+    compose_toast();
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
     FrameDrawer drawer = {.draw = draw_frame, .context = &app};

@@ -41,6 +41,7 @@
 #include "screen_modules.h"
 #include "screen_snapshot.h"
 #include "screens/charge_screen.h"
+#include "screens/meter_now_playing.h"
 #include "screens/now_playing_screen.h"
 #include "screens/wire_boot.h"
 #include "settings/equalizer_slots.h"
@@ -3216,6 +3217,37 @@ static void a_chord_hold_stops_seeking_once_power_wakes_a_list(void)
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     CHECK(title_is("About"));
+}
+
+static void a_toast_over_the_meter_stage_is_sent_whole_and_cleared_whole(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    settings_set_now_playing_style(&store.settings, NOW_PLAYING_VU);
+    CHECK(settings_store_save(&store));
+    restart_app();
+    wait_ms(SPLASH_MS);
+    play_first_album_track();
+    CHECK(title_is("Now Playing"));
+    wait_ms(500);
+    wait_ms(500);
+    Rect stage = meter_now_playing_layout(app_theme()).stage;
+    Toast locked = {.visible = true};
+    strcpy(locked.text, "Buttons locked");
+    Rect area = toast_area(&locked, app_theme());
+    CHECK(area.y + 2 < stage.y + stage.height && area.x + 2 < stage.x + stage.width);
+    long before = fake_hal_pixels_written();
+    hold_play_and_power();
+    CHECK(toast_is("Buttons locked"));
+    CHECK(fake_hal_pixels_written() - before >= (long)stage.width * stage.height);
+    CHECK_EQUAL(app_theme()->colors.header_background, fake_hal_pixel(area.x + 2, area.y + 2));
+    for (int pass = 0; pass < 40; pass++) {
+        wait_ms(50);
+    }
+    CHECK(app_toast_text() == NULL);
+    CHECK(app_theme()->colors.header_background != fake_hal_pixel(area.x + 2, area.y + 2));
+    CHECK(app_theme()->colors.divider != fake_hal_pixel(area.x, area.y + 2));
 }
 
 static void play_and_power_lock_and_unlock_the_buttons(void)
@@ -8392,6 +8424,7 @@ int main(void)
         TEST_CASE(a_chord_tap_never_reaches_a_list_woken_mid_chord),
         TEST_CASE(a_chord_hold_stops_seeking_once_power_wakes_a_list),
         TEST_CASE(play_and_power_lock_and_unlock_the_buttons),
+        TEST_CASE(a_toast_over_the_meter_stage_is_sent_whole_and_cleared_whole),
         TEST_CASE(holding_play_and_tapping_volume_skips_tracks_with_a_toast),
         TEST_CASE(releasing_play_after_a_chord_does_not_pause),
         TEST_CASE(holding_menu_and_holding_volume_scrubs_by_the_time_held),

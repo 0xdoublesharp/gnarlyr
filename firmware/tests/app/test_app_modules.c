@@ -499,6 +499,41 @@ static void a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_
     choose_from_the_sleep_list();
 }
 
+static void open_now_playing_from_all_songs(void)
+{
+    open_music();
+    move_down(6);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+}
+
+static void a_missing_now_playing_module_is_retried_at_most_every_two_seconds(void)
+{
+    start_app_with_style(NOW_PLAYING_VU);
+    open_now_playing_from_all_songs();
+    CHECK(title_is("Now Playing"));
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    int before = fake_hal_module_refusals();
+    for (int pass = 0; pass < 20; pass++) {
+        wait_ms(20);
+    }
+    int first = fake_hal_module_refusals() - before;
+    CHECK(first >= 1 && first <= 2);
+    CHECK(title_is("Now Playing"));
+    PlayerState state = app_player_status().state;
+    tap(KEY_PLAY);
+    CHECK(app_player_status().state != state);
+    tap(KEY_POWER);
+    for (int pass = 0; pass < 100; pass++) {
+        wait_ms(20);
+    }
+    CHECK(fake_hal_module_refusals() - before <= first + 1);
+}
+
 static void a_module_in_the_slot_is_not_loaded_again(void)
 {
     start_app();
@@ -964,6 +999,7 @@ int main(void)
         TEST_CASE(quick_settings_cycles_from_the_style_settings_chose),
         TEST_CASE(a_menu_hold_shortcut_over_a_value_list_gives_the_slot_back_in_the_same_step),
         TEST_CASE(a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_drawing),
+        TEST_CASE(a_missing_now_playing_module_is_retried_at_most_every_two_seconds),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),
         TEST_CASE(a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so),

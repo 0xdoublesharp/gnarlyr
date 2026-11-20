@@ -7,6 +7,7 @@
 #include "screens/meter_now_playing.h"
 #include "screens/playing_work.h"
 #include "screens/sunset_scene.h"
+#include "ui/toast.h"
 
 static Theme theme;
 static Settings settings;
@@ -310,6 +311,53 @@ static void changing_the_theme_in_place_repaints_the_stage(void)
     CHECK_EQUAL(0, mismatches);
 }
 
+static Toast toast;
+
+static int toast_mismatches(Canvas *canvas)
+{
+    draw_fresh(canvas);
+    toast_draw(&toast, canvas, &theme);
+    int mismatches = 0;
+    for (int y = 0; y < canvas->bounds.height; y++) {
+        for (int x = 0; x < canvas->bounds.width; x++) {
+            mismatches += fake_hal_pixel(x, y) != pixels[y * canvas->bounds.width + x] ? 1 : 0;
+        }
+    }
+    return mismatches;
+}
+
+static void a_toast_over_the_stage_survives_meter_motion_and_a_reset(int style, int orientation,
+                                                                     int size)
+{
+    Canvas canvas = start(orientation, size, APPEARANCE_NEON_NOIR, (NowPlayingStyle)style);
+    toast = (Toast){.visible = true};
+    strcpy(toast.text, "Buttons locked");
+    screen.config.toast = &toast;
+    screen.now_ms = 1000;
+    draw_fresh(&canvas);
+    toast_draw(&toast, &canvas, &theme);
+    hal_display_write(0, 0, canvas.bounds.width, canvas.bounds.height, pixels);
+    full_scale();
+    animate_frames(3);
+    CHECK_EQUAL(0, toast_mismatches(&canvas));
+    memset(samples, 0, sizeof samples);
+    screen.status.track++;
+    screen.text_changed_ms = screen.now_ms;
+    animate_frames(3);
+    CHECK_EQUAL(0, toast_mismatches(&canvas));
+}
+
+static void a_visible_toast_keeps_its_pixels_through_a_meter_reset_at_every_layout(void)
+{
+    for (int style = NOW_PLAYING_VU; style <= NOW_PLAYING_SPECTRUM; style++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                a_toast_over_the_stage_survives_meter_motion_and_a_reset(style, orientation, size);
+            }
+        }
+    }
+}
+
 static void an_unlit_crown_stays_dark_after_long_uptime(void)
 {
     Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
@@ -485,6 +533,7 @@ int main(void)
         TEST_CASE(a_new_track_in_silence_repaints_the_crown_and_peak_it_inherited),
         TEST_CASE(changing_the_style_in_place_repaints_the_stage),
         TEST_CASE(changing_the_theme_in_place_repaints_the_stage),
+        TEST_CASE(a_visible_toast_keeps_its_pixels_through_a_meter_reset_at_every_layout),
         TEST_CASE(scale_marks_sit_beside_each_half_of_the_sun),
         TEST_CASE(spectrum_bars_have_white_tops_and_striped_reflections),
         TEST_CASE(the_floor_lines_brighten_with_the_bass),
