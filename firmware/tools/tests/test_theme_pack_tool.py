@@ -55,7 +55,8 @@ class ThemeToolTests(unittest.TestCase):
             self.assertEqual(256 + number, theme_pack.SLOTS["icon_" + name])
         self.assertEqual((20, 20), theme_pack.icon_box(theme_pack.SLOTS["icon_shuffle"]))
         self.assertEqual((14, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_seek"]))
-        self.assertEqual((9, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_lock"]))
+        for name in ("bolt", "bluetooth_small", "lock", "song_small", "plug"):
+            self.assertEqual((9, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_" + name]))
 
     def test_palette_and_all_metadata_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:

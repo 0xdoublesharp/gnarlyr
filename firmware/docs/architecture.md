@@ -508,11 +508,11 @@ Now Playing does not use the wait-motion owner. Its cassette renderer has the se
 
 | Box | Icons |
 |---|---|
-| Large, 20×20 cells | Music, Audiobook, Podcast, Now Playing, Mixtape, Audio, Settings, Cover Flow, Artist, Album Artist, Album, Genre, Folder, Song, Playlist, Favorite, Shuffle, Repeat, Display, Theme, Power, Sleep, Timeout, Controls, Start, Rescan, Diagnostics, Gain, Jack, USB, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu, Disc, Hub |
+| Large, 20×20 cells | Music, Audiobook, Podcast, Now Playing, Mixtape, Audio, Settings, Cover Flow, Artist, Album Artist, Album, Genre, Folder, Song, Playlist, Favorite, Shuffle, Repeat, Display, Theme, Power, Sleep, Timeout, Controls, Start, Rescan, Diagnostics, Gain, Jack, USB, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu, Disc, Hub, Search, Computer |
 | Small, 14×14 cells | Play, Pause, Next, Previous, Seek, Queue, Speaker, Album (small), Shuffle (small) |
-| Narrow, 9×14 cells | Bolt, Bluetooth (small), Lock, Song (small) |
+| Narrow, 9×14 cells | Bolt, Bluetooth (small), Lock, Song (small), Plug |
 
-The names are the `IconId` values in that order (`ICON_MUSIC` … `ICON_SONG_SMALL`). The status bar draws Play, Pause, Bluetooth (small), Lock, Song (small) or Album (small) beside Shuffle (small), and Bolt inside the battery on USB power; the Now Playing feedback badge draws Play, Pause, Next and Previous; the charge screen draws Bolt. Shuffle, Display, Theme, Power, Sleep, Controls, Start, Rescan, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu and Seek have no drawing: no screen showed them, so their glyphs were removed (188 bytes of resident table). Their IDs stay reserved in `UNDRAWN_ICONS` (`src/ui/icons.c`), because theme packs address icons by ID; `icon_draw` draws nothing for them and the glyph walk skips them.
+The names are the `IconId` values in that order (`ICON_MUSIC` … `ICON_PLUG`). The status bar draws Play, Pause, Bluetooth (small), Lock, Song (small) or Album (small) beside Shuffle (small), and Bolt inside the battery on USB power; the Now Playing feedback badge draws Play, Pause, Next and Previous; the charge screen draws Bolt. Shuffle, Display, Theme, Power, Sleep, Controls, Start, Rescan, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu and Seek have no drawing: no screen showed them, so their glyphs were removed (188 bytes of resident table). Their IDs stay reserved in `UNDRAWN_ICONS` (`src/ui/icons.c`), because theme packs address icons by ID; `icon_draw` draws nothing for them and the glyph walk skips them.
 
 Sizes:
 
