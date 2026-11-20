@@ -1,8 +1,8 @@
 fingerprint	tool	check	path	reason
-b41b87b816c5dcfe	clang-tidy	clang-analyzer-security.ArrayBound	platform/device/logic/audio_engine.c	end_segment runs only while decoding, which always holds at least one segment.
-9cd524f512270ffa	clang-analyzer	security.ArrayBound	platform/device/logic/audio_engine.c	end_segment runs only while decoding, which always holds at least one segment.
+b41b87b816c5dcfe	clang-tidy	clang-analyzer-security.ArrayBound	platform/device/logic/audio_engine.c	Every reset_positions (count 0) is followed by push_segment or the failed-open path that sets the count to 1, before any frame reaches end_segment.
+9cd524f512270ffa	clang-analyzer	security.ArrayBound	platform/device/logic/audio_engine.c	Every reset_positions (count 0) is followed by push_segment or the failed-open path that sets the count to 1, before any frame reaches end_segment.
 99c490be81ac2c46	clang-tidy	readability-suspicious-call-argument	platform/device/logic/audio_tempo.c	Names only resemble the parameters; the argument order was checked and is intended.
-122b37a6c79c9123	clang-tidy	bugprone-signed-char-misuse	platform/device/logic/bt_module.c	Status bytes are ASCII letters and digits below 0x80, so sign never differs.
+122b37a6c79c9123	clang-tidy	bugprone-signed-char-misuse	platform/device/logic/bt_module.c	char is unsigned on the Cortex-M3 (AAPCS), so the comparison is exact on the player; only the signed-char host differs above 0x7F.
 3885c9b69bfa3274	clang-tidy	clang-analyzer-security.ArrayBound	platform/device/logic/core1_opus.c	opus_decode_open accepts only 1 or 2 channels, so width - 1 is 0 or 1.
 13daaca59f0212ae	clang-analyzer	security.ArrayBound	platform/device/logic/core1_opus.c	opus_decode_open accepts only 1 or 2 channels, so width - 1 is 0 or 1.
 95298127828d41f9	clang-tidy	bugprone-swapped-arguments	platform/device/logic/debug_report.c	append_field takes (text, name, signed, value); the arguments are in the declared order.
@@ -14,8 +14,8 @@ dc5e0a5153c868bb	clang-tidy	bugprone-branch-clone	platform/device/logic/fat.c	Id
 044481103b862d88	clang-tidy	bugprone-too-small-loop-variable	platform/device/logic/msc.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
 4ec3de608571359b	clang-tidy	misc-redundant-expression	platform/device/logic/updater.c	Defensive size check; the constant comparison makes it redundant but harmless.
 da13f050635a5054	clang-tidy	bugprone-macro-parentheses	platform/device/logic/usb_audio_descriptors.c	Every use passes an identifier or literal; parentheses would not change the expansion.
-dda3a91d06c6168e	clang-tidy	clang-analyzer-core.BitwiseShift	platform/device/logic/wide_divide.c	A shift of 32 needs a zero divisor; wide_divide has the contract of C division and callers pass non-zero.
-03c0eb1beab9ea74	clang-analyzer	core.BitwiseShift	platform/device/logic/wide_divide.c	A shift of 32 needs a zero divisor; wide_divide has the contract of C division and callers pass non-zero.
+dda3a91d06c6168e	clang-tidy	clang-analyzer-core.BitwiseShift	platform/device/logic/wide_divide.c	A shift of 32 needs a zero divisor; wide_divide backs libgcc __udivmoddi4, where a zero divisor is already undefined in the C division.
+03c0eb1beab9ea74	clang-analyzer	core.BitwiseShift	platform/device/logic/wide_divide.c	A shift of 32 needs a zero divisor; wide_divide backs libgcc __udivmoddi4, where a zero divisor is already undefined in the C division.
 be1938e46e21c4bf	clang-tidy	clang-analyzer-security.ArrayBound	platform/sim/sim_language.c	The loop stops at the terminating zero; the analyzer does not model strcspn.
 72c19a98b961e9cd	clang-analyzer	security.ArrayBound	platform/sim/sim_language.c	The loop stops at the terminating zero; the analyzer does not model strcspn.
 61d6f1ac94c4c968	clang-tidy	bugprone-too-small-loop-variable	src/app/discovery_preferences.c	Loop bound is a compile-time constant inside the variable's range (at most 259).

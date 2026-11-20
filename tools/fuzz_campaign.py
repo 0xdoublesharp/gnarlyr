@@ -316,6 +316,7 @@ class Campaign:
         artifacts.mkdir(parents=True, exist_ok=True)
         log = artifacts / "fuzz.log"
         binary = layout["binaries"] / f"fuzz_{name}"
+        earlier = {path.name for path in artifacts_in(artifacts)}
         with corpus_lock(layout["corpus"], name):
             added = seed_corpus(corpus, settings["seeds"])
             files_before = count_files(corpus)
@@ -324,15 +325,7 @@ class Campaign:
             started = self.clock()
             code, output = self.run_logged(fork_command(binary, corpus, artifacts, settings), log, env)
             fuzzed = parse_fork_log(output)
-            merged = corpus.with_name(corpus.name + ".merging")
-            if merged.exists():
-                shutil.rmtree(merged)
-            merged.mkdir()
-            merge_code, _ = self.run_logged(merge_command(binary, merged, corpus, settings["max_length"]), log, env)
-            if merge_code == 0 and count_files(merged) > 0:
-                replace_with_merge(corpus, merged)
-            else:
-                shutil.rmtree(merged)
+            merge_code = self.merge(binary, corpus, settings, log, env) if before is not None else None
             _, output = self.run_logged(coverage_command(binary, corpus, settings["max_length"]), log, env)
             after = parse_coverage(output)
             result = {
@@ -347,11 +340,24 @@ class Campaign:
                 "coverage_after": after,
                 "dictionary": bool(settings.get("dictionary")),
                 **fuzzed,
-                "artifacts": write_repros(artifacts, binary, layout.get("suppressions")),
+                "artifacts": [artifact for artifact in write_repros(artifacts, binary, layout.get("suppressions"))
+                              if Path(artifact["path"]).name not in earlier],
                 "log": str(log),
             }
         self.record(name, result)
         return result
+
+    def merge(self, binary, corpus, settings, log, env):
+        merged = corpus.with_name(corpus.name + ".merging")
+        if merged.exists():
+            shutil.rmtree(merged)
+        merged.mkdir()
+        code, _ = self.run_logged(merge_command(binary, merged, corpus, settings["max_length"]), log, env)
+        if code == 0 and count_files(merged) > 0:
+            replace_with_merge(corpus, merged)
+        else:
+            shutil.rmtree(merged)
+        return code
 
     def record(self, name, result):
         with self.lock:

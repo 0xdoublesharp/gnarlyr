@@ -529,19 +529,25 @@ def run_analyze(parts, env, python, jobs):
     import firmware_analyze as analyze
 
     report = analysis_report_dir()
-    summary = {}
+    summary_path = report / "summary.json"
+    summary = json.loads(summary_path.read_text()) if summary_path.is_file() else {}
+    current = {}
     if {"tidy", "analyzer"} & set(parts):
-        summary.update(analyze_sources(parts, env, python, jobs, report))
+        current.update(analyze_sources(parts, env, python, jobs, report))
     if "stack" in parts:
         build = build_stack_analysis(env, python)
         stack = analyze.stack_bound(build)
         (report / "stack.json").write_text(json.dumps(stack, indent=2))
         (report / "stack.md").write_text(analyze.stack_markdown(stack))
-        summary["stack"] = {name: result["combined"] for name, result in stack.items()}
-    (report / "summary.json").write_text(json.dumps(summary, indent=2))
+        current["stack"] = {name: {"direct": result["combined_direct"], "one_level_indirect": result["combined"],
+                                   "with_overlay": result.get("with_companion", {}).get("bytes"),
+                                   "budget": result["budget"], "cycles": len(result["cycles"])}
+                            for name, result in stack.items()}
+    summary.update(current)
+    summary_path.write_text(json.dumps(summary, indent=2))
     print(f"Analysis written to {report}")
-    print(json.dumps(summary, indent=2))
-    new = sorted(name for name, counts in summary.items() if isinstance(counts, dict) and counts.get("new"))
+    print(json.dumps(current, indent=2))
+    new = sorted(name for name, counts in current.items() if isinstance(counts, dict) and counts.get("new"))
     if new:
         raise SystemExit(f"New findings against tests/analysis/baseline.tsv from: {', '.join(new)}")
 

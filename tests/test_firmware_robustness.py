@@ -235,6 +235,35 @@ class CampaignTests(unittest.TestCase):
         self.assertIn("LeakSanitizer detected without leaving an input", text)
         self.assertIn("| y | error: boom", text)
 
+    def test_a_crashing_seed_keeps_the_corpus_unmerged(self):
+        self.commands = []
+
+        def crashing(command, log, env):
+            self.commands.append(command)
+            with open(log, "a") as handle:
+                handle.write("==1== ERROR: libFuzzer: deadly signal\n")
+            return 77
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            layout = {"corpus": root / "corpus", "report": root / "report", "summary": "s", "binaries": root}
+            settings = {"seconds": 5, "max_length": 64, "seeds": [b"s1", b"s2"]}
+            result = campaign.Campaign(layout, runner=crashing).run(["ape_track"], lambda name: settings, {}, 1)[0]
+            self.assertIsNone(result["merge_exit_code"])
+            self.assertEqual(result["files_after"], 2)
+        self.assertFalse(any("-merge=1" in command for command in self.commands))
+
+    def test_artifacts_from_an_earlier_run_the_same_day_are_not_reported_again(self):
+        self.commands = []
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "report/store").mkdir(parents=True)
+            (root / "report/store/crash-old").write_bytes(b"x")
+            layout = {"corpus": root / "corpus", "report": root / "report", "summary": "s", "binaries": root}
+            settings = {"seconds": 5, "max_length": 64, "seeds": [b"s1"]}
+            result = campaign.Campaign(layout, runner=self.runner).run(["store"], lambda name: settings, {}, 1)[0]
+        self.assertEqual([Path(item["path"]).name for item in result["artifacts"]], ["crash-abc"])
+
     def test_two_campaigns_cannot_share_a_corpus(self):
         with tempfile.TemporaryDirectory() as directory:
             with campaign.corpus_lock(Path(directory), "store"):
@@ -372,6 +401,13 @@ edge: { sourcename: "pong" targetname: "ping" label: "a.c:7:9" }
         depths = self.graph().depths(100, ("ping",))
         self.assertEqual(depths["main"][0], 116)
 
+    def test_an_edge_between_two_separate_self_loops_is_followed(self):
+        graph = analyze.CallGraph()
+        graph.frames = {"a": 10, "b": 20, "c": 30}
+        graph.calls = {"a": {"a", "b"}, "b": {"b", "c"}, "c": set()}
+        self.assertEqual(graph.cycles(), [["a"], ["b"]])
+        self.assertEqual(graph.depths()["a"], (60, ("a", "b", "c")))
+
     def test_recursion_unknown_and_dynamic_frames_are_flagged(self):
         graph = self.graph()
         self.assertEqual(graph.cycles(), [["ping", "pong"]])
@@ -389,16 +425,61 @@ edge: { sourcename: "pong" targetname: "ping" label: "a.c:7:9" }
         self.assertTrue(report["x"]["missing"])
 
     def test_address_taken_functions_are_found_in_loaded_words(self):
-        data = elf32([("main", 0x1000), ("callback", 0x1008), ("unused", 0x100C)], [0, 0x1009, 0x2000, 7])
+        data = elf32([("main", 0x1000), ("callback", 0x1008), ("alias", 0x1008), ("unused", 0x100C)],
+                     [0, 0x1009, 0x2000, 7])
         taken, present = analyze.address_taken(data)
-        self.assertEqual(taken, ["callback"])
-        self.assertEqual(present, ["callback", "main", "unused"])
+        self.assertEqual(taken, ["alias", "callback"])
+        self.assertEqual(present, ["alias", "callback", "main", "unused"])
+
+    def test_folded_aliases_take_the_frame_of_the_function_they_share_an_address_with(self):
+        graph = analyze.CallGraph()
+        graph.frames = {"get.lto_priv.0": 24}
+        graph.calls = {"get.lto_priv.0": {"leaf"}}
+        analyze.resolve_aliases(graph, [{"get.lto_priv.0", "get.lto_priv.1"}, {"lonely"}])
+        self.assertEqual(graph.frames, {"get.lto_priv.0": 24, "get.lto_priv.1": 24})
+        self.assertEqual(graph.calls["get.lto_priv.1"], {"leaf"})
+
+    def test_discarded_archive_members_are_not_linked_objects(self):
+        text = ("Discarded input sections\n .text.x 0x0 0x4 ../src/libecho_codec.a(flac.c.obj)\n"
+                "Linker script and memory map\n .text.app_step\n                0x03050000 0x40 "
+                "../src/libecho_app.a(app.c.obj)\n")
+        objects = analyze.linked_objects(text, Path("/b/platform"))
+        self.assertEqual(objects, {("/b/src/libecho_app.a", "app.c.obj"): {"app_step"}})
+
+    def test_cold_and_cloned_function_sections_name_their_function(self):
+        text = (" .text.unlikely.seek_to.constprop.0 0x1000 0x8 CMakeFiles/x.dir/a.c.obj\n")
+        names = analyze.linked_objects(text, Path("/b"))["/b/CMakeFiles/x.dir/a.c.obj"]
+        self.assertIn("seek_to.constprop.0", names)
+
+    def test_program_graph_joins_link_time_and_per_file_graphs_for_kept_functions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            program = root / "platform/device"
+            library = root / "src/codec/CMakeFiles/echo_codec.dir"
+            program.mkdir(parents=True)
+            library.mkdir(parents=True)
+            (program / "prog.elf").write_bytes(elf32([("main", 0x1000), ("decode", 0x1008)], [0]))
+            (program / "prog.elf.ltrans0.ltrans.ci").write_text(
+                'node: { title: "/tmp/cc.ltrans0.o:main" label: "main\\na.c:1:1\\n16 bytes (static)\\n'
+                '0 dynamic objects" }\n'
+                'edge: { sourcename: "/tmp/cc.ltrans0.o:main" targetname: "decode" label: "a.c:2:3" }\n')
+            (library / "flac.c.ci").write_text(
+                'node: { title: "decode" label: "decode\\nflac.c:1:1\\n40 bytes (static)\\n0 dynamic objects" }\n'
+                'node: { title: "main" label: "main\\nflac.c:9:1\\n900 bytes (static)\\n0 dynamic objects" }\n')
+            (program / "prog.map").write_text(
+                "Linker script and memory map\n .text.unlikely.decode\n                0x1008 0x8 "
+                "../../src/codec/libecho_codec.a(flac.c.obj)\n")
+            graph, files = analyze.program_graph(program, "prog", set())
+        self.assertEqual(len(files), 2)
+        self.assertEqual(graph.frames, {"main": 16, "decode": 40})
+        self.assertEqual(graph.depths()["main"], (56, ("main", "decode")))
 
     def test_map_objects_include_archive_members(self):
-        text = "LOAD CMakeFiles/x.dir/a.c.obj\n .text 0x0 0x4 ../src/libecho_app.a(app.c.obj)\n"
+        text = (" .text.main      0x1000 0x8 CMakeFiles/x.dir/a.c.obj\n"
+                " .text.helper    0x1008 0x4 ../src/libecho_app.a(app.c.obj)\n")
         objects = analyze.linked_objects(text, Path("/b/platform"))
-        self.assertIn("/b/platform/CMakeFiles/x.dir/a.c.obj", objects)
-        self.assertIn(("/b/src/libecho_app.a", "app.c.obj"), objects)
+        self.assertEqual(objects["/b/platform/CMakeFiles/x.dir/a.c.obj"], {"main"})
+        self.assertEqual(objects[("/b/src/libecho_app.a", "app.c.obj")], {"helper"})
 
     def test_object_and_callgraph_names_follow_gcc_auxiliary_naming(self):
         self.assertEqual(analyze.callgraph_of("/b/x.dir/a.c.obj"), "/b/x.dir/a.c.ci")

@@ -311,8 +311,15 @@ class CallGraph:
                         found.append(sorted(component))
         return sorted(found)
 
+    def components(self):
+        return {member: index for index, component in enumerate(self.cycles()) for member in component}
+
     def depths(self, indirect_cost=0, indirect_path=()):
-        cyclic = {member for component in self.cycles() for member in component}
+        component = self.components()
+
+        def inside(node, child):
+            return child == node or (node in component and component.get(child) == component[node])
+
         memo = {}
         for root in sorted(self.calls):
             if root in memo:
@@ -324,8 +331,7 @@ class CallGraph:
                     work.pop()
                     continue
                 pending = [child for child in sorted(self.calls.get(node, ()))
-                           if child != INDIRECT and child not in memo and child != node
-                           and not (child in cyclic and node in cyclic)]
+                           if child != INDIRECT and child not in memo and not inside(node, child)]
                 if pending:
                     work.extend(pending)
                     continue
@@ -334,7 +340,7 @@ class CallGraph:
                 for child in sorted(self.calls.get(node, ())):
                     if child == INDIRECT:
                         candidate = (indirect_cost, tuple(indirect_path))
-                    elif child == node or (child in cyclic and node in cyclic) or child not in memo:
+                    elif inside(node, child) or child not in memo:
                         continue
                     else:
                         candidate = memo[child]
@@ -375,7 +381,7 @@ def elf_functions(data):
                 name_offset, value, symbol_size, info, _, _ = struct.unpack_from("<IIIBBH", data, offset + entry * 16)
                 if info & 0xF == 2 and value:
                     end = data.index(b"\0", strings[4] + name_offset)
-                    functions[value & ~1] = data[strings[4] + name_offset:end].decode()
+                    functions.setdefault(value & ~1, set()).add(data[strings[4] + name_offset:end].decode())
         if kind == 1 and flags & 2:
             loaded.append((address, data[offset:offset + size]))
     return functions, loaded
@@ -388,8 +394,8 @@ def address_taken(data):
         for position in range(0, len(contents) - 3, 2):
             word, = struct.unpack_from("<I", contents, position)
             if word & 1 and (word & ~1) in functions:
-                taken.add(functions[word & ~1])
-    return sorted(taken), sorted(set(functions.values()))
+                taken.update(functions[word & ~1])
+    return sorted(taken), sorted(set().union(*functions.values()))
 
 
 def bound_report(graph, entries, indirect_targets):
@@ -423,12 +429,25 @@ def top_paths(graph, count=10):
     return [{"root": name, "bytes": depths[name][0], "path": list(depths[name][1])} for name in ranked]
 
 
+MAP_FUNCTION = re.compile(r"^ \.(\S+)\s+0x[0-9a-fA-F]+\s+0x[0-9a-fA-F]+\s+(\S+)$", re.MULTILINE)
+MAP_MEMBER = re.compile(r"^(\S+\.a)\(([^)]+\.o(?:bj)?)\)$")
+
+
 def linked_objects(map_text, build_dir):
-    objects = set()
-    for match in re.finditer(r"^LOAD (\S+\.o(?:bj)?)$", map_text, re.MULTILINE):
-        objects.add(str((build_dir / match.group(1)).resolve()))
-    for match in re.finditer(r"(\S+\.a)\(([^)]+\.o(?:bj)?)\)", map_text):
-        objects.add((str((build_dir / match.group(1)).resolve()), match.group(2)))
+    marker = map_text.find("Linker script and memory map")
+    map_text = map_text[marker:] if marker >= 0 else map_text
+    objects = {}
+    for match in MAP_FUNCTION.finditer(map_text):
+        function, source = match.groups()
+        member = MAP_MEMBER.match(source)
+        if member:
+            key = (str((build_dir / member.group(1)).resolve()), member.group(2))
+        elif re.search(r"\.o(?:bj)?$", source):
+            key = str((build_dir / source).resolve())
+        else:
+            continue
+        parts = function.split(".")
+        objects.setdefault(key, set()).update(".".join(parts[index:]) for index in range(1, len(parts)))
     return objects
 
 
@@ -441,14 +460,26 @@ def object_of(callgraph_path, lto_objects):
     return next((stem + suffix for suffix in (".o", ".obj") if stem + suffix in lto_objects), None)
 
 
+def resolve_aliases(graph, groups):
+    for names in groups:
+        known = sorted(name for name in names if name in graph.frames)
+        if not known:
+            continue
+        for name in names:
+            if name not in graph.frames:
+                graph.frames[name] = graph.frames[known[0]]
+                graph.calls[name] = set(graph.calls.get(known[0], ()))
+
+
 def program_graph(program_dir, elf_name, lto_objects):
     graph = CallGraph()
     elf = program_dir / f"{elf_name}.elf"
     ltrans = sorted(program_dir.glob(f"{elf_name}.elf.ltrans*.ci"))
     map_path = program_dir / f"{elf_name}.map"
-    members = linked_objects(map_path.read_text(errors="replace"), program_dir) if map_path.is_file() else set()
+    members = linked_objects(map_path.read_text(errors="replace"), program_dir) if map_path.is_file() else {}
     files = list(ltrans)
-    for member in members:
+    kept = {}
+    for member, functions in members.items():
         if isinstance(member, tuple):
             archive, name = member
             directory = Path(archive).parent / "CMakeFiles" / (Path(archive).stem[3:] + ".dir")
@@ -458,14 +489,19 @@ def program_graph(program_dir, elf_name, lto_objects):
         for candidate in candidates:
             if candidate.is_file() and not (ltrans and object_of(candidate, lto_objects)):
                 files.append(candidate)
+                kept[candidate] = functions
     for path in files:
         nodes, edges = parse_callgraph(path.read_text(errors="replace"), str(path))
+        if path in kept:
+            nodes = {name: node for name, node in nodes.items() if node["frame"] is None or name in kept[path]}
+            edges = [edge for edge in edges if edge[0] in kept[path]]
         graph.add(nodes, edges)
     if elf.is_file():
-        _, present = address_taken(elf.read_bytes())
-        keep = set(present)
+        functions, _ = elf_functions(elf.read_bytes())
+        keep = set().union(*functions.values()) if functions else set()
         graph.frames = {name: frame for name, frame in graph.frames.items() if name in keep}
         graph.calls = {name: calls for name, calls in graph.calls.items() if name in keep}
+        resolve_aliases(graph, functions.values())
     graph.finish()
     return graph, files
 
