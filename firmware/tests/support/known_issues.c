@@ -1,4 +1,11 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
+
 #include "known_issues.h"
+
+#include <dlfcn.h>
+#include <execinfo.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +22,7 @@ static const char *const NAMES[KNOWN_ISSUE_COUNT] = {
     [KNOWN_ISSUE_DISCOVERY_WORK_AFTER_RESCAN] = "discovery-work-after-rescan",
     [KNOWN_ISSUE_SAFE_START_LABELS_AFTER_RELOAD] = "safe-start-labels-after-reload",
     [KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED] = "preview-cancel-evicted",
+    [KNOWN_ISSUE_PARAMETRIC_BANK_AFTER_RELOAD] = "parametric-bank-after-reload",
 };
 
 static int tolerated;
@@ -67,4 +75,59 @@ int known_issue_tolerated(void)
 void known_issue_end(void)
 {
     module_guard_set_trap(NULL);
+}
+
+static bool on_stack(const char *name)
+{
+    void *frames[64];
+    int count = backtrace(frames, 64);
+    for (int index = 0; index < count; index++) {
+        Dl_info info;
+        if (dladdr(frames[index], &info) != 0 && info.dli_sname != NULL &&
+            strcmp(info.dli_sname, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool overlay_evicted(const char *report)
+{
+    return strstr(report, "the rescan overlay") != NULL ||
+           strstr(report, "the USB overlay") != NULL;
+}
+
+static bool shared_art(const char *report)
+{
+    return strstr(report, "views+settings+library+listening+equalizer+playing+stage") != NULL;
+}
+
+bool known_issue_covers_call(const char *report)
+{
+    bool overlay = overlay_evicted(report);
+    return (!overlay && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED) &&
+            on_stack("strip_renderer_render")) ||
+           (overlay && shared_art(report) &&
+            known_issue_open(KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY)) ||
+           (known_issue_open(KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED) &&
+            (on_stack("screen_modules_cancel_previews") || on_stack("screen_modules_use"))) ||
+           (strstr(report, "for a Hold Menu shortcut") != NULL &&
+            known_issue_open(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE));
+}
+
+static jmp_buf *fuzz_end;
+
+static void fuzz_trap(const char *report, const void *function)
+{
+    (void)function;
+    if (fuzz_end != NULL && known_issue_covers_call(report)) {
+        longjmp(*fuzz_end, 1);
+    }
+    module_guard_abort(report);
+}
+
+void known_issue_fuzz_guard(jmp_buf *end)
+{
+    fuzz_end = end;
+    module_guard_set_trap(fuzz_trap);
 }

@@ -161,7 +161,7 @@ class SlotOwnership:
         self.pending = None
         self.returns = set()
         self.history = []
-        self.counts = {"loads": 0, "overlays": 0, "refused": 0}
+        self.counts = {"loads": 0, "overlays": 0, "refused": 0, "usb_sessions": 0}
         self.faults = []
         self.empty_hooks = []
         self.extent_hook = None
@@ -245,6 +245,7 @@ class SlotOwnership:
         self.arm()
 
     def usb_left(self):
+        self.counts["usb_sessions"] += 1
         if self.state == "overlay":
             self.state = "empty"
             self.record("USB session over")

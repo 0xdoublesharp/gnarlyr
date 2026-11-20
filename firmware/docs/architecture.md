@@ -684,7 +684,7 @@ What the host fake cannot see:
 After every step it checks:
 
 - the screen stack is not empty;
-- the headphone profiles in memory equal `headphones.bin`;
+- the active headphone profile in memory, and every profile `headphones.bin` holds, match the file (Settings may add display-only placeholder slots);
 - the applied volume ceiling does not exceed the stored profile's, and is 0 while the profile store is blocked;
 - no saved graphic or parametric EQ slot is lost (there is no delete for slots);
 - the guard's call and memory checks.
@@ -700,20 +700,25 @@ It decodes the stored files itself. Calls into equalizer code for that run insid
 
 **Emulator.** `SlotOwnership` (`tools/echo_emulator/modules.py`) follows the owner of the slot through returns from `hal_system_load_module` and through writes to the slot header outside a load, which the overlays make. All UI modules link at the same address, so a stale pointer cannot be told apart by address alone. What it detects:
 
-- a call from resident code (the link register outside the slot) to an address that some module stores as a function pointer but that is not a function entry of the module in the slot;
+- a call from resident code to an address that some module stores as a function pointer but that is not a function entry of the module in the slot. A call counts when the link register points just after a resident `BLX Rm` and `Rm` still holds the address, which is how resident code calls a module function pointer;
 - execution or a read in the slot after a refused load;
 - a read past the end of the owning module's code, data and BSS.
 
-A stale pointer that happens to land on a function entry of the new module, or reads inside the new module's memory, go unnoticed. `test_37_eviction` holds a planted-call canary, the Hold Menu reproducer and a stress scenario. The stress scenario makes seeded random key taps, holds, chords, waits that end inside slides and toasts, and USB plugs during playback, and prints its seed on failure. The fixed-seed run is in the default suite. Set `ECHO_EVICTION_STRESS_RUNS=N` (and optionally `ECHO_EVICTION_STRESS_SEED`) and run `python3 tools/firmware.py test --regex eviction_stress_with_new_seeds` for the long randomised run.
+Three things go unnoticed:
+
+- a stale pointer reached by a tail call (`BX Rm`, for example a callback as the last statement of a resident function);
+- a stale pointer that happens to land on a function entry of the new module;
+- reads inside the new module's memory. `test_37_eviction` holds a planted-call canary, the Hold Menu reproducer and a stress scenario. The stress scenario makes seeded random key taps, holds, chords, waits that end inside slides and toasts, and USB plugs during playback, and prints its seed on failure. The fixed-seed run is in the default suite. Set `ECHO_EVICTION_STRESS_RUNS=N` (and optionally `ECHO_EVICTION_STRESS_SEED`) and run `python3 tools/firmware.py test --regex eviction_stress_with_new_seeds` for the long randomised run.
 
 **Known-issue switches.** A finding that the checks reproduce on `main`, but that belongs to another branch, is held open by a named switch in `tests/support/known_issues.c`, which the scenarios mirror. While a switch is open, the test that hits it tolerates or avoids the hit; it does not mute the detector. `ECHO_KNOWN_ISSUES=<name>[,<name>]` or `all` closes switches and enforces them. Remove a switch with the fix.
 
-A switch that tolerates a trapped call ends the fuzzer's current input there, so nothing runs on memory the player would not have.
+A switch that tolerates a trapped call ends the fuzzer's current input there, so nothing runs on memory the player would not have. `known_issue_fuzz_guard` installs that trap for `fuzz_app_lifecycle` and `fuzz_app_navigation`.
 
 | Switch | Effect while open |
 |---|---|
 | `hold-menu-stale-update` | A Hold Menu shortcut loads Settings or Views while the previous module's screen is still on top. `test_app` tolerates the stale call. The fuzzer takes the shortcut only when the slot holds that module or none, and tolerates calls evicted by a shortcut load (the guard names that cause). The emulator stress takes the shortcut only with Settings or no module in the slot, and its reproducer reports instead of failing |
-| `equalizer-state-after-reload` | Custom EQ, Equalizer and Parametric EQ keep pointers into equalizer BSS across a reload. The fuzzer leaves those screens after each step and runs no evicting step while they are on top |
+| `equalizer-state-after-reload` | Custom EQ, Equalizer and Parametric EQ keep pointers into equalizer BSS across a reload. The fuzzer leaves those screens after each step and runs no evicting step while they are on top. This also keeps the saved-slot invariant from seeing an editor that stays open across an eviction |
+| `parametric-bank-after-reload` | Parametric EQ saves the zeroed bank after a reload and erases saved parametric slots. The fuzzer leaves that screen and runs no evicting step while it is on top. `equalizer-state-after-reload` covers the same screen, so close both to see it |
 | `blocked-profile-ceiling` | The fuzzer skips the check that the applied ceiling is 0 while `headphones.bin` cannot be read |
 | `home-art-after-overlay` | Home calls the art hook of the module an overlay overwrote. The fuzzer neither goes Home with a long Back while the slot is empty nor fails on calls into the shared UI art code after an overlay |
 | `slide-leaving-evicted` | A slide draws a leaving screen whose module was evicted. The fuzzer lets slides finish before evicting steps and tolerates stale calls made while a frame is drawn |

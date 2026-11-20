@@ -19,6 +19,7 @@ static const uint8_t SHORTCUTS[] = {0, 0x32, 32, 0, 0, 0, 0, 0, 0, 0, 32, 32, 4,
 
 static const uint8_t HOME_AFTER_USB[] = {0, 0, 0x20, 0x05, 0x42};
 static const uint8_t HOME_AFTER_DAC[] = {0, 0, 0x20, 0x06, 0x42};
+static const uint8_t PARAMETRIC_ACROSS_USB[] = {0, 0x20, 0x0d, 0x25, 0x05, 0x20};
 
 static uint32_t next_random(uint32_t *state)
 {
@@ -59,6 +60,7 @@ int main(int argc, char **argv)
     replay(SHORTCUTS, sizeof SHORTCUTS, "shortcuts");
     replay(HOME_AFTER_USB, sizeof HOME_AFTER_USB, "home after a storage session");
     replay(HOME_AFTER_DAC, sizeof HOME_AFTER_DAC, "home after a DAC session");
+    replay(PARAMETRIC_ACROSS_USB, sizeof PARAMETRIC_ACROSS_USB, "parametric editor across usb");
     const char *count_text = getenv("ECHO_LIFECYCLE_INPUTS");
     int count = count_text != NULL ? atoi(count_text) : GENERATED_INPUTS;
     uint32_t state = 0x6c69666eu;
@@ -77,6 +79,6 @@ int main(int argc, char **argv)
         snprintf(name, sizeof name, "generated %#x", start);
         replay(bytes, sizeof bytes, name);
     }
-    printf("%d inputs passed\n", count + 5);
+    printf("%d inputs passed\n", count + 6);
     return 0;
 }

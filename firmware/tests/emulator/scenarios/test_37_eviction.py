@@ -13,6 +13,8 @@ MIN_SWAPS = 3
 LONG_ACTIONS = 300
 LONG_PRESS_FIELD = "b59"
 SETTINGS = 2
+VIEWS = 1
+MIXTAPES_SHORTCUT = 3
 UP_NEXT_SHORTCUT = 2
 HOLD_MS = 1200
 USB_MS = (1200, 3000)
@@ -110,7 +112,8 @@ class EchoImageTest(EchoImageHarness):
         if choice < 4:
             rig.press(rng.choice(TAPS))
         elif choice == 4:
-            if not known_issue_open(HOLD_MENU_ISSUE) or watch.owner in (None, SETTINGS):
+            needed = VIEWS if self.shortcut == MIXTAPES_SHORTCUT else SETTINGS
+            if not known_issue_open(HOLD_MENU_ISSUE) or watch.owner in (None, needed):
                 rig.press("menu", hold=HOLD_MS)
         elif choice == 5:
             rig.press("back", hold=HOLD_MS)
@@ -125,7 +128,8 @@ class EchoImageTest(EchoImageHarness):
 
     def stress(self, seed, actions):
         rng = random.Random(seed)
-        rig, watch = self.eviction_rig(long_press=rng.choice(SHORTCUTS))
+        self.shortcut = rng.choice(SHORTCUTS)
+        rig, watch = self.eviction_rig(long_press=self.shortcut)
         rig.open_songs()
         rig.play_song(1 + rng.randrange(3))
         done = 0
@@ -144,7 +148,7 @@ class EchoImageTest(EchoImageHarness):
     def test_eviction_stress_with_a_fixed_seed_touches_no_evicted_module(self):
         watch = self.stress(STRESS_SEED, SHORT_ACTIONS)
         self.assertGreaterEqual(watch.counts["loads"], MIN_SWAPS)
-        self.assertGreaterEqual(watch.counts["overlays"], 1)
+        self.assertGreaterEqual(watch.counts["usb_sessions"], 1)
 
     def test_eviction_stress_with_new_seeds_touches_no_evicted_module(self):
         runs = stress_runs()

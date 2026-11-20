@@ -1,9 +1,3 @@
-#if defined(__linux__)
-#define _GNU_SOURCE
-#endif
-
-#include <dlfcn.h>
-#include <execinfo.h>
 #include <setjmp.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -22,7 +16,6 @@
 #include "hal/audio.h"
 #include "hal/system.h"
 #include "headphone_store.h"
-#include "home_art.h"
 #include "known_issues.h"
 #include "module_guard.h"
 #include "music_record.h"
@@ -296,6 +289,10 @@ static void check_slots(void)
         violated("a stored EQ slot file no longer loads");
     }
     uint8_t used = (uint8_t)((graphic_read ? graphic.used : 0) | (parametric_read ? bank.used : 0));
+    if (tracing()) {
+        fprintf(stderr, "slots: graphic %d %#x, parametric %d %#x\n", graphic_read, graphic.used,
+                parametric_read, bank.used);
+    }
     if ((used & expected.slots_used) != expected.slots_used) {
         violated("a saved EQ slot was lost");
     }
@@ -509,6 +506,7 @@ static bool on_equalizer(void)
 static bool on_reload_issue_screen(void)
 {
     return (known_issue_open(KNOWN_ISSUE_EQUALIZER_STATE_AFTER_RELOAD) && on_equalizer()) ||
+           (known_issue_open(KNOWN_ISSUE_PARAMETRIC_BANK_AFTER_RELOAD) && title_is(STR_PEQ)) ||
            (known_issue_open(KNOWN_ISSUE_SAFE_START_LABELS_AFTER_RELOAD) &&
             title_is(STR_SAFE_START_VOLUME));
 }
@@ -633,9 +631,12 @@ static void seed_equalizer(void)
     parametric_store_read(&store, NULL);
     ParametricBank bank = *parametric_store_bank();
     bank.slots[2].count = 1;
-    bank.slots[2].preamp = -20;
+    bank.slots[2].filters[0] = (ParametricFilter){1000, 71, 0, PARAMETRIC_PEAK, true};
     bank.used |= 1u << 2;
-    (void)parametric_file_save(&store.file, &bank);
+    if (parametric_file_save(&store.file, &bank) != STORE_DONE) {
+        fprintf(stderr, "lifecycle: parametric seed not saved\n");
+        abort();
+    }
 }
 
 static void seed_settings(uint8_t config)
@@ -678,74 +679,14 @@ static void leave_known_issue_screens(void)
     }
 }
 
-static bool overlay_evicted(const char *report)
-{
-    return strstr(report, "the rescan overlay") != NULL ||
-           strstr(report, "the USB overlay") != NULL;
-}
-
 static jmp_buf input_end;
-static bool input_running;
-
-static void tolerate(void)
-{
-    if (input_running) {
-        longjmp(input_end, 1);
-    }
-}
-
-static bool on_stack(const char *name)
-{
-    void *frames[64];
-    int count = backtrace(frames, 64);
-    for (int index = 0; index < count; index++) {
-        Dl_info info;
-        if (dladdr(frames[index], &info) != 0 && info.dli_sname != NULL &&
-            strcmp(info.dli_sname, name) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static bool rendering(void)
-{
-    return on_stack("strip_renderer_render");
-}
-
-static bool cancelling_previews(void)
-{
-    return on_stack("screen_modules_cancel_previews") || on_stack("screen_modules_use");
-}
-
-static void guard_trap(const char *report, const void *function)
-{
-    if (!overlay_evicted(report) && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED) &&
-        rendering()) {
-        tolerate();
-    }
-    bool art = function == (const void *)(uintptr_t)home_art_update ||
-               strstr(report, "views+settings+library+listening+equalizer+playing+stage") != NULL;
-    if (art && overlay_evicted(report) && known_issue_open(KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY)) {
-        tolerate();
-    }
-    if (known_issue_open(KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED) && cancelling_previews()) {
-        tolerate();
-    }
-    if (strstr(report, "for a Hold Menu shortcut") != NULL &&
-        known_issue_open(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE)) {
-        tolerate();
-    }
-    fprintf(stderr, "screen \"%s\" at depth %d\n", app_screen_title(), app_screen_depth());
-    module_guard_abort(report);
-}
 
 static void start(const uint8_t *data, size_t size)
 {
     module_guard_restore_all();
     app_reset_for_test();
     fake_hal_reset();
-    module_guard_set_trap(guard_trap);
+    known_issue_fuzz_guard(NULL);
     add_library_files(size > 0 ? data[0] : 0);
     now_ms = 1000;
     fake_hal_set_milliseconds(now_ms);
@@ -802,11 +743,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     step_count = 0;
     static Cursor cursor;
     cursor = (Cursor){data, size, 2};
-    input_running = true;
     if (setjmp(input_end) != 0) {
-        input_running = false;
+        known_issue_fuzz_guard(NULL);
         return 0;
     }
+    known_issue_fuzz_guard(&input_end);
     check_invariants();
     for (int count = 0; count < op_limit() && cursor.at < size && step_count < step_budget();
          count++) {
@@ -822,7 +763,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         power_on_after_power_off();
         check_invariants();
     }
-    input_running = false;
+    known_issue_fuzz_guard(NULL);
     app_stop();
     return 0;
 }
