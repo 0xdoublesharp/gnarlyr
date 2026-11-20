@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from echo_image_harness import EchoImageHarness, main, IDENTITY, fnv1a
+from echo_image_harness import EchoImageHarness, main, IDENTITY, fnv1a, KEY_MENU, KEY_NEXT
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig, KEYS, CHORD_STEP_MS
 from echo_emulator.power import DecoderLoad, PowerMeter
@@ -39,6 +39,9 @@ TOAST_GAP_MS = 2500
 CLEARED_WITHIN_MS = 250
 FAILED_RUN_MS = 1000
 ROWS_FROM = 2048
+DAC_RATE = 96000
+DAC_MENU_RUN_MS = 1500
+STACK_LIMIT_BYTES = 12 * 1024
 
 
 def photo_pixels(seed=7):
@@ -104,6 +107,13 @@ def feed_volume(pack):
 
 
 class EchoImageTest(EchoImageHarness):
+    volume_for_session = None
+
+    def session(self, *args, **kwargs):
+        if self.volume_for_session is not None:
+            kwargs["volume"] = self.volume_for_session
+        return super().session(*args, **kwargs)
+
     def paint_stack(self, machine):
         low = machine.reg(UC_ARM_REG_SP) - STACK_MARGIN
         words = (low - STACK_FLOOR) // 4
@@ -287,6 +297,25 @@ class EchoImageTest(EchoImageHarness):
         self.assertLessEqual(share, PLAIN_SHARE_MAX, (share, after))
         self.assertTrue(any(count == 0 for _, count in after), after)
         self.assertEqual([], rig.audio.underruns(failed_at))
+        self.assert_healthy(session)
+
+
+    def test_a_streaming_usb_dac_menu_over_a_lossless_list_background_keeps_its_stack(self):
+        import test_28_usb_audio
+        pack = built_pack(photo_pixels(), (("list", "lossless"), ("home", "indexed")))
+        self.volume_for_session = feed_volume(pack)
+        session, audio, _ = test_28_usb_audio.EchoImageTest.dac_session(self, DAC_RATE)
+        machine = session.machine
+        self.paint_stack(machine)
+        draws = machine.trace("theme_art_module_draw")
+        for key in (KEY_MENU, KEY_NEXT, KEY_NEXT):
+            self.press(machine, key)
+        machine.run(until_ms=machine.milliseconds() + DAC_MENU_RUN_MS)
+        peak = self.stack_peak(machine)
+        print(json.dumps({"usb_dac_menu_stack_peak_bytes": peak, "art_draws": len(draws)}))
+        self.assertTrue(draws)
+        self.assertLessEqual(peak, STACK_LIMIT_BYTES, peak)
+        self.assertEqual(0, audio.output_underruns())
         self.assert_healthy(session)
 
 
