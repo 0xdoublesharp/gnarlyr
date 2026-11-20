@@ -78,6 +78,7 @@ typedef struct DiscoveryScreen {
 } DiscoveryScreen;
 
 Screen *discovery_screen_init(DiscoveryScreen *screen, DiscoveryScreenConfig config);
+void discovery_screen_reload(DiscoveryScreen *screen);
 Screen *discovery_screen_open(DiscoveryScreen *screen, BrowseQuery source, bool edit_search);
 Screen *discovery_screen_options(DiscoveryScreen *screen, BrowseQuery source);
 Screen *discovery_screen_albums(DiscoveryScreen *screen, BrowseQuery source);

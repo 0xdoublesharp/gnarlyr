@@ -1097,12 +1097,8 @@ static void follow_motion(DiscoveryScreen *screen, uint32_t now_ms)
 static void update(void *context, uint32_t now_ms)
 {
     DiscoveryScreen *screen = context;
-    bool missing = work.owner != screen;
-    ensure_work(screen);
     screen->now_ms = now_ms;
-    if (missing && screen->mode == DISCOVERY_RESULTS) {
-        begin_view(screen);
-    }
+    discovery_screen_reload(screen);
     update_tags(screen);
     if (work.pending_search && !tags_busy()) {
         begin_view(screen);
@@ -1290,6 +1286,17 @@ Screen *discovery_screen_init(DiscoveryScreen *screen, DiscoveryScreenConfig con
     screen->initialized = true;
     show_mode(screen, DISCOVERY_RESULTS);
     return &screen->screen;
+}
+
+void discovery_screen_reload(DiscoveryScreen *screen)
+{
+    if (work.owner == screen || !screen->initialized) {
+        return;
+    }
+    ensure_work(screen);
+    if (screen->mode == DISCOVERY_RESULTS) {
+        begin_view(screen);
+    }
 }
 
 Screen *discovery_screen_open(DiscoveryScreen *screen, BrowseQuery source, bool edit_search)

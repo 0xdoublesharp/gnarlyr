@@ -21,6 +21,11 @@ static void bind(AppScreens *screens)
                                                   .motion = context->motion});
 }
 
+static void reload(AppScreens *screens)
+{
+    discovery_screen_reload(discovery_of(screens));
+}
+
 static void clear_scope(DiscoveryScreen *screen)
 {
     screen->config.scope_accept = NULL;
@@ -175,7 +180,7 @@ static void cancel(AppScreens *screens)
 }
 
 const LibraryModuleEntry LIBRARY_MODULE_ENTRY = {
-    .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_LIBRARY, bind),
+    .module = SCREEN_MODULE_RELOADING_ENTRY(SCREEN_MODULE_LIBRARY, bind, reload),
     .open = open,
     .options = options,
     .info = info,

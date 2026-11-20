@@ -672,9 +672,7 @@ static void power_on_after_power_off(void)
 
 static void leave_known_issue_screens(void)
 {
-    bool library = known_issue_open(KNOWN_ISSUE_DISCOVERY_WORK_AFTER_RESCAN) &&
-                   fake_hal_loaded_module() == SCREEN_MODULE_LIBRARY;
-    if (library || on_reload_issue_screen()) {
+    if (on_reload_issue_screen()) {
         press(KEY_BACK, LONG_MS);
     }
 }
