@@ -146,11 +146,72 @@ static void portrait_drops_the_same_items_at_every_text_size(void)
 {
     uint16_t lead = STATUS_BAR_LOCK | STATUS_BAR_CLOCK | STATUS_BAR_PLAYBACK | STATUS_BAR_BLUETOOTH;
     uint16_t expected[2] = {lead | STATUS_BAR_SHUFFLE, lead};
+    uint16_t marked[2] = {STATUS_BAR_LOGO | lead, STATUS_BAR_LOGO | STATUS_BAR_LOCK |
+                                                      STATUS_BAR_CLOCK | STATUS_BAR_PLAYBACK};
     for (int compact = 0; compact < 2; compact++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             Theme theme = theme_for(ORIENTATION_PORTRAIT, size, compact != 0);
             StatusBarState state = everything();
             CHECK_EQUAL(expected[compact], status_bar_items(&theme, &state));
+            state.logo = true;
+            CHECK_EQUAL(marked[compact], status_bar_items(&theme, &state));
+        }
+    }
+}
+
+static void portrait_home_keeps_the_logo_first_and_drops_in_priority_order(void)
+{
+    for (int compact = 0; compact < 2; compact++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(ORIENTATION_PORTRAIT, size, compact != 0);
+            for (int width = 160; width <= theme.metrics.screen_width; width++) {
+                Theme narrow = theme;
+                narrow.metrics.screen_width = width;
+                StatusBarState state = everything();
+                state.logo = true;
+                check_separate(&narrow, &state, 0, narrow.metrics.status_height);
+                check_greedy(&narrow, state, PORTRAIT_ORDER, 8);
+                StatusBarLayout layout;
+                status_bar_layout(&narrow, &state, &layout);
+                CHECK((layout.items & (STATUS_BAR_LOGO | STATUS_BAR_LOCK)) ==
+                      (STATUS_BAR_LOGO | STATUS_BAR_LOCK));
+                Rect logo = status_bar_item_area(&narrow, &state, STATUS_BAR_LOGO);
+                CHECK_EQUAL(narrow.metrics.padding, logo.x);
+                CHECK_EQUAL(narrow.metrics.status_icon_size, logo.width);
+                for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
+                    if ((layout.items & (1u << slot)) != 0 && (1u << slot) != STATUS_BAR_LOGO) {
+                        CHECK(layout.areas[slot].x > logo.x + logo.width);
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void the_logo_shows_only_on_a_portrait_screen_that_asks_for_it(void)
+{
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(orientation, size, false);
+            StatusBarState plain = everything();
+            plain.title_width = 120;
+            StatusBarState marked = plain;
+            marked.logo = true;
+            StatusBarLayout without;
+            StatusBarLayout with;
+            status_bar_layout(&theme, &plain, &without);
+            status_bar_layout(&theme, &marked, &with);
+            CHECK((without.items & STATUS_BAR_LOGO) == 0);
+            if (orientation == ORIENTATION_LANDSCAPE) {
+                CHECK_EQUAL(without.items, with.items);
+                for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
+                    if ((with.items & (1u << slot)) != 0) {
+                        CHECK_EQUAL(without.areas[slot].x, with.areas[slot].x);
+                    }
+                }
+            } else {
+                CHECK((with.items & STATUS_BAR_LOGO) != 0);
+            }
         }
     }
 }
@@ -318,6 +379,8 @@ int main(void)
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
         TEST_CASE(portrait_keeps_every_icon_on_the_top_line_at_every_text_size),
         TEST_CASE(portrait_drops_the_same_items_at_every_text_size),
+        TEST_CASE(portrait_home_keeps_the_logo_first_and_drops_in_priority_order),
+        TEST_CASE(the_logo_shows_only_on_a_portrait_screen_that_asks_for_it),
         TEST_CASE(portrait_puts_the_position_left_of_the_clock_and_landscape_protects_the_title),
         TEST_CASE(a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_centred),
         TEST_CASE(queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue),

@@ -26,11 +26,13 @@ enum {
     CLOCK_SLOT = 2,
     REPEAT_SLOT = 3,
     PERCENT_SLOT = 4,
-    PLAYBACK_SLOT = 5,
-    BLUETOOTH_SLOT = 6,
-    LOCK_SLOT = 7,
-    SHUFFLE_SLOT = 8,
-    ICONS = STATUS_BAR_PLAYBACK | STATUS_BAR_BLUETOOTH | STATUS_BAR_LOCK | STATUS_BAR_SHUFFLE
+    LOGO_SLOT = 5,
+    PLAYBACK_SLOT = 6,
+    BLUETOOTH_SLOT = 7,
+    LOCK_SLOT = 8,
+    SHUFFLE_SLOT = 9,
+    ICONS = STATUS_BAR_LOGO | STATUS_BAR_PLAYBACK | STATUS_BAR_BLUETOOTH | STATUS_BAR_LOCK |
+        STATUS_BAR_SHUFFLE
 };
 
 static const uint8_t PORTRAIT_ORDER[] = {CLOCK_SLOT,  PLAYBACK_SLOT, BLUETOOTH_SLOT, SHUFFLE_SLOT,
@@ -225,6 +227,8 @@ static int slot_width(const Theme *theme, const StatusBarState *state, int slot)
                    ? 0
                    : icon +
                          (state->repeat == 1 ? BADGE_GAP + icon_width(ICON_SONG_SMALL, icon) : 0);
+    case LOGO_SLOT:
+        return state->logo && two_lines(theme) ? icon : 0;
     case PLAYBACK_SLOT:
         return state->playback != STATUS_PLAYBACK_NONE ? icon : 0;
     case BLUETOOTH_SLOT:
@@ -244,7 +248,7 @@ static int slot_width(const Theme *theme, const StatusBarState *state, int slot)
 int status_bar_left_end(const Theme *theme, StatusBarState state)
 {
     int end = theme->metrics.padding;
-    for (int slot = PLAYBACK_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
+    for (int slot = LOGO_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
         int width = slot_width(theme, &state, slot);
         end += width > 0 ? width + (end > theme->metrics.padding ? theme->metrics.padding : 0) : 0;
     }
@@ -304,7 +308,7 @@ static bool fit_add(StatusFit *fit, int slot, int width, bool forced)
 {
     StatusFit next = *fit;
     int pad = fit->theme->metrics.padding;
-    if (slot >= PLAYBACK_SLOT) {
+    if (slot >= LOGO_SLOT) {
         next.icons += width + (next.icons > 0 ? pad : 0);
     } else if (trailing_slot(fit->theme, slot)) {
         next.trailing += width + (pad >> 1);
@@ -328,8 +332,8 @@ static void place_slot(const Theme *theme, StatusBarLayout *layout, int slot, in
     Rect body = status_bar_battery_body(theme);
     int icon = theme->metrics.status_icon_size;
     Rect *area = &layout->areas[slot];
-    *area = slot >= PLAYBACK_SLOT ? (Rect){x, icon_top(theme), area->width, icon}
-                                  : (Rect){x, body.y, area->width, body.height};
+    *area = slot >= LOGO_SLOT ? (Rect){x, icon_top(theme), area->width, icon}
+                              : (Rect){x, body.y, area->width, body.height};
 }
 
 static void place(const StatusFit *fit, StatusBarLayout *layout)
@@ -340,7 +344,7 @@ static void place(const StatusFit *fit, StatusBarLayout *layout)
     int pad = theme->metrics.padding;
     int left = 0;
     int right = fit->end;
-    for (int slot = PLAYBACK_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
+    for (int slot = LOGO_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
         if ((layout->items & (1u << slot)) != 0) {
             place_slot(theme, layout, slot, left + pad);
             left += pad + layout->areas[slot].width;
@@ -387,9 +391,10 @@ CORE_SEAM void status_bar_layout(const Theme *theme, const StatusBarState *state
     for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
         layout->areas[slot] = (Rect){0, 0, slot_width(theme, state, slot), 0};
     }
-    for (int slot = split ? LOCK_SLOT : PLAYBACK_SLOT; slot <= (split ? LOCK_SLOT : SHUFFLE_SLOT);
-         slot++) {
-        fit_slot(&fit, layout, slot, true);
+    for (int slot = LOGO_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
+        if (!split || slot == LOGO_SLOT || slot == LOCK_SLOT) {
+            fit_slot(&fit, layout, slot, true);
+        }
     }
     const uint8_t *order = split ? PORTRAIT_ORDER : LANDSCAPE_ORDER;
     int count = split ? (int)sizeof PORTRAIT_ORDER : (int)sizeof LANDSCAPE_ORDER;
@@ -446,7 +451,8 @@ static void draw_status_icon(Canvas *canvas, const Theme *theme, const StatusBar
     if (slot == BLUETOOTH_SLOT && state->bluetooth != STATUS_BLUETOOTH_CONNECTED) {
         color = theme->colors.text_tertiary;
     }
-    IconId icon = slot == BLUETOOTH_SLOT                       ? ICON_BLUETOOTH_SMALL
+    IconId icon = slot == LOGO_SLOT                            ? ICON_LOGO
+                  : slot == BLUETOOTH_SLOT                     ? ICON_BLUETOOTH_SMALL
                   : slot == LOCK_SLOT                          ? ICON_LOCK
                   : state->playback == STATUS_PLAYBACK_PLAYING ? ICON_PLAY
                                                                : ICON_PAUSE;
@@ -494,7 +500,7 @@ CORE_SEAM void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarStat
         if ((layout.items & (1u << slot)) == 0) {
             continue;
         }
-        if (slot >= PLAYBACK_SLOT) {
+        if (slot >= LOGO_SLOT) {
             draw_status_icon(canvas, theme, &state, slot, layout.areas[slot]);
         } else {
             draw_text_slot(canvas, theme, &state, slot, layout.areas[slot]);

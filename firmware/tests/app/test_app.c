@@ -2261,7 +2261,7 @@ static void the_screen_starts_in_the_saved_orientation(void)
     CHECK(drew_the_bottom_of_a_portrait_screen());
 }
 
-static void portrait_home_and_lists_keep_their_title_below_the_status_row(void)
+static void portrait_lists_keep_their_title_below_the_status_row_and_home_drops_it(void)
 {
     start_app_with_library();
     choose_orientation(ORIENTATION_PORTRAIT);
@@ -2272,7 +2272,7 @@ static void portrait_home_and_lists_keep_their_title_below_the_status_row(void)
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
     Rect title = theme_title_area(&theme);
     CHECK(title.y > 0);
-    CHECK(fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE - 1, theme.metrics.header_height - 1) ==
+    CHECK(fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE - 1, theme.metrics.status_height - 1) ==
           (theme.header_rule ? theme.colors.accent : theme.colors.divider));
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -2323,7 +2323,7 @@ static void home_puts_the_album_art_under_the_menu_in_portrait(void)
     settle();
     Theme theme = *expected_theme();
     default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-    int list_bottom = theme.metrics.header_height + 6 * theme.metrics.row_height;
+    int list_bottom = theme.metrics.status_height + 6 * theme.metrics.row_height;
     int cover_middle = list_bottom + 8 + COVER_FULL_SIZE / 2;
     CHECK_EQUAL(RED_COVER, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, cover_middle));
     CHECK(fake_hal_pixel(2, list_bottom) == theme.colors.divider);
@@ -6759,6 +6759,44 @@ static void portrait_now_playing_keeps_no_play_icon_from_the_list_it_slid_over(v
     CHECK(area_has_color(play, icon));
 }
 
+static Color header_rule_of(const Theme *theme)
+{
+    return theme->header_rule ? theme->colors.accent : theme->colors.divider;
+}
+
+static void portrait_home_has_one_header_line_with_the_logo_and_others_keep_their_titles(void)
+{
+    start_app_with_library();
+    choose_orientation(ORIENTATION_PORTRAIT);
+    hold_back();
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    const Theme *theme = expected_theme();
+    Color ink = theme->colors.header_text;
+    StatusBarState marked = {.logo = true};
+    Rect logo = status_bar_item_area(theme, &marked, STATUS_BAR_LOGO);
+    int band = theme->metrics.status_height;
+    int middle = theme->metrics.screen_width / 2;
+    CHECK(logo.y + logo.height <= band);
+    CHECK(area_has_color(logo, ink));
+    CHECK_EQUAL(header_rule_of(theme), fake_hal_pixel(middle, band - 1));
+    CHECK(fake_hal_pixel(middle, theme->metrics.header_height - 1) != header_rule_of(theme));
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(!title_is(FIRMWARE_SHORT_NAME));
+    CHECK(!area_has_color(logo, ink));
+    CHECK_EQUAL(header_rule_of(theme), fake_hal_pixel(middle, theme->metrics.header_height - 1));
+    tap(KEY_BACK);
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(area_has_color(logo, ink));
+    CHECK_EQUAL(header_rule_of(theme), fake_hal_pixel(middle, band - 1));
+    CHECK(fake_hal_pixel(middle, theme->metrics.header_height - 1) != header_rule_of(theme));
+}
+
 static void shuffle_shows_in_the_top_bar_as_songs_or_albums(void)
 {
     start_app_with_library();
@@ -9085,7 +9123,7 @@ int main(void)
         TEST_CASE(the_flipped_portrait_turns_the_panel_the_other_way),
         TEST_CASE(choosing_landscape_again_turns_the_screen_back),
         TEST_CASE(the_screen_starts_in_the_saved_orientation),
-        TEST_CASE(portrait_home_and_lists_keep_their_title_below_the_status_row),
+        TEST_CASE(portrait_lists_keep_their_title_below_the_status_row_and_home_drops_it),
         TEST_CASE(in_portrait_the_volume_down_key_moves_down_the_list),
         TEST_CASE(in_the_flipped_portrait_the_rocker_keeps_its_landscape_direction),
         TEST_CASE(a_key_held_across_the_turn_keeps_the_direction_it_started_with),
@@ -9246,6 +9284,7 @@ int main(void)
         TEST_CASE(the_start_screen_setting_opens_now_playing),
         TEST_CASE(the_header_shows_the_play_state_and_battery),
         TEST_CASE(now_playing_leaves_the_play_state_to_its_time_row),
+        TEST_CASE(portrait_home_has_one_header_line_with_the_logo_and_others_keep_their_titles),
         TEST_CASE(portrait_now_playing_keeps_no_play_icon_from_the_list_it_slid_over),
         TEST_CASE(the_header_battery_turns_green_on_usb_power),
         TEST_CASE(shuffle_shows_in_the_top_bar_as_songs_or_albums),
