@@ -414,6 +414,29 @@ static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
     CHECK(title_is(FIRMWARE_SHORT_NAME));
 }
 
+static void a_storage_session_mid_slide_ends_the_slide_before_the_restart_draws(void)
+{
+    start_app();
+    move_down(2);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Listening"));
+    move_up(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Moments"));
+    fake_hal_set_usb_cable(true);
+    app_release_audio();
+    fake_hal_load_usb_overlay();
+    app_set_usb_renderer(NULL);
+    app_leave_storage();
+    app_start_after_storage();
+    app_resume_after_usb();
+    for (int pass = 0; pass < 8; pass++) {
+        wait_ms(20);
+    }
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+}
+
 static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
 {
     start_app();
@@ -8830,6 +8853,7 @@ int main(void)
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),
         TEST_CASE(repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu),
+        TEST_CASE(a_storage_session_mid_slide_ends_the_slide_before_the_restart_draws),
         TEST_CASE(exporting_without_plays_settles_at_once_and_keeps_one_back),
         TEST_CASE(a_long_back_returns_home_from_deep_screens),
         TEST_CASE(the_frame_overlay_is_off_until_enabled_in_diagnostics),

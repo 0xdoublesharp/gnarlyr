@@ -1689,6 +1689,7 @@ static void build_screens(uint32_t now_ms)
         .motion = &app.motion,
     };
     Screen *root = app_screens_init(&app.screens, context);
+    app.slide.active = false;
     screen_stack_init(&app.stack, root, now_ms);
 }
 
@@ -1704,7 +1705,6 @@ static void change_language(uint32_t now_ms)
     Settings *settings = &app.settings.settings;
     language_load(settings->language);
     app.toast.visible = false;
-    app.slide.active = false;
     build_screens(now_ms);
     const SettingsModuleEntry *module = settings_module();
     if (module == NULL) {
