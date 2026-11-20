@@ -1753,6 +1753,8 @@ CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
     if (files.headphones_created && app.headphones.load == STORE_UNREADABLE) {
         app.headphones.file.needs_reload = false;
         app.headphones.load = STORE_EMPTY;
+        app.headphones.active = headphone_audio_defaults();
+        hal_audio_set_headphones(app.headphones.active);
     }
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);

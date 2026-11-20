@@ -236,7 +236,7 @@ static void check_headphones(void)
 {
     HeadphoneAudio applied = hal_audio_headphones();
     if (expected.blocked) {
-        if (applied.ceiling != 0 && !known_issue_open(KNOWN_ISSUE_BLOCKED_PROFILE_CEILING)) {
+        if (applied.ceiling != 0) {
             fprintf(stderr, "applied ceiling %d\n", applied.ceiling);
             violated("the applied ceiling is not 0 while the profile store is blocked");
         }

@@ -16,7 +16,6 @@
 static const char *const NAMES[KNOWN_ISSUE_COUNT] = {
     [KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE] = "hold-menu-stale-update",
     [KNOWN_ISSUE_EQUALIZER_STATE_AFTER_RELOAD] = "equalizer-state-after-reload",
-    [KNOWN_ISSUE_BLOCKED_PROFILE_CEILING] = "blocked-profile-ceiling",
     [KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY] = "home-art-after-overlay",
     [KNOWN_ISSUE_SLIDE_LEAVING_EVICTED] = "slide-leaving-evicted",
     [KNOWN_ISSUE_DISCOVERY_WORK_AFTER_RESCAN] = "discovery-work-after-rescan",

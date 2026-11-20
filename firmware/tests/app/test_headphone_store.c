@@ -3,6 +3,7 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "hal/audio.h"
 #include "headphone_store.h"
 #include "listening_effects.h"
 
@@ -120,7 +121,27 @@ static void a_missing_profile_file_blocks_saves_until_it_is_made(void)
     headphone_store_load(&store);
     CHECK_EQUAL(STORE_UNREADABLE, store.load);
     CHECK(store.file.needs_reload);
-    CHECK_EQUAL(60, store.active.ceiling);
+    CHECK_EQUAL(0, store.active.ceiling);
+    CHECK_EQUAL(0, hal_audio_headphones().ceiling);
+}
+
+static void an_unreadable_profile_file_applies_no_volume_until_a_load_succeeds(void)
+{
+    reset();
+    HeadphoneProfiles candidate = capped_profile();
+    CHECK(headphone_store_commit(&store, &candidate, &player, &settings));
+    CHECK_EQUAL(18, hal_audio_headphones().ceiling);
+    fake_hal_fail_internal_reads(HEADPHONE_STORE_PATH);
+    headphone_store_load(&store);
+    CHECK(store.file.needs_reload);
+    CHECK_EQUAL(0, store.active.ceiling);
+    CHECK_EQUAL(0, hal_audio_headphones().ceiling);
+    CHECK(!headphone_store_commit(&store, &candidate, &player, &settings));
+    CHECK_EQUAL(0, hal_audio_headphones().ceiling);
+    fake_hal_fail_internal_reads(NULL);
+    headphone_store_load(&store);
+    CHECK_EQUAL(STORE_READY, store.load);
+    CHECK_EQUAL(18, hal_audio_headphones().ceiling);
 }
 
 static void a_profile_caps_music_usb_and_restored_levels_before_hardware_volume(void)
@@ -260,6 +281,7 @@ int main(void)
         TEST_CASE(missing_profiles_keep_neutral_sound_without_editor_state),
         TEST_CASE(a_commit_saves_through_its_own_file_callbacks_after_the_loader_is_gone),
         TEST_CASE(a_missing_profile_file_blocks_saves_until_it_is_made),
+        TEST_CASE(an_unreadable_profile_file_applies_no_volume_until_a_load_succeeds),
         TEST_CASE(a_profile_caps_music_usb_and_restored_levels_before_hardware_volume),
         TEST_CASE(switching_off_attenuation_lowers_both_saved_mode_volumes),
         TEST_CASE(rejected_edits_preserve_audio_and_the_current_settings_version),
