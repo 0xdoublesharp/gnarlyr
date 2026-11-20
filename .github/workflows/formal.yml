@@ -1,0 +1,72 @@
+name: Formal checks
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: Which checks to run
+        type: choice
+        options: [all, cbmc, tla]
+        default: all
+      harness:
+        description: One harness or model by name (empty runs every one of the chosen kind)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  formal:
+    name: CBMC harnesses and TLA+ models
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      CBMC_VERSION: 6.11.0
+      CBMC_SHA256: b3721aa541038384d7801ea3aeabbcddc3e8845ac8f1cbff637cf8dec7481ac8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Mount disposable Scratch storage
+        run: |
+          set -euo pipefail
+          sudo mkdir -p /Volumes/Scratch
+          sudo mount -t tmpfs -o size=8G tmpfs /Volumes/Scratch
+          sudo chown "$(id -u):$(id -g)" /Volumes/Scratch
+          mkdir -p /Volumes/Scratch/SnowskyEcho/{tools,tmp/ci,reports}
+          echo 'TMPDIR=/Volumes/Scratch/SnowskyEcho/tmp/ci' >> "$GITHUB_ENV"
+          echo 'PYTHONDONTWRITEBYTECODE=1' >> "$GITHUB_ENV"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - name: Install verified CBMC and Java
+        run: |
+          set -euo pipefail
+          deb="/Volumes/Scratch/SnowskyEcho/tools/ubuntu-24.04-cbmc-${CBMC_VERSION}-Linux.deb"
+          curl -fsSL -o "$deb" "https://github.com/diffblue/cbmc/releases/download/cbmc-${CBMC_VERSION}/ubuntu-24.04-cbmc-${CBMC_VERSION}-Linux.deb"
+          echo "${CBMC_SHA256}  $deb" | sha256sum -c -
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends "$deb" openjdk-21-jre-headless
+          cbmc --version
+          java -version
+      - name: Download and verify tla2tools.jar
+        run: python3 tools/formal.py --fetch-tla
+      - name: Run the formal checks
+        env:
+          KIND: ${{ inputs.kind }}
+          HARNESS: ${{ inputs.harness }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$KIND" = cbmc ]; then args+=(--cbmc); fi
+          if [ "$KIND" = tla ]; then args+=(--tla); fi
+          if [ -n "$HARNESS" ]; then args+=(--harness "$HARNESS"); fi
+          python3 tools/firmware.py formal "${args[@]}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: formal-${{ github.sha }}
+          path: /Volumes/Scratch/SnowskyEcho/reports/formal
+          retention-days: 14
+          if-no-files-found: warn

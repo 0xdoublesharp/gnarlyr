@@ -1,0 +1,428 @@
+{
+  "cbmc": {
+    "checks": [
+      "--bounds-check",
+      "--pointer-check",
+      "--pointer-overflow-check",
+      "--signed-overflow-check",
+      "--div-by-zero-check",
+      "--undefined-shift-check"
+    ],
+    "harnesses": {
+      "canary": {
+        "entry": "canary",
+        "sources": [],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 16
+        },
+        "unwind": 18,
+        "uninitialized": true,
+        "expect": "failed",
+        "timeout": 120
+      },
+      "library_database": {
+        "entry": "library_database",
+        "sources": [
+          "src/library/library.c",
+          "src/library/library_content.c",
+          "src/core/utf8.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 160,
+          "FORMAL_TEXT_BYTES": 16,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 40,
+        "timeout": 900,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "scan_record": {
+        "entry": "scan_record",
+        "sources": [
+          "src/app/music_check.c",
+          "src/app/music_record.c",
+          "src/library/music_fingerprint.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hal.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 528,
+          "FORMAL_VERSION_BYTES": 24
+        },
+        "unwind": 26,
+        "timeout": 600,
+        "includes": [
+          "src/app"
+        ]
+      },
+      "tags_id3v2": {
+        "entry": "track_tags",
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 48,
+          "FORMAL_TAG_FORMAT": "TAG_FORMAT_MP3"
+        },
+        "unwind": 52,
+        "timeout": 900
+      },
+      "tags_flac": {
+        "entry": "track_tags",
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 64,
+          "FORMAL_TAG_FORMAT": "TAG_FORMAT_FLAC"
+        },
+        "unwind": 68,
+        "timeout": 900
+      },
+      "tags_mp4": {
+        "entry": "track_tags",
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 64,
+          "FORMAL_TAG_FORMAT": "TAG_FORMAT_MP4"
+        },
+        "unwind": 68,
+        "timeout": 900
+      },
+      "tags_vorbis_comment": {
+        "entry": "vorbis_comment",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_ape.c",
+          "src/library/tags_asf.c",
+          "src/library/tags_genres.c",
+          "src/library/tags_id3.c",
+          "src/library/tags_mp4.c",
+          "src/library/tags_mpeg.c",
+          "src/library/tags_riff.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_vorbis.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 48
+        },
+        "unwind": 52,
+        "timeout": 900
+      },
+      "cue_sheet": {
+        "entry": "cue_sheet",
+        "sources": [
+          "src/library/cue_sheet.c",
+          "src/library/playlist_reader.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 40,
+          "FORMAL_CUE_ENTRIES": 3
+        },
+        "unwind": 44,
+        "timeout": 900
+      },
+      "playlist_reader": {
+        "entry": "playlist_reader",
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 40,
+          "FORMAL_TEXT_BYTES": 12,
+          "FORMAL_PLAYLIST_ENTRIES": 4
+        },
+        "unwind": 44,
+        "timeout": 900
+      },
+      "settings_codec": {
+        "entry": "settings_codec",
+        "sources": [
+          "src/settings/settings.c",
+          "src/core/format_chain.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 96
+        },
+        "unwind": 98,
+        "timeout": 600
+      },
+      "playback_store": {
+        "entry": "playback_store",
+        "sources": [
+          "src/playback/store.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 1100,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 514,
+        "timeout": 900
+      },
+      "user_state_records": {
+        "entry": "user_state_records",
+        "sources": [
+          "src/settings/user_state.c",
+          "src/settings/user_state_list.c",
+          "platform/device/logic/update_trial.c",
+          "src/core/format_chain.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 16
+        },
+        "unwind": 24,
+        "timeout": 600
+      },
+      "language_pack": {
+        "entry": "language_pack",
+        "includes": [
+          "formal/cbmc/catalogue",
+          "src/app"
+        ],
+        "sources": [
+          "src/core/i18n.c",
+          "src/app/language.c",
+          "src/app/language_module.c",
+          "src/core/string_builder.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 160,
+          "FORMAL_LANGUAGE_MEMORY": 160
+        },
+        "unwind": 164,
+        "timeout": 900,
+        "checks": [
+          "--object-bits",
+          "10"
+        ]
+      },
+      "theme_pack_v1": {
+        "entry": "theme_pack",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_pack.c",
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "nondet_bodies": [
+          "theme_pack_crc"
+        ],
+        "defines": {
+          "FORMAL_CARD_BYTES": 640,
+          "FORMAL_CARD_FRESH": 1
+        },
+        "unwind": 132,
+        "timeout": 900,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      }
+    }
+  },
+  "tla": {
+    "version": "1.7.4",
+    "url": "https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar",
+    "sha1": "bee4a54f3ee3d4afc347c3240ec2d9e93b075104",
+    "sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "models": {
+      "update_rollback": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollback.cfg",
+        "expect": "passed",
+        "timeout": 900
+      },
+      "update_witness_rollback": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWitnessRollback.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_witness_promotion": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWitnessPromotion.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_promotes_partial_slot": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackPromote.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_write_failure": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackFailures.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_both_request": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBoth.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_both_request_literal": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBothLiteral.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_two_images": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackTwoImages.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_trial_waits": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackWaits.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_settings_literal": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackLiteral.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_lost_continuity_pass": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackLostPass.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_torn_sectors": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackTorn.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "update_rom_slot1_only": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackRom.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "core_handoff": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoff.cfg",
+        "expect": "passed",
+        "timeout": 900
+      },
+      "core_handoff_witness": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffWitness.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "core_handoff_window": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffWindow.cfg",
+        "expect": "violated",
+        "timeout": 900
+      },
+      "core_handoff_reorder": {
+        "spec": "CoreHandoff.tla",
+        "config": "CoreHandoffReorder.cfg",
+        "expect": "violated",
+        "timeout": 900
+      }
+    }
+  }
+}
