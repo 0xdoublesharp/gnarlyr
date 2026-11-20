@@ -682,6 +682,124 @@ static void wma_content_header_shorter_than_its_lengths_is_ignored(void)
     CHECK_EQUAL(0, strcmp("", tags.text[TAG_ARTIST]));
 }
 
+enum {
+    ASF_HEADER_OBJECT = 30,
+    ASF_EXTENSION_OBJECT = 46,
+    ASF_NESTED_LEVELS = 10000
+};
+
+static const uint8_t ASF_HEADER_GUID[] = {0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11,
+                                          0xa6, 0xd9, 0,    0xaa, 0,    0x62, 0xce, 0x6c};
+static const uint8_t ASF_CONTENT_GUID[] = {0x33, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11,
+                                           0xa6, 0xd9, 0,    0xaa, 0,    0x62, 0xce, 0x6c};
+static const uint8_t ASF_EXTENSION_GUID[] = {0xb5, 0x03, 0xbf, 0x5f, 0x2e, 0xa9, 0xcf, 0x11,
+                                             0x8e, 0xe3, 0,    0xc0, 0x0c, 0x20, 0x53, 0x65};
+static const uint8_t ASF_METADATA_GUID[] = {0xea, 0xcb, 0xf8, 0xc5, 0xaf, 0x5b, 0x77, 0x48,
+                                            0x84, 0x67, 0xaa, 0x8c, 0x44, 0xfa, 0x4c, 0xca};
+static const uint8_t ASF_LIBRARY_GUID[] = {0x94, 0x1c, 0x23, 0x44, 0x98, 0x94, 0xd1, 0x49,
+                                           0xa1, 0x41, 0x1d, 0x13, 0x4e, 0x45, 0x70, 0x54};
+
+static void asf_header_object(uint8_t *bytes, uint64_t size, uint32_t count)
+{
+    memset(bytes, 0, ASF_HEADER_OBJECT);
+    memcpy(bytes, ASF_HEADER_GUID, sizeof ASF_HEADER_GUID);
+    asf_put_le(bytes + 16, size, 8);
+    asf_put_le(bytes + 24, count, 4);
+    bytes[28] = 1;
+    bytes[29] = 2;
+}
+
+static uint32_t asf_object_header(uint8_t *bytes, const uint8_t *guid, uint64_t size)
+{
+    memcpy(bytes, guid, 16);
+    asf_put_le(bytes + 16, size, 8);
+    return 24;
+}
+
+static uint32_t asf_extension_object(uint8_t *bytes, uint32_t data_size)
+{
+    memset(bytes, 0, ASF_EXTENSION_OBJECT);
+    asf_object_header(bytes, ASF_EXTENSION_GUID, ASF_EXTENSION_OBJECT + data_size);
+    asf_put_le(bytes + 42, data_size, 4);
+    return ASF_EXTENSION_OBJECT;
+}
+
+static uint32_t asf_utf16(uint8_t *bytes, const char *text)
+{
+    uint32_t units = (uint32_t)strlen(text) + 1;
+    for (uint32_t index = 0; index < units; index++) {
+        bytes[index * 2] = (uint8_t)text[index];
+        bytes[index * 2 + 1] = 0;
+    }
+    return units * 2;
+}
+
+static uint32_t asf_metadata_object(uint8_t *bytes, const uint8_t *guid, const char *name,
+                                    const char *value)
+{
+    memset(bytes, 0, 38);
+    asf_put_le(bytes + 24, 1, 2);
+    uint32_t name_size = asf_utf16(bytes + 38, name);
+    uint32_t value_size = asf_utf16(bytes + 38 + name_size, value);
+    asf_put_le(bytes + 30, name_size, 2);
+    asf_put_le(bytes + 34, value_size, 4);
+    uint32_t size = 38 + name_size + value_size;
+    asf_object_header(bytes, guid, size);
+    return size;
+}
+
+static uint32_t nested_extension_wma(uint8_t *bytes, uint32_t levels)
+{
+    uint8_t deep[128];
+    uint8_t valid[128];
+    uint32_t deep_size = asf_metadata_object(deep, ASF_METADATA_GUID, "WM/Genre", "Deep");
+    uint32_t valid_size = asf_metadata_object(valid, ASF_LIBRARY_GUID, "WM/AlbumArtist", "Art");
+    uint32_t inner = levels * ASF_EXTENSION_OBJECT + deep_size;
+    uint32_t cursor = ASF_HEADER_OBJECT;
+    cursor += asf_extension_object(bytes + cursor, inner + valid_size);
+    for (uint32_t level = 0; level < levels; level++) {
+        inner -= ASF_EXTENSION_OBJECT;
+        cursor += asf_extension_object(bytes + cursor, inner);
+    }
+    memcpy(bytes + cursor, deep, deep_size);
+    memcpy(bytes + cursor + deep_size, valid, valid_size);
+    cursor += deep_size + valid_size;
+    asf_header_object(bytes, cursor, 1);
+    return cursor;
+}
+
+static void wma_extensions_nested_in_an_extension_are_skipped_at_any_depth(void)
+{
+    static uint8_t bytes[ASF_HEADER_OBJECT + ASF_EXTENSION_OBJECT * (ASF_NESTED_LEVELS + 1) + 256];
+    for (uint32_t levels = 1; levels <= ASF_NESTED_LEVELS; levels *= 100) {
+        uint32_t size = nested_extension_wma(bytes, levels);
+        MemorySource memory = {.bytes = bytes, .size = size};
+        TrackTags tags;
+        CHECK(track_tags_read(memory_source(&memory), size, TAG_FORMAT_WMA, &tags));
+        CHECK_EQUAL(0, strcmp("Art", tags.text[TAG_ALBUM_ARTIST]));
+        CHECK_EQUAL(0, strcmp("", tags.text[TAG_GENRE]));
+        CHECK(memory.reads < 32);
+    }
+}
+
+static void wma_header_size_below_its_own_header_reads_no_objects(void)
+{
+    uint8_t bytes[ASF_HEADER_OBJECT + 38] = {0};
+    uint8_t *content = bytes + ASF_HEADER_OBJECT;
+    asf_object_header(content, ASF_CONTENT_GUID, 38);
+    asf_put_le(content + 24, 4, 2);
+    asf_utf16(content + 34, "T");
+    static const uint64_t header_sizes[] = {sizeof bytes, 0, 20, ASF_HEADER_OBJECT + 23};
+    static const char *const titles[] = {"T", "", "", ""};
+    for (size_t index = 0; index < sizeof header_sizes / sizeof header_sizes[0]; index++) {
+        asf_header_object(bytes, header_sizes[index], 1);
+        MemorySource memory = {.bytes = bytes, .size = sizeof bytes};
+        TrackTags tags;
+        CHECK(track_tags_read(memory_source(&memory), sizeof bytes, TAG_FORMAT_WMA, &tags));
+        CHECK_EQUAL(0, strcmp(titles[index], tags.text[TAG_TITLE]));
+    }
+}
+
 typedef struct FlacComments {
     uint8_t bytes[4096];
     uint32_t cursor;
@@ -1438,6 +1556,8 @@ int main(void)
         TEST_CASE(metadata_read_failures_leave_terminated_fields_and_bounded_pictures),
         TEST_CASE(wma_incomplete_numeric_attributes_and_picture_data_are_ignored),
         TEST_CASE(wma_content_header_shorter_than_its_lengths_is_ignored),
+        TEST_CASE(wma_extensions_nested_in_an_extension_are_skipped_at_any_depth),
+        TEST_CASE(wma_header_size_below_its_own_header_reads_no_objects),
         TEST_CASE(vorbis_comments_read_case_insensitive_fields_and_leave_pictures_to_ogg),
         TEST_CASE(unsynchronised_id3_pictures_read_back_without_escape_bytes),
         TEST_CASE(ogg_pictures_read_back_as_the_embedded_image),

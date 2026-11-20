@@ -262,17 +262,14 @@ static void read_metadata(TagReader *reader, uint32_t body, uint32_t end)
     }
 }
 
-static void read_objects(TagReader *reader, uint32_t cursor, uint32_t end, uint32_t count);
-
-static void read_extension(TagReader *reader, uint32_t body, uint32_t end)
+static uint32_t object_size(const TagReader *reader, uint32_t cursor, uint32_t end, uint8_t *header)
 {
-    uint8_t size[4];
-    if (body + EXTENSION_HEADER > end || !tag_read(reader, body + 18, size, 4)) {
-        return;
+    if (cursor > end || end - cursor < OBJECT_HEADER ||
+        !tag_read(reader, cursor, header, OBJECT_HEADER)) {
+        return 0;
     }
-    uint32_t data = body + EXTENSION_HEADER;
-    uint32_t data_end = tag_le32(size) <= end - data ? data + tag_le32(size) : end;
-    read_objects(reader, data, data_end, UINT32_MAX);
+    uint64_t size = tag_le64(header + GUID_SIZE);
+    return size < OBJECT_HEADER || size > end - cursor ? 0 : (uint32_t)size;
 }
 
 static void read_file_properties(TagReader *reader, uint32_t body, uint32_t end)
@@ -296,24 +293,40 @@ static void read_object(TagReader *reader, const uint8_t *guid, uint32_t body, u
         read_extended_content(reader, body, end);
     } else if (same_guid(guid, METADATA) || same_guid(guid, METADATA_LIBRARY)) {
         read_metadata(reader, body, end);
-    } else if (same_guid(guid, HEADER_EXTENSION)) {
-        read_extension(reader, body, end);
     }
 }
 
-static void read_objects(TagReader *reader, uint32_t cursor, uint32_t end, uint32_t count)
+static void read_extension(TagReader *reader, uint32_t body, uint32_t end)
 {
     uint8_t header[OBJECT_HEADER];
-    for (uint32_t index = 0; index < count && cursor + OBJECT_HEADER <= end; index++) {
-        if (!tag_read(reader, cursor, header, sizeof header)) {
+    if (end - body < EXTENSION_HEADER || !tag_read(reader, body + 18, header, 4)) {
+        return;
+    }
+    uint32_t cursor = body + EXTENSION_HEADER;
+    uint32_t data_end = tag_le32(header) <= end - cursor ? cursor + tag_le32(header) : end;
+    uint32_t size = object_size(reader, cursor, data_end, header);
+    while (size != 0) {
+        read_object(reader, header, cursor + OBJECT_HEADER, cursor + size);
+        cursor += size;
+        size = object_size(reader, cursor, data_end, header);
+    }
+}
+
+static void read_objects(TagReader *reader, uint32_t end, uint32_t count)
+{
+    uint8_t header[OBJECT_HEADER];
+    uint32_t cursor = HEADER_OBJECT_HEADER;
+    for (uint32_t index = 0; index < count; index++) {
+        uint32_t size = object_size(reader, cursor, end, header);
+        if (size == 0) {
             return;
         }
-        uint64_t size = tag_le64(header + GUID_SIZE);
-        if (size < OBJECT_HEADER || size > end - cursor) {
-            return;
+        if (same_guid(header, HEADER_EXTENSION)) {
+            read_extension(reader, cursor + OBJECT_HEADER, cursor + size);
+        } else {
+            read_object(reader, header, cursor + OBJECT_HEADER, cursor + size);
         }
-        read_object(reader, header, cursor + OBJECT_HEADER, cursor + (uint32_t)size);
-        cursor += (uint32_t)size;
+        cursor += size;
     }
 }
 
@@ -325,6 +338,6 @@ bool tags_read_wma(TagReader *reader)
     }
     uint64_t size = tag_le64(header + GUID_SIZE);
     uint32_t end = size < reader->size ? (uint32_t)size : reader->size;
-    read_objects(reader, HEADER_OBJECT_HEADER, end, tag_le32(header + OBJECT_HEADER));
+    read_objects(reader, end, tag_le32(header + OBJECT_HEADER));
     return true;
 }

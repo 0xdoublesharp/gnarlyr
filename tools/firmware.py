@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import struct
 import subprocess
 
 from echo_debug import IDENTITY
@@ -72,8 +73,30 @@ def library_builder_fault_seeds():
     return seeds
 
 
+ASF_HEADER = bytes.fromhex("3026b2758e66cf11a6d900aa0062ce6c")
+ASF_EXTENSION = bytes.fromhex("b503bf5f2ea9cf118ee300c00c205365")
+ASF_METADATA_LIBRARY = bytes.fromhex("941c23449894d149a1411d134e457054")
+
+
+def asf_metadata_library(name, value):
+    name_units = (name + "\0").encode("utf-16-le")
+    value_units = (value + "\0").encode("utf-16-le")
+    record = struct.pack("<HHHHI", 0, 0, len(name_units), 0, len(value_units)) + name_units + value_units
+    body = struct.pack("<H", 1) + record
+    return ASF_METADATA_LIBRARY + struct.pack("<Q", 24 + len(body)) + body
+
+
+def nested_asf_seed(levels):
+    body = asf_metadata_library("WM/Genre", "Deep")
+    for _ in range(levels):
+        body = ASF_EXTENSION + struct.pack("<Q", 46 + len(body)) + bytes(18) + struct.pack("<I", len(body)) + body
+    tagged = body + asf_metadata_library("WM/AlbumArtist", "Art")
+    top = ASF_EXTENSION + struct.pack("<Q", 46 + len(tagged)) + bytes(18) + struct.pack("<I", len(tagged)) + tagged
+    return ASF_HEADER + struct.pack("<QIBB", 30 + len(top), 1, 1, 2) + top
+
+
 FUZZ_SEEDS = {
-    "track_tags": [b"\0"],
+    "track_tags": [b"\0", nested_asf_seed(2), nested_asf_seed(1000)],
     "timed_metadata": [
         b"[00:00.00]First line\n[00:01.50][00:02.00]Repeated line\n",
         b"\xef\xbb\xbf[offset:-250]\n[00:00.10]Early\n[9999:59.999]Late\n",
