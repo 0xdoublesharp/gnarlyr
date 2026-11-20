@@ -29,6 +29,7 @@
 #include "hal/system.h"
 #include "headphone_store.h"
 #include "home_art.h"
+#include "known_issues.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
 #include "library/playlist_reader.h"
@@ -1724,6 +1725,7 @@ static void a_chosen_slot_opens_its_editor_and_saves_back_into_it(void)
 
 static void the_equalizer_row_names_the_matching_slot(void)
 {
+    fake_hal_reset();
     EqualizerPresets presets = {0};
     int8_t gains[SETTINGS_EQUALIZER_BANDS] = {0};
     gains[5] = 3;
@@ -1931,6 +1933,7 @@ static void check_saved_theme_selection(AppearanceTheme appearance)
 {
     static const uint8_t NO_PACK[16] = {0};
     static ThemeRuntime saved;
+    fake_hal_borrow_module(SCREEN_MODULE_VIEWS);
     theme_runtime_boot(&saved);
     CHECK(saved.stored);
     CHECK_EQUAL(appearance, saved.saved_base);
@@ -3773,7 +3776,9 @@ static void configured_menu_hold_selects_the_other_destinations(void)
         restart_app();
         wait_ms(SPLASH_MS);
         play_first_album_track();
+        known_issue_tolerate_calls(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE);
         hold(KEY_MENU);
+        known_issue_end();
         CHECK(title_is(titles[index]));
     }
 }

@@ -17,6 +17,7 @@
 #include "hal/language.h"
 #include "hal/power.h"
 #include "hal/storage.h"
+#include "module_guard.h"
 #include "playback/track_keys.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,7 +31,8 @@ enum {
     WRITTEN_CAPACITY = 4096,
     PATH_CAPACITY = 260,
     INTERNAL_CAPACITY = 7,
-    SCREENSHOT_CAPACITY = 32 + HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE * 2
+    SCREENSHOT_CAPACITY = 32 + HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE * 2,
+    FAILING_PATH_CAPACITY = 6
 };
 
 typedef struct FakeAudio {
@@ -142,6 +144,8 @@ typedef struct FakeHal {
     uint32_t damaged_offset;
     uint8_t damaged_value;
     const char *fail_internal_writes;
+    const char *failing_internal_writes[FAILING_PATH_CAPACITY];
+    const char *fail_internal_reads;
     const char *fail_file_opens;
     const char *fail_file_reads;
     InternalFile internal[INTERNAL_CAPACITY];
@@ -184,6 +188,7 @@ typedef struct FakeHal {
     bool usb_connect_pending;
     int rescan_loads;
     uint32_t loaded_module;
+    int usb_overlay_loads;
     uint32_t broken_modules;
     int module_loads;
     int module_refusals;
@@ -332,6 +337,7 @@ void fake_hal_reset(void)
     fake.key_adc = FAKE_KEY_IDLE_READING;
     fake.loader_keys = false;
     key_ladder_model_init(&fake.ladder);
+    module_guard_reset();
 }
 
 void fake_hal_set_version(const char *version)
@@ -1996,6 +2002,7 @@ const void *hal_system_load_rescan_code(void)
 {
     fake.loaded_module = 0;
     fake.rescan_loads++;
+    module_guard_evict("the rescan overlay");
     return &RESCAN_MODULE_ENTRY;
 }
 
@@ -2005,12 +2012,31 @@ const void *hal_system_load_module(uint32_t module)
         fake.loaded_module = 0;
         if (fake.restart_pending || (fake.broken_modules & 1u << module) != 0) {
             fake.module_refusals++;
+            module_guard_evict("a refused module load");
             return NULL;
         }
         fake.module_loads++;
         fake.loaded_module = module;
+        module_guard_load(module);
     }
     return app_linked_module(module);
+}
+
+void fake_hal_borrow_module(uint32_t module)
+{
+    module_guard_borrow(module);
+}
+
+void fake_hal_load_usb_overlay(void)
+{
+    fake.loaded_module = 0;
+    fake.usb_overlay_loads++;
+    module_guard_evict("the USB overlay");
+}
+
+int fake_hal_usb_overlay_loads(void)
+{
+    return fake.usb_overlay_loads;
 }
 
 const void *hal_system_loaded_module(void)
@@ -2036,6 +2062,7 @@ void fake_hal_break_module(uint32_t module, bool broken)
 void fake_hal_evict_module(void)
 {
     fake.loaded_module = 0;
+    module_guard_evict("fake_hal_evict_module");
 }
 
 uint32_t fake_hal_loaded_module(void)
@@ -2075,9 +2102,35 @@ static InternalFile *internal_slot(const char *path)
     return existing;
 }
 
+static bool internal_write_fails(const char *path)
+{
+    for (int index = 0; index < FAILING_PATH_CAPACITY; index++) {
+        if (fake.failing_internal_writes[index] != NULL &&
+            strcmp(path, fake.failing_internal_writes[index]) == 0) {
+            return true;
+        }
+    }
+    return fake.fail_internal_writes != NULL && strcmp(path, fake.fail_internal_writes) == 0;
+}
+
+void fake_hal_fail_internal_writes_at(int index, const char *path)
+{
+    if (index >= 0 && index < FAILING_PATH_CAPACITY) {
+        fake.failing_internal_writes[index] = path;
+    }
+}
+
+void fake_hal_fail_internal_reads(const char *path)
+{
+    fake.fail_internal_reads = path;
+}
+
 bool hal_internal_file_read(const char *path, void *buffer, uint32_t length)
 {
     InternalFile *file = internal_file(path);
+    if (fake.fail_internal_reads != NULL && strcmp(path, fake.fail_internal_reads) == 0) {
+        return false;
+    }
     if (file == NULL || file->size < length || length > WRITTEN_CAPACITY) {
         return false;
     }
@@ -2090,7 +2143,7 @@ bool hal_internal_file_write(const char *path, const void *bytes, uint32_t lengt
     InternalFile *file = internal_slot(path);
     if (file == NULL || length > WRITTEN_CAPACITY ||
         (fake.fail_file_writes != NULL && strcmp(path, fake.fail_file_writes) == 0) ||
-        (fake.fail_internal_writes != NULL && strcmp(path, fake.fail_internal_writes) == 0)) {
+        internal_write_fails(path)) {
         return false;
     }
     memcpy(file->bytes, bytes, length);
@@ -2124,7 +2177,7 @@ bool hal_internal_file_write_at(const char *path, uint32_t offset, const void *b
                                 uint32_t length)
 {
     InternalFile *file = internal_file(path);
-    if (fake.fail_internal_writes != NULL && strcmp(path, fake.fail_internal_writes) == 0) {
+    if (internal_write_fails(path)) {
         return false;
     }
     if (file != NULL && offset <= file->size && length <= file->size - offset &&
