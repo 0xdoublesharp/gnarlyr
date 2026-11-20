@@ -28,6 +28,7 @@ typedef struct ArtPalette {
     Color colors[ART_PALETTE_MAX];
     uint8_t alpha[ART_PALETTE_MAX / 2];
     uint32_t alpha_entries;
+    uint32_t entries;
 } ArtPalette;
 
 bool art_row_indexed(ArtRow *row, const ArtPalette *palette, ArtSpan span);

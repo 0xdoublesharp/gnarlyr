@@ -35,6 +35,7 @@ static void prepare(const uint8_t *data)
         palette.alpha[index / 2] = (uint8_t)(data[5] ^ index);
     }
     palette.alpha_entries = data[4];
+    palette.entries = (uint32_t)data[4] + 1u;
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)

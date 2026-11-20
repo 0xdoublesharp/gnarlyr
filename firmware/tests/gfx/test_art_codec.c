@@ -10,7 +10,7 @@ static ArtPalette palette;
 
 static void reset_palette(void)
 {
-    palette = (ArtPalette){.alpha_entries = 0};
+    palette = (ArtPalette){.alpha_entries = 0, .entries = ART_PALETTE_MAX};
     for (int index = 0; index < ART_PALETTE_MAX; index++) {
         palette.colors[index] = (Color)(0x0101 * (unsigned)index);
     }

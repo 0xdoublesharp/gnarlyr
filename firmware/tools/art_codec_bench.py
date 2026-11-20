@@ -79,7 +79,7 @@ class Bench:
         self.uc.mem_write(payload_at, data)
         self.uc.mem_write(table_at, struct.pack("<%dI" % len(info["table"]), *info["table"]))
         self.uc.mem_write(palette_at, struct.pack("<256H", *colors) + bytes(nibbles) +
-                          struct.pack("<I", alpha_entries))
+                          struct.pack("<II", alpha_entries, len(info["colors"] or [])))
         self.uc.mem_write(job_at, struct.pack("<4I6i", payload_at, table_at, palette_at, out_at,
                                               width, height, first, last, info["codec"],
                                               info["alpha"]))

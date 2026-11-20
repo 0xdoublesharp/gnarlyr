@@ -57,6 +57,7 @@ static int parse(Payload *payload)
     }
     memcpy(palette.alpha, payload->bytes + HEAD_BYTES + payload->entries * 2, nibbles);
     palette.alpha_entries = payload->codec == ART_CODEC_INDEXED ? payload->alpha : 0;
+    palette.entries = payload->entries;
     return 1;
 }
 

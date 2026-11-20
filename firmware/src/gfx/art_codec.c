@@ -35,22 +35,42 @@ static uint32_t entry_alpha(const ArtPalette *palette, uint32_t index)
                                           : COLOR_ALPHA_OPAQUE;
 }
 
-static Color *put_indices(Color *out, const ArtPalette *palette, const uint8_t *source, int count)
+static uint32_t put_indices(Color *out, const ArtPalette *palette, const uint8_t *source, int count)
 {
-    if (palette->alpha_entries == 0) {
-        const Color *colors = palette->colors;
-        for (Color *end = out + count; out < end;) {
+    uint32_t seen = 0;
+    const Color *colors = palette->colors;
+    if (palette->alpha_entries == 0 && palette->entries >= ART_PALETTE_MAX) {
+        for (const uint8_t *end = source + count; source < end;) {
             *out++ = colors[*source++];
         }
-        return out;
+        return 0;
+    }
+    if (palette->alpha_entries == 0) {
+        for (const uint8_t *end = source + count; source < end;) {
+            uint32_t index = *source++;
+            seen |= index;
+            *out++ = colors[index];
+        }
+        return seen;
     }
     for (int at = 0; at < count; at++) {
+        seen |= source[at];
         uint32_t alpha = entry_alpha(palette, source[at]);
         if (alpha != 0) {
             put_run(out + at, palette->colors[source[at]], alpha, 1);
         }
     }
-    return out + count;
+    return seen;
+}
+
+static bool indices_known(const uint8_t *source, int count, uint32_t entries)
+{
+    for (int at = 0; at < count; at++) {
+        if (source[at] >= entries) {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool art_row_indexed(ArtRow *row, const ArtPalette *palette, ArtSpan span)
@@ -68,12 +88,20 @@ bool art_row_indexed(ArtRow *row, const ArtPalette *palette, ArtSpan span)
             return false;
         }
         ArtCursor cursor = cursor_for(&span, out, x, x + count);
+        int shown = cursor.last - cursor.first;
         if (packet & 0x80u) {
             uint32_t alpha = entry_alpha(palette, *at);
-            out = alpha != 0 ? put_run(out, palette->colors[*at], alpha, cursor.last - cursor.first)
-                             : out + (cursor.last - cursor.first);
+            if (*at >= palette->entries) {
+                return false;
+            }
+            out = alpha != 0 ? put_run(out, palette->colors[*at], alpha, shown) : out + shown;
         } else {
-            out = put_indices(out, palette, at + (cursor.first - x), cursor.last - cursor.first);
+            const uint8_t *source = at + (cursor.first - x);
+            if (put_indices(out, palette, source, shown) >= palette->entries &&
+                !indices_known(source, shown, palette->entries)) {
+                return false;
+            }
+            out += shown;
         }
         at += bytes;
         x += count;

@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "gfx/art_codec.h"
+#include "ui/icons.h"
 
 enum {
     ART_BATCH = 32,
@@ -52,6 +53,25 @@ static uint32_t get32(const uint8_t *bytes)
            (uint32_t)bytes[3] << 24;
 }
 
+static bool size_fits(const uint8_t *bytes, uint16_t slot)
+{
+    uint32_t width = (uint32_t)(bytes[4] | bytes[5] << 8);
+    uint32_t height = (uint32_t)(bytes[6] | bytes[7] << 8);
+    bool portrait = bytes[2] == 1;
+    if (slot >= THEME_ART_ICON) {
+        return bytes[19] == 0 && width - 1 < ICON_LARGE_GRID && height - 1 < ICON_LARGE_GRID;
+    }
+    if (bytes[19] != 0) {
+        return bytes[19] == THEME_PACK_TILE && slot == THEME_ART_LIST && width - 1 < 64 &&
+               height - 1 < 64;
+    }
+    if (slot == THEME_ART_CASSETTE_LABEL) {
+        return width == 160 && height == 48;
+    }
+    return bytes[2] < THEME_PACK_EITHER && width == (portrait ? 222u : 480u) &&
+           height == (portrait ? 480u : 222u);
+}
+
 static bool descriptor_kept(const ThemeRuntime *runtime, int index, const uint8_t *bytes)
 {
     const ThemeAssetKey *key = &runtime->pack.assets[index];
@@ -60,7 +80,8 @@ static bool descriptor_kept(const ThemeRuntime *runtime, int index, const uint8_
     bool lossless = bytes[16] == ART_CODEC_LOSSLESS && bytes[17] == 0 && bytes[18] <= 1 &&
                     slot != THEME_ART_NOW_PLAYING;
     return slot == key->slot && bytes[2] == key->orientation && bytes[3] == key->text_size &&
-           (indexed || lossless);
+           (indexed || lossless) && (bytes[18] == 0 || slot >= THEME_ART_ICON) && bytes[23] == 1 &&
+           size_fits(bytes, slot);
 }
 
 static bool describe(ThemeRuntime *runtime, int index)
@@ -85,7 +106,10 @@ static bool describe(ThemeRuntime *runtime, int index)
                                    bytes[16],
                                    bytes[18],
                                    (int8_t)index};
-    return runtime->art.width > 0 && runtime->art.height > 0;
+    const ThemeArtCache *art = &runtime->art;
+    uint32_t size = runtime->file.size;
+    return art->offset <= size && art->bytes <= size - art->offset &&
+           art->table + 4u * (art->height + 1u) <= art->bytes;
 }
 
 static bool load_palette(ThemeRuntime *runtime, ArtPalette *palette)
@@ -95,8 +119,15 @@ static bool load_palette(ThemeRuntime *runtime, ArtPalette *palette)
     uint32_t colors = art->table - THEME_PACK_PAYLOAD_HEAD_BYTES;
     uint32_t nibbles = art->codec == ART_CODEC_INDEXED ? (art->alpha + 1u) / 2 : 0;
     uint32_t start = art->offset + THEME_PACK_PAYLOAD_HEAD_BYTES;
-    for (uint32_t at = (colors - nibbles) / 2; at < ART_PALETTE_MAX; at++) {
+    uint8_t head[THEME_PACK_PAYLOAD_HEAD_BYTES];
+    palette->entries = (colors - nibbles) / 2;
+    for (uint32_t at = palette->entries; at < ART_PALETTE_MAX; at++) {
         palette->colors[at] = 0;
+    }
+    if (!hal_file_read(runtime->file, art->offset, head, sizeof head) || head[0] != art->codec ||
+        head[1] != (palette->entries > 0 ? palette->entries - 1 : 0) || head[2] != art->alpha ||
+        head[3] != 1) {
+        return false;
     }
     return colors == 0 ||
            (hal_file_read(runtime->file, start, palette->colors, colors - nibbles) &&

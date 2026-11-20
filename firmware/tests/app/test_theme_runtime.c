@@ -301,10 +301,47 @@ static void art_changed_on_the_card_after_validation_never_reaches_the_screen(vo
     uint8_t *payload = pack.bytes + stored32(list + 8);
     uint32_t entries = list[17] + 1u;
     uint32_t first_row = stored32(payload + 4 + entries * 2);
-    payload[first_row + 1] = 200;
-    CHECK(draw_slot(&pack, THEME_ART_LIST, pixels));
-    CHECK_EQUAL(0, pixels[0]);
+    payload[first_row + 1] = (uint8_t)entries;
+    CHECK(!draw_slot(&pack, THEME_ART_LIST, pixels));
+    CHECK(!pack.runtime.active);
     theme_runtime_close(&pack.runtime);
+}
+
+typedef struct Corruption {
+    int asset;
+    int at;
+    uint32_t value;
+    int bytes;
+} Corruption;
+
+static void refuse_corruption(ChangedPack *pack, Corruption corruption, Color *pixels)
+{
+    reload(pack);
+    uint8_t *descriptor =
+        pack->bytes + THEME_PACK_HEADER_BYTES + corruption.asset * THEME_PACK_ASSET_BYTES;
+    uint8_t *field = corruption.at >= 0
+                         ? descriptor + corruption.at
+                         : pack->bytes + stored32(descriptor + 8) - corruption.at - 1;
+    for (int byte = 0; byte < corruption.bytes; byte++) {
+        field[byte] = (uint8_t)(corruption.value >> (8 * byte));
+    }
+    CHECK(!draw_slot(pack, corruption.asset == 0 ? THEME_ART_NOW_PLAYING : THEME_ART_LIST, pixels));
+    CHECK(!pack->runtime.active);
+    theme_runtime_close(&pack->runtime);
+}
+
+static void a_descriptor_or_header_changed_after_validation_fails_the_draw(void)
+{
+    static const Corruption CASES[] = {
+        {1, 8, 0xFFFFFF00u, 4}, {1, 12, 0xFFFFFFF0u, 4}, {0, 4, 481, 2}, {0, 6, 0, 2},
+        {1, 4, 65, 2},          {0, 18, 1, 1},           {0, 19, 1, 1},  {0, -1, 2, 1},
+        {0, -4, 2, 1},          {0, -3, 9, 1},
+    };
+    static Color pixels[480 * 4];
+    static ChangedPack pack;
+    for (unsigned at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
+        refuse_corruption(&pack, CASES[at], pixels);
+    }
 }
 
 static uint32_t three_tiles(uint8_t *bytes, uint32_t capacity, uint8_t count)
@@ -351,6 +388,7 @@ static void set_key(ThemeRuntime *runtime, uint8_t *bytes, int index, ThemeAsset
     descriptor[1] = (uint8_t)(key.slot >> 8);
     descriptor[2] = key.orientation;
     descriptor[3] = key.text_size;
+    descriptor[19] = key.slot == THEME_ART_LIST ? descriptor[19] : 0;
     runtime->pack.assets[index] = key;
 }
 
@@ -382,25 +420,20 @@ static void placed_art_obeys_its_bounds_and_clip(void)
     CHECK(theme_runtime_load(&runtime, "first.gtheme"));
     static Color pixels[10 * 10];
     Canvas canvas = canvas_make(pixels, (Rect){0, 0, 10, 10});
-    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_CASSETTE_LABEL, 2, 255});
-    CHECK(!theme_runtime_draw(
-        &runtime, &canvas,
-        (ThemeArtRequest){.area = {4, 5, 2, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
-    CHECK(!theme_runtime_draw(
-        &runtime, &canvas,
-        (ThemeArtRequest){.area = {4, 5, 3, 1}, .slot = THEME_ART_CASSETTE_LABEL}));
+    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_ICON + 1, 2, 255});
+    CHECK(!theme_runtime_draw(&runtime, &canvas,
+                              (ThemeArtRequest){.area = {4, 5, 2, 2}, .slot = THEME_ART_ICON + 1}));
+    CHECK(!theme_runtime_draw(&runtime, &canvas,
+                              (ThemeArtRequest){.area = {4, 5, 3, 1}, .slot = THEME_ART_ICON + 1}));
     canvas.clip = (Rect){5, 6, 1, 1};
-    CHECK(theme_runtime_draw(
-        &runtime, &canvas,
-        (ThemeArtRequest){.area = {4, 5, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    CHECK(theme_runtime_draw(&runtime, &canvas,
+                             (ThemeArtRequest){.area = {4, 5, 3, 2}, .slot = THEME_ART_ICON + 1}));
     CHECK_EQUAL(104, pixels[6 * 10 + 5]);
     canvas.clip = canvas.bounds;
     CHECK(theme_runtime_draw(
-        &runtime, &canvas,
-        (ThemeArtRequest){.area = {20, 20, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
-    CHECK(theme_runtime_draw(
-        &runtime, &canvas,
-        (ThemeArtRequest){.area = {4, 20, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+        &runtime, &canvas, (ThemeArtRequest){.area = {20, 20, 3, 2}, .slot = THEME_ART_ICON + 1}));
+    CHECK(theme_runtime_draw(&runtime, &canvas,
+                             (ThemeArtRequest){.area = {4, 20, 3, 2}, .slot = THEME_ART_ICON + 1}));
     set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_ICON, 2, 255});
     CHECK(theme_runtime_draw(&runtime, &canvas,
                              (ThemeArtRequest){.area = {1, 1, 3, 2}, .slot = THEME_ART_ICON}));
@@ -465,11 +498,10 @@ static void shifted_repeated_and_portrait_art_use_the_general_draw_path(void)
     Canvas repeated = canvas_make(pixels, (Rect){0, 1, 3, 2});
     CHECK(theme_runtime_draw(&runtime, &repeated,
                              (ThemeArtRequest){.area = {0, 1, 3, 2}, .slot = THEME_ART_LIST}));
-    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_CASSETTE_LABEL, 2, 255});
+    set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_ICON + 1, 2, 255});
     Canvas placed = canvas_make(pixels, (Rect){0, 0, 3, 2});
-    CHECK(theme_runtime_draw(
-        &runtime, &placed,
-        (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_CASSETTE_LABEL}));
+    CHECK(theme_runtime_draw(&runtime, &placed,
+                             (ThemeArtRequest){.area = {0, 0, 3, 2}, .slot = THEME_ART_ICON + 1}));
     set_key(&runtime, first, 0, (ThemeAssetKey){THEME_ART_LIST, 1, 255});
     Theme theme = ECHO_THEME;
     theme_runtime_apply(&runtime, &theme);
@@ -713,6 +745,7 @@ int main(void)
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
         TEST_CASE(a_lossless_now_playing_image_is_treated_as_absent_and_the_rest_applies),
         TEST_CASE(art_changed_on_the_card_after_validation_never_reaches_the_screen),
+        TEST_CASE(a_descriptor_or_header_changed_after_validation_fails_the_draw),
         TEST_CASE(each_asset_of_a_pack_draws_its_own_pixels),
         TEST_CASE(art_selection_prefers_exact_dimensions_then_falls_back),
         TEST_CASE(placed_art_obeys_its_bounds_and_clip),
