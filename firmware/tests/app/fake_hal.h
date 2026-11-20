@@ -196,6 +196,7 @@ int fake_hal_card_formats(void);
 void fake_hal_fail_internal_writes(const char *path);
 void fake_hal_fail_internal_writes_at(int index, const char *path);
 void fake_hal_fail_internal_reads(const char *path);
+void fake_hal_remove_internal_file(const char *path);
 
 void fake_hal_set_charging_host(bool host);
 

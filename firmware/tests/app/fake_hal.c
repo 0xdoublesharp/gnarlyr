@@ -2090,6 +2090,14 @@ static InternalFile *internal_file(const char *path)
     return NULL;
 }
 
+void fake_hal_remove_internal_file(const char *path)
+{
+    InternalFile *file = internal_file(path);
+    if (file != NULL) {
+        file->path[0] = '\0';
+    }
+}
+
 static InternalFile *internal_slot(const char *path)
 {
     InternalFile *existing = internal_file(path);

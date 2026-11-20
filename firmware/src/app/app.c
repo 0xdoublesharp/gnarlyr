@@ -1756,6 +1756,7 @@ CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
         app.headphones.load = STORE_EMPTY;
         app.headphones.active = headphone_audio_defaults();
         hal_audio_set_headphones(app.headphones.active);
+        player_set_volume(&app.player, PLAYER_OUTPUT_WIRED, app.settings.settings.volume);
     }
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);

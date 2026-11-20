@@ -158,6 +158,7 @@ static void prefill_player_files(void)
     }
     fake_hal_add_file(MUSIC_CHECK_PATH, NULL, 4096);
     music_record_write(&(MusicRecord){.card = {.complete = true}});
+    hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES);
 }
 
 static void start_app(void)
@@ -189,15 +190,6 @@ static void start_app_with_library(void)
     uint32_t size = 0;
     const uint8_t *bytes = fixture_bytes(&size);
     start_app_with_database(bytes, size);
-}
-
-static void start_app_with_profile_file(void)
-{
-    start_app_with_library();
-    CHECK_EQUAL(HAL_RESERVE_CREATED,
-                hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES));
-    app_stop();
-    app_start();
 }
 
 static void start_app_with_cue_library(void)
@@ -1305,7 +1297,7 @@ static void gain_is_applied(void)
 
 static void choosing_high_gain_lowers_both_volumes_before_the_gain_rises(void)
 {
-    start_app_with_profile_file();
+    start_app_with_library();
     uint8_t volume = fake_hal_audio_volume();
     CHECK(volume > GAIN_RISE_STEPS);
     open_setting(SETTINGS_GAIN_INDEX);
@@ -1343,7 +1335,7 @@ static void choosing_low_gain_or_the_same_gain_keeps_the_volume(void)
 
 static void high_gain_lowers_from_the_headphone_ceiling(void)
 {
-    start_app_with_profile_file();
+    start_app_with_library();
     open_setting(SETTINGS_GAIN_INDEX);
     move_down(1);
     hal_audio_set_headphones((HeadphoneAudio){REPLAY_GAIN_UNITY, REPLAY_GAIN_UNITY, 10});
@@ -1355,7 +1347,7 @@ static void high_gain_lowers_from_the_headphone_ceiling(void)
 
 static void high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_saved(void)
 {
-    start_app_with_profile_file();
+    start_app_with_library();
     uint8_t volume = app_player_status().volume;
     CHECK(volume > GAIN_RISE_STEPS);
     AppDacSettings dac = app_dac_settings();
@@ -1376,7 +1368,7 @@ static void high_gain_chosen_in_dac_mode_lowers_the_music_volume_before_it_is_sa
 
 static void high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_the_output(void)
 {
-    start_app_with_profile_file();
+    start_app_with_library();
     uint8_t wired = app_player_status().volume;
     CHECK(wired > GAIN_RISE_STEPS);
     fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
@@ -1396,7 +1388,7 @@ static void high_gain_from_dac_mode_lowers_the_wired_volume_while_bluetooth_is_t
 
 static void choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_output(void)
 {
-    start_app_with_profile_file();
+    start_app_with_library();
     uint8_t wired = app_player_status().volume;
     fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
@@ -4756,6 +4748,9 @@ static void starting_makes_no_files_before_the_first_step(void)
 static void a_profile_file_made_while_preparing_storage_unblocks_profile_saves(void)
 {
     start_app_with_library();
+    app_stop();
+    fake_hal_remove_internal_file(HEADPHONE_STORE_PATH);
+    app_start();
     fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
     CHECK(app_dac_settings().headphones_fixed);
     CHECK_EQUAL(0, hal_audio_headphones().ceiling);
@@ -4767,6 +4762,11 @@ static void a_profile_file_made_while_preparing_storage_unblocks_profile_saves(v
     CHECK(fake_hal_internal_file_bytes(HEADPHONE_STORE_PATH, &size) != NULL);
     CHECK(!app_dac_settings().headphones_fixed);
     CHECK_EQUAL(headphone_audio_defaults().ceiling, hal_audio_headphones().ceiling);
+    SettingsStore saved;
+    settings_store_load(&saved);
+    CHECK(saved.settings.volume > 0);
+    CHECK_EQUAL(saved.settings.volume, app_player_status().wired_volume);
+    CHECK_EQUAL(saved.settings.volume, fake_hal_audio_volume());
 }
 
 static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
