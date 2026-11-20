@@ -5,9 +5,10 @@ SHA256 6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1
 Preserved unchanged from the release archive: COPYING, AUTHORS, README,
 package_version, the three *_sources.mk files, src/opus_compare.c (built
 on Scratch by tools/opus_vectors.py's check) and every file under celt/,
-silk/, src/ and include/ that the dev, fuzz, device or release build
-compiles or includes.
-Excluded: build systems, documentation, tests, tools, optional neural
-models, SIMD and other architecture variants, float-only code and demos.
-The *_sources.mk lists still name excluded files.
-port/ contains the local bounded scratch-allocation interface.
+silk/, src/ and include/ that the decoder build compiles or includes.
+Excluded: the encoder, multistream, projection and repacketizer code,
+build systems, documentation, tests, tools, optional neural models, SIMD
+and other architecture variants, float-only code and demos. The
+*_sources.mk lists still name excluded files.
+port/ contains the local bounded scratch-allocation interface and
+decode_only.c, which stands in for the three range-encoder functions.
