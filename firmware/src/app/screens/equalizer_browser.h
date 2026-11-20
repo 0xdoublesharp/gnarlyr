@@ -24,4 +24,5 @@ typedef struct EqualizerBrowser {
 } EqualizerBrowser;
 
 void equalizer_browser_leave(EqualizerBrowser *browser);
+void equalizer_browser_refit(EqualizerBrowser *browser);
 Screen *equalizer_browser_init(EqualizerBrowser *browser, EqualizerBrowserConfig config);

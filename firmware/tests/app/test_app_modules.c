@@ -431,6 +431,74 @@ static void quick_settings_cycles_from_the_style_settings_chose(void)
     CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
 }
 
+static void start_app_with_menu_hold(uint8_t action)
+{
+    app_reset_for_test();
+    fake_hal_reset();
+    add_player_files();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.long_press_action = action;
+    CHECK(settings_store_save(&store));
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+}
+
+static void open_sleep_list(void)
+{
+    tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    move_down(5);
+    tap(KEY_PLAY);
+    CHECK(title_is("Sleep timer"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+}
+
+static void choose_from_the_sleep_list(void)
+{
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(title_is("Quick Settings"));
+    CHECK(app_toast_text() != NULL);
+}
+
+static void a_menu_hold_shortcut_over_a_value_list_gives_the_slot_back_in_the_same_step(void)
+{
+    start_app_with_menu_hold(4);
+    play_from_cover_flow();
+    open_sleep_list();
+    int loads = fake_hal_module_loads();
+    fake_hal_queue_transition(KEY_MENU, true, now_ms);
+    now_ms += 1000;
+    step();
+    CHECK(app_player_status().shuffle != SHUFFLE_OFF);
+    CHECK(title_is("Sleep timer"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 2, fake_hal_module_loads());
+    fake_hal_queue_transition(KEY_MENU, false, now_ms);
+    now_ms += 10;
+    step();
+    CHECK(title_is("Sleep timer"));
+    choose_from_the_sleep_list();
+}
+
+static void a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_drawing(void)
+{
+    start_app_with_style(NOW_PLAYING_COVER);
+    play_from_cover_flow();
+    open_sleep_list();
+    int loads = fake_hal_module_loads();
+    AppDacSettings dac = app_dac_settings();
+    dac.headphones = 0;
+    app_remember_dac(dac);
+    wait_ms(20);
+    CHECK(title_is("Sleep timer"));
+    CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(loads + 2, fake_hal_module_loads());
+    choose_from_the_sleep_list();
+}
+
 static void a_module_in_the_slot_is_not_loaded_again(void)
 {
     start_app();
@@ -894,6 +962,8 @@ int main(void)
         TEST_CASE(quick_settings_swaps_the_now_playing_module_once_per_close),
         TEST_CASE(a_meter_style_chosen_in_quick_settings_without_an_intact_stage_shows_cover),
         TEST_CASE(quick_settings_cycles_from_the_style_settings_chose),
+        TEST_CASE(a_menu_hold_shortcut_over_a_value_list_gives_the_slot_back_in_the_same_step),
+        TEST_CASE(a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_drawing),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),
         TEST_CASE(a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so),

@@ -1062,6 +1062,7 @@ static void dispatch_key_events(uint32_t now_ms)
 {
     KeyEvent event;
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
+        settle_screens(now_ms);
         app.render_urgent = true;
         debug_loop_key(event);
         if (top_screen()->keys == SCREEN_KEYS_TEST &&
@@ -1172,6 +1173,7 @@ static void update_power(uint32_t now_ms)
 
 static void update_screen(uint32_t now_ms)
 {
+    settle_screens(now_ms);
     Screen *screen = top_screen();
     if (screen->update != NULL) {
         screen->update(screen->context, now_ms);
@@ -2471,6 +2473,7 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
     app.frame_sent = false;
     marquee_watch_start();
+    settle_screens(now_ms);
     render_frame();
     follow_marquees(now_ms);
     frame_pacer_done(&app.pacer, now_ms, app.frame_sent, urgent);

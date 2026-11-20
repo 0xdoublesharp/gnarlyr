@@ -29,9 +29,6 @@ static const StringId SHUFFLE_OPTIONS[SHUFFLE_MODE_COUNT] = {STR_OFF, STR_SHUFFL
                                                              STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_OPTIONS[REPEAT_MODE_COUNT] = {STR_OFF, STR_REPEAT_MODE_ONE,
                                                            STR_REPEAT_MODE_ALL};
-static const StringId SLEEP_OPTIONS[SLEEP_TIMER_OPTION_COUNT] = {
-    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
-    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId AUTO_OFF_OPTIONS[AUTO_OFF_OPTION_COUNT] = {STR_OFF, STR_MINUTES_1,
                                                                  STR_MINUTES_5, STR_MINUTES_10};
 static const StringId TIMEOUT_OPTIONS[SCREEN_TIMEOUT_OPTION_COUNT] = {
@@ -666,8 +663,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
      settings_action_choose_shuffle, NULL, NULL},
     {STR_REPEAT, REPEAT_OPTIONS, REPEAT_MODE_COUNT, settings_action_current_repeat,
      settings_action_choose_repeat, NULL, NULL},
-    {STR_SLEEP_TIMER, SLEEP_OPTIONS, SLEEP_TIMER_OPTION_COUNT, settings_action_current_sleep,
-     settings_action_choose_sleep, NULL, NULL},
+    {STR_SLEEP_TIMER, SETTINGS_ACTION_SLEEP_LABELS, SLEEP_TIMER_OPTION_COUNT,
+     settings_action_current_sleep, settings_action_choose_sleep, NULL, NULL},
     {STR_AUTO_OFF, AUTO_OFF_OPTIONS, AUTO_OFF_OPTION_COUNT, current_auto_off, choose_auto_off, NULL,
      NULL},
     {STR_SCREEN_TIMEOUT, TIMEOUT_OPTIONS, SCREEN_TIMEOUT_OPTION_COUNT, current_timeout,

@@ -18,6 +18,8 @@ typedef struct QuickSettingsScreen {
     ListView list;
     ChoiceScreen values;
     uint32_t now_ms;
+    uint8_t values_row;
 } QuickSettingsScreen;
 
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config);
+void quick_settings_screen_refit(QuickSettingsScreen *panel);

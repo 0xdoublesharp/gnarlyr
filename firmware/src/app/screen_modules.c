@@ -119,6 +119,9 @@ const ScreenModuleEntry *screen_modules_use(AppScreens *screens, ScreenModule mo
         screens->bound_modules |= bound;
         entry->bind(screens);
     }
+    if (entry->reload != NULL) {
+        entry->reload(screens);
+    }
     screens->home_art.module = (uint8_t)module;
     screens->home_art.unavailable = false;
     screens->home.config.panel.update = entry->art_update;

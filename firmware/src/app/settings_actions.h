@@ -2,9 +2,16 @@
 
 #include <stdbool.h>
 
+#include "core/i18n.h"
+
 struct SettingsContext;
+struct Settings;
+
+extern const StringId SETTINGS_ACTION_SLEEP_LABELS[];
 
 void settings_action_save(struct SettingsContext *context);
+void settings_action_candidate(struct SettingsContext *context, struct Settings *next);
+bool settings_action_publish(struct SettingsContext *context, const struct Settings *next);
 void settings_action_apply_and_save(struct SettingsContext *context);
 int settings_action_current_shuffle(const void *context);
 void settings_action_choose_shuffle(void *context, int index);
@@ -14,7 +21,6 @@ int settings_action_current_sleep(const void *context);
 void settings_action_choose_sleep(void *context, int index);
 int settings_action_active_slot(const void *context);
 int settings_action_current_equalizer(const void *context);
-const char *settings_action_describe_equalizer(const void *context, int current);
 void settings_action_choose_equalizer(void *context, int index);
 void settings_action_apply_replay_gain(struct SettingsContext *context);
 int settings_action_current_replay_gain(const void *context);

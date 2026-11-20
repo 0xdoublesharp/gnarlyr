@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -35,6 +36,7 @@ static const char *const SUBMENU_NAMES[] = {"equalizer", "headphones",  "speed",
                                             "sleep",     "replay-gain", "style"};
 
 static QuickSettingsScreen panel;
+static EqualizerPresets presets;
 static SettingsStore settings;
 static HeadphoneStore headphones;
 static Player player;
@@ -63,6 +65,7 @@ static void start(void)
                                                                           .headphones = &headphones,
                                                                           .player = &player,
                                                                           .power = &power,
+                                                                          .presets = &presets,
                                                                           .toast = &toast},
                                                              .theme = &theme,
                                                              .lyrics = &lyrics,
@@ -340,22 +343,107 @@ static void replay_gain_and_transitions_update_the_player_and_keep_other_setting
     CHECK_EQUAL(27, restored.settings.transition_tenths);
 }
 
-static void failed_saves_are_reported_from_a_cycle_row_and_from_a_submenu(void)
+static bool memory_matches_storage(void)
+{
+    SettingsStore restored;
+    settings_store_load(&restored);
+    const Settings *stored = &restored.settings;
+    const Settings *shown = &settings.settings;
+    return stored->equalizer == shown->equalizer &&
+           stored->playback_speed == shown->playback_speed &&
+           stored->replay_gain_mode == shown->replay_gain_mode &&
+           stored->track_transition == shown->track_transition &&
+           settings_now_playing_style(stored) == settings_now_playing_style(shown);
+}
+
+static void check_failed_save(int row, int value, bool cycle)
 {
     start();
+    char before[64];
+    snprintf(before, sizeof before, "%s", panel.model.detail(&panel, row));
+    Player player_before = player;
     fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
-    choose(SHUFFLE_ROW);
+    if (cycle) {
+        choose(row);
+    } else {
+        pick(row, value);
+    }
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
-    start();
-    fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
-    pick(REPLAY_GAIN_ROW, REPLAY_GAIN_ALBUM);
-    CHECK_EQUAL(REPLAY_GAIN_ALBUM, settings.settings.replay_gain_mode);
-    CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
+    CHECK(strcmp(before, panel.model.detail(&panel, row)) == 0);
+    CHECK(memory_matches_storage());
+    CHECK_EQUAL(player_before.shuffle, player.shuffle);
+    CHECK_EQUAL(player_before.repeat, player.repeat);
+    CHECK_EQUAL(player_before.replay_gain_mode, player.replay_gain_mode);
+    CHECK_EQUAL(player_before.fade_transitions, player.fade_transitions);
+    CHECK_EQUAL(player_before.speed, player.speed);
+}
+
+static void a_failed_save_leaves_every_saving_row_at_its_stored_value(void)
+{
+    check_failed_save(SHUFFLE_ROW, 0, true);
+    check_failed_save(REPEAT_ROW, 0, true);
+    check_failed_save(TRANSITIONS_ROW, 0, true);
+    check_failed_save(EQUALIZER_ROW, EQUALIZER_RETRO, false);
+    check_failed_save(SPEED_ROW, SETTINGS_SPEED_NORMAL + 1, false);
+    check_failed_save(REPLAY_GAIN_ROW, REPLAY_GAIN_ALBUM, false);
+    check_failed_save(STYLE_ROW, NOW_PLAYING_VU, false);
     start();
     fake_hal_fail_internal_writes(HEADPHONE_STORE_PATH);
     pick(HEADPHONES_ROW, 1);
     CHECK_EQUAL(HEADPHONE_PROFILE_NONE, headphones.profiles.current);
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
+}
+
+static void a_saved_transition_still_explains_shuffle(void)
+{
+    start();
+    choose(TRANSITIONS_ROW);
+    CHECK(player.fade_transitions);
+    CHECK(strcmp(toast.text, i18n_text(STR_TRANSITIONS_IN_SHUFFLE)) == 0);
+    CHECK(memory_matches_storage());
+}
+
+static void a_rebuild_after_the_slot_file_fails_clamps_the_equalizer_list(void)
+{
+    start();
+    int8_t gains[SETTINGS_EQUALIZER_BANDS] = {2, -2, 4, -4, 6, -6, 8, -8, 10, -10};
+    CHECK(equalizer_presets_save_slot(&presets, 2, gains));
+    CHECK(equalizer_presets_save_slot(&presets, 5, gains));
+    panel.screen.enter(&panel, 100);
+    open_values(EQUALIZER_ROW);
+    CHECK_EQUAL(EQUALIZER_PRESET_COUNT + 2, panel.values.model.count(&panel.values));
+    list_view_select(&panel.values.list, EQUALIZER_PRESET_COUNT + 1, 100);
+    uint8_t junk[EQUALIZER_SLOTS_FILE_SIZE];
+    memset(junk, 0xA5, sizeof junk);
+    CHECK(hal_internal_file_write(EQUALIZER_SLOTS_PATH, junk, sizeof junk));
+    presets = (EqualizerPresets){0};
+    equalizer_presets_scan(&presets);
+    quick_settings_screen_refit(&panel);
+    int count = panel.values.model.count(&panel.values);
+    CHECK_EQUAL(EQUALIZER_PRESET_COUNT, count);
+    CHECK(panel.values.list.selected < count);
+    for (int value = 0; value < count; value++) {
+        CHECK(panel.values.model.label(&panel.values, value) != NULL);
+    }
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    panel.values.screen.draw(&panel.values, &canvas);
+    int chosen = panel.values.list.selected;
+    CHECK_EQUAL(SCREEN_ACTION_POP, press_values(KEY_PLAY).type);
+    CHECK_EQUAL(chosen, settings.settings.equalizer);
+}
+
+static void a_rebuild_keeps_the_headphone_names(void)
+{
+    start();
+    open_values(HEADPHONES_ROW);
+    quick_settings_screen_refit(&panel);
+    CHECK_EQUAL(HEADPHONE_PROFILE_LIMIT + 1, panel.values.model.count(&panel.values));
+    CHECK(value_label_is(0, i18n_text(STR_OFF)));
+    for (int value = 1; value <= HEADPHONE_PROFILE_LIMIT; value++) {
+        CHECK(panel.values.model.label(&panel.values, value) != NULL);
+        CHECK(panel.values.model.label(&panel.values, value)[0] != '\0');
+    }
 }
 
 static void a_b_repeat_sets_a_then_b_then_clears(void)
@@ -438,12 +526,14 @@ static void the_style_follows_the_settings_choice_both_ways(void)
     CHECK_EQUAL(NOW_PLAYING_CASSETTE, panel.values.list.selected);
 }
 
-static void a_failed_style_save_is_reported_and_the_style_stays_chosen(void)
+static void a_failed_style_save_keeps_the_stored_style(void)
 {
     start();
     fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
     pick(STYLE_ROW, NOW_PLAYING_CASSETTE);
-    CHECK_EQUAL(NOW_PLAYING_CASSETTE, settings_now_playing_style(&settings.settings));
+    CHECK_EQUAL(NOW_PLAYING_COVER, settings_now_playing_style(&settings.settings));
+    CHECK_EQUAL(NOW_PLAYING_COVER, saved_style());
+    CHECK(row_detail_is(STYLE_ROW, STR_NOW_PLAYING_COVER));
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
 }
 
@@ -613,13 +703,16 @@ int main(void)
         TEST_CASE(speed_is_listed_only_while_playback_can_change_speed),
         TEST_CASE(losing_speed_support_keeps_the_selection_inside_the_panel),
         TEST_CASE(replay_gain_and_transitions_update_the_player_and_keep_other_settings),
-        TEST_CASE(failed_saves_are_reported_from_a_cycle_row_and_from_a_submenu),
+        TEST_CASE(a_failed_save_leaves_every_saving_row_at_its_stored_value),
+        TEST_CASE(a_saved_transition_still_explains_shuffle),
+        TEST_CASE(a_rebuild_after_the_slot_file_fails_clamps_the_equalizer_list),
+        TEST_CASE(a_rebuild_keeps_the_headphone_names),
         TEST_CASE(a_b_repeat_sets_a_then_b_then_clears),
         TEST_CASE(a_b_with_b_before_a_keeps_a_and_says_why),
         TEST_CASE(a_b_without_a_track_stays_off),
         TEST_CASE(now_playing_style_is_chosen_from_its_submenu_and_persists),
         TEST_CASE(the_style_follows_the_settings_choice_both_ways),
-        TEST_CASE(a_failed_style_save_is_reported_and_the_style_stays_chosen),
+        TEST_CASE(a_failed_style_save_keeps_the_stored_style),
         TEST_CASE(all_rows_fit_every_theme_orientation_and_text_size),
         TEST_CASE(the_a_b_row_fits_every_text_size_and_orientation),
         TEST_CASE(the_style_row_fits_every_text_size_and_orientation),

@@ -31,15 +31,11 @@ typedef struct QuickRow {
     void (*choose)(void *settings, int index);
 } QuickRow;
 
-static EqualizerPresets quick_presets;
 static const char *headphone_names[HEADPHONE_PROFILE_LIMIT + 1];
 static char slot_names[HEADPHONE_PROFILE_LIMIT][HEADPHONE_PROFILE_NAME_BYTES];
 
 static const StringId SHUFFLE_VALUES[] = {STR_OFF, STR_SHUFFLE_SONGS, STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_VALUES[] = {STR_OFF, STR_REPEAT_MODE_ONE, STR_REPEAT_MODE_ALL};
-static const StringId SLEEP_VALUES[] = {
-    STR_OFF,        STR_MINUTES_15,  STR_MINUTES_30,      STR_MINUTES_45,       STR_MINUTES_60,
-    STR_MINUTES_90, STR_MINUTES_120, STR_SLEEP_END_TRACK, STR_SLEEP_END_CHAPTER};
 static const StringId TRANSITION_VALUES[] = {STR_OFF, STR_TRANSITION_FADE};
 static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM,
                                          STR_REPLAY_GAIN_AUTO};
@@ -84,16 +80,6 @@ static const char *const *headphone_labels(const SettingsContext *settings)
     return headphone_names;
 }
 
-static void refresh_labels(const SettingsContext *settings)
-{
-    if (quick_presets.option_count == 0) {
-        equalizer_presets_scan(&quick_presets);
-    }
-    if (headphone_names[0] == NULL) {
-        headphone_labels(settings);
-    }
-}
-
 static void headphone_choose(void *context, int index)
 {
     SettingsContext *settings = context;
@@ -129,8 +115,9 @@ static const QuickRow ROWS[] = {
      headphone_current, headphone_labels, headphone_choose},
     {STR_SPEED, STR_PLAYBACK_SPEED, QUICK_SUBMENU, 0, 0, SETTINGS_SPEED_LABELS, speed_count,
      settings_action_current_speed, NULL, settings_action_choose_speed},
-    {STR_SLEEP_TIMER, STR_SLEEP_TIMER, QUICK_SUBMENU, SLEEP_TIMER_OPTION_COUNT, 0, SLEEP_VALUES,
-     NULL, settings_action_current_sleep, NULL, settings_action_choose_sleep},
+    {STR_SLEEP_TIMER, STR_SLEEP_TIMER, QUICK_SUBMENU, SLEEP_TIMER_OPTION_COUNT, 0,
+     SETTINGS_ACTION_SLEEP_LABELS, NULL, settings_action_current_sleep, NULL,
+     settings_action_choose_sleep},
     {STR_TRANSITIONS, STR_TRANSITIONS, QUICK_CYCLE, 2, 0, TRANSITION_VALUES, NULL,
      settings_action_current_transition, NULL, settings_action_choose_transition},
     {STR_REPLAY_GAIN, STR_REPLAY_GAIN, QUICK_SUBMENU, REPLAY_GAIN_MODE_COUNT, 0, REPLAY_VALUES,
@@ -194,17 +181,9 @@ static bool opens(const void *context, int index)
     return kind == QUICK_SUBMENU || kind == QUICK_PUSH;
 }
 
-static void draw_values(void *context, Canvas *canvas)
-{
-    const ChoiceScreen *values = context;
-    const Theme *theme = values->config.theme;
-    refresh_labels(values->config.context);
-    header_draw(canvas, theme, values->config.title);
-    list_view_draw(&values->list, canvas, theme_content_area(theme), values->now_ms);
-}
-
 static Screen *open_values(QuickSettingsScreen *panel, const QuickRow *row)
 {
+    panel->values_row = (uint8_t)(row - ROWS);
     ChoiceConfig config = {.title = i18n_text(row->title),
                            .options =
                                row->labels != NULL ? row->labels(&panel->config.settings) : NULL,
@@ -214,9 +193,22 @@ static Screen *open_values(QuickSettingsScreen *panel, const QuickRow *row)
                            .choose = row->choose,
                            .context = &panel->config.settings,
                            .theme = panel->config.theme};
-    Screen *screen = choice_screen_init(&panel->values, config);
-    screen->draw = draw_values;
-    return screen;
+    return choice_screen_init(&panel->values, config);
+}
+
+void quick_settings_screen_refit(QuickSettingsScreen *panel)
+{
+    ChoiceScreen *values = &panel->values;
+    if (values->screen.context == NULL) {
+        return;
+    }
+    const QuickRow *row = &ROWS[panel->values_row];
+    int shown = value_count(panel, row);
+    values->config.option_count = shown;
+    values->config.options = row->labels != NULL ? row->labels(&panel->config.settings) : NULL;
+    if (values->list.selected >= shown && shown > 0) {
+        list_view_select(&values->list, shown - 1, values->now_ms);
+    }
 }
 
 static ScreenAction select_row(void *context, int index)
@@ -258,7 +250,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     QuickSettingsScreen *panel = context;
     refresh_selection(panel, now_ms);
-    equalizer_presets_scan(&quick_presets);
+    equalizer_presets_scan(panel->config.settings.presets);
     list_view_fit_rows(&panel->list,
                        list_view_rows_in(&panel->list, rows_area(panel->config.theme).height));
 }
@@ -280,7 +272,6 @@ static void draw(void *context, Canvas *canvas)
 {
     QuickSettingsScreen *panel = context;
     const Theme *theme = panel->config.theme;
-    refresh_labels(&panel->config.settings);
     canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
     header_draw(canvas, theme, panel->screen.title);
     Rect area = rows_area(theme);
@@ -298,7 +289,6 @@ static void draw(void *context, Canvas *canvas)
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config)
 {
     *panel = (QuickSettingsScreen){.config = config};
-    panel->config.settings.presets = &quick_presets;
     panel->model = (ListModel){.context = panel,
                                .count = count,
                                .label = label,

@@ -10,12 +10,6 @@ static const Settings *settings_of(const void *context)
     return &settings->store->settings;
 }
 
-static Settings *editable_settings(void *context)
-{
-    SettingsContext *settings = context;
-    return &settings->store->settings;
-}
-
 int settings_action_active_slot(const void *context)
 {
     const SettingsContext *settings = context;
@@ -33,17 +27,11 @@ int settings_action_current_equalizer(const void *context)
                     : equalizer_presets_slot_option(settings->presets, slot);
 }
 
-const char *settings_action_describe_equalizer(const void *context, int current)
-{
-    int slot = settings_action_active_slot(context);
-    return slot < 0 ? i18n_text(EQUALIZER_PRESET_NAMES[current])
-                    : equalizer_presets_slot_label(slot);
-}
-
 void settings_action_choose_equalizer(void *context, int index)
 {
     SettingsContext *settings = context;
-    Settings *chosen = editable_settings(context);
+    Settings next;
+    settings_action_candidate(settings, &next);
     int8_t gains[SETTINGS_EQUALIZER_BANDS];
     int8_t slot = -1;
     if (index >= EQUALIZER_PRESET_COUNT) {
@@ -54,11 +42,13 @@ void settings_action_choose_equalizer(void *context, int index)
             return;
         }
         for (int band = 0; band < SETTINGS_EQUALIZER_BANDS; band++) {
-            chosen->equalizer_gains[band] = gains[band];
+            next.equalizer_gains[band] = gains[band];
         }
         index = EQUALIZER_CUSTOM;
     }
-    settings->store->equalizer_slot = slot;
-    chosen->equalizer = (EqualizerPreset)index;
-    settings_action_apply_and_save(context);
+    next.equalizer = (EqualizerPreset)index;
+    if (settings_action_publish(settings, &next)) {
+        settings->store->equalizer_slot = slot;
+        settings_store_apply_hardware(&settings->store->settings);
+    }
 }

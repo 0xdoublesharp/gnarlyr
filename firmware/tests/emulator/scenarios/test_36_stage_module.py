@@ -10,6 +10,7 @@ from echo_image_harness import (
     IDENTITY,
     KEY_BACK,
     KEY_MENU,
+    KEY_NEXT,
     KEY_PLAY,
     MODULE_LOAD_LIMIT_MS,
     MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW,
@@ -18,12 +19,26 @@ from echo_image_harness import (
     english,
     fnv1a,
     main,
+    seal_settings,
     struct,
 )
 from test_22_meter_styles import MovingFlac
 
 COVER, CASSETTE, VU, SPECTRUM = 0, 1, 2, 3
 QUICK_SETTINGS_STYLE_ROW_FROM_END = 3
+QUICK_SETTINGS_EQUALIZER_ROW = 2
+QUICK_SETTINGS_HEADPHONES_ROW = 3
+SETTINGS_EQUALIZER_ROW = 16
+SETTINGS_EQUALIZER_FIELD = 18
+SETTINGS_LONG_PRESS_FIELD = 59
+LONG_PRESS_SHUFFLE = 4
+MENU_HOLD_MS = 900
+EQUALIZER_PRESETS = 9
+EQUALIZER_SLOTS_FILE = "eq_slots.bin"
+EQUALIZER_GAIN_MAX = 20
+HAL_USB_ANSWER_DAC = 3
+SETTLE_AFTER_STORAGE_CHANGE_MS = 4000
+DAC_MENU_HEADPHONES_ROW = 3
 
 ANIMATE_MS = 600
 STRIP_ALBUMS = 3
@@ -36,23 +51,27 @@ BROWSE_SCRIPT = ["set Now Playing style=VU meters", "play", "down,down,play", "w
 
 
 class EchoImageTest(EchoImageHarness):
-    def styled_volume(self, style):
+    def styled_volume(self, style, fields=None, files=None):
         from echo_emulator.fat_volume import Fat32Volume
         settings = bytearray(self.saved_settings(4, 15, shuffle=0))
         settings[7] = 6
         settings[51] = (style & 1) << 5
         settings[52] = (style >> 1) << 7
-        settings[54:58] = struct.pack("<I", fnv1a(settings[:54]))
+        for offset, value in (fields or {}).items():
+            settings[offset] = value
         volume = Fat32Volume()
         volume.add_file("Moving.flac", source=MovingFlac())
         volume.add_directory(IDENTITY.data_directory)
-        volume.add_file("settings.bin", settings, directory=IDENTITY.data_directory)
+        volume.add_file("settings.bin", seal_settings(settings), directory=IDENTITY.data_directory)
+        for name, data in (files or {}).items():
+            volume.add_file(name, data, directory=IDENTITY.data_directory)
         return volume
 
-    def styled_rig(self, style):
+    def styled_rig(self, style, fields=None, files=None, prepare=None):
         from echo_emulator.playback import Rig
         return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   volume=self.styled_volume(style), module_elfs=self.module_elfs)
+                   volume=self.styled_volume(style, fields, files), module_elfs=self.module_elfs,
+                   prepare=prepare)
 
     def swap_round(self, style):
         from echo_emulator.modules import ModuleWatch
@@ -335,10 +354,7 @@ class EchoImageTest(EchoImageHarness):
 
     def test_the_equalizer_list_keeps_its_names_after_a_usb_session_reloads_the_module(self):
         rig, machine, equalizer = self.reload_with_a_value_list_open(2, "Equalizer")
-        presets = equalizer.symbols["quick_presets"]
-        size = self.symbol_size(equalizer, "quick_presets")
-        option_count = struct.unpack("<i", machine.read_memory(presets + size - 4, 4))[0]
-        self.assertGreater(option_count, 0)
+        self.assertEqual(EQUALIZER_PRESETS + 1, self.option_count(machine, equalizer))
         rig.press("next")
         rig.press("play")
         self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[18])
@@ -353,6 +369,163 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(machine.read_cstring(pointers[4]))
         self.assert_healthy(rig.session)
 
+
+    def start_playing(self, rig):
+        rig.open_songs()
+        self.assertIsNotNone(rig.first_audio_after(rig.play_song(1)))
+
+    def equalizer_slots(self, used):
+        data = bytearray(b"EQSL")
+        for slot in range(8):
+            data += bytes((EQUALIZER_GAIN_MAX + slot,) * 10) if slot in used else b"\xff" * 10
+        return bytes(data + struct.pack("<I", fnv1a(data)))
+
+    def option_count(self, machine, equalizer):
+        presets = equalizer.symbols["presets"]
+        size = self.symbol_size(equalizer, "presets")
+        return struct.unpack("<i", machine.read_memory(presets + size - 4, 4))[0]
+
+    def headphone_names(self, machine, equalizer):
+        pointers = struct.unpack("<5I", machine.read_memory(equalizer.symbols["headphone_names"], 20))
+        self.assertNotIn(0, pointers)
+        return [machine.read_cstring(pointer) for pointer in pointers]
+
+    def open_list(self, rig, row):
+        rig.press("menu")
+        rig.press_many("next", row)
+        rig.press("play")
+        _, equalizer = self.module(rig.machine, "equalizer")
+        self.assertTrue(equalizer.loaded(rig.machine))
+        return equalizer
+
+    def end_usb_session(self, rig, equalizer):
+        machine, session = rig.machine, rig.session
+        machine.note("usb_session_storage_changed")
+        machine.host_ejects()
+        machine.vbus = True
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertFalse(equalizer.loaded(machine))
+        return session
+
+    def unplug_and_settle(self, rig, equalizer):
+        machine = rig.machine
+        machine.vbus = False
+        windows = len(machine.panel.windows)
+        rig.run_for(1500)
+        self.assertTrue(equalizer.loaded(machine))
+        self.assertGreater(len(machine.panel.windows), windows)
+
+    def assert_clean(self, rig, watch):
+        machine = rig.machine
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_module_code_never_written(watch)
+        self.assert_only_the_user_volume_changed(rig.session)
+        self.assert_healthy(rig.session)
+
+    def test_a_menu_hold_shortcut_over_the_equalizer_list_reloads_it_before_it_runs(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(COVER, {SETTINGS_LONG_PRESS_FIELD: LONG_PRESS_SHUFFLE})
+        machine = rig.machine
+        self.start_playing(rig)
+        rig.run_for(ANIMATE_MS)
+        equalizer = self.open_list(rig, QUICK_SETTINGS_EQUALIZER_ROW)
+        settings_number, _ = self.module(machine, "settings")
+        equalizer_number, _ = self.module(machine, "equalizer")
+        watch = ModuleWatch(rig.session)
+        shuffle = rig.session.fat().read(SETTINGS_PATH)[11]
+        rig.press("menu", hold=MENU_HOLD_MS)
+        rig.run_for(ANIMATE_MS)
+        self.assertNotEqual(shuffle, rig.session.fat().read(SETTINGS_PATH)[11])
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(settings_number, True), (equalizer_number, True)])
+        self.assertTrue(equalizer.loaded(machine))
+        self.assertEqual(EQUALIZER_PRESETS + 1, self.option_count(machine, equalizer))
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[SETTINGS_EQUALIZER_FIELD])
+        self.assert_clean(rig, watch)
+
+    def test_a_dac_headphone_change_over_the_headphone_list_reloads_it_before_drawing(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(COVER, prepare=lambda machine: setattr(machine, "usb_answer",
+                                                                     HAL_USB_ANSWER_DAC))
+        machine = rig.machine
+        self.start_playing(rig)
+        rig.run_for(ANIMATE_MS)
+        equalizer = self.open_list(rig, QUICK_SETTINGS_HEADPHONES_ROW)
+        rig.press("next")
+        rig.press("play")
+        rig.press("play")
+        self.assertEqual(b"Off", self.headphone_names(machine, equalizer)[0])
+        watch = ModuleWatch(rig.session)
+        machine.host_stays = True
+        machine.note("usb_dac_session")
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_HEADPHONES_ROW + (KEY_PLAY, KEY_MENU):
+            self.press(machine, key)
+        machine.host_stays = False
+        self.unplug_and_settle(rig, equalizer)
+        settings_number, _ = self.module(machine, "settings")
+        equalizer_number, _ = self.module(machine, "equalizer")
+        loads = [(call["module"], call["loaded"]) for call in watch.loads()]
+        self.assertIn((settings_number, True), loads)
+        self.assertEqual((equalizer_number, True), loads[-1])
+        names = self.headphone_names(machine, equalizer)
+        self.assertEqual(english("STR_OFF").encode("utf-8"), names[0])
+        self.assertTrue(all(names[1:]))
+        rig.press("play")
+        rig.run_for(ANIMATE_MS)
+        self.assertTrue(equalizer.loaded(machine))
+        self.assert_clean(rig, watch)
+
+    def test_the_settings_equalizer_browser_keeps_its_names_after_a_usb_session(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(COVER)
+        machine = rig.machine
+        rig.session.run_to_home_screen()
+        self.open_settings(machine)
+        rig.press_many("next", SETTINGS_EQUALIZER_ROW)
+        rig.press("play")
+        _, equalizer = self.module(machine, "equalizer")
+        self.assertTrue(equalizer.loaded(machine))
+        watch = ModuleWatch(rig.session)
+        self.end_usb_session(rig, equalizer)
+        self.unplug_and_settle(rig, equalizer)
+        self.assertEqual(EQUALIZER_PRESETS + 1, self.option_count(machine, equalizer))
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(1, rig.session.fat().read(SETTINGS_PATH)[SETTINGS_EQUALIZER_FIELD])
+        self.assert_clean(rig, watch)
+
+    def test_a_slot_file_failure_after_a_reload_clamps_the_equalizer_list(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(COVER, files={EQUALIZER_SLOTS_FILE: self.equalizer_slots({2, 5})})
+        machine = rig.machine
+        self.start_playing(rig)
+        rig.run_for(ANIMATE_MS)
+        equalizer = self.open_list(rig, QUICK_SETTINGS_EQUALIZER_ROW)
+        self.assertEqual(EQUALIZER_PRESETS + 3, self.option_count(machine, equalizer))
+        rig.press_many("next", EQUALIZER_PRESETS + 1)
+        watch = ModuleWatch(rig.session)
+        session = self.end_usb_session(rig, equalizer)
+        slots = "/" + IDENTITY.data_directory + "/" + EQUALIZER_SLOTS_FILE
+        session.disk.write(session.file_sectors(slots).start, b"\xa5" * 512)
+        self.unplug_and_settle(rig, equalizer)
+        rig.run_for(SETTLE_AFTER_STORAGE_CHANGE_MS)
+        self.assertTrue(equalizer.loaded(machine))
+        self.assertEqual(EQUALIZER_PRESETS + 1, self.option_count(machine, equalizer))
+        rig.press_many("previous", 3)
+        rig.press("play")
+        rig.run_for(ANIMATE_MS)
+        self.assertEqual(-3 % EQUALIZER_PRESETS,
+                         rig.session.fat().read(SETTINGS_PATH)[SETTINGS_EQUALIZER_FIELD])
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(rig.session)
 
     def wireframe_round(self, style, name):
         from echo_emulator.modules import ModuleWatch
