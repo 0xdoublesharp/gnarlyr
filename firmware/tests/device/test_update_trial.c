@@ -89,12 +89,15 @@ static void a_usb_session_is_charged_on_top_of_the_boot(void)
     CHECK_EQUAL(UPDATE_TRIAL_STEP_ROLL_BACK, update_trial_boot(&trial));
 }
 
-static void a_rollback_is_reported_once(void)
+static void a_rollback_is_reported_at_every_start_until_its_record_is_cleared(void)
 {
     UpdateTrial trial = {UPDATE_TRIAL_ROLLED_BACK, 3};
     CHECK_EQUAL(UPDATE_TRIAL_STEP_REPORT, update_trial_boot(&trial));
-    CHECK_EQUAL(UPDATE_TRIAL_NONE, trial.state);
-    CHECK_EQUAL(UPDATE_TRIAL_STEP_NOTHING, update_trial_boot(&trial));
+    CHECK_EQUAL(UPDATE_TRIAL_ROLLED_BACK, trial.state);
+    CHECK_EQUAL(UPDATE_TRIAL_STEP_REPORT, update_trial_boot(&trial));
+    CHECK_EQUAL(UPDATE_TRIAL_ROLLED_BACK, trial.state);
+    CHECK(!update_trial_charge(&trial));
+    CHECK(!update_trial_settle(&trial));
 }
 
 static void without_a_running_trial_nothing_is_charged(void)
@@ -169,7 +172,7 @@ int main(void)
         TEST_CASE(each_boot_of_a_trial_is_charged_until_the_limit),
         TEST_CASE(a_settled_boot_is_refunded),
         TEST_CASE(a_usb_session_is_charged_on_top_of_the_boot),
-        TEST_CASE(a_rollback_is_reported_once),
+        TEST_CASE(a_rollback_is_reported_at_every_start_until_its_record_is_cleared),
         TEST_CASE(without_a_running_trial_nothing_is_charged),
         TEST_CASE(the_charge_stops_at_its_largest_value),
         TEST_CASE(the_started_record_constant_is_running_with_no_attempts),

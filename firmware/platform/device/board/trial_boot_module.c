@@ -6,6 +6,7 @@
 #include "core/seam.h"
 #include "core/string_builder.h"
 #include "device/slot_copy.h"
+#include "internal_volume.h"
 #include "overlay.h"
 #include "screen_modules.h"
 #include "trial_module.h"
@@ -84,14 +85,26 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
         roll_back(&disk, buffer);
         return;
     }
-    if (!record_write(disk.volume, trial)) {
+    bool rolled_back = step == UPDATE_TRIAL_STEP_REPORT;
+    if (!rolled_back && !record_write(disk.volume, trial)) {
         return;
     }
     shared->trial.running = trial.state == UPDATE_TRIAL_RUNNING;
     shared->trial.promoting = trial.state == UPDATE_TRIAL_PROMOTING;
-    shared->trial.rolled_back = step == UPDATE_TRIAL_STEP_REPORT;
-    shared->trial.settle =
-        shared->trial.running || shared->trial.rolled_back ? USB_SETTLE_CHANGED : 0;
+    shared->trial.rolled_back = rolled_back;
+    shared->trial.settle = shared->trial.running ? USB_SETTLE_CHANGED : 0;
+    shared->trial.settle |= rolled_back ? USB_SETTLE_CHANGED | USB_SETTLE_ROLLED_BACK : 0;
+}
+
+static bool settle(UsbShared *shared)
+{
+    bool rolled_back = (shared->trial.settle & USB_SETTLE_ROLLED_BACK) != 0;
+    bool settled = user_state_module_settle(shared);
+    FatVolume *volume = rolled_back ? internal_volume_mount() : NULL;
+    if (volume != NULL && record_read(volume).state == UPDATE_TRIAL_ROLLED_BACK) {
+        fat_delete(volume, UPDATE_TRIAL_PATH);
+    }
+    return settled;
 }
 
 static bool running_from_slot_1(const UpdateStorage *storage, uint32_t *buffer)
@@ -176,6 +189,6 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
     board_wait_for_key();
 }
 
-const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
-    SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_end, user_state_module_settle};
+const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER),
+                                                      trial_boot_module_start,
+                                                      trial_boot_module_session_end, settle};

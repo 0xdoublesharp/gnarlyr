@@ -61,7 +61,6 @@ bool update_trial_charge(UpdateTrial *trial)
 UpdateTrialStep update_trial_boot(UpdateTrial *trial)
 {
     if (trial->state == UPDATE_TRIAL_ROLLED_BACK) {
-        *trial = (UpdateTrial){UPDATE_TRIAL_NONE, 0};
         return UPDATE_TRIAL_STEP_REPORT;
     }
     if (trial->state == UPDATE_TRIAL_RUNNING && trial->attempts >= UPDATE_TRIAL_LIMIT) {

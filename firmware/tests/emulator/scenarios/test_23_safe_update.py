@@ -46,6 +46,7 @@ POWER_FIRST_MS = 300
 SETTLE_ON_CABLE_MS = 1000
 BRUSH_MS = 150
 POWER_LONG_MS = 2000
+PASS_MS = 1000
 
 
 class EchoImageTest(EchoImageHarness):
@@ -318,16 +319,39 @@ class EchoImageTest(EchoImageHarness):
 
     def assert_rollback_reported(self, previous):
         restored = self.start(previous, previous.slot_image("slot_1") + self.image[-4:])
-        notices = restored.machine.collect_notices()
-        self.assertEqual(restored.run_until_waiting_for_key(presses=0),
-                         "reached board_wait_for_key")
-        self.assertEqual(notices[-1], (english("STR_UPDATE_ROLLED_BACK"),
-                                       english("STR_UPDATE_ROLLED_BACK_HINT")))
+        machine = restored.machine
+        notices = machine.collect_notices()
+        settles = machine.trace("user_state_module_settle")
+        machine.answer_waits_for_key(1)
+        limit = self.session_module.FRAME_LIMIT_MS
+        self.assertEqual(machine.run(until=lambda: settles, until_ms=limit), "condition met")
+        machine.run(until_ms=machine.milliseconds() + PASS_MS)
+        self.assertEqual(machine.reached["board_wait_for_key"], 1)
+        self.assertIn((english("STR_UPDATE_ROLLED_BACK"), english("STR_UPDATE_ROLLED_BACK_HINT")),
+                      notices)
         self.assertIsNone(self.trial_record(restored))
         self.assert_healthy(restored)
         restored_again = self.start(restored, self.image)
         self.assertEqual(restored_again.run_to_first_frame(), "condition met")
         self.assertNotIn("trial_boot_module_start", restored_again.machine.reached)
+
+    def test_a_cut_after_a_rollback_restart_still_runs_the_continuity_pass(self):
+        newer = self.newer_image()
+        session = self.install_on_trial(newer)
+        for attempt in (1, 2, TRIAL_LIMIT):
+            session = self.start(session, newer)
+            self.assertEqual(session.run_to_first_frame(), "condition met")
+        rolling = self.start(session, newer)
+        self.assertEqual(rolling.run_until_reset(), "system reset requested")
+        self.assertEqual(self.trial_record(rolling), (TRIAL_ROLLED_BACK, 0))
+        cut = self.start(rolling, rolling.slot_image("slot_1") + self.image[-4:])
+        settles = cut.machine.trace("user_state_module_settle")
+        cut.machine.stop_at("app_start")
+        self.assertEqual(cut.run_until_reset(), "reached app_start")
+        self.assertEqual(cut.machine.reached["trial_boot_module_start"], 1)
+        self.assertEqual(settles, [])
+        self.assertEqual(self.trial_record(cut), (TRIAL_ROLLED_BACK, 0))
+        self.assert_rollback_reported(cut)
 
     def test_a_non_enumerating_build_is_reset_by_power_and_rolled_back(self):
         newer = self.newer_image()
