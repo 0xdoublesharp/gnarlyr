@@ -48,6 +48,8 @@ python3 tools/firmware.py sim --card /path/to/music
 
 `test` also builds the `device` preset, runs the emulator scenarios on its image and checks formatting, the absence of comments, generated files being current and the Cortex-M3 RAM budget (`target_audit`).
 
+Opt-in long fuzzing (`fuzz --long`) and static analysis with a stack bound (`analyze`): `docs/robustness-checks.md`.
+
 ### Emulator scenarios
 
 Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `device_image_boot_<test_name>`, so they run side by side. Use them this way:

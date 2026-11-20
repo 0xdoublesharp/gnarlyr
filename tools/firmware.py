@@ -219,6 +219,7 @@ FUZZ_FIXTURES = {
         SOURCE / "tests/fixtures/cards/exfat_mbr.sparse",
     ],
 }
+FUZZ_DICTIONARIES = SOURCE / "tests/fuzz/dictionaries"
 COVER_IMAGE_JPEG_FIXTURES = [
     SOURCE / "tests/fixtures/tags/id3v24.mp3",
     SOURCE / "tests/fixtures/tags/aac.m4a",
@@ -360,13 +361,10 @@ def write_seed(path, data):
         path.write_bytes(data)
 
 
-def prepare_fuzz_corpus(name):
-    corpus = SCRATCH / "data" / BUILD_NAME / "fuzz" / name
-    corpus.mkdir(parents=True, exist_ok=True)
-    for index, seed in enumerate(FUZZ_SEEDS[name]):
-        write_seed(corpus / f"seed-{index}", seed)
+def fuzz_seed_inputs(name):
+    inputs = {f"seed-{index}": seed for index, seed in enumerate(FUZZ_SEEDS[name])}
     for fixture in FUZZ_FIXTURES.get(name, ()):
-        write_seed(corpus / f"fixture-{fixture.name}", fixture.read_bytes()[:FUZZ_TARGETS[name]])
+        inputs[f"fixture-{fixture.name}"] = fixture.read_bytes()[:FUZZ_TARGETS[name]]
     if name == "cover_image":
         for index, fixture in enumerate(COVER_IMAGE_JPEG_FIXTURES):
             bytes_ = fixture.read_bytes()
@@ -374,12 +372,20 @@ def prepare_fuzz_corpus(name):
             end = bytes_.find(b"\xff\xd9", start + 2)
             if start < 0 or end < 0:
                 raise SystemExit(f"No JPEG cover found in {fixture}")
-            write_seed(corpus / f"jpeg-{index}", bytes_[start:end + 2])
+            inputs[f"jpeg-{index}"] = bytes_[start:end + 2]
     if name == "track_tags":
         fixtures = SOURCE / "tests/fixtures/tags"
         for fixture in sorted(fixtures.iterdir()):
             if fixture.is_file():
-                write_seed(corpus / f"tag-{fixture.name}", fixture.read_bytes()[:FUZZ_TARGETS[name]])
+                inputs[f"tag-{fixture.name}"] = fixture.read_bytes()[:FUZZ_TARGETS[name]]
+    return inputs
+
+
+def prepare_fuzz_corpus(name):
+    corpus = SCRATCH / "data" / BUILD_NAME / "fuzz" / name
+    corpus.mkdir(parents=True, exist_ok=True)
+    for filename, data in fuzz_seed_inputs(name).items():
+        write_seed(corpus / filename, data)
     return corpus
 
 
@@ -391,9 +397,149 @@ def run_fuzzer(name, runs, seed, env):
     run(fuzz_command(binary, corpus, artifacts, runs, seed, FUZZ_TARGETS[name]), env)
 
 
+def run_long_fuzz(targets, args, env, python):
+    import fuzz_campaign
+    import fuzz_seeds
+
+    layout = fuzz_campaign.campaign_layout(SCRATCH, BUILD_NAME)
+    layout["suppressions"] = SOURCE / "tests/fuzz/lsan-suppressions.txt"
+    synthetic = fuzz_seeds.generate(layout["seeds"], ROOT, python, env, fuzz_campaign.SYNTHETIC_VERSION)
+    paths = synthetic + fuzz_campaign.allowed_media([SOURCE / "tests/fixtures", SCRATCH / "data/batch4-checks"])
+    opus_controls = [seed[:12] for seed in FUZZ_SEEDS["opus_decode"][:2]]
+    media = fuzz_campaign.media_seeds(paths, FUZZ_TARGETS, opus_controls)
+    layout["dictionaries"].mkdir(parents=True, exist_ok=True)
+    seconds = fuzz_campaign.duration_seconds(args.minutes, args.hours)
+    extra = {"playlist_reader": [IDENTITY["playlist_start_directive"]]}
+
+    def settings_for(name):
+        text = fuzz_campaign.dictionary_text(name, FUZZ_DICTIONARIES, extra.get(name, ()))
+        invalid = [line for line in text.splitlines() if not fuzz_campaign.dictionary_entry_valid(line)]
+        if invalid:
+            raise RuntimeError(f"invalid dictionary entries for {name}: {invalid[:3]}")
+        dictionary = None
+        if text:
+            dictionary = layout["dictionaries"] / f"{name}.dict"
+            dictionary.write_text(text)
+        return {"seconds": seconds, "max_length": FUZZ_TARGETS[name], "seed": args.seed, "dictionary": dictionary,
+                "seeds": [*fuzz_seed_inputs(name).values(), *media[name].values()]}
+
+    print(f"Long fuzzing {len(targets)} targets for {seconds} s each, {args.jobs} at a time; "
+          f"report: {layout['report'] / layout['summary']}.md", flush=True)
+    results = fuzz_campaign.Campaign(layout).run(targets, settings_for, env, args.jobs)
+    print((layout["report"] / f"{layout['summary']}.md").read_text())
+    failed = [result["fuzzer"] for result in results if result.get("error") or result["artifacts"]]
+    if failed:
+        raise SystemExit(f"Fuzz campaign found artifacts or errors in: {', '.join(failed)}")
+
+
+ANALYSIS = SOURCE / "tests/analysis"
+ANALYZE_PARTS = ("tidy", "analyzer", "stack")
+STACK_FLAGS = "-fstack-usage -fcallgraph-info=su,da"
+
+
+def analysis_report_dir():
+    import datetime
+
+    report = SCRATCH / "reports/analyze" / datetime.date.today().isoformat()
+    report.mkdir(parents=True, exist_ok=True)
+    return report
+
+
+def device_cache_variables(python):
+    presets = json.loads((SOURCE / "CMakePresets.json").read_text())["configurePresets"]
+    device = next(preset for preset in presets if preset["name"] == "device")
+    variables = [f"-D{name}={value}" for name, value in device["cacheVariables"].items()]
+    toolchain = device["toolchainFile"].replace("${sourceDir}", str(SOURCE))
+    return [*variables, f"-DCMAKE_TOOLCHAIN_FILE={toolchain}", f"-DPython3_EXECUTABLE={python}",
+            "-DCMAKE_C_COMPILER_LAUNCHER="]
+
+
+def build_stack_analysis(env, python):
+    build = SOURCE / "build/analyze-stack"
+    stack_env = {**env, "CFLAGS": STACK_FLAGS, "LDFLAGS": STACK_FLAGS}
+    if build.exists() and STACK_FLAGS not in (build / "CMakeCache.txt").read_text(errors="replace"):
+        shutil.rmtree(build)
+    print("+ cmake", build, "with", STACK_FLAGS, flush=True)
+    subprocess.run(["cmake", "-S", str(SOURCE), "-B", str(build), *device_cache_variables(python)],
+                   cwd=SOURCE, env=stack_env, check=True)
+    subprocess.run(["cmake", "--build", str(build)], cwd=SOURCE, env=stack_env, check=True)
+    commands = json.loads((build / "compile_commands.json").read_text())
+    if not any("-mcpu=cortex-m3" in entry.get("command", "") and "-fcallgraph-info" in entry.get("command", "")
+               for entry in commands):
+        raise SystemExit("The stack analysis build lost the Cortex-M3 or call-graph flags")
+    return build
+
+
+def write_findings(report, stem, title, findings, baseline, failures):
+    import firmware_analyze as analyze
+
+    new, stale = analyze.compare(findings, baseline)
+    (report / f"{stem}.json").write_text(json.dumps({"findings": findings, "new": [item["fingerprint"] for item in new],
+                                                     "stale_baseline": stale, "failed_units": failures}, indent=2))
+    (report / f"{stem}.md").write_text(analyze.findings_markdown(title, new, len(findings), stale, failures))
+    return new, stale
+
+
+def analyze_sources(parts, env, python, jobs, report):
+    import firmware_analyze as analyze
+
+    configure("dev", env, python)
+    compile_targets("dev", env)
+    build = SOURCE / "build/dev"
+    units = analyze.selected_units(json.loads((build / "compile_commands.json").read_text()), SOURCE)
+    baseline = analyze.read_baseline(ANALYSIS / "baseline.tsv")
+    tools = {"tidy": shutil.which("clang-tidy", path=env["PATH"]), "analyzer": shutil.which("clang", path=env["PATH"])}
+    totals = {}
+    if "tidy" in parts:
+        results = analyze.run_units(units, analyze.tidy_worker(tools["tidy"], build, ANALYSIS / "clang-tidy.yaml",
+                                                               analyze.subprocess_runner), jobs)
+        (report / "clang-tidy.log").write_text("".join(f"== {item['unit']}\n{item['output']}" for item in results))
+        findings = analyze.deduplicate([finding for item in results for finding in analyze.parse_tidy(
+            item["output"], SOURCE)], SOURCE)
+        failures = [item["unit"] for item in results if "clang-diagnostic-error" in item["output"]]
+        findings = [item for item in findings if item["check"] != "clang-diagnostic-error"]
+        totals["clang-tidy"] = write_findings(report, "clang-tidy", "clang-tidy findings", findings, baseline,
+                                              failures)
+    if "analyzer" in parts:
+        sarif = report / "sarif"
+        sarif.mkdir(exist_ok=True)
+        results = analyze.run_units(units, analyze.analyzer_worker(tools["analyzer"], sarif,
+                                                                   analyze.subprocess_runner), jobs)
+        (report / "analyzer.log").write_text("".join(f"== {item['unit']}\n{item['output']}" for item in results))
+        findings = []
+        failures = []
+        for item in results:
+            if item["sarif"].is_file():
+                findings += analyze.parse_sarif(json.loads(item["sarif"].read_text()), SOURCE)
+            if item["code"] != 0:
+                failures.append(item["unit"])
+        findings = analyze.deduplicate(findings, SOURCE)
+        totals["clang-analyzer"] = write_findings(report, "analyzer", "Clang Static Analyzer findings", findings,
+                                                  baseline, failures)
+    return {name: {"new": len(new), "stale": len(stale)} for name, (new, stale) in totals.items()}
+
+
+def run_analyze(parts, env, python, jobs):
+    import firmware_analyze as analyze
+
+    report = analysis_report_dir()
+    summary = {}
+    if {"tidy", "analyzer"} & set(parts):
+        summary.update(analyze_sources(parts, env, python, jobs, report))
+    if "stack" in parts:
+        build = build_stack_analysis(env, python)
+        stack = analyze.stack_bound(build)
+        (report / "stack.json").write_text(json.dumps(stack, indent=2))
+        (report / "stack.md").write_text(analyze.stack_markdown(stack))
+        summary["stack"] = {name: result["combined"] for name, result in stack.items()}
+    (report / "summary.json").write_text(json.dumps(summary, indent=2))
+    print(f"Analysis written to {report}")
+    print(json.dumps(summary, indent=2))
+
+
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz", "regen", "sizes", "install-device"))
+    parser.add_argument("action", choices=("setup", "build", "test", "sim", "fuzz", "analyze", "regen", "sizes", "install-device"))
     parser.add_argument("--check", action="store_true", help="regen: fail if generated sources or assets are stale")
     parser.add_argument("--existing", action="store_true", help="sizes: read existing release/device builds without rebuilding")
     parser.add_argument("--dry-run", action="store_true", help="install-device: freeze, prove and back up without installing")
@@ -409,6 +555,12 @@ def arguments():
     parser.add_argument("--target", action="append", help="Build or fuzz one target; repeat for several targets")
     parser.add_argument("--runs", type=int, help="Fuzzer executions per target")
     parser.add_argument("--seed", type=int, help="Deterministic fuzzer seed")
+    parser.add_argument("--long", action="store_true", help="fuzz: long campaign with persistent corpora on Scratch")
+    duration = parser.add_mutually_exclusive_group()
+    duration.add_argument("--minutes", type=float, help="fuzz --long: minutes per target (default 10)")
+    duration.add_argument("--hours", type=float, help="fuzz --long: hours per target")
+    parser.add_argument("--part", action="append", choices=ANALYZE_PARTS,
+                        help="analyze: run only this part (tidy, analyzer, stack); repeat for several")
     parser.add_argument("--card", type=Path, help="Simulator music directory")
     parser.add_argument("--internal", type=Path, help="Simulator internal-storage music directory")
     args = parser.parse_args()
@@ -428,8 +580,17 @@ def arguments():
             parser.error("--runs must be positive")
         if args.seed is not None and args.seed < 1:
             parser.error("--seed must be positive")
-    elif args.runs is not None or args.seed is not None:
-        parser.error("--runs and --seed require the fuzz action")
+        if args.long and args.runs is not None:
+            parser.error("--runs and --long are exclusive; --long runs for a time")
+        if (args.minutes is not None or args.hours is not None) and not args.long:
+            parser.error("--minutes and --hours require --long")
+        for value in (args.minutes, args.hours):
+            if value is not None and value <= 0:
+                parser.error("--minutes and --hours must be positive")
+    elif args.runs is not None or args.seed is not None or args.long or args.minutes or args.hours:
+        parser.error("--runs, --seed, --long, --minutes and --hours require the fuzz action")
+    if args.part and args.action != "analyze":
+        parser.error("--part requires the analyze action")
     if args.action == "sim" and (not args.card or not args.card.is_dir()):
         parser.error("sim requires --card pointing to a music directory")
     return parser, args
@@ -454,6 +615,9 @@ def main():
 
             Release(ROOT, SCRATCH, env, python).execute(args.dry_run, args.owner_approved)
         return
+    if args.action == "analyze":
+        run_analyze(args.part or list(ANALYZE_PARTS), env, python, args.jobs)
+        return
     if args.action == "setup":
         print(f"Source: {SOURCE}; output: {SOURCE / 'build'} -> {(SOURCE / 'build').resolve()}")
         return
@@ -462,6 +626,9 @@ def main():
         targets = args.target or list(FUZZ_TARGETS)
         configure("fuzz", env, python)
         compile_targets("fuzz", env, [f"fuzz_{name}" for name in targets])
+        if args.long:
+            run_long_fuzz(targets, args, env, python)
+            return
         runs = args.runs if args.runs is not None else 10000
         seed = args.seed if args.seed is not None else 1
         for name in targets:
