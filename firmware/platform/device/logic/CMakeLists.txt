@@ -114,6 +114,7 @@ add_library(echo_device_logic STATIC
     core1_heap.c
     core1_m4a.c
     core1_m4a_source.c
+    core1_open.c
     core1_open_mp3.c
     core1_open_flac.c
     core1_mp3.c

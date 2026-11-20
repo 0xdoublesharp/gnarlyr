@@ -4,14 +4,13 @@
 #include <stdint.h>
 
 #include "device/audio_module.h"
-#include "device/core1_stream.h"
 #include "device/mp4_demux.h"
 #include "device/wav_source.h"
 
 #define AUDIO_DSP_BASE 0x03048000u
 #define AUDIO_DSP_BYTES 0x2000u
 #define AUDIO_DSP_NUMBER 5u
-#define AUDIO_DSP_MAGIC 0x054D5344u
+#define AUDIO_DSP_MAGIC AUDIO_MODULE_MAGIC(AUDIO_DSP_NUMBER)
 
 typedef struct AudioDspEntry {
     AudioModuleEntry module;
@@ -20,6 +19,4 @@ typedef struct AudioDspEntry {
     bool (*seek)(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, uint32_t sample);
     bool (*next)(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track, uint32_t *offset,
                  uint32_t *size);
-    bool (*open_m4a)(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);
-    bool (*read_m4a)(void *context, uint32_t offset, void *buffer, uint32_t length);
 } AudioDspEntry;

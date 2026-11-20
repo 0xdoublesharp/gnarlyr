@@ -4,7 +4,6 @@
 
 #include "core/seam.h"
 #include "device/core1_source_private.h"
-#include "device/dsd_stream.h"
 
 void core1_publish(void)
 {
@@ -485,13 +484,8 @@ CORE_COLD static void close_stream(void *context)
 
 AudioSource core1_source_interface(Core1Source *source, Core1Format format)
 {
-    static bool (*const OPENS[])(void *, const char *, uint32_t, AudioTrackInfo *) = {
-        [CORE1_FORMAT_FLAC] = core1_open_flac, [CORE1_FORMAT_MP3] = core1_open_mp3,
-        [CORE1_FORMAT_M4A] = core1_open_m4a,   [CORE1_FORMAT_VORBIS] = core1_open_ogg,
-        [CORE1_FORMAT_OPUS] = core1_open_ogg,  [CORE1_FORMAT_DSD] = core1_open_dsd,
-        [CORE1_FORMAT_APE] = core1_open_ape,   [CORE1_FORMAT_WMA] = core1_open_wma,
-    };
-    return (AudioSource){OPENS[format], next_frame, release_frame, close_stream, source};
+    source->format = (uint8_t)format;
+    return (AudioSource){core1_open, next_frame, release_frame, close_stream, source};
 }
 
 bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length)

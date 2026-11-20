@@ -153,6 +153,7 @@ typedef struct Core1Source {
     bool file_open;
     bool refilling;
     bool unsupported;
+    uint8_t format;
 } Core1Source;
 
 void core1_source_init(Core1Source *source, StreamRegion region, FlacFileOpener files,
