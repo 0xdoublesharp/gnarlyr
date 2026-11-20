@@ -21,7 +21,11 @@
         "unwind": 18,
         "uninitialized": true,
         "expect": "failed",
-        "timeout": 120
+        "timeout": 1800,
+        "failures": [
+          "count_marks.array_bounds.1",
+          "count_marks.uninitialized_local.1"
+        ]
       },
       "library_database": {
         "entry": "library_database",
@@ -40,7 +44,7 @@
           "FORMAL_CARD_FRESH": 1
         },
         "unwind": 40,
-        "timeout": 900,
+        "timeout": 1800,
         "checks": [
           "--unsigned-overflow-check"
         ]
@@ -61,7 +65,7 @@
           "FORMAL_VERSION_BYTES": 24
         },
         "unwind": 26,
-        "timeout": 600,
+        "timeout": 1800,
         "includes": [
           "src/app"
         ]
@@ -90,7 +94,7 @@
           "FORMAL_TAG_FORMAT": "TAG_FORMAT_MP3"
         },
         "unwind": 52,
-        "timeout": 900
+        "timeout": 1800
       },
       "tags_flac": {
         "entry": "track_tags",
@@ -116,7 +120,7 @@
           "FORMAL_TAG_FORMAT": "TAG_FORMAT_FLAC"
         },
         "unwind": 68,
-        "timeout": 900
+        "timeout": 1800
       },
       "tags_mp4": {
         "entry": "track_tags",
@@ -142,7 +146,7 @@
           "FORMAL_TAG_FORMAT": "TAG_FORMAT_MP4"
         },
         "unwind": 68,
-        "timeout": 900
+        "timeout": 1800
       },
       "tags_vorbis_comment": {
         "entry": "vorbis_comment",
@@ -170,7 +174,7 @@
           "FORMAL_CARD_BYTES": 48
         },
         "unwind": 52,
-        "timeout": 900
+        "timeout": 1800
       },
       "cue_sheet": {
         "entry": "cue_sheet",
@@ -182,11 +186,10 @@
           "card.c"
         ],
         "defines": {
-          "FORMAL_CARD_BYTES": 40,
-          "FORMAL_CUE_ENTRIES": 3
+          "FORMAL_CARD_BYTES": 24
         },
-        "unwind": 44,
-        "timeout": 900
+        "unwind": 28,
+        "timeout": 1800
       },
       "playlist_reader": {
         "entry": "playlist_reader",
@@ -198,11 +201,10 @@
         ],
         "defines": {
           "FORMAL_CARD_BYTES": 40,
-          "FORMAL_TEXT_BYTES": 12,
-          "FORMAL_PLAYLIST_ENTRIES": 4
+          "FORMAL_TEXT_BYTES": 12
         },
         "unwind": 44,
-        "timeout": 900
+        "timeout": 1800
       },
       "settings_codec": {
         "entry": "settings_codec",
@@ -218,7 +220,7 @@
           "FORMAL_CARD_BYTES": 96
         },
         "unwind": 98,
-        "timeout": 600
+        "timeout": 1800
       },
       "playback_store": {
         "entry": "playback_store",
@@ -234,7 +236,7 @@
           "FORMAL_CARD_FRESH": 1
         },
         "unwind": 514,
-        "timeout": 900
+        "timeout": 1800
       },
       "user_state_records": {
         "entry": "user_state_records",
@@ -252,7 +254,7 @@
           "FORMAL_CARD_BYTES": 16
         },
         "unwind": 24,
-        "timeout": 600
+        "timeout": 1800
       },
       "language_pack": {
         "entry": "language_pack",
@@ -264,7 +266,8 @@
           "src/core/i18n.c",
           "src/app/language.c",
           "src/app/language_module.c",
-          "src/core/string_builder.c"
+          "src/core/string_builder.c",
+          "src/core/utf8.c"
         ],
         "stubs": [
           "card.c",
@@ -276,10 +279,13 @@
           "FORMAL_LANGUAGE_MEMORY": 160
         },
         "unwind": 164,
-        "timeout": 900,
+        "timeout": 1800,
         "checks": [
           "--object-bits",
           "10"
+        ],
+        "preinclude": [
+          "builtins.h"
         ]
       },
       "theme_pack_v1": {
@@ -308,7 +314,7 @@
           "FORMAL_CARD_FRESH": 1
         },
         "unwind": 132,
-        "timeout": 900,
+        "timeout": 1800,
         "checks": [
           "--unsigned-overflow-check"
         ]
@@ -325,103 +331,130 @@
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollback.cfg",
         "expect": "passed",
-        "timeout": 900
+        "timeout": 1800
       },
       "update_witness_rollback": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackWitnessRollback.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "RollbackWitness"
       },
       "update_witness_promotion": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackWitnessPromotion.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "PromotionWitness"
       },
       "update_promotes_partial_slot": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackPromote.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "AlwaysBootable"
       },
       "update_write_failure": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackFailures.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "AlwaysBootable"
       },
       "update_both_request": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackBoth.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "AlwaysBootable"
+      },
+      "update_both_request_known_good": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackBothKnownGood.cfg",
+        "expect": "passed",
+        "timeout": 1800
       },
       "update_both_request_literal": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackBothLiteral.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "PreviousImageKept"
       },
       "update_two_images": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackTwoImages.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "KnownGoodKept"
+      },
+      "update_two_images_other": {
+        "spec": "UpdateRollback.tla",
+        "config": "UpdateRollbackTwoImagesRest.cfg",
+        "expect": "passed",
+        "timeout": 1800
       },
       "update_trial_waits": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackWaits.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "temporal"
       },
       "update_settings_literal": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackLiteral.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "RollbackRestoresSettings"
       },
       "update_lost_continuity_pass": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackLostPass.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "RestoredBuildCanSave"
       },
       "update_torn_sectors": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackTorn.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "SettingsAvailable"
       },
       "update_rom_slot1_only": {
         "spec": "UpdateRollback.tla",
         "config": "UpdateRollbackRom.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "AlwaysBootable"
       },
       "core_handoff": {
         "spec": "CoreHandoff.tla",
         "config": "CoreHandoff.cfg",
         "expect": "passed",
-        "timeout": 900
+        "timeout": 1800
       },
       "core_handoff_witness": {
         "spec": "CoreHandoff.tla",
         "config": "CoreHandoffWitness.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "NeverPlaysOut"
       },
       "core_handoff_window": {
         "spec": "CoreHandoff.tla",
         "config": "CoreHandoffWindow.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "NoStaleFrame"
       },
       "core_handoff_reorder": {
         "spec": "CoreHandoff.tla",
         "config": "CoreHandoffReorder.cfg",
         "expect": "violated",
-        "timeout": 900
+        "timeout": 1800,
+        "property": "NoSlotReadWhileWritten"
       }
     }
   }

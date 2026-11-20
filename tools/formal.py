@@ -25,6 +25,9 @@ TLA_JAR = SCRATCH / "tools" / "tla" / "tla2tools.jar"
 CBMC_TOOLS = ("goto-cc", "goto-instrument", "cbmc")
 IDENTITY_FIELDS = ("name", "short_name", "manufacturer", "id", "version", "data_directory", "update_file",
                    "playlist_start_directive")
+FAILED_PROPERTY = re.compile(r"^\[([^\]]+)\] .*: FAILURE$", re.MULTILINE)
+COVER_GOAL = re.compile(r"^\[\S+\.coverage\.\d+\] file (\S+) line \d+ function \S+ block .*: (SATISFIED|FAILED)$",
+                        re.MULTILINE)
 NO_BODY = re.compile(r"no body for (?:callee|function) (\S+)")
 FAILED_COUNT = re.compile(r"\*\* (\d+) of (\d+) failed")
 TLC_STATES = re.compile(r"([\d,]+) states generated, ([\d,]+) distinct states found")
@@ -145,8 +148,30 @@ def cbmc_compile_command(harness, output, source=SOURCE):
     defines = [f"-D{key}={value}" for key, value in sorted(harness.get("defines", {}).items())]
     includes = [f"-I{source / folder}" for folder in harness.get("includes", [])]
     includes += [f"-I{stubs}"] + include_directories(source)
-    return ["goto-cc", "-m32", "-funsigned-char", "-std=c11", *firmware_definitions(), *defines, *includes,
+    for header in harness.get("preinclude", []):
+        includes += ["-include", str(stubs / header)]
+    return ["goto-cc", "-m32", "-funsigned-char", "-ffreestanding", "-std=c11", *firmware_definitions(), *defines, *includes,
             *map(str, files), "-o", str(output)]
+
+
+def cbmc_cover_command(harness, program):
+    return ["cbmc", str(program), "--function", "harness", "--cover", "location", "--unwind",
+            str(harness["unwind"]), *[flag for flag in harness.get("checks", []) if flag != "--unsigned-overflow-check"]]
+
+
+def coverage_by_file(output, harness, source=SOURCE):
+    wanted = {str(source / name): name for name in harness["sources"]}
+    counts = {}
+    for path, verdict in COVER_GOAL.findall(output):
+        if path in wanted:
+            reached, total = counts.get(wanted[path], (0, 0))
+            counts[wanted[path]] = (reached + (verdict == "SATISFIED"), total + 1)
+    return counts
+
+
+def coverage_text(counts):
+    return ", ".join(f"{Path(name).name} {reached}/{total}" for name, (reached, total) in sorted(counts.items())
+                     if reached)
 
 
 def cbmc_check_command(manifest, harness, program):
@@ -158,7 +183,7 @@ def cbmc_check_command(manifest, harness, program):
 
 
 def unexpected_bodies(output):
-    names = {name.strip("'\"") for name in NO_BODY.findall(output)}
+    names = {name.strip("'\":") for name in NO_BODY.findall(output)}
     return sorted(name for name in names if not name.startswith("nondet_"))
 
 
@@ -179,7 +204,13 @@ def judge_cbmc(code, output, harness):
     expected = harness.get("expect", "passed")
     if verdict != expected:
         return ("failed" if verdict == "failed" else "unexpected-pass"), summary or verdict
-    return ("passed" if verdict == "passed" else "expected-failure"), summary or verdict
+    if verdict == "failed":
+        found = sorted(set(FAILED_PROPERTY.findall(output)))
+        wanted = sorted(harness.get("failures", found))
+        if found != wanted:
+            return "failed", f"failed {', '.join(found)}; expected {', '.join(wanted)}"
+        return "expected-failure", f"{summary}: {', '.join(found)}"
+    return "passed", summary or verdict
 
 
 def instrument_steps(harness):
@@ -195,7 +226,7 @@ def instrument_steps(harness):
     return steps
 
 
-def run_harness(name, manifest, work, env, runner=run_tool):
+def run_harness(name, manifest, work, env, runner=run_tool, cover=False):
     harness = manifest["cbmc"]["harnesses"][name]
     folder = work / "cbmc" / name
     folder.mkdir(parents=True, exist_ok=True)
@@ -208,7 +239,8 @@ def run_harness(name, manifest, work, env, runner=run_tool):
     if code != 0:
         log.write_text("\n".join(transcript), encoding="utf-8")
         return Outcome(name, "cbmc", "error", time.monotonic() - started, "goto-cc failed", log)
-    for label, options in instrument_steps(harness):
+    steps = [step for step in instrument_steps(harness) if not (cover and step[0] == "uninitialized")]
+    for label, options in steps:
         changed = folder / f"{name}-{label}.goto"
         command = ["goto-instrument", *options, str(program), str(changed)]
         code, output = runner(command, folder, env, 300)
@@ -217,11 +249,15 @@ def run_harness(name, manifest, work, env, runner=run_tool):
             log.write_text("\n".join(transcript), encoding="utf-8")
             return Outcome(name, "cbmc", "error", time.monotonic() - started, "goto-instrument failed", log)
         program = changed
-    command = cbmc_check_command(manifest, harness, program)
+    command = cbmc_cover_command(harness, program) if cover else cbmc_check_command(manifest, harness, program)
     left = max(1, harness.get("timeout", 900) - int(time.monotonic() - started))
     code, output = runner(command, folder, env, left)
     transcript += ["$ " + " ".join(map(str, command)), output]
     log.write_text("\n".join(transcript), encoding="utf-8")
+    if cover:
+        status = "timeout" if code is None else "covered"
+        return Outcome(name, "cbmc", status, time.monotonic() - started,
+                       coverage_text(coverage_by_file(output, harness)) or "nothing reached", log)
     status, detail = judge_cbmc(code, output, harness)
     return Outcome(name, "cbmc", status, time.monotonic() - started, detail, log)
 
@@ -244,9 +280,16 @@ def judge_tlc(code, output, model):
         return "error", f"tlc exited {code} without a verdict"
     detail = counts if verdict == "passed" else f"{violated.group(1)}; {counts}".strip("; ")
     expected = model.get("expect", "passed")
-    if verdict == expected:
-        return ("passed" if verdict == "passed" else "expected-violation"), detail
-    return ("failed" if verdict == "violated" else "unexpected-pass"), detail
+    if verdict != expected:
+        return ("failed" if verdict == "violated" else "unexpected-pass"), detail
+    if verdict == "violated":
+        wanted = model.get("property", "")
+        named = violated.group(1)
+        matches = (wanted == "temporal" and named.startswith("Temporal")) or f"Invariant {wanted} " in named
+        if not matches:
+            return "failed", f"{detail}; expected {wanted or 'a named property'}"
+        return "expected-violation", detail
+    return "passed", detail
 
 
 def tlc_command(model, folder, jar):
@@ -322,7 +365,7 @@ def write_summary(work, outcomes):
 
 
 def good(outcome):
-    return outcome.status in ("passed", "expected-failure", "expected-violation")
+    return outcome.status in ("passed", "expected-failure", "expected-violation", "covered")
 
 
 def arguments(argv=None):
@@ -333,6 +376,8 @@ def arguments(argv=None):
     parser.add_argument("--harness", help="run one harness or model by name")
     parser.add_argument("--list", action="store_true", help="list the harnesses and models without running them")
     parser.add_argument("--fetch-tla", action="store_true", help="download and verify the pinned tla2tools.jar")
+    parser.add_argument("--cover", action="store_true",
+                        help="CBMC only: report the blocks each harness reaches in its sources instead of checking")
     return parser.parse_args(argv)
 
 
@@ -352,7 +397,7 @@ def require_scratch():
 def main(argv=None, runner=run_tool, which=shutil.which, tla_check=tla_problem):
     args = arguments(argv)
     manifest = load_manifest()
-    chosen = selected(manifest, kinds_of(args), args.harness)
+    chosen = selected(manifest, ("cbmc",) if args.cover else kinds_of(args), args.harness)
     if args.list:
         for kind, name in chosen:
             print(f"{kind}\t{name}")
@@ -371,9 +416,11 @@ def main(argv=None, runner=run_tool, which=shutil.which, tla_check=tla_problem):
     outcomes = []
     for kind, name in chosen:
         print(f"{kind} {name} ...", flush=True)
-        run = run_harness if kind == "cbmc" else run_model
         before = child_cpu_seconds()
-        outcome = run(name, manifest, work, env, runner)
+        if kind == "cbmc":
+            outcome = run_harness(name, manifest, work, env, runner, cover=args.cover)
+        else:
+            outcome = run_model(name, manifest, work, env, runner)
         outcome.cpu = child_cpu_seconds() - before
         print(f"  {outcome.status} in {outcome.seconds:.0f} s ({outcome.cpu:.0f} s CPU): {outcome.detail}",
               flush=True)

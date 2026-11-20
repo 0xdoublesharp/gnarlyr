@@ -378,6 +378,8 @@ PreviousSettingsRecoverable ==
 
 TrialResolves == (rec.st = "RUNNING") ~> (rec.st # "RUNNING")
 
+TrialEnds == (rec.st \in {"RUNNING", "PROMOTING"}) ~> (rec.st = "NONE")
+
 RestoredBuildCanSave == (pc = "app" /\ Good(run.img) /\ rec.st = "NONE" /\ ~m.trial) => ~Refused
 
 RollbackWitness == ~AfterRollback

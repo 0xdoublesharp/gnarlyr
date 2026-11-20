@@ -6,6 +6,10 @@
 
 #include "library/byte_source.h"
 
+_Static_assert(sizeof(void *) == 4 && sizeof(long) == 4 && sizeof(int) == 4, "the target is ILP32");
+_Static_assert((char)-1 > 0, "char is unsigned, as on the Cortex-M3");
+_Static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "the target is little-endian");
+
 #ifndef FORMAL_CARD_FRESH
 #define FORMAL_CARD_FRESH 0
 #endif

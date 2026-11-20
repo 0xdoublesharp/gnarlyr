@@ -60,6 +60,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(command[0], "goto-cc")
         self.assertIn("-m32", command)
         self.assertIn("-funsigned-char", command)
+        self.assertIn("-ffreestanding", command)
         self.assertIn("-DFORMAL_CARD_BYTES=160", command)
         self.assertEqual(command[-2:], ["-o", "/scratch/out.goto"])
 
@@ -90,9 +91,12 @@ class VerdictTests(unittest.TestCase):
         self.assertEqual((status, detail), ("passed", "0 of 12 properties failed"))
 
     def test_a_failed_property_fails_unless_the_harness_expects_it(self):
-        output = "** 2 of 9 failed (2 iterations)\nVERIFICATION FAILED"
+        output = "[a.bounds.1] line 9 array upper bound: FAILURE\n** 1 of 9 failed (2 iterations)\nVERIFICATION FAILED"
         self.assertEqual(formal.judge_cbmc(10, output, {})[0], "failed")
-        self.assertEqual(formal.judge_cbmc(10, output, {"expect": "failed"})[0], "expected-failure")
+        self.assertEqual(formal.judge_cbmc(10, output, {"expect": "failed", "failures": ["a.bounds.1"]})[0],
+                         "expected-failure")
+        self.assertEqual(formal.judge_cbmc(10, output, {"expect": "failed", "failures": ["b.other.1"]})[0],
+                         "failed")
 
     def test_a_missing_function_body_is_an_error_not_a_pass(self):
         output = "no body for callee hal_file_read\nVERIFICATION SUCCESSFUL"
@@ -114,19 +118,49 @@ class VerdictTests(unittest.TestCase):
 
     def test_an_expected_violation_is_recorded_and_an_unexpected_one_fails(self):
         output = "Error: Invariant AlwaysBootable is violated.\n10 states generated, 8 distinct states found"
-        self.assertEqual(formal.judge_tlc(12, output, {"expect": "violated"})[0], "expected-violation")
+        model = {"expect": "violated", "property": "AlwaysBootable"}
+        self.assertEqual(formal.judge_tlc(12, output, model)[0], "expected-violation")
         self.assertEqual(formal.judge_tlc(12, output, {})[0], "failed")
         temporal = "Error: Temporal properties were violated.\n"
-        self.assertEqual(formal.judge_tlc(13, temporal, {"expect": "violated"})[0], "expected-violation")
+        self.assertEqual(formal.judge_tlc(13, temporal, {"expect": "violated", "property": "temporal"})[0],
+                         "expected-violation")
+
+    def test_a_violation_of_another_property_than_the_expected_one_fails(self):
+        output = "Error: Invariant TypeOK is violated.\n"
+        model = {"expect": "violated", "property": "AlwaysBootable"}
+        self.assertEqual(formal.judge_tlc(12, output, model)[0], "failed")
+
+    def test_every_expected_violation_names_its_property(self):
+        for name, model in manifest()["tla"]["models"].items():
+            if model["expect"] == "violated":
+                self.assertTrue(model.get("property"), name)
 
     def test_a_model_that_should_fail_but_passes_is_flagged(self):
         output = "Model checking completed. No error has been found.\n"
         self.assertEqual(formal.judge_tlc(0, output, {"expect": "violated"})[0], "unexpected-pass")
 
 
+class CoverageTests(unittest.TestCase):
+    def test_coverage_counts_reached_blocks_per_product_source(self):
+        harness = {"sources": ["src/a.c"], "unwind": 3}
+        path = formal.SOURCE / "src/a.c"
+        output = (f"[f.coverage.1] file {path} line 3 function f block 1 (lines x): SATISFIED\n"
+                  f"[f.coverage.2] file {path} line 9 function f block 2 (lines x): FAILED\n"
+                  "[h.coverage.1] file /elsewhere/h.c line 1 function h block 1 (lines x): SATISFIED\n")
+        self.assertEqual(formal.coverage_by_file(output, harness), {"src/a.c": (1, 2)})
+        self.assertEqual(formal.coverage_text({"src/a.c": (1, 2)}), "a.c 1/2")
+
+    def test_a_coverage_run_uses_cover_instead_of_the_checks(self):
+        command = formal.cbmc_cover_command({"unwind": 4, "checks": ["--unsigned-overflow-check"]}, Path("h.goto"))
+        self.assertIn("location", command)
+        self.assertNotIn("--unwinding-assertions", command)
+        self.assertNotIn("--unsigned-overflow-check", command)
+
+
 class RunTests(unittest.TestCase):
     def test_a_harness_run_compiles_instruments_and_checks_in_its_own_folder(self):
-        runner = FakeRunner([(0, ""), (0, ""), (0, "** 1 of 5 failed\nVERIFICATION FAILED")])
+        failures = "\n".join(f"[{name}] x: FAILURE" for name in manifest()["cbmc"]["harnesses"]["canary"]["failures"])
+        runner = FakeRunner([(0, ""), (0, ""), (0, failures + "\n** 2 of 5 failed\nVERIFICATION FAILED")])
         with tempfile.TemporaryDirectory() as folder:
             outcome = formal.run_harness("canary", manifest(), Path(folder), {}, runner)
             self.assertTrue(outcome.log.is_file())

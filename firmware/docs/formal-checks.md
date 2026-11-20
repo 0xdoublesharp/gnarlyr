@@ -131,7 +131,11 @@ For every file content up to the bound, every listed entry point stays inside it
 
 ## TLA+ models
 
-TLC runs one worker for every model, because 1.7.4 fixed an unsound liveness check with several workers (tlaplus issue 971). No configuration uses symmetry.
+TLC runs one worker for every model. The 1.7.4 release fixed an unsound liveness check with several workers (tlaplus issue 971); one worker avoids the question. No configuration uses symmetry.
+
+Each model whose expected result is a violation names the property in `checks.json`. `formal.py` fails the check if TLC reports any other property, so a `TypeOK` slip cannot pass for an expected result. TLC stops at the first violation it finds. The configurations that expect one therefore check only that property, and a companion configuration checks the rest. The canary names its two expected CBMC properties the same way.
+
+The wall times in these tables come from one sequential `formal.py --tla` run on the development Mac at load averages above 100.
 
 ### Update, trial and rollback: `UpdateRollback.tla`
 
@@ -182,14 +186,29 @@ Power can be cut after every step, up to `MaxCuts` times. Optionally, a slot wri
 | `PreviousSettingsRecoverable` | invariant (design intent) | after a rollback, that content is in `settings.bin` or in a named backup slot, so Settings → Backups can restore it |
 | `RestoredBuildCanSave` | invariant | a build running with no trial can write its settings (the file is not of a later format) |
 | `TrialResolves` | liveness | a running trial eventually leaves *running*: it is promoted, rolled back, or replaced by another install |
+| `TrialEnds` | liveness | a trial record that is *running* or *promoting* is eventually deleted |
 
 The base spec has weak fairness on power-on, on every firmware step, on a broken build's crash and on settling. `SpecOwnerConfirms` adds strong fairness on a confirming USB session.
 
 **Configurations and results.**
 
-| Model | Config | Expect | Result | States (distinct) | Time |
+| Model | Config | Expect | Result | States generated (distinct) | Wall time |
 |---|---|---|---|---|---|
-TLA_UPDATE_TABLE
+| `update_rollback` | `UpdateRollback.cfg`: one update, 2 cuts, 2 copies, ROM falls back, atomic sectors, owner confirms | passed | passed | 82,381 (53,901), depth 128 | 30 s |
+| `update_witness_rollback` | same constants, `RollbackWitness`: a rollback start is reachable | violated | violated as expected | 4,161 (2,960) | 7 s |
+| `update_witness_promotion` | `PromotionWitness`: a promotion is reachable | violated | violated as expected | 2,707 (2,071) | 7 s |
+| `update_promotes_partial_slot` | 1 cut, the owner may delete the update file | violated: `AlwaysBootable` | violated as expected | 1,052 (864), 17 steps | 8 s |
+| `update_write_failure` | 1 cut, slot writes may fail | violated: `AlwaysBootable` | violated as expected | 2,210 (1,583), 20 steps | 8 s |
+| `update_both_request` | 1 cut, `BOTHSLOT.REQ` allowed | violated: `AlwaysBootable` | violated as expected | 1,315 (1,010), 15 steps | 7 s |
+| `update_both_request_known_good` | same, `KnownGoodKept` only | passed | passed | 78,668 (49,195) | 9 s |
+| `update_both_request_literal` | same, `PreviousImageKept` | violated | violated as expected | 685 (456) | 7 s |
+| `update_two_images` | updates `A` and `B`, 1 cut | violated: `KnownGoodKept` | violated as expected | 75,633 (53,375), 35 steps | 17 s |
+| `update_two_images_other` | same, every other invariant and `TrialResolves` | passed | passed | 451,734 (322,268), depth 127 | 63 s |
+| `update_trial_waits` | base spec, no owner fairness | violated: liveness | violated as expected | 22,350 (15,716) | 10 s |
+| `update_settings_literal` | 1 cut, `RollbackRestoresSettings` | violated | violated as expected | 7,485 (5,116) | 8 s |
+| `update_lost_continuity_pass` | 2 cuts, `RestoredBuildCanSave` | violated | violated as expected | 16,082 (10,146) | 8 s |
+| `update_torn_sectors` | 1 cut, sector writes may tear | violated: `SettingsAvailable` | violated as expected | 29 (25), 5 steps | 7 s |
+| `update_rom_slot1_only` | 1 cut, the ROM starts only slot 1 | violated: `AlwaysBootable` | violated as expected | 157 (105), 8 steps | 7 s |
 
 **Model-to-code mapping** (`bb0cb274`).
 
@@ -238,7 +257,9 @@ To check for drift, look up each function above in the current tree and compare 
 - The model therefore treats a publish (fields, fence, `state = FULL`) and core 0's read of a full slot after the acquire fence as ordered.
 - Two orderings are not fenced in the code, and the model makes each one a constant:
   - `LoadsReorder`: core 0's release of a slot (`state = EMPTY`, `advance_slot`) has no barrier after the engine's last read of that slot's samples. On the Cortex-M3, an in-order core whose loads complete before a later store issues, this is safe. The ARMv7-M architecture allows the reorder for Normal memory.
-  - `CoreOneWindowsShort`: core 1 checks the generation at `core1_stream.c:299` and again at `:269`, but it publishes at `:321` (filled slot) and inside `take` (`:239`, `:246`) without checking again. The code relies on that window, a few instructions, being far shorter than core 0's stop-open-first-read path, which opens a file.
+  - `CoreOneWindowsShort`: core 1 checks the generation at `core1_stream.c:299` and again at `:269`. It then publishes at `:321` (filled slot), and inside `take` (`:239`, `:246`) after `append` and `copy_channels`, without checking again. When `TRUE`, the model lets core 0 stop or open a stream only while core 1 is outside that window. When `FALSE`, any interleaving is allowed.
+
+    Core 0 cannot pause core 1. It can only hold or reset it (`core1_park`, `core1_stop`, `logic/core1_control.c:185`, `:195`). Core 1's own interrupts are a SysTick that sets the rest timer (`core1/startup.c`). The window is short only on the paths that publish directly. On the `take` paths, `copy_channels` first copies a whole block, up to 4,608 frames per channel, which takes milliseconds at core 1's lowest clock (25 MHz, divider 8). Whether core 0's stop, reopen and first `next_frame` can fit inside that copy has not been measured.
 
 **Properties.**
 
@@ -256,9 +277,12 @@ Every core 0 and core 1 step has weak fairness. Stopping and opening streams are
 
 **Configurations and results.**
 
-| Model | Config | Expect | Result | States (distinct) | Time |
+| Model | Config | Expect | Result | States generated (distinct) | Wall time |
 |---|---|---|---|---|---|
-TLA_HANDOFF_TABLE
+| `core_handoff` | `CoreHandoff.cfg`: fences as built, short core 1 windows, in-order loads | passed | passed | 79,712 (38,368), depth 85 | 34 s |
+| `core_handoff_witness` | `NeverPlaysOut`: both streams can play out in order | violated | violated as expected | 24,014 (12,348) | 8 s |
+| `core_handoff_window` | `CoreOneWindowsShort = FALSE` | violated: `NoStaleFrame` | violated as expected | 302 (190), 12 steps | 8 s |
+| `core_handoff_reorder` | `LoadsReorder = TRUE` | violated: `NoSlotReadWhileWritten` | violated as expected | 2,621 (1,382), 19 steps | 8 s |
 
 **Model-to-code mapping** (`bb0cb274`, `platform/device/logic/core1_stream.c` unless named).
 
@@ -288,6 +312,61 @@ TLA_HANDOFF_TABLE
 
 ## Results at `bb0cb274`
 
-Severity is about the player, not the check. Each trace is in the run's log, and the step-by-step mapping is in the tables above. None of these was reproduced on the emulator or the player.
+Each expected violation documents one behaviour of the code at `bb0cb274`. Every step of each trace maps to the code through the tables above. None has been reproduced on the emulator or the player. If a fix lands, the matching configuration will report `unexpected-pass`; then turn it into an expected pass.
 
-FINDINGS_SECTION
+**`update_promotes_partial_slot` and `update_write_failure`: promotion can copy a part-written slot 1 over slot 2.**
+
+1. A trial install erases slot 1's first chunk (`slot_copy.c:75`) and is cut off, by power loss or a failed write, before it reaches the USB overlay chunk at `0x43C000`. Chunks are 8 KiB, so that is chunk 542 of 640.
+2. The ROM starts slot 2. This depends on `RomFallsBack`.
+3. The previous build finds the *running* record and counts itself as the trial (`trial.c:104`).
+4. A USB session then ends ejected with a stored internal write (`msc_write_proven`, `logic/msc.c:147`). Deleting the update file is such a write. If no update file is installed at the end of that session, because it was deleted or because the reinstall's first write failed, then:
+   - `promotion_due` (`trial_boot_module.c:131`) holds. It checks the record and the session, and `running_from_slot_1` (`:97`) compares only the overlay's 16-byte header, which is still the running build's.
+   - Nothing checks slot 1's header with `slot_copy_is_valid` before the copy at `:150`.
+5. The copy erases slot 2, then copies slot 1's erased first chunk as unchanged (`slot_copy.c:60`). Both slots are left without a valid header.
+
+The only code that writes the slots is the install (`trial_module.c`, `updater_install.c`), the rollback and the promotion (`trial_boot_module.c`). None of them repairs slot 1 first.
+
+**`update_both_request`: the both-slot path writes slot 2 first even when slot 1 is invalid.**
+
+`updater_install` (`updater_install.c:34`) always writes the file to slot 2, then copies slot 2 to slot 1. After an interrupted trial install, slot 2 holds the only bootable image. A `BOTHSLOT.REQ` install, or FiiO's image (`update.c:116`: a stock image always takes this path), then overwrites that image first. A power cut during that write leaves no valid slot. `update_both_request_known_good` shows that the owner-requested case is otherwise as documented: the player keeps a good image unless the owner asked for both slots.
+
+**`update_two_images`: an update after an interrupted promotion takes the both-slot path.**
+
+1. A promotion copy (slot 1 → slot 2) is cut off, so slot 2's header is invalid.
+2. The next update sees slot 2 invalid and installs the old way, into both slots (`trial_module.c:39`, documented in `architecture.md`).
+3. The confirmed build in slot 1 is overwritten, so a broken update leaves no image to roll back to.
+
+`update_two_images_other` shows that every other property holds with two updates.
+
+**`update_lost_continuity_pass`: a power cut right after a rollback restart can skip the continuity pass.**
+
+1. The restored build deletes the *rolled back* record at `trial_boot_module.c:87`, called from `main.c:368`.
+2. The continuity pass runs later, from `app.c:1761`.
+3. A cut between the two leaves no record to set `USB_SETTLE_CHANGED`, so the pass never runs for that rollback:
+   - a settings file in a later format is not set aside;
+   - the restored build starts with defaults and does not save its settings (`settings_store.c:90`) until the next pass, at the next trial start or restore request;
+   - the continuity mark still names the trial build;
+   - "Update rolled back" is not shown.
+
+**`core_handoff_window`: a slot published under the previous generation can be played.**
+
+1. Core 1 passes its generation check (`core1_stream.c:269`).
+2. Core 0 stops the stream (`:353`), opens a new one (`core1_open.c:57`) and drops stale slots (`:438`).
+3. Core 1 then publishes its slot with the old generation (`publish_slot`, `:170`).
+4. Core 0 sees the slot full at `:440` and plays it, because `next_frame` does not compare `slot->generation` with `source->generation`.
+
+The effect is up to one slot of the previous stream or position. If that stale slot's `first_sample` is past the new `play_end`, the track ends early, and core 0's slot index falls out of step with core 1's. Whether this happens depends on the timing described under `CoreOneWindowsShort`.
+
+**Assumption checks.**
+
+- `update_rom_slot1_only`: if the ROM does not start slot 2 for an invalid slot 1, any interrupted slot 1 write (install, rollback) leaves the player unbootable.
+- `update_torn_sectors`: if a one-sector write can tear, a torn `settings.bin` with no backup yet leaves no valid settings, and a torn trial record silently ends the trial's protection.
+- `core_handoff_reorder`: if core 0's release store could overtake its last sample loads, core 1 could overwrite a slot that is still being read. This is safe on the Cortex-M3's in-order pipeline, but no barrier enforces it.
+
+**The owner's properties, as worded, that the design does not keep.**
+
+- `update_trial_waits`: a trial build that keeps working stays on trial until a confirming USB session. Without one, the trial never ends, by design. Under the owner-confirms fairness, `TrialResolves` and `TrialEnds` hold.
+- `update_settings_literal`: after a rollback, `settings.bin` keeps the trial build's changes when the format is unchanged. A later format is set aside, and that file starts from defaults. It is not restored to the pre-trial content. `PreviousSettingsRecoverable` holds: the pre-trial content stays in a named backup slot for Settings → Backups.
+- `update_both_request_literal`: with `BOTHSLOT.REQ`, both slots hold the new build and there is no backup, as `device-install.md` says.
+
+**CBMC.** None of the passing harnesses found a defect within its bounds.

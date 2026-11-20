@@ -47,7 +47,7 @@ jobs:
           curl -fsSL -o "$deb" "https://github.com/diffblue/cbmc/releases/download/cbmc-${CBMC_VERSION}/ubuntu-24.04-cbmc-${CBMC_VERSION}-Linux.deb"
           echo "${CBMC_SHA256}  $deb" | sha256sum -c -
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends "$deb" openjdk-21-jre-headless
+          sudo apt-get install -y --no-install-recommends "$deb" openjdk-21-jre-headless gcc-multilib
           cbmc --version
           java -version
       - name: Download and verify tla2tools.jar
