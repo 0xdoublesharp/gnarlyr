@@ -317,6 +317,8 @@ class SourceAnalysisTests(unittest.TestCase):
                 analyze.read_baseline(path)
         new, stale = analyze.compare([{"fingerprint": "c" * 16}], baseline)
         self.assertEqual(([item["fingerprint"] for item in new], stale), (["c" * 16], ["a" * 16]))
+        self.assertEqual(analyze.compare([], baseline, "clang-analyzer")[1], [])
+        self.assertEqual(analyze.compare([], baseline, "t")[1], ["a" * 16])
 
     def test_the_committed_baseline_parses(self):
         analyze.read_baseline(firmware.ANALYSIS / "baseline.tsv")

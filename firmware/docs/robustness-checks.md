@@ -82,14 +82,16 @@ For each program (core 0 and every core 1 decoder), the tool builds the call gra
 - core 0: `device_reset` (start-up and the main loop), `board_systick_handler` (SysTick, the only enabled interrupt; the vector table has no external interrupts and NVIC lines are disabled), and `device_fault_handler` (the fault exceptions, which end in a panic loop);
 - core 1: `core1_reset` and `core1_tick`.
 
-The combined core 0 figure is main path + 32-byte exception frame + SysTick path, plus another frame and the fault path. All exceptions share the same priority except the faults, so SysTick cannot nest within itself. The naked entry stubs only branch, so the handlers are taken as the entries. Each core 1 program is compared with its own stack reserve, not the 16 KB core 0 stack.
+The combined core 0 figure is main path + 32-byte exception frame + SysTick path, plus another frame and the fault path. All exceptions share the same priority except the faults, so SysTick cannot nest within itself. The naked entry stubs only branch, so the handlers are taken as the entries. 
+Each core 1 program is compared with the stack its linker script requires (`core1_bss_end` below the stack top at `0x0102E000`). The stack actually available in that build is read from the ELF. Each core 1 entry reaches its decoder through a function pointer, so only the indirect estimate means anything there.
 
 Reported per program: the deepest paths with their frame sizes, recursion cycles, functions with no frame size (assembly, libgcc, anything not compiled with the flags), functions with dynamic frames, and indirect call sites.
 
 Limits:
 
 - Indirect calls cannot be followed. The tool finds address-taken functions by scanning the loaded ELF contents for words that hold a Thumb function address. Each indirect call site is charged the deepest such function once, without following further indirect calls. That figure is an estimate, not a proven bound. Charging every indirect call with every address-taken function, transitively, makes screen and module dispatch look recursive, and that bound would be infinite.
-- Code in overlays and demand-loaded modules lives in separate ELF files and is reached only through indirect calls, so the core 0 figure does not include it.
+- Overlays and demand-loaded modules are separate ELF files, reached only through indirect calls. The tool analyses each one with calls into the main program resolved against the core 0 graph, and reports its deepest root. It also adds the deepest such root to the core 0 main path, which is again an estimate.
+- A recursion cycle is counted once, without its repeats, so any path through a cycle is not bounded. Treat every reported cycle as a finding.
 - Functions without frame sizes count as zero.
 - Inline assembly that moves the stack pointer is not seen.
 - If the static figure for core 0 is below the stack peak measured in the emulator, edges are missing, and the figure must not be read as a bound.

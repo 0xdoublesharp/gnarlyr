@@ -473,7 +473,8 @@ def build_stack_analysis(env, python):
 def write_findings(report, stem, title, findings, baseline, failures):
     import firmware_analyze as analyze
 
-    new, stale = analyze.compare(findings, baseline)
+    tool = "clang-tidy" if stem == "clang-tidy" else "clang-analyzer"
+    new, stale = analyze.compare(findings, baseline, tool)
     (report / f"{stem}.json").write_text(json.dumps({"findings": findings, "new": [item["fingerprint"] for item in new],
                                                      "stale_baseline": stale, "failed_units": failures}, indent=2))
     (report / f"{stem}.md").write_text(analyze.findings_markdown(title, new, len(findings), stale, failures))
@@ -496,7 +497,10 @@ def analyze_sources(parts, env, python, jobs, report):
         (report / "clang-tidy.log").write_text("".join(f"== {item['unit']}\n{item['output']}" for item in results))
         findings = analyze.deduplicate([finding for item in results for finding in analyze.parse_tidy(
             item["output"], SOURCE)], SOURCE)
-        failures = [item["unit"] for item in results if "clang-diagnostic-error" in item["output"]]
+        failures = [item["unit"] for item in results if "clang-diagnostic-error" in item["output"]
+                    or (item["code"] != 0 and not analyze.parse_tidy(item["output"], SOURCE))]
+        if units and len(failures) * 2 > len(units):
+            raise SystemExit(f"clang-tidy failed on {len(failures)} of {len(units)} units; see {report}/clang-tidy.log")
         findings = [item for item in findings if item["check"] != "clang-diagnostic-error"]
         totals["clang-tidy"] = write_findings(report, "clang-tidy", "clang-tidy findings", findings, baseline,
                                               failures)
@@ -513,6 +517,8 @@ def analyze_sources(parts, env, python, jobs, report):
                 findings += analyze.parse_sarif(json.loads(item["sarif"].read_text()), SOURCE)
             if item["code"] != 0:
                 failures.append(item["unit"])
+        if units and len(failures) * 2 > len(units):
+            raise SystemExit(f"The analyzer failed on {len(failures)} of {len(units)} units; see {report}/analyzer.log")
         findings = analyze.deduplicate(findings, SOURCE)
         totals["clang-analyzer"] = write_findings(report, "analyzer", "Clang Static Analyzer findings", findings,
                                                   baseline, failures)
@@ -535,6 +541,9 @@ def run_analyze(parts, env, python, jobs):
     (report / "summary.json").write_text(json.dumps(summary, indent=2))
     print(f"Analysis written to {report}")
     print(json.dumps(summary, indent=2))
+    new = sorted(name for name, counts in summary.items() if isinstance(counts, dict) and counts.get("new"))
+    if new:
+        raise SystemExit(f"New findings against tests/analysis/baseline.tsv from: {', '.join(new)}")
 
 
 def arguments():

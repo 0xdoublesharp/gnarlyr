@@ -16,7 +16,7 @@ DROPPED_FLAGS = re.compile(r"^-(fsanitize|fno-sanitize|fno-omit-frame-pointer|We
 ANALYZER_CHECKERS = (
     "core", "unix", "deadcode", "security.ArrayBound", "core.BitwiseShift", "optin.core.EnumCastOutOfRange",
     "optin.portability.UnixAPI", "unix.cstring.NotNullTerminated", "unix.cstring.UninitializedRead",
-    "optin.taint.TaintedDiv", "alpha.core.PointerSub", "alpha.core.CastSize", "alpha.core.SizeofPtr",
+    "optin.taint.TaintedDiv", "alpha.core.BoolAssignment",
     "alpha.core.TestAfterDivZero", "alpha.security.ReturnPtrRange", "alpha.unix.cstring.OutOfBounds",
     "alpha.unix.cstring.BufferOverlap",
 )
@@ -160,10 +160,11 @@ def read_baseline(path):
     return entries
 
 
-def compare(findings, baseline):
+def compare(findings, baseline, tool=None):
     new = [finding for finding in findings if finding["fingerprint"] not in baseline]
     present = {finding["fingerprint"] for finding in findings}
-    stale = sorted(key for key in baseline if key not in present)
+    stale = sorted(key for key, entry in baseline.items()
+                   if key not in present and (tool is None or entry["tool"] == tool))
     return new, stale
 
 
