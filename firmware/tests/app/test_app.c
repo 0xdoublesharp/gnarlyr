@@ -1454,6 +1454,32 @@ static void brightness_previews_without_saving_and_back_restores_it(void)
     CHECK_EQUAL(settings_defaults().brightness + 1, fake_hal_display_brightness());
 }
 
+static void a_brightness_preview_is_restored_when_settings_cannot_come_back(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_BRIGHTNESS_INDEX);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(settings_defaults().brightness + 1, fake_hal_display_brightness());
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    step();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(settings_defaults().brightness, fake_hal_display_brightness());
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, false);
+}
+
+static void a_brightness_preview_is_restored_through_settings_after_an_overlay(void)
+{
+    start_app_with_library();
+    open_setting(SETTINGS_BRIGHTNESS_INDEX);
+    tap(KEY_VOLUME_UP);
+    CHECK_EQUAL(settings_defaults().brightness + 1, fake_hal_display_brightness());
+    fake_hal_load_usb_overlay();
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK_EQUAL(settings_defaults().brightness, fake_hal_display_brightness());
+}
+
 static void leaving_or_stopping_a_brightness_preview_restores_the_saved_level(void)
 {
     start_app_with_library();
@@ -8884,6 +8910,8 @@ int main(void)
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),
         TEST_CASE(leaving_or_stopping_a_brightness_preview_restores_the_saved_level),
+        TEST_CASE(a_brightness_preview_is_restored_when_settings_cannot_come_back),
+        TEST_CASE(a_brightness_preview_is_restored_through_settings_after_an_overlay),
         TEST_CASE(gain_waits_for_play_and_output_previews_without_restarting_music),
         TEST_CASE(gain_is_applied),
         TEST_CASE(choosing_high_gain_lowers_both_volumes_before_the_gain_rises),

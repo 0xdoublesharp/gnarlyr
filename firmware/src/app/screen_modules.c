@@ -45,13 +45,28 @@ ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
     return SCREEN_MODULE_NONE;
 }
 
+static void drop_settings_preview(AppScreens *screens, SettingsScreens *settings)
+{
+    const Settings *saved = &screens->context.settings->settings;
+    settings->preview = (SettingsPreview){.choice = STRING_COUNT};
+    settings->choice_preview = STRING_COUNT;
+    settings_store_apply_hardware(saved);
+    player_set_replay_gain(screens->context.player, (ReplayGainMode)saved->replay_gain_mode,
+                           saved->prevent_clipping);
+}
+
 static void cancel_settings_previews(AppScreens *screens)
 {
-    if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) != 0) {
-        SettingsScreens *settings = &screens->modules.settings.settings;
-        if (settings->preview.choice != STRING_COUNT) {
-            settings->preview_settings(settings, false);
-        }
+    SettingsScreens *settings = &screens->modules.settings.settings;
+    if ((screens->bound_modules & (1u << SCREEN_MODULE_SETTINGS)) == 0 ||
+        settings->preview.choice == STRING_COUNT) {
+        return;
+    }
+    const ScreenModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_SETTINGS);
+    if (entry != NULL && entry->magic == SCREEN_MODULE_MAGIC(SCREEN_MODULE_SETTINGS)) {
+        settings->preview_settings(settings, false);
+    } else {
+        drop_settings_preview(screens, settings);
     }
 }
 

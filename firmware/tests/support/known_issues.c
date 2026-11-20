@@ -19,7 +19,6 @@ static const char *const NAMES[KNOWN_ISSUE_COUNT] = {
     [KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY] = "home-art-after-overlay",
     [KNOWN_ISSUE_SLIDE_LEAVING_EVICTED] = "slide-leaving-evicted",
     [KNOWN_ISSUE_SAFE_START_LABELS_AFTER_RELOAD] = "safe-start-labels-after-reload",
-    [KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED] = "preview-cancel-evicted",
     [KNOWN_ISSUE_PARAMETRIC_BANK_AFTER_RELOAD] = "parametric-bank-after-reload",
 };
 
@@ -107,8 +106,6 @@ bool known_issue_covers_call(const char *report)
             on_stack("strip_renderer_render")) ||
            (overlay && shared_art(report) &&
             known_issue_open(KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY)) ||
-           (known_issue_open(KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED) &&
-            (on_stack("screen_modules_cancel_previews") || on_stack("screen_modules_use"))) ||
            (strstr(report, "for a Hold Menu shortcut") != NULL &&
             known_issue_open(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE));
 }
