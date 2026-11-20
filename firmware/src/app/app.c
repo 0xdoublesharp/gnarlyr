@@ -1338,7 +1338,7 @@ static void follow_compact_theme(void)
 
 static bool is_compact(const Screen *screen)
 {
-    return screen == &app.screens.now_playing.screen;
+    return screen->one_line_header;
 }
 
 static void draw_slide(Canvas *canvas, Screen *arriving)
@@ -1366,9 +1366,10 @@ static StatusBarState shown_status_bar(const AppState *state, const Screen *scre
         bar.title_width = screen->header_title_width != 0 ? screen->header_title_width
                                                           : text_width(theme->fonts.header, title);
     }
-    if (is_compact(screen)) {
+    if (screen == &app.screens.now_playing.screen) {
         bar.playback = STATUS_PLAYBACK_NONE;
     }
+    bar.logo = screen->header_logo;
     return bar;
 }
 
@@ -1646,6 +1647,7 @@ static void follow_appearance(void)
     notice_theme.header_rule = app.theme.header_rule;
     default_theme_set_text_size(&app.theme, shown->text_size);
     default_theme_set_status_bar(&app.theme, shown->status_bar_compact);
+    follow_compact_theme();
 }
 
 static void start_hardware(uint32_t now_ms)

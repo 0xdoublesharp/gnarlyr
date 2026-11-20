@@ -91,6 +91,7 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
         .title = i18n_text(STR_NOW_PLAYING),
         .context = now_playing,
         .hold_volume_keys = true,
+        .one_line_header = true,
     };
     now_playing_fallback_attach(now_playing);
     now_playing->config = config;

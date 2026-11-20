@@ -104,6 +104,7 @@ static const uint32_t SHAPES[ICON_COUNT] = {
     [ICON_LOCK] = 0x0849F8C2,
     [ICON_SONG_SMALL] = 0xCB86ADB1,
     [ICON_PLUG] = 0xA3B73949,
+    [ICON_LOGO] = 0xB71D9164,
 };
 
 static Color pixels[CANVAS_SIZE * CANVAS_SIZE];
@@ -339,6 +340,7 @@ static void a_narrow_icon_is_nine_columns_wide_for_fourteen_rows(void)
     CHECK_EQUAL(ICON_NARROW_COLUMNS, icon_width(ICON_LOCK, ICON_SMALL_GRID));
     CHECK_EQUAL(2 * ICON_NARROW_COLUMNS, icon_width(ICON_BOLT, 2 * ICON_SMALL_GRID));
     CHECK_EQUAL(ICON_SMALL_GRID, icon_width(ICON_PLAY, ICON_SMALL_GRID));
+    CHECK_EQUAL(ICON_SMALL_GRID, icon_width(ICON_LOGO, ICON_SMALL_GRID));
     CHECK_EQUAL(ICON_LARGE_GRID, icon_width(ICON_MUSIC, ICON_LARGE_GRID));
     CHECK_EQUAL(ICON_SMALL_GRID, icon_rows(ICON_SONG_SMALL));
     CHECK_EQUAL(ICON_LARGE_GRID, icon_rows(ICON_SONG));

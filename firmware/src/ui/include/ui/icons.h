@@ -57,6 +57,7 @@ typedef enum IconId {
     ICON_LOCK,
     ICON_SONG_SMALL,
     ICON_PLUG,
+    ICON_LOGO,
     ICON_COUNT
 } IconId;
 

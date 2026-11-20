@@ -158,8 +158,10 @@ static void the_icons_centre_on_the_battery_line_in_both_orientations(void)
         Rect body = status_bar_battery_body(&theme);
         int line = band == 0 ? theme.metrics.header_height : PORTRAIT_STATUS_HEIGHT;
         CHECK(body.y >= 0 && body.y + body.height <= line);
-        for (int slot = 5; slot < 8; slot++) {
-            Rect icon = status_bar_item_area(&theme, &state, (uint16_t)(1u << slot));
+        static const uint16_t ICONS[] = {STATUS_BAR_PLAYBACK, STATUS_BAR_BLUETOOTH,
+                                         STATUS_BAR_LOCK};
+        for (int index = 0; index < 3; index++) {
+            Rect icon = status_bar_item_area(&theme, &state, ICONS[index]);
             int offset = 2 * icon.y + icon.height - (2 * body.y + body.height);
             CHECK(offset >= -1 && offset <= 1);
         }
