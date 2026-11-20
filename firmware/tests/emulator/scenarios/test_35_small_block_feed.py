@@ -21,6 +21,9 @@ MEASURE_MS = 3000
 TAP_MS = 120
 FED_MS = 40
 START_DELAYS_MS = tuple(range(0, 41, 4))
+EARLY_DARK_DELAYS_MS = tuple(range(0, 65, 4))
+LATE_DARK_DELAYS_MS = tuple(range(68, 129, 4))
+DELAY_STEP_MS = 4
 WINDOW_SHIFTS_MS = (0, 5, 11)
 RING_FRAMES = 14000
 ROW_GAP_LIMIT_MS = 250
@@ -426,12 +429,12 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(slow_us, TRACK_CHANGE_SLOW_LIMIT_US, dict(decoder.clock_us))
         self.assert_healthy(rig.session)
 
-    def sweep_start_phases(self, case, dark):
-        for index, delay_ms in enumerate(START_DELAYS_MS):
+    def sweep_start_phases(self, case, dark, delays=START_DELAYS_MS):
+        for delay_ms in delays:
             with self.subTest(case=case, dark=dark, delay_ms=delay_ms):
                 rig, meter, frames = self.feed_rig(case, delay_ms)
                 since_ms = rig.machine.milliseconds()
-                shift_ms = WINDOW_SHIFTS_MS[index % len(WINDOW_SHIFTS_MS)]
+                shift_ms = WINDOW_SHIFTS_MS[delay_ms // DELAY_STEP_MS % len(WINDOW_SHIFTS_MS)]
                 result = self.measure(rig, meter, frames, case, dark,
                                       settle_ms=DARK_SETTLE_MS + shift_ms)
                 window_ms = rig.machine.milliseconds() - MEASURE_MS
@@ -444,14 +447,20 @@ class EchoImageTest(EchoImageHarness):
                 self.assertGreaterEqual(lowest, RING_FRAMES // 4, (delay_ms, shift_ms))
                 self.assertEqual([], rig.audio.underruns(since_ms)[:5], (delay_ms, shift_ms))
 
-    def test_192_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_off(self):
-        self.sweep_start_phases("flac192_512", True)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_to_64_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, EARLY_DARK_DELAYS_MS)
+
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_from_68_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, LATE_DARK_DELAYS_MS)
 
     def test_192_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_on(self):
         self.sweep_start_phases("flac192_512", False)
 
-    def test_176_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_off(self):
-        self.sweep_start_phases("flac176_512", True)
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_to_64_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, EARLY_DARK_DELAYS_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_from_68_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, LATE_DARK_DELAYS_MS)
 
     def test_176_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_on(self):
         self.sweep_start_phases("flac176_512", False)
