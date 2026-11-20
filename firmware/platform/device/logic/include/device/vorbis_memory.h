@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "device/core1_arena.h"
+
 #if defined(__arm__) && defined(__GNUC__)
 typedef intptr_t VorbisCheckpoint[5];
 #define VORBIS_MEMORY_TRY(memory) __builtin_setjmp((memory)->checkpoint)
@@ -20,11 +22,7 @@ typedef enum VorbisMemoryError {
 } VorbisMemoryError;
 
 typedef struct VorbisMemory {
-    uint8_t *base;
-    uint32_t capacity;
-    uint32_t used;
-    uint32_t temporary;
-    uint32_t peak;
+    Core1Arena arena;
     VorbisMemoryError error;
     bool strict_bits;
     VorbisCheckpoint checkpoint;

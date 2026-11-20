@@ -29,48 +29,42 @@ static _Noreturn void leave(OpusDecodeResult error)
 #endif
 }
 
-void *opus_decode_allocate(size_t count, size_t bytes, size_t alignment)
+static Core1Arena *bound_scratch(void)
 {
     if (active == NULL) {
         __builtin_trap();
     }
+    return &active->scratch;
+}
+
+void *opus_decode_allocate(size_t count, size_t bytes, size_t alignment)
+{
+    Core1Arena *scratch = bound_scratch();
     if (alignment == 0 || (alignment & (alignment - 1)) != 0 || bytes == 0 ||
         count > SIZE_MAX / bytes) {
         leave(OPUS_DECODE_EXHAUSTED);
     }
-    size_t padding = (0u - ((uintptr_t)active->scratch + active->scratch_used)) & (alignment - 1);
-    size_t available = active->scratch_bytes - active->scratch_used;
-    size_t length = count * bytes;
-    if (padding > available || length > available - padding) {
+    void *block = core1_arena_push(scratch, count * bytes, alignment);
+    if (block == NULL) {
         leave(OPUS_DECODE_EXHAUSTED);
-    }
-    void *block = active->scratch + active->scratch_used + padding;
-    active->scratch_used += (uint32_t)(padding + length);
-    if (active->scratch_used > active->scratch_peak) {
-        active->scratch_peak = active->scratch_used;
     }
     return block;
 }
 
 void *opus_decode_mark(void)
 {
-    if (active == NULL) {
-        __builtin_trap();
-    }
-    return active->scratch + active->scratch_used;
+    Core1Arena *scratch = bound_scratch();
+    return scratch->base + core1_arena_mark(scratch);
 }
 
 void opus_decode_restore(void *mark)
 {
-    if (active == NULL) {
-        __builtin_trap();
-    }
-    uintptr_t address = (uintptr_t)mark;
-    if (address < (uintptr_t)active->scratch ||
-        address - (uintptr_t)active->scratch > active->scratch_used) {
+    Core1Arena *scratch = bound_scratch();
+    uintptr_t offset = (uintptr_t)mark - (uintptr_t)scratch->base;
+    if ((uintptr_t)mark < (uintptr_t)scratch->base || offset > scratch->capacity ||
+        !core1_arena_restore(scratch, (uint32_t)offset)) {
         leave(OPUS_DECODE_INVALID);
     }
-    active->scratch_used = (uint32_t)(address - (uintptr_t)active->scratch);
 }
 
 void *opus_alloc(size_t bytes)
@@ -111,7 +105,7 @@ uint32_t opus_decode_state_bytes(uint32_t channels)
 
 static OpusDecodeResult release(OpusDecode *decoder, OpusDecodeResult error)
 {
-    decoder->scratch_used = 0;
+    core1_arena_reset(&decoder->scratch);
     decoder->error = error;
     if (error != OPUS_DECODE_OK) {
         decoder->ready = false;
@@ -153,12 +147,12 @@ OpusDecodeResult opus_decode_init(OpusDecode *decoder, void *state, uint32_t sta
         (rate != 8000 && rate != 12000 && rate != 16000 && rate != 24000 && rate != 48000)) {
         return OPUS_DECODE_INVALID;
     }
-    *decoder = (OpusDecode){.state = state,
-                            .scratch = scratch,
-                            .state_bytes = needed,
-                            .scratch_bytes = scratch_bytes,
-                            .rate = rate,
-                            .channels = channels};
+    *decoder =
+        (OpusDecode){.state = state,
+                     .scratch = {.base = scratch, .capacity = scratch_bytes, .high = scratch_bytes},
+                     .state_bytes = needed,
+                     .rate = rate,
+                     .channels = channels};
     active = decoder;
     if (OPUS_DECODE_TRY(decoder) != 0) {
         return release(decoder, decoder->error);
@@ -185,7 +179,7 @@ OpusDecodeResult opus_decode_set_gain(OpusDecode *decoder, int32_t gain)
 static bool touches_decoder(const OpusDecode *decoder, const void *pointer, uint32_t bytes)
 {
     return overlap(pointer, bytes, decoder->state, decoder->state_bytes) ||
-           overlap(pointer, bytes, decoder->scratch, decoder->scratch_bytes) ||
+           overlap(pointer, bytes, decoder->scratch.base, decoder->scratch.capacity) ||
            overlap(pointer, bytes, decoder, sizeof *decoder);
 }
 

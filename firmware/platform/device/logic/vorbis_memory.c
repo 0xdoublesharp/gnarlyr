@@ -7,14 +7,14 @@ bool vorbis_memory_init(VorbisMemory *memory, void *base, uint32_t capacity)
     if (base == NULL || (uintptr_t)base % 8 != 0 || capacity < 8) {
         return false;
     }
-    uint32_t aligned = capacity & ~7u;
-    *memory = (VorbisMemory){.base = base, .capacity = aligned, .temporary = aligned};
+    *memory = (VorbisMemory){0};
+    core1_arena_init(&memory->arena, base, capacity & ~7u);
     return true;
 }
 
 bool vorbis_memory_bind(VorbisMemory *memory)
 {
-    if (active != NULL || memory->base == NULL || memory->error != VORBIS_MEMORY_OK) {
+    if (active != NULL || memory->arena.base == NULL || memory->error != VORBIS_MEMORY_OK) {
         return false;
     }
     active = memory;
@@ -39,37 +39,25 @@ static _Noreturn void leave_guard(VorbisMemoryError error)
 #endif
 }
 
-static uint32_t rounded_size(size_t bytes)
+static Core1Arena *bound_arena(void)
 {
     if (active == NULL) {
         __builtin_trap();
     }
-    if (bytes > UINT32_MAX - 7u) {
-        leave_guard(VORBIS_MEMORY_EXHAUSTED);
-    }
-    uint32_t rounded = ((uint32_t)bytes + 7u) & ~7u;
-    rounded = rounded == 0 ? 8 : rounded;
-    if (rounded > active->temporary - active->used) {
-        leave_guard(VORBIS_MEMORY_EXHAUSTED);
-    }
-    return rounded;
+    return &active->arena;
 }
 
-static void record_peak(void)
+static void *granted(void *block)
 {
-    uint32_t bytes = active->used + (active->capacity - active->temporary);
-    if (bytes > active->peak) {
-        active->peak = bytes;
+    if (block == NULL) {
+        leave_guard(VORBIS_MEMORY_EXHAUSTED);
     }
+    return block;
 }
 
 void *vorbis_memory_allocate(size_t bytes)
 {
-    uint32_t rounded = rounded_size(bytes);
-    void *block = active->base + active->used;
-    active->used += rounded;
-    record_peak();
-    return block;
+    return granted(core1_arena_allocate(bound_arena(), bytes == 0 ? 1 : bytes));
 }
 
 void *vorbis_memory_calloc(size_t count, size_t bytes)
@@ -92,20 +80,17 @@ void vorbis_memory_free(void *pointer)
 
 void *vorbis_temporary_allocate(size_t bytes)
 {
-    uint32_t rounded = rounded_size(bytes);
-    active->temporary -= rounded;
-    record_peak();
-    return active->base + active->temporary;
+    return granted(core1_arena_push(bound_arena(), bytes == 0 ? 1 : bytes, 8));
 }
 
 uint32_t vorbis_temporary_mark(void)
 {
-    return active->temporary;
+    return core1_arena_mark(&active->arena);
 }
 
 void vorbis_temporary_restore(const uint32_t *mark)
 {
-    active->temporary = *mark;
+    (void)core1_arena_restore(&active->arena, *mark);
 }
 
 bool vorbis_memory_requires_bits(void)
