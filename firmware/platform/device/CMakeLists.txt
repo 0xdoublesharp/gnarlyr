@@ -270,6 +270,7 @@ set(ECHO_OVERLAY_IMPORTS
     app_show_notice
     app_show_usb_area
     app_show_usb_status
+    app_theme_pack_active
     app_theme
     charge_screen_text
     charge_screen_level_text

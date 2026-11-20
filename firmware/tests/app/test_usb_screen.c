@@ -14,6 +14,7 @@
 #include "screens/usb_scene.h"
 #include "screens/usb_screen_parts.h"
 #include "text_spy.h"
+#include "theme_runtime.h"
 #include "ui/label.h"
 #include "ui/wire_motion.h"
 #ifdef ECHO_TEST_GLYPHS
@@ -398,6 +399,44 @@ static void partial_redraws_are_split_into_bounded_horizontal_bands(void)
     CHECK_EQUAL(1, registered_draws);
     usb_screen_show_in_bands(status, (Rect){0, 0, 20, 100});
     CHECK(registered_draws > 2);
+    app_set_usb_renderer(NULL);
+    app_stop();
+}
+
+static int closing_draw;
+static int widest_after_close;
+
+static void closing_usb_draw(Canvas *canvas, const Theme *theme, HalBattery battery,
+                             AppUsbStatus status)
+{
+    ThemeRuntime *runtime = theme->art_context;
+    registered_draws++;
+    if (registered_draws == closing_draw) {
+        runtime->active = false;
+    } else if (registered_draws > closing_draw && canvas->bounds.width > widest_after_close) {
+        widest_after_close = canvas->bounds.width;
+    }
+    usb_screen_draw(canvas, theme, battery, status);
+}
+
+static void a_pack_closed_while_bands_draw_repaints_the_whole_screen_at_once(void)
+{
+    fake_hal_reset();
+    app_start();
+    ThemeRuntime *runtime = app_theme()->art_context;
+    AppUsbStatus status = {.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_COMPUTER)};
+    app_set_usb_renderer(closing_usb_draw);
+    runtime->active = true;
+    registered_draws = 0;
+    closing_draw = 2;
+    widest_after_close = 0;
+    usb_screen_show_in_bands(status, (Rect){0, 0, 20, 100});
+    CHECK(!app_theme_pack_active());
+    CHECK_EQUAL(HAL_DISPLAY_WIDTH, widest_after_close);
+    registered_draws = 0;
+    widest_after_close = 0;
+    usb_screen_show_in_bands(status, (Rect){0, 0, 20, 100});
+    CHECK(widest_after_close <= 20);
     app_set_usb_renderer(NULL);
     app_stop();
 }
@@ -1265,6 +1304,7 @@ int main(void)
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),
+        TEST_CASE(a_pack_closed_while_bands_draw_repaints_the_whole_screen_at_once),
         TEST_CASE(storage_motion_redraws_only_the_cassette_square),
         TEST_CASE(the_level_meter_redraws_only_its_own_area),
         TEST_CASE(a_still_scene_does_not_follow_the_clock),

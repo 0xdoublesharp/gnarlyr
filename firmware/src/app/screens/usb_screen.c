@@ -577,6 +577,7 @@ static void show_row(AppUsbStatus status, Rect row, int piece)
 
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
 {
+    bool themed = app_theme_pack_active();
     bool streaming = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed;
     int band = streaming ? 1 : USB_SCREEN_BAND_HEIGHT;
     int piece = streaming ? USB_SCREEN_BAND_WIDTH : area.width;
@@ -584,6 +585,9 @@ void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
         int height = area.y + area.height - top;
         height = height < band ? height : band;
         show_row(status, (Rect){area.x, top, area.width, height}, piece > 0 ? piece : 1);
+    }
+    if (themed && !app_theme_pack_active()) {
+        app_show_usb_status(status);
     }
 }
 

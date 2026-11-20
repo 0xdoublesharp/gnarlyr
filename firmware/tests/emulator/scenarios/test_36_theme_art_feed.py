@@ -42,6 +42,7 @@ ROWS_FROM = 2048
 DAC_RATE = 96000
 DAC_MENU_RUN_MS = 1500
 STACK_LIMIT_BYTES = 12 * 1024
+LOWER_ROWS_FROM = 150
 
 
 def photo_pixels(seed=7):
@@ -315,6 +316,34 @@ class EchoImageTest(EchoImageHarness):
         print(json.dumps({"usb_dac_menu_stack_peak_bytes": peak, "art_draws": len(draws)}))
         self.assertTrue(draws)
         self.assertLessEqual(peak, STACK_LIMIT_BYTES, peak)
+        self.assertEqual(0, audio.output_underruns())
+        self.assert_healthy(session)
+
+    def test_a_card_read_that_fails_in_the_usb_dac_menu_repaints_it_in_theme_colours(self):
+        import test_28_usb_audio
+        pack = built_pack(photo_pixels(), (("list", "lossless"), ("home", "indexed")))
+        art = drawn_art(pack)
+        asset = theme_pack.check(pack)["assets"][0]
+        self.volume_for_session = feed_volume(pack)
+        session, audio, _ = test_28_usb_audio.EchoImageTest.dac_session(self, DAC_RATE)
+        machine = session.machine
+        for key in (KEY_MENU, KEY_NEXT):
+            self.press(machine, key)
+        machine.run(until_ms=machine.milliseconds() + DAC_MENU_RUN_MS)
+        before = self.art_share(machine.panel.frame, art)
+        sectors = list(session.file_sectors(THEMES + "/photo.gtheme"))
+        table = asset["offset"] + theme_pack.table_start(asset)
+        row = struct.unpack_from("<I", pack, table + 4 * LOWER_ROWS_FROM)[0]
+        first = asset["offset"] + row
+        for at in range(first // 512 + 1, (asset["offset"] + asset["bytes"]) // 512):
+            session.disk.write(sectors[at], bytes(512))
+        self.press(machine, KEY_NEXT)
+        machine.run(until_ms=machine.milliseconds() + DAC_MENU_RUN_MS)
+        after = self.art_share(machine.panel.frame, art)
+        print(json.dumps({"usb_dac_menu_art_share_before": round(before, 3),
+                          "after": round(after, 3)}))
+        self.assertGreaterEqual(before, ART_SHARE_MIN / 2, before)
+        self.assertLessEqual(after, PLAIN_SHARE_MAX, after)
         self.assertEqual(0, audio.output_underruns())
         self.assert_healthy(session)
 

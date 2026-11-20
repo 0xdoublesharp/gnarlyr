@@ -2660,7 +2660,11 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
     if (!app.display_on) {
         set_display(true);
     }
+    bool themed = app.themes.active;
     render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
+    if (themed && !app.themes.active) {
+        render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
+    }
     light_after_first_frame();
 }
 
