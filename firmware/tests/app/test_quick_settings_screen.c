@@ -4,6 +4,7 @@
 #include "check.h"
 #include "core/i18n.h"
 #include "default_theme.h"
+#include "equalizer_ui.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "gfx/text.h"
@@ -36,7 +37,7 @@ static const char *const SUBMENU_NAMES[] = {"equalizer", "headphones",  "speed",
                                             "sleep",     "replay-gain", "style"};
 
 static QuickSettingsScreen panel;
-static EqualizerPresets presets;
+static EqualizerUi equalizer;
 static SettingsStore settings;
 static HeadphoneStore headphones;
 static Player player;
@@ -58,18 +59,22 @@ static void start(void)
     CHECK_EQUAL(HAL_RESERVE_CREATED,
                 hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES));
     headphone_store_load(&headphones);
+    CHECK_EQUAL(HAL_RESERVE_CREATED, hal_internal_file_reserve(PARAMETRIC_STORE_PATH, 4096));
     power_policy_init(&power, 30000, 100);
     toast = (Toast){0};
     theme = BOARD_THEME;
-    quick_settings_screen_init(&panel, (QuickSettingsConfig){.settings = {.store = &settings,
-                                                                          .headphones = &headphones,
-                                                                          .player = &player,
-                                                                          .power = &power,
-                                                                          .presets = &presets,
-                                                                          .toast = &toast},
-                                                             .theme = &theme,
-                                                             .lyrics = &lyrics,
-                                                             .up_next = &up_next});
+    equalizer_ui_init(&equalizer, &settings, &player, &toast, &theme);
+    quick_settings_screen_init(
+        &panel, (QuickSettingsConfig){.settings = {.store = &settings,
+                                                   .headphones = &headphones,
+                                                   .player = &player,
+                                                   .power = &power,
+                                                   .equalizer = &equalizer.browser.choice.screen,
+                                                   .presets = equalizer.presets,
+                                                   .toast = &toast},
+                                      .theme = &theme,
+                                      .lyrics = &lyrics,
+                                      .up_next = &up_next});
     panel.screen.enter(&panel, 100);
 }
 
@@ -407,8 +412,8 @@ static void a_rebuild_after_the_slot_file_fails_clamps_the_equalizer_list(void)
 {
     start();
     int8_t gains[SETTINGS_EQUALIZER_BANDS] = {2, -2, 4, -4, 6, -6, 8, -8, 10, -10};
-    CHECK(equalizer_presets_save_slot(&presets, 2, gains));
-    CHECK(equalizer_presets_save_slot(&presets, 5, gains));
+    CHECK(equalizer_presets_save_slot(equalizer.presets, 2, gains));
+    CHECK(equalizer_presets_save_slot(equalizer.presets, 5, gains));
     panel.screen.enter(&panel, 100);
     open_values(EQUALIZER_ROW);
     CHECK_EQUAL(EQUALIZER_PRESET_COUNT + 2, panel.values.model.count(&panel.values));
@@ -416,8 +421,8 @@ static void a_rebuild_after_the_slot_file_fails_clamps_the_equalizer_list(void)
     uint8_t junk[EQUALIZER_SLOTS_FILE_SIZE];
     memset(junk, 0xA5, sizeof junk);
     CHECK(hal_internal_file_write(EQUALIZER_SLOTS_PATH, junk, sizeof junk));
-    presets = (EqualizerPresets){0};
-    equalizer_presets_scan(&presets);
+    *equalizer.presets = (EqualizerPresets){0};
+    equalizer_presets_scan(equalizer.presets);
     quick_settings_screen_refit(&panel);
     int count = panel.values.model.count(&panel.values);
     CHECK_EQUAL(EQUALIZER_PRESET_COUNT, count);

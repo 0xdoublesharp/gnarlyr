@@ -17,7 +17,7 @@
 enum {
     BRIGHTNESS_LEVEL_COUNT = SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN + 1,
     MILLISECONDS_PER_MINUTE = 60000,
-    SAFE_VOLUME_OPTION_COUNT = 6,
+    SAFE_VOLUME_OPTION_COUNT = SETTINGS_SAFE_VOLUME_OPTIONS,
     SAFE_VOLUME_STEP = 6,
     SAFE_VOLUME_TEXT_CAPACITY = 4,
     MODE_ROW_FIRST = PLUG_MODE_COMPUTER,
@@ -453,7 +453,6 @@ static void choose_rewind(void *context, int index)
 
 static const char *const SAFE_VOLUME_LEVELS[SAFE_VOLUME_OPTION_COUNT] = {"",   "12", "18",
                                                                          "24", "30", "36"};
-static const char *safe_volume_options[SAFE_VOLUME_OPTION_COUNT];
 
 static int current_safe_volume(const void *context)
 {
@@ -487,12 +486,11 @@ static const char *describe_safe_volume(const void *context, int current)
 
 static void extend_safe_volume(SettingsScreens *screens, ChoiceConfig *config)
 {
-    (void)screens;
-    safe_volume_options[0] = i18n_text(STR_OFF);
+    screens->safe_volume_options[0] = i18n_text(STR_OFF);
     for (int index = 1; index < SAFE_VOLUME_OPTION_COUNT; index++) {
-        safe_volume_options[index] = SAFE_VOLUME_LEVELS[index];
+        screens->safe_volume_options[index] = SAFE_VOLUME_LEVELS[index];
     }
-    config->options = safe_volume_options;
+    config->options = screens->safe_volume_options;
     config->option_ids = NULL;
 }
 

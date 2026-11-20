@@ -12,6 +12,7 @@ static void bind(AppScreens *screens)
                                               .headphones = context->headphones,
                                               .player = context->player,
                                               .power = context->power,
+                                              .equalizer = &own->browser.choice.screen,
                                               .presets = own->presets,
                                               .toast = context->toast},
                                  .theme = context->theme,
@@ -27,11 +28,7 @@ static void reload(AppScreens *screens)
         return;
     }
     rebuilt = true;
-    EqualizerUi *own = &screens->modules.equalizer;
-    own->presets->parametric = &screens->context.settings->parametric;
-    equalizer_presets_scan(own->presets);
-    equalizer_browser_refit(&own->browser);
-    quick_settings_screen_refit(&own->quick_settings);
+    equalizer_ui_reload(&screens->modules.equalizer);
 }
 
 const ParametricModuleEntry EQUALIZER_MODULE_ENTRY = {

@@ -43,6 +43,7 @@ typedef struct ParametricScreen {
 } ParametricScreen;
 
 Screen *parametric_screen_init(ParametricScreen *editor, ParametricScreenConfig config);
+void parametric_screen_refit(ParametricScreen *editor);
 void sound_shaping_screen_enter(ParametricScreen *editor);
 ScreenAction sound_shaping_screen_key(ParametricScreen *editor, NavigationIntent intent);
 void sound_shaping_screen_texts(ParametricScreen *editor);

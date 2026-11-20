@@ -744,6 +744,63 @@ static void shaping_words_and_positions_survive_restart_and_plain_edits_clear_th
     CHECK(parametric_store_bank()->shaping[1].active);
 }
 
+static void save_graphic_slots(int first, int second)
+{
+    EqualizerSlots slots = {0};
+    int8_t gains[SETTINGS_EQUALIZER_BANDS] = {4, -2};
+    equalizer_slots_put(&slots, first, gains);
+    equalizer_slots_put(&slots, second, gains);
+    uint8_t bytes[EQUALIZER_SLOTS_FILE_SIZE];
+    equalizer_slots_encode(&slots, bytes);
+    CHECK(hal_internal_file_write(EQUALIZER_SLOTS_PATH, bytes, sizeof bytes));
+}
+
+static bool graphic_slot_kept(int slot)
+{
+    uint8_t bytes[EQUALIZER_SLOTS_FILE_SIZE];
+    EqualizerSlots slots = {0};
+    return hal_internal_file_read(EQUALIZER_SLOTS_PATH, bytes, sizeof bytes) &&
+           equalizer_slots_decode(bytes, sizeof bytes, &slots) &&
+           equalizer_slots_used(&slots, slot);
+}
+
+static void an_edit_after_the_equalizer_module_reloads_keeps_every_other_saved_slot(void)
+{
+    fake_hal_reset();
+    CHECK_EQUAL(HAL_RESERVE_CREATED, hal_internal_file_reserve(PARAMETRIC_STORE_PATH, 4096));
+    save_graphic_slots(0, 2);
+    ParametricStore file = {0};
+    parametric_store_read(&file, NULL);
+    ParametricEq eq = {
+        .count = 1, .preamp = -62, .filters = {{105, 70, -23, PARAMETRIC_PEAK, true}}};
+    ParametricBank bank = {.custom = eq, .used = 1u << 1 | 1u << 3};
+    bank.slots[1] = eq;
+    bank.slots[3] = eq;
+    CHECK(parametric_store_save(&file, &bank));
+    SettingsStore store = {.settings = settings_defaults()};
+    CHECK(settings_store_save(&store));
+    settings_store_load(&store);
+    EqualizerUi ui;
+    Player player = {0};
+    Toast toast = {0};
+    equalizer_ui_init(&ui, &store, &player, &toast, &BOARD_THEME);
+    *parametric_store_bank() = (ParametricBank){0};
+    *ui.presets = (EqualizerPresets){0};
+    equalizer_ui_reload(&ui);
+    ParametricEq edited = eq;
+    edited.filters[0].gain++;
+    CHECK(ui.parametric.config.commit(&ui, &edited, 5));
+    ParametricStore reread = {0};
+    parametric_store_read(&reread, NULL);
+    const ParametricBank *saved = parametric_store_bank();
+    CHECK_EQUAL(1u << 1 | 1u << 3 | 1u << 5, saved->used);
+    CHECK(parametric_same(&eq, &saved->slots[1]));
+    CHECK(parametric_same(&eq, &saved->slots[3]));
+    CHECK(parametric_same(&edited, &saved->slots[5]));
+    CHECK(graphic_slot_kept(0));
+    CHECK(graphic_slot_kept(2));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -755,6 +812,7 @@ int main(void)
         TEST_CASE(an_old_record_reads_as_missing_and_the_generation_moves_with_bumps),
         TEST_CASE(shaping_words_and_positions_survive_restart_and_plain_edits_clear_them),
         TEST_CASE(matching_graphic_and_parametric_slots_survive_restart),
+        TEST_CASE(an_edit_after_the_equalizer_module_reloads_keeps_every_other_saved_slot),
         TEST_CASE(without_a_file_the_defaults_are_used),
         TEST_CASE(saved_settings_are_loaded_again),
         TEST_CASE(normalization_settings_restore_to_the_player_from_a_full_record),

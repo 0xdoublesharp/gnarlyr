@@ -43,3 +43,4 @@ typedef struct EqualizerScreen {
 } EqualizerScreen;
 
 Screen *equalizer_screen_init(EqualizerScreen *equalizer, EqualizerScreenConfig config);
+void equalizer_screen_refit(EqualizerScreen *equalizer);

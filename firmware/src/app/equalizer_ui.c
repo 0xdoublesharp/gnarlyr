@@ -35,14 +35,16 @@ static void message(EqualizerUi *ui, bool saved, int slot)
     toast_show(ui->toast, ui->message, hal_clock_milliseconds());
 }
 
-static void save(EqualizerUi *ui)
+static bool save(EqualizerUi *ui, Settings *next)
 {
-    ui->store->equalizer_slot = (int8_t)active_slot(ui);
-    settings_store_capture(ui->store, player_status(ui->player));
-    settings_store_apply_equalizer(&ui->store->settings);
-    if (!settings_store_save(ui->store)) {
+    settings_capture(next, player_status(ui->player));
+    if (!settings_store_publish(ui->store, next)) {
         toast_show(ui->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+        return false;
     }
+    ui->store->equalizer_slot = (int8_t)active_slot(ui);
+    settings_store_apply_equalizer(&ui->store->settings);
+    return true;
 }
 
 static bool publish(EqualizerUi *ui, const ParametricBank *bank, int slot)
@@ -51,13 +53,14 @@ static bool publish(EqualizerUi *ui, const ParametricBank *bank, int slot)
         message(ui, false, slot);
         return false;
     }
-    ui->store->settings.parametric = bank->custom;
-    ui->store->settings.equalizer = EQUALIZER_PARAMETRIC;
-    save(ui);
+    Settings next = ui->store->settings;
+    next.parametric = bank->custom;
+    next.equalizer = EQUALIZER_PARAMETRIC;
+    bool saved = save(ui, &next);
     if (slot >= 0) {
         message(ui, true, slot);
     }
-    return true;
+    return saved;
 }
 
 static bool shape_commit(void *context, const ParametricEq *eq, const SoundShaping *shape, int slot)
@@ -113,7 +116,8 @@ static void changed(void *context, bool finished)
 {
     EqualizerUi *ui = context;
     if (finished) {
-        save(ui);
+        Settings next = ui->store->settings;
+        save(ui, &next);
     }
 }
 
@@ -147,9 +151,9 @@ static void choose(void *context, int option)
         if (!shape_commit(ui, &next.parametric, &shape, -1)) {
             return;
         }
+    } else if (!save(ui, &next)) {
+        return;
     }
-    ui->store->settings = next;
-    save(ui);
     if (ui->presets->trimmed) {
         toast_show(ui->toast, i18n_text(STR_PEQ_TRIMMED), hal_clock_milliseconds());
     }
@@ -252,6 +256,17 @@ void equalizer_ui_init(EqualizerUi *ui, SettingsStore *store, Player *player, To
     ui->enter_parametric = screen->enter;
     screen->enter = enter_parametric;
     equalizer_ui_cancel(ui);
+}
+
+void equalizer_ui_reload(EqualizerUi *ui)
+{
+    parametric_store_read(&ui->store->parametric, NULL);
+    ui->presets->parametric = &ui->store->parametric;
+    equalizer_presets_scan(ui->presets);
+    equalizer_browser_refit(&ui->browser);
+    equalizer_screen_refit(&ui->graphic);
+    parametric_screen_refit(&ui->parametric);
+    quick_settings_screen_refit(&ui->quick_settings);
 }
 
 void equalizer_ui_cancel(EqualizerUi *ui)

@@ -5,6 +5,7 @@
 #include "ab_repeat.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
+#include "equalizer_browser.h"
 #include "hal/clock.h"
 #include "settings_actions.h"
 #include "ui/header.h"
@@ -42,6 +43,24 @@ static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REP
 static const StringId AB_VALUES[] = {STR_OFF, STR_AB_ROW_A, STR_AB_ROW_LOOP};
 static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
                                         STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
+
+static const ChoiceConfig *browser_choice(const void *settings)
+{
+    const EqualizerBrowser *browser = ((const SettingsContext *)settings)->equalizer->context;
+    return &browser->choice.config;
+}
+
+static int equalizer_current(const void *settings)
+{
+    const ChoiceConfig *choice = browser_choice(settings);
+    return choice->current(choice->context);
+}
+
+static void equalizer_choose(void *settings, int index)
+{
+    const ChoiceConfig *choice = browser_choice(settings);
+    choice->choose(choice->context, index);
+}
 
 static int equalizer_count(const void *settings)
 {
@@ -109,8 +128,8 @@ static const QuickRow ROWS[] = {
      settings_action_current_shuffle, NULL, settings_action_choose_shuffle},
     {STR_REPEAT, STR_REPEAT, QUICK_CYCLE, REPEAT_MODE_COUNT, 0, REPEAT_VALUES, NULL,
      settings_action_current_repeat, NULL, settings_action_choose_repeat},
-    {STR_EQUALIZER, STR_EQUALIZER, QUICK_SUBMENU, 0, 0, NULL, equalizer_count,
-     settings_action_current_equalizer, equalizer_labels, settings_action_choose_equalizer},
+    {STR_EQUALIZER, STR_EQUALIZER, QUICK_SUBMENU, 0, 0, NULL, equalizer_count, equalizer_current,
+     equalizer_labels, equalizer_choose},
     {STR_HEADPHONES, STR_HEADPHONES, QUICK_SUBMENU, HEADPHONE_PROFILE_LIMIT + 1, 0, NULL, NULL,
      headphone_current, headphone_labels, headphone_choose},
     {STR_SPEED, STR_PLAYBACK_SPEED, QUICK_SUBMENU, 0, 0, SETTINGS_SPEED_LABELS, speed_count,

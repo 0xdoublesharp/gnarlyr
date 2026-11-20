@@ -179,6 +179,7 @@ typedef struct AppState {
     Screen *leaving;
     bool saying_goodbye;
     bool wire_fade;
+    uint32_t wire_magic;
     uint32_t now_ms;
     AppOptions options;
     bool display_on;
@@ -686,7 +687,15 @@ static void finish_shut_down(void)
 
 static void start_fade(Fade *fade, const FadeTiming *timings, bool wire)
 {
-    app.wire_fade = wire && app.settings.settings.startup_animation;
+    const ScreenModuleEntry *entry = NULL;
+    if (wire && app.settings.settings.startup_animation) {
+        ScreenModule module = screen_modules_of(&app.screens, top_screen());
+        entry = screen_modules_use(&app.screens, module == SCREEN_MODULE_PLAYING
+                                                     ? module
+                                                     : screen_modules_playing(&app.screens));
+    }
+    app.wire_fade = entry != NULL;
+    app.wire_magic = entry != NULL ? entry->magic : 0;
     fade_start(fade, app.now_ms, timings[app.wire_fade]);
 }
 
@@ -862,12 +871,13 @@ static void settle_screens(uint32_t now_ms)
     }
 }
 
-static void keep_top_module(uint32_t now_ms)
+static bool top_owned(uint32_t now_ms)
 {
-    if (slide_running() || top_screen() != &app.screens.now_playing.screen ||
-        !now_playing_owned()) {
+    Screen *top = top_screen();
+    if (slide_running() || top != &app.screens.now_playing.screen || !now_playing_owned()) {
         settle_screens(now_ms);
     }
+    return top_screen() == top;
 }
 
 static Screen *next_top(ScreenAction action)
@@ -924,6 +934,9 @@ static bool apply_action(ScreenAction action, uint32_t now_ms)
 
 static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
 {
+    if (!top_owned(now_ms)) {
+        return;
+    }
     Screen *screen = top_screen();
     int depth_before = screen_stack_depth(&app.stack);
     ScreenAction action = opens_now_playing(event)
@@ -1087,7 +1100,6 @@ static void dispatch_key_events(uint32_t now_ms)
 {
     KeyEvent event;
     while (!app.powered_off && key_tracker_next_event(&app.keys, &event)) {
-        keep_top_module(now_ms);
         app.render_urgent = true;
         debug_loop_key(event);
         if (top_screen()->keys == SCREEN_KEYS_TEST &&
@@ -1198,7 +1210,7 @@ static void update_power(uint32_t now_ms)
 
 static void update_screen(uint32_t now_ms)
 {
-    keep_top_module(now_ms);
+    top_owned(now_ms);
     Screen *screen = top_screen();
     if (screen->update != NULL) {
         screen->update(screen->context, now_ms);
@@ -1217,11 +1229,8 @@ const Theme *app_theme(void)
 
 static bool draw_wire_fade(Canvas *canvas, const Fade *fade, const char *text)
 {
-    ScreenModule module = screen_modules_of(&app.screens, top_screen());
-    module = module == SCREEN_MODULE_PLAYING ? module : screen_modules_playing(&app.screens);
-    const PlayingModuleEntry *entry =
-        app.wire_fade ? (const PlayingModuleEntry *)screen_modules_use(&app.screens, module) : NULL;
-    if (entry == NULL) {
+    const PlayingModuleEntry *entry = hal_system_loaded_module();
+    if (!app.wire_fade || entry == NULL || entry->module.magic != app.wire_magic) {
         return false;
     }
     entry->wire_boot(canvas, board_theme(), fade, text);
@@ -2172,6 +2181,7 @@ static void set_debug_screen(bool on, uint32_t now_ms)
 
 static bool save_debug_screenshot(DebugSpan name, uint32_t slot)
 {
+    top_owned(app.now_ms);
     DebugScreenshot shot = {.renderer = frame_renderer(whole_screen(), false),
                             .drawer = {.draw = draw_frame, .context = &app},
                             .name = name,
@@ -2474,6 +2484,7 @@ CORE_SEAM void app_step(void)
     render_when_due(now_ms, started_us);
     wire_motion_end(&app.motion, &app.notice);
     FrameDrawer drawer = {.draw = draw_frame, .context = &app};
+    top_owned(now_ms);
     animate(drawer, top_screen(), app.display_on && !fade_running() && !slide_running(), now_ms);
 }
 
@@ -2509,7 +2520,7 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
     app.frame_sent = false;
     marquee_watch_start();
-    keep_top_module(now_ms);
+    top_owned(now_ms);
     render_frame();
     follow_marquees(now_ms);
     frame_pacer_done(&app.pacer, now_ms, app.frame_sent, urgent);

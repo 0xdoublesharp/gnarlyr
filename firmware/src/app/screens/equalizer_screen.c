@@ -41,6 +41,11 @@ static void refresh_text(EqualizerScreen *equalizer)
     equalizer_response_make(equalizer->response, &curve);
 }
 
+void equalizer_screen_refit(EqualizerScreen *equalizer)
+{
+    refresh_text(equalizer);
+}
+
 static int band_count(const void *context)
 {
     (void)context;
