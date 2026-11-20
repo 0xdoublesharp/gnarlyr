@@ -25,6 +25,7 @@ typedef struct AppDacSettings {
     uint8_t gain;
     uint8_t output;
     uint8_t headphones;
+    bool headphones_fixed;
 } AppDacSettings;
 
 typedef struct AppUsbStatus {
@@ -69,6 +70,7 @@ void app_leave_storage(void);
 void app_show_splash(void);
 void app_draw_start(void);
 bool app_charging(void);
+bool app_theme_pack_active(void);
 uint32_t app_pass_interval_ms(void);
 bool app_preparing(void);
 

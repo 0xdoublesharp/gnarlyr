@@ -116,10 +116,10 @@ INSTALLS = ("updater_install", "updater_install_trial", "trial_module_install")
 def trial_install_name(directory):
     from echo_emulator.machine import load_symbols
 
-    extension = directory / "platform/device/echo_module_extension.elf"
-    if extension.is_file() and "trial_module_install" in load_symbols(extension):
-        return "trial_module_install"
     overlay = directory / "platform/device/echo_usb_overlay.elf"
+    for module in (directory / "platform/device/echo_module_extension.elf", overlay):
+        if module.is_file() and "trial_module_install" in load_symbols(module):
+            return "trial_module_install"
     return "updater_install_trial" if "updater_install_trial" in load_symbols(overlay) else None
 
 

@@ -6,6 +6,7 @@
 #include "core/seam.h"
 #include "core/string_builder.h"
 #include "device/slot_copy.h"
+#include "headphone_store.h"
 #include "overlay.h"
 #include "screen_modules.h"
 #include "trial_module.h"
@@ -160,4 +161,4 @@ void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
 
 const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
     SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_end, user_state_module_settle};
+    trial_boot_module_session_end, user_state_module_settle, headphone_store_load};

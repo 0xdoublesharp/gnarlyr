@@ -104,6 +104,7 @@ add_library(echo_app STATIC
     parametric_store.c
     parametric_store_save.c
     headphone_store.c
+    headphone_store_file.c
     headphone_parameters.c
     headphone_store_path.c
     headphone_store_edit.c

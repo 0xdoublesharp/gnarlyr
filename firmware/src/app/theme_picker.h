@@ -22,10 +22,16 @@ typedef struct ThemeCatalog {
     uint8_t count;
 } ThemeCatalog;
 
+enum {
+    THEME_DAMAGED_REMEMBERED = 4
+};
+
 typedef struct ThemeWork {
     ThemeCatalog catalog;
     ThemePack pack;
     char detail[96];
+    char damaged[THEME_DAMAGED_REMEMBERED][THEME_PACK_FILENAME_BYTES];
+    uint8_t damaged_next;
     bool ready;
 } ThemeWork;
 
@@ -44,4 +50,7 @@ typedef struct ThemePicker {
 ThemeCatalog *theme_picker_catalog(void);
 void theme_catalog_scan(ThemeCatalog *catalog);
 bool theme_catalog_same_id(const uint8_t *first, const uint8_t *second);
+void theme_catalog_mark_damaged(const char *filename);
+void theme_catalog_forget_damaged(void);
+int theme_catalog_find(const ThemeCatalog *catalog, const uint8_t *id);
 void theme_picker_init(ThemePicker *picker, struct AppScreens *screens);

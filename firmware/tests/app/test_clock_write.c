@@ -1,9 +1,9 @@
 #include "check.h"
 #include "extension_entry.h"
-#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "theme_runtime.h"
 
 static bool loaded;
 static bool accepted;
@@ -80,10 +80,14 @@ static bool file_remove(const char *path)
     return accepted;
 }
 
-static void headphones_load(HeadphoneStore *store)
+static bool theme_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
 {
-    (void)store;
+    (void)theme;
+    (void)canvas;
+    (void)slot;
+    (void)area;
     calls++;
+    return accepted;
 }
 
 static bool set_clock(HalWallTime time)
@@ -110,15 +114,10 @@ static const ExtensionModuleEntry code = {
     .motion_fit = motion_fit,
     .motion_draw = motion_draw,
     .file_remove = file_remove,
-    .headphones_load = headphones_load,
+    .theme_draw = theme_draw,
     .clock_set = set_clock,
     .clock_restore = restore_clock,
 };
-
-void hal_audio_set_headphones(HeadphoneAudio profile)
-{
-    (void)profile;
-}
 
 const void *hal_system_extension_code(void)
 {
@@ -158,7 +157,6 @@ static void extension_shims_are_safe_when_the_extension_is_missing(void)
     WireMotion motion = {0};
     Rect space = {1, 2, 20, 30};
     int owner = 0;
-    HeadphoneStore headphones = {0};
 
     wire_motion_run(&motion, &owner, WIRE_SHAPE_DISC, 10);
     wire_motion_progress(&motion, 1, 2);
@@ -173,9 +171,8 @@ static void extension_shims_are_safe_when_the_extension_is_missing(void)
     CHECK_EQUAL(0, fitted.height);
     wire_motion_draw(&motion, NULL, NULL, space);
     CHECK(!hal_file_remove("/missing"));
-    headphone_store_load(&headphones);
+    CHECK(!theme_art_module_draw(NULL, NULL, 0, space));
     CHECK_EQUAL(0, calls);
-    CHECK(headphones.file.needs_reload);
 }
 
 static void extension_shims_forward_to_the_loaded_extension(void)
@@ -186,7 +183,6 @@ static void extension_shims_forward_to_the_loaded_extension(void)
     WireMotion motion = {0};
     Rect space = {1, 2, 20, 30};
     int owner = 0;
-    HeadphoneStore headphones = {0};
 
     wire_motion_run(&motion, &owner, WIRE_SHAPE_DISC, 10);
     wire_motion_progress(&motion, 1, 2);
@@ -201,13 +197,14 @@ static void extension_shims_forward_to_the_loaded_extension(void)
     CHECK_EQUAL(26, fitted.height);
     wire_motion_draw(&motion, NULL, NULL, space);
     CHECK(hal_file_remove("/present"));
-    headphone_store_load(&headphones);
+    CHECK(theme_art_module_draw(NULL, NULL, 0, space));
     CHECK_EQUAL(10, calls);
     accepted = false;
     CHECK(!wire_motion_shown(&motion, &owner));
     CHECK(!wire_motion_due(&motion, 50));
     CHECK(!hal_file_remove("/refused"));
-    CHECK_EQUAL(13, calls);
+    CHECK(!theme_art_module_draw(NULL, NULL, 0, space));
+    CHECK_EQUAL(14, calls);
 }
 
 int main(void)

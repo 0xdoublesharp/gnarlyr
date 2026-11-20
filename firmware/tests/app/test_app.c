@@ -625,6 +625,66 @@ static void play_first_album_track(void);
 static void chord_tap(Key volume);
 static bool toast_is(const char *expected);
 
+static int first_written_row_after(uint32_t duration_ms)
+{
+    fake_hal_forget_display_writes();
+    wait_ms(duration_ms);
+    FakeDisplayWrites writes = fake_hal_display_writes();
+    return writes.count > 0 ? writes.first.y : -1;
+}
+
+static void a_battery_change_on_a_marquee_step_redraws_the_whole_screen(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80, .millivolts = 3900});
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.orientation = ORIENTATION_PORTRAIT;
+    store.settings.text_size = TEXT_SIZE_LARGE;
+    store.settings.battery_percent = true;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    play_first_album_track();
+    for (int count = 0; count < 30; count++) {
+        wait_ms(100);
+    }
+    int header = expected_theme()->metrics.header_height;
+    int marquee = first_written_row_after(100);
+    CHECK(marquee > header);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 79, .millivolts = 3890});
+    int first = first_written_row_after(100);
+    CHECK(first >= 0);
+    CHECK(first < header);
+}
+
+static void a_feedback_badge_that_ends_during_marquee_steps_is_cleared(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.orientation = ORIENTATION_PORTRAIT;
+    store.settings.text_size = TEXT_SIZE_LARGE;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    play_first_album_track();
+    for (int count = 0; count < 30; count++) {
+        wait_ms(100);
+    }
+    int marquee = first_written_row_after(100);
+    CHECK(marquee > expected_theme()->metrics.header_height);
+    uint32_t pressed = now_ms;
+    tap(KEY_PLAY);
+    while (now_ms - pressed < NOW_PLAYING_BADGE_MS) {
+        wait_ms(10);
+    }
+    int highest = marquee;
+    while (now_ms - pressed < NOW_PLAYING_BADGE_MS + 100) {
+        int row = first_written_row_after(10);
+        highest = row >= 0 && row < highest ? row : highest;
+    }
+    CHECK(highest < marquee);
+}
+
 static void an_artist_strip_opens_their_album_with_only_their_songs(void)
 {
     start_app_with_library();
@@ -4600,6 +4660,20 @@ static void starting_makes_no_files_before_the_first_step(void)
     CHECK_EQUAL(0, fake_hal_reserve_count());
     CHECK(app_preparing());
     CHECK(!fake_hal_display_on());
+}
+
+static void a_profile_file_made_while_preparing_storage_unblocks_profile_saves(void)
+{
+    start_app_with_library();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    CHECK(app_dac_settings().headphones_fixed);
+    for (int steps = 0; steps < 16 && app_preparing(); steps++) {
+        step();
+    }
+    CHECK(!app_preparing());
+    uint32_t size = 0;
+    CHECK(fake_hal_internal_file_bytes(HEADPHONE_STORE_PATH, &size) != NULL);
+    CHECK(!app_dac_settings().headphones_fixed);
 }
 
 static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
@@ -8674,6 +8748,8 @@ int main(void)
         TEST_CASE(a_cue_sheet_in_folders_opens_its_songs_and_plays_from_the_chosen_one),
         TEST_CASE(album_rows_show_a_chevron_and_track_rows_do_not),
         TEST_CASE(an_artist_leads_to_their_albums),
+        TEST_CASE(a_battery_change_on_a_marquee_step_redraws_the_whole_screen),
+        TEST_CASE(a_feedback_badge_that_ends_during_marquee_steps_is_cleared),
         TEST_CASE(an_artist_strip_opens_their_album_with_only_their_songs),
         TEST_CASE(an_artist_with_one_album_opens_that_album),
         TEST_CASE(holding_play_on_an_artist_strip_plays_all_their_albums),
@@ -8923,6 +8999,7 @@ int main(void)
         TEST_CASE(the_music_check_after_an_installed_update_skips_the_walk),
         TEST_CASE(a_fresh_card_gets_the_player_files_and_a_first_scan),
         TEST_CASE(starting_makes_no_files_before_the_first_step),
+        TEST_CASE(a_profile_file_made_while_preparing_storage_unblocks_profile_saves),
         TEST_CASE(each_big_file_is_made_in_its_own_step_after_the_screen_is_lit),
         TEST_CASE(a_card_with_the_files_is_prepared_within_the_first_step),
         TEST_CASE(a_card_that_has_the_files_is_not_rescanned),

@@ -182,7 +182,7 @@ class FuzzCommandTests(unittest.TestCase):
         self.assertEqual(len(firmware.FUZZ_FIXTURES["mp3_probe"]), 3)
 
     def test_theme_and_remaining_decoder_targets_have_canonical_inputs(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["theme_pack"], 1024)
+        self.assertEqual(firmware.FUZZ_TARGETS["theme_pack"], 4096)
         self.assertEqual({seed[0] for seed in firmware.FUZZ_SEEDS["theme_pack"]}, {0, 1, 2, 3})
         self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["asf_track"]), 6)
         self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["ape_track"]), 13)

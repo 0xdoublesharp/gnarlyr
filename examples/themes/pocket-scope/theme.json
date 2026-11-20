@@ -78,5 +78,6 @@
       "orientation": "any"
     }
   ],
-  "dither": false
+  "codec": "indexed",
+  "dither": "none"
 }

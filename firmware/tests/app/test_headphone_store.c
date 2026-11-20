@@ -97,6 +97,32 @@ static void missing_profiles_keep_neutral_sound_without_editor_state(void)
     CHECK_EQUAL(60, store.active.ceiling);
 }
 
+static void a_commit_saves_through_its_own_file_callbacks_after_the_loader_is_gone(void)
+{
+    reset();
+    store.file.file.source.read = NULL;
+    store.file.file.write = NULL;
+    HeadphoneProfiles candidate = named_profiles();
+    candidate.current = 2;
+    CHECK(headphone_store_commit(&store, &candidate, &player, &settings));
+    HeadphoneStore restored;
+    headphone_store_load(&restored);
+    CHECK_EQUAL(STORE_READY, restored.load);
+    CHECK_EQUAL(2, restored.profiles.current);
+}
+
+static void a_missing_profile_file_blocks_saves_until_it_is_made(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    CHECK(fixture_library_open(&fixture));
+    player_init(&player, &fixture.library);
+    headphone_store_load(&store);
+    CHECK_EQUAL(STORE_UNREADABLE, store.load);
+    CHECK(store.file.needs_reload);
+    CHECK_EQUAL(60, store.active.ceiling);
+}
+
 static void a_profile_caps_music_usb_and_restored_levels_before_hardware_volume(void)
 {
     reset();
@@ -232,6 +258,8 @@ int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(missing_profiles_keep_neutral_sound_without_editor_state),
+        TEST_CASE(a_commit_saves_through_its_own_file_callbacks_after_the_loader_is_gone),
+        TEST_CASE(a_missing_profile_file_blocks_saves_until_it_is_made),
         TEST_CASE(a_profile_caps_music_usb_and_restored_levels_before_hardware_volume),
         TEST_CASE(switching_off_attenuation_lowers_both_saved_mode_volumes),
         TEST_CASE(rejected_edits_preserve_audio_and_the_current_settings_version),

@@ -39,7 +39,8 @@ FUZZ_TARGETS = {
     "app_navigation": 128,
     "library_builder": 512,
     "cover_image": 1048576,
-    "theme_pack": 1024,
+    "theme_pack": 4096,
+    "art_codec": 1030,
     "placeholder_art": 256,
     "play_queue": 256,
     "mp3_probe": 262144,
@@ -137,6 +138,7 @@ FUZZ_SEEDS = {
     ],
     "cover_image": [b"\0", b"\xff\xd8\xff\xd9", b"\x89PNG\r\n\x1a\n"],
     "theme_pack": [b"\0", b"\1\0\0\0", b"\2\0\0\0\0\0", b"\3\0\0\0"],
+    "art_codec": [b"\x07\0\0\x08\0\0\x87\x01", b"\x07\0\x02\x04\x02\x03\xc1\xe8\x80\xff\xff\x04"],
     "placeholder_art": [
         b"The Velvet Underground",
         "...And Justice for All".encode(),

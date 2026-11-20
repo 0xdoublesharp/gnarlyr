@@ -13,6 +13,7 @@ typedef struct HeadphoneStore {
     StoreLoad load;
 } HeadphoneStore;
 
+StoreFile headphone_store_file(void);
 HeadphoneAudio headphone_store_parameters(const HeadphoneProfiles *profiles);
 void headphone_store_load(HeadphoneStore *store);
 bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *profiles,

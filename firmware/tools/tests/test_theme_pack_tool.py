@@ -4,7 +4,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import uuid
+import zlib
 from pathlib import Path
 
 from PIL import Image
@@ -55,18 +57,152 @@ class ThemeToolTests(unittest.TestCase):
             self.manifest["assets"] = [{"slot": "list", "file": "list.png", "orientation": "any"}]
             self.save(folder)
             data = theme_pack.build(folder)
-            self.assertEqual(1, len(theme_pack.check(data)["assets"]))
-            self.assertEqual(b"\x00\xf8" * 6, data[528:])
+            asset = theme_pack.check(data)["assets"][0]
+            self.assertEqual((1, 1, 1, 0), (asset["codec"], asset["entries"], asset["flags"], asset["alpha"]))
             Image.new("RGB", (20, 20)).save(folder / "music.png")
             self.manifest["assets"] = [{"slot": "icon_music", "file": "music.png", "text_size": "small"}]
             self.save(folder)
             self.assertEqual(257, theme_pack.check(theme_pack.build(folder))["assets"][0]["slot"])
 
+    def test_each_image_chooses_its_codec_and_only_icons_keep_transparency(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.merge("RGB", [Image.effect_noise((480, 222), sigma) for sigma in (20, 40, 60)]).save(
+                folder / "home.png")
+            icon = Image.new("RGBA", (20, 20), (255, 255, 255, 0))
+            icon.putpixel((3, 3), (255, 0, 0, 128))
+            icon.save(folder / "music.png")
+            self.manifest["assets"] = [
+                {"slot": "home", "file": "home.png", "orientation": "landscape", "codec": "lossless"},
+                {"slot": "now_playing", "file": "home.png", "orientation": "landscape",
+                 "codec": "indexed", "dither": "fs"},
+                {"slot": "icon_music", "file": "music.png"}]
+            self.save(folder)
+            report = []
+            info = theme_pack.check(theme_pack.build(folder, report=report))
+            self.assertEqual([2, 1, 1], [asset["codec"] for asset in info["assets"]])
+            self.assertEqual(99.0, report[0]["psnr_db"])
+            self.assertLess(report[1]["psnr_db"], 99.0)
+            self.assertGreater(info["assets"][2]["alpha"], 0)
+            self.manifest["assets"] = [{"slot": "list", "file": "music.png", "orientation": "any"}]
+            self.save(folder)
+            with self.assertRaises(ValueError):
+                theme_pack.build(folder)
+
+    def test_now_playing_refuses_lossless_and_warns_about_indexed_battery_cost(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.new("RGB", (480, 222), (40, 80, 120)).save(folder / "photo.png")
+            self.manifest["assets"] = [{"slot": "now_playing", "file": "photo.png",
+                                        "orientation": "landscape", "codec": "lossless"}]
+            self.save(folder)
+            with self.assertRaisesRegex(ValueError, "now_playing.*lossless.*indexed"):
+                theme_pack.build(folder)
+            self.manifest["assets"][0]["codec"] = "indexed"
+            self.save(folder)
+            data = theme_pack.build(folder)
+            warnings = theme_pack.check(data)["warnings"]
+            self.assertEqual(1, len([text for text in warnings
+                                     if "now_playing" in text and "battery" in text]))
+            hand_made = bytearray(theme_pack.build(self.home_copy(folder)))
+            struct.pack_into("<H", hand_made, theme_pack.HEADER_BYTES, theme_pack.SLOTS["now_playing"])
+            struct.pack_into("<I", hand_made, 12, zlib.crc32(hand_made[:12] + hand_made[16:]))
+            with self.assertRaisesRegex(ValueError, "now_playing.*lossless.*indexed"):
+                theme_pack.check(bytes(hand_made))
+            pack = folder / "hand.gtheme"
+            pack.write_bytes(hand_made)
+            result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check", str(pack)],
+                                    capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("now_playing", result.stderr)
+            pack.write_bytes(data)
+            result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check", str(pack)],
+                                    capture_output=True, text=True, check=True)
+            self.assertTrue(any("battery" in text for text in json.loads(result.stdout)["warnings"]))
+
+    def test_style_entries_and_the_cassette_label_warn_that_they_are_not_yet_applied(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.new("RGB", (160, 48), (10, 20, 30)).save(folder / "label.png")
+            self.manifest["style"] = [{"kind": "scene", "target": "sun_radius", "value": 20}]
+            self.manifest["assets"] = [{"slot": "cassette_label", "file": "label.png"}]
+            self.save(folder)
+            warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
+            self.assertTrue(any("scene sun_radius" in text and "not yet applied" in text
+                                for text in warnings), warnings)
+            self.assertTrue(any("cassette_label" in text and "not yet drawn" in text
+                                for text in warnings), warnings)
+            self.manifest["style"] = []
+            self.manifest["assets"] = []
+            self.save(folder)
+            warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
+            self.assertFalse(any("not yet" in text for text in warnings), warnings)
+
+    def test_check_reads_at_most_one_byte_past_the_size_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            large = Path(directory) / "large.gtheme"
+            with large.open("wb") as output:
+                output.truncate(theme_pack.MAX_BYTES * 2)
+            requests, returned = [], []
+            real_read = theme_pack.os.read
+
+            def counted(descriptor, size):
+                requests.append(size)
+                data = real_read(descriptor, size)
+                returned.append(len(data))
+                return data
+
+            with mock.patch.object(theme_pack.os, "read", counted):
+                self.assertEqual(theme_pack.MAX_BYTES + 1, len(theme_pack.read_capped(large)))
+            self.assertEqual(theme_pack.MAX_BYTES + 1, sum(returned))
+            self.assertLessEqual(max(requests), theme_pack.MAX_BYTES + 1)
+            self.assertLessEqual(sum(requests), theme_pack.MAX_BYTES + 1)
+            result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check",
+                                     str(large)], capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("2 MiB", result.stderr)
+
+    def home_copy(self, folder):
+        self.manifest["assets"] = [{"slot": "home", "file": "photo.png",
+                                    "orientation": "landscape", "codec": "lossless"}]
+        self.save(folder)
+        return folder
+
+    def test_previews_show_each_asset_as_drawn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            Image.new("RGB", (3, 2), (0, 0, 255)).save(folder / "list.png")
+            self.manifest["assets"] = [{"slot": "list", "file": "list.png"}]
+            self.save(folder)
+            names = theme_pack.preview(theme_pack.build(folder), folder / "preview")
+            with Image.open(folder / "preview" / names[0]) as image:
+                self.assertEqual((3, 2), image.size)
+                self.assertEqual((0, 0, 248), image.getpixel((1, 1)))
+
+    def test_style_entries_and_version_1_packs_are_checked(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = self.folder(directory)
+            self.manifest["style"] = [{"kind": "scene", "target": "horizon", "value": 60},
+                                      {"kind": "now_playing", "target": "progress_height", "value": 6}]
+            self.save(folder)
+            data = theme_pack.build(folder)
+            self.assertEqual(8, struct.unpack_from("<H", data, 494)[0])
+            for bad in ({"kind": "scene", "target": "horizon", "value": 90},
+                        {"kind": "now_playing", "target": "progress_height", "value": 5}):
+                self.manifest["style"] = [bad]
+                self.save(folder)
+                with self.assertRaises(ValueError):
+                    theme_pack.build(folder)
+            old = bytearray(data)
+            old[4] = 1
+            with self.assertRaisesRegex(ValueError, "version 1"):
+                theme_pack.check(bytes(old))
+
     def test_rejects_crc_truncation_oversize_dimensions_and_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = self.folder(directory)
             good = theme_pack.build(folder)
-            for data in (good[:-1], good + b"\0", good[:452] + b"!" + good[453:], b"\0" * (4194304 + 1)):
+            for data in (good[:-1], good + b"\0", good[:452] + b"!" + good[453:], b"\0" * (2097152 + 1)):
                 with self.assertRaises(ValueError):
                     theme_pack.check(data)
             Image.new("RGB", (481, 222)).save(folder / "big.png")
@@ -102,6 +238,13 @@ class ThemeToolTests(unittest.TestCase):
             public = folder / "public.key"
             seed.write_bytes(bytes(range(32)))
             public.write_bytes(theme_pack.public_key(seed))
+            Image.effect_noise((222, 480), 30).convert("RGB").save(folder / "home.png")
+            Image.new("RGBA", (20, 20), (9, 9, 9, 60)).save(folder / "music.png")
+            self.manifest["assets"] = [
+                {"slot": "home", "file": "home.png", "orientation": "portrait", "codec": "lossless"},
+                {"slot": "splash", "file": "home.png", "orientation": "portrait", "dither": "fs"},
+                {"slot": "icon_music", "file": "music.png"}]
+            self.save(folder)
             pack = folder / "sample.gtheme"
             for signing in (None, seed):
                 pack.write_bytes(theme_pack.build(folder, signing))

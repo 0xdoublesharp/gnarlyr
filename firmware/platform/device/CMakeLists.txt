@@ -270,6 +270,7 @@ set(ECHO_OVERLAY_IMPORTS
     app_show_notice
     app_show_usb_area
     app_show_usb_status
+    app_theme_pack_active
     app_theme
     charge_screen_text
     charge_screen_level_text
@@ -299,7 +300,6 @@ set(ECHO_OVERLAY_IMPORTS
     board_audio_stream_ring
     board_audio_volume_level
     board_display_service
-    board_trial_calls
     board_wait_for_key
     board_wait_for_power_hold
     board_wall_time_set
@@ -561,6 +561,10 @@ add_executable(echo_usb_overlay
     ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c
     ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
     board/update.c
+    board/trial_module.c
+    board/trial_record.c
+    logic/slot_copy.c
+    logic/updater_install.c
     board/usb_dac_session.c
     board/time_file_take.c
     logic/fat_delete.c
@@ -594,7 +598,11 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
         ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
         board/time_file_take.c
+        board/trial_module.c
+        board/trial_record.c
         logic/fat_delete.c
+        logic/slot_copy.c
+        logic/updater_install.c
         PROPERTIES COMPILE_OPTIONS -Os)
     if(ECHO_USB_SCREEN_CAPTURES)
         target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)
@@ -709,6 +717,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
         target_include_directories(${module_target}_objects PRIVATE board
             ${PROJECT_SOURCE_DIR}/src/app)
+        target_compile_definitions(${module_target}_objects PRIVATE
+            headphone_store_load=trial_headphone_store_load)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)
@@ -716,8 +726,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_compile_definitions(${module_target}_objects PRIVATE
             hal_clock_set_wall=extension_hal_clock_set_wall
             hal_clock_restore_wall=extension_hal_clock_restore_wall
-            headphone_store_load=extension_headphone_store_load
             hal_file_remove=extension_hal_file_remove
+            theme_art_module_draw=extension_theme_art_module_draw
             standby_follow=extension_standby_follow
             standby_frame=extension_standby_frame
             wire_motion_draw=extension_wire_motion_draw

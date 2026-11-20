@@ -6,6 +6,7 @@
 typedef struct CardFilesReport {
     bool library_created;
     bool card_full;
+    bool headphones_created;
 } CardFilesReport;
 
 size_t card_files_count(void);

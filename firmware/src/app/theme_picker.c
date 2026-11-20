@@ -50,6 +50,26 @@ static ThemeRuntime *runtime_of(ThemePicker *picker)
     return picker->screens->context.themes;
 }
 
+static void preview_pack(ThemePicker *picker, ThemeRuntime *runtime, int at)
+{
+    ThemeCatalog *catalog = theme_picker_catalog();
+    ThemeCatalogEntry *entry = &catalog->entries[at];
+    if (!entry->valid || theme_runtime_load(runtime, entry->filename)) {
+        return;
+    }
+    uint8_t id[16];
+    for (int byte = 0; byte < 16; byte++) {
+        id[byte] = entry->id[byte];
+    }
+    theme_catalog_mark_damaged(entry->filename);
+    theme_catalog_scan(catalog);
+    int next = theme_catalog_find(catalog, id);
+    if (next >= 0 && theme_runtime_load(runtime, catalog->entries[next].filename)) {
+        picker->preview = APPEARANCE_THEME_COUNT + next;
+        list_view_select(&picker->list, picker->preview, picker->now_ms);
+    }
+}
+
 static void preview(ThemePicker *picker)
 {
     if (picker->preview == picker->list.selected) {
@@ -64,19 +84,34 @@ static void preview(ThemePicker *picker)
     if (index < APPEARANCE_THEME_COUNT) {
         runtime->shown_base = (uint8_t)index;
     } else {
-        ThemeCatalogEntry *entry = &theme_picker_catalog()->entries[index - APPEARANCE_THEME_COUNT];
-        if (entry->valid && !theme_runtime_load(runtime, entry->filename)) {
-            entry->valid = false;
-        }
+        preview_pack(picker, runtime, index - APPEARANCE_THEME_COUNT);
     }
     default_theme_invalidate(picker->screens->context.styled_theme);
+}
+
+static bool pack_unchanged(ThemeRuntime *runtime, int at)
+{
+    ThemeCatalogEntry *entry = &theme_picker_catalog()->entries[at];
+    uint8_t id[16];
+    for (int byte = 0; byte < 16; byte++) {
+        id[byte] = runtime->pack.id[byte];
+    }
+    if (runtime->active && theme_runtime_load(runtime, entry->filename) &&
+        theme_catalog_same_id(runtime->pack.id, id)) {
+        return true;
+    }
+    theme_catalog_mark_damaged(entry->filename);
+    entry->valid = false;
+    theme_runtime_close(runtime);
+    return false;
 }
 
 static ScreenAction select_theme(void *context, int index)
 {
     ThemePicker *picker = context;
     ThemeRuntime *runtime = runtime_of(picker);
-    if (index >= APPEARANCE_THEME_COUNT && !runtime->active) {
+    if (index >= APPEARANCE_THEME_COUNT &&
+        !pack_unchanged(runtime, index - APPEARANCE_THEME_COUNT)) {
         toast_show(picker->screens->context.toast, i18n_text(STR_THEME_DAMAGED), picker->now_ms);
         return screen_action_none();
     }

@@ -4,10 +4,10 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 #include "screen_modules.h"
+#include "theme_runtime.h"
 
 #ifdef ECHO_DEVICE_MODULE
 #include "board.h"
-#include "trial_module.h"
 #endif
 
 const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
@@ -24,12 +24,11 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .motion_fit = wire_motion_fit,
     .motion_draw = wire_motion_draw,
     .file_remove = hal_file_remove,
-    .headphones_load = headphone_store_load,
+    .theme_draw = theme_art_module_draw,
     .clock_set = hal_clock_set_wall,
     .clock_restore = hal_clock_restore_wall,
 #ifdef ECHO_DEVICE_MODULE
     .forget_time_file = board_wall_time_delete_file,
-    .trial = &TRIAL_CALLS,
     .rtc_set = hal_system_rtc_set,
 #endif
 #ifdef ECHO_DEBUG_LOOP

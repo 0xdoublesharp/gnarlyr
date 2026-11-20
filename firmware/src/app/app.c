@@ -168,10 +168,14 @@ typedef struct AppState {
     bool render_urgent;
     bool render_wanted;
     bool view_stamp_known;
+    bool view_time_only;
     uint32_t view_stamp;
+    uint32_t view_rest;
     uint32_t view_checked_ms;
     uint32_t marquee_due_ms;
+    Rect bands[MARQUEE_BAND_COUNT];
     bool marquee_due;
+    uint8_t band_mask;
     bool frame_sent;
     Fade splash;
     Fade goodbye;
@@ -1501,7 +1505,16 @@ static void render(FrameDrawer drawer, bool drawer_paints_everything)
 {
     StripRenderer renderer = frame_renderer(whole_screen(), drawer_paints_everything);
     FrameSink sink = {.write = write_to_display, .context = NULL};
-    strip_renderer_render(&renderer, drawer, sink);
+    for (int band = 0; band <= MARQUEE_BAND_COUNT; band++) {
+        bool full = band == MARQUEE_BAND_COUNT;
+        if (full ? app.band_mask == 0 : (app.band_mask >> band & 1u) != 0) {
+            if (!full) {
+                renderer.area.y = app.bands[band].y;
+                renderer.area.height = app.bands[band].height;
+            }
+            strip_renderer_render(&renderer, drawer, sink);
+        }
+    }
     hal_display_present();
 }
 
@@ -1736,6 +1749,10 @@ CORE_COLD static void request_start_scan(bool library_created)
 
 CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
+    if (files.headphones_created && app.headphones.load == STORE_UNREADABLE) {
+        app.headphones.file.needs_reload = false;
+        app.headphones.load = STORE_EMPTY;
+    }
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
@@ -1776,7 +1793,7 @@ static void start_app(bool power_on)
     app.prepare_pending = true;
     app.startup_pending = power_on;
     app.prepare_index = 0;
-    app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
+    app.prepare_report = (CardFilesReport){0};
     (void)hal_system_settle_user_state(false);
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
@@ -1976,7 +1993,8 @@ AppDacSettings app_dac_settings(void)
 {
     const Settings *settings = &app.settings.settings;
     return (AppDacSettings){settings->dac_volume, (uint8_t)settings->gain,
-                            (uint8_t)settings->output, app.headphones.profiles.current};
+                            (uint8_t)settings->output, app.headphones.profiles.current,
+                            app.headphones.file.needs_reload};
 }
 
 const HeadphoneProfiles *app_headphone_profiles(void)
@@ -2198,10 +2216,6 @@ static bool prepare_step(void)
         }
     }
     app.prepare_pending = false;
-    if (app.headphones.load == STORE_UNREADABLE) {
-        headphone_store_load(&app.headphones);
-        set_start_volume(PLAYER_OUTPUT_WIRED, app.settings.settings.volume);
-    }
     report_card_files(app.prepare_report, hal_clock_milliseconds());
     return false;
 }
@@ -2338,7 +2352,7 @@ static uint32_t stamp_add(uint32_t stamp, uint32_t value)
     return hash_update(stamp, &value, sizeof value);
 }
 
-static uint32_t view_stamp(void)
+static uint32_t view_stamp(uint32_t *rest)
 {
     PlayerStatus status = player_status(&app.player);
     HalBattery battery = hal_power_battery();
@@ -2347,7 +2361,6 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, (uint32_t)status.state);
     stamp = stamp_add(stamp, status.has_track);
     stamp = stamp_add(stamp, status.track);
-    stamp = stamp_add(stamp, status.position_ms / VIEW_STAMP_POSITION_MS);
     stamp = stamp_add(stamp, status.duration_ms);
     stamp = stamp_add(stamp, status.volume);
     stamp = stamp_add(stamp, (uint32_t)status.shuffle);
@@ -2366,7 +2379,16 @@ static uint32_t view_stamp(void)
     stamp = stamp_add(stamp, app.lock.locked);
     stamp = stamp_add(stamp, app.toast.visible);
     stamp = stamp_add(stamp, app.toast.until_ms);
-    return stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
+    stamp = stamp_add(stamp, app.themes.active);
+    const NowPlayingScreen *now_playing = &app.screens.now_playing;
+    uint32_t since = app.now_ms - now_playing->feedback_started_ms;
+    stamp =
+        stamp_add(stamp, (uint32_t)now_playing->feedback << 3 |
+                             (uint32_t)(since < NOW_PLAYING_BADGE_MS) << 2 |
+                             (uint32_t)(since < NOW_PLAYING_VOLUME_FEEDBACK_MS) << 1 |
+                             (app.now_ms - now_playing->repeat_feedback_ms < NOW_PLAYING_BADGE_MS));
+    *rest = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
+    return stamp_add(*rest, status.position_ms / VIEW_STAMP_POSITION_MS);
 }
 
 static bool view_changed(uint32_t now_ms)
@@ -2374,8 +2396,11 @@ static bool view_changed(uint32_t now_ms)
     if (app.view_stamp_known && now_ms - app.view_checked_ms < VIEW_STAMP_CHECK_MS) {
         return false;
     }
-    uint32_t stamp = view_stamp();
+    uint32_t rest;
+    uint32_t stamp = view_stamp(&rest);
     bool changed = app.view_stamp_known && stamp != app.view_stamp;
+    app.view_time_only = changed && rest == app.view_rest;
+    app.view_rest = rest;
     app.view_stamp_known = true;
     app.view_stamp = stamp;
     app.view_checked_ms = now_ms;
@@ -2554,6 +2579,20 @@ static void follow_marquees(uint32_t now_ms)
     uint32_t wait_ms = marquee_watch_wait_ms();
     app.marquee_due = wait_ms != MARQUEE_STILL;
     app.marquee_due_ms = now_ms + wait_ms;
+    for (int band = 0; band < MARQUEE_BAND_COUNT; band++) {
+        app.bands[band] = marquee_watch_band((MarqueeBand)band);
+    }
+}
+
+static uint8_t bands_for(bool stepped, bool timed)
+{
+    bool text = app.bands[MARQUEE_BAND_TEXT].height > 0;
+    bool time = app.bands[MARQUEE_BAND_TIME].height > 0;
+    if ((stepped && !text) || (timed && !time)) {
+        return 0;
+    }
+    return (uint8_t)(stepped << MARQUEE_BAND_TEXT | timed << MARQUEE_BAND_TIME |
+                     timed << MARQUEE_BAND_TAPE);
 }
 
 static void render_when_due(uint32_t now_ms, uint32_t started_us)
@@ -2564,9 +2603,12 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     if (app.screens.now_playing.scrub.active) {
         app.pacer.fast_frames = 0;
     }
-    app.render_wanted |= view_changed(now_ms);
-    app.render_wanted |= marquee_step_reached(now_ms);
+    bool changed = view_changed(now_ms);
+    bool stepped = marquee_step_reached(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
+    bool quiet = !app.render_wanted && !urgent && app.pacer.fast_frames == 0;
+    uint8_t mask = quiet && (!changed || app.view_time_only) ? bands_for(stepped, changed) : 0;
+    app.render_wanted |= changed || stepped;
     if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;
     }
@@ -2574,9 +2616,10 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     app.render_wanted = false;
     frame_stats_record(&app.update_stats, hal_clock_microseconds() - started_us);
     app.frame_sent = false;
+    app.band_mask = top_owned(now_ms) ? mask : 0;
     marquee_watch_start();
-    top_owned(now_ms);
     render_frame();
+    app.band_mask = 0;
     NowPlayingScreen *now_playing = &app.screens.now_playing;
     if (now_playing->scrub.active && top_screen() == &now_playing->screen) {
         now_playing->scrub.shown_ms = now_playing->scrub.target_ms;
@@ -2587,6 +2630,11 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     frame_stats_record(&app.frame_stats, hal_clock_microseconds() - started_us);
     debug_runner_frame(
         (DebugFrameSources){&app.frame_stats, &app.update_stats, &app.draw_stats, &app.send_stats});
+}
+
+bool app_theme_pack_active(void)
+{
+    return app.themes.active;
 }
 
 bool app_charging(void)
@@ -2635,7 +2683,11 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
     if (!app.display_on) {
         set_display(true);
     }
+    bool themed = app.themes.active;
     render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
+    if (themed && !app.themes.active) {
+        render((FrameDrawer){.draw = draw_usb_status, .context = &frame}, false);
+    }
     light_after_first_frame();
 }
 

@@ -67,21 +67,20 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/core/format_chain.c
     src/settings/user_state.c
     src/settings/user_state_list.c
+    src/app/headphone_store.c
+    src/app/headphone_store_file.c
+    src/app/headphone_parameters.c
+    src/settings/headphone_file.c
+    src/settings/headphone_profile.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
     src/app/modules/extension_module.c
     src/app/menu_hold.c
-    src/app/headphone_store.c
-    src/app/headphone_parameters.c
-    src/settings/headphone_file.c
-    src/settings/headphone_profile.c
+    src/app/theme_art.c
+    src/gfx/art_codec.c
     platform/device/board/file_remove.c
-    platform/device/board/trial_module.c
-    platform/device/board/trial_record.c
-    platform/device/logic/slot_copy.c
     platform/device/logic/fat_delete.c
-    platform/device/logic/updater_install.c
     platform/device/board/debug_rtc.c
     platform/device/logic/rtc_time.c
     platform/device/logic/rtc_registers.c
@@ -168,6 +167,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     src/app/screens/quick_settings_screen.c
     src/app/settings_actions.c
     src/app/headphone_store_edit.c
+    src/app/headphone_store_file.c
     src/app/headphone_parameters.c
     src/settings/headphone_profile.c
     src/settings/headphone_profile_edit.c
@@ -177,6 +177,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
 set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/cassette_art.c
     src/app/theme_pack.c
+    src/gfx/art_codec.c
     src/app/theme_runtime.c
     src/app/theme_catalog.c
     src/app/theme_picker.c
@@ -223,7 +224,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/track_removal.c
 )
 set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
-    src/app/theme_art.c src/app/language_module.c)
+    src/app/language_module.c)
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_stage ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)
@@ -240,6 +241,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/screens/card_format_screen.c
     src/app/headphone_editor.c
     src/app/headphone_store_edit.c
+    src/app/headphone_store_file.c
     src/app/headphone_parameters.c
     src/settings/headphone_profile.c
     src/app/audio_settings.c

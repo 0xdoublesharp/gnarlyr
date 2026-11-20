@@ -12,6 +12,9 @@ static const ExtensionModuleHead *extension;
 
 void board_extension_start(void)
 {
+    if (extension != NULL) {
+        return;
+    }
     const BoardOverlay overlay = {.image_offset = 0,
                                   .magic = MODULE_MAGIC | EXTENSION_MODULE_NUMBER
                                                               << MODULE_MAGIC_SHIFT,

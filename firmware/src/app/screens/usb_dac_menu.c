@@ -108,6 +108,9 @@ void usb_dac_menu_open(UsbDacMenu *menu, UsbDacMenuConfig config, uint32_t now_m
 
 static UsbDacAction next_profile(UsbDacMenu *menu)
 {
+    if (menu->settings.headphones_fixed) {
+        return USB_DAC_ACTION_NONE;
+    }
     uint8_t count = menu->profiles != NULL ? menu->profiles->count : 0;
     uint8_t current = menu->settings.headphones;
     uint8_t next = current >= count ? 0 : (uint8_t)(current + 1);

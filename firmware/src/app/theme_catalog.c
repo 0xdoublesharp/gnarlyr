@@ -79,6 +79,50 @@ static bool read_pack(void *context, uint32_t offset, void *bytes, uint32_t leng
     return hal_file_read(*(HalFile *)context, offset, bytes, length);
 }
 
+static int compare(const char *first, const char *second)
+{
+    while (*first != '\0' && *first == *second) {
+        first++;
+        second++;
+    }
+    return (unsigned char)*first - (unsigned char)*second;
+}
+
+static bool damaged(const char *filename)
+{
+    for (unsigned at = 0; at < THEME_DAMAGED_REMEMBERED; at++) {
+        if (compare(work->damaged[at], filename) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void theme_catalog_mark_damaged(const char *filename)
+{
+    if (!damaged(filename)) {
+        copy_text(work->damaged[work->damaged_next], filename, THEME_PACK_FILENAME_BYTES);
+        work->damaged_next = (uint8_t)((work->damaged_next + 1) % THEME_DAMAGED_REMEMBERED);
+    }
+}
+
+void theme_catalog_forget_damaged(void)
+{
+    for (unsigned at = 0; at < THEME_DAMAGED_REMEMBERED; at++) {
+        work->damaged[at][0] = '\0';
+    }
+}
+
+int theme_catalog_find(const ThemeCatalog *catalog, const uint8_t *id)
+{
+    for (unsigned at = 0; at < catalog->count; at++) {
+        if (catalog->entries[at].valid && theme_catalog_same_id(id, catalog->entries[at].id)) {
+            return (int)at;
+        }
+    }
+    return -1;
+}
+
 static ThemeCatalogEntry inspect(const char *filename)
 {
     ThemeCatalogEntry entry = {0};
@@ -90,10 +134,11 @@ static ThemeCatalogEntry inspect(const char *filename)
     string_builder_append(&builder, "/");
     string_builder_append(&builder, filename);
     HalFile file;
-    if (!hal_file_open(&file, path)) {
+    if (damaged(filename) || !hal_file_open(&file, path)) {
         return entry;
     }
-    entry.valid = theme_pack_open(&work->pack, (ByteSource){read_pack, &file}, file.size);
+    entry.valid = theme_pack_open(&work->pack, (ByteSource){read_pack, &file}, file.size,
+                                  THEME_PACK_STRUCTURE);
     hal_file_close(&file);
     if (entry.valid) {
         copy_text(entry.name, work->pack.name, sizeof entry.name);
@@ -119,15 +164,6 @@ static unsigned version_part(const char **text)
         (*text)++;
     }
     return value;
-}
-
-static int compare(const char *first, const char *second)
-{
-    while (*first != '\0' && *first == *second) {
-        first++;
-        second++;
-    }
-    return (unsigned char)*first - (unsigned char)*second;
 }
 
 static bool newer(const ThemeCatalogEntry *next, const ThemeCatalogEntry *previous)

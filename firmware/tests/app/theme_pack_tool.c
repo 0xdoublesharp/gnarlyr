@@ -53,7 +53,7 @@ int main(int argc, char **argv)
         return 2;
     }
     ThemePack pack;
-    if (!theme_pack_open(&pack, (ByteSource){read_bytes, NULL}, length)) {
+    if (!theme_pack_open(&pack, (ByteSource){read_bytes, NULL}, length, THEME_PACK_COMPLETE)) {
         return 1;
     }
     if (strcmp(argv[1], "--check") == 0) {

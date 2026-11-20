@@ -6,10 +6,12 @@
 #include "core/i18n.h"
 #include "default_theme.h"
 #include "fake_hal.h"
+#include "gfx/strip_renderer.h"
 #include "gfx/text.h"
 #include "hal/display.h"
 #include "screen_snapshot.h"
 #include "screens/now_playing_screen.h"
+#include "ui/marquee.h"
 
 enum {
     TEXT_CAPACITY = 48
@@ -456,6 +458,128 @@ static void a_paused_resume_shows_its_planned_start_in_every_layout(void)
     }
 }
 
+static Color full_frame[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+static Color band_frame[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+static Color band_strip[HAL_DISPLAY_WIDTH * 23];
+static uint32_t frame_position_ms;
+static uint32_t frame_now_ms;
+
+static bool patterned_art(const Theme *theme, Canvas *canvas, int slot, Rect area)
+{
+    (void)theme;
+    (void)slot;
+    Rect clip = rect_intersection(canvas->clip, area);
+    for (int y = clip.y; y < clip.y + clip.height; y++) {
+        for (int x = clip.x; x < clip.x + clip.width; x++) {
+            canvas->pixels[(y - canvas->bounds.y) * canvas->bounds.width + x - canvas->bounds.x] =
+                (Color)(x * 31 + y * 977);
+        }
+    }
+    return true;
+}
+
+static void draw_frame_view(void *context, Canvas *canvas)
+{
+    (void)context;
+    playback_view.status.position_ms = frame_position_ms;
+    playback_view.now_ms = frame_now_ms;
+    playback_view.screen.draw(&playback_view, canvas);
+}
+
+static void copy_rows(void *context, Rect area, const Color *pixels)
+{
+    Color *frame = context;
+    memcpy(frame + area.y * area.width, pixels, (size_t)(area.width * area.height) * sizeof(Color));
+}
+
+static void render_rows(Color *frame, Rect area)
+{
+    StripRenderer renderer = {band_strip, area,
+                              (int)(sizeof band_strip / sizeof band_strip[0]) / area.width,
+                              playback_theme.colors.background, false};
+    strip_renderer_render(&renderer, (FrameDrawer){draw_frame_view, NULL},
+                          (FrameSink){copy_rows, frame});
+}
+
+typedef struct BandCase {
+    uint32_t first_ms;
+    uint32_t next_ms;
+    uint32_t first_position_ms;
+    uint32_t next_position_ms;
+    uint8_t bands;
+    bool preview;
+} BandCase;
+
+static Library preview_library;
+static Player preview_player;
+
+static void preview_scrub(void)
+{
+    preview_player =
+        (Player){.library = &preview_library, .has_track = true, .state = PLAYER_PAUSED};
+    playback_view.config.player = &preview_player;
+    playback_view.status.duration_ms = 200000;
+    playback_view.scrub = (NowPlayingScrub){.started_ms = 1000,
+                                            .base_ms = 30000,
+                                            .duration_ms = 200000,
+                                            .token = player_token(&preview_player),
+                                            .active = true};
+}
+
+static void check_band_case(BandCase band, bool art)
+{
+    Rect screen = {0, 0, playback_theme.metrics.screen_width, playback_theme.metrics.screen_height};
+    playback_theme.draw_art = art ? patterned_art : NULL;
+    if (band.preview) {
+        preview_scrub();
+    }
+    frame_now_ms = band.first_ms;
+    frame_position_ms = band.first_position_ms;
+    marquee_watch_start();
+    render_rows(band_frame, screen);
+    Rect rows[MARQUEE_BAND_COUNT];
+    for (int at = 0; at < MARQUEE_BAND_COUNT; at++) {
+        rows[at] = marquee_watch_band((MarqueeBand)at);
+    }
+    frame_now_ms = band.next_ms;
+    frame_position_ms = band.next_position_ms;
+    render_rows(full_frame, screen);
+    marquee_watch_start();
+    for (int at = 0; at < MARQUEE_BAND_COUNT; at++) {
+        if ((band.bands & 1u << at) && rows[at].height > 0) {
+            render_rows(band_frame, (Rect){0, rows[at].y, screen.width, rows[at].height});
+        }
+    }
+    size_t bytes = (size_t)(screen.width * screen.height) * sizeof(Color);
+    CHECK(memcmp(full_frame, band_frame, bytes) == 0);
+}
+
+static void a_band_frame_leaves_exactly_the_pixels_of_a_full_frame(void)
+{
+    static const BandCase CASES[] = {
+        {1300, 1400, 5000, 5400, 1u << MARQUEE_BAND_TEXT, false},
+        {300, 400, 2000, 17000, 1u << MARQUEE_BAND_TIME | 1u << MARQUEE_BAND_TAPE, false},
+        {1300, 1400, 5900, 6100,
+         1u << MARQUEE_BAND_TEXT | 1u << MARQUEE_BAND_TIME | 1u << MARQUEE_BAND_TAPE, false},
+        {1300, 1400, 5000, 5000, 1u << MARQUEE_BAND_TEXT, true},
+    };
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            for (unsigned at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
+                for (int art = 0; art < 2; art++) {
+                    start_passive_view();
+                    default_theme_set_text_size(&playback_theme, (TextSize)size);
+                    default_theme_set_orientation(&playback_theme, (Orientation)orientation);
+                    playback_view.has_text = true;
+                    strcpy(playback_view.title,
+                           "A title far too long for any line of this screen at any text size");
+                    check_band_case(CASES[at], art != 0);
+                }
+            }
+        }
+    }
+}
+
 static Library unknown_length_library;
 static Player unknown_length_player;
 
@@ -749,6 +873,7 @@ static void ab_hints_fit_every_text_size_and_orientation(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_band_frame_leaves_exactly_the_pixels_of_a_full_frame),
         TEST_CASE(a_paused_resume_shows_its_planned_start_in_every_layout),
         TEST_CASE(now_playing_keeps_the_status_band_on_its_header_palette),
         TEST_CASE(classic_status_icons_keep_their_header_background),

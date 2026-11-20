@@ -2,9 +2,6 @@
 
 #include <stddef.h>
 
-#include "hal/system.h"
-#include "screen_modules.h"
-
 const char THEME_SELECTION_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/theme.bin";
 
 void theme_runtime_close(ThemeRuntime *runtime)
@@ -13,13 +10,7 @@ void theme_runtime_close(ThemeRuntime *runtime)
         hal_file_close(&runtime->file);
     }
     runtime->active = false;
-    runtime->tile_valid = false;
-}
-
-static bool draw_loaded(const Theme *theme, Canvas *canvas, int slot, Rect area)
-{
-    const ScreenModuleEntry *entry = hal_system_loaded_module();
-    return entry != NULL && entry->theme_draw(theme, canvas, slot, area);
+    runtime->art.index = -1;
 }
 
 void theme_runtime_apply(ThemeRuntime *runtime, Theme *theme)
@@ -31,5 +22,5 @@ void theme_runtime_apply(ThemeRuntime *runtime, Theme *theme)
         theme->header_rule = runtime->pack.palette.header_rule;
     }
     theme->art_context = runtime;
-    theme->draw_art = runtime->active ? draw_loaded : NULL;
+    theme->draw_art = runtime->active ? theme_art_module_draw : NULL;
 }

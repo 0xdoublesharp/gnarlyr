@@ -22,6 +22,7 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
         return false;
     }
     HeadphoneAudio next = headphone_store_parameters(profiles);
+    store->file.file = headphone_store_file();
     Settings kept = settings->settings;
     Settings lowered = kept;
     settings_capture(&lowered, player_status(player));

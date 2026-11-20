@@ -111,26 +111,26 @@ static bool both_slots_requested(void)
     return true;
 }
 
-static bool write_slots(const UpdateFile *update, bool stock)
+static bool write_slots(const UpdateFile *update, const UpdateStorage *storage, bool stock)
 {
-    const TrialCalls *trial = board_trial_calls();
     bool both = stock || both_slots_requested();
-    bool installed = trial != NULL && trial->install(update, usb_session_buffer(),
-                                                     (UpdateProgress){report, NULL}, both);
+    TrialInstall job = {
+        {volume, *storage}, update, usb_session_buffer(), (UpdateProgress){report, NULL}};
+    bool installed = trial_module_install(&job, both);
     if (installed && both) {
         fat_delete(volume, UPDATE_BOTH_SLOTS_PATH);
     }
     return installed;
 }
 
-static void install(const UpdateFile *update, UpdateCheck check)
+static void install(const UpdateFile *update, const UpdateStorage *storage, UpdateCheck check)
 {
     bool stock = check == UPDATE_STOCK;
     install_title = stock ? STR_UPDATE_INSTALLING_STOCK : STR_UPDATE_INSTALLING;
     last_percent = 0;
     show_percent(0);
     shared->flash_rewritten = true;
-    bool installed = write_slots(update, stock);
+    bool installed = write_slots(update, storage, stock);
     if (updater_should_remove_file(check, installed)) {
         remove_update_file();
     }
@@ -178,7 +178,7 @@ void update_after_usb(UsbShared *state)
     app_show_notice(i18n_text(STR_UPDATE), text);
     UpdateCheck check = updater_check(&update, &storage);
     if (check == UPDATE_VALID || check == UPDATE_STOCK) {
-        install(&update, check);
+        install(&update, &storage, check);
         return;
     }
     if (updater_should_remove_file(check, false)) {

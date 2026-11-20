@@ -17,6 +17,7 @@ function(echo_add_fuzzer name)
 endfunction()
 
 echo_add_fuzzer(track_tags LIBRARIES echo_library_scan)
+echo_add_fuzzer(art_codec LIBRARIES echo_gfx)
 echo_add_fuzzer(timed_metadata
     LIBRARIES echo_library_scan
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/library
@@ -102,9 +103,9 @@ echo_add_fuzzer(library_builder
 )
 echo_add_fuzzer(cover_image LIBRARIES echo_image)
 echo_add_fuzzer(theme_pack
-    SOURCES ../app/fake_hal.c
+    SOURCES ../app/fake_hal.c ../app/theme_fixture.c
     LIBRARIES echo_app echo_library_scan
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/tests/app
 )
 echo_add_fuzzer(placeholder_art LIBRARIES echo_ui echo_fonts)
 echo_add_fuzzer(play_queue

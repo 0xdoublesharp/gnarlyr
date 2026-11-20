@@ -1,0 +1,82 @@
+{
+  "flat": {
+    "indexed": {
+      "bytes": 8546,
+      "full": 5.35,
+      "marquee": 6.38,
+      "partial": 13.98,
+      "ratio": 24.94
+    },
+    "lossless": {
+      "bytes": 12313,
+      "full": 6.62,
+      "marquee": 8.25,
+      "partial": 20.3,
+      "ratio": 17.31
+    }
+  },
+  "overlay": {
+    "indexed": {
+      "bytes": 5784,
+      "full": 4.63,
+      "marquee": 4.05,
+      "partial": 5.4,
+      "ratio": 36.85
+    },
+    "lossless": {
+      "bytes": 9676,
+      "full": 7.66,
+      "marquee": 9.48,
+      "partial": 23.36,
+      "ratio": 22.03
+    }
+  },
+  "photo": {
+    "indexed": {
+      "bytes": 108607,
+      "full": 7.12,
+      "marquee": 7.65,
+      "partial": 11.51,
+      "ratio": 1.96
+    },
+    "lossless": {
+      "bytes": 212510,
+      "full": 14.82,
+      "marquee": 19.6,
+      "partial": 54.99,
+      "ratio": 1.0
+    }
+  },
+  "pixel": {
+    "indexed": {
+      "bytes": 18002,
+      "full": 8.23,
+      "marquee": 10.57,
+      "partial": 27.79,
+      "ratio": 11.84
+    },
+    "lossless": {
+      "bytes": 33842,
+      "full": 16.46,
+      "marquee": 22.54,
+      "partial": 67.43,
+      "ratio": 6.3
+    }
+  },
+  "ui": {
+    "indexed": {
+      "bytes": 5182,
+      "full": 4.38,
+      "marquee": 4.99,
+      "partial": 9.53,
+      "ratio": 41.13
+    },
+    "lossless": {
+      "bytes": 8257,
+      "full": 6.42,
+      "marquee": 7.95,
+      "partial": 19.34,
+      "ratio": 25.81
+    }
+  }
+}

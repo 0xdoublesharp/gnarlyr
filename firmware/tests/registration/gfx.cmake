@@ -1,5 +1,6 @@
 echo_add_unit_test(NAME test_color SOURCES gfx/test_color.c LIBRARIES echo_gfx)
 echo_add_unit_test(NAME test_rect SOURCES gfx/test_rect.c LIBRARIES echo_gfx)
+echo_add_unit_test(NAME test_art_codec SOURCES gfx/test_art_codec.c LIBRARIES echo_gfx)
 echo_add_unit_test(NAME test_canvas SOURCES gfx/test_canvas.c LIBRARIES echo_gfx)
 echo_add_unit_test(NAME test_image SOURCES gfx/test_image.c LIBRARIES echo_gfx)
 echo_add_unit_test(NAME test_strip_renderer SOURCES gfx/test_strip_renderer.c LIBRARIES echo_gfx)
@@ -15,3 +16,9 @@ echo_add_unit_test(NAME test_font_pack
     LIBRARIES echo_gfx
 )
 echo_add_unit_test(NAME test_fonts SOURCES fonts/test_fonts.c LIBRARIES echo_fonts)
+add_executable(art_codec_tool gfx/art_codec_tool.c)
+target_link_libraries(art_codec_tool PRIVATE echo_gfx echo_options)
+add_test(NAME art_codec_parity
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/tests/test_art_codec.py --tool $<TARGET_FILE:art_codec_tool>)
+add_test(NAME art_codec_bench
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/art_codec_bench.py --check)

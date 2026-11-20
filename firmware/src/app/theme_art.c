@@ -2,6 +2,30 @@
 
 #include <stddef.h>
 
+#include "gfx/art_codec.h"
+#include "ui/icons.h"
+
+enum {
+    ART_BATCH = 32,
+    ART_WINDOW_BYTES = 4608,
+    ART_SECTOR_BYTES = 512
+};
+
+typedef struct ArtWindow {
+    uint32_t offsets[ART_BATCH + 1];
+    uint8_t bytes[ART_WINDOW_BYTES];
+    uint32_t base;
+    int first;
+    int count;
+} ArtWindow;
+
+typedef struct ArtJob {
+    ThemeRuntime *runtime;
+    const ThemeArtCache *asset;
+    const ArtPalette *palette;
+    ArtWindow *window;
+} ArtJob;
+
 static int find_key(const ThemeRuntime *runtime, ThemeArtRequest request)
 {
     int best = -1;
@@ -9,7 +33,7 @@ static int find_key(const ThemeRuntime *runtime, ThemeArtRequest request)
     for (unsigned at = 0; at < runtime->pack.asset_count; at++) {
         const ThemeAssetKey *key = &runtime->pack.assets[at];
         if (key->slot != request.slot ||
-            (key->orientation != 2 && key->orientation != request.orientation) ||
+            (key->orientation != THEME_PACK_EITHER && key->orientation != request.orientation) ||
             (key->text_size != THEME_PACK_ANY && key->text_size != request.text_size)) {
             continue;
         }
@@ -23,66 +47,169 @@ static int find_key(const ThemeRuntime *runtime, ThemeArtRequest request)
     return best;
 }
 
-static uint32_t key_bytes(const ThemeAssetKey *key)
+static uint32_t get32(const uint8_t *bytes)
 {
-    return (uint32_t)key->width * key->height * 2;
+    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
+           (uint32_t)bytes[3] << 24;
 }
 
-static ThemeAsset asset_at(const ThemeRuntime *runtime, unsigned index)
+static bool size_fits(const uint8_t *bytes, uint16_t slot)
 {
-    const ThemeAssetKey *keys = runtime->pack.assets;
-    uint32_t offset =
-        THEME_PACK_HEADER_BYTES + (uint32_t)runtime->pack.asset_count * THEME_PACK_ASSET_BYTES;
-    for (unsigned at = 0; at < index; at++) {
-        offset += key_bytes(&keys[at]);
+    uint32_t width = (uint32_t)(bytes[4] | bytes[5] << 8);
+    uint32_t height = (uint32_t)(bytes[6] | bytes[7] << 8);
+    bool portrait = bytes[2] == 1;
+    if (slot >= THEME_ART_ICON) {
+        return bytes[19] == 0 && width - 1 < ICON_LARGE_GRID && height - 1 < ICON_LARGE_GRID;
     }
-    const ThemeAssetKey *key = &keys[index];
-    return (ThemeAsset){key->slot,   key->orientation, key->text_size, key->width,
-                        key->height, offset,           key_bytes(key)};
+    if (bytes[19] != 0) {
+        return bytes[19] == THEME_PACK_TILE && slot == THEME_ART_LIST && width - 1 < 64 &&
+               height - 1 < 64;
+    }
+    if (slot == THEME_ART_CASSETTE_LABEL) {
+        return width == 160 && height == 48;
+    }
+    return bytes[2] < THEME_PACK_EITHER && width == (portrait ? 222u : 480u) &&
+           height == (portrait ? 480u : 222u);
 }
 
-static Rect clip_of(Rect first, Rect second)
+static bool descriptor_kept(const ThemeRuntime *runtime, int index, const uint8_t *bytes)
 {
-    int left = first.x > second.x ? first.x : second.x;
-    int top = first.y > second.y ? first.y : second.y;
-    int right = first.x + first.width < second.x + second.width ? first.x + first.width
-                                                                : second.x + second.width;
-    int bottom = first.y + first.height < second.y + second.height ? first.y + first.height
-                                                                   : second.y + second.height;
-    return (Rect){left, top, right > left ? right - left : 0, bottom > top ? bottom - top : 0};
+    const ThemeAssetKey *key = &runtime->pack.assets[index];
+    uint16_t slot = (uint16_t)(bytes[0] | bytes[1] << 8);
+    bool indexed = bytes[16] == ART_CODEC_INDEXED && bytes[18] <= bytes[17] + 1u;
+    bool lossless = bytes[16] == ART_CODEC_LOSSLESS && bytes[17] == 0 && bytes[18] <= 1 &&
+                    slot != THEME_ART_NOW_PLAYING;
+    return slot == key->slot && bytes[2] == key->orientation && bytes[3] == key->text_size &&
+           (indexed || lossless) && (bytes[18] == 0 || slot >= THEME_ART_ICON) && bytes[23] == 1 &&
+           size_fits(bytes, slot);
 }
 
-typedef struct ThemeBlit {
-    Canvas *canvas;
-    const ThemeAsset *asset;
-    Rect clip;
-    Point origin;
-} ThemeBlit;
-
-static bool read_row(ThemeRuntime *runtime, const ThemeBlit *blit, int y)
+static bool describe(ThemeRuntime *runtime, int index)
 {
-    Canvas *canvas = blit->canvas;
-    const ThemeAsset *asset = blit->asset;
-    int source_y = (y - blit->origin.y) % asset->height;
-    for (int x = blit->clip.x; x < blit->clip.x + blit->clip.width;) {
-        int source_x = (x - blit->origin.x) % asset->width;
-        int count = asset->width - source_x;
-        int room = blit->clip.x + blit->clip.width - x;
-        count = count < room ? count : room;
-        uint32_t offset =
-            asset->offset + ((uint32_t)source_y * asset->width + (uint32_t)source_x) * 2;
-        Color *pixels =
-            canvas->pixels + (y - canvas->bounds.y) * canvas->bounds.width + x - canvas->bounds.x;
-        if (runtime->tile_valid && runtime->tile_offset == asset->offset) {
-            const Color *source =
-                runtime->tile + (unsigned)source_y * asset->width + (unsigned)source_x;
-            for (int at = 0; at < count; at++) {
-                pixels[at] = source[at];
-            }
-        } else if (!hal_file_read(runtime->file, offset, pixels, (uint32_t)count * 2)) {
+    uint8_t bytes[THEME_PACK_ASSET_BYTES];
+    if (runtime->art.index == index) {
+        return true;
+    }
+    if (!hal_file_read(runtime->file,
+                       THEME_PACK_HEADER_BYTES + (uint32_t)index * THEME_PACK_ASSET_BYTES, bytes,
+                       sizeof bytes) ||
+        !descriptor_kept(runtime, index, bytes)) {
+        return false;
+    }
+    uint32_t entries = bytes[16] == ART_CODEC_INDEXED ? bytes[17] + 1u : 0;
+    uint32_t nibbles = entries > 0 ? (bytes[18] + 1u) / 2 : 0;
+    runtime->art = (ThemeArtCache){get32(bytes + 8),
+                                   get32(bytes + 12),
+                                   THEME_PACK_PAYLOAD_HEAD_BYTES + entries * 2 + nibbles,
+                                   (uint16_t)(bytes[4] | bytes[5] << 8),
+                                   (uint16_t)(bytes[6] | bytes[7] << 8),
+                                   bytes[16],
+                                   bytes[18],
+                                   (int8_t)index};
+    const ThemeArtCache *art = &runtime->art;
+    uint32_t size = runtime->file.size;
+    return art->offset <= size && art->bytes <= size - art->offset &&
+           art->table + 4u * (art->height + 1u) <= art->bytes;
+}
+
+static bool load_palette(ThemeRuntime *runtime, ArtPalette *palette)
+{
+    const ThemeArtCache *art = &runtime->art;
+    palette->alpha_entries = art->alpha;
+    uint32_t colors = art->table - THEME_PACK_PAYLOAD_HEAD_BYTES;
+    uint32_t nibbles = art->codec == ART_CODEC_INDEXED ? (art->alpha + 1u) / 2 : 0;
+    uint32_t start = art->offset + THEME_PACK_PAYLOAD_HEAD_BYTES;
+    uint8_t head[THEME_PACK_PAYLOAD_HEAD_BYTES];
+    palette->entries = (colors - nibbles) / 2;
+    for (uint32_t at = palette->entries; at < ART_PALETTE_MAX; at++) {
+        palette->colors[at] = 0;
+    }
+    if (!hal_file_read(runtime->file, art->offset, head, sizeof head) || head[0] != art->codec ||
+        head[1] != (palette->entries > 0 ? palette->entries - 1 : 0) || head[2] != art->alpha ||
+        head[3] != 1) {
+        return false;
+    }
+    return colors == 0 ||
+           (hal_file_read(runtime->file, start, palette->colors, colors - nibbles) &&
+            hal_file_read(runtime->file, start + colors - nibbles, palette->alpha, nibbles));
+}
+
+static int rows_that_fit(const ArtWindow *window, const ThemeArtCache *asset, int count)
+{
+    int fit = 0;
+    while (fit < count && window->offsets[fit + 1] > window->offsets[fit] &&
+           window->offsets[fit + 1] <= asset->bytes &&
+           asset->offset + window->offsets[fit + 1] - window->base <= ART_WINDOW_BYTES) {
+        fit++;
+    }
+    return fit;
+}
+
+static bool fill(const ArtJob *job, int row)
+{
+    ArtWindow *window = job->window;
+    const ThemeArtCache *asset = job->asset;
+    int count = asset->height - row < ART_BATCH ? asset->height - row : ART_BATCH;
+    if (!hal_file_read(job->runtime->file, asset->offset + asset->table + (uint32_t)row * 4,
+                       window->offsets, (uint32_t)(count + 1) * 4) ||
+        window->offsets[0] >= asset->bytes) {
+        return false;
+    }
+    window->base = (asset->offset + window->offsets[0]) / ART_SECTOR_BYTES * ART_SECTOR_BYTES;
+    window->first = row;
+    window->count = rows_that_fit(window, asset, count);
+    if (window->count == 0) {
+        return false;
+    }
+    uint32_t end = asset->offset + window->offsets[window->count];
+    uint32_t last = asset->offset + asset->bytes;
+    uint32_t wanted =
+        last - window->base < ART_WINDOW_BYTES ? last - window->base : ART_WINDOW_BYTES;
+    uint32_t length =
+        end - window->base > ART_WINDOW_BYTES - ART_SECTOR_BYTES ? wanted : end - window->base;
+    return hal_file_read(job->runtime->file, window->base, window->bytes, length);
+}
+
+static bool draw_row(const ArtJob *job, int row, ArtSpan span)
+{
+    ArtWindow *window = job->window;
+    if ((row < window->first || row >= window->first + window->count) && !fill(job, row)) {
+        return false;
+    }
+    int at = row - window->first;
+    uint32_t start = job->asset->offset + window->offsets[at] - window->base;
+    uint32_t end = job->asset->offset + window->offsets[at + 1] - window->base;
+    ArtRow source = {window->bytes + start, window->bytes + end, job->asset->width};
+    return job->asset->codec == ART_CODEC_INDEXED
+               ? art_row_indexed(&source, job->palette, span)
+               : art_row_lossless(&source, job->palette->alpha_entries != 0, span);
+}
+
+static bool draw_line(const ArtJob *job, Canvas *canvas, Rect clip, Point origin)
+{
+    const ThemeArtCache *asset = job->asset;
+    int row = (clip.y - origin.y) % asset->height;
+    Color *pixels = canvas->pixels + (clip.y - canvas->bounds.y) * canvas->bounds.width;
+    for (int x = clip.x; x < clip.x + clip.width;) {
+        int from = (x - origin.x) % asset->width;
+        int to = from + clip.x + clip.width - x;
+        to = to < asset->width ? to : asset->width;
+        if (!draw_row(job, row, (ArtSpan){pixels + (x - canvas->bounds.x), from, to})) {
             return false;
         }
-        x += count;
+        x += to - from;
+    }
+    return true;
+}
+
+static bool draw_asset(const ArtJob *job, Canvas *canvas, Rect area, bool placed)
+{
+    Rect clip = rect_intersection(canvas->clip, area);
+    Point origin = placed ? (Point){area.x, area.y} : (Point){0, 0};
+    for (int y = clip.y; y < clip.y + clip.height; y++) {
+        if (!draw_line(job, canvas, (Rect){clip.x, y, clip.width, 1}, origin)) {
+            return false;
+        }
     }
     return true;
 }
@@ -91,46 +218,26 @@ bool theme_runtime_draw(void *context, Canvas *canvas, ThemeArtRequest request)
 {
     ThemeRuntime *runtime = context;
     int index = runtime->active ? find_key(runtime, request) : -1;
+    ArtPalette palette;
+    ArtWindow window = {.count = 0};
     if (index < 0) {
         return false;
     }
-    ThemeAsset found = asset_at(runtime, (unsigned)index);
-    const ThemeAsset *asset = &found;
-    if (asset->bytes <= sizeof runtime->tile &&
-        (!runtime->tile_valid || runtime->tile_offset != asset->offset)) {
-        if (!hal_file_read(runtime->file, asset->offset, runtime->tile, asset->bytes)) {
-            theme_runtime_close(runtime);
-            return false;
-        }
-        runtime->tile_offset = asset->offset;
-        runtime->tile_valid = true;
-    }
-    bool placed = request.slot >= THEME_ART_ICON || request.slot == THEME_ART_CASSETTE_LABEL;
-    Rect area =
-        placed ? (Rect){request.area.x, request.area.y, asset->width, asset->height} : request.area;
-    if (placed && (request.area.width < asset->width || request.area.height < asset->height)) {
-        return false;
-    }
-    Rect clip = clip_of(canvas->clip, area);
-    if (clip.width == 0 || clip.height == 0) {
-        return true;
-    }
-    ThemeBlit blit = {canvas, asset, clip, placed ? (Point){area.x, area.y} : (Point){0, 0}};
-    if (clip.width == asset->width && canvas->bounds.width == asset->width && clip.x == 0 &&
-        clip.y >= 0 && clip.y + clip.height <= asset->height && !placed) {
-        Color *pixels = canvas->pixels + (clip.y - canvas->bounds.y) * canvas->bounds.width;
-        if (hal_file_read(runtime->file, asset->offset + (uint32_t)clip.y * asset->width * 2,
-                          pixels, (uint32_t)clip.width * (uint32_t)clip.height * 2)) {
-            return true;
-        }
+    if (!describe(runtime, index) || !load_palette(runtime, &palette)) {
         theme_runtime_close(runtime);
         return false;
     }
-    for (int y = clip.y; y < clip.y + clip.height; y++) {
-        if (!read_row(runtime, &blit, y)) {
-            theme_runtime_close(runtime);
-            return false;
-        }
+    const ThemeArtCache *asset = &runtime->art;
+    bool placed = request.slot >= THEME_ART_ICON || request.slot == THEME_ART_CASSETTE_LABEL;
+    if (placed && (request.area.width < asset->width || request.area.height < asset->height)) {
+        return false;
+    }
+    Rect area =
+        placed ? (Rect){request.area.x, request.area.y, asset->width, asset->height} : request.area;
+    ArtJob job = {runtime, asset, &palette, &window};
+    if (!draw_asset(&job, canvas, area, placed)) {
+        theme_runtime_close(runtime);
+        return false;
     }
     return true;
 }
