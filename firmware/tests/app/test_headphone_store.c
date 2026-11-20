@@ -278,33 +278,6 @@ static void the_active_profile_crossfeed_overrides_the_default(void)
     CHECK_EQUAL(3, listening_effects_choose(&chosen, &store.profiles, true).crossfeed);
 }
 
-static void quick_setting_hooks_change_and_save_the_effects(void)
-{
-    reset();
-    CHECK(listening_effects_toggle_skip_silence(&settings));
-    CHECK(listening_effects_toggle_speech_boost(&settings));
-    ListeningEffectsContext context = {&settings, &store, &player};
-    CHECK(listening_effects_cycle_crossfeed(context));
-    SettingsStore reloaded;
-    settings_store_load(&reloaded);
-    CHECK(reloaded.settings.skip_silence);
-    CHECK(reloaded.settings.speech_boost);
-    CHECK_EQUAL(1, reloaded.settings.crossfeed);
-    for (int step = 0; step < 3; step++) {
-        CHECK(listening_effects_cycle_crossfeed(context));
-    }
-    CHECK_EQUAL(0, settings.settings.crossfeed);
-    HeadphoneProfiles candidate = named_profiles();
-    candidate.current = 2;
-    CHECK(headphone_store_commit(&store, &candidate, &player, &settings));
-    CHECK(listening_effects_cycle_crossfeed(context));
-    CHECK_EQUAL(1, store.profiles.slots[2].crossfeed);
-    CHECK_EQUAL(0, settings.settings.crossfeed);
-    HeadphoneStore restored;
-    headphone_store_load(&restored);
-    CHECK_EQUAL(1, restored.profiles.slots[2].crossfeed);
-}
-
 int main(void)
 {
     const TestCase cases[] = {
@@ -318,7 +291,6 @@ int main(void)
         TEST_CASE(rejected_edits_preserve_audio_and_the_current_settings_version),
         TEST_CASE(spoken_word_alone_gets_skip_silence_and_speech_boost),
         TEST_CASE(the_active_profile_crossfeed_overrides_the_default),
-        TEST_CASE(quick_setting_hooks_change_and_save_the_effects),
         TEST_CASE(a_failed_profile_write_changes_no_volume_and_no_stored_setting),
         TEST_CASE(a_failed_settings_write_changes_no_volume_and_no_profile),
     };

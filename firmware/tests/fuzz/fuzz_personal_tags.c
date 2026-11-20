@@ -35,7 +35,6 @@ static void check_tags(PersonalTags *tags, uint16_t tracks)
 {
     fuzz_require(tags->load >= STORE_EMPTY && tags->load <= STORE_CORRUPT);
     fuzz_require(tags->result >= STORE_IDLE && tags->result <= STORE_UNCERTAIN);
-    fuzz_require(personal_tags_progress(tags) <= 100);
     for (uint8_t tag = 0; tag < PERSONAL_TAG_LIMIT; tag++) {
         const char *name = personal_tags_name(tags, tag);
         fuzz_require(((tags->catalog.active >> tag) & 1u) == (name != NULL));

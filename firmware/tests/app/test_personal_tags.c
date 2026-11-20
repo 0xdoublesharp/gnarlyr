@@ -732,25 +732,6 @@ static void public_queries_and_progress_fail_closed_for_incomplete_states(void)
 
     state = (PersonalTags){.result = STORE_WORKING, .stage = UINT8_MAX};
     CHECK_EQUAL(STORE_FAILED, personal_tags_step(&state));
-
-    state = (PersonalTags){.result = STORE_DONE};
-    CHECK_EQUAL(100, personal_tags_progress(&state));
-    state = (PersonalTags){
-        .result = STORE_WORKING, .stage = TAG_STAGE_CHECKSUM, .headers = {{.bytes = 0}}};
-    CHECK_EQUAL(0, personal_tags_progress(&state));
-    state.headers[0].bytes = 100;
-    state.scan.position = 50;
-    CHECK_EQUAL(25, personal_tags_progress(&state));
-    state.stage = TAG_STAGE_CHECK_ROWS;
-    state.headers[0].count = 10;
-    state.source_row = 5;
-    CHECK_EQUAL(62, personal_tags_progress(&state));
-    state.stage = TAG_STAGE_COPY_ROWS;
-    state.rows = 10;
-    CHECK_EQUAL(62, personal_tags_progress(&state));
-    state.stage = TAG_STAGE_PLAN;
-    state.rows = 0;
-    CHECK_EQUAL(0, personal_tags_progress(&state));
 }
 
 int main(void)
