@@ -11,4 +11,4 @@ build systems, documentation, tests, tools, optional neural models, SIMD
 and other architecture variants, float-only code and demos. The
 *_sources.mk lists still name excluded files.
 port/ contains the local bounded scratch-allocation interface and
-decode_only.c, which stands in for the three range-encoder functions.
+decode_only.c, which stands in for the range encoder's entry points.
