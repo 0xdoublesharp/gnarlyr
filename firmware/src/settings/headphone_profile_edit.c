@@ -13,8 +13,7 @@ enum {
     TRIM_FIELD = HEADPHONE_PROFILE_NAME_BYTES,
     CEILING_FIELD = TRIM_FIELD + 1,
     BALANCE_FIELD = CEILING_FIELD + 1,
-    CROSSFEED_FIELD = BALANCE_FIELD + 1,
-    PERCENT = 100
+    CROSSFEED_FIELD = BALANCE_FIELD + 1
 };
 
 static const uint8_t MAGIC[] = {'D', 'S', 'H', 'P'};
@@ -72,26 +71,4 @@ bool headphone_profiles_encode(const HeadphoneProfiles *profiles, uint8_t *bytes
     }
     hash_store(bytes + CHECKSUM_FIELD, hash_update(HASH_START, bytes, CHECKSUM_FIELD));
     return true;
-}
-
-static uint32_t compose_gain(uint32_t input, uint32_t trim, uint32_t percent)
-{
-    uint64_t product = (uint64_t)input * trim * percent;
-    uint32_t divisor = REPLAY_GAIN_UNITY * PERCENT;
-    return (uint32_t)((product + divisor / 2) / divisor);
-}
-
-HeadphoneProfileGains headphone_profile_gains(const HeadphoneProfile *profile, uint32_t input_gain)
-{
-    if (profile == NULL || profile->trim_half_db > HEADPHONE_PROFILE_TRIM_MAX_HALF_DB ||
-        profile->volume_ceiling > SETTINGS_VOLUME_MAX ||
-        profile->balance < -HEADPHONE_PROFILE_BALANCE_MAX ||
-        profile->balance > HEADPHONE_PROFILE_BALANCE_MAX) {
-        return (HeadphoneProfileGains){0};
-    }
-    uint32_t trim = headphone_profile_trim(profile->trim_half_db);
-    uint32_t left = (uint32_t)(PERCENT - (profile->balance > 0 ? profile->balance : 0));
-    uint32_t right = (uint32_t)(PERCENT + (profile->balance < 0 ? profile->balance : 0));
-    return (HeadphoneProfileGains){.left = compose_gain(input_gain, trim, left),
-                                   .right = compose_gain(input_gain, trim, right)};
 }

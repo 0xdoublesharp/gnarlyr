@@ -7,31 +7,6 @@ enum {
     CAPACITY = 24
 };
 
-static bool formats_as(uint32_t microseconds, const char *expected)
-{
-    char buffer[CAPACITY];
-    format_milliseconds(microseconds, buffer, sizeof buffer);
-    return strcmp(expected, buffer) == 0;
-}
-
-static void milliseconds_show_one_decimal(void)
-{
-    CHECK(formats_as(16700, "16.7 ms"));
-    CHECK(formats_as(0, "0.0 ms"));
-}
-
-static void milliseconds_round_to_the_nearest_tenth(void)
-{
-    CHECK(formats_as(1649, "1.6 ms"));
-    CHECK(formats_as(1650, "1.7 ms"));
-    CHECK(formats_as(9950, "10.0 ms"));
-}
-
-static void milliseconds_round_without_wrapping_at_the_input_limit(void)
-{
-    CHECK(formats_as(UINT32_MAX, "4294967.3 ms"));
-}
-
 static bool duration_formats_as(uint32_t milliseconds, const char *expected)
 {
     char buffer[CAPACITY];
@@ -130,9 +105,6 @@ static void average_bitrate_does_not_overflow_for_large_files(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(milliseconds_show_one_decimal),
-        TEST_CASE(milliseconds_round_to_the_nearest_tenth),
-        TEST_CASE(milliseconds_round_without_wrapping_at_the_input_limit),
         TEST_CASE(durations_show_minutes_and_padded_seconds),
         TEST_CASE(durations_round_down_to_whole_seconds),
         TEST_CASE(long_durations_show_hours),

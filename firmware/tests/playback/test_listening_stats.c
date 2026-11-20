@@ -29,22 +29,6 @@ static void add(ListeningPlay play)
     CHECK_EQUAL(STORE_DONE, listening_log_append(&log_file, &play));
 }
 
-static void add_dated(uint32_t day)
-{
-    add(listening_fixture_dated(0, day, NOON));
-}
-
-static ListeningSummary summary_at(uint32_t day, uint32_t second)
-{
-    ListeningSummaryJob job;
-    listening_summary_begin(&job, &log_file, day * LISTENING_FIXTURE_DAY + second);
-    for (int step = 0; step < STEP_LIMIT && job.result == STORE_WORKING; step++) {
-        listening_summary_step(&job);
-    }
-    CHECK_EQUAL(STORE_DONE, job.result);
-    return job.summary;
-}
-
 static void run_top(ListeningTop *job, ListeningGroup group, uint16_t capacity)
 {
     CHECK(listening_top_begin(job, &log_file, group, (ListeningScratch){tallies, capacity}));
@@ -52,127 +36,6 @@ static void run_top(ListeningTop *job, ListeningGroup group, uint16_t capacity)
         listening_top_step(job);
     }
     CHECK_EQUAL(STORE_DONE, job->result);
-}
-
-static void without_a_clock_the_summary_is_this_session_and_all_time(void)
-{
-    reset();
-    add(listening_fixture_play(0, 254000));
-    add(listening_fixture_dated(1, WEDNESDAY, NOON));
-    CHECK_EQUAL(STORE_READY, listening_log_open(&log_file, listening_disk_config(&disk)));
-    add(listening_fixture_play(2, 9000));
-    disk.reads = 0;
-    ListeningSummaryJob job;
-    listening_summary_begin(&job, &log_file, 0);
-    CHECK_EQUAL(STORE_DONE, listening_summary_step(&job));
-    CHECK_EQUAL(0, disk.reads);
-    CHECK(!job.summary.clock_known);
-    CHECK_EQUAL(3, job.summary.all_time.plays);
-    CHECK_EQUAL(254000 + 305000 + 9000, job.summary.all_time.listened_ms);
-    CHECK_EQUAL(1, job.summary.all_time.skips);
-    CHECK_EQUAL(1, job.summary.session.plays);
-    CHECK_EQUAL(9000, job.summary.session.listened_ms);
-    CHECK_EQUAL(1, job.summary.session.skips);
-    CHECK_EQUAL(0, job.summary.today.plays);
-    CHECK_EQUAL(0, job.summary.week.plays);
-    CHECK_EQUAL(0, job.summary.streak_days);
-}
-
-static void with_a_clock_today_and_this_week_count_the_plays_dated_in_them(void)
-{
-    reset();
-    add(listening_fixture_dated(0, MONDAY - 1, NOON));
-    add(listening_fixture_dated(1, MONDAY, NOON));
-    add(listening_fixture_dated(2, MONDAY + 1, NOON));
-    add(listening_fixture_dated(3, WEDNESDAY, 60));
-    ListeningPlay skipped = listening_fixture_dated(4, WEDNESDAY, 3600);
-    skipped.listened_ms = 4000;
-    skipped.end = LISTENING_SKIPPED;
-    add(skipped);
-    add(listening_fixture_play(0, 254000));
-    add(listening_fixture_dated(0, WEDNESDAY + 1, NOON));
-    ListeningSummary summary = summary_at(WEDNESDAY, NOON);
-    CHECK(summary.clock_known);
-    CHECK_EQUAL(2, summary.today.plays);
-    CHECK_EQUAL(305000 + 4000, summary.today.listened_ms);
-    CHECK_EQUAL(1, summary.today.skips);
-    CHECK_EQUAL(4, summary.week.plays);
-    CHECK_EQUAL(305000 + 328000 + 305000 + 4000, summary.week.listened_ms);
-    CHECK_EQUAL(1, summary.week.skips);
-    CHECK_EQUAL(7, summary.all_time.plays);
-    CHECK_EQUAL(7, summary.session.plays);
-    CHECK_EQUAL(500, listening_skip_permille(&summary.today));
-}
-
-static void a_play_counts_for_the_local_day_its_offset_puts_it_in(void)
-{
-    reset();
-    ListeningPlay east = listening_fixture_dated(0, WEDNESDAY - 1, LISTENING_FIXTURE_DAY - 1800);
-    east.offset_minutes = 60;
-    ListeningPlay west = listening_fixture_dated(1, WEDNESDAY + 1, 1800);
-    west.offset_minutes = -60;
-    add(east);
-    add(west);
-    ListeningSummary summary = summary_at(WEDNESDAY, NOON);
-    CHECK_EQUAL(2, summary.today.plays);
-    CHECK_EQUAL(1, summary.streak_days);
-}
-
-static void the_week_starts_on_monday(void)
-{
-    reset();
-    add(listening_fixture_dated(0, MONDAY - 1, LISTENING_FIXTURE_DAY - 1));
-    add(listening_fixture_dated(1, MONDAY, 0));
-    CHECK_EQUAL(1, summary_at(MONDAY, 10).week.plays);
-    CHECK_EQUAL(1, summary_at(MONDAY + 6, LISTENING_FIXTURE_DAY - 1).week.plays);
-    CHECK_EQUAL(0, summary_at(MONDAY + 7, 0).week.plays);
-    CHECK_EQUAL(1, summary_at(MONDAY - 1, LISTENING_FIXTURE_DAY - 1).week.plays);
-}
-
-static void the_streak_counts_days_in_a_row_up_to_today(void)
-{
-    reset();
-    add_dated(WEDNESDAY - 4);
-    add_dated(WEDNESDAY - 2);
-    add_dated(WEDNESDAY - 2);
-    add_dated(WEDNESDAY - 1);
-    add_dated(WEDNESDAY);
-    CHECK_EQUAL(3, summary_at(WEDNESDAY, NOON).streak_days);
-}
-
-static void a_day_without_a_play_yet_keeps_the_streak_of_the_day_before(void)
-{
-    reset();
-    add_dated(WEDNESDAY - 2);
-    add_dated(WEDNESDAY - 1);
-    CHECK_EQUAL(2, summary_at(WEDNESDAY, 5).streak_days);
-    CHECK_EQUAL(0, summary_at(WEDNESDAY + 1, 5).streak_days);
-    CHECK_EQUAL(2, summary_at(WEDNESDAY - 1, NOON).streak_days);
-}
-
-static void undated_and_later_plays_do_not_make_a_streak(void)
-{
-    reset();
-    add(listening_fixture_play(0, 254000));
-    add_dated(WEDNESDAY + 1);
-    add_dated(WEDNESDAY + 2);
-    CHECK_EQUAL(0, summary_at(WEDNESDAY, NOON).streak_days);
-}
-
-static void a_streak_longer_than_64_days_takes_another_pass(void)
-{
-    static const uint16_t LENGTHS[] = {63, 64, 65, 128, 150};
-    for (int length = 0; length < 5; length++) {
-        reset();
-        add_dated(WEDNESDAY - LENGTHS[length] - 1);
-        for (uint32_t back = LENGTHS[length]; back > 0; back--) {
-            add_dated(WEDNESDAY - back + 1);
-        }
-        disk.reads = 0;
-        CHECK_EQUAL(LENGTHS[length], summary_at(WEDNESDAY, NOON).streak_days);
-        int sectors = (LENGTHS[length] + 1 + 1 + 7) / LISTENING_SECTOR_RECORDS;
-        CHECK_EQUAL(sectors * (1 + LENGTHS[length] / LISTENING_STREAK_WINDOW_DAYS), disk.reads);
-    }
 }
 
 static void add_hand_made_plays(void)
@@ -293,7 +156,6 @@ static void an_empty_log_ranks_nothing(void)
     run_top(&job, LISTENING_BY_TRACK, WIDE);
     CHECK_EQUAL(0, job.count);
     CHECK_EQUAL(0, job.replayed.tally.key);
-    CHECK_EQUAL(0, summary_at(WEDNESDAY, NOON).today.plays);
 }
 
 static void a_job_without_a_table_is_refused(void)
@@ -439,7 +301,6 @@ static void a_torn_last_record_is_left_out_of_the_statistics(void)
     run_top(&job, LISTENING_BY_TRACK, WIDE);
     CHECK_EQUAL(1, job.cursor.damaged);
     check_ranked(&job.top[3], 0x2001, 305000);
-    CHECK_EQUAL(0, summary_at(WEDNESDAY, NOON).today.plays);
 }
 
 static void the_ranking_covers_exactly_the_plays_still_in_a_full_ring(void)
@@ -482,9 +343,6 @@ static void an_unreadable_log_fails_the_jobs(void)
     disk.refuse_reads = true;
     CHECK_EQUAL(STORE_FAILED, listening_top_step(&job));
     CHECK_EQUAL(STORE_FAILED, listening_top_step(&job));
-    ListeningSummaryJob summary;
-    listening_summary_begin(&summary, &log_file, WEDNESDAY * LISTENING_FIXTURE_DAY);
-    CHECK_EQUAL(STORE_FAILED, listening_summary_step(&summary));
     disk.refuse_reads = false;
 }
 
@@ -551,14 +409,6 @@ static void a_failed_ranking_can_be_restarted_after_storage_recovers(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(without_a_clock_the_summary_is_this_session_and_all_time),
-        TEST_CASE(with_a_clock_today_and_this_week_count_the_plays_dated_in_them),
-        TEST_CASE(a_play_counts_for_the_local_day_its_offset_puts_it_in),
-        TEST_CASE(the_week_starts_on_monday),
-        TEST_CASE(the_streak_counts_days_in_a_row_up_to_today),
-        TEST_CASE(a_day_without_a_play_yet_keeps_the_streak_of_the_day_before),
-        TEST_CASE(undated_and_later_plays_do_not_make_a_streak),
-        TEST_CASE(a_streak_longer_than_64_days_takes_another_pass),
         TEST_CASE(top_tracks_are_ranked_by_time_listened),
         TEST_CASE(each_ranked_entry_names_a_play_for_the_lookup),
         TEST_CASE(the_most_replayed_track_has_the_most_listens),

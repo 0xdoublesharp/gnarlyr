@@ -297,8 +297,3 @@ void track_order_job_abort(TrackOrderJob *job)
         job->order->busy = false;
     }
 }
-
-uint8_t track_order_job_progress(const TrackOrderJob *job)
-{
-    return store_write_progress(&job->write);
-}

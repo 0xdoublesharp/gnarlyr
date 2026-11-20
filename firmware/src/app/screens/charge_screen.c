@@ -94,8 +94,3 @@ void charge_screen_draw_at(Canvas *canvas, const Theme *theme, HalBattery batter
 {
     charge_art_draw(canvas, theme, battery, now_ms);
 }
-
-void charge_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery)
-{
-    charge_screen_draw_at(canvas, theme, battery, hal_clock_milliseconds());
-}

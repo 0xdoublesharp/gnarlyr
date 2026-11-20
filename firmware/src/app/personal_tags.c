@@ -649,20 +649,3 @@ void personal_tags_cancel(PersonalTags *tags)
     store_write_abort(&tags->writer);
     failed(tags);
 }
-
-uint8_t personal_tags_progress(const PersonalTags *tags)
-{
-    if (tags->result == STORE_DONE) {
-        return 100;
-    }
-    if (tags->stage == COMMIT) {
-        return (uint8_t)(75 + store_write_progress(&tags->writer) / 4);
-    }
-    if (tags->stage == CHECKSUM) {
-        uint32_t bytes = tags->headers[tags->bank].bytes;
-        return bytes == 0 ? 0 : (uint8_t)(tags->scan.position * 50 / bytes);
-    }
-    uint32_t rows = tags->stage < PLAN ? tags->headers[tags->bank].count : tags->rows;
-    uint32_t base = tags->stage == CHECK_ROWS || tags->stage == COPY_ROWS ? 50u : 0u;
-    return rows == 0 ? (uint8_t)base : (uint8_t)(base + tags->source_row * 25 / rows);
-}

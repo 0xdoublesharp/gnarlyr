@@ -736,7 +736,7 @@ static void the_gain_setting_writes_the_headphone_gain_register(void)
 {
     DacBus bus = playing_bus(3, 5);
     bus.write = guarded_gain_write;
-    CHECK(dac_sequence_gain(&bus, false));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = true}, (DacAnalog){.gain_high = false}));
     int gain_writes = 0;
     for (int index = 0; index < fake.count; index++) {
         Op op = fake.ops[index];
@@ -826,7 +826,7 @@ static void a_silent_bus_fails_a_gain_change(void)
 static void a_gain_timeout_never_writes_gain_or_releases_the_outputs(void)
 {
     DacBus bus = playing_bus(255, 255);
-    CHECK(!dac_sequence_gain(&bus, true));
+    CHECK(!dac_apply_analog(&bus, (DacAnalog){.gain_high = false}, (DacAnalog){.gain_high = true}));
     for (int index = 0; index < fake.count; index++) {
         CHECK(fake.ops[index].kind != OP_WRITE || fake.ops[index].map != 0x080000);
     }

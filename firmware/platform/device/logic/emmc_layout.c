@@ -143,13 +143,6 @@ bool emmc_layout_allows_write(const EmmcLayout *layout, uint32_t lba, uint32_t c
                          inside(layout->slot_2, layout->slot_sectors, lba, count));
 }
 
-bool emmc_layout_read(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors)
-{
-    static uint32_t scratch[EMMC_LAYOUT_SCRATCH_WORDS];
-    return emmc_layout_read_with(layout, device, total_sectors,
-                                 (EmmcLayoutRead){EMMC_SLOT_2_HALF, scratch});
-}
-
 bool emmc_layout_read_with(EmmcLayout *layout, const BlockDevice *device, uint32_t total_sectors,
                            EmmcLayoutRead read)
 {

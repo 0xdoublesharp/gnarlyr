@@ -30,11 +30,6 @@ typedef struct HeadphoneProfiles {
     HeadphoneProfile slots[HEADPHONE_PROFILE_LIMIT];
 } HeadphoneProfiles;
 
-typedef struct HeadphoneProfileGains {
-    uint32_t left;
-    uint32_t right;
-} HeadphoneProfileGains;
-
 HeadphoneProfile headphone_profile_defaults(void);
 HeadphoneProfiles headphone_profiles_defaults(void);
 bool headphone_profiles_valid(const HeadphoneProfiles *profiles);
@@ -42,6 +37,4 @@ bool headphone_profiles_active(const HeadphoneProfiles *profiles, HeadphoneProfi
 bool headphone_profiles_encode(const HeadphoneProfiles *profiles, uint8_t *bytes,
                                uint32_t capacity);
 bool headphone_profiles_decode(const uint8_t *bytes, uint32_t length, HeadphoneProfiles *profiles);
-HeadphoneProfileGains headphone_profile_gains(const HeadphoneProfile *profile, uint32_t input_gain);
-uint8_t headphone_profile_limit_volume(const HeadphoneProfile *profile, uint8_t requested);
 uint32_t headphone_profile_trim(uint8_t steps);

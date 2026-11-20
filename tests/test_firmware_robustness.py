@@ -60,7 +60,7 @@ class DictionaryTests(unittest.TestCase):
                 self.assertTrue(campaign.dictionary_entry_valid(line), f"{path.name}: {line}")
 
     def test_dictionaries_name_real_fuzzers_and_existing_files(self):
-        self.assertLessEqual(set(campaign.DICTIONARIES), set(firmware.FUZZ_TARGETS))
+        self.assertLessEqual(set(campaign.DICTIONARIES), set(fuzz_seeds.TARGETS))
         for parts in campaign.DICTIONARIES.values():
             for part in parts:
                 self.assertTrue((firmware.FUZZ_DICTIONARIES / f"{part}.dict").is_file(), part)
@@ -123,9 +123,9 @@ class SeedFramingTests(unittest.TestCase):
             self.assertEqual(campaign.seed_corpus(corpus, [b"a", b"b"]), 0)
 
     def test_smoke_seed_names_are_unchanged(self):
-        inputs = firmware.fuzz_seed_inputs("cue_sheet")
+        inputs = fuzz_seeds.inputs("cue_sheet")
         self.assertEqual(sorted(inputs), [f"seed-{index}" for index in range(4)])
-        self.assertIn("fixture-tagged.wav", firmware.fuzz_seed_inputs("wav_source"))
+        self.assertIn("fixture-tagged.wav", fuzz_seeds.inputs("wav_source"))
 
     def test_synthetic_jobs_cover_every_codec_with_art_and_chapters(self):
         jobs = fuzz_seeds.ffmpeg_jobs(Path("/s"))

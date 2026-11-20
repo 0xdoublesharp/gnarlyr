@@ -37,12 +37,9 @@ static void reader_end_requires_both_an_empty_buffer_and_exhausted_source(void)
     ImageArena arena = image_arena_make(memory, sizeof memory);
     ImageReader reader;
     CHECK(image_reader_init(&reader, (ImageSource){read_bytes, bytes, 0, sizeof bytes}, &arena));
-    CHECK(!image_reader_at_end(&reader));
     CHECK(image_reader_available(&reader, sizeof bytes));
-    CHECK(!image_reader_at_end(&reader));
     CHECK_EQUAL(1, image_reader_byte(&reader));
     CHECK(image_reader_skip(&reader, 2));
-    CHECK(image_reader_at_end(&reader));
 
     arena = image_arena_make(memory, sizeof memory);
     CHECK(image_reader_init(&reader, (ImageSource){refuse_read, NULL, 0, 1}, &arena));

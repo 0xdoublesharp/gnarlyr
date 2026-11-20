@@ -5,6 +5,7 @@
 #include "default_theme.h"
 #include "fake_hal.h"
 #include "gfx/text.h"
+#include "hal/clock.h"
 #include "hal/display.h"
 #include "screen_modules.h"
 #include "screen_snapshot.h"
@@ -83,7 +84,8 @@ static void an_unknown_battery_has_no_invented_percent_or_voltage(void)
     Theme theme = BOARD_THEME;
     Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
     text_spy_reset();
-    charge_screen_draw(&canvas, &theme, (HalBattery){.usb_power = true});
+    charge_screen_draw_at(&canvas, &theme, (HalBattery){.usb_power = true},
+                          hal_clock_milliseconds());
     CHECK(saw(i18n_text(STR_POWER_UNKNOWN)));
     CHECK(saw(i18n_text(STR_POWER_USB)));
     CHECK(!battery_shows(&theme, theme.colors.success));
@@ -107,7 +109,7 @@ static uint32_t charging_frame(HalBattery battery, uint32_t now_ms)
     Theme theme = BOARD_THEME;
     Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
     fake_hal_set_milliseconds(now_ms);
-    charge_screen_draw(&canvas, &theme, battery);
+    charge_screen_draw_at(&canvas, &theme, battery, now_ms);
     return frame_hash(&theme);
 }
 

@@ -67,4 +67,3 @@ bool track_order_job_begin(TrackOrderJob *job, TrackOrder *order, TrackOrderSour
                            TrackOrderEdit edit);
 StoreResult track_order_job_step(TrackOrderJob *job);
 void track_order_job_abort(TrackOrderJob *job);
-uint8_t track_order_job_progress(const TrackOrderJob *job);

@@ -81,4 +81,3 @@ bool personal_tags_change(PersonalTags *tags, PersonalTagChange change);
 bool personal_tags_mask(const PersonalTags *tags, uint16_t track, uint32_t *mask);
 bool personal_tags_matches(const PersonalTags *tags, uint16_t track, uint32_t wanted,
                            bool *matches);
-uint8_t personal_tags_progress(const PersonalTags *tags);

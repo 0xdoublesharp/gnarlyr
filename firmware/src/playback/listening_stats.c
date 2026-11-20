@@ -5,8 +5,6 @@
 enum {
     DAY_SECONDS = 86400,
     MINUTE_SECONDS = 60,
-    WEEK_DAYS = 7,
-    DAYS_FROM_MONDAY_TO_EPOCH = 3,
     EARLIER = 0x8000u,
     POSITION = EARLIER - 1u
 };
@@ -32,73 +30,6 @@ bool listening_span_holds(const ListeningSpan *span, const ListeningPlay *play)
     }
     uint32_t day = local_day(play);
     return play->clock_s != 0 && day >= span->first_day && day <= span->last_day;
-}
-
-static uint32_t week_of(uint32_t day)
-{
-    return (day + DAYS_FROM_MONDAY_TO_EPOCH) / WEEK_DAYS;
-}
-
-static void count_periods(ListeningSummaryJob *job, uint32_t day, const ListeningPlay *play)
-{
-    if (day == job->today) {
-        listening_totals_add(&job->summary.today, play);
-    }
-    if (week_of(day) == week_of(job->today)) {
-        listening_totals_add(&job->summary.week, play);
-    }
-}
-
-static void summarise(void *context, const ListeningRecord *record)
-{
-    ListeningSummaryJob *job = context;
-    uint32_t day = local_day(&record->play);
-    if (record->play.clock_s == 0 || day > job->newest) {
-        return;
-    }
-    if (job->newest == job->today) {
-        count_periods(job, day, &record->play);
-    }
-    if (job->newest - day < LISTENING_STREAK_WINDOW_DAYS) {
-        job->days |= UINT64_C(1) << (job->newest - day);
-    }
-}
-
-static bool streak_continues(ListeningSummaryJob *job)
-{
-    uint8_t day = job->newest == job->today && (job->days & 1) == 0 ? 1 : 0;
-    while (day < LISTENING_STREAK_WINDOW_DAYS && (job->days >> day & 1) != 0) {
-        job->summary.streak_days++;
-        day++;
-    }
-    return day == LISTENING_STREAK_WINDOW_DAYS && job->newest >= LISTENING_STREAK_WINDOW_DAYS;
-}
-
-void listening_summary_begin(ListeningSummaryJob *job, const ListeningLog *log, uint32_t now_s)
-{
-    *job = (ListeningSummaryJob){.summary = {.all_time = log->root.counters.totals,
-                                             .session = log->session,
-                                             .clock_known = now_s != 0},
-                                 .today = now_s / DAY_SECONDS,
-                                 .newest = now_s / DAY_SECONDS,
-                                 .result = now_s != 0 ? STORE_WORKING : STORE_DONE};
-    listening_cursor_begin(&job->cursor, log, LISTENING_SECTOR_RECORDS);
-}
-
-StoreResult listening_summary_step(ListeningSummaryJob *job)
-{
-    if (job->result != STORE_WORKING) {
-        return job->result;
-    }
-    StoreResult result = listening_cursor_step(&job->cursor, (ListeningVisitor){summarise, job});
-    if (result == STORE_DONE && streak_continues(job)) {
-        job->newest -= LISTENING_STREAK_WINDOW_DAYS;
-        job->days = 0;
-        listening_cursor_rewind(&job->cursor);
-        result = STORE_WORKING;
-    }
-    job->result = result;
-    return result;
 }
 
 static uint32_t group_key(const ListeningTop *job, const ListeningTrack *track)

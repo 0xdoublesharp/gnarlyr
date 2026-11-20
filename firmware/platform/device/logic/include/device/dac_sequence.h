@@ -73,7 +73,6 @@ bool dac_fade_volume(const DacBus *bus, DacLevel *level, uint8_t target, uint32_
 
 bool dac_sequence_power_down(const DacBus *bus);
 bool dac_sequence_power_up(const DacBus *bus);
-bool dac_sequence_gain(const DacBus *bus, bool high);
 
 typedef struct DacDiagnostics {
     uint32_t start_us;

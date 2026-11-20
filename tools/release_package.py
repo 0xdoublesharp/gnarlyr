@@ -16,8 +16,9 @@ import re
 import shutil
 import sys
 
+from echo_debug import IDENTITY
+
 ROOT = Path(__file__).resolve().parents[1]
-IDENTITY = json.loads((ROOT / "firmware/identity.json").read_text(encoding="utf-8"))
 IMAGE = IDENTITY["update_file"]
 SOURCE = "source.tar.gz"
 MANIFEST = "firmware.json"

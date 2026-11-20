@@ -41,7 +41,6 @@ A `TrackOrderJob` writes the spare bank from a source (`TrackOrderSource`: read 
 - `track_order_job_begin` checks the edit's bounds and the inserted index before anything is written. One job runs per owner at a time.
 - `track_order_job_step` does one read or write of at most 512 bytes and returns working, done, failed or uncertain. Done switches the owner to the new bank and generation. Failed and `track_order_job_abort` leave the owner and the published bank as they were. Uncertain sets `needs_reload`.
 - A full order takes 514 steps: 1 to clear the spare's header, 256 writes, 256 reads, 1 to publish.
-- `track_order_job_progress` is 0 to 100.
 
 A job only ever writes the bank its owner does not have open. An owner opened with `track_order_open_at` at the generation the journal names therefore never overwrites the queue a restart would restore; `playback-store.md` (Writing) has the order of the steps around a job.
 

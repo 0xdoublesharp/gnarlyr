@@ -533,5 +533,14 @@ class CommandLine(VolumeCase):
         self.assertEqual(output["error"]["code"], "usage")
 
 
+class IdentitySourceTests(unittest.TestCase):
+    def test_the_root_tools_read_the_identity_through_the_firmware_reader(self):
+        import identity
+        import release_package
+        self.assertEqual(identity.read(), echo_debug.IDENTITY)
+        self.assertIs(echo_debug.IDENTITY, release_package.IDENTITY)
+        self.assertIs(identity.parse, echo_debug.parse_identity)
+
+
 if __name__ == "__main__":
     unittest.main()

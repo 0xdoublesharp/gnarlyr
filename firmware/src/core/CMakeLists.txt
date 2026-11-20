@@ -3,7 +3,6 @@ add_library(echo_core STATIC
     calendar.c
     calendar_view.c
     clock_face.c
-    dac_identity.c
     debug_log.c
     debug_script.c
     debug_script_parse.c

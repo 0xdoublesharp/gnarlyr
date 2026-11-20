@@ -135,7 +135,6 @@ StoreResult listening_log_note(ListeningLog *log, ListeningEvent event);
 ListeningFormat listening_format_class(bool lossless, uint32_t sample_rate, uint8_t bits);
 bool listening_play_listened(const ListeningPlay *play);
 void listening_totals_add(ListeningTotals *totals, const ListeningPlay *play);
-uint16_t listening_skip_permille(const ListeningTotals *totals);
 
 void listening_cursor_begin(ListeningCursor *cursor, const ListeningLog *log, uint8_t run);
 void listening_cursor_rewind(ListeningCursor *cursor);
