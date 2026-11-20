@@ -4,7 +4,7 @@
 #include "core/format.h"
 
 enum {
-    CAPACITY = 16
+    CAPACITY = 24
 };
 
 static bool formats_as(uint32_t microseconds, const char *expected)
@@ -98,6 +98,17 @@ static void bitrates_group_thousands(void)
     CHECK(bitrate_formats_as(12045, "12,045 kbps"));
 }
 
+static void bitrates_group_every_thousand_up_to_the_input_limit(void)
+{
+    CHECK(bitrate_formats_as(0, "0 kbps"));
+    CHECK(bitrate_formats_as(999, "999 kbps"));
+    CHECK(bitrate_formats_as(1000000, "1,000,000 kbps"));
+    CHECK(bitrate_formats_as(1002003, "1,002,003 kbps"));
+    CHECK(bitrate_formats_as(999999999, "999,999,999 kbps"));
+    CHECK(bitrate_formats_as(1000000000, "1,000,000,000 kbps"));
+    CHECK(bitrate_formats_as(UINT32_MAX, "4,294,967,295 kbps"));
+}
+
 static void the_average_bitrate_comes_from_audio_bytes_and_length(void)
 {
     CHECK_EQUAL(320, average_kbps(2400000, 2646000, 44100));
@@ -128,6 +139,7 @@ int main(void)
         TEST_CASE(sample_rates_show_kilohertz_with_a_decimal_only_when_needed),
         TEST_CASE(sample_rate_rounding_does_not_wrap_at_the_input_limit),
         TEST_CASE(bitrates_group_thousands),
+        TEST_CASE(bitrates_group_every_thousand_up_to_the_input_limit),
         TEST_CASE(the_average_bitrate_comes_from_audio_bytes_and_length),
         TEST_CASE(an_unknown_length_has_no_bitrate),
         TEST_CASE(average_bitrate_does_not_overflow_for_large_files),

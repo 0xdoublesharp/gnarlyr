@@ -77,13 +77,17 @@ static void append_three_digits(StringBuilder *builder, uint32_t value)
 
 static void append_grouped(StringBuilder *builder, uint32_t value)
 {
-    if (value < THOUSAND) {
-        string_builder_append_unsigned(builder, value);
-        return;
+    uint32_t scale = 1;
+    while (value / scale >= THOUSAND) {
+        scale *= THOUSAND;
     }
-    append_grouped(builder, value / THOUSAND);
-    string_builder_append_char(builder, ',');
-    append_three_digits(builder, value % THOUSAND);
+    string_builder_append_unsigned(builder, value / scale);
+    while (scale > 1) {
+        value %= scale;
+        scale /= THOUSAND;
+        string_builder_append_char(builder, ',');
+        append_three_digits(builder, value / scale);
+    }
 }
 
 void format_bitrate(uint32_t kbps, char *buffer, size_t capacity)
