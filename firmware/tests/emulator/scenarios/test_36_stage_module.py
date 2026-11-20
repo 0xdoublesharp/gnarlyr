@@ -39,6 +39,14 @@ EQUALIZER_SLOTS_FILE = "eq_slots.bin"
 EQUALIZER_GAIN_MAX = 20
 HAL_USB_ANSWER_DAC = 3
 SETTLE_AFTER_STORAGE_CHANGE_MS = 4000
+SETTINGS_SAFE_START_ROW = 27
+SETTINGS_EXTENSION = 38
+PARAMETRIC_FILE = "parametric.bin"
+PARAMETRIC_RECORD = 84
+PARAMETRIC_BANK_BYTES = 1536
+STORE_BLOCK = 512
+SCREENSHOT_SCRIPT = ["open coverflow", "wait 600", "rescan check", "screenshot after_check",
+                     "reconnect"]
 DAC_MENU_HEADPHONES_ROW = 3
 
 ANIMATE_MS = 600
@@ -527,6 +535,155 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.watchdog_resets, 0)
         self.assert_healthy(rig.session)
+
+    def parametric_bank(self, used):
+        record = bytearray(PARAMETRIC_RECORD)
+        struct.pack_into("<BBh", record, 0, 1, 0, -20)
+        struct.pack_into("<HHhBB", record, 4, 1000, 71, 15, 0, 1)
+        slots = b"".join(bytes(record) if slot in used else bytes(PARAMETRIC_RECORD)
+                         for slot in range(8))
+        mask = sum(1 << slot for slot in used)
+        payload = bytes((mask, 0, 0, 0)) + bytes(record) + slots + bytes(9 * 9)
+        header = struct.pack("<4sHHIIII", b"PEQF", 1, 0, 1, len(payload), fnv1a(payload), 0)
+        header += struct.pack("<I", fnv1a(header))
+        bank = header + bytes(STORE_BLOCK - len(header)) + payload
+        return bank + bytes(2 * PARAMETRIC_BANK_BYTES - len(bank))
+
+    def parametric_slots(self, session):
+        data = session.fat().read("/" + IDENTITY.data_directory + "/" + PARAMETRIC_FILE)
+        newest = None
+        for offset in (0, PARAMETRIC_BANK_BYTES):
+            magic, _, _, generation, length = struct.unpack_from("<4sHHII", data, offset)
+            if magic == b"PEQF" and (newest is None or generation > newest[0]):
+                newest = (generation, data[offset + STORE_BLOCK:offset + STORE_BLOCK + length])
+        payload = newest[1]
+        return {slot for slot in range(8) if payload[0] >> slot & 1}
+
+    def graphic_slots(self, session):
+        data = session.fat().read("/" + IDENTITY.data_directory + "/" + EQUALIZER_SLOTS_FILE)
+        return {slot for slot in range(8) if data[4 + 10 * slot] != 0xFF}
+
+    def test_a_failed_menu_hold_shortcut_over_a_list_never_runs_the_cleared_slot(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(COVER, {SETTINGS_LONG_PRESS_FIELD: LONG_PRESS_SHUFFLE})
+        machine, session = rig.machine, rig.session
+        self.start_playing(rig)
+        rig.run_for(ANIMATE_MS)
+        equalizer = self.open_list(rig, QUICK_SETTINGS_EQUALIZER_ROW)
+        settings_number, _ = self.module(machine, "settings")
+        equalizer_number, _ = self.module(machine, "equalizer")
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, settings_number, 600, lambda byte: byte ^ 0xFF)
+        watch = ModuleWatch(session)
+        shuffle = session.fat().read(SETTINGS_PATH)[11]
+        rig.press("menu", hold=MENU_HOLD_MS)
+        rig.run_for(ANIMATE_MS)
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(shuffle, session.fat().read(SETTINGS_PATH)[11])
+        self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
+                         [(settings_number, False), (equalizer_number, True)])
+        self.assertEqual(EQUALIZER_PRESETS + 1, self.option_count(machine, equalizer))
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(1, session.fat().read(SETTINGS_PATH)[SETTINGS_EQUALIZER_FIELD])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
+
+    def test_a_screenshot_right_after_a_music_check_draws_from_the_screen_owner(self):
+        from echo_emulator.real_volume import real_volume
+        script = "\n".join(["build " + self.build_tag(), *SCREENSHOT_SCRIPT, ""]).encode("ascii")
+        volume = self.debug_volume(real_volume(playable=True, album_count=STRIP_ALBUMS),
+                                   run_txt=script)
+        session, machine = self.ejecting_session(volume)
+        self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
+        self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
+        report = self.read_report(session)
+        ran = report["script"]
+        self.assertEqual([line["status"] for line in ran["lines"]],
+                         ["ok"] * (len(SCREENSHOT_SCRIPT) + 1))
+        self.assertEqual(ran["screenshots"], [{"slot": 0, "name": "after_check"}])
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
+
+    def test_the_safe_start_volume_list_keeps_its_labels_across_a_dac_session(self):
+        rig = self.styled_rig(COVER, prepare=lambda machine: setattr(machine, "usb_answer",
+                                                                     HAL_USB_ANSWER_DAC))
+        machine, session = rig.machine, rig.session
+        self.open_settings(machine)
+        rig.press_many("next", SETTINGS_SAFE_START_ROW)
+        rig.press("play")
+        _, settings = self.module(machine, "settings")
+        self.assertTrue(settings.loaded(machine))
+        before = session.fat().read(SETTINGS_PATH)[SETTINGS_EXTENSION:SETTINGS_EXTENSION + 2]
+        machine.host_stays = True
+        machine.note("usb_dac_session")
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        machine.host_stays = False
+        self.unplug_and_settle(rig, settings)
+        self.assertEqual(machine.faults, [])
+        rig.press("next")
+        rig.press("play")
+        after = session.fat().read(SETTINGS_PATH)[SETTINGS_EXTENSION:SETTINGS_EXTENSION + 2]
+        self.assertNotEqual(before, after)
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
+
+    def test_a_wireframe_goodbye_with_damaged_playing_copies_tries_the_module_once(self):
+        from echo_emulator.modules import ModuleWatch
+        rig = self.styled_rig(COVER)
+        machine, session = rig.machine, rig.session
+        playing_number, _ = self.module(machine, "playing")
+        self.open_settings(machine)
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, playing_number, 600, lambda byte: byte ^ 0xFF)
+        rig.press("back")
+        rig.run_for(ANIMATE_MS)
+        watch = ModuleWatch(session)
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
+                         "firmware reached hal_power_off")
+        attempts = [call for call in watch.loads() if call["module"] == playing_number]
+        self.assertLessEqual(len(attempts), 1)
+        self.assertEqual(machine.faults, [])
+
+    def test_an_eq_edit_after_an_eviction_keeps_every_other_saved_slot(self):
+        from echo_emulator.modules import ModuleWatch
+        files = {EQUALIZER_SLOTS_FILE: self.equalizer_slots({0, 2}),
+                 PARAMETRIC_FILE: self.parametric_bank({1, 3})}
+        rig = self.styled_rig(COVER, {SETTINGS_LONG_PRESS_FIELD: LONG_PRESS_SHUFFLE}, files)
+        machine, session = rig.machine, rig.session
+        self.assertEqual({1, 3}, self.parametric_slots(session))
+        self.open_settings(machine)
+        rig.press_many("next", SETTINGS_EQUALIZER_ROW)
+        rig.press("play")
+        rig.press("previous")
+        rig.press("play")
+        _, equalizer = self.module(machine, "equalizer")
+        self.assertTrue(equalizer.loaded(machine))
+        settings_number, _ = self.module(machine, "settings")
+        equalizer_number, _ = self.module(machine, "equalizer")
+        watch = ModuleWatch(session)
+        rig.press("menu", hold=MENU_HOLD_MS)
+        rig.run_for(ANIMATE_MS)
+        loads = [(call["module"], call["loaded"]) for call in watch.loads()]
+        self.assertEqual((settings_number, True), loads[0])
+        self.assertEqual((equalizer_number, True), loads[-1])
+        rig.press("play")
+        rig.press("next")
+        rig.press("next")
+        rig.press("play")
+        rig.run_for(1000)
+        self.assertTrue({1, 3} <= self.parametric_slots(session))
+        self.assertEqual({0, 2}, self.graphic_slots(session))
+        self.assertEqual(machine.faults, [])
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
 
     def wireframe_round(self, style, name):
         from echo_emulator.modules import ModuleWatch

@@ -2461,6 +2461,7 @@ CORE_SEAM void app_step(void)
     }
     toast_update(&app.toast, now_ms);
     explain_lowered_volume(now_ms);
+    top_owned(now_ms);
     follow_appearance();
     update_screen(now_ms);
     follow_usb_chooser(now_ms);
