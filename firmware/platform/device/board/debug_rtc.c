@@ -3,6 +3,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "cru.h"
 #include "device/audio_math.h"
@@ -117,7 +118,7 @@ static HalRtcStatus wait_pending(uint32_t bits)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((register_read(I2C_IPD) & bits) == 0) {
-        if (hal_clock_milliseconds() - start >= I2C_TIMEOUT_MS) {
+        if (deadline_elapsed(hal_clock_milliseconds(), start, I2C_TIMEOUT_MS)) {
             return HAL_RTC_TIMEOUT;
         }
     }

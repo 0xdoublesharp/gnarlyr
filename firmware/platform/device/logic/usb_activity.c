@@ -1,4 +1,5 @@
 #include "device/usb_activity.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 
 enum {
@@ -27,7 +28,7 @@ void usb_activity_follow(UsbActivity *activity, const MscStats *stats, uint32_t 
 
 static bool recent(bool happened, uint32_t at_ms, uint32_t now_ms, uint32_t span_ms)
 {
-    return happened && now_ms - at_ms < span_ms;
+    return happened && !deadline_elapsed(now_ms, at_ms, span_ms);
 }
 
 CORE_SEAM UsbActivityKind usb_activity_now(const UsbActivity *activity, uint32_t now_ms)

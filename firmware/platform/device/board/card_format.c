@@ -1,3 +1,4 @@
+#include "core/deadline.h"
 #include "hal/storage.h"
 
 #include <stddef.h>
@@ -49,7 +50,7 @@ static bool can_continue(void *context, uint32_t done, uint32_t total)
     HalBattery battery = hal_power_battery();
     return sd_present() && sd_generation() == report->generation && !usb_busy() &&
            (battery.usb_power || (battery.known && battery.percent > 30)) &&
-           hal_clock_milliseconds() - report->started_ms < 120000 &&
+           !deadline_elapsed(hal_clock_milliseconds(), report->started_ms, 120000) &&
            (report->progress == NULL || report->progress(report->context, done, total));
 }
 

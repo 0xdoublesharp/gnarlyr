@@ -36,9 +36,9 @@ static void permanent_and_temporary_blocks_are_aligned_and_disjoint(void)
     CHECK(first == arena + GUARD_BYTES);
     CHECK(second == arena + GUARD_BYTES + 8);
     CHECK(temporary == arena + GUARD_BYTES + ARENA_BYTES - 16);
-    CHECK_EQUAL(32, memory.used);
-    CHECK_EQUAL(ARENA_BYTES - 16, memory.temporary);
-    CHECK_EQUAL(48, memory.peak);
+    CHECK_EQUAL(32, memory.arena.low);
+    CHECK_EQUAL(ARENA_BYTES - 16, memory.arena.high);
+    CHECK_EQUAL(48, memory.arena.peak);
     guards_are_intact();
     vorbis_memory_unbind();
 }
@@ -75,12 +75,12 @@ static void nested_temporary_scopes_retain_the_callers_work(void)
     CHECK(vorbis_memory_bind(&memory));
     uint8_t *outer = vorbis_temporary_allocate(17);
     CHECK(outer != NULL);
-    uint32_t before = memory.temporary;
+    uint32_t before = memory.arena.high;
     inner_temporary_work_is_released_at_its_function_boundary();
-    CHECK_EQUAL(before, memory.temporary);
-    CHECK_EQUAL(24 + 704, memory.peak);
+    CHECK_EQUAL(before, memory.arena.high);
+    CHECK_EQUAL(24 + 704, memory.arena.peak);
     CHECK(vorbis_memory_allocate(ARENA_BYTES - 24) != NULL);
-    CHECK_EQUAL(memory.used, memory.temporary);
+    CHECK_EQUAL(memory.arena.low, memory.arena.high);
     guards_are_intact();
     vorbis_memory_unbind();
 }
@@ -104,8 +104,8 @@ static void full_arenas_abort_before_touching_memory_and_can_be_reset(void)
             CHECK(false);
         } else {
             CHECK_EQUAL(VORBIS_MEMORY_EXHAUSTED, memory.error);
-            CHECK_EQUAL(ARENA_BYTES, memory.used);
-            CHECK_EQUAL(ARENA_BYTES, memory.temporary);
+            CHECK_EQUAL(ARENA_BYTES, memory.arena.low);
+            CHECK_EQUAL(ARENA_BYTES, memory.arena.high);
         }
         vorbis_memory_unbind();
         guards_are_intact();
@@ -138,8 +138,8 @@ static void independent_decoder_states_cannot_replace_an_active_guard(void)
     CHECK(vorbis_memory_bind(&memory));
     CHECK(!vorbis_memory_bind(&other));
     CHECK(vorbis_memory_allocate(16) != NULL);
-    CHECK_EQUAL(16, memory.used);
-    CHECK_EQUAL(0, other.used);
+    CHECK_EQUAL(16, memory.arena.low);
+    CHECK_EQUAL(0, other.arena.low);
     vorbis_memory_unbind();
     CHECK(vorbis_memory_bind(&other));
     vorbis_memory_unbind();
@@ -151,7 +151,7 @@ static void invalid_workspaces_are_refused_without_changing_the_previous_one(voi
     CHECK(!vorbis_memory_init(&memory, arena + 1, ARENA_BYTES));
     CHECK(!vorbis_memory_init(&memory, NULL, ARENA_BYTES));
     CHECK(!vorbis_memory_init(&memory, arena, 7));
-    CHECK_EQUAL(ARENA_BYTES, memory.capacity);
+    CHECK_EQUAL(ARENA_BYTES, memory.arena.capacity);
 }
 
 int main(void)

@@ -5,6 +5,7 @@
 #include "app/debug_loop.h"
 #include "audio_effects.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "debug_probe.h"
 #include "hal/audio.h"
@@ -172,7 +173,7 @@ static void follow_levels(uint8_t levels)
 
 void board_debug_power_tick(uint32_t now_ms)
 {
-    if (now_ms - watch.polled_ms >= POWER_POLL_MS) {
+    if (deadline_elapsed(now_ms, watch.polled_ms, POWER_POLL_MS)) {
         watch.due = true;
     }
 }
@@ -191,7 +192,8 @@ void board_debug_power_poll(void)
     follow_levels(power_levels(pin));
     watch.polled = true;
     watch.polled_ms = now_ms;
-    if (!watch.sampled || now_ms - watch.sampled_ms >= POWER_HISTORY_INTERVAL_S * MILLISECONDS) {
+    if (!watch.sampled ||
+        deadline_elapsed(now_ms, watch.sampled_ms, POWER_HISTORY_INTERVAL_S * MILLISECONDS)) {
         take_sample(now_ms);
     }
 }

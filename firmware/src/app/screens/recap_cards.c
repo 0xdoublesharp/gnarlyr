@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/calendar.h"
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "core/utf8.h"
@@ -222,7 +223,7 @@ static void compute(const ListeningScreen *screen)
     bool opened = open_log(screen);
     uint32_t started_ms = hal_clock_milliseconds();
     for (int step = 0; step < STEPS && work->job.result == STORE_WORKING &&
-                       hal_clock_milliseconds() - started_ms < BUDGET_MS;
+                       !deadline_elapsed(hal_clock_milliseconds(), started_ms, BUDGET_MS);
          step++) {
         listening_recap_step(&work->job);
         hal_audio_service();
@@ -333,7 +334,8 @@ static void flourish(ListeningScreen *screen, uint32_t now_ms)
         wire_motion_end(motion, screen);
         return;
     }
-    if (screen->card != 0 || (mine && now_ms - motion->started_ms >= RECAP_FLOURISH_MS)) {
+    if (screen->card != 0 ||
+        (mine && deadline_elapsed(now_ms, motion->started_ms, RECAP_FLOURISH_MS))) {
         work->flourished = true;
         work->still = still_figure(screen);
         wire_motion_end(motion, screen);

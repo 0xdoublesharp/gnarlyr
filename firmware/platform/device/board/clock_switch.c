@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "device/pll.h"
 #include "dmac.h"
@@ -100,7 +101,7 @@ static bool wait_for_lock(void)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((register_read(PLL_CON1) & CON1_LOCKED) == 0) {
-        if (hal_clock_milliseconds() - start >= LOCK_TIMEOUT_MS) {
+        if (deadline_elapsed(hal_clock_milliseconds(), start, LOCK_TIMEOUT_MS)) {
             return false;
         }
     }

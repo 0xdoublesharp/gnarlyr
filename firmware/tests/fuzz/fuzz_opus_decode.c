@@ -61,6 +61,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         fuzz_require(pcm.frames > 0 && pcm.frames <= pcm.capacity);
         fuzz_require(pcm.rate == rate && pcm.channels == channels);
     }
-    fuzz_require(decoder.scratch_used == 0);
+    fuzz_require(decoder.scratch.high == decoder.scratch.capacity);
     return 0;
 }

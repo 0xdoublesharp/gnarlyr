@@ -45,8 +45,8 @@ static void silence_packets_cover_all_modes_and_output_rates(void)
                 CHECK_EQUAL(rates[rate], pcm.rate);
                 CHECK_EQUAL(channels, pcm.channels);
                 CHECK_EQUAL(modes[mode], pcm.mode);
-                CHECK(decoder.scratch_peak <= OPUS_DECODE_SCRATCH_BYTES);
-                CHECK_EQUAL(0, decoder.scratch_used);
+                CHECK(decoder.scratch.peak <= OPUS_DECODE_SCRATCH_BYTES);
+                CHECK_EQUAL(decoder.scratch.capacity, decoder.scratch.high);
                 canaries();
             }
         }
@@ -249,10 +249,10 @@ static void malformed_packets_and_mode_transitions_keep_a_32k_arena_bounded(void
                     OpusDecodeResult result =
                         decode(packet, lengths[size], fec ? rates[rate] / 50 : 0, fec, &pcm);
                     CHECK(result == OPUS_DECODE_OK || result == OPUS_DECODE_INVALID);
-                    CHECK(decoder.scratch_peak <= 32768);
-                    CHECK_EQUAL(0, decoder.scratch_used);
-                    if (decoder.scratch_peak > peak) {
-                        peak = decoder.scratch_peak;
+                    CHECK(decoder.scratch.peak <= 32768);
+                    CHECK_EQUAL(decoder.scratch.capacity, decoder.scratch.high);
+                    if (decoder.scratch.peak > peak) {
+                        peak = decoder.scratch.peak;
                     }
                     if (result == OPUS_DECODE_OK) {
                         CHECK(pcm.frames > 0 && pcm.frames <= rates[rate] * 3 / 25);

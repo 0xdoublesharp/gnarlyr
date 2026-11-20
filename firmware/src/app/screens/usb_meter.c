@@ -1,5 +1,7 @@
 #include "usb_meter.h"
 
+#include "core/deadline.h"
+
 void usb_meter_start(UsbMeter *meter, uint32_t now_ms)
 {
     *meter = (UsbMeter){.sampled_ms = now_ms};
@@ -7,7 +9,7 @@ void usb_meter_start(UsbMeter *meter, uint32_t now_ms)
 
 bool usb_meter_due(const UsbMeter *meter, uint32_t now_ms)
 {
-    return now_ms - meter->sampled_ms >= USB_METER_PERIOD_MS;
+    return deadline_elapsed(now_ms, meter->sampled_ms, USB_METER_PERIOD_MS);
 }
 
 static uint32_t rate_of(uint32_t sectors, uint32_t elapsed_ms)
@@ -100,7 +102,7 @@ void usb_steady_start(UsbSteady *steady, uint8_t shown, uint32_t now_ms)
 
 bool usb_steady_follow(UsbSteady *steady, uint8_t wanted, uint32_t now_ms)
 {
-    if (wanted == steady->shown || now_ms - steady->since_ms < USB_METER_HOLD_MS) {
+    if (wanted == steady->shown || !deadline_elapsed(now_ms, steady->since_ms, USB_METER_HOLD_MS)) {
         return false;
     }
     steady->shown = wanted;

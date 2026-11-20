@@ -1,4 +1,5 @@
 #include "ui/wire_motion.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 
 enum {
@@ -37,10 +38,10 @@ bool wire_motion_shown(const WireMotion *motion, const void *owner)
 
 CORE_SEAM bool wire_motion_due(const WireMotion *motion, uint32_t now_ms)
 {
-    if (!motion->running || now_ms - motion->started_ms < WIRE_MOTION_DELAY_MS) {
+    if (!motion->running || !deadline_elapsed(now_ms, motion->started_ms, WIRE_MOTION_DELAY_MS)) {
         return false;
     }
-    return !motion->ticked || now_ms - motion->ticked_ms >= WIRE_MOTION_FRAME_MS;
+    return !motion->ticked || deadline_elapsed(now_ms, motion->ticked_ms, WIRE_MOTION_FRAME_MS);
 }
 
 void wire_motion_tick(WireMotion *motion, uint32_t now_ms)

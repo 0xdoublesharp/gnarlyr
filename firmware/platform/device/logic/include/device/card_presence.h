@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/deadline.h"
+
 enum {
     CARD_PRESENCE_STEADY_MS = 30,
     CARD_START_RETRY_MS = 1000,
@@ -44,7 +46,7 @@ static inline bool card_presence_update(CardPresence *state, bool raw, uint32_t 
         state->candidate = raw;
         state->since_ms = now;
     }
-    if (now - state->since_ms >= CARD_PRESENCE_STEADY_MS) {
+    if (deadline_elapsed(now, state->since_ms, CARD_PRESENCE_STEADY_MS)) {
         state->present = state->candidate;
         if (!state->present) {
             state->ejected = false;
@@ -55,8 +57,8 @@ static inline bool card_presence_update(CardPresence *state, bool raw, uint32_t 
 
 static inline bool card_start_due(CardStart *start, uint32_t now)
 {
-    bool due = start->tries == 0 ||
-               (start->tries < CARD_START_TRIES && now - start->tried_ms >= CARD_START_RETRY_MS);
+    bool due = start->tries == 0 || (start->tries < CARD_START_TRIES &&
+                                     deadline_elapsed(now, start->tried_ms, CARD_START_RETRY_MS));
     if (due) {
         start->tries++;
         start->tried_ms = now;

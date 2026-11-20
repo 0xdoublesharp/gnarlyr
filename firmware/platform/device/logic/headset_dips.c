@@ -1,8 +1,11 @@
 #include "device/headset_dips.h"
 
+#include "core/deadline.h"
+
 static void start_dip(HeadsetDips *dips, uint16_t level, uint32_t time_ms)
 {
-    bool fresh = dips->count == 0 || time_ms - dips->last_dip_ms >= HEADSET_DIPS_HOLD_MS;
+    bool fresh =
+        dips->count == 0 || deadline_elapsed(time_ms, dips->last_dip_ms, HEADSET_DIPS_HOLD_MS);
     if (fresh) {
         dips->count = 0;
         dips->lowest = level;
@@ -26,7 +29,7 @@ static void end_dip(HeadsetDips *dips, uint32_t time_ms)
 
 static bool rebaselined(HeadsetDips *dips, uint16_t level, uint32_t time_ms)
 {
-    if (!dips->dipping || time_ms - dips->dip_start_ms < HEADSET_DIPS_LONGEST_MS) {
+    if (!dips->dipping || !deadline_elapsed(time_ms, dips->dip_start_ms, HEADSET_DIPS_LONGEST_MS)) {
         return false;
     }
     end_dip(dips, time_ms);

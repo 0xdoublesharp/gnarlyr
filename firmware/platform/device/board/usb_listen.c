@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "debug_probe.h"
 #include "emmc.h"
@@ -128,7 +129,7 @@ bool usb_session_take_reconnect(void)
     UsbReconnect *connect = &shared.reconnect;
     uint32_t now_ms = hal_clock_milliseconds();
     if (!connect->requested || connect->in_session ||
-        now_ms - connect->ended_ms < RECONNECT_OFF_MS) {
+        !deadline_elapsed(now_ms, connect->ended_ms, RECONNECT_OFF_MS)) {
         return false;
     }
     connect->requested = false;
@@ -146,7 +147,8 @@ bool usb_session_forced(void)
 {
     const UsbReconnect *connect = &shared.reconnect;
     return connect->forced &&
-           (connect->manual || hal_clock_milliseconds() - connect->forced_ms < RECONNECT_WAIT_MS);
+           (connect->manual ||
+            !deadline_elapsed(hal_clock_milliseconds(), connect->forced_ms, RECONNECT_WAIT_MS));
 }
 
 bool usb_session_reconnect_stopped(void)

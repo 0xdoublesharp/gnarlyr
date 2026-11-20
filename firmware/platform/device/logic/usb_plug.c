@@ -1,5 +1,7 @@
 #include "device/usb_plug.h"
 
+#include "core/deadline.h"
+
 static UsbPlugAction leave(UsbPlug *plug)
 {
     UsbPlugAction action = plug->state == USB_PLUG_LISTENING ? USB_PLUG_STOP : USB_PLUG_NOTHING;
@@ -16,7 +18,8 @@ UsbPlugAction usb_plug_update(UsbPlug *plug, bool cable, uint32_t now_ms)
         plug->state = USB_PLUG_SETTLING;
         plug->since_ms = now_ms;
     }
-    if (plug->state == USB_PLUG_SETTLING && now_ms - plug->since_ms >= USB_PLUG_STEADY_MS) {
+    if (plug->state == USB_PLUG_SETTLING &&
+        deadline_elapsed(now_ms, plug->since_ms, USB_PLUG_STEADY_MS)) {
         return USB_PLUG_START;
     }
     return USB_PLUG_NOTHING;

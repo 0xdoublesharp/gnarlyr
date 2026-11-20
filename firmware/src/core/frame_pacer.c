@@ -22,7 +22,7 @@ static void note_quiet(FramePacer *pacer, uint32_t now_ms, bool changed)
     if (changed) {
         pacer->quiet_frames = 0;
         pacer->changed_ms = now_ms;
-    } else if (now_ms - pacer->changed_ms >= FRAME_PACER_IDLE_MS &&
+    } else if (deadline_elapsed(now_ms, pacer->changed_ms, FRAME_PACER_IDLE_MS) &&
                pacer->quiet_frames < UINT32_MAX) {
         pacer->quiet_frames++;
     }

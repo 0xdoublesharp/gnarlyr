@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
+
 enum {
     FULL_SCALE_MILLIVOLTS = 5000,
     ADC_STEPS = 1024,
@@ -157,7 +159,7 @@ ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading)
     if (tracker->full) {
         return CHARGE_FULL;
     }
-    bool settled = reading.now_ms - tracker->usb_since_ms >= CHARGE_SETTLE_MS;
+    bool settled = deadline_elapsed(reading.now_ms, tracker->usb_since_ms, CHARGE_SETTLE_MS);
     bool looks_full =
         settled && reading.status_high && reading.millivolts >= CHARGE_FULL_MIN_MILLIVOLTS;
     if (!looks_full) {
@@ -168,7 +170,7 @@ ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading)
         tracker->high_seen = true;
         tracker->high_since_ms = reading.now_ms;
     }
-    if (reading.now_ms - tracker->high_since_ms < CHARGE_FULL_HOLD_MS) {
+    if (!deadline_elapsed(reading.now_ms, tracker->high_since_ms, CHARGE_FULL_HOLD_MS)) {
         return CHARGE_CHARGING;
     }
     tracker->full = true;

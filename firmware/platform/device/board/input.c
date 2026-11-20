@@ -1,5 +1,6 @@
 #include "hal/input.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "debug_probe.h"
 #include "device/battery_gauge.h"
@@ -197,7 +198,7 @@ CORE_SEAM CORE_COLD void board_wait_for_power_hold(uint32_t hold_ms)
             pressed_at_ms = now_ms;
         }
         held = down;
-        if (held && now_ms - pressed_at_ms >= hold_ms) {
+        if (held && deadline_elapsed(now_ms, pressed_at_ms, hold_ms)) {
             return;
         }
     }

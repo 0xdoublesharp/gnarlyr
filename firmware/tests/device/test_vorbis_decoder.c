@@ -134,8 +134,8 @@ static void compare_reference(const char *name, uint32_t rate, uint32_t channels
     CHECK_EQUAL(count, frames);
     CHECK(decoder.ended);
     CHECK(fractional);
-    CHECK(decoder.memory.peak <= VORBIS_WORKSPACE_BYTES);
-    CHECK_EQUAL(decoder.memory.capacity, decoder.memory.temporary);
+    CHECK(decoder.memory.arena.peak <= VORBIS_WORKSPACE_BYTES);
+    CHECK_EQUAL(decoder.memory.arena.capacity, decoder.memory.arena.high);
     check_canaries();
 }
 

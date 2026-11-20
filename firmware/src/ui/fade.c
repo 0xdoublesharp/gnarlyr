@@ -1,5 +1,7 @@
 #include "ui/fade.h"
 
+#include "core/deadline.h"
+
 void fade_start(Fade *fade, uint32_t now_ms, FadeTiming timing)
 {
     *fade = (Fade){.active = true, .start_ms = now_ms, .timing = timing};
@@ -28,5 +30,5 @@ uint8_t fade_alpha(const Fade *fade, uint32_t now_ms)
 bool fade_finished(const Fade *fade, uint32_t now_ms)
 {
     uint32_t total = (uint32_t)fade->timing.fade_ms + fade->timing.hold_ms;
-    return !fade->active || now_ms - fade->start_ms >= total;
+    return !fade->active || deadline_elapsed(now_ms, fade->start_ms, total);
 }

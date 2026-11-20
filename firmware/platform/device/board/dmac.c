@@ -1,4 +1,5 @@
 #include "dmac.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 
 #include "hal/clock.h"
@@ -115,7 +116,7 @@ CORE_SEAM void dmac_stop(void)
         register_write(DMAC_CHANNEL_ENABLE, CHANNEL_WRITE_ENABLE);
         uint32_t start = hal_clock_milliseconds();
         while ((register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0 &&
-               hal_clock_milliseconds() - start < STOP_TIMEOUT_MS) {
+               !deadline_elapsed(hal_clock_milliseconds(), start, STOP_TIMEOUT_MS)) {
         }
     }
     register_write(CHANNEL_CFG_LOW, register_read(CHANNEL_CFG_LOW) & ~CFG_SUSPEND);

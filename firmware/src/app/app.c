@@ -321,8 +321,9 @@ static void follow_scrub(uint32_t now_ms)
     if (scrub->active && scrub->releasing && shown && !cancelling) {
         now_playing_scrub_commit(now_playing);
     }
-    bool waiting = scrub->releasing ? now_ms - scrub->release_ms < NOW_PLAYING_SCRUB_CANCEL_MS
-                                    : app.keys.states[scrub_key(scrub)].held;
+    bool waiting = scrub->releasing
+                       ? !deadline_elapsed(now_ms, scrub->release_ms, NOW_PLAYING_SCRUB_CANCEL_MS)
+                       : app.keys.states[scrub_key(scrub)].held;
     scrub->active = scrub->active && shown && waiting;
     app.scrub_swallow = app.scrub_swallow && (app.raw_held & ~(1u << KEY_POWER)) != 0;
 }
@@ -1528,9 +1529,9 @@ static void send_motion(void *context, Rect area, const Color *pixels)
     hal_display_write(area.x, area.y, area.width, area.height, pixels);
 }
 
-static void render_motion(FrameDrawer drawer)
+static void render_area(Rect area, FrameDrawer drawer)
 {
-    StripRenderer renderer = frame_renderer(app.motion.area, false);
+    StripRenderer renderer = frame_renderer(area, false);
     strip_renderer_render(&renderer, drawer, (FrameSink){.write = send_motion, .context = NULL});
     hal_display_present();
 }
@@ -1579,7 +1580,7 @@ static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_
     if (rect_is_empty(app.motion.area)) {
         app.render_wanted = true;
     } else {
-        render_motion(drawer);
+        render_area(app.motion.area, drawer);
     }
 }
 
@@ -1871,7 +1872,7 @@ static void show_rescan_count(bool first, StringId pattern, uint32_t count)
     static uint32_t shown_ms;
     uint32_t now_ms = hal_clock_milliseconds();
     hal_bluetooth_service();
-    if (!first && now_ms - shown_ms < RESCAN_PROGRESS_MS) {
+    if (!first && !deadline_elapsed(now_ms, shown_ms, RESCAN_PROGRESS_MS)) {
         animate_notice();
         return;
     }
@@ -1920,9 +1921,10 @@ static uint32_t scan_event(DebugScanPhase phase, uint32_t number)
 
 static void continue_covers(uint32_t now_ms)
 {
-    bool idle = now_ms - app.power.last_activity_ms >= COVERS_IDLE_MS;
-    bool rested = !app.player.loaded || (app.player.state == PLAYER_PAUSED &&
-                                         now_ms - app.player.paused_since_ms >= COVERS_PAUSED_MS);
+    bool idle = deadline_elapsed(now_ms, app.power.last_activity_ms, COVERS_IDLE_MS);
+    bool rested = !app.player.loaded ||
+                  (app.player.state == PLAYER_PAUSED &&
+                   deadline_elapsed(now_ms, app.player.paused_since_ms, COVERS_PAUSED_MS));
     if (!app.covers_pending || !idle || !rested || debug_runner_active() || hal_input_waiting() ||
         hal_system_usb_connect_pending()) {
         return;
@@ -2387,18 +2389,19 @@ static uint32_t view_stamp(uint32_t *rest)
     stamp = stamp_add(stamp, app.themes.active);
     const NowPlayingScreen *now_playing = &app.screens.now_playing;
     uint32_t since = app.now_ms - now_playing->feedback_started_ms;
-    stamp =
-        stamp_add(stamp, (uint32_t)now_playing->feedback << 3 |
-                             (uint32_t)(since < NOW_PLAYING_BADGE_MS) << 2 |
-                             (uint32_t)(since < NOW_PLAYING_VOLUME_FEEDBACK_MS) << 1 |
-                             (app.now_ms - now_playing->repeat_feedback_ms < NOW_PLAYING_BADGE_MS));
+    stamp = stamp_add(
+        stamp,
+        (uint32_t)now_playing->feedback << 3 | (uint32_t)(since < NOW_PLAYING_BADGE_MS) << 2 |
+            (uint32_t)(since < NOW_PLAYING_VOLUME_FEEDBACK_MS) << 1 |
+            (!deadline_elapsed(app.now_ms, now_playing->repeat_feedback_ms, NOW_PLAYING_BADGE_MS)));
     *rest = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
     return stamp_add(*rest, status.position_ms / VIEW_STAMP_POSITION_MS);
 }
 
 static bool view_changed(uint32_t now_ms)
 {
-    if (app.view_stamp_known && now_ms - app.view_checked_ms < VIEW_STAMP_CHECK_MS) {
+    if (app.view_stamp_known &&
+        !deadline_elapsed(now_ms, app.view_checked_ms, VIEW_STAMP_CHECK_MS)) {
         return false;
     }
     uint32_t rest;
@@ -2699,10 +2702,7 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
 CORE_SEAM void app_show_usb_area(AppUsbStatus status, Rect area)
 {
     UsbStatusFrame frame = {.status = status, .battery = hal_power_battery()};
-    StripRenderer renderer = frame_renderer(area, false);
-    strip_renderer_render(&renderer, (FrameDrawer){.draw = draw_usb_status, .context = &frame},
-                          (FrameSink){.write = send_motion, .context = NULL});
-    hal_display_present();
+    render_area(area, (FrameDrawer){.draw = draw_usb_status, .context = &frame});
     frame_diff_mask(&app.frame_diff, area);
     frame_diff_mask(&app.frame_diff, (Rect){0, 0, 0, 0});
 }

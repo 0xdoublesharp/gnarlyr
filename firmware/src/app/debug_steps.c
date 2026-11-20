@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/key_script.h"
 #include "debug_runner_state.h"
 #include "hal/audio.h"
@@ -80,9 +81,9 @@ static void continue_soak(uint32_t now_ms)
 {
     if (debug_runner.key_pressed) {
         end_soak(now_ms, DEBUG_SOAK_KEY);
-    } else if ((int32_t)(now_ms - debug_runner.until_ms) >= 0) {
+    } else if (deadline_reached(now_ms, debug_runner.until_ms)) {
         end_soak(now_ms, DEBUG_SOAK_DONE);
-    } else if (now_ms - debug_runner.checked_ms >= SOAK_CHECK_MS) {
+    } else if (deadline_elapsed(now_ms, debug_runner.checked_ms, SOAK_CHECK_MS)) {
         debug_runner.checked_ms = now_ms;
         measure_soak(&debug_runner.run.soaks[debug_runner.run.soak_count]);
         if (battery_low_for_a_minute()) {
@@ -356,7 +357,7 @@ static DebugRequest next_op(uint32_t now_ms)
 
 static bool reached(uint32_t now_ms)
 {
-    return (int32_t)(now_ms - debug_runner.until_ms) >= 0;
+    return deadline_reached(now_ms, debug_runner.until_ms);
 }
 
 static DebugRequest advance(uint32_t now_ms)
@@ -398,7 +399,8 @@ DebugRequest debug_steps_step(uint32_t now_ms, DebugRunnerView view)
     if (debug_runner.run.state == DEBUG_SCRIPT_PENDING) {
         return held ? none : start(now_ms);
     }
-    if (now_ms - debug_runner.run.started_ms >= DEBUG_SCRIPT_LIMIT_MS + debug_runner.run.soak_ms) {
+    if (deadline_elapsed(now_ms, debug_runner.run.started_ms,
+                         DEBUG_SCRIPT_LIMIT_MS + debug_runner.run.soak_ms)) {
         debug_steps_stop(now_ms, DEBUG_SCRIPT_TIMED_OUT);
         hal_system_usb_reconnect();
         return none;

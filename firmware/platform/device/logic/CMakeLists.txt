@@ -111,6 +111,7 @@ add_library(echo_device_logic STATIC
     clock_governor.c
     core1_pace.c
     core1_control.c
+    core1_arena.c
     core1_heap.c
     core1_m4a.c
     core1_m4a_source.c

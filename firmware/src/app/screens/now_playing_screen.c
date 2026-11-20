@@ -5,6 +5,7 @@
 #include "app/debug_loop.h"
 #include "board_layout.h"
 #include "cassette_art.h"
+#include "core/deadline.h"
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
@@ -144,7 +145,7 @@ bool now_playing_feedback_visible(NowPlayingFeedback feedback, uint32_t started_
     }
     uint32_t duration = feedback == NOW_PLAYING_FEEDBACK_VOLUME ? NOW_PLAYING_VOLUME_FEEDBACK_MS
                                                                 : NOW_PLAYING_BADGE_MS;
-    return now_ms - started_ms < duration;
+    return !deadline_elapsed(now_ms, started_ms, duration);
 }
 
 int now_playing_volume_width(uint8_t volume, int width)
@@ -664,7 +665,8 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
     }
     if (now_playing->status.ab_repeat != 0 ||
         (now_playing->repeat_feedback_ms != 0 &&
-         now_playing->now_ms - now_playing->repeat_feedback_ms < NOW_PLAYING_BADGE_MS)) {
+         !deadline_elapsed(now_playing->now_ms, now_playing->repeat_feedback_ms,
+                           NOW_PLAYING_BADGE_MS))) {
         static const StringId states[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP};
         StringBuilder repeat = string_builder_make(modes, sizeof modes);
         string_builder_append(&repeat, i18n_text(states[now_playing->status.ab_repeat]));

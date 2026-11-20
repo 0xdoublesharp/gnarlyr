@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "gfx/text.h"
 #include "ui/label.h"
@@ -403,7 +404,7 @@ static void draw_section(const ListView *view, Canvas *canvas, Rect area, uint32
 {
     if (view->model->section == NULL || item_count(view) <= view->visible_rows ||
         view->section_shown_until_ms == 0 ||
-        (int32_t)(now_ms - view->section_shown_until_ms) >= 0) {
+        deadline_reached(now_ms, view->section_shown_until_ms)) {
         return;
     }
     const Theme *theme = view->theme;

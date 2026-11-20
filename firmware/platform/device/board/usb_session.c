@@ -1,4 +1,5 @@
 #include "usb_session.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 
 #include <stddef.h>
@@ -167,7 +168,8 @@ static void serve_while_drawing(void)
 static void finish_last_reply(void)
 {
     uint32_t start = hal_clock_milliseconds();
-    while (usb_reply_pending(port) && hal_clock_milliseconds() - start < LAST_REPLY_TIMEOUT_MS) {
+    while (usb_reply_pending(port) &&
+           !deadline_elapsed(hal_clock_milliseconds(), start, LAST_REPLY_TIMEOUT_MS)) {
         usb_poll(port);
     }
 }
@@ -345,7 +347,7 @@ static bool moving(void)
 
 static void step_motion(uint32_t now_ms)
 {
-    if (!moving() || now_ms - motion_ms < MOTION_FRAME_MS) {
+    if (!moving() || !deadline_elapsed(now_ms, motion_ms, MOTION_FRAME_MS)) {
         return;
     }
     motion_ms = now_ms;
@@ -386,7 +388,7 @@ static void back_tapped(uint32_t now_ms)
 static void follow_back(HalKeyTransition key)
 {
     bool tapped = !key.pressed && leave.state == USB_LEAVE_SERVING &&
-                  key.time_ms - session_clock.back_pressed_ms < USB_LEAVE_HOLD_MS;
+                  !deadline_elapsed(key.time_ms, session_clock.back_pressed_ms, USB_LEAVE_HOLD_MS);
     usb_leave_key(&leave, key.pressed, key.time_ms);
     if (key.pressed) {
         session_clock.back_pressed_ms = key.time_ms;
@@ -397,7 +399,7 @@ static void follow_back(HalKeyTransition key)
 
 static void follow_nudge(uint32_t now_ms)
 {
-    if (scene->nudge && now_ms - session_clock.nudged_ms >= NUDGE_MS) {
+    if (scene->nudge && deadline_elapsed(now_ms, session_clock.nudged_ms, NUDGE_MS)) {
         scene->nudge = false;
         show_hint();
     }
@@ -568,7 +570,7 @@ static void show_lit(Rect area, uint32_t now_ms)
 
 static void follow_lights(uint32_t now_ms)
 {
-    if (!traffic(scene->state) || now_ms - session_clock.lit_ms < LIGHT_FRAME_MS) {
+    if (!traffic(scene->state) || !deadline_elapsed(now_ms, session_clock.lit_ms, LIGHT_FRAME_MS)) {
         return;
     }
     bool overview = scene->page == USB_SCENE_OVERVIEW;
@@ -585,8 +587,8 @@ static void follow_lights(uint32_t now_ms)
 
 static bool follow_steady(uint32_t now_ms)
 {
-    bool recent =
-        session_clock.traffic_seen && now_ms - session_clock.traffic_ms < USB_METER_QUIET_MS;
+    bool recent = session_clock.traffic_seen &&
+                  !deadline_elapsed(now_ms, session_clock.traffic_ms, USB_METER_QUIET_MS);
     bool lit = scene->lit[USB_METER_READ] || scene->lit[USB_METER_WRITE];
     bool moved = usb_meter_total(&scene->meter, 0) != 0;
     scene->rate =
@@ -667,7 +669,7 @@ static void watch_session(SessionWatch *watch, uint32_t now)
     if (scene_follow(watch->state, now) || card) {
         show_storage_state();
     }
-    if (now - watch->refreshed >= COUNTER_REFRESH_MS) {
+    if (deadline_elapsed(now, watch->refreshed, COUNTER_REFRESH_MS)) {
         refresh(&watch->shown, &watch->battery);
         watch->refreshed = hal_clock_milliseconds();
     }

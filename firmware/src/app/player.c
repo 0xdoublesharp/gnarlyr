@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/seam.h"
@@ -772,7 +773,7 @@ void player_release_output(Player *player)
 static void save_periodically(Player *player, uint32_t now_ms)
 {
     if (player->state == PLAYER_PLAYING &&
-        now_ms - player->last_save_ms >= PLAYER_SAVE_INTERVAL_MS) {
+        deadline_elapsed(now_ms, player->last_save_ms, PLAYER_SAVE_INTERVAL_MS)) {
         player_save(player);
         player->last_save_ms = now_ms;
     }
@@ -805,7 +806,7 @@ static void release_long_pause(Player *player, uint32_t now_ms)
     } else if (!player->pause_timing) {
         player->pause_timing = true;
         player->paused_since_ms = now_ms;
-    } else if (now_ms - player->paused_since_ms >= PLAYER_PAUSE_RELEASE_MS) {
+    } else if (deadline_elapsed(now_ms, player->paused_since_ms, PLAYER_PAUSE_RELEASE_MS)) {
         player_release_output(player);
         hal_audio_release();
         player->pause_timing = false;

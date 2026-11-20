@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "device/block_device.h"
 #include "device/card_write.h"
 #include "device/emmc_layout.h"
@@ -208,7 +209,7 @@ static uint32_t ready_status(const UsbCard *card)
     uint32_t response[4] = {0, 0, 0, 0};
     SdCommand status = {CMD_SEND_STATUS, card->rca, SD_RESPONSE_SHORT, false};
     uint32_t start = hal_clock_milliseconds();
-    while (hal_clock_milliseconds() - start < READY_TIMEOUT_MS) {
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, READY_TIMEOUT_MS)) {
         if (mmc_command(card->host, status, response) &&
             (response[0] & STATUS_READY_FOR_DATA) != 0 &&
             ((response[0] >> STATUS_STATE_SHIFT) & STATUS_STATE_MASK) == STATE_TRANSFER) {

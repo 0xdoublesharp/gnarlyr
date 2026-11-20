@@ -1,5 +1,6 @@
 #include "hal/clock.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "debug_probe.h"
 #include "device/stall_watch.h"
@@ -156,13 +157,13 @@ uint32_t loop_bench_since(uint32_t start)
 void board_delay_ms(uint32_t milliseconds)
 {
     uint32_t start = hal_clock_milliseconds();
-    while (hal_clock_milliseconds() - start < milliseconds) {
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, milliseconds)) {
     }
 }
 
 void board_delay_us(uint32_t microseconds)
 {
     uint32_t start = hal_clock_microseconds();
-    while (hal_clock_microseconds() - start < microseconds) {
+    while (!deadline_elapsed(hal_clock_microseconds(), start, microseconds)) {
     }
 }

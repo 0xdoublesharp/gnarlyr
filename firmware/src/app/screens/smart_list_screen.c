@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/audio.h"
@@ -251,7 +252,7 @@ static void run(SmartListScreen *screen)
 {
     uint32_t started_ms = hal_clock_milliseconds();
     for (int step = 0; step < STEPS_PER_UPDATE && work->stage != STAGE_NONE &&
-                       hal_clock_milliseconds() - started_ms < STEP_BUDGET_MS;
+                       !deadline_elapsed(hal_clock_milliseconds(), started_ms, STEP_BUDGET_MS);
          step++) {
         if (work->stage == STAGE_UPDATE) {
             step_update(screen);

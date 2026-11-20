@@ -1,5 +1,7 @@
 #include "core/low_battery.h"
 
+#include "core/deadline.h"
+
 void low_battery_init(LowBattery *low)
 {
     *low = (LowBattery){.below = false};
@@ -20,5 +22,5 @@ bool low_battery_update(LowBattery *low, LowBatteryReading reading, uint32_t now
         low->below = true;
         low->below_since_ms = now_ms;
     }
-    return now_ms - low->below_since_ms >= LOW_BATTERY_HOLD_MS;
+    return deadline_elapsed(now_ms, low->below_since_ms, LOW_BATTERY_HOLD_MS);
 }

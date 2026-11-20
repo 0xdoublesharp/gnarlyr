@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "core/string_builder.h"
 #include "device/panic_text.h"
@@ -139,7 +140,7 @@ void board_panic_poll_power(uint32_t now_ms)
         power_down = true;
         power_down_since_ms = now_ms;
     }
-    if (now_ms - power_down_since_ms >= POWER_HOLD_MS) {
+    if (deadline_elapsed(now_ms, power_down_since_ms, POWER_HOLD_MS)) {
         board_power_cut();
     }
 }

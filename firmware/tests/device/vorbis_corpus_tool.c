@@ -49,7 +49,7 @@ static bool normalize(FlacInput input, OggTrack *track)
                                .granule = info.granule,
                                .first = info.first};
         bool accepted = vorbis_decoder_header(&decoder, header);
-        peak = decoder.memory.peak;
+        peak = decoder.memory.arena.peak;
         if (!accepted) {
             return false;
         }
@@ -105,7 +105,7 @@ static bool compare(FlacInput input, const OggTrack *track, FILE *reference, uin
     for (uint32_t count = 0; count < 100000; count++) {
         Core1Block block = {.out = {samples[0][0], samples[0][1]}, .room = FLAC_MAX_BLOCK};
         Core1DecodeResult result = decoder.decode(decoder.context, &block);
-        peak = vorbis.decoder.memory.peak > peak ? vorbis.decoder.memory.peak : peak;
+        peak = vorbis.decoder.memory.arena.peak > peak ? vorbis.decoder.memory.arena.peak : peak;
         if (result != CORE1_DECODED) {
             return result == CORE1_FINISHED && next == track->samples && fgetc(reference) == EOF;
         }

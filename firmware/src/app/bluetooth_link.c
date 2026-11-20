@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/audio.h"
@@ -185,7 +186,7 @@ static void start_scan(BluetoothLink *link, uint32_t now_ms)
 
 static void finish_restart(BluetoothLink *link, uint32_t now_ms)
 {
-    if (now_ms - link->restart_ms >= BLUETOOTH_LINK_RESTART_MS) {
+    if (deadline_elapsed(now_ms, link->restart_ms, BLUETOOTH_LINK_RESTART_MS)) {
         link->restarting = false;
         link->fresh = true;
         hal_bluetooth_set_power(true);
@@ -226,7 +227,7 @@ static bool wait_for_link(BluetoothLink *link, const HalBluetoothStatus *status,
     if (!link->paired_seen) {
         link->paired_seen = true;
         link->paired_ms = now_ms;
-    } else if (now_ms - link->paired_ms >= BLUETOOTH_LINK_CONFIRM_MS) {
+    } else if (deadline_elapsed(now_ms, link->paired_ms, BLUETOOTH_LINK_CONFIRM_MS)) {
         hal_bluetooth_disconnect();
         link->paired_seen = false;
         link->has_target = true;
@@ -260,7 +261,7 @@ static void find_device(BluetoothLink *link, const HalBluetoothStatus *status, u
         return;
     }
     const HalBluetoothDevice *device = next_target(link);
-    bool due = now_ms - link->retried_ms >= BLUETOOTH_LINK_RETRY_MS;
+    bool due = deadline_elapsed(now_ms, link->retried_ms, BLUETOOTH_LINK_RETRY_MS);
     if (device != NULL && due && (link->has_target || !link->browsing || link->searched)) {
         attempt(link, device, now_ms);
     } else if (link->browsing && (!link->searched || device == NULL)) {
@@ -285,7 +286,7 @@ static void follow_remote(BluetoothLink *link, const HalBluetoothStatus *status,
     if (!link->connected) {
         return;
     }
-    bool settled = now_ms - link->changed_ms >= BLUETOOTH_LINK_ECHO_MS;
+    bool settled = deadline_elapsed(now_ms, link->changed_ms, BLUETOOTH_LINK_ECHO_MS);
     if (settled && pressed(remote.pauses, seen.pauses) > 0 && link->streamed &&
         player->state == PLAYER_PLAYING) {
         toggle(link, player);
@@ -324,7 +325,7 @@ static void doze(BluetoothLink *link, uint32_t now_ms)
     if (link->connected || link->browsing || link->dozing || link->awaiting) {
         return;
     }
-    if (now_ms - link->unlinked_ms >= BLUETOOTH_LINK_IDLE_OFF_MS) {
+    if (deadline_elapsed(now_ms, link->unlinked_ms, BLUETOOTH_LINK_IDLE_OFF_MS)) {
         hal_bluetooth_set_power(false);
         link->dozing = true;
         link->attempting = false;
@@ -356,7 +357,7 @@ static void follow_wait(BluetoothLink *link, Player *player, uint32_t now_ms)
         return;
     }
     bool wired = hal_audio_jack() != HAL_AUDIO_JACK_NONE;
-    bool late = now_ms - link->await_ms >= BLUETOOTH_LINK_AWAIT_MS;
+    bool late = deadline_elapsed(now_ms, link->await_ms, BLUETOOTH_LINK_AWAIT_MS);
     if (link->connected || wired) {
         link->awaiting = false;
         if (player->state == PLAYER_PAUSED) {

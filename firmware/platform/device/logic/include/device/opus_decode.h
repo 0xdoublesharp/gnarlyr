@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "device/core1_arena.h"
+
 #if defined(__arm__) && defined(__GNUC__)
 typedef intptr_t OpusDecodeCheckpoint[5];
 #else
@@ -35,11 +37,8 @@ typedef enum OpusDecodeMode {
 
 typedef struct OpusDecode {
     void *state;
-    uint8_t *scratch;
+    Core1Arena scratch;
     uint32_t state_bytes;
-    uint32_t scratch_bytes;
-    uint32_t scratch_used;
-    uint32_t scratch_peak;
     uint32_t rate;
     uint32_t channels;
     OpusDecodeMode mode;
