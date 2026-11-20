@@ -665,6 +665,37 @@ static int first_written_row_after(uint32_t duration_ms)
     return writes.count > 0 ? writes.first.y : -1;
 }
 
+static void a_screen_the_gate_leaves_is_replaced_by_a_whole_frame(void)
+{
+    start_app_with_library();
+    SettingsStore store;
+    settings_store_load(&store);
+    store.settings.orientation = ORIENTATION_PORTRAIT;
+    store.settings.text_size = TEXT_SIZE_LARGE;
+    CHECK(settings_store_save(&store));
+    restart_app();
+    play_first_album_track();
+    hold_back();
+    tap(KEY_PLAY);
+    tap(KEY_MENU);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(title_is("Up Next"));
+    for (int count = 0; count < 30; count++) {
+        wait_ms(100);
+    }
+    int header = expected_theme()->metrics.header_height;
+    fake_hal_evict_module();
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    int first = first_written_row_after(100);
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
+    fake_hal_break_module(SCREEN_MODULE_STAGE, false);
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(first >= 0);
+    CHECK(first < header);
+}
+
 static void a_battery_change_on_a_marquee_step_redraws_the_whole_screen(void)
 {
     start_app_with_library();
@@ -8867,6 +8898,7 @@ int main(void)
         TEST_CASE(album_rows_show_a_chevron_and_track_rows_do_not),
         TEST_CASE(an_artist_leads_to_their_albums),
         TEST_CASE(a_battery_change_on_a_marquee_step_redraws_the_whole_screen),
+        TEST_CASE(a_screen_the_gate_leaves_is_replaced_by_a_whole_frame),
         TEST_CASE(a_feedback_badge_that_ends_during_marquee_steps_is_cleared),
         TEST_CASE(an_artist_strip_opens_their_album_with_only_their_songs),
         TEST_CASE(an_artist_with_one_album_opens_that_album),

@@ -570,6 +570,7 @@ static void a_band_frame_leaves_exactly_the_pixels_of_a_full_frame(void)
                     start_passive_view();
                     default_theme_set_text_size(&playback_theme, (TextSize)size);
                     default_theme_set_orientation(&playback_theme, (Orientation)orientation);
+                    theme_drop_title_row(&playback_theme);
                     playback_view.has_text = true;
                     strcpy(playback_view.title,
                            "A title far too long for any line of this screen at any text size");
