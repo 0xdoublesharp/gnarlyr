@@ -710,17 +710,7 @@ Three things go unnoticed:
 - a stale pointer that happens to land on a function entry of the new module;
 - reads inside the new module's memory. `test_37_eviction` holds a planted-call canary, the Hold Menu reproducer and a stress scenario. The stress scenario makes seeded random key taps, holds, chords, waits that end inside slides and toasts, and USB plugs during playback, and prints its seed on failure. The fixed-seed run is in the default suite. Set `ECHO_EVICTION_STRESS_RUNS=N` (and optionally `ECHO_EVICTION_STRESS_SEED`) and run `python3 tools/firmware.py test --regex eviction_stress_with_new_seeds` for the long randomised run.
 
-**Known-issue switches.** A finding that the checks reproduce on `main`, but that belongs to another branch, is held open by a named switch in `tests/support/known_issues.c`, which the scenarios mirror. While a switch is open, the test that hits it tolerates or avoids the hit; it does not mute the detector. `ECHO_KNOWN_ISSUES=<name>[,<name>]` or `all` closes switches and enforces them. Remove a switch with the fix.
-
-A switch that tolerates a trapped call ends the fuzzer's current input there, so nothing runs on memory the player would not have. `known_issue_fuzz_guard` installs that trap for `fuzz_app_lifecycle` and `fuzz_app_navigation`.
-
-| Switch | Effect while open |
-|---|---|
-| `hold-menu-stale-update` | A Hold Menu shortcut loads Settings or Views while the previous module's screen is still on top. `test_app` tolerates the stale call. The fuzzer takes the shortcut only when the slot holds that module or none, and tolerates calls evicted by a shortcut load (the guard names that cause). The emulator stress takes the shortcut only with Settings or no module in the slot, and its reproducer reports instead of failing |
-| `equalizer-state-after-reload` | Custom EQ, Equalizer and Parametric EQ keep pointers into equalizer BSS across a reload. The fuzzer leaves those screens after each step and runs no evicting step while they are on top. This also keeps the saved-slot invariant from seeing an editor that stays open across an eviction |
-| `parametric-bank-after-reload` | Parametric EQ saves the zeroed bank after a reload and erases saved parametric slots. The fuzzer leaves that screen and runs no evicting step while it is on top. `equalizer-state-after-reload` covers the same screen, so close both to see it |
-| `slide-leaving-evicted` | A slide draws a leaving screen whose module was evicted. The fuzzer lets slides finish before evicting steps and tolerates stale calls made while a frame is drawn |
-| `safe-start-labels-after-reload` | Safe start volume draws NULL labels after a reload. The fuzzer leaves that screen and runs no evicting step while it is on top |
+**Fuzzer trap.** `fuzz_app_lifecycle` and `fuzz_app_navigation` install `module_guard_trap_abort`, so a call into evicted module code stops the input with the guard's report even when `ECHO_MODULE_GUARD=report` is set. Every finding the checks reported (eviction findings F1 to F9) is fixed, and no test tolerates or steers around a stale call.
 
 ## Echo image emulator test
 

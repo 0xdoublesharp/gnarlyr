@@ -21,4 +21,5 @@ bool module_guard_evicted(const void *address);
 size_t module_guard_guarded_sets(void);
 void module_guard_set_trap(ModuleGuardTrap trap);
 void module_guard_abort(const char *text);
+void module_guard_trap_abort(const char *report, const void *function);
 const char *module_guard_module_name(uint32_t module);

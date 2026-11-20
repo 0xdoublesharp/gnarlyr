@@ -13,20 +13,12 @@ MIN_SWAPS = 3
 LONG_ACTIONS = 300
 LONG_PRESS_FIELD = "b59"
 SETTINGS = 2
-VIEWS = 1
-MIXTAPES_SHORTCUT = 3
 UP_NEXT_SHORTCUT = 2
 HOLD_MS = 1200
 USB_MS = (1200, 3000)
 WAIT_MS = (40, 1600)
-HOLD_MENU_ISSUE = "hold-menu-stale-update"
 SHORTCUTS = (1, 2, 3, 4, 5)
 TAPS = ("play", "next", "previous", "back", "menu")
-
-
-def known_issue_open(name):
-    closed = os.environ.get("ECHO_KNOWN_ISSUES", "").split(",")
-    return name not in closed and "all" not in closed
 
 
 def stress_runs():
@@ -100,10 +92,6 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual([], watch.faults)
         rig.press("menu", hold=HOLD_MS)
         rig.run_for(600)
-        if known_issue_open(HOLD_MENU_ISSUE):
-            print("known issue %s still reproduces:\n%s" % (HOLD_MENU_ISSUE,
-                                                           "\n".join(watch.faults)))
-            return
         self.assertEqual([], watch.faults, "\n".join(watch.faults))
 
     def stress_action(self, rig, watch, rng):
@@ -112,9 +100,7 @@ class EchoImageTest(EchoImageHarness):
         if choice < 4:
             rig.press(rng.choice(TAPS))
         elif choice == 4:
-            needed = VIEWS if self.shortcut == MIXTAPES_SHORTCUT else SETTINGS
-            if not known_issue_open(HOLD_MENU_ISSUE) or watch.owner in (None, needed):
-                rig.press("menu", hold=HOLD_MS)
+            rig.press("menu", hold=HOLD_MS)
         elif choice == 5:
             rig.press("back", hold=HOLD_MS)
         elif choice == 6:

@@ -673,6 +673,12 @@ void module_guard_abort(const char *text)
     abort();
 }
 
+void module_guard_trap_abort(const char *text, const void *function)
+{
+    (void)function;
+    module_guard_abort(text);
+}
+
 void module_guard_set_trap(ModuleGuardTrap handler)
 {
     trap = handler;

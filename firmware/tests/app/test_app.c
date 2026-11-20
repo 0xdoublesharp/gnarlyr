@@ -29,7 +29,6 @@
 #include "hal/system.h"
 #include "headphone_store.h"
 #include "home_art.h"
-#include "known_issues.h"
 #include "library/cover_build.h"
 #include "library/covers.h"
 #include "library/playlist_reader.h"
@@ -3897,9 +3896,7 @@ static void configured_menu_hold_selects_the_other_destinations(void)
         restart_app();
         wait_ms(SPLASH_MS);
         play_first_album_track();
-        known_issue_tolerate_calls(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE);
         hold(KEY_MENU);
-        known_issue_end();
         CHECK(title_is(titles[index]));
     }
 }

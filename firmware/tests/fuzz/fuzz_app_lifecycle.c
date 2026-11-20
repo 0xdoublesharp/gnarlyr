@@ -1,4 +1,3 @@
-#include <setjmp.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -16,7 +15,6 @@
 #include "hal/audio.h"
 #include "hal/system.h"
 #include "headphone_store.h"
-#include "known_issues.h"
 #include "module_guard.h"
 #include "music_record.h"
 #include "parametric_store.h"
@@ -42,7 +40,6 @@ enum {
     LONG_MS = 1000,
     STEP_MS = 50,
     SETTLE_STEPS = 3,
-    SLIDE_STEPS = 6,
     POWER_ON_MS = 2000,
     HOME_SETTINGS_ROW = 5,
     SETTINGS_ROWS = 48,
@@ -95,7 +92,6 @@ static uint32_t broken_modules;
 static int power_offs;
 static int step_count;
 static uint32_t now_ms;
-static uint8_t shortcut;
 static bool cable;
 static Expected expected;
 
@@ -453,14 +449,6 @@ static void apply_environment(uint8_t value)
     settle(SETTLE_STEPS);
 }
 
-static bool hold_menu_allowed(void)
-{
-    uint32_t loaded = fake_hal_loaded_module();
-    uint32_t needed = shortcut == 3 ? SCREEN_MODULE_VIEWS : SCREEN_MODULE_SETTINGS;
-    return !known_issue_open(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE) || shortcut == 0 || loaded == 0 ||
-           loaded == needed;
-}
-
 static void run_input_op(Op op, uint8_t argument)
 {
     Key key = (Key)(argument % KEY_COUNT);
@@ -470,9 +458,7 @@ static void run_input_op(Op op, uint8_t argument)
         press(key, TAP_MS);
         break;
     case OP_HOLD:
-        if (key != KEY_MENU || hold_menu_allowed()) {
-            press(key, LONG_MS);
-        }
+        press(key, LONG_MS);
         break;
     case OP_CHORD:
         chord((argument & 8u) != 0 ? KEY_MENU : KEY_PLAY,
@@ -480,9 +466,7 @@ static void run_input_op(Op op, uint8_t argument)
               (argument & 2u) != 0 ? LONG_MS : TAP_MS);
         break;
     case OP_HOLD_MENU:
-        if (hold_menu_allowed()) {
-            press(KEY_MENU, LONG_MS);
-        }
+        press(KEY_MENU, LONG_MS);
         break;
     case OP_SCREEN:
         press(KEY_POWER, TAP_MS);
@@ -492,44 +476,8 @@ static void run_input_op(Op op, uint8_t argument)
     }
 }
 
-static bool title_is(StringId id)
-{
-    const char *title = app_screen_title();
-    return title != NULL && strcmp(title, i18n_text(id)) == 0;
-}
-
-static bool on_equalizer(void)
-{
-    return title_is(STR_CUSTOM_EQ) || title_is(STR_EQUALIZER) || title_is(STR_PEQ);
-}
-
-static bool on_reload_issue_screen(void)
-{
-    return (known_issue_open(KNOWN_ISSUE_EQUALIZER_STATE_AFTER_RELOAD) && on_equalizer()) ||
-           (known_issue_open(KNOWN_ISSUE_PARAMETRIC_BANK_AFTER_RELOAD) && title_is(STR_PEQ)) ||
-           (known_issue_open(KNOWN_ISSUE_SAFE_START_LABELS_AFTER_RELOAD) &&
-            title_is(STR_SAFE_START_VOLUME));
-}
-
-static bool evicts(Op op)
-{
-    return op == OP_STORAGE_SESSION || op == OP_DAC_SESSION || op == OP_RESCAN ||
-           op == OP_ENVIRONMENT || op == OP_DAMAGE_MODULE || op == OP_SLEEP_EXPIRY;
-}
-
-static bool allowed(Op op)
-{
-    return !(evicts(op) && on_reload_issue_screen());
-}
-
 static void run_op(Cursor *cursor, Op op, uint8_t argument)
 {
-    if (!allowed(op)) {
-        return;
-    }
-    if (evicts(op) && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED)) {
-        settle(SLIDE_STEPS);
-    }
     switch (op) {
     case OP_STORAGE_SESSION:
         storage_session(argument);
@@ -634,8 +582,7 @@ static void seed_settings(uint8_t config)
 {
     SettingsStore store;
     settings_store_load(&store);
-    shortcut = (uint8_t)(config % 6);
-    store.settings.long_press_action = shortcut;
+    store.settings.long_press_action = (uint8_t)(config % 6);
     if ((config & 8u) != 0) {
         settings_set_now_playing_style(&store.settings, NOW_PLAYING_VU);
     }
@@ -661,21 +608,12 @@ static void power_on_after_power_off(void)
     }
 }
 
-static void leave_known_issue_screens(void)
-{
-    if (on_reload_issue_screen()) {
-        press(KEY_BACK, LONG_MS);
-    }
-}
-
-static jmp_buf input_end;
-
 static void start(const uint8_t *data, size_t size)
 {
     module_guard_restore_all();
     app_reset_for_test();
     fake_hal_reset();
-    known_issue_fuzz_guard(NULL);
+    module_guard_set_trap(module_guard_trap_abort);
     add_library_files(size > 0 ? data[0] : 0);
     now_ms = 1000;
     fake_hal_set_milliseconds(now_ms);
@@ -732,11 +670,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     step_count = 0;
     static Cursor cursor;
     cursor = (Cursor){data, size, 2};
-    if (setjmp(input_end) != 0) {
-        known_issue_fuzz_guard(NULL);
-        return 0;
-    }
-    known_issue_fuzz_guard(&input_end);
     check_invariants();
     for (int count = 0; count < op_limit() && cursor.at < size && step_count < step_budget();
          count++) {
@@ -748,11 +681,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
                     step_count, (long)(clock() * 1000 / CLOCKS_PER_SEC));
         }
         run_op(&cursor, (Op)(value % OP_COUNT), (uint8_t)(value / OP_COUNT));
-        leave_known_issue_screens();
         power_on_after_power_off();
         check_invariants();
     }
-    known_issue_fuzz_guard(NULL);
     app_stop();
     return 0;
 }

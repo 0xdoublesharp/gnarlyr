@@ -6,7 +6,6 @@
 #include "check.h"
 #include "fake_hal.h"
 #include "hal/system.h"
-#include "known_issues.h"
 #include "module_guard.h"
 #include "modules/modules.h"
 #include "screen_modules.h"
@@ -119,14 +118,6 @@ static void playing_and_stage_share_their_common_code(void)
     CHECK(module_guard_evicted(strip));
 }
 
-static void the_known_issue_switch_reads_its_environment_list(void)
-{
-    CHECK(known_issue_name(KNOWN_ISSUE_COUNT) != NULL);
-    for (int issue = 0; issue < KNOWN_ISSUE_COUNT; issue++) {
-        CHECK(known_issue_name((KnownIssue)issue)[0] != '\0');
-    }
-}
-
 int main(void)
 {
     static const TestCase CASES[] = {
@@ -136,7 +127,6 @@ int main(void)
         TEST_CASE(eviction_poisons_and_a_reload_clears_the_module_memory),
         TEST_CASE(usb_rescan_and_refused_loads_evict_the_slot),
         TEST_CASE(playing_and_stage_share_their_common_code),
-        TEST_CASE(the_known_issue_switch_reads_its_environment_list),
     };
     return test_run_all(CASES, sizeof CASES / sizeof CASES[0]);
 }

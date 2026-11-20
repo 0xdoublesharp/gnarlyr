@@ -50,8 +50,7 @@ ${hash}endif
 endfunction()
 
 function(echo_module_guard_library directory owners)
-    add_library(echo_module_guard STATIC ${PROJECT_SOURCE_DIR}/tests/support/module_guard.c
-        ${PROJECT_SOURCE_DIR}/tests/support/known_issues.c)
+    add_library(echo_module_guard STATIC ${PROJECT_SOURCE_DIR}/tests/support/module_guard.c)
     target_include_directories(echo_module_guard PUBLIC ${PROJECT_SOURCE_DIR}/tests/support
         PRIVATE ${directory})
     target_link_libraries(echo_module_guard PRIVATE echo_options)
