@@ -205,6 +205,25 @@ static void options_back_and_background_cancellation_keep_a_completed_selection(
     CHECK_EQUAL(count, discovery_screen_order(&discovery).count);
 }
 
+static void results_left_open_under_options_come_back_after_a_reload(void)
+{
+    start();
+    explore();
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    uint16_t count = discovery_screen_order(&discovery).count;
+    key(KEY_MENU, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_OPTIONS, discovery.mode);
+    static DiscoveryScreen other;
+    discovery_screen_init(&other, discovery.config);
+    discovery_screen_reload(&discovery);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
+    complete();
+    CHECK_EQUAL(LIBRARY_VIEW_READY, discovery_screen_state(&discovery));
+    CHECK_EQUAL(count, discovery_screen_order(&discovery).count);
+    CHECK_EQUAL(1, discovery.list.selected);
+}
+
 static void deferred_tag_initialization_remains_a_pending_search(void)
 {
     start();
@@ -1181,6 +1200,7 @@ int main(void)
         TEST_CASE(filter_choices_change_the_query_and_reset_removes_every_constraint),
         TEST_CASE(cancellation_and_failed_reads_do_not_offer_a_playable_partial_list),
         TEST_CASE(options_back_and_background_cancellation_keep_a_completed_selection),
+        TEST_CASE(results_left_open_under_options_come_back_after_a_reload),
         TEST_CASE(deferred_tag_initialization_remains_a_pending_search),
         TEST_CASE(search_work_stops_at_the_clock_budget_and_services_audio),
         TEST_CASE(source_scope_is_combined_with_filters_and_survives_reset),
