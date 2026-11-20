@@ -101,6 +101,42 @@ static void power_is_its_own_input(void)
     check_empty(&model);
 }
 
+static void raw_ladder_samples_are_debounced_into_transitions(void)
+{
+    KeyLadderModel model;
+    key_ladder_model_init(&model);
+    uint16_t play = key_ladder_reading(1u << KEY_PLAY);
+    for (int sample = 0; sample < KEY_SCANNER_PRESS_SAMPLES - 1; sample++) {
+        key_ladder_model_sample(&model, play, 100);
+        check_empty(&model);
+    }
+    key_ladder_model_sample(&model, play, 100);
+    check_next(&model, KEY_PLAY, true);
+    check_empty(&model);
+    for (int sample = 0; sample < KEY_SCANNER_PRESS_SAMPLES; sample++) {
+        key_ladder_model_sample(&model, KEY_LADDER_IDLE_READING, 200);
+    }
+    check_next(&model, KEY_PLAY, false);
+    check_empty(&model);
+}
+
+static void raw_ladder_samples_do_not_release_a_held_power_key(void)
+{
+    KeyLadderModel model;
+    key_ladder_model_init(&model);
+    key_ladder_model_set(&model, KEY_POWER, true, 100);
+    check_next(&model, KEY_POWER, true);
+    for (int sample = 0; sample < KEY_SCANNER_PRESS_SAMPLES; sample++) {
+        key_ladder_model_sample(&model, key_ladder_reading(1u << KEY_MENU), 200);
+    }
+    check_next(&model, KEY_MENU, true);
+    check_empty(&model);
+    key_ladder_model_set(&model, KEY_POWER, false, 300);
+    check_next(&model, KEY_MENU, false);
+    check_next(&model, KEY_POWER, false);
+    check_empty(&model);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -110,6 +146,8 @@ int main(void)
         TEST_CASE(releasing_play_under_a_held_volume_key_is_invisible),
         TEST_CASE(pressing_play_under_a_held_volume_key_is_invisible),
         TEST_CASE(power_is_its_own_input),
+        TEST_CASE(raw_ladder_samples_are_debounced_into_transitions),
+        TEST_CASE(raw_ladder_samples_do_not_release_a_held_power_key),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
