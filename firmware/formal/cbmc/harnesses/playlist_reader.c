@@ -1,5 +1,5 @@
-#include "formal.h"
 #include "library/playlist_reader.h"
+#include "formal.h"
 
 static PlaylistReader reader;
 
@@ -9,7 +9,7 @@ static void resume_anywhere(void)
     reader.chunk_start = formal_below(reader.offset + 1);
     uint32_t left = formal_card_size - reader.chunk_start;
     reader.chunk_length = formal_below((left < PLAYLIST_CHUNK ? left : PLAYLIST_CHUNK) + 1);
-    __CPROVER_havoc_object(reader.chunk);
+    __CPROVER_havoc_slice(reader.chunk, sizeof reader.chunk);
     reader.utf8 = nondet_bool();
     reader.start_ms = nondet_uint32();
 }

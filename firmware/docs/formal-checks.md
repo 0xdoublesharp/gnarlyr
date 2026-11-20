@@ -17,6 +17,8 @@ python3 tools/firmware.py formal --cbmc                 # CBMC harnesses only
 python3 tools/firmware.py formal --tla                  # TLA+ models only
 python3 tools/firmware.py formal --harness core_handoff # one harness or model
 python3 tools/firmware.py formal --list                 # names, without running anything
+python3 tools/firmware.py formal --all                  # also the opt-in harnesses (hours)
+python3 tools/firmware.py formal --cover --harness NAME # blocks a CBMC harness reaches
 ```
 
 `python3 tools/formal.py` takes the same options. The entry point uses only Python's standard library and needs neither the ARM toolchain nor a firmware build. It stops if `/Volumes/Scratch` is not mounted.
@@ -59,7 +61,7 @@ The exit code is 0 when every check ended as intended, 1 otherwise, and 2 when a
 
 Before each TLC run, `formal.py` checks the jar against the SHA-256.
 
-The CI workflow installs the same CBMC release, checks its SHA-256, installs OpenJDK 21 and runs `--fetch-tla`. It uploads the report folder as an artifact. You can choose `all`, `cbmc` or `tla`, and optionally one harness.
+The CI workflow installs the same CBMC release, checks its SHA-256, installs OpenJDK 21 and runs `--fetch-tla`. It uploads the report folder as an artifact. You can choose `all`, `cbmc` or `tla`, and optionally one harness. It also installs `gcc-multilib` and compiles with `-ffreestanding`, so that `-m32` builds on a stock amd64 runner. The workflow has not yet run on GitHub; only the local runs described here have been made.
 
 `tests/test_formal.py` covers the entry point with a stubbed tool runner, so `python3 -m unittest discover -s tests` stays fast and runs no checker.
 
@@ -69,8 +71,8 @@ The CI workflow installs the same CBMC release, checks its SHA-256, installs Ope
 |---|---|
 | `firmware/formal/checks.json` | The manifest: CBMC flags, each harness's sources, stubs, bounds and unwind limit, and each TLA+ model's spec, config and expected result |
 | `firmware/formal/cbmc/harnesses/` | One harness file per reader family; the entry point is always `harness()` |
-| `firmware/formal/cbmc/stubs/` | `card.c` (the nondeterministic file), `hash.c` (checksum seam), `hal.c` (file, version and language-memory HAL), `theme.c` (signature seam) |
-| `firmware/formal/cbmc/catalogue/core/strings.h` | A four-string, three-segment catalogue that replaces the generated one for the language harness only |
+| `firmware/formal/cbmc/stubs/` | `card.c` (the nondeterministic file), `hash.c` (checksum seam), `hal.c` (file, version and language-memory HAL), `theme.c` (signature seam), `i18n.c` (the pack parser's contract, for the loader harness), `builtins.h` (maps `__builtin_memcpy` to CBMC's modelled `memcpy`), `formal.h` (shared declarations and the target checks) |
+| `firmware/formal/cbmc/catalogue/core/strings.h` | A four-string, three-segment catalogue that replaces the generated one for `language_pack` only |
 | `firmware/formal/tla/` | `UpdateRollback.tla`, `CoreHandoff.tla` and one `.cfg` per checked configuration |
 | `tools/formal.py`, `tests/test_formal.py` | The entry point and its unit test |
 
@@ -80,8 +82,11 @@ The harness C follows the firmware rules: no comments, formatted with `.clang-fo
 
 ### Common set-up
 
-- **Target.** `goto-cc -m32 -funsigned-char`: 32-bit `int`, `long` and pointers, little-endian, unsigned `char`, as on the Cortex-M3. CBMC labels the goto program's library as i386, but the type widths and byte order are the ones that matter, and they match.
-- **Checks on every harness:** `--bounds-check --pointer-check --pointer-overflow-check --signed-overflow-check --div-by-zero-check --undefined-shift-check`, plus `--unwinding-assertions`. With unwinding assertions, a loop that could run past the unwind limit within the input bound fails the check instead of being cut short silently. CBMC 6 also turns a call to a function with no body into a failing property, and `formal.py` reports such a call as an `error`.
+- **Target.** Every harness is compiled with `goto-cc -m32 -funsigned-char -ffreestanding`: 32-bit `int`, `long` and pointers, little-endian, unsigned `char`, as on the Cortex-M3. `stubs/formal.h` checks all three with `_Static_assert`, so a harness that compiled for another target would not build. CBMC labels the goto program's library as i386, but the type widths and byte order are the ones that matter, and they match.
+- **Checks on every harness:** `--bounds-check --pointer-check --pointer-overflow-check --signed-overflow-check --div-by-zero-check --undefined-shift-check`. CBMC 6 also turns a call to a function with no body into a failing property, and `formal.py` reports such a call as an `error`.
+- **Unwinding.** Most harnesses are *complete* within their bound. They run with `--unwinding-assertions`, so a loop that could run past the unwind limit, for any file up to the bound, fails the check. That makes a pass a proof for every file up to the bound.
+
+  The tag, CUE, playlist and theme harnesses did not finish that way within about 10 CPU-minutes, even at 16 to 48 bytes. They are *depth-bounded* instead, with `--no-unwinding-assertions`. CBMC 6 adds unwinding assertions by default, so the option must be given. A pass then covers every path in which no loop runs more than the unwind limit. Paths with longer loops are not examined.
 - **Unsigned overflow.** `--unsigned-overflow-check` is off globally because firmware code wraps on purpose: store generations, the language row check `size - 1 - 2n`, and the hash. It is on for `library_database` and `theme_pack_v1`, where every offset and size sum must stay below the file size and a wrap would be a bug.
 - **Uninitialised memory.** CBMC itself gives uninitialised memory an arbitrary value, so every property is checked for every content such memory could have. It does not report the read itself. `goto-instrument --uninitialized-check` would, but it tracks only direct assignments to locals. Every reader here fills its buffers through a callee (`hal_file_open(&file)`, `read_source(..., header, ...)`), so that check reports each of them falsely. It runs on the canary only, to show it works.
 - **The file.** `stubs/card.c` stands for the file on the card. The file's size is nondeterministic up to `FORMAL_CARD_BYTES`. A read:
@@ -90,44 +95,100 @@ The harness C follows the firmware rules: no comments, formatted with `.clang-fo
   - otherwise copies the bytes;
   - always asserts that the caller's buffer can hold the requested length.
 
-  The bytes come from one nondeterministic array, so two reads of the same offset agree. Harnesses marked *fresh* below set `FORMAL_CARD_FRESH`. Each successful read then returns new arbitrary bytes instead, which keeps the solver fast. That over-approximates the file, so a pass is still a proof for every real file. A failure found in fresh mode must be replayed with consistent reads before it counts.
+  The bytes come from one nondeterministic array, so two reads of the same offset agree. Harnesses marked *fresh* set `FORMAL_CARD_FRESH`. Each successful read then returns new arbitrary bytes instead, which keeps the solver fast. That over-approximates the file, so a pass is still a proof for every real file. A failure found in fresh mode must be replayed with consistent reads before it counts.
 - **Checksum seams.** `hash_update` (FNV-1a) returns an arbitrary value but asserts that the whole span it would hash is readable. `hash_store` and `hash_load` keep their byte layout. The theme pack's `theme_pack_crc` is given a nondeterministic body with `goto-instrument --generate-function-body`. `theme_signature_inspect` returns an arbitrary verdict. As a result, every checksum comparison both passes and fails, so the code behind each checksum is reached for every content. The checksum code itself is not checked.
+- **Reachability.** `python3 tools/formal.py --cover [--harness NAME]` runs `cbmc --cover location` on a harness. For each product source it reports how many basic blocks some file up to the bound can reach. A file's total also counts functions the harness does not drive.
 
 ### Results
 
-Run times are wall-clock on the development Mac (12 cores, Apple Silicon) while it was shared with other builds at load averages between 110 and 190. An unloaded machine is faster.
+The figures are CPU seconds of the checker (`formal.py` measures its child processes). They come from runs on the development Mac (12 cores, Apple Silicon) while it was shared with other builds at load averages between 40 and 190, so wall time was two to three times longer.
 
-| Harness | Entry points | Bound | Unwind | Properties | Result | Time |
-|---|---|---|---|---|---|---|
-RESULTS_TABLE
+| Harness | Entry points | Bound | Unwind | Mode | Properties | Result | CPU |
+|---|---|---|---|---|---|---|---|
+| `canary` | planted faults in harness code | 16 B | 18 | complete, with `--uninitialized-check` | 57 | fails on exactly its 2 planted properties, as intended | 0 s |
+| `library_database` | `library_open`, `library_read_*`, `library_album_key` | 160 B, fresh | 40 | complete, unsigned overflow on | 895 | passed | 180 s |
+| `scan_record` | `music_record_read`, `music_check_*` | 528 B | 26 | complete | 719 | passed | 1 s |
+| `tags_vorbis_comment` | `tags_read_vorbis_comment` | 64 B, fresh | 4 | depth-bounded | 4,478 | passed | 121 s |
+| `playlist_reader` | `playlist_reader_open`, `_next` | 64 B, fresh | 4 | depth-bounded | 374 | passed | 281 s |
+| `settings_codec` | `settings_decode`, `_encode`, `settings_buttons_decode`, `settings_file_newer` | 96 B | 98 | complete | 2,567 | passed | 18 s |
+| `playback_store` | `store_pair_open`, `store_load`, `store_scan_next` | 1,100 B, fresh | 514 | complete | 1,030 | passed | 39 s |
+| `user_state_records` | `user_state_list_decode`, `_mark_request`, `_age`, `update_trial_decode` | 44 B | 24 | complete | 1,400 | passed | 1 s |
+| `language_pack` | `i18n_attach`, `i18n_pack_segment`, `i18n_attach_segment`, `i18n_text` | 128 B pack, 32 B module | 132 | complete | 859 | passed | 8 s |
+| `language_loader` | `language_load`, `language_use_module` | 256 B, fresh; 192 B memory | 20 | complete | 538 | passed | 58 s |
+| `theme_pack_v1` | `theme_pack_open` | 640 B, fresh | 12 | depth-bounded, unsigned overflow on | 2,743 | passed | 496 s |
+
+Four harnesses are opt-in (`"default": false`). `formal.py` skips them unless they are named with `--harness` or the run uses `--all`. None reached a useful verdict within the time tried:
+
+| Harness | What was tried | Outcome |
+|---|---|---|
+| `tags_id3v2` | complete at 32 B, unwind 36; depth-bounded at 64 B, unwind 12, then 4 | each stopped at the 30-minute wall limit (600 to 1,085 s CPU). Depth 3 finishes in 7 s but cannot complete a 4-byte magic compare |
+| `tags_flac` | complete at 48 B, unwind 52; depth-bounded at 96 B, unwind 12; unwind 4 with the key and magic loops raised | stopped at the limit. A plain unwind-4 run "passes" in 1 s but reaches 21 of 354 blocks in `tags_vorbis.c`, because CBMC needs *k* + 1 unwindings to finish a *k*-iteration loop. That pass is vacuous, and the manifest now asks for unwind 6 |
+| `tags_mp4` | complete at 40 B, unwind 44; depth-bounded at 96 B, unwind 12 | stopped at the limit; unwind 4 is vacuous for the same reason. The manifest asks for unwind 6 |
+| `cue_sheet` | complete at 16 B, unwind 20; depth-bounded at 64 B, unwind 12, then 4 | stopped at the limit (714 to 998 s CPU) |
+
+Reachability, from `--cover` runs (blocks reached in each driven source, out of all blocks in the file):
+
+| Harness | Blocks reached (of all blocks in the file) | CPU |
+|---|---|---|
+| `scan_record` | `music_check.c` 71/84, `music_record.c` 24/69 (`music_record_write` and the comparisons are not driven) | 1 s |
+| `settings_codec` | `settings.c` 350/466 | 1,045 s |
+| `playback_store` | `store.c` 156/349 (the write path is not driven) | 45 s |
+| `user_state_records` | `user_state_list.c` 48/69, `user_state.c` 72/370 (backup, restore and the continuity pass are not driven), `update_trial.c` 22/54 | 1 s |
+| `language_pack` | `i18n.c` 125/159 | 4 s |
+| `language_loader` | `language.c` 108/112, `language_module.c` 66/66 | 542 s |
+| `tags_vorbis_comment` | `tags_vorbis.c` 50/354, `track_tags.c` 17/310, `replay_gain.c` 17/294. At depth 4 the key table and key comparisons cannot complete, so this pass covers the length and count handling, not field matching | 361 s |
+| `library_database`, `playlist_reader`, `theme_pack_v1` | not measured; a `--cover` run costs more than the check itself | |
 
 ### What each harness proves
 
-For every file content up to the bound, every listed entry point stays inside its buffers and the file, with no signed overflow, undefined shift or division by zero, and every loop ends within the unwind limit.
+For every file content up to the bound, every listed entry point stays inside its buffers and the file, with no signed overflow, undefined shift or division by zero. In complete mode, every loop also ends within the unwind limit. In depth-bounded mode, those properties hold on every path in which no loop runs more than the unwind limit.
 
-- **`canary`.** A planted overflow and an uninitialised read in harness code. It must fail on exactly those two properties. If it passes, the set-up is broken.
-- **`library_database` (`library.db`, `DSDB` version 2).** `library_open` (header, section table, the content fingerprint walk) on a file of up to 160 bytes (fresh), and then on any accepted file `library_read_track`, `_album`, `_group` (any section), `_folder`, `_index` (any section) and `_string` (capacity 0 to 16) at any index, and `library_album_key`. Asserts that every accepted section lies inside the file, music counts never exceed section counts, and strings end inside their buffer. The header alone is 128 bytes, so this leaves up to 32 bytes of section data. The playlist and hidden-track overlays (`Library.extra`, `Library.hidden`) are not set, because no file sets them.
-- **`scan_record` (`scan.bin`, `DSS2`).** `music_record_read`, `music_check_firmware_is_new`, `music_check_covers_pending`, `music_check_interrupted_scans`, `music_check_generation_moved` and `music_record_settled` on a file of up to 528 bytes, which reaches the scan guard at offset 512, with an arbitrary firmware version string. The task named one reader, "library/scan.bin, format 2, `DSS2`". The code has two: the library database (`DSDB` version 2) and the music check record (`DSS2`). Each has its own harness.
-- **`tags_id3v2`, `tags_flac`, `tags_mp4`.** `track_tags_read` for MP3 (ID3v2, then the MPEG frame scan and ID3v1), FLAC (metadata blocks, Vorbis comment, picture) and MP4 (atom walk, `ilst`). Every tag text ends inside its 256-byte field, and a raw picture lies inside the file. Bounds are 48, 64 and 64 bytes. 64 bytes is enough for `fLaC`, a STREAMINFO block and a short comment block, and for an `ftyp`/`moov`/`udta`/`meta`/`ilst` chain only with a minimal tree. Ogg, ASF, APE, WAV, AIFF and DSD readers are compiled in but not driven.
-- **`tags_vorbis_comment`.** `tags_read_vorbis_comment` directly, at any offset and limit inside a 48-byte file, for both Vorbis and Opus framing. This reaches the comment parser, the key table, the replay-gain fields and the base64 picture probe without the FLAC wrapper.
-- **`cue_sheet`.** `cue_sheet_open` and up to three `cue_sheet_next` on a 40-byte file. Titles, performers and the album fields end inside their fields. `playlist_reader` is the line reader underneath.
-- **`playlist_reader`.** `playlist_reader_open` and up to four `playlist_reader_next` on a 40-byte file with an entry buffer of 1 to 12 bytes. Every entry ends inside its buffer. This covers UTF-8 detection, Windows-1252 conversion and the start directive.
-- **`settings_codec` (`settings.bin`, `buttons.bin`).** `settings_decode`, `settings_encode` of the result, `settings_buttons_decode` and `settings_file_newer` on 0 to 96 bytes of arbitrary content. A decoded language code ends inside its field, and the preset is in range.
-- **`playback_store` (the two-bank `StoreFile` format).** `store_pair_open` with an arbitrary bank size, `store_load` at any offset, and `store_scan_next` at any position, on a 1,100-byte file (fresh). An inline payload never exceeds its block. This covers `order.bin`, `session.bin`, `mixes.bin`, `moments.bin`, `track_keys.bin`, `listens.bin`, `recap.bin`, `theme.bin` and the other store files at the block level. Each format's payload decoder is not covered.
-- **`user_state_records`.** `user_state_list_decode` (`backup/list.bin`), `user_state_mark_request` (`continuity.bin`), `user_state_age` for every catalogue entry, and `update_trial_decode` (`trial.bin`) on arbitrary bytes. Build names end inside their fields, the newest slot is a slot or none, a restore request names a slot or none, and a trial state is known.
-- **`language_pack`.** `language_load` with an arbitrary code, then `language_use_module` for any module, then `i18n_text` for any string. Packs come from a file or a built-in copy, both of up to 160 bytes, into 160 bytes of language memory. Every looked-up text ends inside the attached pack. The generated catalogue (910 strings in 7 segments) is replaced by a catalogue of 4 strings in 3 segments, with the same header and row layout. Without that, the smallest valid pack would be over 2 KB, out of reach. The parser's logic does not depend on the catalogue's size, but the original counts were not checked.
-- **`theme_pack_v1` (`.gtheme`, `DSTP` version 1).** `theme_pack_open` on up to 640 bytes (fresh): the 512-byte header, up to 8 asset rows, the CRC walk and the signature trailer. Every accepted asset lies inside the file, and the name and version end inside their fields. The palette decode runs, with its FNV stubbed.
+- **`canary`.** A planted overflow and an uninitialised read in harness code. It must fail on exactly `count_marks.array_bounds.1` and `count_marks.uninitialized_local.1`. Any other result means the set-up is broken.
+- **`library_database` (`library.db`, `DSDB` version 2).** `library_open` (header, section table, the content fingerprint walk) on a file of up to 160 bytes (fresh). On any accepted file it then calls, at any index: `library_read_track`, `_album`, `_group` (any section), `_folder`, `_index` (any section), `_string` (capacity 0 to 16) and `library_album_key`. It asserts that every accepted section lies inside the file, music counts never exceed section counts, and strings end inside their buffer. The header alone is 128 bytes, so this leaves up to 32 bytes of section data. The playlist and hidden-track overlays (`Library.extra`, `Library.hidden`) are not set, because no file sets them.
+- **`scan_record` (`scan.bin`, `DSS2`).** `music_record_read`, `music_check_firmware_is_new`, `music_check_covers_pending`, `music_check_interrupted_scans`, `music_check_generation_moved` and `music_record_settled`, on a file of up to 528 bytes with an arbitrary firmware version string. 528 bytes reaches the scan guard at offset 512. The task named one reader, "library/scan.bin, format 2, `DSS2`". The code has two: the library database (`DSDB` version 2) and the music check record (`DSS2`). Each has its own harness.
+- **`tags_id3v2`, `tags_flac`, `tags_mp4` (opt-in, no verdict yet).** `track_tags_read` for:
+  - MP3: ID3v2, then the MPEG frame scan and ID3v1, at 64 bytes;
+  - FLAC: metadata blocks, Vorbis comment and picture, at 96 bytes;
+  - MP4: atom walk, `ilst`, at 96 bytes.
+
+  Every tag text should end inside its 256-byte field, and a raw picture should lie inside the file. None of the three has finished at a depth that reaches past the magic check (see the opt-in table). Ogg, ASF, APE, WAV, AIFF and DSD are compiled in but not driven.
+- **`tags_vorbis_comment` (depth-bounded).** `tags_read_vorbis_comment` directly, at any offset and limit inside a 64-byte file, for both Vorbis and Opus framing. It covers the comment parser, the key table, the replay-gain fields and the base64 picture probe without the FLAC wrapper.
+- **`cue_sheet` (opt-in, no verdict yet).** One `cue_sheet_next` on a 64-byte file. It starts either from the opened file or from an arbitrary reader position with arbitrary pending and building flags, numbers and times. The assertions are that titles, performers and the album fields end inside their fields. It has not finished at any depth tried. The resumed state keeps the album and entry texts empty, which under-approximates a sheet that already holds text.
+- **`playlist_reader` (depth-bounded).** One `playlist_reader_next` on a 64-byte file, with an entry buffer of 1 to 12 bytes. It starts either from the opened file or from any reader state: any position, any cached chunk, either encoding, any start time. That state over-approximates every later call. Every entry ends inside its buffer.
+- **`settings_codec` (`settings.bin`, `buttons.bin`).** `settings_decode`, `settings_encode` of the result, `settings_buttons_decode` and `settings_file_newer`, on 0 to 96 bytes of arbitrary content. A decoded language code ends inside its field, and the preset is in range.
+- **`playback_store` (the two-bank `StoreFile` format).** `store_pair_open` with an arbitrary bank size, `store_load` at any offset and `store_scan_next` at any position, on a 1,100-byte file (fresh). An inline payload never exceeds its block. This covers `order.bin`, `session.bin`, `mixes.bin`, `moments.bin`, `track_keys.bin`, `listens.bin`, `recap.bin`, `theme.bin` and the other store files at the block level. Each format's payload decoder is not covered.
+- **`user_state_records`.** On arbitrary bytes: `user_state_list_decode` (`backup/list.bin`), `user_state_mark_request` (`continuity.bin`), `user_state_age` for every catalogue entry, and `update_trial_decode` (`trial.bin`). Build names end inside their fields, the newest slot is a slot or none, a restore request names a slot or none, and a trial state is known.
+- **`language_pack` (the pack parser).** `i18n_attach` on an arbitrary pack of up to 128 bytes in memory, `i18n_text` for any string of the resident segment, then `i18n_pack_segment` and `i18n_attach_segment` for any module segment whose block fits 32 bytes, as the loader guarantees, and `i18n_text` for any string of that segment. Every looked-up text starts and ends inside its block.
+
+  The generated catalogue (910 strings in 7 segments) is replaced by a catalogue of 4 strings in 3 segments, with the same header and row layout. Without that, the smallest valid pack would be over 2 KB. The parser's logic does not depend on the catalogue's size, but the original counts were not checked.
+- **`language_loader` (`language.c`, `language_module.c`).** `language_load` with an arbitrary code, then `language_use_module` for any module, reading from a file or a built-in copy (fresh, up to 256 bytes) into 192 bytes of language memory. The parser is replaced by `stubs/i18n.c`, which can return any verdict and any index values allowed by its contract. Every read fits its buffer for every such verdict.
+
+  The contract matters. The loader rounds `info.resident` up to 4 bytes before comparing it with the memory's capacity (`language.c:48`), and that sum wraps for a `resident` within 3 of 2³². The real parser keeps `resident` far smaller (`row_matches`, `i18n.c:44`). The stub encodes that bound, and without it the loader check fails.
+- **`theme_pack_v1` (`.gtheme`, `DSTP` version 1, depth-bounded).** `theme_pack_open` on up to 640 bytes (fresh): the 512-byte header, the asset rows, the CRC walk and the signature trailer. Every accepted asset lies inside the file, and the name and version end inside their fields. The palette decode runs, with its FNV stubbed.
 
 ### Not covered, and seams worth adding
 
-- **Above the bound.** A pass says nothing about files larger than the bound. In particular, the long-file paths (multi-chunk playlist reads, more than 8 theme assets, many FLAC blocks) are covered only by the fuzzers and unit tests.
-- **Not driven.** The Ogg page walk, ASF, APE, WAV/AIFF and DSD tag readers, the MP4 chapter and timed-metadata readers, the cover image decoders (JPEG, PNG), `fat`/`exfat`, the headphone and parametric files, bookmarks and personal tags, `covers.bin`, the library gain table, and the rescan job's own read of `scan.bin`. The Ogg reader is the next one to add. A 128-byte bound with fresh reads should reach the second page.
+- **Above the bound and the unwind limit.** A complete pass says nothing about files larger than its bound. A depth-bounded pass also says nothing about paths whose loops run longer. That leaves the following to the fuzzers and unit tests:
+  - the ID3v2, FLAC, MP4 and CUE readers, which have no verdict at all;
+  - the Vorbis comment and playlist readers beyond four loop iterations;
+  - the theme pack's text fields beyond 12 characters;
+  - multi-chunk reads.
+- **Not driven.**
+  - The Ogg page walk, and the ASF, APE, WAV/AIFF and DSD tag readers.
+  - The MP4 chapter and timed-metadata readers.
+  - The cover image decoders (JPEG, PNG).
+  - `fat` and `exfat`.
+  - The headphone and parametric files, bookmarks and personal tags.
+  - `covers.bin` and the library gain table.
+  - The rescan job's own read of `scan.bin`.
 - **Checksum code.** FNV, the theme CRC-32 and the signature check are replaced at the seams described above.
 - **The language catalogue** at its real size.
-- **Seams.** These would make bigger bounds affordable, but the product code was not changed to fit the harnesses:
-  - Expose `library_content`'s block size as a compile-time option, so the walk can use a 32-byte block in the harness.
-  - A pure decode function for the settings and store headers that takes a precomputed checksum, so the real FNV can stay in.
-  - A `ByteSource`-based variant of `music_check_read_at`, so `scan.bin` needs no HAL stub.
+- **Seams.** These would make deeper checks affordable, but the product code was not changed to fit the harnesses:
+  - Expose `library_content`'s block size as a compile-time option.
+  - Split the tag readers' per-frame handlers (`tags_id3.c`, `tags_vorbis.c`, `tags_mp4.c`) from their walking loops behind a function a harness can call on one frame. A harness could then check each handler completely and the walk separately.
+  - Give `cue_sheet` a public entry point that handles one line.
+  - Add a pure decode function for the settings and store headers that takes a precomputed checksum, so the real FNV can stay in.
+  - Add a `ByteSource`-based variant of `music_check_read_at`, so `scan.bin` needs no HAL stub.
 
 ## TLA+ models
 

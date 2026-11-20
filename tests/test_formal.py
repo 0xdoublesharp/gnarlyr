@@ -79,6 +79,11 @@ class CommandTests(unittest.TestCase):
         self.assertIn("--unwinding-assertions", command)
         self.assertEqual(command[command.index("--unwind") + 1], "7")
 
+    def test_a_depth_bounded_harness_omits_unwinding_assertions(self):
+        command = formal.cbmc_check_command(manifest(), {"unwind": 5, "unwinding_assertions": False}, Path("h"))
+        self.assertNotIn("--unwinding-assertions", command)
+        self.assertIn("--no-unwinding-assertions", command)
+
     def test_nondeterministic_bodies_replace_the_named_functions(self):
         steps = formal.instrument_steps({"nondet_bodies": ["a", "b"], "uninitialized": True})
         self.assertEqual([label for label, _ in steps], ["nondet", "uninitialized"])
@@ -231,6 +236,12 @@ class ToolDetectionTests(unittest.TestCase):
             self.assertEqual(formal.main(["--list", "--tla"]), 0)
         self.assertIn("tla\tupdate_rollback", output.getvalue())
         self.assertNotIn("cbmc\t", output.getvalue())
+
+    def test_opt_in_harnesses_run_only_when_named_or_with_all(self):
+        table = {"cbmc": {"harnesses": {"quick": {}, "slow": {"default": False}}}, "tla": {"models": {}}}
+        self.assertEqual(formal.selected(table, ("cbmc",), None), [("cbmc", "quick")])
+        self.assertEqual(formal.selected(table, ("cbmc",), "slow"), [("cbmc", "slow")])
+        self.assertEqual(len(formal.selected(table, ("cbmc",), None, everything=True)), 2)
 
     def test_an_unknown_harness_is_refused(self):
         with self.assertRaises(SystemExit):

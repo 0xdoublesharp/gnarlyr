@@ -176,7 +176,8 @@ def coverage_text(counts):
 
 def cbmc_check_command(manifest, harness, program):
     command = ["cbmc", str(program), "--function", "harness", *manifest["cbmc"]["checks"],
-               *harness.get("checks", []), "--unwind", str(harness["unwind"]), "--unwinding-assertions"]
+               *harness.get("checks", []), "--unwind", str(harness["unwind"])]
+    command.append("--unwinding-assertions" if harness.get("unwinding_assertions", True) else "--no-unwinding-assertions")
     if harness.get("unwindset"):
         command += ["--unwindset", harness["unwindset"]]
     return command
@@ -313,11 +314,12 @@ def run_model(name, manifest, work, env, runner=run_tool, jar=None):
     return Outcome(name, "tla", status, time.monotonic() - started, detail, log)
 
 
-def selected(manifest, kinds, harness):
+def selected(manifest, kinds, harness, everything=False):
     chosen = []
     for kind, table in (("cbmc", manifest["cbmc"]["harnesses"]), ("tla", manifest["tla"]["models"])):
         if kind in kinds:
-            chosen += [(kind, name) for name in table if harness is None or name == harness]
+            chosen += [(kind, name) for name, entry in table.items()
+                       if name == harness or (harness is None and (everything or entry.get("default", True)))]
     if harness is not None and not chosen:
         known = ", ".join([*manifest["cbmc"]["harnesses"], *manifest["tla"]["models"]])
         raise SystemExit(f"Unknown harness or model {harness!r}; known: {known}")
@@ -375,6 +377,8 @@ def arguments(argv=None):
     kind.add_argument("--tla", action="store_true", help="run only the TLA+ models")
     parser.add_argument("--harness", help="run one harness or model by name")
     parser.add_argument("--list", action="store_true", help="list the harnesses and models without running them")
+    parser.add_argument("--all", action="store_true",
+                        help="also run the opt-in harnesses that do not finish within the usual time budget")
     parser.add_argument("--fetch-tla", action="store_true", help="download and verify the pinned tla2tools.jar")
     parser.add_argument("--cover", action="store_true",
                         help="CBMC only: report the blocks each harness reaches in its sources instead of checking")
@@ -397,7 +401,7 @@ def require_scratch():
 def main(argv=None, runner=run_tool, which=shutil.which, tla_check=tla_problem):
     args = arguments(argv)
     manifest = load_manifest()
-    chosen = selected(manifest, ("cbmc",) if args.cover else kinds_of(args), args.harness)
+    chosen = selected(manifest, ("cbmc",) if args.cover else kinds_of(args), args.harness, args.all)
     if args.list:
         for kind, name in chosen:
             print(f"{kind}\t{name}")
