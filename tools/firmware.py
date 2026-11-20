@@ -146,6 +146,7 @@ FUZZ_SEEDS = {
         bytes(range(96)),
         b"\0" + bytes([0, 1, 2, 3, 4, 5, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
         b"\4" + bytes([2, 7, 12, 17, 22, 27, 32, 37]) * 11,
+        bytes([0x40, 0x07, 0x5A, 0x5F, 0x5C]),
     ],
     "app_navigation": [
         bytes(range(48)),
