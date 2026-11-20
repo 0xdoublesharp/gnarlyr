@@ -332,8 +332,8 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
                 Canvas canvas = canvas_for(&theme);
                 usb_dac_menu_open(
                     &menu,
-                    (UsbDacMenuConfig){&theme, (AppDacSettings){35, 0, 0, HEADPHONE_PROFILE_NONE},
-                                       NULL},
+                    (UsbDacMenuConfig){
+                        &theme, (AppDacSettings){35, 0, 0, HEADPHONE_PROFILE_NONE, false}, NULL},
                     0);
                 for (int index = 0; index < count; index++) {
                     AppUsbStatus status = list[index].status;
