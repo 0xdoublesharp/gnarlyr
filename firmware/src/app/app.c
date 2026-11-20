@@ -1653,6 +1653,10 @@ CORE_COLD static void request_start_scan(bool library_created)
 
 CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
+    if (files.headphones_created && app.headphones.load == STORE_UNREADABLE) {
+        app.headphones.file.needs_reload = false;
+        app.headphones.load = STORE_EMPTY;
+    }
     if (files.card_full) {
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
@@ -1693,7 +1697,7 @@ static void start_app(bool power_on)
     app.prepare_pending = true;
     app.startup_pending = power_on;
     app.prepare_index = 0;
-    app.prepare_report = (CardFilesReport){.library_created = false, .card_full = false};
+    app.prepare_report = (CardFilesReport){0};
     (void)hal_system_settle_user_state(false);
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);

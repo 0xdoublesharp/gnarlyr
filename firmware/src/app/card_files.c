@@ -108,4 +108,6 @@ void card_files_reserve(CardFilesReport *report, size_t index)
     report->card_full |= result == HAL_RESERVE_NO_SPACE;
     report->library_created |=
         result == HAL_RESERVE_CREATED && CARD_FILES[index].path == LIBRARY_STORE_PATH;
+    report->headphones_created |=
+        result == HAL_RESERVE_CREATED && CARD_FILES[index].path == HEADPHONE_STORE_PATH;
 }

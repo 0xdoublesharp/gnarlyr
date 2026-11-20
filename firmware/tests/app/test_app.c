@@ -4187,6 +4187,20 @@ static void starting_makes_no_files_before_the_first_step(void)
     CHECK(!fake_hal_display_on());
 }
 
+static void a_profile_file_made_while_preparing_storage_unblocks_profile_saves(void)
+{
+    start_app_with_library();
+    fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
+    CHECK(app_dac_settings().headphones_fixed);
+    for (int steps = 0; steps < 16 && app_preparing(); steps++) {
+        step();
+    }
+    CHECK(!app_preparing());
+    uint32_t size = 0;
+    CHECK(fake_hal_internal_file_bytes(HEADPHONE_STORE_PATH, &size) != NULL);
+    CHECK(!app_dac_settings().headphones_fixed);
+}
+
 static void each_big_file_is_made_in_its_own_step_after_the_screen_is_lit(void)
 {
     start_on_a_fresh_card_without_stepping();
@@ -8314,6 +8328,7 @@ int main(void)
         TEST_CASE(the_music_check_after_an_installed_update_skips_the_walk),
         TEST_CASE(a_fresh_card_gets_the_player_files_and_a_first_scan),
         TEST_CASE(starting_makes_no_files_before_the_first_step),
+        TEST_CASE(a_profile_file_made_while_preparing_storage_unblocks_profile_saves),
         TEST_CASE(each_big_file_is_made_in_its_own_step_after_the_screen_is_lit),
         TEST_CASE(a_card_with_the_files_is_prepared_within_the_first_step),
         TEST_CASE(a_card_that_has_the_files_is_not_rescanned),

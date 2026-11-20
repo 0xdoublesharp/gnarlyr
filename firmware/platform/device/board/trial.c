@@ -136,7 +136,7 @@ CORE_SEAM void headphone_store_load(HeadphoneStore *store)
     }
     *store = (HeadphoneStore){.profiles = {.current = HEADPHONE_PROFILE_NONE},
                               .active = {.left = REPLAY_GAIN_UNITY, .right = REPLAY_GAIN_UNITY},
-                              .load = STORE_UNREADABLE};
+                              .load = STORE_UNSUPPORTED};
     store->file.needs_reload = true;
     hal_audio_set_headphones(store->active);
 }
