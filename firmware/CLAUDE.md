@@ -56,6 +56,7 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 - Use the full-suite gate described under Integration after the last edit.
 - A branch must contain `perf(emulator): enter hooked functions through block hooks` and `perf(emulator): rest one slice at each idle key poll`. Start new work from the current `main` tip; if a branch is older, bring those commits in before running scenarios.
 - Add new scenarios to the relevant area file under `tests/emulator/scenarios/`, or start a new `test_*.py` there; CMake discovers them automatically. Shared fixtures and helpers live in `tests/emulator/echo_image_harness.py`.
+- Emulator test timeouts (900 s per scenario, longer for a few, and the `core1_*_decodes_in_emulator` tests) are multiplied by `ECHO_EMULATOR_TIMEOUT_SCALE` when CMake configures the `dev` preset, which `firmware.py test` does on every run. It defaults to 1, takes a number of at least 1 with up to two decimals, and suits a slower host: the Intel build machine uses 2.5. `emulator_timeouts_follow_the_scale` checks the registered timeouts.
 - A new scenario waits on events (a hooked function, a watched write, a drawn frame), not on a count of emulated instructions, and replaces any function it only needs to get past through a `CORE_SEAM`.
 
 ## Integration
