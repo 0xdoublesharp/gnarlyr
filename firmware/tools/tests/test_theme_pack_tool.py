@@ -137,6 +137,17 @@ class ThemeToolTests(unittest.TestCase):
             warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
             self.assertFalse(any("not yet" in text for text in warnings), warnings)
 
+    def test_check_reads_at_most_one_byte_past_the_size_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            large = Path(directory) / "large.gtheme"
+            with large.open("wb") as output:
+                output.truncate(theme_pack.MAX_BYTES * 2)
+            self.assertEqual(theme_pack.MAX_BYTES + 1, len(theme_pack.read_capped(large)))
+            result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check",
+                                     str(large)], capture_output=True, text=True)
+            self.assertEqual(1, result.returncode)
+            self.assertIn("2 MiB", result.stderr)
+
     def home_copy(self, folder):
         self.manifest["assets"] = [{"slot": "home", "file": "photo.png",
                                     "orientation": "landscape", "codec": "lossless"}]

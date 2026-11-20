@@ -453,6 +453,11 @@ def build(folder, sign_key=None, report=None):
     return bytes(data)
 
 
+def read_capped(path):
+    with Path(path).open("rb") as source:
+        return source.read(MAX_BYTES + 1)
+
+
 def preview(data, folder):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
@@ -485,7 +490,7 @@ def main():
     try:
         report = []
         if args.check:
-            data = args.check.read_bytes()
+            data = read_capped(args.check)
         else:
             if args.folder is None or args.output is None:
                 parser.error("building requires a source folder and --output")
