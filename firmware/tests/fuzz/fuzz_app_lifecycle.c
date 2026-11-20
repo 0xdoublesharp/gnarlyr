@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "app/app.h"
 #include "app_internal.h"
@@ -43,6 +44,7 @@
 
 enum {
     OP_LIMIT = 48,
+    STEP_BUDGET = 220,
     TAP_MS = 30,
     LONG_MS = 1000,
     STEP_MS = 50,
@@ -98,6 +100,7 @@ static const char *failing_paths[FAILING_FILES];
 static bool failing[FAILING_FILES];
 static uint32_t broken_modules;
 static int power_offs;
+static int step_count;
 static uint32_t now_ms;
 static uint8_t shortcut;
 static bool cable;
@@ -121,6 +124,16 @@ static int op_limit(void)
     return limit;
 }
 
+static int step_budget(void)
+{
+    static int budget;
+    if (budget == 0) {
+        const char *text = getenv("ECHO_LIFECYCLE_STEPS");
+        budget = text != NULL && atoi(text) > 0 ? atoi(text) : STEP_BUDGET;
+    }
+    return budget;
+}
+
 static bool tracing(void)
 {
     static int known = -1;
@@ -140,6 +153,7 @@ static void violated(const char *invariant)
 
 static void step(void)
 {
+    step_count++;
     now_ms += STEP_MS;
     fake_hal_set_milliseconds(now_ms);
     app_step();
@@ -395,16 +409,23 @@ static void damage_module(uint8_t argument)
     fake_hal_break_module(module, (broken_modules & 1u << module) != 0);
 }
 
+static void quick_tap(Key key)
+{
+    fake_hal_queue_transition(key, true, now_ms);
+    fake_hal_queue_transition(key, false, now_ms + TAP_MS);
+    step();
+}
+
 static void open_setting_row(uint8_t row)
 {
     press(KEY_BACK, LONG_MS);
     int home_row = HOME_SETTINGS_ROW + (app_player_status().has_track ? 1 : 0);
     for (int index = 0; index < home_row; index++) {
-        press(KEY_VOLUME_UP, TAP_MS);
+        quick_tap(KEY_VOLUME_UP);
     }
     press(KEY_PLAY, TAP_MS);
     for (int index = 0; index < row % SETTINGS_ROWS; index++) {
-        press(KEY_VOLUME_UP, TAP_MS);
+        quick_tap(KEY_VOLUME_UP);
     }
     press(KEY_PLAY, TAP_MS);
 }
@@ -778,6 +799,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     memset(failing, 0, sizeof failing);
     broken_modules = 0;
     cable = false;
+    step_count = 0;
     static Cursor cursor;
     cursor = (Cursor){data, size, 2};
     input_running = true;
@@ -786,11 +808,14 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
         return 0;
     }
     check_invariants();
-    for (int count = 0; count < op_limit() && cursor.at < size; count++) {
+    for (int count = 0; count < op_limit() && cursor.at < size && step_count < step_budget();
+         count++) {
         uint8_t value = next_byte(&cursor);
         if (tracing()) {
-            fprintf(stderr, "op %d: kind %d argument %d at byte %zu, screen \"%s\"\n", count,
-                    value % OP_COUNT, value / OP_COUNT, cursor.at - 1, app_screen_title());
+            fprintf(stderr,
+                    "op %d: kind %d argument %d at byte %zu, screen \"%s\", step %d, %ld ms\n",
+                    count, value % OP_COUNT, value / OP_COUNT, cursor.at - 1, app_screen_title(),
+                    step_count, (long)(clock() * 1000 / CLOCKS_PER_SEC));
         }
         run_op(&cursor, (Op)(value % OP_COUNT), (uint8_t)(value / OP_COUNT));
         leave_known_issue_screens();

@@ -695,7 +695,7 @@ It decodes the stored files itself. Calls into equalizer code for that run insid
 
 - `ECHO_LIFECYCLE_INPUTS` and `ECHO_LIFECYCLE_SEED`: how many inputs to generate, and from which xorshift state;
 - `ECHO_LIFECYCLE_INPUT=<hex>`: replay one input;
-- `ECHO_LIFECYCLE_OPS`: the operation limit, 48 by default;
+- `ECHO_LIFECYCLE_OPS` and `ECHO_LIFECYCLE_STEPS`: the operation limit (48 by default) and the step budget (220 app steps, so an input stays under libFuzzer's 2 s timeout with AddressSanitizer);
 - `ECHO_LIFECYCLE_TRACE=1`: print each operation.
 
 **Emulator.** `SlotOwnership` (`tools/echo_emulator/modules.py`) follows the owner of the slot through returns from `hal_system_load_module` and through writes to the slot header outside a load, which the overlays make. All UI modules link at the same address, so a stale pointer cannot be told apart by address alone. What it detects:
