@@ -21,7 +21,7 @@ typedef enum PlayingWorkOwner {
 typedef struct MeterState {
     AudioVisualNeedle needles[2];
     uint8_t shown[2];
-    uint8_t echo[2];
+    uint8_t pulse;
     uint32_t peak_until[2];
     uint8_t bars[AUDIO_VISUAL_BANDS];
     uint8_t caps[AUDIO_VISUAL_BANDS];
@@ -29,9 +29,11 @@ typedef struct MeterState {
     uint32_t frame;
     uint32_t updated_ms;
     uint32_t text_changed_ms;
+    uint32_t look;
     uint16_t track;
     NowPlayingStyle style;
     bool active;
+    bool repaint;
 } MeterState;
 
 typedef struct PlayingStyleWork {

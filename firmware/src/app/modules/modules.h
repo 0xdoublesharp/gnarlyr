@@ -16,6 +16,8 @@ typedef struct PlayingModuleEntry {
     ListSections (*sections)(const BrowseScreen *browse, int index);
     void (*now_playing_attach)(NowPlayingScreen *now_playing);
     void (*wire_boot)(Canvas *canvas, const Theme *theme, const Fade *fade, const char *text);
+    Screen *(*artist_strip)(AppScreens *screens, BrowseScreen *browse, BrowseQuery albums);
+    bool (*only_album)(const BrowseScreen *browse, BrowseQuery albums, BrowseQuery *album);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {
@@ -31,6 +33,7 @@ typedef struct ViewsModuleEntry {
 } ViewsModuleEntry;
 
 extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;
+extern const PlayingModuleEntry STAGE_MODULE_ENTRY;
 extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
 extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
 

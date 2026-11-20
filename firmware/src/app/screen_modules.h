@@ -16,7 +16,8 @@ typedef enum ScreenModule {
     SCREEN_MODULE_LISTENING,
     SCREEN_MODULE_EQUALIZER = 9,
     SCREEN_MODULE_PLAYING = 11,
-    SCREEN_MODULE_COUNT
+    SCREEN_MODULE_COUNT,
+    SCREEN_MODULE_STAGE = 16
 } ScreenModule;
 
 #define SCREEN_MODULE_MAGIC(module) (0x004D5344u | (uint32_t)(module) << 24)
@@ -36,5 +37,6 @@ typedef struct ScreenModuleEntry {
 
 void screen_modules_prepare_home(struct AppScreens *screens);
 void screen_modules_cancel_previews(struct AppScreens *screens);
+ScreenModule screen_modules_playing(const struct AppScreens *screens);
 ScreenModule screen_modules_of(const struct AppScreens *screens, const Screen *screen);
 const ScreenModuleEntry *screen_modules_use(struct AppScreens *screens, ScreenModule module);

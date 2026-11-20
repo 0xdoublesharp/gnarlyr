@@ -40,6 +40,12 @@ Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music playe
 
 To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues>. Include the version from Settings → About → Firmware, what you did and what happened. Attach the report files from the hidden `.gnarlyr/debug` folder on the player's internal drive. The full list is in [known issues](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/known-issues.md#beta-testers).
 
+## Unreleased: Sunset Drive meters
+
+- **VU meters and Spectrum are a sunset scene.** A striped sun sits on the horizon over a grid floor whose lines brighten with the bass. In VU meters the sun is the meter: its left and right halves light from the horizon up with each channel, marks beside it show 0 to −24 dB, and a peak flashes its top and lights a chrome PEAK. In Spectrum, bars in the theme's accent colour stand in front of the sun with striped reflections on the floor. The scene follows all five built-in themes; title, artist, time and progress are unchanged.
+- With VU meters or Spectrum selected, opening Cover Flow, an artist's albums or Up Next loads them separately and skips the sliding animation.
+- Checked in the simulator, the host tests and the ARM emulator, where both styles use no more processor time than the previous meters and a 96 kHz, 24-bit FLAC stayed fed with the screen on. Not yet checked on the player.
+
 ## Unreleased: safe updates and recovery
 
 - An update installs on trial into slot 1; slot 2 keeps the build that was running. The trial ends, and the new build is copied into slot 2 ("Saving this version as the backup"), after a USB session in which the computer wrote to internal storage and then ejected the drives. Copy any small file before ejecting: a session whose drives opened read-only, or that wrote nothing, leaves the trial running.

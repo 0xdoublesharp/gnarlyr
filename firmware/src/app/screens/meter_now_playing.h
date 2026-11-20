@@ -4,8 +4,6 @@
 
 typedef struct MeterNowPlayingLayout {
     Rect stage;
-    Rect dials[2];
-    Rect spectrum;
     Rect text[2];
 } MeterNowPlayingLayout;
 

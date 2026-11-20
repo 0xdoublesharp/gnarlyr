@@ -1,5 +1,7 @@
 #include "now_playing_screen.h"
 
+#include "core/seam.h"
+
 #include "core/i18n.h"
 #include "ui/header.h"
 #include "ui/label.h"
@@ -74,7 +76,6 @@ static void fallback_draw(void *context, Canvas *canvas)
 
 void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig config)
 {
-    now_playing->config = config;
     now_playing->destination = NULL;
     now_playing->flip_prompted = false;
     now_playing->has_text = false;
@@ -92,10 +93,13 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
         .hold_volume_keys = true,
     };
     now_playing_fallback_attach(now_playing);
+    now_playing->config = config;
 }
 
-void now_playing_fallback_attach(NowPlayingScreen *now_playing)
+CORE_SEAM void now_playing_fallback_attach(NowPlayingScreen *now_playing)
 {
+    now_playing->config.cassette_draw = NULL;
+    now_playing->config.cassette_animate = NULL;
     now_playing->screen.enter = NULL;
     now_playing->screen.handle_key = fallback_key;
     now_playing->screen.update = fallback_update;

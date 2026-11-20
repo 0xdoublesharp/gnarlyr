@@ -167,6 +167,7 @@ typedef struct AppModuleScreens {
 typedef struct AppScreens {
     AppScreensContext context;
     uint32_t bound_modules;
+    bool stage_missing;
     MenuScreen home;
     MenuScreen music;
     MessageScreen no_library;

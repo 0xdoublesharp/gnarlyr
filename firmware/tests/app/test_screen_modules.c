@@ -6,7 +6,10 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "language.h"
+#include "modules/modules.h"
 #include "screen_modules.h"
+#include "screens/cassette_now_playing.h"
+#include "screens/meter_now_playing.h"
 #include "test_pack.h"
 
 static AppScreens screens;
@@ -207,39 +210,114 @@ static void the_eleventh_module_loads_independently_of_views(void)
     CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
 }
 
-static void cassette_now_playing_requires_playing_and_rebinds_after_other_modules(void)
+static const PlayingModuleEntry *attach_now_playing(NowPlayingStyle style)
 {
-    reset();
-    screens.now_playing.config.settings = &settings.settings;
-    settings_set_now_playing_style(&settings.settings, NOW_PLAYING_CASSETTE);
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
-    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
-    CHECK(screens.now_playing.config.cassette_draw != NULL);
-    CHECK(screens.now_playing.config.cassette_animate != NULL);
-    CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
-    CHECK(screen_modules_use(&screens, screen_modules_of(&screens, &screens.now_playing.screen)) !=
-          NULL);
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
-    settings_set_now_playing_style(&settings.settings, NOW_PLAYING_COVER);
-    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
+    settings_set_now_playing_style(&settings.settings, style);
+    const PlayingModuleEntry *entry = (const PlayingModuleEntry *)screen_modules_use(
+        &screens, screen_modules_of(&screens, &screens.now_playing.screen));
+    if (entry != NULL) {
+        entry->now_playing_attach(&screens.now_playing);
+    }
+    return entry;
 }
 
-static void every_alternate_now_playing_style_requires_its_drawing_module(void)
+static void cassette_now_playing_requires_playing_and_reattaches_after_other_modules(void)
 {
     reset();
     screens.now_playing.config.settings = &settings.settings;
-    for (int style = 1; style <= 3; style++) {
+    CHECK(attach_now_playing(NOW_PLAYING_CASSETTE) != NULL);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK(screens.now_playing.config.cassette_draw == cassette_now_playing_draw);
+    CHECK(screens.now_playing.config.cassette_animate == cassette_now_playing_animate);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
+    CHECK(attach_now_playing(NOW_PLAYING_CASSETTE) != NULL);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK(attach_now_playing(NOW_PLAYING_COVER) != NULL);
+    CHECK(screens.now_playing.config.cassette_draw == NULL);
+    CHECK(screens.now_playing.config.cassette_animate == NULL);
+}
+
+static void meter_styles_draw_now_playing_and_lists_from_the_stage_module(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    const PlayingModuleScreens *views = &screens.modules.playing;
+    const Screen *list = &screens.browse.screens[0].screen;
+    for (int style = NOW_PLAYING_COVER; style <= NOW_PLAYING_SPECTRUM; style++) {
         settings_set_now_playing_style(&settings.settings, (NowPlayingStyle)style);
+        ScreenModule expected =
+            style >= NOW_PLAYING_VU ? SCREEN_MODULE_STAGE : SCREEN_MODULE_PLAYING;
+        CHECK_EQUAL(expected, screen_modules_of(&screens, &screens.now_playing.screen));
+        CHECK_EQUAL(expected, screen_modules_of(&screens, list));
+        CHECK_EQUAL(expected, screen_modules_playing(&screens));
+        CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->cover_flow.screen));
+        CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &views->up_next.screen));
         CHECK_EQUAL(SCREEN_MODULE_PLAYING,
-                    screen_modules_of(&screens, &screens.now_playing.screen));
+                    screen_modules_of(&screens, &views->artist_albums.screen));
     }
+}
+
+static void each_playing_module_attaches_its_own_now_playing_hooks(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    CHECK(attach_now_playing(NOW_PLAYING_VU) == &STAGE_MODULE_ENTRY);
+    CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
+    CHECK(screens.now_playing.config.cassette_draw == meter_now_playing_draw);
+    CHECK(screens.now_playing.config.cassette_animate == meter_now_playing_animate);
+    CHECK(screens.now_playing.screen.draw != NULL);
+    CHECK(attach_now_playing(NOW_PLAYING_CASSETTE) == &PLAYING_MODULE_ENTRY);
+    CHECK(screens.now_playing.config.cassette_draw == cassette_now_playing_draw);
+    CHECK(attach_now_playing(NOW_PLAYING_SPECTRUM) == &STAGE_MODULE_ENTRY);
+    CHECK(screens.now_playing.config.cassette_draw == meter_now_playing_draw);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
+    CHECK(screens.modules.playing.cover_flow.screen.draw != NULL);
+    screens.modules.playing.cover_flow.target = 3;
+    CHECK(attach_now_playing(NOW_PLAYING_VU) == &STAGE_MODULE_ENTRY);
+    CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
+    CHECK_EQUAL(3, screens.modules.playing.cover_flow.target);
+    CHECK_EQUAL(6, fake_hal_module_loads());
+}
+
+static void the_resident_fallback_drops_every_style_hook(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    for (int style = NOW_PLAYING_CASSETTE; style <= NOW_PLAYING_SPECTRUM; style++) {
+        CHECK(attach_now_playing((NowPlayingStyle)style) != NULL);
+        CHECK(screens.now_playing.config.cassette_animate != NULL);
+        now_playing_fallback_attach(&screens.now_playing);
+        CHECK(screens.now_playing.config.cassette_draw == NULL);
+        CHECK(screens.now_playing.config.cassette_animate == NULL);
+    }
+}
+
+static void a_damaged_stage_module_hands_meter_styles_to_playing_and_is_not_retried(void)
+{
+    reset();
+    screens.now_playing.config.settings = &settings.settings;
+    fake_hal_break_module(SCREEN_MODULE_STAGE, true);
+    CHECK(attach_now_playing(NOW_PLAYING_VU) == &PLAYING_MODULE_ENTRY);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
+    CHECK(screens.now_playing.config.cassette_draw == NULL);
+    CHECK_EQUAL(SCREEN_MODULE_PLAYING, screen_modules_of(&screens, &screens.now_playing.screen));
+    int refusals = fake_hal_module_refusals();
+    for (int draw = 0; draw < 10; draw++) {
+        CHECK(screen_modules_use(&screens, screen_modules_playing(&screens)) != NULL);
+    }
+    CHECK_EQUAL(1, refusals);
+    CHECK_EQUAL(refusals, fake_hal_module_refusals());
+    CHECK_EQUAL(1, fake_hal_module_loads());
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(every_alternate_now_playing_style_requires_its_drawing_module),
-        TEST_CASE(cassette_now_playing_requires_playing_and_rebinds_after_other_modules),
+        TEST_CASE(meter_styles_draw_now_playing_and_lists_from_the_stage_module),
+        TEST_CASE(each_playing_module_attaches_its_own_now_playing_hooks),
+        TEST_CASE(a_damaged_stage_module_hands_meter_styles_to_playing_and_is_not_retried),
+        TEST_CASE(the_resident_fallback_drops_every_style_hook),
+        TEST_CASE(cassette_now_playing_requires_playing_and_reattaches_after_other_modules),
         TEST_CASE(screens_outside_every_module_belong_to_none),
         TEST_CASE(a_screen_belongs_to_the_module_whose_memory_holds_it),
         TEST_CASE(screens_a_module_builds_for_itself_belong_to_it_too),
