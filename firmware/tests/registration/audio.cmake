@@ -29,6 +29,10 @@ echo_add_unit_test(NAME test_audio_engine
     LIBRARIES echo_device_logic
 )
 target_compile_definitions(test_audio_engine PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+echo_add_unit_test(NAME test_audio_engine_settle
+    SOURCES device/test_audio_engine_settle.c
+    LIBRARIES echo_device_logic
+)
 echo_add_unit_test(NAME test_audio_fade
     SOURCES device/test_audio_fade.c
     LIBRARIES echo_device_logic

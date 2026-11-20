@@ -23,6 +23,7 @@ typedef struct FakeFile {
 static FakeFile files[FILE_SLOTS];
 static uint8_t buffer[BUFFER_BYTES];
 static const char *refused;
+static const char *corrupted_read;
 static int creates;
 
 static FakeFile *find(uint8_t volume, const char *path)
@@ -66,6 +67,9 @@ static bool fake_read(void *context, const UserStatePlace *place, UserStateChunk
         return false;
     }
     memcpy(chunk.bytes, file->bytes + chunk.offset, chunk.length);
+    if (corrupted_read != NULL && strstr(place->path, corrupted_read) != NULL && chunk.length > 0) {
+        chunk.bytes[0] ^= 1;
+    }
     return true;
 }
 
@@ -107,6 +111,7 @@ static void reset(void)
 {
     memset(files, 0, sizeof files);
     refused = NULL;
+    corrupted_read = NULL;
     creates = 0;
 }
 
@@ -202,6 +207,45 @@ static void the_settings_entry_tracks_the_settings_format_version(void)
     CHECK_EQUAL(FORMAT_AGE_INVALID, user_state_age(&kind, bytes, sizeof bytes));
 }
 
+static void every_version_header_boundary_is_classified(void)
+{
+    char name[USER_STATE_NAME_CAPACITY];
+    UserStateKind kind = user_state_kind(8, name);
+    CHECK_EQUAL(0, strcmp(name, "session.bin"));
+    uint8_t head[] = {'D', 'S', 'S', 'J', 1, 0};
+    CHECK_EQUAL(FORMAT_AGE_INVALID, user_state_age(&kind, head, sizeof head - 1));
+    head[0] = 'X';
+    CHECK_EQUAL(FORMAT_AGE_INVALID, user_state_age(&kind, head, sizeof head));
+    head[0] = 'D';
+    head[4] = 0;
+    CHECK_EQUAL(FORMAT_AGE_INVALID, user_state_age(&kind, head, sizeof head));
+    head[4] = 1;
+    CHECK_EQUAL(FORMAT_AGE_CURRENT, user_state_age(&kind, head, sizeof head));
+    head[4] = 2;
+    CHECK_EQUAL(FORMAT_AGE_NEWER, user_state_age(&kind, head, sizeof head));
+
+    uint8_t settings[SETTINGS_FILE_SIZE];
+    Settings defaults = settings_defaults();
+    settings_encode(&defaults, settings);
+    kind = user_state_kind(0, name);
+    UserStateKind future_kind = kind;
+    future_kind.current = SETTINGS_FORMAT_VERSION + 1;
+    CHECK_EQUAL(FORMAT_AGE_OLDER, user_state_age(&future_kind, settings, sizeof settings));
+
+    kind = user_state_kind(6, name);
+    CHECK_EQUAL(0, strcmp(name, "eq_slots.bin"));
+    CHECK_EQUAL(FORMAT_AGE_CURRENT, user_state_age(&kind, NULL, 0));
+}
+
+static void an_overlong_state_path_is_refused(void)
+{
+    char path[USER_STATE_PATH_CAPACITY];
+    char folder[USER_STATE_PATH_CAPACITY];
+    memset(folder, 'x', sizeof folder - 1);
+    folder[sizeof folder - 1] = '\0';
+    CHECK(!user_state_path(path, folder, "settings.bin"));
+}
+
 static void a_copy_moves_every_byte_through_a_small_buffer_and_checks_it(void)
 {
     reset();
@@ -214,6 +258,29 @@ static void a_copy_moves_every_byte_through_a_small_buffer_and_checks_it(void)
     CHECK(!user_state_copy(&IO, &from, &to));
     UserStatePlace missing = {USER_STATE_MUSIC, "/none"};
     CHECK(!user_state_copy(&IO, &missing, &to));
+}
+
+static void a_copy_refuses_an_unusable_buffer_before_creating_the_target(void)
+{
+    reset();
+    FakeFile *source = put_data(USER_STATE_MUSIC, "", "listens.bin", 12);
+    UserStatePlace from = {USER_STATE_MUSIC, source->path};
+    UserStatePlace to = {USER_STATE_INTERNAL, "/copy"};
+    UserStateIo tiny = IO;
+    tiny.buffer_bytes = 1;
+    CHECK(!user_state_copy(&tiny, &from, &to));
+    CHECK_EQUAL(0, creates);
+    CHECK(find(USER_STATE_INTERNAL, "/copy") == NULL);
+}
+
+static void a_copy_detects_corruption_in_the_written_target(void)
+{
+    reset();
+    FakeFile *source = put_data(USER_STATE_MUSIC, "", "listens.bin", 12);
+    UserStatePlace from = {USER_STATE_MUSIC, source->path};
+    UserStatePlace to = {USER_STATE_INTERNAL, "/copy"};
+    corrupted_read = "/copy";
+    CHECK(!user_state_copy(&IO, &from, &to));
 }
 
 static void a_backup_copies_the_small_user_files_and_lists_the_old_build(void)
@@ -319,6 +386,20 @@ static void a_restore_puts_the_backed_up_files_back_and_leaves_the_rest(void)
     CHECK(find_data(USER_STATE_MUSIC, "", "bookmarks.bin") == later);
     CHECK(!user_state_restore(&IO, 1));
     CHECK(!user_state_restore(&IO, USER_STATE_BACKUPS));
+}
+
+static void a_restore_reports_one_failed_file_but_continues_with_the_rest(void)
+{
+    reset();
+    settings_file("", 1);
+    put_data(USER_STATE_MUSIC, "", "favorites.bin", 70);
+    CHECK(user_state_backup(&IO, "build-one"));
+    FakeFile saved_favorites = *find_data(USER_STATE_MUSIC, "", "favorites.bin");
+    find_data(USER_STATE_INTERNAL, "", "settings.bin")->bytes[6] ^= 1;
+    find_data(USER_STATE_MUSIC, "", "favorites.bin")->bytes[6] ^= 1;
+    refused = "/settings.bin";
+    CHECK(!user_state_restore(&IO, 0));
+    CHECK(same_file(&saved_favorites, find_data(USER_STATE_MUSIC, "", "favorites.bin")));
 }
 
 static void a_newer_file_is_set_aside_so_the_older_build_starts_fresh(void)
@@ -524,13 +605,18 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(the_catalogue_names_every_user_file_once),
         TEST_CASE(the_settings_entry_tracks_the_settings_format_version),
+        TEST_CASE(every_version_header_boundary_is_classified),
+        TEST_CASE(an_overlong_state_path_is_refused),
         TEST_CASE(a_copy_moves_every_byte_through_a_small_buffer_and_checks_it),
+        TEST_CASE(a_copy_refuses_an_unusable_buffer_before_creating_the_target),
+        TEST_CASE(a_copy_detects_corruption_in_the_written_target),
         TEST_CASE(a_backup_copies_the_small_user_files_and_lists_the_old_build),
         TEST_CASE(the_last_two_backups_are_kept_and_the_oldest_is_replaced),
         TEST_CASE(a_second_backup_of_the_same_build_reuses_its_slot),
         TEST_CASE(an_unfinished_backup_is_not_listed),
         TEST_CASE(a_damaged_list_reads_as_no_backups),
         TEST_CASE(a_restore_puts_the_backed_up_files_back_and_leaves_the_rest),
+        TEST_CASE(a_restore_reports_one_failed_file_but_continues_with_the_rest),
         TEST_CASE(a_newer_file_is_set_aside_so_the_older_build_starts_fresh),
         TEST_CASE(a_newer_file_that_cannot_be_set_aside_stays_where_it_is),
         TEST_CASE(a_set_aside_file_returns_when_a_build_can_read_it_again),

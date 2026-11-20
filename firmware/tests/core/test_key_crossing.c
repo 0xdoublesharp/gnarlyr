@@ -169,6 +169,39 @@ static void a_reset_forgets_a_held_back_release(void)
     CHECK_EQUAL(0, out.count);
 }
 
+static void a_crossing_remains_ordered_across_the_clock_wrap(void)
+{
+    start();
+    uint32_t before_wrap = UINT32_MAX - 50;
+    take(KEY_MENU, false, before_wrap, WATCH_MENU);
+    take(KEY_PLAY, true, before_wrap, WATCH_MENU);
+    take(KEY_PLAY, false, 25, WATCH_MENU);
+    take(KEY_VOLUME_UP, true, 25, WATCH_MENU);
+    CHECK_EQUAL(2, out.count);
+    CHECK(step_is(0, KEY_MENU, false, before_wrap));
+    CHECK(step_is(1, KEY_VOLUME_UP, true, before_wrap));
+}
+
+static void changing_between_volume_keys_drops_the_play_band_blip(void)
+{
+    start();
+    take(KEY_VOLUME_UP, false, 100, WATCH_BOTH);
+    take(KEY_PLAY, true, 100, WATCH_BOTH);
+    take(KEY_PLAY, false, 150, WATCH_BOTH);
+    take(KEY_VOLUME_DOWN, true, 150, WATCH_BOTH);
+    CHECK_EQUAL(2, out.count);
+    CHECK(step_is(0, KEY_VOLUME_UP, false, 100));
+    CHECK(step_is(1, KEY_VOLUME_DOWN, true, 150));
+}
+
+static void a_full_output_batch_drops_extra_steps_without_overflowing(void)
+{
+    start();
+    out = (KeyCrossingOut){.count = KEY_CROSSING_OUT_CAPACITY};
+    key_crossing_take(&crossing, (KeyStep){KEY_POWER, true, 100}, WATCH_BOTH, &out);
+    CHECK_EQUAL(KEY_CROSSING_OUT_CAPACITY, out.count);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -184,6 +217,9 @@ int main(void)
         TEST_CASE(another_key_during_the_crossing_replays_what_came_before),
         TEST_CASE(nothing_is_watched_when_the_rules_are_off),
         TEST_CASE(a_reset_forgets_a_held_back_release),
+        TEST_CASE(a_crossing_remains_ordered_across_the_clock_wrap),
+        TEST_CASE(changing_between_volume_keys_drops_the_play_band_blip),
+        TEST_CASE(a_full_output_batch_drops_extra_steps_without_overflowing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
