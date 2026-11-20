@@ -12,7 +12,7 @@ Everything here was checked against `main` at `bb0cb274`. The results below come
 ## Running the checks
 
 ```sh
-python3 tools/firmware.py formal                        # every harness and model
+python3 tools/firmware.py formal                        # every default harness and model
 python3 tools/firmware.py formal --cbmc                 # CBMC harnesses only
 python3 tools/firmware.py formal --tla                  # TLA+ models only
 python3 tools/firmware.py formal --harness core_handoff # one harness or model
@@ -86,8 +86,8 @@ The harness C follows the firmware rules: no comments, formatted with `.clang-fo
 - **Checks on every harness:** `--bounds-check --pointer-check --pointer-overflow-check --signed-overflow-check --div-by-zero-check --undefined-shift-check`. CBMC 6 also turns a call to a function with no body into a failing property, and `formal.py` reports such a call as an `error`.
 - **Unwinding.** Most harnesses are *complete* within their bound. They run with `--unwinding-assertions`, so a loop that could run past the unwind limit, for any file up to the bound, fails the check. That makes a pass a proof for every file up to the bound.
 
-  The tag, CUE, playlist and theme harnesses did not finish that way within about 10 CPU-minutes, even at 16 to 48 bytes. They are *depth-bounded* instead, with `--no-unwinding-assertions`. CBMC 6 adds unwinding assertions by default, so the option must be given. A pass then covers every path in which no loop runs more than the unwind limit. Paths with longer loops are not examined.
-- **Unsigned overflow.** `--unsigned-overflow-check` is off globally because firmware code wraps on purpose: store generations, the language row check `size - 1 - 2n`, and the hash. It is on for `library_database` and `theme_pack_v1`, where every offset and size sum must stay below the file size and a wrap would be a bug.
+  The tag, CUE, playlist and theme harnesses did not finish that way within about 10 CPU-minutes, even at 16 to 48 bytes. `tags_vorbis_comment` and `playlist_reader` are *depth-bounded* instead, with `--no-unwinding-assertions`. CBMC 6 adds unwinding assertions by default, so the option must be given. A pass then covers every path in which no loop runs more than *N* − 1 times, for unwind *N*. Paths with longer loops are not examined. The others are opt-in; see below.
+- **Unsigned overflow.** `--unsigned-overflow-check` is off globally because firmware code wraps on purpose: store generations, the language row check `size - 1 - 2n`, and the hash. It is on for `library_database` and the opt-in `theme_pack_v1`, where every offset and size sum must stay below the file size and a wrap would be a bug.
 - **Uninitialised memory.** CBMC itself gives uninitialised memory an arbitrary value, so every property is checked for every content such memory could have. It does not report the read itself. `goto-instrument --uninitialized-check` would, but it tracks only direct assignments to locals. Every reader here fills its buffers through a callee (`hal_file_open(&file)`, `read_source(..., header, ...)`), so that check reports each of them falsely. It runs on the canary only, to show it works.
 - **The file.** `stubs/card.c` stands for the file on the card. The file's size is nondeterministic up to `FORMAL_CARD_BYTES`. A read:
   - may fail at any time, in which case it overwrites the caller's buffer with arbitrary bytes, as a part-done read would;
@@ -115,16 +115,16 @@ The figures are CPU seconds of the checker (`formal.py` measures its child proce
 | `user_state_records` | `user_state_list_decode`, `_mark_request`, `_age`, `update_trial_decode` | 44 B | 24 | complete | 1,400 | passed | 1 s |
 | `language_pack` | `i18n_attach`, `i18n_pack_segment`, `i18n_attach_segment`, `i18n_text` | 128 B pack, 32 B module | 132 | complete | 859 | passed | 8 s |
 | `language_loader` | `language_load`, `language_use_module` | 256 B, fresh; 192 B memory | 20 | complete | 538 | passed | 58 s |
-| `theme_pack_v1` | `theme_pack_open` | 640 B, fresh | 12 | depth-bounded, unsigned overflow on | 2,743 | passed | 496 s |
 
-Four harnesses are opt-in (`"default": false`). `formal.py` skips them unless they are named with `--harness` or the run uses `--all`. None reached a useful verdict within the time tried:
+Five harnesses are opt-in (`"default": false`). `formal.py` skips them unless they are named with `--harness` or the run uses `--all`. None has a useful verdict yet. The complete runs and the depth-bounded runs at unwind 12 stopped at a 30-minute wall limit after 10 to 18 CPU-minutes.
 
-| Harness | What was tried | Outcome |
-|---|---|---|
-| `tags_id3v2` | complete at 32 B, unwind 36; depth-bounded at 64 B, unwind 12, then 4 | each stopped at the 30-minute wall limit (600 to 1,085 s CPU). Depth 3 finishes in 7 s but cannot complete a 4-byte magic compare |
-| `tags_flac` | complete at 48 B, unwind 52; depth-bounded at 96 B, unwind 12; unwind 4 with the key and magic loops raised | stopped at the limit. A plain unwind-4 run "passes" in 1 s but reaches 21 of 354 blocks in `tags_vorbis.c`, because CBMC needs *k* + 1 unwindings to finish a *k*-iteration loop. That pass is vacuous, and the manifest now asks for unwind 6 |
-| `tags_mp4` | complete at 40 B, unwind 44; depth-bounded at 96 B, unwind 12 | stopped at the limit; unwind 4 is vacuous for the same reason. The manifest asks for unwind 6 |
-| `cue_sheet` | complete at 16 B, unwind 20; depth-bounded at 64 B, unwind 12, then 4 | stopped at the limit (714 to 998 s CPU) |
+| Harness | Status |
+|---|---|
+| `tags_id3v2` | no verdict at 32 to 64 B. Unwind 3 finishes in 7 s but cannot complete the 3-byte magic compare |
+| `tags_flac` | no verdict. A run at unwind 4 "passes" in 1 s but reaches 21 of 354 blocks in `tags_vorbis.c`, because CBMC needs *k* + 1 unwindings to finish a *k*-iteration loop. The manifest asks for unwind 6 |
+| `tags_mp4` | no verdict; unwind 4 is vacuous for the same reason. The manifest asks for unwind 6 |
+| `cue_sheet` | no verdict at 16 to 64 B |
+| `theme_pack_v1` | no verdict past the header check. A depth-bounded run at unwind 12 "passes" (496 s CPU), but `text_valid` and `zeroes` need at least 21 iterations on a 32-byte field, so `theme_pack_open` cannot accept a pack in that run. Only header rejection paths are covered. The manifest asks for unwind 130, which has not been run |
 
 Reachability, from `--cover` runs (blocks reached in each driven source, out of all blocks in the file):
 
@@ -137,11 +137,11 @@ Reachability, from `--cover` runs (blocks reached in each driven source, out of 
 | `language_pack` | `i18n.c` 125/159 | 4 s |
 | `language_loader` | `language.c` 108/112, `language_module.c` 66/66 | 542 s |
 | `tags_vorbis_comment` | `tags_vorbis.c` 50/354, `track_tags.c` 17/310, `replay_gain.c` 17/294. At depth 4 the key table and key comparisons cannot complete, so this pass covers the length and count handling, not field matching | 361 s |
-| `library_database`, `playlist_reader`, `theme_pack_v1` | not measured; a `--cover` run costs more than the check itself | |
+| `library_database`, `playlist_reader` | not measured; a `--cover` run costs more than the check itself | |
 
 ### What each harness proves
 
-For every file content up to the bound, every listed entry point stays inside its buffers and the file, with no signed overflow, undefined shift or division by zero. In complete mode, every loop also ends within the unwind limit. In depth-bounded mode, those properties hold on every path in which no loop runs more than the unwind limit.
+For every file content up to the bound, every listed entry point stays inside its buffers and the file, with no signed overflow, undefined shift or division by zero. In complete mode, every loop also ends within the unwind limit. In depth-bounded mode, those properties hold on every path in which no loop runs more than *N* − 1 times, for unwind *N*.
 
 - **`canary`.** A planted overflow and an uninitialised read in harness code. It must fail on exactly `count_marks.array_bounds.1` and `count_marks.uninitialized_local.1`. Any other result means the set-up is broken.
 - **`library_database` (`library.db`, `DSDB` version 2).** `library_open` (header, section table, the content fingerprint walk) on a file of up to 160 bytes (fresh). On any accepted file it then calls, at any index: `library_read_track`, `_album`, `_group` (any section), `_folder`, `_index` (any section), `_string` (capacity 0 to 16) and `library_album_key`. It asserts that every accepted section lies inside the file, music counts never exceed section counts, and strings end inside their buffer. The header alone is 128 bytes, so this leaves up to 32 bytes of section data. The playlist and hidden-track overlays (`Library.extra`, `Library.hidden`) are not set, because no file sets them.
@@ -155,6 +155,8 @@ For every file content up to the bound, every listed entry point stays inside it
 - **`tags_vorbis_comment` (depth-bounded).** `tags_read_vorbis_comment` directly, at any offset and limit inside a 64-byte file, for both Vorbis and Opus framing. It covers the comment parser, the key table, the replay-gain fields and the base64 picture probe without the FLAC wrapper.
 - **`cue_sheet` (opt-in, no verdict yet).** One `cue_sheet_next` on a 64-byte file. It starts either from the opened file or from an arbitrary reader position with arbitrary pending and building flags, numbers and times. The assertions are that titles, performers and the album fields end inside their fields. It has not finished at any depth tried. The resumed state keeps the album and entry texts empty, which under-approximates a sheet that already holds text.
 - **`playlist_reader` (depth-bounded).** One `playlist_reader_next` on a 64-byte file, with an entry buffer of 1 to 12 bytes. It starts either from the opened file or from any reader state: any position, any cached chunk, either encoding, any start time. That state over-approximates every later call. Every entry ends inside its buffer.
+
+  At unwind 4, `playlist_reader_open`'s UTF-8 scan (`is_utf8`) finishes only for files of at most three sequences, or with an invalid byte among the first three, which sends them down the Windows-1252 path. Longer valid UTF-8 files are cut off before the reader runs. Each line seen holds at most three characters. The pass covers that much and no more.
 - **`settings_codec` (`settings.bin`, `buttons.bin`).** `settings_decode`, `settings_encode` of the result, `settings_buttons_decode` and `settings_file_newer`, on 0 to 96 bytes of arbitrary content. A decoded language code ends inside its field, and the preset is in range.
 - **`playback_store` (the two-bank `StoreFile` format).** `store_pair_open` with an arbitrary bank size, `store_load` at any offset and `store_scan_next` at any position, on a 1,100-byte file (fresh). An inline payload never exceeds its block. This covers `order.bin`, `session.bin`, `mixes.bin`, `moments.bin`, `track_keys.bin`, `listens.bin`, `recap.bin`, `theme.bin` and the other store files at the block level. Each format's payload decoder is not covered.
 - **`user_state_records`.** On arbitrary bytes: `user_state_list_decode` (`backup/list.bin`), `user_state_mark_request` (`continuity.bin`), `user_state_age` for every catalogue entry, and `update_trial_decode` (`trial.bin`). Build names end inside their fields, the newest slot is a slot or none, a restore request names a slot or none, and a trial state is known.
@@ -164,14 +166,14 @@ For every file content up to the bound, every listed entry point stays inside it
 - **`language_loader` (`language.c`, `language_module.c`).** `language_load` with an arbitrary code, then `language_use_module` for any module, reading from a file or a built-in copy (fresh, up to 256 bytes) into 192 bytes of language memory. The parser is replaced by `stubs/i18n.c`, which can return any verdict and any index values allowed by its contract. Every read fits its buffer for every such verdict.
 
   The contract matters. The loader rounds `info.resident` up to 4 bytes before comparing it with the memory's capacity (`language.c:48`), and that sum wraps for a `resident` within 3 of 2³². The real parser keeps `resident` far smaller (`row_matches`, `i18n.c:44`). The stub encodes that bound, and without it the loader check fails.
-- **`theme_pack_v1` (`.gtheme`, `DSTP` version 1, depth-bounded).** `theme_pack_open` on up to 640 bytes (fresh): the 512-byte header, the asset rows, the CRC walk and the signature trailer. Every accepted asset lies inside the file, and the name and version end inside their fields. The palette decode runs, with its FNV stubbed.
+- **`theme_pack_v1` (`.gtheme`, `DSTP` version 1, opt-in, no verdict yet).** `theme_pack_open` on up to 640 bytes (fresh): the 512-byte header, the asset rows, the CRC walk and the signature trailer. The assertions are that every accepted asset lies inside the file and that the name and version end inside their fields. The palette decode runs, with its FNV stubbed.
 
 ### Not covered, and seams worth adding
 
 - **Above the bound and the unwind limit.** A complete pass says nothing about files larger than its bound. A depth-bounded pass also says nothing about paths whose loops run longer. That leaves the following to the fuzzers and unit tests:
   - the ID3v2, FLAC, MP4 and CUE readers, which have no verdict at all;
-  - the Vorbis comment and playlist readers beyond four loop iterations;
-  - the theme pack's text fields beyond 12 characters;
+  - the theme pack past its header check;
+  - the Vorbis comment and playlist readers on paths where a loop runs more than three times (unwind 4 allows three iterations);
   - multi-chunk reads.
 - **Not driven.**
   - The Ogg page walk, and the ASF, APE, WAV/AIFF and DSD tag readers.
