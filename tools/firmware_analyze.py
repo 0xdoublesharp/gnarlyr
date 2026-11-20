@@ -423,10 +423,6 @@ def top_paths(graph, count=10):
     return [{"root": name, "bytes": depths[name][0], "path": list(depths[name][1])} for name in ranked]
 
 
-def callgraph_files(build):
-    return sorted(build.rglob("*.ci"))
-
-
 def linked_objects(map_text, build_dir):
     objects = set()
     for match in re.finditer(r"^LOAD (\S+\.o(?:bj)?)$", map_text, re.MULTILINE):
@@ -445,7 +441,7 @@ def object_of(callgraph_path, lto_objects):
     return next((stem + suffix for suffix in (".o", ".obj") if stem + suffix in lto_objects), None)
 
 
-def program_graph(program_dir, elf_name, build_root, lto_objects):
+def program_graph(program_dir, elf_name, lto_objects):
     graph = CallGraph()
     elf = program_dir / f"{elf_name}.elf"
     ltrans = sorted(program_dir.glob(f"{elf_name}.elf.ltrans*.ci"))
@@ -518,8 +514,8 @@ def combine(report, kind):
     return main + EXCEPTION_FRAME + tick + (EXCEPTION_FRAME + fault if fault else 0)
 
 
-def analyse_program(program_dir, elf_name, build_root, lto_objects, entries, budget):
-    graph, files = program_graph(program_dir, elf_name, build_root, lto_objects)
+def analyse_program(program_dir, elf_name, lto_objects, entries, budget):
+    graph, files = program_graph(program_dir, elf_name, lto_objects)
     elf = program_dir / f"{elf_name}.elf"
     taken, _ = address_taken(elf.read_bytes()) if elf.is_file() else ([], [])
     report, worst_target = bound_report(graph, entries, taken)
@@ -552,7 +548,7 @@ def companion_names(build):
 
 
 def companion_report(build, name, lto_objects, host):
-    graph, files = program_graph(build / "platform/device", name, build, lto_objects)
+    graph, files = program_graph(build / "platform/device", name, lto_objects)
     own = set(graph.frames)
     combined = CallGraph()
     combined.frames = {**host.frames, **graph.frames}
@@ -593,9 +589,9 @@ def stack_bound(build):
     lto = lto_objects_of(database)
     results = {}
     for name, (entries, budget) in stack_programs(build).items():
-        results[name] = analyse_program(build / "platform/device", name, build, lto, entries, budget)
+        results[name] = analyse_program(build / "platform/device", name, lto, entries, budget)
     if "echo_device" in results:
-        host, _ = program_graph(build / "platform/device", "echo_device", build, lto)
+        host, _ = program_graph(build / "platform/device", "echo_device", lto)
         companions = {name: companion_report(build, name, lto, host) for name in companion_names(build)}
         device = results["echo_device"]
         worst = max(companions, key=lambda name: companions[name]["bytes"], default=None)

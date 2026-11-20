@@ -98,11 +98,11 @@ class SeedFramingTests(unittest.TestCase):
         self.assertEqual(campaign.opus_seeds(data, [bytes(12)]), [bytes(12) + b"\xf8\xff\xfe"])
 
     def test_harness_framing(self):
-        self.assertEqual(campaign.frame_for("playlist_reader", b"a.flac\n", 99, []),
+        self.assertEqual(campaign.frame_for("playlist_reader", b"a.flac\n", []),
                          [b"\xff\x00a.flac\n", b"\x00\x00a.flac\n"])
-        self.assertEqual(len(campaign.frame_for("ogg_track", b"OggS", 99, [])), 3)
-        self.assertEqual(campaign.frame_for("theme_pack", b"DSTP", 99, []), [b"DSTP"])
-        self.assertEqual(campaign.frame_for("theme_pack", b"\x01DSTP", 99, []), [])
+        self.assertEqual(len(campaign.frame_for("ogg_track", b"OggS", [])), 3)
+        self.assertEqual(campaign.frame_for("theme_pack", b"DSTP", []), [b"DSTP"])
+        self.assertEqual(campaign.frame_for("theme_pack", b"\x01DSTP", []), [])
 
     def test_media_routes_by_suffix_and_truncates_to_the_target_length(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -226,6 +226,14 @@ class CampaignTests(unittest.TestCase):
             campaign.Campaign(layout, runner=failing).run(["store"], lambda name: settings, {}, 1)
             self.assertIn("seed-", " ".join(path.name for path in (root / "corpus/store").iterdir()))
             self.assertFalse((root / "corpus/store.merging").exists())
+
+    def test_sanitizer_reports_without_an_input_are_listed(self):
+        result = {"seconds": 1, "execs": 2, "exec_per_second": 2, "coverage_before": None, "coverage_after": None,
+                  "files_before": 1, "files_after": 1, "artifacts": [], "log": "/r/x/fuzz.log",
+                  "sanitizer": ["LeakSanitizer detected"]}
+        text = campaign.summary_markdown({"x": result, "y": {"error": "boom", "artifacts": []}})
+        self.assertIn("LeakSanitizer detected without leaving an input", text)
+        self.assertIn("| y | error: boom", text)
 
     def test_two_campaigns_cannot_share_a_corpus(self):
         with tempfile.TemporaryDirectory() as directory:

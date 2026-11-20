@@ -154,7 +154,7 @@ def opus_seeds(data, controls):
     return [control + packet for packet in packets[:4] for control in controls]
 
 
-def frame_for(name, data, max_length, opus_controls):
+def frame_for(name, data, opus_controls):
     if name == "playlist_reader":
         return [b"\xff\x00" + data, b"\x00\x00" + data]
     if name == "ogg_track":
@@ -173,7 +173,7 @@ def media_seeds(paths, max_lengths, opus_controls):
             if name not in max_lengths:
                 continue
             data = path.read_bytes()
-            for framed in frame_for(name, data, max_lengths[name], opus_controls):
+            for framed in frame_for(name, data, opus_controls):
                 framed = framed[:max_lengths[name]]
                 if framed:
                     seeds[name][content_name("media", framed)] = framed
@@ -375,7 +375,7 @@ class Campaign:
 
 def coverage_cell(before, after, key):
     if not before or not after:
-        return "?"
+        return "not measured: an input crashed during the coverage pass"
     return f"{before[key]} → {after[key]} (+{after[key] - before[key]})"
 
 
@@ -396,6 +396,9 @@ def summary_markdown(results):
             f"{result['files_before']} → {result['files_after']} | {kinds.count('crash')} | "
             f"{kinds.count('timeout')} | {kinds.count('oom')} | {kinds.count('leak')} |")
         artifacts.extend(f"- `{name}` {artifact['kind']}: `{artifact['repro']}`" for artifact in result["artifacts"])
+        if result.get("sanitizer") and not result["artifacts"]:
+            artifacts.append(f"- `{name}` reported {', '.join(result['sanitizer'])} without leaving an input; "
+                             f"see `{result['log']}`")
     total = sum(result.get("execs", 0) for result in results.values())
     lines = ["# Fuzz campaign summary", "", f"Fuzzers: {len(results)}; executions: {total}.", "", *rows, ""]
     lines += ["## Artifacts", "", *(artifacts or ["None."]), ""]
