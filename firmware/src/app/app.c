@@ -1529,9 +1529,9 @@ static void send_motion(void *context, Rect area, const Color *pixels)
     hal_display_write(area.x, area.y, area.width, area.height, pixels);
 }
 
-static void render_motion(FrameDrawer drawer)
+static void render_area(Rect area, FrameDrawer drawer)
 {
-    StripRenderer renderer = frame_renderer(app.motion.area, false);
+    StripRenderer renderer = frame_renderer(area, false);
     strip_renderer_render(&renderer, drawer, (FrameSink){.write = send_motion, .context = NULL});
     hal_display_present();
 }
@@ -1580,7 +1580,7 @@ static void animate(FrameDrawer drawer, const void *owner, bool visible, uint32_
     if (rect_is_empty(app.motion.area)) {
         app.render_wanted = true;
     } else {
-        render_motion(drawer);
+        render_area(app.motion.area, drawer);
     }
 }
 
@@ -2702,10 +2702,7 @@ CORE_SEAM void app_show_usb_status(AppUsbStatus status)
 CORE_SEAM void app_show_usb_area(AppUsbStatus status, Rect area)
 {
     UsbStatusFrame frame = {.status = status, .battery = hal_power_battery()};
-    StripRenderer renderer = frame_renderer(area, false);
-    strip_renderer_render(&renderer, (FrameDrawer){.draw = draw_usb_status, .context = &frame},
-                          (FrameSink){.write = send_motion, .context = NULL});
-    hal_display_present();
+    render_area(area, (FrameDrawer){.draw = draw_usb_status, .context = &frame});
     frame_diff_mask(&app.frame_diff, area);
     frame_diff_mask(&app.frame_diff, (Rect){0, 0, 0, 0});
 }
