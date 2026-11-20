@@ -1,7 +1,7 @@
 #include "device/time_file.h"
 
 #include "core/bytes.h"
-#include "core/hash.h"
+#include "core/record.h"
 
 enum {
     MAGIC_FIELD = 0,
@@ -14,22 +14,16 @@ enum {
 
 const char TIME_FILE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/time.bin";
 
-static const uint8_t MAGIC[] = {'D', 'S', 'T', 'M'};
+static const RecordKind KIND = {{'D', 'S', 'T', 'M'}, TIME_FILE_VERSION};
 
 static bool framed(const uint8_t *bytes)
 {
-    for (int index = 0; index < (int)sizeof MAGIC; index++) {
-        if (bytes[MAGIC_FIELD + index] != MAGIC[index]) {
-            return false;
-        }
-    }
     for (int index = RESERVED_FIELD; index < CHECK_FIELD; index++) {
         if (bytes[index] != 0) {
             return false;
         }
     }
-    return bytes_le16(bytes + VERSION_FIELD) == TIME_FILE_VERSION &&
-           bytes_le32(bytes + CHECK_FIELD) == hash_update(HASH_START, bytes, CHECK_FIELD);
+    return record_is(bytes, &KIND) && record_sealed(bytes, CHECK_FIELD);
 }
 
 bool time_file_parse(const uint8_t bytes[TIME_FILE_BYTES], HalWallTime *time)

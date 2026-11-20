@@ -1,7 +1,7 @@
 #include "playback/resume_state.h"
 
 #include "core/bytes.h"
-#include "core/hash.h"
+#include "core/record.h"
 
 enum {
     VERSION = 1,
@@ -27,12 +27,7 @@ enum {
     BITS_PER_BYTE = 8
 };
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'R', 'S'};
-
-static uint32_t checksum_of(const uint8_t *bytes)
-{
-    return hash_update(HASH_START, bytes, CHECKSUM_FIELD);
-}
+static const RecordKind KIND = {{'D', 'S', 'R', 'S'}, VERSION};
 
 static void encode_plan(const PlayQueuePlan *plan, uint8_t *bytes)
 {
@@ -48,9 +43,9 @@ static void encode_plan(const PlayQueuePlan *plan, uint8_t *bytes)
 void resume_state_encode(const ResumeState *state, uint8_t *bytes)
 {
     for (int index = 0; index < RESUME_STATE_SIZE; index++) {
-        bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
+        bytes[index] = 0;
     }
-    bytes_put_le16(bytes + VERSION_FIELD, VERSION);
+    record_begin(bytes, &KIND);
     bytes[REPEAT_FIELD] = (uint8_t)state->repeat;
     bytes_put_le32(bytes + FINGERPRINT_FIELD, state->library_fingerprint);
     encode_plan(&state->plan, bytes);
@@ -60,18 +55,12 @@ void resume_state_encode(const ResumeState *state, uint8_t *bytes)
     bytes[VOLUME_FIELD] = state->volume;
     bytes_put_le32(bytes + POSITION_FIELD, state->position_ms);
     bytes[FROM_UP_NEXT_FIELD] = state->from_up_next ? 1 : 0;
-    bytes_put_le32(bytes + CHECKSUM_FIELD, checksum_of(bytes));
+    record_seal(bytes, CHECKSUM_FIELD);
 }
 
 static bool header_valid(const uint8_t *bytes)
 {
-    for (int index = 0; index < MAGIC_SIZE; index++) {
-        if (bytes[MAGIC_FIELD + index] != MAGIC[index]) {
-            return false;
-        }
-    }
-    return bytes_le16(bytes + VERSION_FIELD) == VERSION &&
-           bytes_le32(bytes + CHECKSUM_FIELD) == checksum_of(bytes);
+    return record_is(bytes, &KIND) && record_sealed(bytes, CHECKSUM_FIELD);
 }
 
 static bool group_valid(uint8_t group)

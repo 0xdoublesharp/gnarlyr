@@ -96,9 +96,29 @@ static void times_and_offsets_outside_the_accepted_ranges_are_refused(void)
     }
 }
 
+static const uint8_t GOLDEN_TIME[TIME_FILE_BYTES] = {
+    0x44, 0x53, 0x54, 0x4D, 0x01, 0x00, 0xD4, 0xFE, 0x00, 0xB9, 0x55, 0x69, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA5, 0xE3, 0xD7, 0x15,
+};
+
+static void a_file_written_by_the_computer_tool_still_parses(void)
+{
+    HalWallTime time;
+    CHECK(time_file_parse(GOLDEN_TIME, &time));
+    CHECK_EQUAL(1767225600u, time.utc_s);
+    CHECK_EQUAL(-300, time.offset_minutes);
+    uint8_t changed[TIME_FILE_BYTES];
+    for (int index = 0; index < TIME_FILE_BYTES; index++) {
+        changed[index] = GOLDEN_TIME[index];
+    }
+    changed[TIME_FILE_BYTES - 1] ^= 1;
+    CHECK(!time_file_parse(changed, &time));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_file_written_by_the_computer_tool_still_parses),
         TEST_CASE(a_sealed_file_gives_the_utc_time_and_the_offset),
         TEST_CASE(the_path_is_in_the_data_folder),
         TEST_CASE(a_changed_byte_breaks_the_seal),

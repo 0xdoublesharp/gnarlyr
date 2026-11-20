@@ -1305,9 +1305,53 @@ static void battery_care_owns_only_e14_bits_three_and_four(void)
     }
 }
 
+static const uint8_t GOLDEN_SETTINGS[] = {
+    0x44, 0x53, 0x53, 0x54, 0x01, 0x04, 0x07, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0D, 0x02, 0x00,
+    0x23, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x01, 0x14, 0x14, 0x14, 0x14,
+    0x14, 0x14, 0x14, 0x14, 0x14, 0x14, 0x17, 0x18, 0x1E, 0x00, 0x60, 0x97, 0x18, 0x52, 0x43, 0x26,
+    0x00, 0xD4, 0xFE, 0x5B, 0x40, 0x00, 0x0F, 0xA2, 0x22, 0x75, 0x04, 0x00, 0x32, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA3, 0xEA, 0xAB, 0xC1,
+};
+static const uint8_t GOLDEN_BUTTONS[] = {
+    0x44, 0x53, 0x42, 0x54, 0x01, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6F, 0x04, 0xEF, 0x64,
+};
+static Settings golden_sample(void)
+{
+    Settings settings = settings_defaults();
+    settings.status_items = 0x0B;
+    settings.power_on_flags = 0x10;
+    settings.skip_silence = true;
+    settings.crossfeed = 2;
+    settings.clock_offset_minutes = -300;
+    settings.track_transition = TRACK_TRANSITION_CROSSFADE;
+    settings.transition_tenths = 30;
+    return settings;
+}
+
+static void the_stored_bytes_stay_those_of_the_current_layout(void)
+{
+    Settings sample = golden_sample();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&sample, bytes);
+    CHECK_EQUAL(sizeof GOLDEN_SETTINGS, sizeof bytes);
+    CHECK(memcmp(GOLDEN_SETTINGS, bytes, sizeof bytes) == 0);
+    Settings decoded;
+    CHECK(settings_decode(GOLDEN_SETTINGS, sizeof GOLDEN_SETTINGS, &decoded));
+    settings_encode(&decoded, bytes);
+    CHECK(memcmp(GOLDEN_SETTINGS, bytes, sizeof bytes) == 0);
+    CHECK_EQUAL(-300, decoded.clock_offset_minutes);
+    uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
+    settings_buttons_encode(&sample, buttons);
+    CHECK_EQUAL(sizeof GOLDEN_BUTTONS, sizeof buttons);
+    CHECK(memcmp(GOLDEN_BUTTONS, buttons, sizeof buttons) == 0);
+    CHECK(settings_buttons_decode(GOLDEN_BUTTONS, sizeof GOLDEN_BUTTONS, &decoded));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_stored_bytes_stay_those_of_the_current_layout),
         TEST_CASE(all_four_styles_use_only_their_two_allocated_bits),
         TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),

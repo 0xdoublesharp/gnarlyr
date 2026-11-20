@@ -1,7 +1,7 @@
 #include "playback/bookmarks.h"
 
 #include "core/bytes.h"
-#include "core/hash.h"
+#include "core/record.h"
 
 enum {
     VERSION = 1,
@@ -18,7 +18,7 @@ enum {
     BITS_PER_BYTE = 8
 };
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'B', 'K'};
+static const RecordKind KIND = {{'D', 'S', 'B', 'K'}, VERSION};
 
 static int find_index(const Bookmarks *bookmarks, uint32_t key)
 {
@@ -82,10 +82,7 @@ static void encode_record(Bookmark bookmark, uint8_t *record)
 
 uint32_t bookmarks_encode(const Bookmarks *bookmarks, uint8_t *bytes)
 {
-    for (int index = 0; index < MAGIC_SIZE; index++) {
-        bytes[index] = MAGIC[index];
-    }
-    bytes_put_le16(bytes + VERSION_FIELD, VERSION);
+    record_begin(bytes, &KIND);
     bytes_put_le16(bytes + COUNT_FIELD, bookmarks->count);
     bytes_put_le32(bytes + COUNT_FIELD + 2, 0);
     for (uint16_t index = 0; index < bookmarks->count; index++) {
@@ -93,7 +90,7 @@ uint32_t bookmarks_encode(const Bookmarks *bookmarks, uint8_t *bytes)
                       bytes + RECORDS_FIELD + (uint32_t)index * BOOKMARK_RECORD_SIZE);
     }
     uint32_t checksum_field = RECORDS_FIELD + (uint32_t)bookmarks->count * BOOKMARK_RECORD_SIZE;
-    bytes_put_le32(bytes + checksum_field, hash_update(HASH_START, bytes, checksum_field));
+    record_seal(bytes, checksum_field);
     return checksum_field + CHECKSUM_SIZE;
 }
 
@@ -111,13 +108,8 @@ static bool header_valid(const uint8_t *bytes, uint32_t length)
     if (length < RECORDS_FIELD + CHECKSUM_SIZE) {
         return false;
     }
-    for (int index = 0; index < MAGIC_SIZE; index++) {
-        if (bytes[index] != MAGIC[index]) {
-            return false;
-        }
-    }
     uint32_t count = bytes_le16(bytes + COUNT_FIELD);
-    return bytes_le16(bytes + VERSION_FIELD) == VERSION && count <= BOOKMARKS_CAPACITY &&
+    return record_is(bytes, &KIND) && count <= BOOKMARKS_CAPACITY &&
            length >= RECORDS_FIELD + count * BOOKMARK_RECORD_SIZE + CHECKSUM_SIZE;
 }
 
@@ -129,7 +121,7 @@ bool bookmarks_decode(const uint8_t *bytes, uint32_t length, Bookmarks *bookmark
     }
     uint16_t count = (uint16_t)bytes_le16(bytes + COUNT_FIELD);
     uint32_t checksum_field = RECORDS_FIELD + (uint32_t)count * BOOKMARK_RECORD_SIZE;
-    if (bytes_le32(bytes + checksum_field) != hash_update(HASH_START, bytes, checksum_field)) {
+    if (!record_sealed(bytes, checksum_field)) {
         return false;
     }
     for (uint16_t index = 0; index < count; index++) {

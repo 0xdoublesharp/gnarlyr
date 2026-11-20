@@ -1,6 +1,7 @@
 #include "check.h"
 #include "fixture_library.h"
 #include "library/favorites.h"
+#include <string.h>
 
 enum {
     HEADER_BYTES = 8
@@ -120,9 +121,26 @@ static void albums_that_left_the_library_are_not_collected(void)
     CHECK_EQUAL(0, favorites_collect_albums(list, library, albums, FIXTURE_ALBUMS));
 }
 
+static const uint8_t GOLDEN_FAVORITES[] = {
+    0x44, 0x53, 0x46, 0x56, 0x01, 0x00, 0x03, 0x00, 0x04, 0x03, 0x02, 0x01,
+    0xEF, 0xBE, 0xED, 0xFE, 0xEE, 0xFF, 0xC0, 0x00, 0x5B, 0xCB, 0xE1, 0xCB,
+};
+static void the_stored_bytes_stay_those_of_the_first_layout(void)
+{
+    Favorites sample = {.keys = {0x01020304u, 0xFEEDBEEFu, 0x00C0FFEEu}, .count = 3};
+    uint8_t bytes[sizeof GOLDEN_FAVORITES];
+    CHECK_EQUAL(sizeof GOLDEN_FAVORITES, favorites_encode(&sample, bytes));
+    CHECK(memcmp(GOLDEN_FAVORITES, bytes, sizeof bytes) == 0);
+    Favorites decoded;
+    CHECK(favorites_decode(GOLDEN_FAVORITES, sizeof GOLDEN_FAVORITES, &decoded));
+    CHECK_EQUAL(3, decoded.count);
+    CHECK_EQUAL(0xFEEDBEEFu, decoded.keys[1]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_stored_bytes_stay_those_of_the_first_layout),
         TEST_CASE(toggling_adds_then_removes),
         TEST_CASE(removing_keeps_the_other_favorites),
         TEST_CASE(a_full_list_refuses_new_favorites),

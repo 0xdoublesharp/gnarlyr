@@ -1,7 +1,7 @@
 #include "playback/up_next.h"
 
 #include "core/bytes.h"
-#include "core/hash.h"
+#include "core/record.h"
 
 enum {
     VERSION = 1,
@@ -15,12 +15,7 @@ enum {
     BITS_PER_BYTE = 8
 };
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'U', 'N'};
-
-static uint32_t checksum_of(const uint8_t *bytes)
-{
-    return hash_update(HASH_START, bytes, CHECKSUM_FIELD);
-}
+static const RecordKind KIND = {{'D', 'S', 'U', 'N'}, VERSION};
 
 void up_next_clear(UpNext *up_next)
 {
@@ -73,28 +68,22 @@ void up_next_drop(UpNext *up_next, uint16_t count)
 void up_next_encode(const UpNext *up_next, uint32_t fingerprint, uint8_t *bytes)
 {
     for (int index = 0; index < UP_NEXT_STATE_SIZE; index++) {
-        bytes[index] = index < MAGIC_SIZE ? MAGIC[index] : 0;
+        bytes[index] = 0;
     }
-    bytes_put_le16(bytes + VERSION_FIELD, VERSION);
+    record_begin(bytes, &KIND);
     bytes_put_le16(bytes + COUNT_FIELD, up_next->count);
     bytes_put_le32(bytes + FINGERPRINT_FIELD, fingerprint);
     for (uint16_t index = 0; index < up_next->count; index++) {
         bytes_put_le16(bytes + TRACKS_FIELD + 2 * index, up_next->tracks[index]);
     }
-    bytes_put_le32(bytes + CHECKSUM_FIELD, checksum_of(bytes));
+    record_seal(bytes, CHECKSUM_FIELD);
 }
 
 static bool header_valid(const uint8_t *bytes, uint32_t fingerprint)
 {
-    for (int index = 0; index < MAGIC_SIZE; index++) {
-        if (bytes[MAGIC_FIELD + index] != MAGIC[index]) {
-            return false;
-        }
-    }
-    return bytes_le16(bytes + VERSION_FIELD) == VERSION &&
-           bytes_le16(bytes + COUNT_FIELD) <= UP_NEXT_CAPACITY &&
+    return record_is(bytes, &KIND) && bytes_le16(bytes + COUNT_FIELD) <= UP_NEXT_CAPACITY &&
            bytes_le32(bytes + FINGERPRINT_FIELD) == fingerprint &&
-           bytes_le32(bytes + CHECKSUM_FIELD) == checksum_of(bytes);
+           record_sealed(bytes, CHECKSUM_FIELD);
 }
 
 bool up_next_decode(const uint8_t *bytes, uint32_t length, uint32_t fingerprint, UpNext *up_next)

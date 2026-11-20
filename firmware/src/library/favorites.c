@@ -1,7 +1,7 @@
 #include "library/favorites.h"
 
 #include "core/bytes.h"
-#include "core/hash.h"
+#include "core/record.h"
 
 enum {
     VERSION = 1,
@@ -14,7 +14,7 @@ enum {
     BITS_PER_BYTE = 8
 };
 
-static const uint8_t MAGIC[MAGIC_SIZE] = {'D', 'S', 'F', 'V'};
+static const RecordKind KIND = {{'D', 'S', 'F', 'V'}, VERSION};
 
 static int find_key(const Favorites *favorites, uint32_t key)
 {
@@ -60,16 +60,13 @@ bool favorites_toggle(Favorites *favorites, uint32_t key)
 
 uint32_t favorites_encode(const Favorites *favorites, uint8_t *bytes)
 {
-    for (int index = 0; index < MAGIC_SIZE; index++) {
-        bytes[index] = MAGIC[index];
-    }
-    bytes_put_le16(bytes + VERSION_FIELD, VERSION);
+    record_begin(bytes, &KIND);
     bytes_put_le16(bytes + COUNT_FIELD, favorites->count);
     uint32_t offset = KEYS_FIELD;
     for (int index = 0; index < favorites->count; index++, offset += KEY_SIZE) {
         bytes_put_le32(bytes + offset, favorites->keys[index]);
     }
-    bytes_put_le32(bytes + offset, hash_update(HASH_START, bytes, offset));
+    record_seal(bytes, offset);
     return offset + CHECKSUM_SIZE;
 }
 
@@ -78,13 +75,8 @@ static bool header_valid(const uint8_t *bytes, uint32_t length)
     if (length < KEYS_FIELD + CHECKSUM_SIZE) {
         return false;
     }
-    for (int index = 0; index < MAGIC_SIZE; index++) {
-        if (bytes[index] != MAGIC[index]) {
-            return false;
-        }
-    }
     uint32_t count = bytes_le16(bytes + COUNT_FIELD);
-    return bytes_le16(bytes + VERSION_FIELD) == VERSION && count <= FAVORITES_CAPACITY &&
+    return record_is(bytes, &KIND) && count <= FAVORITES_CAPACITY &&
            length >= KEYS_FIELD + count * KEY_SIZE + CHECKSUM_SIZE;
 }
 
@@ -96,7 +88,7 @@ bool favorites_decode(const uint8_t *bytes, uint32_t length, Favorites *favorite
     }
     uint16_t count = (uint16_t)bytes_le16(bytes + COUNT_FIELD);
     uint32_t checksum_field = KEYS_FIELD + (uint32_t)count * KEY_SIZE;
-    if (bytes_le32(bytes + checksum_field) != hash_update(HASH_START, bytes, checksum_field)) {
+    if (!record_sealed(bytes, checksum_field)) {
         return false;
     }
     for (uint16_t index = 0; index < count; index++) {

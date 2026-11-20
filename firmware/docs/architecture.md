@@ -26,7 +26,7 @@ platform/sim        platform/device
 
 | Layer | Path | May depend on | Purpose |
 |---|---|---|---|
-| core | `src/core` | nothing | Pure logic: deadlines, key gestures, frame stats, UTF-8, string building, formatting, hashing, seeded random, the power policy, the DAC identification decode and text, the key-script grammar, the debug event ring, the string catalogue and the language pack reader (see Languages) |
+| core | `src/core` | nothing | Pure logic: deadlines, key gestures, frame stats, UTF-8, string building, formatting, hashing, byte-order reads and writes (`core/bytes`), the magic, version and FNV-1a seal of small record files (`core/record`), seeded random, the power policy, the DAC identification decode and text, the key-script grammar, the debug event ring, the string catalogue and the language pack reader (see Languages) |
 | gfx | `src/gfx` | core | RGB565 colors and blending, rectangles, clipped canvases, strip rendering, 4-bit anti-aliased text, images drawn into perspective quads |
 | fonts | `src/fonts` | gfx | Generated glyph tables (see Generated code) |
 | ui | `src/ui` | core, gfx | Screen interface and stack, navigation intents, list view, menus, choice screens, messages, toasts, header and status icons, the icon set, labels, marquee, fades, Cover Flow layout and motion, theme type |

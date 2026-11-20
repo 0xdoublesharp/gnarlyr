@@ -140,9 +140,30 @@ static void playlist_sources_are_accepted(void)
     CHECK_EQUAL(LIBRARY_PLAYLISTS, decoded.plan.source.group);
 }
 
+static const uint8_t GOLDEN_RESUME[] = {
+    0x44, 0x53, 0x52, 0x53, 0x01, 0x00, 0x02, 0x02, 0x0D, 0xF0, 0xFE, 0xCA, 0x78, 0x56, 0x34,
+    0x12, 0x05, 0x04, 0x03, 0x00, 0xFF, 0xFF, 0xD2, 0x04, 0x11, 0x00, 0x04, 0x00, 0xD8, 0x04,
+    0x25, 0x00, 0xA0, 0xCC, 0x02, 0x00, 0x01, 0x00, 0x00, 0x00, 0x5A, 0x20, 0x4E, 0x7A,
+};
+static void the_stored_bytes_stay_those_of_the_first_layout(void)
+{
+    ResumeState sample = sample_state();
+    sample.from_up_next = true;
+    uint8_t bytes[RESUME_STATE_SIZE];
+    resume_state_encode(&sample, bytes);
+    CHECK_EQUAL(sizeof GOLDEN_RESUME, sizeof bytes);
+    CHECK(memcmp(GOLDEN_RESUME, bytes, sizeof bytes) == 0);
+    ResumeState decoded;
+    CHECK(resume_state_decode(GOLDEN_RESUME, sizeof GOLDEN_RESUME, &decoded));
+    CHECK_EQUAL(sample.position_ms, decoded.position_ms);
+    CHECK_EQUAL(sample.plan.seed, decoded.plan.seed);
+    CHECK(decoded.from_up_next);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_stored_bytes_stay_those_of_the_first_layout),
         TEST_CASE(a_state_survives_a_round_trip),
         TEST_CASE(a_single_book_source_keeps_its_track_and_resume_position),
         TEST_CASE(a_wrong_magic_is_rejected),
