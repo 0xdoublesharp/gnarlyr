@@ -37,6 +37,7 @@ TOAST_PHASES = 5
 TOAST_PHASE_MS = 23
 TOAST_GAP_MS = 2500
 CLEARED_WITHIN_MS = 250
+NOW_PLAYING_WINDOW_MS = 500
 FAILED_RUN_MS = 1000
 ROWS_FROM = 2048
 DAC_RATE = 96000
@@ -252,7 +253,8 @@ class EchoImageTest(EchoImageHarness):
         rig.open_songs()
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
-        full = max(count for _, count in frames)
+        playing_since = machine.milliseconds() - NOW_PLAYING_WINDOW_MS
+        full = max(count for at, count in frames if at >= playing_since)
         chord = [(KEYS["play"], CHORD_STEP_MS), (KEYS["next"], CHORD_STEP_MS),
                  (KEYS["play"], CHORD_STEP_MS)]
         for phase in range(TOAST_PHASES):
