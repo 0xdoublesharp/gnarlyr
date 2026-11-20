@@ -8,6 +8,8 @@
 #include "cover_cache.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "hal/storage.h"
+#include "headphone_store.h"
 #include "library_store.h"
 #include "settings/settings.h"
 #include "settings_store.h"
@@ -74,6 +76,7 @@ static void add_player_files(void)
             fake_hal_add_file(card_files_path(index), NULL, 4096);
         }
     }
+    hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES);
 }
 
 static void boot_with(Settings chosen, bool bluetooth)
@@ -144,6 +147,21 @@ static void a_loud_volume_is_lowered_at_power_on_with_a_toast(void)
     boot_with(with_volume(LOUD), false);
     CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
     CHECK(toast_shown_within("Volume lowered to 24", 2 * TOAST_DURATION_MS));
+}
+
+static void a_loud_volume_comes_back_lowered_once_a_missing_profile_file_is_made(void)
+{
+    boot_with(with_volume(LOUD), false);
+    app_stop();
+    fake_hal_remove_internal_file(HEADPHONE_STORE_PATH);
+    app_start();
+    CHECK_EQUAL(0, fake_hal_audio_volume());
+    for (int pass = 0; pass < 40; pass++) {
+        wait_ms(50);
+        CHECK(fake_hal_audio_volume() <= SETTINGS_DEFAULT_SAFE_START_VOLUME);
+    }
+    CHECK(!app_preparing());
+    CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
 }
 
 static void a_quiet_volume_is_never_raised_at_power_on(void)
@@ -506,6 +524,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_loud_volume_is_lowered_at_power_on_with_a_toast),
+        TEST_CASE(a_loud_volume_comes_back_lowered_once_a_missing_profile_file_is_made),
         TEST_CASE(a_quiet_volume_is_never_raised_at_power_on),
         TEST_CASE(safe_start_volume_off_keeps_a_loud_volume),
         TEST_CASE(the_chosen_level_is_the_cap),
