@@ -221,7 +221,6 @@ static uint32_t row_hashes[HAL_DISPLAY_LONG_SIDE];
 static Theme notice_theme;
 static Theme compact_theme;
 
-static void follow_compact_theme(void);
 static void render_when_due(uint32_t now_ms, uint32_t started_us);
 static bool fade_running(void);
 
@@ -244,7 +243,6 @@ static void apply_orientation(Orientation orientation)
     default_theme_set_orientation(&notice_theme, orientation);
     hal_display_set_rotation((HalDisplayRotation)orientation);
     frame_diff_init(&app.frame_diff, row_hashes, app.theme.metrics.screen_height);
-    follow_compact_theme();
 }
 
 static Key oriented_key(HalKeyTransition transition)
@@ -2426,7 +2424,6 @@ CORE_SEAM void app_step(void)
         }
     }
     if (!app.power.standby_active) {
-        follow_compact_theme();
         if (app.prepare_pending && prepare_step()) {
             return;
         }
