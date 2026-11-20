@@ -102,6 +102,7 @@ bool tags_read_ogg(TagReader *reader);
 bool tags_read_vorbis_comment(TagReader *reader, ByteSource source, uint32_t offset,
                               uint32_t limit);
 bool tags_read_id3v2(TagReader *reader, uint32_t offset, uint32_t *tag_size);
+uint32_t tags_skip_id3v2(const TagReader *reader, bool stop_at_empty);
 void tags_read_id3v1(TagReader *reader);
 const char *tags_id3_genre(uint32_t index);
 bool tags_read_mp3(TagReader *reader);

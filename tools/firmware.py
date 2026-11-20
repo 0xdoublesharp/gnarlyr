@@ -73,7 +73,12 @@ def library_builder_fault_seeds():
 
 
 FUZZ_SEEDS = {
-    "track_tags": [b"\0"],
+    "track_tags": [
+        b"\0",
+        b"ID3\x04\0\0\0\0\0\x02\0\0ID3\x04\0\0\0\0\0\0fLaC\x80\0\0\x22" + bytes(34),
+        b"ID3\x04\0\0\0\0\0\x04\0\0\0\0ID3\x04\0\0\x7f\x7f\x7f\x7f" + b"\xff\xfb\x90\x64" + bytes(412),
+        b"ID3\x04\0\0\0\0\0\0" + (b"\xff\xfb\x90\x64" + bytes(413)) * 4,
+    ],
     "timed_metadata": [
         b"[00:00.00]First line\n[00:01.50][00:02.00]Repeated line\n",
         b"\xef\xbb\xbf[offset:-250]\n[00:00.10]Early\n[9999:59.999]Late\n",
