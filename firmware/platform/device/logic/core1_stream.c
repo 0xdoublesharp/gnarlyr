@@ -498,3 +498,8 @@ bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t lengt
 {
     return ogg_stream_read(context, offset, buffer, length);
 }
+
+bool core1_m4a_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    return m4a_stream_read(context, offset, buffer, length);
+}

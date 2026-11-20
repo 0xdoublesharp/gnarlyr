@@ -113,7 +113,7 @@ add_library(echo_device_logic STATIC
     core1_control.c
     core1_heap.c
     core1_m4a.c
-    core1_open.c
+    core1_m4a_source.c
     core1_open_mp3.c
     core1_open_flac.c
     core1_mp3.c
@@ -243,7 +243,7 @@ if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         battery_gauge.c
         clock_governor.c
-        core1_open.c
+        core1_m4a_source.c
         core1_open_flac.c
         core1_open_mp3.c
         core1_pace.c

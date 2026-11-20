@@ -65,6 +65,19 @@ CORE_SEAM bool mp4_cursor_next(Mp4Cursor *cursor, FlacInput input, const Mp4Trac
     return ((const AudioDspEntry *)entry())->next(cursor, input, track, offset, size);
 }
 
+CORE_SEAM CORE_COLD bool core1_open_m4a(void *context, const char *path, uint32_t start_ms,
+                                        AudioTrackInfo *track)
+{
+    const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
+    return load(AUDIO_DSP_NUMBER, AUDIO_DSP_MAGIC) && dsp->open_m4a(context, path, start_ms, track);
+}
+
+CORE_SEAM bool m4a_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const AudioDspEntry *dsp = (const AudioDspEntry *)entry();
+    return entry()->magic == AUDIO_DSP_MAGIC && dsp->read_m4a(context, offset, buffer, length);
+}
+
 CORE_SEAM bool core1_open_ogg(void *context, const char *path, uint32_t start_ms,
                               AudioTrackInfo *track)
 {
