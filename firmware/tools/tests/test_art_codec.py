@@ -30,6 +30,8 @@ def under_rows(width, height):
 
 class ArtCodecTests(unittest.TestCase):
     def run_tool(self, data, width, height, first, last):
+        if TOOL is None:
+            self.skipTest("C decoder is supplied by CTest")
         with tempfile.NamedTemporaryFile(suffix=".art") as file:
             file.write(data)
             file.flush()
