@@ -55,6 +55,20 @@ static void a_status_row_sits_above_the_title_row(void)
     CHECK_EQUAL(TEST_HEADER_HEIGHT, title.height);
 }
 
+static void dropping_the_title_row_leaves_only_the_portrait_status_row(void)
+{
+    Theme theme = portrait_theme();
+    theme.metrics.header_height = 2 * TEST_HEADER_HEIGHT;
+    theme.metrics.status_height = TEST_HEADER_HEIGHT;
+    theme_drop_title_row(&theme);
+    CHECK_EQUAL(TEST_HEADER_HEIGHT, theme.metrics.header_height);
+    CHECK_EQUAL(TEST_HEADER_HEIGHT, theme_content_area(&theme).y);
+    CHECK_EQUAL(0, theme_title_area(&theme).height);
+    Theme landscape = TEST_THEME;
+    theme_drop_title_row(&landscape);
+    CHECK_EQUAL(TEST_HEADER_HEIGHT, landscape.metrics.header_height);
+}
+
 static void the_visible_rows_never_exceed_the_row_cache(void)
 {
     Theme theme = TEST_THEME;
@@ -71,6 +85,7 @@ int main(void)
         TEST_CASE(a_theme_taller_than_wide_is_portrait),
         TEST_CASE(without_a_status_row_the_title_row_is_the_whole_header),
         TEST_CASE(a_status_row_sits_above_the_title_row),
+        TEST_CASE(dropping_the_title_row_leaves_only_the_portrait_status_row),
         TEST_CASE(the_visible_rows_never_exceed_the_row_cache),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

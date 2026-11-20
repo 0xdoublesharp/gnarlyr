@@ -25,6 +25,7 @@ static Canvas start(int orientation, int size, int appearance, NowPlayingStyle s
     default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
     default_theme_set_text_size(&theme, (TextSize)size);
     default_theme_set_orientation(&theme, (Orientation)orientation);
+    theme_drop_title_row(&theme);
     settings = settings_defaults();
     settings_set_now_playing_style(&settings, style);
     now_playing_screen_init(&screen, (NowPlayingConfig){.theme = &theme, .settings = &settings});
@@ -85,6 +86,10 @@ static void art_and_text_fit_every_theme_orientation_and_size(void)
                     Canvas canvas = start(orientation, size, appearance, (NowPlayingStyle)style);
                     MeterNowPlayingLayout layout = meter_now_playing_layout(&theme);
                     CHECK(layout.stage.y >= theme.metrics.header_height);
+                    if (orientation != 0) {
+                        CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding,
+                                    layout.stage.y);
+                    }
                     CHECK(layout.stage.y + layout.stage.height < (orientation == 0 ? 196 : 367));
                     for (int line = 0; line < 2; line++) {
                         CHECK(layout.text[line].height >=

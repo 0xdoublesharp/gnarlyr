@@ -1309,9 +1309,7 @@ static void draw_shifted(Screen *screen, Canvas *canvas, int x, Rect area)
 static void follow_compact_theme(void)
 {
     compact_theme = *board_theme();
-    if (theme_is_portrait(&compact_theme)) {
-        compact_theme.metrics.header_height = compact_theme.metrics.status_height;
-    }
+    theme_drop_title_row(&compact_theme);
 }
 
 static bool is_compact(const Screen *screen)

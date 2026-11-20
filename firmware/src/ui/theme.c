@@ -32,6 +32,13 @@ Rect theme_title_area(const Theme *theme)
                   metrics->header_height - metrics->status_height};
 }
 
+void theme_drop_title_row(Theme *theme)
+{
+    if (theme_is_portrait(theme)) {
+        theme->metrics.header_height = theme->metrics.status_height;
+    }
+}
+
 bool theme_art_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
 {
     return theme->draw_art != NULL && theme->draw_art(theme, canvas, slot, area);

@@ -63,8 +63,8 @@ const BoardCoverLayout BOARD_COVER_LAYOUT = {
         {
             [TEXT_SIZE_SMALL] =
                 {
-                    .cover_size = 160,
-                    .cover_top = 64,
+                    .cover_size = 188,
+                    .cover_top = 36,
                     .title_top = 250,
                     .artist_top = 306,
                     .album_top = 346,
@@ -79,8 +79,8 @@ const BoardCoverLayout BOARD_COVER_LAYOUT = {
                 },
             [TEXT_SIZE_MEDIUM] =
                 {
-                    .cover_size = 160,
-                    .cover_top = 64,
+                    .cover_size = 188,
+                    .cover_top = 36,
                     .title_top = 244,
                     .artist_top = 306,
                     .album_top = 346,
@@ -95,8 +95,8 @@ const BoardCoverLayout BOARD_COVER_LAYOUT = {
                 },
             [TEXT_SIZE_LARGE] =
                 {
-                    .cover_size = 160,
-                    .cover_top = 64,
+                    .cover_size = 188,
+                    .cover_top = 36,
                     .title_top = 232,
                     .artist_top = 306,
                     .album_top = 346,

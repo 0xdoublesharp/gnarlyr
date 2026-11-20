@@ -24,8 +24,8 @@ CassetteNowPlayingLayout cassette_now_playing_layout(const Theme *theme)
 {
     bool portrait = theme_is_portrait(theme);
     int padding = theme->metrics.padding;
-    Rect body = {padding, portrait ? 74 : 34, theme->metrics.screen_width - padding * 2,
-                 portrait ? 244 : 156};
+    Rect body = {padding, portrait ? 32 : 34, theme->metrics.screen_width - padding * 2,
+                 portrait ? 286 : 156};
     int left = body.x + 18;
     int width = body.width - 36;
     int top = body.y + 6;
@@ -33,7 +33,7 @@ CassetteNowPlayingLayout cassette_now_playing_layout(const Theme *theme)
     int artist = font_line_height(theme->fonts.body);
     int small = font_line_height(theme->fonts.small);
     int reel_size = portrait ? 48 : 38;
-    int reel_y = portrait ? body.y + 140 : body.y + 100;
+    int reel_y = body.y + (portrait ? body.height * 4 / 7 : 100);
     int gap = portrait ? 28 : 100;
     int center = body.x + body.width / 2;
     Rect first = {center - gap / 2 - reel_size, reel_y, reel_size, reel_size};
