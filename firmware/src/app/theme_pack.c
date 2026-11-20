@@ -309,7 +309,7 @@ static bool head_valid(ByteSource source, const ThemeAsset *asset)
                      head + THEME_PACK_PAYLOAD_HEAD_BYTES, nibbles)) {
         return false;
     }
-    for (uint32_t index = 0; index < asset->alpha; index++) {
+    for (uint32_t index = 0; index < (nibbles > 0 ? asset->alpha : 0u); index++) {
         if ((head[THEME_PACK_PAYLOAD_HEAD_BYTES + index / 2] >> (index % 2 * 4) & 15u) == 15u) {
             return false;
         }

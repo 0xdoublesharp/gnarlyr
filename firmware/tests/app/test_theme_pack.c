@@ -149,6 +149,27 @@ static void slots_keep_their_sizes_and_variants_stay_unique(void)
     CHECK(open_as(THEME_PACK_COMPLETE));
 }
 
+static void fill_stack(void)
+{
+    volatile uint8_t junk[16384];
+    for (size_t at = 0; at < sizeof junk; at++) {
+        junk[at] = 0xFF;
+    }
+}
+
+static void a_transparent_lossless_icon_passes_the_complete_check(void)
+{
+    static const ThemeFixtureArt icon = {THEME_ART_ICON + 1, 0, 255, 20, 20, ART_CODEC_LOSSLESS, 0};
+    build(&icon, 1, NULL, 0);
+    uint8_t *descriptor = bytes + DIRECTORY;
+    uint32_t payload = store_get32(descriptor + 8);
+    descriptor[18] = 1;
+    bytes[payload + 2] = 1;
+    seal();
+    fill_stack();
+    CHECK(open_as(THEME_PACK_COMPLETE));
+}
+
 static uint32_t table_at(int index)
 {
     const uint8_t *descriptor = bytes + DIRECTORY + index * THEME_PACK_ASSET_BYTES;
@@ -265,6 +286,7 @@ int main(void)
         TEST_CASE(version_1_and_reserved_header_fields_are_refused),
         TEST_CASE(every_descriptor_bound_is_checked),
         TEST_CASE(slots_keep_their_sizes_and_variants_stay_unique),
+        TEST_CASE(a_transparent_lossless_icon_passes_the_complete_check),
         TEST_CASE(payloads_are_decode_checked_only_by_the_complete_check),
         TEST_CASE(style_entries_are_bounded_known_and_unique),
         TEST_CASE(low_contrast_is_a_warning),
