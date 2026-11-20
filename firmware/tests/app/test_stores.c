@@ -276,7 +276,7 @@ static const uint8_t *saved_after_loading_version(uint8_t version)
     CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
     settings_store_load(&settings);
     CHECK_EQUAL(settings_defaults().brightness, settings.settings.brightness);
-    CHECK(settings_store_save(&settings));
+    CHECK_EQUAL(version <= SETTINGS_FORMAT_VERSION, settings_store_save(&settings));
     uint32_t size = 0;
     const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(SETTINGS_FILE_SIZE, size);
@@ -301,7 +301,8 @@ static void a_shorter_newer_settings_file_is_never_overwritten(void)
     fake_hal_reset();
     CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
     settings_store_load(&settings);
-    CHECK(settings_store_save(&settings));
+    CHECK(!settings_store_save(&settings));
+    CHECK(settings.values_failed);
     uint32_t size = 0;
     const uint8_t *saved = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
     CHECK_EQUAL(sizeof bytes, size);

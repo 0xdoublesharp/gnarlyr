@@ -2193,10 +2193,11 @@ static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
     const DebugCodeEntry *code = hal_system_load_debug_code();
     SettingsChooseTarget target = {&app.screens.modules.settings.settings,
                                    module != NULL ? module->choose_tables : NULL};
+    app.settings.values_failed = false;
     bool chosen = target.tables != NULL && code != NULL &&
                   code->choose_setting(&target, request->argument, request->value);
     settle_screens(now_ms);
-    return chosen;
+    return chosen && !app.settings.values_failed;
 }
 
 static void open_debug_screen(uint32_t target, uint32_t now_ms)

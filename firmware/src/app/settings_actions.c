@@ -29,22 +29,15 @@ void settings_action_save(SettingsContext *context)
 
 void settings_action_candidate(SettingsContext *context, Settings *next)
 {
-    SettingsStore *store = context->store;
-    Settings saved = store->settings;
-    settings_store_capture(store, player_status(context->player));
-    *next = store->settings;
-    store->settings = saved;
+    *next = context->store->settings;
+    settings_capture(next, player_status(context->player));
 }
 
 bool settings_action_publish(SettingsContext *context, const Settings *next)
 {
-    SettingsStore *store = context->store;
-    Settings saved = store->settings;
-    store->settings = *next;
-    if (settings_store_save(store)) {
+    if (settings_store_publish(context->store, next)) {
         return true;
     }
-    store->settings = saved;
     toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
     return false;
 }
