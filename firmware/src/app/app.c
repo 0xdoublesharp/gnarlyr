@@ -910,6 +910,7 @@ static void go_home(uint32_t now_ms)
     if (screen_stack_apply(&app.stack, screen_action_pop_to_root(), now_ms)) {
         screen_changed();
     }
+    screen_ready(top_screen());
 }
 
 static void settle_screens(uint32_t now_ms)

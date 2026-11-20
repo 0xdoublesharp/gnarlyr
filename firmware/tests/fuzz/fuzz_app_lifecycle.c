@@ -517,23 +517,14 @@ static bool evicts(Op op)
            op == OP_ENVIRONMENT || op == OP_DAMAGE_MODULE || op == OP_SLEEP_EXPIRY;
 }
 
-static bool goes_home(Op op, uint8_t argument)
+static bool allowed(Op op)
 {
-    return op == OP_SETTING_ROW || (op == OP_HOLD && argument % KEY_COUNT == KEY_BACK);
-}
-
-static bool allowed(Op op, uint8_t argument)
-{
-    if (evicts(op) && on_reload_issue_screen()) {
-        return false;
-    }
-    return !(goes_home(op, argument) && known_issue_open(KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY) &&
-             fake_hal_loaded_module() == 0);
+    return !(evicts(op) && on_reload_issue_screen());
 }
 
 static void run_op(Cursor *cursor, Op op, uint8_t argument)
 {
-    if (!allowed(op, argument)) {
+    if (!allowed(op)) {
         return;
     }
     if (evicts(op) && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED)) {

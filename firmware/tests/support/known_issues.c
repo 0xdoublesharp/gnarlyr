@@ -16,7 +16,6 @@
 static const char *const NAMES[KNOWN_ISSUE_COUNT] = {
     [KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE] = "hold-menu-stale-update",
     [KNOWN_ISSUE_EQUALIZER_STATE_AFTER_RELOAD] = "equalizer-state-after-reload",
-    [KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY] = "home-art-after-overlay",
     [KNOWN_ISSUE_SLIDE_LEAVING_EVICTED] = "slide-leaving-evicted",
     [KNOWN_ISSUE_SAFE_START_LABELS_AFTER_RELOAD] = "safe-start-labels-after-reload",
     [KNOWN_ISSUE_PARAMETRIC_BANK_AFTER_RELOAD] = "parametric-bank-after-reload",
@@ -94,18 +93,11 @@ static bool overlay_evicted(const char *report)
            strstr(report, "the USB overlay") != NULL;
 }
 
-static bool shared_art(const char *report)
-{
-    return strstr(report, "views+settings+library+listening+equalizer+playing+stage") != NULL;
-}
-
 bool known_issue_covers_call(const char *report)
 {
     bool overlay = overlay_evicted(report);
     return (!overlay && known_issue_open(KNOWN_ISSUE_SLIDE_LEAVING_EVICTED) &&
             on_stack("strip_renderer_render")) ||
-           (overlay && shared_art(report) &&
-            known_issue_open(KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY)) ||
            (strstr(report, "for a Hold Menu shortcut") != NULL &&
             known_issue_open(KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE));
 }
