@@ -30,11 +30,12 @@ enum {
     STATUS_BAR_CLOCK = 4,
     STATUS_BAR_REPEAT = 8,
     STATUS_BAR_PERCENT = 16,
-    STATUS_BAR_PLAYBACK = 32,
-    STATUS_BAR_BLUETOOTH = 64,
-    STATUS_BAR_LOCK = 128,
-    STATUS_BAR_SHUFFLE = 256,
-    STATUS_BAR_SLOTS = 9
+    STATUS_BAR_LOGO = 32,
+    STATUS_BAR_PLAYBACK = 64,
+    STATUS_BAR_BLUETOOTH = 128,
+    STATUS_BAR_LOCK = 256,
+    STATUS_BAR_SHUFFLE = 512,
+    STATUS_BAR_SLOTS = 10
 };
 
 typedef enum StatusShuffle {
@@ -60,6 +61,7 @@ typedef struct StatusBarState {
     uint8_t repeat;
     bool segmented;
     int title_width;
+    bool logo;
 } StatusBarState;
 
 typedef struct StatusBarLayout {

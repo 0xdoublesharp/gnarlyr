@@ -399,11 +399,13 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
                        .items = screens->home_items,
                        .item_count = app_screens_arrange_home_items(screens),
-                       .theme = context.theme,
+                       .theme = context.compact_theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
                                  .context = &screens->home_art}};
     menu_screen_init(&screens->home, home);
+    screens->home.screen.one_line_header = true;
+    screens->home.screen.header_logo = true;
     screen_modules_prepare_home(screens);
     screens->home.list.background = THEME_ART_HOME;
 }

@@ -28,6 +28,7 @@ enum {
     POINT_DOWN = 3,
     FIRST_SMALL = ICON_PLAY,
     FIRST_NARROW = ICON_BOLT,
+    LAST_NARROW = ICON_PLUG,
     KIND_SHIFT = 29,
     A_SHIFT = 22,
     B_SHIFT = 17,
@@ -175,6 +176,7 @@ enum {
         LAST(BLOCK(0, 15, 19, 17))
 #define PLUG_GLYPH                                                                                 \
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
+#define LOGO_GLYPH ARC(0, 0, 14, TOP_LEFT | BOTTOM), LINE(7, 0, 11, 0), LAST(LINE(7, 7, 13, 7))
 
 static const uint32_t GLYPHS[] = {
     MUSIC_GLYPH,       AUDIOBOOK_GLYPH,
@@ -203,7 +205,7 @@ static const uint32_t GLYPHS[] = {
     ALBUM_SMALL_GLYPH, SHUFFLE_SMALL_GLYPH,
     BOLT_GLYPH,        BLUETOOTH_SMALL_GLYPH,
     LOCK_GLYPH,        SONG_SMALL_GLYPH,
-    PLUG_GLYPH,
+    PLUG_GLYPH,        LOGO_GLYPH,
 };
 
 typedef struct Pen {
@@ -450,7 +452,8 @@ int icon_rows(IconId icon)
 int icon_width(IconId icon, int height)
 {
     int rows = icon_rows(icon);
-    return ((int)icon >= FIRST_NARROW ? ICON_NARROW_COLUMNS : rows) * height / rows;
+    bool narrow = (int)icon >= FIRST_NARROW && (int)icon <= LAST_NARROW;
+    return (narrow ? ICON_NARROW_COLUMNS : rows) * height / rows;
 }
 
 static Pen pen_for(Canvas *canvas, IconId icon, Rect area)
