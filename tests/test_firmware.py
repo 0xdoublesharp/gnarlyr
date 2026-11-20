@@ -6,6 +6,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import firmware
+import fuzz_seeds
 
 
 class FocusedBuildTests(unittest.TestCase):
@@ -103,121 +104,121 @@ class FuzzCommandTests(unittest.TestCase):
     def test_wrapper_inventory_matches_every_cmake_fuzzer(self):
         cmake = (firmware.SOURCE / "tests/fuzz/CMakeLists.txt").read_text()
         registered = set(re.findall(r"echo_add_fuzzer\(([a-z0-9_]+)", cmake))
-        self.assertEqual(set(firmware.FUZZ_TARGETS), registered)
-        self.assertEqual(set(firmware.FUZZ_SEEDS), registered)
+        self.assertEqual(set(fuzz_seeds.TARGETS), registered)
+        self.assertEqual(set(fuzz_seeds.SEEDS), registered)
 
     def test_cue_sheet_target_has_boundary_seeds(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["cue_sheet"], 65536)
-        corpus = b"\n".join(firmware.FUZZ_SEEDS["cue_sheet"])
+        self.assertEqual(fuzz_seeds.TARGETS["cue_sheet"], 65536)
+        corpus = b"\n".join(fuzz_seeds.SEEDS["cue_sheet"])
         for boundary in (b"TRACK 00", b"TRACK 100", b"00:60:00", b"00:00:75"):
             self.assertIn(boundary, corpus)
 
     def test_settings_codec_target_has_bounded_structured_seeds(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["settings_codec"], 128)
+        self.assertEqual(fuzz_seeds.TARGETS["settings_codec"], 128)
         self.assertEqual(
-            [seed[0] for seed in firmware.FUZZ_SEEDS["settings_codec"]],
+            [seed[0] for seed in fuzz_seeds.SEEDS["settings_codec"]],
             [0, 1, 2, 3],
         )
         self.assertEqual(
-            [len(seed) for seed in firmware.FUZZ_SEEDS["settings_codec"]],
+            [len(seed) for seed in fuzz_seeds.SEEDS["settings_codec"]],
             [128, 33, 65, 33],
         )
 
     def test_high_value_parser_and_store_targets_are_registered(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["library_database"], 65536)
-        self.assertEqual(firmware.FUZZ_TARGETS["mp4_demux"], 262144)
-        self.assertEqual(firmware.FUZZ_TARGETS["store"], 4096)
+        self.assertEqual(fuzz_seeds.TARGETS["library_database"], 65536)
+        self.assertEqual(fuzz_seeds.TARGETS["mp4_demux"], 262144)
+        self.assertEqual(fuzz_seeds.TARGETS["store"], 4096)
 
     def test_discovery_state_machine_target_is_bounded_and_seeded(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["discovery_screen"], 256)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["discovery_screen"]), 3)
-        self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS["discovery_screen"]))
+        self.assertEqual(fuzz_seeds.TARGETS["discovery_screen"], 256)
+        self.assertEqual(len(fuzz_seeds.SEEDS["discovery_screen"]), 3)
+        self.assertTrue(all(len(seed) <= 256 for seed in fuzz_seeds.SEEDS["discovery_screen"]))
 
     def test_personal_tags_state_machine_target_is_bounded_and_seeded(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["personal_tags"], 320)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["personal_tags"]), 3)
-        self.assertTrue(all(len(seed) <= 320 for seed in firmware.FUZZ_SEEDS["personal_tags"]))
+        self.assertEqual(fuzz_seeds.TARGETS["personal_tags"], 320)
+        self.assertEqual(len(fuzz_seeds.SEEDS["personal_tags"]), 3)
+        self.assertTrue(all(len(seed) <= 320 for seed in fuzz_seeds.SEEDS["personal_tags"]))
 
     def test_browse_state_machine_target_is_bounded_and_seeded(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["browse_screen"], 256)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["browse_screen"]), 4)
-        self.assertIn(bytes([0x40, 0x07, 0x5A, 0x5F, 0x5C]), firmware.FUZZ_SEEDS["browse_screen"])
-        self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS["browse_screen"]))
+        self.assertEqual(fuzz_seeds.TARGETS["browse_screen"], 256)
+        self.assertEqual(len(fuzz_seeds.SEEDS["browse_screen"]), 4)
+        self.assertIn(bytes([0x40, 0x07, 0x5A, 0x5F, 0x5C]), fuzz_seeds.SEEDS["browse_screen"])
+        self.assertTrue(all(len(seed) <= 256 for seed in fuzz_seeds.SEEDS["browse_screen"]))
 
     def test_track_tags_seeds_nest_asf_header_extensions_within_the_length_limit(self):
-        seeds = firmware.FUZZ_SEEDS["track_tags"]
-        nested = [seed for seed in seeds if seed.startswith(firmware.ASF_HEADER)]
+        seeds = fuzz_seeds.SEEDS["track_tags"]
+        nested = [seed for seed in seeds if seed.startswith(fuzz_seeds.ASF_HEADER)]
         self.assertEqual(len(nested), 2)
-        self.assertTrue(all(len(seed) <= firmware.FUZZ_TARGETS["track_tags"] for seed in seeds))
-        self.assertEqual(max(seed.count(firmware.ASF_EXTENSION) for seed in nested), 1001)
+        self.assertTrue(all(len(seed) <= fuzz_seeds.TARGETS["track_tags"] for seed in seeds))
+        self.assertEqual(max(seed.count(fuzz_seeds.ASF_EXTENSION) for seed in nested), 1001)
 
     def test_app_navigation_state_machine_target_is_bounded_and_seeded(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["app_navigation"], 128)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["app_navigation"]), 3)
-        self.assertTrue(all(len(seed) <= 128 for seed in firmware.FUZZ_SEEDS["app_navigation"]))
+        self.assertEqual(fuzz_seeds.TARGETS["app_navigation"], 128)
+        self.assertEqual(len(fuzz_seeds.SEEDS["app_navigation"]), 3)
+        self.assertTrue(all(len(seed) <= 128 for seed in fuzz_seeds.SEEDS["app_navigation"]))
 
     def test_app_lifecycle_target_is_bounded_and_seeded(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["app_lifecycle"], 160)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["app_lifecycle"]), 5)
-        self.assertTrue(all(len(seed) <= 160 for seed in firmware.FUZZ_SEEDS["app_lifecycle"]))
+        self.assertEqual(fuzz_seeds.TARGETS["app_lifecycle"], 160)
+        self.assertEqual(len(fuzz_seeds.SEEDS["app_lifecycle"]), 5)
+        self.assertTrue(all(len(seed) <= 160 for seed in fuzz_seeds.SEEDS["app_lifecycle"]))
 
     def test_library_builder_target_is_bounded_and_seeded(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["library_builder"], 512)
-        seeds = firmware.FUZZ_SEEDS["library_builder"]
+        self.assertEqual(fuzz_seeds.TARGETS["library_builder"], 512)
+        seeds = fuzz_seeds.SEEDS["library_builder"]
         self.assertEqual(len(seeds), 3 + 9 * 255)
         self.assertTrue(all(len(seed) <= 512 for seed in seeds))
         self.assertTrue(any(seed[0] == 1 for seed in seeds[3:]))
         self.assertTrue(any(seed[3] == 255 and seed[6] == 8 for seed in seeds[3:]))
 
     def test_cover_image_target_has_canonical_png_fixtures(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["cover_image"], 1048576)
-        fixtures = {path.name for path in firmware.FUZZ_FIXTURES["cover_image"]}
+        self.assertEqual(fuzz_seeds.TARGETS["cover_image"], 1048576)
+        fixtures = {path.name for path in fuzz_seeds.FIXTURES["cover_image"]}
         self.assertEqual(fixtures, {"home.png", "cover-flow.png", "home-280c6baaadf6.png"})
-        self.assertEqual(len(firmware.COVER_IMAGE_JPEG_FIXTURES), 3)
+        self.assertEqual(len(fuzz_seeds.COVER_JPEG_FIXTURES), 3)
 
     def test_ui_and_queue_targets_are_bounded_and_seeded(self):
         for name in ("placeholder_art", "play_queue", "audio_engine", "playback_views"):
-            self.assertEqual(firmware.FUZZ_TARGETS[name], 256)
-            self.assertTrue(firmware.FUZZ_SEEDS[name])
-            self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS[name]))
+            self.assertEqual(fuzz_seeds.TARGETS[name], 256)
+            self.assertTrue(fuzz_seeds.SEEDS[name])
+            self.assertTrue(all(len(seed) <= 256 for seed in fuzz_seeds.SEEDS[name]))
 
-        self.assertEqual(firmware.FUZZ_TARGETS["card_format"], 64)
-        self.assertTrue(firmware.FUZZ_SEEDS["card_format"])
-        self.assertTrue(all(len(seed) <= 64 for seed in firmware.FUZZ_SEEDS["card_format"]))
+        self.assertEqual(fuzz_seeds.TARGETS["card_format"], 64)
+        self.assertTrue(fuzz_seeds.SEEDS["card_format"])
+        self.assertTrue(all(len(seed) <= 64 for seed in fuzz_seeds.SEEDS["card_format"]))
 
-        self.assertEqual(firmware.FUZZ_TARGETS["ogg_track"], 196608)
-        self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["ogg_track"]), 10)
-        self.assertTrue(all(path.exists() for path in firmware.FUZZ_FIXTURES["ogg_track"]))
+        self.assertEqual(fuzz_seeds.TARGETS["ogg_track"], 196608)
+        self.assertGreaterEqual(len(fuzz_seeds.FIXTURES["ogg_track"]), 10)
+        self.assertTrue(all(path.exists() for path in fuzz_seeds.FIXTURES["ogg_track"]))
 
     def test_decoder_targets_are_bounded_and_have_canonical_inputs(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["mp3_probe"], 262144)
-        self.assertEqual(firmware.FUZZ_TARGETS["opus_decode"], 2048)
-        self.assertEqual(len(firmware.FUZZ_FIXTURES["mp3_probe"]), 3)
+        self.assertEqual(fuzz_seeds.TARGETS["mp3_probe"], 262144)
+        self.assertEqual(fuzz_seeds.TARGETS["opus_decode"], 2048)
+        self.assertEqual(len(fuzz_seeds.FIXTURES["mp3_probe"]), 3)
 
     def test_theme_and_remaining_decoder_targets_have_canonical_inputs(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["theme_pack"], 4096)
-        self.assertEqual({seed[0] for seed in firmware.FUZZ_SEEDS["theme_pack"]}, {0, 1, 2, 3})
-        self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["asf_track"]), 6)
-        self.assertGreaterEqual(len(firmware.FUZZ_FIXTURES["ape_track"]), 13)
+        self.assertEqual(fuzz_seeds.TARGETS["theme_pack"], 4096)
+        self.assertEqual({seed[0] for seed in fuzz_seeds.SEEDS["theme_pack"]}, {0, 1, 2, 3})
+        self.assertGreaterEqual(len(fuzz_seeds.FIXTURES["asf_track"]), 6)
+        self.assertGreaterEqual(len(fuzz_seeds.FIXTURES["ape_track"]), 13)
         self.assertEqual(
-            {path.suffix for path in firmware.FUZZ_FIXTURES["dsd_track"]},
+            {path.suffix for path in fuzz_seeds.FIXTURES["dsd_track"]},
             {".dff", ".dsf"},
         )
         for name in ("asf_track", "ape_track", "dsd_track"):
-            self.assertEqual(firmware.FUZZ_TARGETS[name], 262144)
-            self.assertTrue(all(path.exists() for path in firmware.FUZZ_FIXTURES[name]))
+            self.assertEqual(fuzz_seeds.TARGETS[name], 262144)
+            self.assertTrue(all(path.exists() for path in fuzz_seeds.FIXTURES[name]))
 
     def test_fat_target_has_each_supported_volume_fixture(self):
-        self.assertEqual(firmware.FUZZ_TARGETS["fat_volume"], 400000)
-        fixtures = {path.name for path in firmware.FUZZ_FIXTURES["fat_volume"]}
+        self.assertEqual(fuzz_seeds.TARGETS["fat_volume"], 400000)
+        fixtures = {path.name for path in fuzz_seeds.FIXTURES["fat_volume"]}
         self.assertEqual(
             fixtures,
             {"fat16_superfloppy.sparse", "fat32_mbr.sparse", "exfat_mbr.sparse"},
         )
 
     def test_binary_parser_targets_have_canonical_fixture_seeds(self):
-        library = {path.name for path in firmware.FUZZ_FIXTURES["library_database"]}
-        mp4 = {path.name for path in firmware.FUZZ_FIXTURES["mp4_demux"]}
+        library = {path.name for path in fuzz_seeds.FIXTURES["library_database"]}
+        mp4 = {path.name for path in fuzz_seeds.FIXTURES["mp4_demux"]}
         self.assertEqual(
             library,
             {"small_library.db", "cue_music.db", "library.db", "with_playlists.db"},

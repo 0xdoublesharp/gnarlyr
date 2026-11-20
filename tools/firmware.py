@@ -5,11 +5,11 @@ import json
 import os
 from pathlib import Path
 import shutil
-import struct
 import subprocess
 import sys
 
 from echo_debug import IDENTITY
+import fuzz_seeds
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "firmware"
@@ -24,249 +24,7 @@ GROUPS = {
              "device_image_boot_test_normal_boot_reaches_the_home_screen_using_only_the_user_volume|"
              "device_image_boot_test_a_damaged_module_in_slot_1_is_replaced_by_the_copy_in_slot_2)$",
 }
-FUZZ_TARGETS = {
-    "track_tags": 65536,
-    "timed_metadata": 262144,
-    "playlist_reader": 32768,
-    "session_journal": 4096,
-    "library_database": 65536,
-    "mp4_demux": 262144,
-    "store": 4096,
-    "mix_catalog": 256,
-    "settings_codec": 128,
-    "cue_sheet": 65536,
-    "discovery_screen": 256,
-    "personal_tags": 320,
-    "browse_screen": 256,
-    "app_navigation": 128,
-    "app_lifecycle": 160,
-    "library_builder": 512,
-    "cover_image": 1048576,
-    "theme_pack": 4096,
-    "art_codec": 1030,
-    "placeholder_art": 256,
-    "play_queue": 256,
-    "mp3_probe": 262144,
-    "ogg_track": 196608,
-    "wav_source": 262144,
-    "vorbis_decoder": 196608,
-    "opus_decode": 2048,
-    "audio_engine": 256,
-    "asf_track": 262144,
-    "ape_track": 262144,
-    "dsd_track": 262144,
-    "card_format": 64,
-    "playback_views": 256,
-    "cover_flow": 256,
-    "fat_volume": 400000,
-}
-
-
-def library_builder_fault_seeds():
-    tracks = bytes(range(248)) * 2
-    seeds = []
-    for field in range(6):
-        playlist_modes = (0, 8) if field >= 3 else (0,)
-        for playlist in playlist_modes:
-            for value in range(1, 256):
-                controls = bytearray(8)
-                controls[field] = value
-                controls[6] = playlist
-                seeds.append(bytes(controls) + tracks)
-    return seeds
-
-
-ASF_HEADER = bytes.fromhex("3026b2758e66cf11a6d900aa0062ce6c")
-ASF_EXTENSION = bytes.fromhex("b503bf5f2ea9cf118ee300c00c205365")
-ASF_METADATA_LIBRARY = bytes.fromhex("941c23449894d149a1411d134e457054")
-
-
-def asf_metadata_library(name, value):
-    name_units = (name + "\0").encode("utf-16-le")
-    value_units = (value + "\0").encode("utf-16-le")
-    record = struct.pack("<HHHHI", 0, 0, len(name_units), 0, len(value_units)) + name_units + value_units
-    body = struct.pack("<H", 1) + record
-    return ASF_METADATA_LIBRARY + struct.pack("<Q", 24 + len(body)) + body
-
-
-def nested_asf_seed(levels):
-    body = asf_metadata_library("WM/Genre", "Deep")
-    for _ in range(levels):
-        body = ASF_EXTENSION + struct.pack("<Q", 46 + len(body)) + bytes(18) + struct.pack("<I", len(body)) + body
-    tagged = body + asf_metadata_library("WM/AlbumArtist", "Art")
-    top = ASF_EXTENSION + struct.pack("<Q", 46 + len(tagged)) + bytes(18) + struct.pack("<I", len(tagged)) + tagged
-    return ASF_HEADER + struct.pack("<QIBB", 30 + len(top), 1, 1, 2) + top
-
-
-FUZZ_SEEDS = {
-    "track_tags": [
-        b"\0",
-        nested_asf_seed(2),
-        nested_asf_seed(1000),
-        b"ID3\x04\0\0\0\0\0\x02\0\0ID3\x04\0\0\0\0\0\0fLaC\x80\0\0\x22" + bytes(34),
-        b"ID3\x04\0\0\0\0\0\x04\0\0\0\0ID3\x04\0\0\x7f\x7f\x7f\x7f" + b"\xff\xfb\x90\x64" + bytes(412),
-        b"ID3\x04\0\0\0\0\0\0" + (b"\xff\xfb\x90\x64" + bytes(413)) * 4,
-    ],
-    "timed_metadata": [
-        b"[00:00.00]First line\n[00:01.50][00:02.00]Repeated line\n",
-        b"\xef\xbb\xbf[offset:-250]\n[00:00.10]Early\n[9999:59.999]Late\n",
-        b"[00:60.00]invalid\n[00:01.]invalid\n[00:01.1234]invalid\n",
-    ],
-    "playlist_reader": [
-        b"\xff#EXTM3U\n../A/b.flac\n",
-        b"\x1f\xef\xbb\xbfA/one.flac\xe2\x80\xa8A/two.flac\n",
-        b"\x03Bj\xf6rk/J\xf3ga.flac\x85end.flac\n",
-    ],
-    "session_journal": [b"\0", bytes(range(64)), b"\xff" * 64],
-    "library_database": [b"\0", b"\0" * 128],
-    "mp4_demux": [b"\0"],
-    "store": [
-        b"\0" * 16,
-        bytes(range(32)),
-        b"\xff\x01\xff\x01\0\x02\0\x02" * 4,
-    ],
-    "mix_catalog": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
-    "settings_codec": [
-        bytes(range(128)),
-        b"\1" + bytes(range(32)),
-        b"\2" + bytes(range(64)),
-        b"\3" + b"\xff" * 32,
-    ],
-    "cue_sheet": [
-        b'FILE "a.flac" WAVE\nTRACK 01 AUDIO\nINDEX 01 00:00:00\n'
-        b"TRACK 02 AUDIO\nINDEX 01 03:20:00\n",
-        b"FILE a.flac WAVE\nTRACK 00 AUDIO\nINDEX 01 00:00:00\n"
-        b"TRACK 100 AUDIO\nINDEX 01 00:01:00\nTRACK AUDIO\nINDEX 01 00:02:00\n",
-        b"FILE a.flac WAVE\nTRACK 01 AUDIO\nINDEX 01 00:60:00\n"
-        b"TRACK 02 AUDIO\nINDEX 01 00:00:75\nTRACK 03 AUDIO\nINDEX 01 00:00:00 trailing\n",
-        b"FILE a.flac WAVE\nTRACK 01 AUDIO\nINDEX 01 00:10:00\n"
-        b"TRACK 02 AUDIO\nINDEX 01 00:05:00\nTRACK 03 AUDIO\nINDEX 01 00:10:00\n",
-    ],
-    "discovery_screen": [
-        bytes(range(96)),
-        b"\0\1" + bytes([0x20, 0x40, 0x60, 0x80, 0xa0, 0xc0, 0xe0]) * 12,
-        b"\7\2" + bytes([2, 7, 12, 17, 22, 27, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
-    ],
-    "personal_tags": [
-        bytes(range(160)),
-        b"\0\0\0\0\0\3\0\1\xff\xff\5\0\0\0\0" * 8,
-        b"\0\x1f\0\1\2\1\x1f\0\3\4\2\x1f\0\5\6\4\0\0\0\0" * 6,
-    ],
-    "browse_screen": [
-        bytes(range(96)),
-        b"\0" + bytes([0, 1, 2, 3, 4, 5, 31, 63, 95, 127, 159, 191, 223, 255]) * 6,
-        b"\4" + bytes([2, 7, 12, 17, 22, 27, 32, 37]) * 11,
-        bytes([0x40, 0x07, 0x5A, 0x5F, 0x5C]),
-    ],
-    "app_navigation": [
-        bytes(range(48)),
-        bytes([0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13]) * 4,
-        bytes([0x20, 0x41, 0x62, 0x83, 0xa4, 0xc5, 0xe0, 0xff]) * 6,
-    ],
-    "app_lifecycle": [
-        bytes(range(96)),
-        bytes([0, 0x30, 102, 0, 0, 0, 0, 0, 2, 13, 20, 0, 0, 32, 64, 13, 20, 32]),
-        bytes([0, 0x30, 13, 17, 32, 0, 32, 5, 32, 32, 34, 64, 13, 17, 32, 34]),
-        bytes([0, 0x32, 32, 0, 0, 0, 0, 0, 0, 0, 32, 32, 4, 10, 4, 21, 4, 4]),
-        bytes([1, 0x70, 6, 13, 36, 8, 8, 24, 102, 0, 0, 0, 0, 0, 2, 13, 20, 32]),
-    ],
-    "library_builder": [
-        bytes(range(128)),
-        b"\0\1\2\3\4\5\6\7" * 32,
-        b"\xff\x80\x40\x20\x10\x08\x04\x02" * 32,
-        *library_builder_fault_seeds(),
-    ],
-    "cover_image": [b"\0", b"\xff\xd8\xff\xd9", b"\x89PNG\r\n\x1a\n"],
-    "theme_pack": [b"\0", b"\1\0\0\0", b"\2\0\0\0\0\0", b"\3\0\0\0"],
-    "art_codec": [b"\x07\0\0\x08\0\0\x87\x01", b"\x07\0\x02\x04\x02\x03\xc1\xe8\x80\xff\xff\x04"],
-    "placeholder_art": [
-        b"The Velvet Underground",
-        "...And Justice for All".encode(),
-        "\u6771\u4eac Nights".encode(),
-        bytes(range(128)),
-    ],
-    "play_queue": [bytes(range(64)), b"\0\1\2\3" * 32, b"\xff\x80\x40\x20" * 32],
-    "mp3_probe": [b"\0", b"ID3\4\0\0\0\0\0\0", b"\xff\xfb\x90\0"],
-    "ogg_track": [b"\0", b"OggS" + bytes(24), bytes(range(128))],
-    "wav_source": [b"\0", b"RIFF" + bytes(4) + b"WAVE"],
-    "vorbis_decoder": [b"\0", b"OggS" + bytes(24)],
-    "opus_decode": [
-        bytes(12) + b"\xf8\xff\xfe",
-        bytes([2, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255]) + b"\x48\0\0",
-        bytes(range(64)),
-    ],
-    "audio_engine": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
-    "asf_track": [b"\0", bytes(range(128))],
-    "ape_track": [b"\0", b"MAC " + bytes(124)],
-    "dsd_track": [b"\0", b"DSD " + bytes(124), b"FRM8" + bytes(124)],
-    "card_format": [b"\0" * 16, bytes(range(16)), b"\xff\0\0\0" * 4],
-    "playback_views": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32, b"\x19\x04"],
-    "cover_flow": [bytes(range(128)), b"\0" * 64, b"\xff\x80\x40\x20" * 32],
-    "fat_volume": [b"\0", b"DSSP" + bytes(8)],
-}
-FUZZ_FIXTURES = {
-    "library_database": [
-        SOURCE / "tests/fixtures/small_library.db",
-        SOURCE / "tests/fixtures/cue_music.db",
-        SOURCE / "tests/fixtures/builder_random/library.db",
-        SOURCE / "tests/fixtures/builder_random/with_playlists.db",
-    ],
-    "mp4_demux": [
-        SOURCE / "tests/fixtures/tags/aac.m4a",
-        SOURCE / "tests/fixtures/tags/alac.m4a",
-        SOURCE / "tests/fixtures/m4a_music/Aac Artist/Aac Album/01 Lead.m4a",
-        SOURCE / "tests/fixtures/m4a_music/Aac Artist/Aac Album/02 Tail.m4a",
-        SOURCE / "tests/fixtures/m4a_music/Aac Artist/Aac Album/03 Mono.m4a",
-        SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/01 Lossless.m4a",
-        SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/02 Deep.m4a",
-        SOURCE / "tests/fixtures/m4a_music/Alac Artist/Alac Album/03 Single.m4a",
-    ],
-    "timed_metadata": [
-        *sorted((SOURCE / "tests/fixtures/m4b_music/Audiobooks").glob("*.m4b")),
-        *sorted((SOURCE / "tests/fixtures/m4b_real/Audiobooks").glob("*.m4b")),
-    ],
-    "cover_image": [
-        ROOT / "site/assets/screens/home.png",
-        ROOT / "site/assets/screens/cover-flow.png",
-        ROOT / "site/assets/social/home-280c6baaadf6.png",
-    ],
-    "mp3_probe": [
-        SOURCE / "tests/fixtures/tags/id3v24.mp3",
-        SOURCE / "tests/fixtures/tags/id3v23_vbr.mp3",
-        SOURCE / "tests/fixtures/tags/id3v1_no_xing.mp3",
-    ],
-    "ogg_track": [
-        *sorted((SOURCE / "tests/fixtures/vorbis").glob("*.ogg")),
-        *sorted((SOURCE / "tests/fixtures/opus").glob("*.opus")),
-        SOURCE / "tests/fixtures/tags/tagged.ogg",
-        SOURCE / "tests/fixtures/tags/tagged.opus",
-    ],
-    "wav_source": [SOURCE / "tests/fixtures/tags/tagged.wav"],
-    "vorbis_decoder": [*sorted((SOURCE / "tests/fixtures/vorbis").glob("*.ogg"))],
-    "asf_track": [
-        *sorted((SOURCE / "tests/fixtures/wma").glob("*.wma")),
-        SOURCE / "tests/fixtures/tags/tagged.wma",
-    ],
-    "ape_track": [
-        *sorted((SOURCE / "tests/fixtures/ape").glob("*.ape")),
-        SOURCE / "tests/fixtures/tags/tagged.ape",
-    ],
-    "dsd_track": [
-        SOURCE / "tests/fixtures/tags/tagged.dff",
-        SOURCE / "tests/fixtures/tags/tagged.dsf",
-    ],
-    "fat_volume": [
-        SOURCE / "tests/fixtures/cards/fat16_superfloppy.sparse",
-        SOURCE / "tests/fixtures/cards/fat32_mbr.sparse",
-        SOURCE / "tests/fixtures/cards/exfat_mbr.sparse",
-    ],
-}
 FUZZ_DICTIONARIES = SOURCE / "tests/fuzz/dictionaries"
-COVER_IMAGE_JPEG_FIXTURES = [
-    SOURCE / "tests/fixtures/tags/id3v24.mp3",
-    SOURCE / "tests/fixtures/tags/aac.m4a",
-    SOURCE / "tests/fixtures/tags/tagged.flac",
-]
 
 
 def link_directory(path, target):
@@ -403,30 +161,10 @@ def write_seed(path, data):
         path.write_bytes(data)
 
 
-def fuzz_seed_inputs(name):
-    inputs = {f"seed-{index}": seed for index, seed in enumerate(FUZZ_SEEDS[name])}
-    for fixture in FUZZ_FIXTURES.get(name, ()):
-        inputs[f"fixture-{fixture.name}"] = fixture.read_bytes()[:FUZZ_TARGETS[name]]
-    if name == "cover_image":
-        for index, fixture in enumerate(COVER_IMAGE_JPEG_FIXTURES):
-            bytes_ = fixture.read_bytes()
-            start = bytes_.find(b"\xff\xd8")
-            end = bytes_.find(b"\xff\xd9", start + 2)
-            if start < 0 or end < 0:
-                raise SystemExit(f"No JPEG cover found in {fixture}")
-            inputs[f"jpeg-{index}"] = bytes_[start:end + 2]
-    if name == "track_tags":
-        fixtures = SOURCE / "tests/fixtures/tags"
-        for fixture in sorted(fixtures.iterdir()):
-            if fixture.is_file():
-                inputs[f"tag-{fixture.name}"] = fixture.read_bytes()[:FUZZ_TARGETS[name]]
-    return inputs
-
-
 def prepare_fuzz_corpus(name):
     corpus = SCRATCH / "data" / BUILD_NAME / "fuzz" / name
     corpus.mkdir(parents=True, exist_ok=True)
-    for filename, data in fuzz_seed_inputs(name).items():
+    for filename, data in fuzz_seeds.inputs(name).items():
         write_seed(corpus / filename, data)
     return corpus
 
@@ -436,19 +174,18 @@ def run_fuzzer(name, runs, seed, env):
     artifacts = SCRATCH / "reports" / BUILD_NAME / "fuzz" / name
     artifacts.mkdir(parents=True, exist_ok=True)
     binary = SOURCE / "build/fuzz/tests/fuzz" / f"fuzz_{name}"
-    run(fuzz_command(binary, corpus, artifacts, runs, seed, FUZZ_TARGETS[name]), env)
+    run(fuzz_command(binary, corpus, artifacts, runs, seed, fuzz_seeds.TARGETS[name]), env)
 
 
 def run_long_fuzz(targets, args, env, python):
     import fuzz_campaign
-    import fuzz_seeds
 
     layout = fuzz_campaign.campaign_layout(SCRATCH, BUILD_NAME)
     layout["suppressions"] = SOURCE / "tests/fuzz/lsan-suppressions.txt"
     synthetic = fuzz_seeds.generate(layout["seeds"], ROOT, python, env, fuzz_campaign.SYNTHETIC_VERSION)
     paths = synthetic + fuzz_campaign.allowed_media([SOURCE / "tests/fixtures", SCRATCH / "data/batch4-checks"])
-    opus_controls = [seed[:12] for seed in FUZZ_SEEDS["opus_decode"][:2]]
-    media = fuzz_campaign.media_seeds(paths, FUZZ_TARGETS, opus_controls)
+    opus_controls = [seed[:12] for seed in fuzz_seeds.SEEDS["opus_decode"][:2]]
+    media = fuzz_campaign.media_seeds(paths, fuzz_seeds.TARGETS, opus_controls)
     layout["dictionaries"].mkdir(parents=True, exist_ok=True)
     seconds = fuzz_campaign.duration_seconds(args.minutes, args.hours)
     extra = {"playlist_reader": [IDENTITY["playlist_start_directive"]]}
@@ -462,8 +199,9 @@ def run_long_fuzz(targets, args, env, python):
         if text:
             dictionary = layout["dictionaries"] / f"{name}.dict"
             dictionary.write_text(text)
-        return {"seconds": seconds, "max_length": FUZZ_TARGETS[name], "seed": args.seed, "dictionary": dictionary,
-                "seeds": [*fuzz_seed_inputs(name).values(), *media[name].values()]}
+        return {"seconds": seconds, "max_length": fuzz_seeds.TARGETS[name], "seed": args.seed,
+                "dictionary": dictionary,
+                "seeds": [*fuzz_seeds.inputs(name).values(), *media[name].values()]}
 
     print(f"Long fuzzing {len(targets)} targets for {seconds} s each, {args.jobs} at a time; "
           f"report: {layout['report'] / layout['summary']}.md", flush=True)
@@ -631,7 +369,7 @@ def arguments():
     if args.target and args.action not in ("build", "fuzz"):
         parser.error("--target requires the build or fuzz action")
     if args.action == "fuzz":
-        unknown = sorted(set(args.target or ()) - set(FUZZ_TARGETS))
+        unknown = sorted(set(args.target or ()) - set(fuzz_seeds.TARGETS))
         if unknown:
             parser.error(f"unknown fuzz target: {', '.join(unknown)}")
         if args.runs is not None and args.runs < 1:
@@ -686,7 +424,7 @@ def main(argv=None):
         return
     preset = "dev" if args.action in ("test", "sim") else args.preset
     if args.action == "fuzz":
-        targets = args.target or list(FUZZ_TARGETS)
+        targets = args.target or list(fuzz_seeds.TARGETS)
         configure("fuzz", env, python)
         compile_targets("fuzz", env, [f"fuzz_{name}" for name in targets])
         if args.long:
