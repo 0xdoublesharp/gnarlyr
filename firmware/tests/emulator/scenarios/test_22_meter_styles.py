@@ -12,8 +12,11 @@ from echo_emulator.flac_image import FlacImage, BLOCK_SAMPLES
 
 VU, SPECTRUM = 2, 3
 VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS = 3.5
-CORE0_INCREASE_BUDGETS = {(VU, "flac44"): 2.53, (SPECTRUM, "flac44"): 2.59,
-                          (VU, "flac96_512"): 3.25, (SPECTRUM, "flac96_512"): 4.84}
+CORE0_RISE_BUDGETS = {(VU, "flac44"): 2.49, (SPECTRUM, "flac44"): 2.82,
+                      (VU, "flac96_512"): 3.04, (SPECTRUM, "flac96_512"): 5.64}
+CORE0_TOTAL_BUDGETS = {(VU, "flac44"): 14.19, (SPECTRUM, "flac44"): 13.77,
+                       (VU, "flac96_512"): 16.55, (SPECTRUM, "flac96_512"): 18.40}
+CORE0_TOTAL_TOLERANCE = {"flac44": 0.4, "flac96_512": 0.6}
 MUSIC_SECONDS = 16
 MUSIC = ("0.35*sin(2*PI*55*t)*(0.4+0.6*lt(mod(t,0.5),0.12))"
          "+0.18*sin(2*PI*110*t+sin(3*t))"
@@ -118,33 +121,16 @@ class EchoImageTest(EchoImageHarness):
         rig = self.visual_rig(style, converted)
         machine = rig.machine
         idle = self.idle_counter(machine)
-        timer = self.tick_timer(machine)
         rig.open_songs()
         started = rig.play_song(1)
         self.assertIsNotNone(rig.first_audio_after(started))
         _, stage = self.module(machine, "stage")
         self.assertTrue(stage.loaded(machine))
         rig.run_for(300)
-        reads = machine.trace("hal_audio_visual_buffer")
-        since_ms = machine.milliseconds()
-        since = machine.cycles()
-        timer["durations"].clear()
         animated = self.busy_percent(rig, idle, 3000)
-        ticks = list(timer["durations"])
-        windows = [window for window in machine.panel.windows if window.cycles >= since and window.width < 300]
-        self.assertGreater(len(windows), 0)
-        frames = len([stamp for stamp in reads if stamp >= since_ms])
-        self.assertGreaterEqual(frames, 29)
-        self.assertLessEqual(frames, 31)
         machine.stub_symbol("meter_now_playing_animate", lambda machine: 0)
         rig.run_for(200)
         still = self.busy_percent(rig, idle, 3000)
-        if not converted:
-            self.report({"case": "flac44", "style": "vu" if style == VU else "spectrum",
-                         "animated": round(animated, 2), "still": round(still, 2),
-                         "increase": round(animated - still, 2)},
-                        ticks, sum(window.pixels for window in windows))
-            self.assertLessEqual(animated - still, CORE0_INCREASE_BUDGETS[(style, "flac44")])
         self.assertLessEqual(animated - still, budget)
         self.assertEqual([], rig.audio.underruns(started))
         self.assertEqual(0, rig.audio.output_underruns())
@@ -154,7 +140,31 @@ class EchoImageTest(EchoImageHarness):
               ("VU" if style == 2 else "Spectrum", "16 to 32 kHz" if converted else "44.1 kHz FLAC",
                animated, still, animated - still))
 
-    def measure_96k(self, style):
+    def flac44_window(self, style, stubbed):
+        rig = self.visual_rig(style, False)
+        machine = rig.machine
+        idle = self.idle_counter(machine)
+        if stubbed:
+            machine.stub_symbol("meter_now_playing_animate", lambda machine: 0)
+        timer = self.tick_timer(machine)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        rig.run_for(300)
+        reads = machine.trace("hal_audio_visual_buffer")
+        since_ms, since = machine.milliseconds(), machine.cycles()
+        timer["durations"].clear()
+        busy = self.busy_percent(rig, idle, 3000)
+        pixels = sum(window.pixels for window in machine.panel.windows
+                     if window.cycles >= since and window.width < 300)
+        frames = len([stamp for stamp in reads if stamp >= since_ms])
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assert_healthy(rig.session)
+        return {"busy": busy, "ticks": list(timer["durations"]), "pixels": pixels,
+                "frames": frames}
+
+    def flac96_window(self, style, stubbed):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
         from echo_emulator.power import DecoderLoad, PowerMeter
@@ -166,6 +176,8 @@ class EchoImageTest(EchoImageHarness):
         DecoderLoad(rig.audio, self.elf.parent)
         meter = PowerMeter(rig.machine)
         machine = rig.machine
+        if stubbed:
+            machine.stub_symbol("meter_now_playing_animate", lambda machine: 0)
         timer = self.tick_timer(machine)
         rig.open_songs()
         rig.play_song(1)
@@ -174,42 +186,46 @@ class EchoImageTest(EchoImageHarness):
         since = machine.cycles()
         timer["durations"].clear()
         result = meter.measure(rig, rig.session.card, 3000)
-        ticks = list(timer["durations"])
         pixels = sum(window.pixels for window in machine.panel.windows
                      if window.cycles >= since and window.width < 300)
-        machine.stub_symbol("meter_now_playing_animate", lambda machine: 0)
-        rig.run_for(200)
-        still = meter.measure(rig, rig.session.card, 3000)
-        busy = result["core0_busy_percent"]
-        self.report({"case": "flac96_512", "style": "vu" if style == VU else "spectrum",
-                     "animated": round(busy, 2), "still": round(still["core0_busy_percent"], 2),
-                     "increase": round(busy - still["core0_busy_percent"], 2),
-                     "underruns": result["underruns"],
-                     "output_underruns": result["output_underruns"]}, ticks, pixels)
-        self.assertGreaterEqual(len(ticks), 29)
         self.assertEqual(0, result["underruns"], result)
         self.assertEqual(0, result["output_underruns"], result)
-        self.assertLessEqual(busy - still["core0_busy_percent"],
-                             CORE0_INCREASE_BUDGETS[(style, "flac96_512")])
         self.assert_healthy(rig.session)
+        return {"busy": result["core0_busy_percent"], "ticks": list(timer["durations"]),
+                "pixels": pixels, "frames": len(timer["durations"])}
+
+    def matched_cost(self, style, case):
+        window = self.flac44_window if case == "flac44" else self.flac96_window
+        animated = window(style, False)
+        still = window(style, True)
+        rise = animated["busy"] - still["busy"]
+        self.report({"case": case, "style": "vu" if style == VU else "spectrum",
+                     "animated": round(animated["busy"], 2), "still": round(still["busy"], 2),
+                     "increase": round(rise, 2)}, animated["ticks"], animated["pixels"])
+        self.assertGreaterEqual(animated["frames"], 29)
+        self.assertLessEqual(animated["frames"], 31)
+        self.assertGreater(animated["pixels"], 0)
+        self.assertLessEqual(rise, CORE0_RISE_BUDGETS[(style, case)])
+        self.assertLessEqual(animated["busy"],
+                             CORE0_TOTAL_BUDGETS[(style, case)] + CORE0_TOTAL_TOLERANCE[case])
 
     def test_vu_style_keeps_a_96_khz_24_bit_small_block_flac_fed_with_the_screen_on(self):
-        self.measure_96k(VU)
+        self.matched_cost(VU, "flac96_512")
 
     def test_spectrum_style_keeps_a_96_khz_24_bit_small_block_flac_fed_with_the_screen_on(self):
-        self.measure_96k(SPECTRUM)
+        self.matched_cost(SPECTRUM, "flac96_512")
 
     def test_vu_style_leaves_core_0_room_with_44_khz_flac(self):
-        self.measure_style(2, False)
+        self.matched_cost(VU, "flac44")
 
     def test_vu_style_leaves_core_0_room_with_converted_16_khz(self):
-        self.measure_style(2, True, budget=VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS)
+        self.measure_style(VU, True, budget=VU_CONVERTED_BUDGET_AFTER_USB_DAC_STATS)
 
     def test_spectrum_style_leaves_core_0_room_with_44_khz_flac(self):
-        self.measure_style(3, False)
+        self.matched_cost(SPECTRUM, "flac44")
 
     def test_spectrum_style_leaves_core_0_room_with_converted_16_khz(self):
-        self.measure_style(3, True)
+        self.measure_style(SPECTRUM, True)
 
 
 if __name__ == "__main__":
