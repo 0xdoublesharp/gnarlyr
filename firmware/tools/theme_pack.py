@@ -4,6 +4,7 @@ import ctypes.util
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 import re
 import struct
@@ -454,8 +455,17 @@ def build(folder, sign_key=None, report=None):
 
 
 def read_capped(path):
-    with Path(path).open("rb") as source:
-        return source.read(MAX_BYTES + 1)
+    descriptor = os.open(path, os.O_RDONLY)
+    data = bytearray()
+    try:
+        while len(data) <= MAX_BYTES:
+            chunk = os.read(descriptor, MAX_BYTES + 1 - len(data))
+            if not chunk:
+                break
+            data += chunk
+    finally:
+        os.close(descriptor)
+    return bytes(data)
 
 
 def preview(data, folder):

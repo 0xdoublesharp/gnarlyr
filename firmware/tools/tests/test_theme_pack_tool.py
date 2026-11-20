@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import uuid
 import zlib
 from pathlib import Path
@@ -142,7 +143,20 @@ class ThemeToolTests(unittest.TestCase):
             large = Path(directory) / "large.gtheme"
             with large.open("wb") as output:
                 output.truncate(theme_pack.MAX_BYTES * 2)
-            self.assertEqual(theme_pack.MAX_BYTES + 1, len(theme_pack.read_capped(large)))
+            requests, returned = [], []
+            real_read = theme_pack.os.read
+
+            def counted(descriptor, size):
+                requests.append(size)
+                data = real_read(descriptor, size)
+                returned.append(len(data))
+                return data
+
+            with mock.patch.object(theme_pack.os, "read", counted):
+                self.assertEqual(theme_pack.MAX_BYTES + 1, len(theme_pack.read_capped(large)))
+            self.assertEqual(theme_pack.MAX_BYTES + 1, sum(returned))
+            self.assertLessEqual(max(requests), theme_pack.MAX_BYTES + 1)
+            self.assertLessEqual(sum(requests), theme_pack.MAX_BYTES + 1)
             result = subprocess.run([sys.executable, str(Path(theme_pack.__file__)), "--check",
                                      str(large)], capture_output=True, text=True)
             self.assertEqual(1, result.returncode)
