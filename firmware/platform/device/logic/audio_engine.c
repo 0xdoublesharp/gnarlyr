@@ -237,7 +237,7 @@ static CORE_COLD void start_stretch(AudioEngine *engine)
     }
 }
 
-static CORE_COLD bool start_track(AudioEngine *engine, const AudioEngineTrack *track,
+static CORE_COLD bool begin_track(AudioEngine *engine, const AudioEngineTrack *track,
                                   uint32_t start_ms)
 {
     close_file(engine);
@@ -267,7 +267,7 @@ CORE_COLD bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *tr
                                  uint32_t offset_ms)
 {
     engine->repeat_state = 0;
-    return start_track(engine, track, track->start_ms + offset_ms);
+    return begin_track(engine, track, track->start_ms + offset_ms);
 }
 
 CORE_COLD bool audio_engine_queue_needs_restart(const AudioEngine *engine,
@@ -316,7 +316,7 @@ CORE_COLD bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms)
         sample = engine->repeat_a;
         position_ms = (uint32_t)((uint64_t)sample * 1000 / playing.track.stream.sample_rate);
     }
-    bool started = start_track(engine, &track, position_ms);
+    bool started = begin_track(engine, &track, position_ms);
     if (started && engine->repeat_state == 2) {
         engine->skip_frames = sample;
         engine->decode_limit = engine->repeat_b;
