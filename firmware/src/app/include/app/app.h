@@ -25,6 +25,7 @@ typedef struct AppDacSettings {
     uint8_t gain;
     uint8_t output;
     uint8_t headphones;
+    bool headphones_fixed;
 } AppDacSettings;
 
 typedef struct AppUsbStatus {

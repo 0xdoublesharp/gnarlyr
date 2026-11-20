@@ -1893,7 +1893,8 @@ AppDacSettings app_dac_settings(void)
 {
     const Settings *settings = &app.settings.settings;
     return (AppDacSettings){settings->dac_volume, (uint8_t)settings->gain,
-                            (uint8_t)settings->output, app.headphones.profiles.current};
+                            (uint8_t)settings->output, app.headphones.profiles.current,
+                            app.headphones.file.needs_reload};
 }
 
 const HeadphoneProfiles *app_headphone_profiles(void)

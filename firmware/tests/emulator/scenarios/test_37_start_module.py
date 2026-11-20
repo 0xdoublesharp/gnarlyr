@@ -16,6 +16,7 @@ PROFILE_CEILING = 18
 NOTE_NAME = "NOTE.TXT"
 NOTE_ENTRY = b"NOTE    TXT"
 HEADPHONES = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
+DAC_MENU_HEADPHONES_ROW = 3
 
 
 def profile_file():
@@ -123,6 +124,30 @@ class EchoImageTest(EchoImageHarness):
         self.open_settings(machine)
         _, settings = self.module(machine, "settings")
         self.assertTrue(settings.loaded(machine))
+        self.assertEqual(session.fat().read(HEADPHONES), profile_file())
+        self.assert_healthy(session)
+
+    def test_without_an_intact_start_module_the_dac_menu_keeps_the_ceiling_after_settings(self):
+        session = self.session(volume=self.profile_volume(), usb_answer=None)
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, START_MODULE, 600, lambda byte: byte ^ 0xFF)
+        machine = session.machine
+        applied, _ = self.started(session)
+        self.assertEqual(0, applied[-1][2], applied)
+        self.open_settings(machine)
+        machine.host_stays = True
+        machine.note("usb_dac_session")
+        machine.answer_usb_prompt(image_tests.DAC_PROMPT_KEYS)
+        machine.vbus = True
+        self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
+                                     until_ms=machine.milliseconds() + 6000), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 500)
+        before = len(applied)
+        keys = (image_tests.KEY_MENU,) + (image_tests.KEY_NEXT,) * DAC_MENU_HEADPHONES_ROW
+        for key in keys + (image_tests.KEY_PLAY, image_tests.KEY_PLAY):
+            self.press(machine, key)
+        self.assertTrue(all(ceiling == 0 for _, _, ceiling in applied[before:]), applied[before:])
+        self.assertEqual(0, machine.read_memory(machine.symbols["volume_level"], 1)[0])
         self.assertEqual(session.fat().read(HEADPHONES), profile_file())
         self.assert_healthy(session)
 

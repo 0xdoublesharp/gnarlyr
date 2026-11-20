@@ -420,6 +420,9 @@ static void set_volume(uint8_t level)
 
 static void switch_headphones(void)
 {
+    if (settings.headphones_fixed) {
+        return;
+    }
     HeadphoneProfiles chosen = *app_headphone_profiles();
     chosen.current = settings.headphones;
     HeadphoneAudio after = headphone_store_parameters(&chosen);
