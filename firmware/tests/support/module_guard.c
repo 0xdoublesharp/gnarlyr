@@ -1,5 +1,10 @@
+#if defined(__linux__)
+#define _GNU_SOURCE
+#endif
+
 #include "module_guard.h"
 
+#include <dlfcn.h>
 #include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -287,6 +292,16 @@ static void poison(GuardSet *set, const char *event, uint32_t module)
     set->evicted_module = module;
 }
 
+static bool armed_any(void)
+{
+    for (size_t index = 0; index < GUARD_CAPACITY; index++) {
+        if (sets[index].state == GUARD_LIVE) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void rearm(void)
 {
     armed = false;
@@ -376,7 +391,7 @@ static void report_call(const GuardSet *set, const void *function, const void *s
              set->evicted_by != NULL ? set->evicted_by : "?",
              module_guard_module_name(set->evicted_module));
     if (trap != NULL) {
-        trap(report);
+        trap(report, function);
         return;
     }
     fputs(report, stderr);
@@ -419,9 +434,48 @@ void __cyg_profile_func_exit(void *function, void *site)
     (void)site;
 }
 
+static void trace(const char *event, uint32_t module)
+{
+    static int known = -1;
+    if (known < 0) {
+        known = getenv("ECHO_MODULE_GUARD_TRACE") != NULL ? 1 : 0;
+    }
+    if (known == 1) {
+        fprintf(stderr, "module guard: %s %s (slot held %s)\n", event,
+                module_guard_module_name(module), module_guard_module_name(current));
+        const char *stack = getenv("ECHO_MODULE_GUARD_TRACE");
+        if (stack != NULL && strcmp(stack, "stack") == 0) {
+#if defined(MODULE_GUARD_SANITIZER_STACK) || defined(MODULE_GUARD_ASAN)
+            __sanitizer_print_stack_trace();
+#endif
+        }
+    }
+}
+
+static bool called_from(const char *name)
+{
+    void *frames[48];
+    int count = backtrace(frames, 48);
+    for (int index = 0; index < count; index++) {
+        Dl_info info;
+        if (dladdr(frames[index], &info) != 0 && info.dli_sname != NULL &&
+            strcmp(info.dli_sname, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static const char *load_event(const char *event, const char *shortcut_event)
+{
+    return armed_any() && called_from("app_menu_hold") ? shortcut_event : event;
+}
+
 void module_guard_load(uint32_t module)
 {
     ensure_shadow();
+    trace("load", module);
+    const char *event = load_event("a module load", "a module load for a Hold Menu shortcut");
     for (size_t index = 0; index < GUARD_CAPACITY; index++) {
         GuardSet *set = &sets[index];
         bool member = module < 32 && (set->mask & 1u << module) != 0;
@@ -432,16 +486,20 @@ void module_guard_load(uint32_t module)
         } else if (member) {
             set->state = GUARD_LIVE;
         } else if (set->state == GUARD_LIVE) {
-            poison(set, "a module load", module);
+            poison(set, event, module);
         }
     }
     current = module;
     rearm();
 }
 
-void module_guard_evict(const char *event)
+void module_guard_evict(const char *cause)
 {
     ensure_shadow();
+    trace(cause, 0);
+    const char *event = strcmp(cause, "a refused module load") == 0
+                            ? load_event(cause, "a refused module load for a Hold Menu shortcut")
+                            : cause;
     for (size_t index = 0; index < GUARD_CAPACITY; index++) {
         if (sets[index].state == GUARD_LIVE) {
             poison(&sets[index], event, 0);
@@ -543,7 +601,19 @@ const void *module_guard_probe(uint32_t module)
     return NULL;
 }
 
-static const GuardSet *set_of(const void *address)
+static GuardSet *set_of(const void *address);
+
+void module_guard_lend(const void *address)
+{
+    GuardSet *set = set_of(address);
+    if (set != NULL && set->state == GUARD_EVICTED) {
+        refresh(set);
+        set->state = GUARD_UNTOUCHED;
+        rearm();
+    }
+}
+
+static GuardSet *set_of(const void *address)
 {
     for (size_t index = 0; index < GUARD_CAPACITY; index++) {
         for (int kind = 0; kind < RANGE_COUNT; kind++) {
@@ -576,6 +646,15 @@ size_t module_guard_guarded_sets(void)
         count += range_bytes(&sets[index].ranges[RANGE_TEXT]) != 0 ? 1u : 0u;
     }
     return count;
+}
+
+void module_guard_abort(const char *text)
+{
+    fputs(text, stderr);
+#if defined(MODULE_GUARD_SANITIZER_STACK) || defined(MODULE_GUARD_ASAN)
+    __sanitizer_print_stack_trace();
+#endif
+    abort();
 }
 
 void module_guard_set_trap(ModuleGuardTrap handler)

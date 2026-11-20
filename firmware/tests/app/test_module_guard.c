@@ -14,9 +14,10 @@
 static jmp_buf escape;
 static int trapped;
 
-static void escape_trap(const char *report)
+static void escape_trap(const char *report, const void *function)
 {
     (void)report;
+    (void)function;
     trapped++;
     longjmp(escape, 1);
 }

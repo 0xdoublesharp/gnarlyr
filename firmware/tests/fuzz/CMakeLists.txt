@@ -73,6 +73,18 @@ echo_add_fuzzer(app_navigation
 target_compile_definitions(fuzz_app_navigation PRIVATE
     ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
 )
+echo_add_fuzzer(app_lifecycle
+    SOURCES ../app/fake_hal.c ../library/memory_source.c ../library/fixture_library.c
+    LIBRARIES echo_app echo_library_scan
+    PRIVATE_INCLUDES
+        ${PROJECT_SOURCE_DIR}/src/app
+        ${PROJECT_SOURCE_DIR}/tests/app
+        ${PROJECT_SOURCE_DIR}/tests/library
+)
+target_compile_definitions(fuzz_app_lifecycle PRIVATE
+    ECHO_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures"
+)
+set_target_properties(fuzz_app_lifecycle PROPERTIES ENABLE_EXPORTS ON)
 echo_add_fuzzer(playback_views
     SOURCES ../app/fake_hal.c ../library/memory_source.c ../library/fixture_library.c
     LIBRARIES echo_app echo_library_scan

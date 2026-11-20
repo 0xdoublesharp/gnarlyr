@@ -8,6 +8,13 @@
 
 static const char *const NAMES[KNOWN_ISSUE_COUNT] = {
     [KNOWN_ISSUE_HOLD_MENU_STALE_UPDATE] = "hold-menu-stale-update",
+    [KNOWN_ISSUE_EQUALIZER_STATE_AFTER_RELOAD] = "equalizer-state-after-reload",
+    [KNOWN_ISSUE_BLOCKED_PROFILE_CEILING] = "blocked-profile-ceiling",
+    [KNOWN_ISSUE_HOME_ART_AFTER_OVERLAY] = "home-art-after-overlay",
+    [KNOWN_ISSUE_SLIDE_LEAVING_EVICTED] = "slide-leaving-evicted",
+    [KNOWN_ISSUE_DISCOVERY_WORK_AFTER_RESCAN] = "discovery-work-after-rescan",
+    [KNOWN_ISSUE_SAFE_START_LABELS_AFTER_RELOAD] = "safe-start-labels-after-reload",
+    [KNOWN_ISSUE_PREVIEW_CANCEL_EVICTED] = "preview-cancel-evicted",
 };
 
 static int tolerated;
@@ -37,9 +44,10 @@ bool known_issue_open(KnownIssue issue)
     return !listed(getenv("ECHO_KNOWN_ISSUES"), known_issue_name(issue));
 }
 
-static void count_call(const char *report)
+static void count_call(const char *report, const void *function)
 {
     (void)report;
+    (void)function;
     tolerated++;
 }
 

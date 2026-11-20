@@ -652,6 +652,58 @@ Track-tag duration arithmetic uses integer mantissas and exponents in `library/t
 
 Host builds run under UndefinedBehaviorSanitizer. AddressSanitizer is opt-in (`ECHO_ADDRESS_SANITIZER`) because it hangs at startup on macOS 27 with Apple clang 17.
 
+### Module eviction checks
+
+On the player the UI modules (views, settings, library, listening, equalizer, playing, stage) share one slot, and the USB and rescan overlays overwrite it. Loading one clears the code, data and BSS of the one before. The rule the checks enforce: after an eviction, nothing reads a pointer into the evicted module's memory or calls its code until the module is loaded again and its reload hook has run.
+
+**Host fake.** With Clang, `cmake/host_module_guard.cmake` gives every source that appears only in UI module lists (`cmake/screen_modules.cmake`, plus the UI sources every module carries) a forced-include header. The header places the file's text, data, read-only data and BSS in sections named after its owner set, the set of modules that list it, and the file is built with `-finstrument-functions-after-inlining`. A source that the extension, an audio bank or the shared list also names stays resident on the host, as the extension stays loaded on the player. `tests/support/module_guard.c` reads the section bounds from the linker (`section$start$` on Mach-O, weak `__start_`/`__stop_` on ELF) and keeps one state per owner set: untouched, live or evicted. The fake HAL reports each change: a load of another module, a refused load, the rescan overlay and `fake_hal_load_usb_overlay`.
+
+- **Eviction:** the set's data, read-only data and BSS are filled with `0xA5`, so a pointer read from them is non-canonical on 64-bit hosts. Under AddressSanitizer the ranges are also poisoned, so any read or write is reported with its stack.
+- **Reload:** a load after an eviction, or of another module of the same set, restores the data from a snapshot taken before `main` and clears the BSS, as the loader does on the player.
+- **Calls:** the entry hook traps any call into an evicted set's text. It prints the function, the call site and the event that evicted it, then aborts with the sanitizer stack.
+
+An entry hook was chosen over `mprotect` because module text is not page-aligned on ELF without a linker script, and the hook gives the call site for free. It was chosen over a guard in the entry tables because those cannot see stale callbacks held in resident screens.
+
+A set nobody has loaded since `fake_hal_reset` is not checked, so unit tests may call module code directly. A test that inspects a module after the app evicted it calls `fake_hal_borrow_module` first. `ECHO_MODULE_GUARD=report` with `ECHO_MODULE_GUARD_LOG=<file>` logs every trapped call and continues. `test_module_guard` proves that each detector fires.
+
+What the host fake cannot see:
+
+- reads of evicted memory in the `dev` preset unless the poisoned value is used as a pointer (precise read detection needs AddressSanitizer, which the `fuzz` preset has);
+- string literals, which stay in the resident string pool;
+- the extension, which is always resident on the host.
+
+**Lifecycle fuzzer.** `fuzz_app_lifecycle` drives:
+
+- key taps, holds and chords, and Hold Menu shortcuts;
+- USB storage and USB DAC sessions, replayed in the order of `board/main.c` and `usb_dac_session.c`, including headphone changes in the DAC menu;
+- write failures on `settings.bin`, `buttons.bin`, `headphones.bin`, `eq_slots.bin` and `parametric.bin`;
+- damaged module copies, rescans, sleep timer expiry and screen off and on;
+- a jump to any Settings row.
+
+After every step it checks:
+
+- the screen stack is not empty;
+- the headphone profiles in memory equal `headphones.bin`;
+- the applied volume ceiling does not exceed the stored profile's, and is 0 while the profile store is blocked;
+- no saved graphic or parametric EQ slot is lost (there is no delete for slots);
+- the guard's call and memory checks.
+
+It decodes the stored files itself. Calls into equalizer code for that run inside `module_guard_oracle_begin`/`end`, which lend evicted sets and poison them again afterwards. Run it with `python3 tools/firmware.py fuzz --target app_lifecycle`.
+
+**Emulator.** `SlotOwnership` (`tools/echo_emulator/modules.py`) follows the owner of the slot through returns from `hal_system_load_module` and through writes to the slot header outside a load, which the overlays make. All UI modules link at the same address, so a stale pointer cannot be told apart by address alone. What it detects:
+
+- a call from resident code (the link register outside the slot) to an address that some module stores as a function pointer but that is not a function entry of the module in the slot;
+- execution or a read in the slot after a refused load;
+- a read past the end of the owning module's code, data and BSS.
+
+A stale pointer that happens to land on a function entry of the new module, or reads inside the new module's memory, go unnoticed. `test_37_eviction` holds a planted-call canary, the Hold Menu reproducer and a stress scenario. The stress scenario makes seeded random key taps, holds, chords, waits that end inside slides and toasts, and USB plugs during playback, and prints its seed on failure. The fixed-seed run is in the default suite. Set `ECHO_EVICTION_STRESS_RUNS=N` (and optionally `ECHO_EVICTION_STRESS_SEED`) and run `python3 tools/firmware.py test --regex eviction_stress_with_new_seeds` for the long randomised run.
+
+**Known-issue switches.** A finding that the checks reproduce on `main`, but that belongs to another branch, is held open by a named switch in `tests/support/known_issues.c`, which the scenarios mirror. While a switch is open, the test that hits it tolerates or avoids the hit; it does not mute the detector. `ECHO_KNOWN_ISSUES=<name>[,<name>]` or `all` closes switches and enforces them. Remove a switch with the fix.
+
+| Switch | Effect while open |
+|---|---|
+| `hold-menu-stale-update` | `test_app` tolerates the stale call during a configured Hold Menu shortcut from Now Playing; the fuzzer and the emulator stress take that shortcut only while settings or no module is in the slot; the emulator reproducer reports instead of failing |
+
 ## Echo image emulator test
 
 `tests/emulator/scenarios/test_*.py`, using the shared `echo_image_harness.py`, run the finished `device` image (with `echo_device.elf` and `echo_usb_overlay.elf` for symbol addresses) in a Unicorn Cortex-M3 emulator (`tools/echo_emulator`, `unicorn` in `tools/requirements.txt`) before anything is flashed to a player. Each scenario is its own ctest, `device_image_boot_<scenario>` (label `echo_image`); it needs the `device` build and `.venv` and skips (exit code 77) when the image, the ELF or `unicorn` is missing. The measured full-suite time and integration gate are documented in `../CLAUDE.md`, Integration. Run one scenario file by hand with `.venv/bin/python tests/emulator/scenarios/test_<area>.py [--image IMG] [--elf ELF] [--usb-overlay-elf ELF] [Class.test_name]`. A function the test names must exist in one of the two ELFs, or the test fails. The USB overlay's addresses are also used by the rescan overlay and the decoder, so a name in it counts only while the window holds exactly the overlay stored in the image.
