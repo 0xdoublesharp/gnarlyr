@@ -411,8 +411,10 @@ static ScreenAction add_song_to_up_next(void *context)
 static ScreenAction add_song_to_favorites(void *context)
 {
     BrowsePool *pool = context;
-    (void)pool->config.manage(pool->config.tools_context, pool->song_actions.track,
-                              SONG_MANAGE_FAVORITE);
+    if (pool->config.manage != NULL) {
+        (void)pool->config.manage(pool->config.tools_context, pool->song_actions.track,
+                                  SONG_MANAGE_FAVORITE);
+    }
     return screen_action_pop();
 }
 
@@ -465,7 +467,7 @@ typedef struct SongAction {
 static const SongAction SONG_ACTIONS[] = {
     {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false},
     {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_ALWAYS, false},
+    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false},
     {STR_TRACK_INFO, open_track_info, ACTION_INFO, true},
     {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true},
     {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true},

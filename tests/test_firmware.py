@@ -140,8 +140,16 @@ class FuzzCommandTests(unittest.TestCase):
 
     def test_browse_state_machine_target_is_bounded_and_seeded(self):
         self.assertEqual(firmware.FUZZ_TARGETS["browse_screen"], 256)
-        self.assertEqual(len(firmware.FUZZ_SEEDS["browse_screen"]), 3)
+        self.assertEqual(len(firmware.FUZZ_SEEDS["browse_screen"]), 4)
+        self.assertIn(bytes([0x40, 0x07, 0x5A, 0x5F, 0x5C]), firmware.FUZZ_SEEDS["browse_screen"])
         self.assertTrue(all(len(seed) <= 256 for seed in firmware.FUZZ_SEEDS["browse_screen"]))
+
+    def test_track_tags_seeds_nest_asf_header_extensions_within_the_length_limit(self):
+        seeds = firmware.FUZZ_SEEDS["track_tags"]
+        nested = [seed for seed in seeds if seed.startswith(firmware.ASF_HEADER)]
+        self.assertEqual(len(nested), 2)
+        self.assertTrue(all(len(seed) <= firmware.FUZZ_TARGETS["track_tags"] for seed in seeds))
+        self.assertEqual(max(seed.count(firmware.ASF_EXTENSION) for seed in nested), 1001)
 
     def test_app_navigation_state_machine_target_is_bounded_and_seeded(self):
         self.assertEqual(firmware.FUZZ_TARGETS["app_navigation"], 128)

@@ -1,6 +1,9 @@
+#include <string.h>
+
 #include "browse_screen.h"
 #include "browse_sections.h"
 #include "check.h"
+#include "core/i18n.h"
 #include "default_theme.h"
 #include "fixture_library.h"
 
@@ -156,6 +159,41 @@ static void invalid_levels_and_missing_favorites_return_no_screen(void)
     CHECK(browse_pool_open_shelf(&pool, BROWSE_DEPTH, SPOKEN_AUDIOBOOK) == NULL);
 }
 
+static int song_action_row(StringId label)
+{
+    for (int index = 0; index < pool.song_actions.menu.config.item_count; index++) {
+        if (strcmp(pool.song_actions.items[index].label, i18n_text(label)) == 0) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static Screen *manage_nothing(void *context, uint16_t track, SongManage manage)
+{
+    (void)context;
+    (void)track;
+    (void)manage;
+    return NULL;
+}
+
+static void the_favourite_playlist_row_needs_a_manage_handler(void)
+{
+    BrowsePoolConfig config = {.library = fixture_library_open(&fixture), .theme = &BOARD_THEME};
+    browse_pool_init(&pool, config);
+    CHECK(browse_pool_song_actions(&pool, 0, "Song", 0) != NULL);
+    CHECK(song_action_row(STR_ADD_TO_UP_NEXT) >= 0);
+    CHECK_EQUAL(-1, song_action_row(STR_ADD_TO_FAVORITE_PLAYLIST));
+    config.manage = manage_nothing;
+    browse_pool_init(&pool, config);
+    CHECK(browse_pool_song_actions(&pool, 0, "Song", 0) != NULL);
+    int row = song_action_row(STR_ADD_TO_FAVORITE_PLAYLIST);
+    CHECK(row >= 0);
+    pool.config.manage = NULL;
+    MenuItem item = pool.song_actions.items[row];
+    CHECK_EQUAL(SCREEN_ACTION_POP, item.select(item.context).type);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -169,6 +207,7 @@ int main(void)
         TEST_CASE(lettered_lists_never_go_backwards),
         TEST_CASE(album_tracks_have_no_letters),
         TEST_CASE(invalid_levels_and_missing_favorites_return_no_screen),
+        TEST_CASE(the_favourite_playlist_row_needs_a_manage_handler),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

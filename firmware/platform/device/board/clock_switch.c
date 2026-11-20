@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "core/seam.h"
 #include "device/pll.h"
 #include "dmac.h"
 #include "hal/clock.h"
@@ -219,7 +220,27 @@ void board_clock_coast_divider(uint32_t divider)
     }
 }
 
-bool hal_system_set_clock_mhz(uint32_t mhz)
+static bool change_clock(uint32_t mhz)
+{
+    dmac_suspend();
+    board_start_record_step(HAL_START_STEP_CLOCK_SWITCH);
+    uint32_t primask = irq_save();
+    bool switched = switch_clock(mhz);
+    irq_restore(primask);
+    board_start_record_step_done();
+    dmac_resume();
+    board_display_after_clock_change();
+    return switched;
+}
+
+void board_clock_raise(uint32_t mhz)
+{
+    if (hal_system_clock_mhz() < mhz) {
+        (void)change_clock(mhz);
+    }
+}
+
+CORE_SEAM bool hal_system_set_clock_mhz(uint32_t mhz)
 {
     hal_system_coast(false);
     if (board_usb_listening() && mhz < USB_LOWEST_MHZ) {
@@ -229,14 +250,7 @@ bool hal_system_set_clock_mhz(uint32_t mhz)
         return true;
     }
     board_audio_before_clock_change();
-    dmac_suspend();
-    board_start_record_step(HAL_START_STEP_CLOCK_SWITCH);
-    uint32_t primask = irq_save();
-    bool switched = switch_clock(mhz);
-    irq_restore(primask);
-    board_start_record_step_done();
-    dmac_resume();
-    board_display_after_clock_change();
+    bool switched = change_clock(mhz);
     board_audio_after_clock_change();
     return switched;
 }

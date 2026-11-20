@@ -1,0 +1,2 @@
+leak:fuzzer::StartRssThread
+leak:__thread_struct

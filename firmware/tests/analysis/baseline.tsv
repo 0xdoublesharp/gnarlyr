@@ -1,0 +1,73 @@
+fingerprint	tool	check	path	reason
+b41b87b816c5dcfe	clang-tidy	clang-analyzer-security.ArrayBound	platform/device/logic/audio_engine.c	Every reset_positions (count 0) is followed by push_segment or the failed-open path that sets the count to 1, before any frame reaches end_segment.
+9cd524f512270ffa	clang-analyzer	security.ArrayBound	platform/device/logic/audio_engine.c	Every reset_positions (count 0) is followed by push_segment or the failed-open path that sets the count to 1, before any frame reaches end_segment.
+99c490be81ac2c46	clang-tidy	readability-suspicious-call-argument	platform/device/logic/audio_tempo.c	Names only resemble the parameters; the argument order was checked and is intended.
+122b37a6c79c9123	clang-tidy	bugprone-signed-char-misuse	platform/device/logic/bt_module.c	char is unsigned on the Cortex-M3 (AAPCS), so the comparison is exact on the player; only the signed-char host differs above 0x7F.
+3885c9b69bfa3274	clang-tidy	clang-analyzer-security.ArrayBound	platform/device/logic/core1_opus.c	opus_decode_open accepts only 1 or 2 channels, so width - 1 is 0 or 1.
+13daaca59f0212ae	clang-analyzer	security.ArrayBound	platform/device/logic/core1_opus.c	opus_decode_open accepts only 1 or 2 channels, so width - 1 is 0 or 1.
+95298127828d41f9	clang-tidy	bugprone-swapped-arguments	platform/device/logic/debug_report.c	append_field takes (text, name, signed, value); the arguments are in the declared order.
+ed9672f0b2f49571	clang-tidy	bugprone-swapped-arguments	platform/device/logic/debug_report.c	append_field takes (text, name, signed, value); the arguments are in the declared order.
+3bf4ab26747d9e5b	clang-tidy	bugprone-signed-char-misuse	platform/device/logic/equalizer_design.c	int8_t holds a signed gain or step, not a character; sign extension is intended.
+dc5e0a5153c868bb	clang-tidy	bugprone-branch-clone	platform/device/logic/fat.c	Identical branches are deliberate: separate conditions that take the same action.
+21aae99abb88021f	clang-tidy	bugprone-invalid-enum-default-initialization	platform/device/logic/fat_layout.c	Zero-initialised before mount; the FAT type is assigned before any use.
+6058f3087137d47f	clang-tidy	bugprone-branch-clone	platform/device/logic/fat_list.c	Identical branches are deliberate: separate conditions that take the same action.
+044481103b862d88	clang-tidy	bugprone-too-small-loop-variable	platform/device/logic/msc.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+4ec3de608571359b	clang-tidy	misc-redundant-expression	platform/device/logic/updater.c	Defensive size check; the constant comparison makes it redundant but harmless.
+da13f050635a5054	clang-tidy	bugprone-macro-parentheses	platform/device/logic/usb_audio_descriptors.c	Every use passes an identifier or literal; parentheses would not change the expansion.
+dda3a91d06c6168e	clang-tidy	clang-analyzer-core.BitwiseShift	platform/device/logic/wide_divide.c	A shift of 32 needs a zero divisor; wide_divide backs libgcc __udivmoddi4, where a zero divisor is already undefined in the C division.
+03c0eb1beab9ea74	clang-analyzer	core.BitwiseShift	platform/device/logic/wide_divide.c	A shift of 32 needs a zero divisor; wide_divide backs libgcc __udivmoddi4, where a zero divisor is already undefined in the C division.
+be1938e46e21c4bf	clang-tidy	clang-analyzer-security.ArrayBound	platform/sim/sim_language.c	The loop stops at the terminating zero; the analyzer does not model strcspn.
+72c19a98b961e9cd	clang-analyzer	security.ArrayBound	platform/sim/sim_language.c	The loop stops at the terminating zero; the analyzer does not model strcspn.
+61d6f1ac94c4c968	clang-tidy	bugprone-too-small-loop-variable	src/app/discovery_preferences.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+36a97487a9af8304	clang-tidy	bugprone-branch-clone	src/app/discovery_screen.c	Identical branches are deliberate: separate conditions that take the same action.
+a794b4261f7aa6ad	clang-tidy	bugprone-branch-clone	src/app/discovery_screen.c	Identical branches are deliberate: separate conditions that take the same action.
+64f7c9dbd2f174a3	clang-tidy	bugprone-too-small-loop-variable	src/app/discovery_screen.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+e7bd89a8a9cad02f	clang-tidy	clang-analyzer-security.ArrayBound	src/app/headphone_editor.c	field is always below FIELD_COUNT, the length of FIELDS.
+aa69b1b70c88ae8d	clang-analyzer	security.ArrayBound	src/app/headphone_editor.c	field is always below FIELD_COUNT, the length of FIELDS.
+27434447aee3e3e0	clang-tidy	bugprone-too-small-loop-variable	src/app/language.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+f389f4946a2c2393	clang-tidy	bugprone-too-small-loop-variable	src/app/language.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+7284b2ba2db7b6d7	clang-tidy	bugprone-too-small-loop-variable	src/app/language_list.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+bfc87468c7807ac8	clang-tidy	bugprone-too-small-loop-variable	src/app/mixtape_screen.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+d66f19a0fc326979	clang-tidy	bugprone-too-small-loop-variable	src/app/personal_tags.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+68f85ac646638575	clang-tidy	clang-analyzer-security.ArrayBound	src/app/screens/bluetooth_screen.c	ROW_KNOWN rows are 1..saved.count and saved.count is capped at 6 on load and add.
+c14a07e37ebcbc61	clang-analyzer	security.ArrayBound	src/app/screens/bluetooth_screen.c	ROW_KNOWN rows are 1..saved.count and saved.count is capped at 6 on load and add.
+5db65c5c8da33f42	clang-tidy	clang-analyzer-optin.core.EnumCastOutOfRange	src/app/screens/key_test_screen.c	KEY_COUNT is the deliberate no-key sentinel.
+9eb0087f2cbf2927	clang-analyzer	optin.core.EnumCastOutOfRange	src/app/screens/key_test_screen.c	KEY_COUNT is the deliberate no-key sentinel.
+bcdb58c718220248	clang-tidy	bugprone-branch-clone	src/app/screens/listening_screen.c	Identical branches are deliberate: separate conditions that take the same action.
+9ff3848916099679	clang-tidy	bugprone-sizeof-expression	src/app/screens/meter_now_playing.c	Hashes the font pointer on purpose so the look changes when the font changes.
+4cac1ca28e3c664d	clang-tidy	bugprone-macro-parentheses	src/app/screens/plug_art.c	Every use passes an identifier or literal; parentheses would not change the expansion.
+71229bc0ae074b13	clang-tidy	bugprone-macro-parentheses	src/app/screens/plug_art.c	Every use passes an identifier or literal; parentheses would not change the expansion.
+dc7cb38841f3863f	clang-tidy	bugprone-macro-parentheses	src/app/screens/plug_art.c	Every use passes an identifier or literal; parentheses would not change the expansion.
+a15ff45aa1a23b6b	clang-tidy	bugprone-too-small-loop-variable	src/app/screens/recap_cards.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+e9727735f40d1f9d	clang-tidy	bugprone-too-small-loop-variable	src/app/screens/recap_cards.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+93bc6ba9103e9604	clang-tidy	bugprone-signed-char-misuse	src/app/settings_screens.c	int8_t holds a signed gain or step, not a character; sign extension is intended.
+cc4dc57bcd9a4b8c	clang-tidy	bugprone-suspicious-include	src/app/theme_crypto_curve.c	Deliberate single-unit build of the vendored crypto source.
+2ef30085623134b4	clang-tidy	bugprone-suspicious-include	src/app/theme_crypto_sha512.c	Deliberate single-unit build of the vendored crypto source.
+fed0a56be78ffe50	clang-tidy	clang-analyzer-core.BitwiseShift	src/core/audio_visual.c	magnitude >= 16 gives bit >= 4, so the shift is never negative.
+d89deaa3f94cc121	clang-analyzer	core.BitwiseShift	src/core/audio_visual.c	magnitude >= 16 gives bit >= 4, so the shift is never negative.
+49898246bbd61ad4	clang-tidy	bugprone-branch-clone	src/core/key_crossing.c	Identical branches are deliberate: separate conditions that take the same action.
+9e31a92c78808738	clang-tidy	misc-redundant-expression	src/image/jpeg.c	Each operand reads the next byte; the calls have side effects and are not redundant.
+f7c39169a460f733	clang-tidy	clang-analyzer-core.DivideZero	src/image/jpeg_blocks.c	shift comes from choose_shift (at most MAX_SHIFT), so width is never zero.
+a5caae11f3bb75d2	clang-analyzer	core.DivideZero	src/image/jpeg_blocks.c	shift comes from choose_shift (at most MAX_SHIFT), so width is never zero.
+136657c909df12fc	clang-tidy	clang-analyzer-core.NullDereference	src/library/builder_sort.c	heads is used only after arena->failed is checked; arena_take returns NULL only when it sets failed.
+54e82a98e5243c25	clang-tidy	clang-analyzer-core.NullDereference	src/library/builder_sort.c	heads is used only after arena->failed is checked; arena_take returns NULL only when it sets failed.
+96108d2870c38dbc	clang-analyzer	core.NullDereference	src/library/builder_sort.c	heads is used only after arena->failed is checked; arena_take returns NULL only when it sets failed.
+d6753360edeb1f3b	clang-analyzer	core.NullDereference	src/library/builder_sort.c	heads is used only after arena->failed is checked; arena_take returns NULL only when it sets failed.
+1734e31e6454d090	clang-tidy	readability-suspicious-call-argument	src/library/tags_asf.c	Names only resemble the parameters; the argument order was checked and is intended.
+5e5ab990c77752b5	clang-tidy	readability-suspicious-call-argument	src/library/tags_asf.c	Names only resemble the parameters; the argument order was checked and is intended.
+bbbe7768906d1743	clang-tidy	readability-suspicious-call-argument	src/library/tags_asf.c	Names only resemble the parameters; the argument order was checked and is intended.
+d3e05ad96b1b10a9	clang-tidy	readability-suspicious-call-argument	src/library/tags_asf.c	Names only resemble the parameters; the argument order was checked and is intended.
+d951c4d775edbcc8	clang-tidy	readability-suspicious-call-argument	src/library/tags_asf.c	Names only resemble the parameters; the argument order was checked and is intended.
+9402a1b69b8f2285	clang-tidy	readability-suspicious-call-argument	src/library/tags_mp4.c	Names only resemble the parameters; the argument order was checked and is intended.
+8e80a2eaa3d5fca7	clang-tidy	bugprone-too-small-loop-variable	src/playback/mix_identity.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+a72bd4e60ae1445a	clang-tidy	bugprone-too-small-loop-variable	src/playback/moments.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+07fabf708ca0bdef	clang-tidy	bugprone-signed-char-misuse	src/settings/equalizer_response.c	int8_t holds a signed gain or step, not a character; sign extension is intended.
+04e1718466ea7fb2	clang-tidy	bugprone-signed-char-misuse	src/settings/sound_shaping.c	int8_t holds a signed gain or step, not a character; sign extension is intended.
+da1241c567e3a753	clang-tidy	bugprone-too-small-loop-variable	src/settings/user_state.c	Loop bound is a compile-time constant inside the variable's range (at most 259).
+3b80fa5520af74ba	clang-tidy	clang-analyzer-core.NullPointerArithm	src/ui/label.c	cursor and fitting are never NULL for non-NULL text; fitting is set before every break.
+6d20a35861d58550	clang-tidy	clang-analyzer-core.NullPointerArithm	src/ui/label.c	cursor and fitting are never NULL for non-NULL text; fitting is set before every break.
+1b150d926455e9bb	clang-analyzer	core.NullPointerArithm	src/ui/label.c	cursor and fitting are never NULL for non-NULL text; fitting is set before every break.
+3d9ca6a6769a6589	clang-analyzer	core.NullPointerArithm	src/ui/label.c	cursor and fitting are never NULL for non-NULL text; fitting is set before every break.
+17537407c491a263	clang-tidy	misc-redundant-expression	src/ui/placeholder_art.c	Each operand reads the next code point; the calls have side effects and are not redundant.
+4e784aadb3509fbb	clang-tidy	bugprone-macro-parentheses	src/ui/wire_figure.c	Every use passes an identifier or literal; parentheses would not change the expansion.
+7301e8b0aeae0eda	clang-tidy	bugprone-macro-parentheses	src/ui/wire_figure.c	Every use passes an identifier or literal; parentheses would not change the expansion.

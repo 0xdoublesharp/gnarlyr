@@ -603,13 +603,18 @@ CORE_COLD void hal_audio_resume(void)
     audio_engine_resume(&engine);
 }
 
+CORE_COLD static void seek_at_audio_clock(uint32_t position_ms, bool paused)
+{
+    uint32_t token = engine.segments[0].token;
+    restart_transfer();
+    restart_output(audio_engine_seek_on(&engine, token, position_ms), paused);
+}
+
 CORE_COLD static void seek_to(uint32_t position_ms, bool paused)
 {
     ensure_engine();
     ensure_audio_clock();
-    uint32_t token = engine.segments[0].token;
-    restart_transfer();
-    restart_output(audio_engine_seek_on(&engine, token, position_ms), paused);
+    seek_at_audio_clock(position_ms, paused);
 }
 
 CORE_SEAM CORE_COLD void hal_audio_seek(uint32_t position_ms)
@@ -1002,7 +1007,8 @@ void board_audio_after_clock_change(void)
         return;
     }
     resume_after_clock_change = false;
-    seek_to(position_before_clock_change, paused_before_clock_change);
+    board_clock_raise(AUDIO_CLOCK_MHZ);
+    seek_at_audio_clock(position_before_clock_change, paused_before_clock_change);
 }
 
 CORE_COLD void board_audio_shut_down(void)
