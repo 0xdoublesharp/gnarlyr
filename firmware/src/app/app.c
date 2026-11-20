@@ -1332,9 +1332,7 @@ static void draw_shifted(Screen *screen, Canvas *canvas, int x, Rect area)
 static void follow_compact_theme(void)
 {
     compact_theme = *board_theme();
-    if (theme_is_portrait(&compact_theme)) {
-        compact_theme.metrics.header_height = compact_theme.metrics.status_height;
-    }
+    theme_drop_title_row(&compact_theme);
 }
 
 static bool is_compact(const Screen *screen)
@@ -1363,9 +1361,12 @@ static StatusBarState shown_status_bar(const AppState *state, const Screen *scre
     StatusBarState bar = state->status_bar;
     const Theme *theme = board_theme();
     const char *title = screen->title;
-    if (header_shows_title(theme, title)) {
+    if (title != NULL) {
         bar.title_width = screen->header_title_width != 0 ? screen->header_title_width
                                                           : text_width(theme->fonts.header, title);
+    }
+    if (is_compact(screen)) {
+        bar.playback = STATUS_PLAYBACK_NONE;
     }
     return bar;
 }

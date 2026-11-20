@@ -20,8 +20,23 @@ enum {
     TINT_STEPS = 3,
     FILL_MIN_WIDTH = 3,
     HALO = 1,
-    SEGMENTS = 5
+    SEGMENTS = 5,
+    VOLUME_SLOT = 0,
+    POSITION_SLOT = 1,
+    CLOCK_SLOT = 2,
+    REPEAT_SLOT = 3,
+    PERCENT_SLOT = 4,
+    PLAYBACK_SLOT = 5,
+    BLUETOOTH_SLOT = 6,
+    LOCK_SLOT = 7,
+    SHUFFLE_SLOT = 8,
+    ICONS = STATUS_BAR_PLAYBACK | STATUS_BAR_BLUETOOTH | STATUS_BAR_LOCK | STATUS_BAR_SHUFFLE
 };
+
+static const uint8_t PORTRAIT_ORDER[] = {CLOCK_SLOT,  PLAYBACK_SLOT, BLUETOOTH_SLOT, SHUFFLE_SLOT,
+                                         VOLUME_SLOT, POSITION_SLOT, REPEAT_SLOT,    PERCENT_SLOT};
+static const uint8_t LANDSCAPE_ORDER[] = {VOLUME_SLOT, POSITION_SLOT, CLOCK_SLOT, REPEAT_SLOT,
+                                          PERCENT_SLOT};
 
 static int band_top(const Theme *theme, int height)
 {
@@ -36,17 +51,9 @@ static bool two_lines(const Theme *theme)
            theme->metrics.header_height > theme->metrics.status_height;
 }
 
-static Rect icon_row(const Theme *theme)
-{
-    int top = theme->metrics.status_height;
-    return (Rect){0, top, theme->metrics.screen_width, theme->metrics.header_height - top - 1};
-}
-
 static int icon_top(const Theme *theme)
 {
-    int size = theme->metrics.status_icon_size;
-    Rect row = icon_row(theme);
-    return two_lines(theme) ? row.y + (row.height - size) / 2 : band_top(theme, size);
+    return band_top(theme, theme->metrics.status_icon_size);
 }
 
 static int nub_width(int size)
@@ -71,14 +78,6 @@ Rect status_bar_playback_area(const Theme *theme)
     return (Rect){theme->metrics.padding, icon_top(theme), size, size};
 }
 
-Rect status_bar_bluetooth_area(const Theme *theme)
-{
-    Rect playback = status_bar_playback_area(theme);
-    int width = playback.width * BLUETOOTH_WIDTH_TENTHS / TENTHS;
-    return (Rect){playback.x + playback.width + theme->metrics.padding, playback.y,
-                  width > 0 ? width : 1, playback.height};
-}
-
 Rect status_bar_battery_body(const Theme *theme)
 {
     int height = theme->status_bar_compact ? 18 : theme->metrics.status_icon_size + 2 * FRAME;
@@ -94,24 +93,9 @@ Rect status_bar_battery_area(const Theme *theme)
                   body.height};
 }
 
-Rect status_bar_lock_area(const Theme *theme)
-{
-    Rect bluetooth = status_bar_bluetooth_area(theme);
-    return (Rect){bluetooth.x + bluetooth.width + theme->metrics.padding, bluetooth.y,
-                  bluetooth.width, bluetooth.height};
-}
-
 static IconId shuffle_badge(StatusShuffle shuffle)
 {
     return shuffle == STATUS_SHUFFLE_ALBUMS ? ICON_ALBUM_SMALL : ICON_SONG_SMALL;
-}
-
-Rect status_bar_shuffle_area(const Theme *theme, StatusShuffle shuffle)
-{
-    Rect lock = status_bar_lock_area(theme);
-    int width = icon_width(shuffle_badge(shuffle), lock.height) + BADGE_GAP +
-                icon_width(ICON_SHUFFLE_SMALL, lock.height);
-    return (Rect){lock.x + lock.width + theme->metrics.padding, lock.y, width, lock.height};
 }
 
 int status_bar_battery_fill_width(uint8_t percent, int inner_width)
@@ -224,17 +208,45 @@ static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarStat
     }
 }
 
+static int slot_width(const Theme *theme, const StatusBarState *state, int slot)
+{
+    int icon = theme->metrics.status_icon_size;
+    int narrow = icon * BLUETOOTH_WIDTH_TENTHS / TENTHS;
+    const char *text = slot == VOLUME_SLOT     ? state->volume
+                       : slot == POSITION_SLOT ? state->position
+                       : slot == CLOCK_SLOT    ? state->clock
+                       : slot == PERCENT_SLOT && !theme->status_bar_compact && state->battery_known
+                           ? state->percent
+                           : NULL;
+    int width = text != NULL ? text_width(theme->fonts.small, text) : 0;
+    switch (slot) {
+    case REPEAT_SLOT:
+        return state->repeat == 0
+                   ? 0
+                   : icon +
+                         (state->repeat == 1 ? BADGE_GAP + icon_width(ICON_SONG_SMALL, icon) : 0);
+    case PLAYBACK_SLOT:
+        return state->playback != STATUS_PLAYBACK_NONE ? icon : 0;
+    case BLUETOOTH_SLOT:
+        return state->bluetooth != STATUS_BLUETOOTH_OFF ? narrow : 0;
+    case LOCK_SLOT:
+        return state->locked ? narrow : 0;
+    case SHUFFLE_SLOT:
+        return state->shuffle == STATUS_SHUFFLE_OFF
+                   ? 0
+                   : icon_width(shuffle_badge(state->shuffle), icon) + BADGE_GAP +
+                         icon_width(ICON_SHUFFLE_SMALL, icon);
+    default:
+        return width + (slot == VOLUME_SLOT && width > 0 ? icon + BADGE_GAP : 0);
+    }
+}
+
 int status_bar_left_end(const Theme *theme, StatusBarState state)
 {
-    if (state.shuffle != STATUS_SHUFFLE_OFF) {
-        Rect last = status_bar_shuffle_area(theme, state.shuffle);
-        return last.x + last.width;
-    }
-    int size = theme->metrics.status_icon_size;
-    int count = state.locked ? 2 : state.bluetooth != STATUS_BLUETOOTH_OFF ? 1 : 0;
     int end = theme->metrics.padding;
-    if (count > 0 || state.playback != STATUS_PLAYBACK_NONE) {
-        end += size + count * (theme->metrics.padding + size * BLUETOOTH_WIDTH_TENTHS / TENTHS);
+    for (int slot = PLAYBACK_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
+        int width = slot_width(theme, &state, slot);
+        end += width > 0 ? width + (end > theme->metrics.padding ? theme->metrics.padding : 0) : 0;
     }
     return end;
 }
@@ -264,9 +276,153 @@ bool status_bar_clock_fits(const Theme *theme, StatusBarState state)
     return (status_bar_items(theme, &state) & STATUS_BAR_CLOCK) != 0;
 }
 
-static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuffle)
+typedef struct StatusFit {
+    const Theme *theme;
+    int end;
+    int icons;
+    int leading;
+    int trailing;
+    int centre;
+} StatusFit;
+
+static bool fit_room(const StatusFit *fit)
 {
-    Rect area = status_bar_shuffle_area(theme, shuffle);
+    int pad = fit->theme->metrics.padding;
+    int left = pad + fit->icons + fit->leading + pad;
+    int right = fit->end - fit->trailing;
+    int start = (fit->theme->metrics.screen_width - fit->centre) >> 1;
+    return fit->centre > 0 ? left <= start && start + fit->centre + pad <= right : left <= right;
+}
+
+static bool trailing_slot(const Theme *theme, int slot)
+{
+    return slot == CLOCK_SLOT || slot == PERCENT_SLOT ||
+           (slot == POSITION_SLOT && two_lines(theme));
+}
+
+static bool fit_add(StatusFit *fit, int slot, int width, bool forced)
+{
+    StatusFit next = *fit;
+    int pad = fit->theme->metrics.padding;
+    if (slot >= PLAYBACK_SLOT) {
+        next.icons += width + (next.icons > 0 ? pad : 0);
+    } else if (trailing_slot(fit->theme, slot)) {
+        next.trailing += width + (pad >> 1);
+    } else if (slot == POSITION_SLOT) {
+        if (fit->centre != 0) {
+            return false;
+        }
+        next.centre = width;
+    } else {
+        next.leading += width + (pad >> 1);
+    }
+    if (!forced && !fit_room(&next)) {
+        return false;
+    }
+    *fit = next;
+    return true;
+}
+
+static void place_slot(const Theme *theme, StatusBarLayout *layout, int slot, int x)
+{
+    Rect body = status_bar_battery_body(theme);
+    int icon = theme->metrics.status_icon_size;
+    Rect *area = &layout->areas[slot];
+    *area = slot >= PLAYBACK_SLOT ? (Rect){x, icon_top(theme), area->width, icon}
+                                  : (Rect){x, body.y, area->width, body.height};
+}
+
+static void place(const StatusFit *fit, StatusBarLayout *layout)
+{
+    static const uint8_t LEADING[] = {REPEAT_SLOT, VOLUME_SLOT};
+    static const uint8_t TRAILING[] = {PERCENT_SLOT, CLOCK_SLOT, POSITION_SLOT};
+    const Theme *theme = fit->theme;
+    int pad = theme->metrics.padding;
+    int left = 0;
+    int right = fit->end;
+    for (int slot = PLAYBACK_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
+        if ((layout->items & (1u << slot)) != 0) {
+            place_slot(theme, layout, slot, left + pad);
+            left += pad + layout->areas[slot].width;
+        }
+    }
+    left = left > 0 ? left : pad;
+    for (int index = 0; index < 2; index++) {
+        int slot = LEADING[index];
+        if ((layout->items & (1u << slot)) != 0) {
+            place_slot(theme, layout, slot, left + (pad >> 1));
+            left += (pad >> 1) + layout->areas[slot].width;
+        }
+    }
+    for (int index = 0; index < 3; index++) {
+        int slot = TRAILING[index];
+        if ((layout->items & (1u << slot)) != 0) {
+            int width = layout->areas[slot].width;
+            right -= (pad >> 1) + width;
+            place_slot(theme, layout, slot,
+                       trailing_slot(theme, slot) ? right
+                                                  : (theme->metrics.screen_width - width) >> 1);
+        }
+    }
+}
+
+static void fit_slot(StatusFit *fit, StatusBarLayout *layout, int slot, bool forced)
+{
+    int width = layout->areas[slot].width;
+    if (width > 0 && (layout->items & (1u << slot)) == 0 && fit_add(fit, slot, width, forced)) {
+        layout->items |= (uint16_t)(1u << slot);
+    }
+}
+
+CORE_SEAM void status_bar_layout(const Theme *theme, const StatusBarState *state,
+                                 StatusBarLayout *layout)
+{
+    bool split = two_lines(theme);
+    int pad = theme->metrics.padding;
+    StatusFit fit = {.theme = theme,
+                     .end = state->battery_known ? status_bar_battery_body(theme).x
+                                                 : theme->metrics.screen_width - (pad >> 1),
+                     .centre = split ? 0 : state->title_width};
+    layout->items = 0;
+    for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
+        layout->areas[slot] = (Rect){0, 0, slot_width(theme, state, slot), 0};
+    }
+    for (int slot = split ? LOCK_SLOT : PLAYBACK_SLOT; slot <= (split ? LOCK_SLOT : SHUFFLE_SLOT);
+         slot++) {
+        fit_slot(&fit, layout, slot, true);
+    }
+    const uint8_t *order = split ? PORTRAIT_ORDER : LANDSCAPE_ORDER;
+    int count = split ? (int)sizeof PORTRAIT_ORDER : (int)sizeof LANDSCAPE_ORDER;
+    for (int index = 0; index < count; index++) {
+        fit_slot(&fit, layout, order[index], false);
+    }
+    place(&fit, layout);
+    if (!split && state->title_width != 0 &&
+        pad + fit.icons + pad > (theme->metrics.screen_width - state->title_width) / 2) {
+        layout->items &= (uint16_t)~ICONS;
+    }
+}
+
+uint16_t status_bar_items(const Theme *theme, const StatusBarState *state)
+{
+    StatusBarLayout layout;
+    status_bar_layout(theme, state, &layout);
+    return layout.items;
+}
+
+Rect status_bar_item_area(const Theme *theme, const StatusBarState *state, uint16_t item)
+{
+    StatusBarLayout layout;
+    status_bar_layout(theme, state, &layout);
+    int index = 0;
+    while ((item >>= 1) != 0) {
+        index++;
+    }
+    return layout.areas[index];
+}
+
+static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuffle, Rect area)
+{
     Color color = theme->colors.header_text;
     int arrows = icon_width(ICON_SHUFFLE_SMALL, area.height);
     draw_icon(canvas, theme,
@@ -279,195 +435,70 @@ static void draw_shuffle(Canvas *canvas, const Theme *theme, StatusShuffle shuff
                            color});
 }
 
-static void draw_left_icons(Canvas *canvas, const Theme *theme, const StatusBarState *state)
+static void draw_status_icon(Canvas *canvas, const Theme *theme, const StatusBarState *state,
+                             int slot, Rect area)
 {
-    Rect icon = status_bar_playback_area(theme);
     Color color = theme->colors.header_text;
-    if (state->playback == STATUS_PLAYBACK_PLAYING) {
-        draw_icon(canvas, theme, (StatusIcon){ICON_PLAY, icon, color});
-    } else if (state->playback == STATUS_PLAYBACK_PAUSED) {
-        draw_icon(canvas, theme, (StatusIcon){ICON_PAUSE, icon, color});
+    if (slot == SHUFFLE_SLOT) {
+        draw_shuffle(canvas, theme, state->shuffle, area);
+        return;
     }
-    if (state->bluetooth != STATUS_BLUETOOTH_OFF) {
-        Color tint =
-            state->bluetooth == STATUS_BLUETOOTH_CONNECTED ? color : theme->colors.text_tertiary;
+    if (slot == BLUETOOTH_SLOT && state->bluetooth != STATUS_BLUETOOTH_CONNECTED) {
+        color = theme->colors.text_tertiary;
+    }
+    IconId icon = slot == BLUETOOTH_SLOT                       ? ICON_BLUETOOTH_SMALL
+                  : slot == LOCK_SLOT                          ? ICON_LOCK
+                  : state->playback == STATUS_PLAYBACK_PLAYING ? ICON_PLAY
+                                                               : ICON_PAUSE;
+    draw_icon(canvas, theme, (StatusIcon){icon, area, color});
+}
+
+static void draw_text_slot(Canvas *canvas, const Theme *theme, const StatusBarState *state,
+                           int slot, Rect area)
+{
+    if (slot == REPEAT_SLOT || slot == VOLUME_SLOT) {
+        Rect icon = {area.x, icon_top(theme), theme->metrics.status_icon_size,
+                     theme->metrics.status_icon_size};
         draw_icon(canvas, theme,
-                  (StatusIcon){ICON_BLUETOOTH_SMALL, status_bar_bluetooth_area(theme), tint});
-    }
-    if (state->locked) {
-        draw_icon(canvas, theme, (StatusIcon){ICON_LOCK, status_bar_lock_area(theme), color});
-    }
-    if (state->shuffle != STATUS_SHUFFLE_OFF) {
-        draw_shuffle(canvas, theme, state->shuffle);
-    }
-}
-
-static int item_width(const Theme *theme, const StatusBarState *state, uint8_t item)
-{
-    if (theme->status_bar_compact && item == STATUS_BAR_PERCENT) {
-        return 0;
-    }
-    const char *text = item == STATUS_BAR_VOLUME     ? state->volume
-                       : item == STATUS_BAR_POSITION ? state->position
-                       : item == STATUS_BAR_CLOCK    ? state->clock
-                                                     : state->percent;
-    int width = text != NULL ? text_width(theme->fonts.small, text) : 0;
-    int icon = theme->metrics.status_icon_size;
-    if (item == STATUS_BAR_REPEAT) {
-        return state->repeat != 0
-                   ? icon + (state->repeat == 1 ? BADGE_GAP + icon_width(ICON_SONG_SMALL, icon) : 0)
-                   : 0;
-    }
-    return width + (item == STATUS_BAR_VOLUME && width > 0 ? icon + BADGE_GAP : 0);
-}
-
-static void join_line_two(StatusBarLayout *layout, int gap, int end, int icons_end)
-{
-    Rect *areas = layout->areas;
-    uint8_t items = layout->items;
-    int edge = (items & STATUS_BAR_CLOCK) != 0     ? areas[2].x
-               : (items & STATUS_BAR_PERCENT) != 0 ? areas[4].x
-                                                   : end - gap;
-    if ((items & STATUS_BAR_POSITION) != 0) {
-        areas[1].x = edge - gap - areas[1].width;
-        edge = areas[1].x;
-    }
-    int last = (items & STATUS_BAR_VOLUME) != 0   ? areas[0].x + areas[0].width
-               : (items & STATUS_BAR_REPEAT) != 0 ? areas[3].x + areas[3].width
-                                                  : icons_end;
-    layout->shift = edge - gap - last;
-    areas[0].x += layout->shift;
-    areas[3].x += layout->shift;
-}
-
-CORE_SEAM void status_bar_layout(const Theme *theme, const StatusBarState *state,
-                                 StatusBarLayout *layout)
-{
-    layout->items = 0;
-    layout->shift = 0;
-    bool split = two_lines(theme);
-    int gap = theme->metrics.padding >> 1;
-    int left = status_bar_left_end(theme, *state);
-    int icons_end = left;
-    int begin = left + gap;
-    Rect body = status_bar_battery_body(theme);
-    Rect row = split ? icon_row(theme) : body;
-    int end = state->battery_known && !split ? body.x : theme->metrics.screen_width - gap;
-    int right = end;
-    int centre_width = split ? 0 : state->title_width;
-    int reserve = split ? state->title_width + gap : 0;
-    for (int index = 0; index < 5; index++) {
-        uint8_t item = (uint8_t)(1u << index);
-        int width = item_width(theme, state, item);
-        bool centred = item == STATUS_BAR_POSITION && !split;
-        bool trailing =
-            item == STATUS_BAR_CLOCK || item == STATUS_BAR_PERCENT || item == STATUS_BAR_POSITION;
-        int x = centred    ? (theme->metrics.screen_width - width) >> 1
-                : trailing ? end - gap - width
-                           : begin;
-        layout->areas[index] = (Rect){x, row.y, width, row.height};
-        if (width == 0 || (centred && state->title_width != 0) ||
-            (item == STATUS_BAR_PERCENT && !state->battery_known)) {
-            continue;
-        }
-        int l = left;
-        int r = right;
-        int c = centre_width;
-        if (centred) {
-            c = width;
-        } else if (trailing) {
-            r -= width + gap;
-        } else {
-            l += width + gap;
-        }
-        int start = (theme->metrics.screen_width - c) >> 1;
-        int pad = theme->metrics.padding;
-        bool fits = c > 0 ? l + pad <= start && start + c + pad <= r : l + pad + reserve <= r;
-        if (fits) {
-            layout->items |= item;
-            left = l;
-            right = r;
-            centre_width = c;
+                  (StatusIcon){slot == REPEAT_SLOT ? ICON_REPEAT : ICON_SPEAKER, icon,
+                               theme->colors.header_text});
+        area.x += icon.width + BADGE_GAP;
+        if (slot == REPEAT_SLOT && state->repeat == 1) {
+            icon.x = area.x;
+            icon.width = icon_width(ICON_SONG_SMALL, icon.height);
+            draw_icon(canvas, theme,
+                      (StatusIcon){ICON_SONG_SMALL, icon, theme->colors.header_text});
         }
     }
-    if ((layout->items & STATUS_BAR_REPEAT) != 0) {
-        layout->areas[0].x += layout->areas[3].width + gap;
+    TextStyle style = {theme->fonts.small, theme->colors.header_text, false};
+    if (slot == PERCENT_SLOT && !state->usb_power &&
+        state->battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT) {
+        style.color = tint(theme, theme->colors.danger);
     }
-    if ((layout->items & STATUS_BAR_PERCENT) != 0) {
-        layout->areas[2].x -= layout->areas[4].width + gap;
-    }
-    if (split) {
-        join_line_two(layout, gap, end, icons_end);
-    }
-    layout->icons_visible = state->title_width == 0 ||
-                            (split ? layout->shift >= state->title_width + gap
-                                   : icons_end + theme->metrics.padding <=
-                                         (theme->metrics.screen_width - state->title_width) / 2);
-}
-
-uint8_t status_bar_items(const Theme *theme, const StatusBarState *state)
-{
-    StatusBarLayout layout;
-    status_bar_layout(theme, state, &layout);
-    return layout.items;
-}
-
-Rect status_bar_item_area(const Theme *theme, const StatusBarState *state, uint8_t item)
-{
-    StatusBarLayout layout;
-    status_bar_layout(theme, state, &layout);
-    int index = 0;
-    while ((item >>= 1) != 0) {
-        index++;
-    }
-    return layout.areas[index];
+    const char *text = slot == VOLUME_SLOT     ? state->volume
+                       : slot == POSITION_SLOT ? state->position
+                       : slot == CLOCK_SLOT    ? state->clock
+                       : slot == PERCENT_SLOT  ? state->percent
+                                               : "";
+    text_draw(canvas, style, (Point){area.x, label_baseline(style.font, area)}, text);
 }
 
 CORE_SEAM void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state)
 {
     StatusBarLayout layout;
     status_bar_layout(theme, &state, &layout);
-    uint8_t items = layout.items;
-    Rect clip = canvas->clip;
-    Canvas moved = canvas_shifted(canvas, layout.shift,
-                                  (Rect){clip.x - layout.shift, clip.y, clip.width, clip.height});
-    if (layout.icons_visible) {
-        draw_left_icons(&moved, theme, &state);
-    }
     if (state.battery_known) {
         draw_battery(canvas, theme, &state);
     }
-    for (int index = 0; index < 5; index++) {
-        uint8_t item = (uint8_t)(1u << index);
-        if ((items & item) == 0) {
+    for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
+        if ((layout.items & (1u << slot)) == 0) {
             continue;
         }
-        Rect area = layout.areas[index];
-        if (item == STATUS_BAR_REPEAT || item == STATUS_BAR_VOLUME) {
-            Rect icon = {area.x, icon_top(theme), theme->metrics.status_icon_size,
-                         theme->metrics.status_icon_size};
-            draw_icon(canvas, theme,
-                      (StatusIcon){item == STATUS_BAR_REPEAT ? ICON_REPEAT : ICON_SPEAKER, icon,
-                                   theme->colors.header_text});
-            area.x += icon.width + BADGE_GAP;
-            if (item == STATUS_BAR_REPEAT && state.repeat == 1) {
-                icon.x = area.x;
-                icon.width = icon_width(ICON_SONG_SMALL, icon.height);
-                draw_icon(canvas, theme,
-                          (StatusIcon){ICON_SONG_SMALL, icon, theme->colors.header_text});
-            }
+        if (slot >= PLAYBACK_SLOT) {
+            draw_status_icon(canvas, theme, &state, slot, layout.areas[slot]);
+        } else {
+            draw_text_slot(canvas, theme, &state, slot, layout.areas[slot]);
         }
-        TextStyle style = {theme->fonts.small, theme->colors.header_text, false};
-        if (item == STATUS_BAR_PERCENT && !state.usb_power &&
-            state.battery_percent <= STATUS_BAR_LOW_BATTERY_PERCENT) {
-            style.color = tint(theme, theme->colors.danger);
-        }
-        const char *text = item == STATUS_BAR_VOLUME     ? state.volume
-                           : item == STATUS_BAR_POSITION ? state.position
-                           : item == STATUS_BAR_CLOCK    ? state.clock
-                           : item == STATUS_BAR_PERCENT  ? state.percent
-                                                         : "";
-        text_draw(canvas, style, (Point){area.x, label_baseline(style.font, area)}, text);
     }
 }
 

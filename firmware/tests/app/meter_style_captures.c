@@ -80,6 +80,7 @@ static Canvas start(const Capture *capture)
     default_theme_set_appearance(&theme, (AppearanceTheme)capture->appearance);
     default_theme_set_text_size(&theme, (TextSize)capture->size);
     default_theme_set_orientation(&theme, (Orientation)capture->orientation);
+    theme_drop_title_row(&theme);
     settings = settings_defaults();
     settings_set_now_playing_style(&settings, (NowPlayingStyle)capture->style);
     now_playing_screen_init(&screen,

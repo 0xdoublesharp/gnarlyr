@@ -187,6 +187,11 @@ static void a_strip_buffer_stays_small_and_strips_cover_the_screen(void)
     CHECK(BOARD_STRIP_HEIGHT > 0);
 }
 
+enum {
+    PORTRAIT_COVER_FRAME = 4,
+    PORTRAIT_COVER_SHADOW = 5
+};
+
 static Theme portrait_theme_of_size(int size)
 {
     Theme theme = theme_of_size(size);
@@ -254,6 +259,14 @@ static void portrait_now_playing_lines_follow_each_other_on_screen(void)
         const NowPlayingLayout *layout = board_now_playing_layout(&theme);
         CHECK(layout->cover_top >= theme.metrics.status_height);
         CHECK(layout->cover_top + layout->cover_size <= layout->title_top);
+        CHECK_EQUAL(theme.metrics.status_height + theme.metrics.padding,
+                    layout->cover_top - PORTRAIT_COVER_FRAME);
+        CHECK(layout->cover_top + layout->cover_size + PORTRAIT_COVER_FRAME <=
+              theme.metrics.screen_height);
+        int margin = (theme.metrics.screen_width - layout->cover_size) / 2 - PORTRAIT_COVER_FRAME;
+        CHECK(margin >= theme.metrics.padding && margin <= theme.metrics.padding + 1);
+        CHECK((theme.metrics.screen_width + layout->cover_size) / 2 + PORTRAIT_COVER_SHADOW <=
+              theme.metrics.screen_width - theme.metrics.padding);
         CHECK(line_height(theme.fonts.title) <= layout->text_line_height);
         CHECK(line_height(theme.fonts.body) <= layout->text_line_height);
         CHECK(layout->title_top + 2 * layout->text_line_height <= layout->artist_top);

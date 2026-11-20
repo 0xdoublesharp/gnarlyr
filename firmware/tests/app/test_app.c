@@ -6605,7 +6605,61 @@ static void the_header_shows_the_play_state_and_battery(void)
     CHECK(!area_has_color(status_bar_playback_area(expected_theme()), icon));
     CHECK(area_has_color(status_bar_battery_area(expected_theme()), icon));
     play_first_album_track();
+    tap(KEY_BACK);
     CHECK(area_has_color(status_bar_playback_area(expected_theme()), icon));
+}
+
+static void now_playing_leaves_the_play_state_to_its_time_row(void)
+{
+    start_app_with_library();
+    fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY, .charging = false});
+    Color icon = expected_theme()->colors.header_text;
+    play_first_album_track();
+    CHECK(title_is("Now Playing"));
+    CHECK(!area_has_color(status_bar_playback_area(expected_theme()), icon));
+    hold_back();
+    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(area_has_color(status_bar_playback_area(expected_theme()), icon));
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
+    fake_hal_evict_module();
+    tap(KEY_MENU);
+    wait_ms(500);
+    CHECK(title_is("Now Playing"));
+    CHECK(text_shown("Playing"));
+    CHECK(!area_has_color(status_bar_playback_area(expected_theme()), icon));
+    fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
+}
+
+static void portrait_now_playing_keeps_no_play_icon_from_the_list_it_slid_over(void)
+{
+    start_app_with_library();
+    choose_orientation(ORIENTATION_PORTRAIT);
+    hold_back();
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    portrait_down(MUSIC_ALBUMS_INDEX);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(title_is("Now Playing"));
+    const Theme *theme = expected_theme();
+    Color icon = theme->colors.header_text;
+    Rect play = status_bar_playback_area(theme);
+    CHECK(play.y + play.height <= theme->metrics.status_height);
+    CHECK(!area_has_color(play, icon));
+    tap(KEY_PLAY);
+    wait_ms(500);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK(!area_has_color(play, icon));
+    tap(KEY_PLAY);
+    wait_ms(500);
+    CHECK(!area_has_color(play, icon));
+    tap(KEY_BACK);
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(area_has_color(play, icon));
 }
 
 static void shuffle_shows_in_the_top_bar_as_songs_or_albums(void)
@@ -6613,7 +6667,8 @@ static void shuffle_shows_in_the_top_bar_as_songs_or_albums(void)
     start_app_with_library();
     step();
     Color icon = expected_theme()->colors.header_text;
-    Rect songs = status_bar_shuffle_area(expected_theme(), STATUS_SHUFFLE_SONGS);
+    StatusBarState shuffled = {.shuffle = STATUS_SHUFFLE_SONGS};
+    Rect songs = status_bar_item_area(expected_theme(), &shuffled, STATUS_BAR_SHUFFLE);
     CHECK(!area_has_color(songs, icon));
     open_setting(SETTINGS_SHUFFLE_INDEX);
     move_down(SHUFFLE_SONGS);
@@ -9089,6 +9144,8 @@ int main(void)
         TEST_CASE(the_start_screen_setting_opens_albums),
         TEST_CASE(the_start_screen_setting_opens_now_playing),
         TEST_CASE(the_header_shows_the_play_state_and_battery),
+        TEST_CASE(now_playing_leaves_the_play_state_to_its_time_row),
+        TEST_CASE(portrait_now_playing_keeps_no_play_icon_from_the_list_it_slid_over),
         TEST_CASE(the_header_battery_turns_green_on_usb_power),
         TEST_CASE(shuffle_shows_in_the_top_bar_as_songs_or_albums),
         TEST_CASE(cover_flow_opens_from_the_music_menu),

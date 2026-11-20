@@ -36,7 +36,7 @@ MeterNowPlayingLayout meter_now_playing_layout(const Theme *theme)
     int artist = font_line_height(theme->fonts.body);
     if (portrait) {
         return (MeterNowPlayingLayout){
-            .stage = {padding, 64, width, 214},
+            .stage = {padding, 32, width, 246},
             .text = {{padding, 292, width, title}, {padding, 298 + title, width, artist}}};
     }
     return (MeterNowPlayingLayout){.stage = {padding, 38, 278, 150},
