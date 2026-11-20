@@ -163,7 +163,7 @@ static int16_t clock_offset(const uint8_t *extension)
 
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
-    settings->status_items = extension[STATUS_ITEMS_BYTE];
+    settings->status_items = extension[STATUS_ITEMS_BYTE] & STATUS_ITEMS_BITS;
     settings->battery_care =
         (uint8_t)((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT);
     uint8_t comfort = extension[COMFORT_BYTE];
@@ -171,7 +171,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
     settings->clock_offset_minutes = clock_offset(extension);
-    settings->power_on_flags = extension[POWER_ON_BYTE];
+    settings->power_on_flags = extension[POWER_ON_BYTE] & POWER_ON_BITS;
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];

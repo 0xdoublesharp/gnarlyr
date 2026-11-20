@@ -1137,6 +1137,26 @@ static void status_bar_choices_round_trip_in_e13_without_using_other_extensions(
     CHECK_EQUAL(0, bytes[53]);
 }
 
+static void the_fields_sharing_byte_13_decode_only_their_own_bits(void)
+{
+    Settings settings = settings_defaults();
+    settings.status_items = SETTINGS_STATUS_VOLUME | SETTINGS_STATUS_SEGMENTED;
+    settings.power_on_flags = 0x10;
+    settings.skip_silence = true;
+    settings.speech_boost = true;
+    settings_set_now_playing_style(&settings, NOW_PLAYING_CASSETTE);
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(0xF9, bytes[EXTENSION_FIELD + 13]);
+    Settings decoded;
+    CHECK(settings_decode(bytes, sizeof bytes, &decoded));
+    CHECK_EQUAL(SETTINGS_STATUS_VOLUME | SETTINGS_STATUS_SEGMENTED | 0x20, decoded.status_items);
+    CHECK_EQUAL(0x10, decoded.power_on_flags);
+    CHECK(decoded.skip_silence);
+    CHECK(decoded.speech_boost);
+    CHECK_EQUAL(NOW_PLAYING_CASSETTE, settings_now_playing_style(&decoded));
+}
+
 static void all_status_choices_keep_their_values(void)
 {
     for (int flags = 0; flags < 256; flags++) {
@@ -1146,7 +1166,8 @@ static void all_status_choices_keep_their_values(void)
         bytes[51] = (uint8_t)flags;
         rewrite_checksum(bytes);
         CHECK(settings_decode(bytes, sizeof bytes, &settings));
-        CHECK_EQUAL(flags, settings.status_items);
+        CHECK_EQUAL(flags & 0x2F, settings.status_items);
+        CHECK_EQUAL(flags & 0x10, settings.power_on_flags);
         CHECK(!settings.battery_percent);
         settings_encode(&settings, bytes);
         CHECK_EQUAL(flags, bytes[51]);
@@ -1291,6 +1312,7 @@ int main(void)
         TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),
         TEST_CASE(all_status_choices_keep_their_values),
+        TEST_CASE(the_fields_sharing_byte_13_decode_only_their_own_bits),
         TEST_CASE(status_bar_choices_round_trip_in_e13_without_using_other_extensions),
         TEST_CASE(defaults_are_comfortable),
         TEST_CASE(the_extension_defaults_keep_todays_behaviour),
