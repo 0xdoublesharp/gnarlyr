@@ -309,6 +309,38 @@ static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(voi
     CHECK_EQUAL(3, changed_count);
 }
 
+static void debug_choices_handle_dynamic_options_and_reject_unknown_text(void)
+{
+    open_controls(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    static SettingsScreens screens;
+    static Player player;
+    static Library library;
+    static PowerPolicy power;
+    static Toast toast;
+    static BluetoothLink link;
+    static BluetoothScreen bluetooth;
+    player_init(&player, &library);
+    bluetooth_screen_init(&bluetooth, &link, &theme);
+    SettingsContext context = {.store = &store,
+                               .player = &player,
+                               .power = &power,
+                               .toast = &toast,
+                               .bluetooth = &bluetooth,
+                               .theme = &theme};
+    settings_screens_init(&screens, context, &theme);
+
+    CHECK(choose_setting(&screens, span_of(i18n_text(STR_BRIGHTNESS)), span_of("5")));
+    CHECK_EQUAL(SETTINGS_BRIGHTNESS_MIN + 4, store.settings.brightness);
+    uint8_t brightness = store.settings.brightness;
+    uint8_t status_items = store.settings.status_items;
+    CHECK(!choose_setting(&screens, span_of(i18n_text(STR_BRIGHTNESS)), span_of("Not a level")));
+    CHECK(
+        !choose_setting(&screens, span_of(i18n_text(STR_STATUS_VOLUME)), span_of("Not an option")));
+    CHECK(!choose_setting(&screens, span_of("Not a setting"), span_of(i18n_text(STR_ON))));
+    CHECK_EQUAL(brightness, store.settings.brightness);
+    CHECK_EQUAL(status_items, store.settings.status_items);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -319,6 +351,7 @@ int main(void)
         TEST_CASE(settings_values_use_the_same_whole_label_layout_in_large_portrait),
         TEST_CASE(control_choices_validate_names_and_report_each_change),
         TEST_CASE(control_menu_recovers_invalid_values_and_bounds_choice_callbacks),
+        TEST_CASE(debug_choices_handle_dynamic_options_and_reject_unknown_text),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
