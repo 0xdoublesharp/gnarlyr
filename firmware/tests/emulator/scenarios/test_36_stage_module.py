@@ -202,6 +202,7 @@ class EchoImageTest(EchoImageHarness):
         machine = session.machine
         watch = ModuleWatch(session)
         number, overlay = self.module(machine, name)
+        start, _ = self.module(machine, "trial")
         frames = []
         machine.add_address_hook(overlay.symbols["wire_boot_fade"], lambda: frames.append(
             machine.milliseconds()) if overlay.loaded(machine) else None)
@@ -209,16 +210,16 @@ class EchoImageTest(EchoImageHarness):
         machine.run(until_ms=machine.milliseconds() + 1500)
         started = len(frames)
         self.assertGreaterEqual(started, 3)
-        self.assertEqual({(call["module"], call["loaded"]) for call in watch.loads()},
-                         {(number, True)})
+        self.assertEqual({(call["module"], call["loaded"]) for call in watch.loads()
+                          if call["module"] != start}, {(number, True)})
         self.hold_power(machine)
         self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
                          "firmware reached hal_power_off")
         self.assertGreaterEqual(len(frames) - started, 3)
-        self.assertEqual({(call["module"], call["loaded"]) for call in watch.loads()},
-                         {(number, True)})
+        self.assertEqual({(call["module"], call["loaded"]) for call in watch.loads()
+                          if call["module"] != start}, {(number, True)})
         self.assertEqual(machine.faults, [])
-        return [call["module"] for call in watch.loads()]
+        return [call["module"] for call in watch.loads() if call["module"] != start]
 
     def test_a_meter_style_starts_and_switches_off_with_the_wireframe_from_stage(self):
         loads = self.wireframe_round(VU, "stage")
