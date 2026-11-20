@@ -473,6 +473,21 @@ static uint32_t extended_header_size(const TagReader *reader, const Id3Tag *tag,
     return tag->version == 4 ? synchsafe(size) : tag_be32(size) + 4;
 }
 
+uint32_t tags_skip_id3v2(const TagReader *reader, bool stop_at_empty)
+{
+    uint32_t offset = 0;
+    uint8_t header[HEADER_SIZE];
+    while (tag_read(reader, offset, header, sizeof header) &&
+           tag_same_text((const char *)header, 3, "ID3")) {
+        uint32_t size = synchsafe(header + 6);
+        if ((stop_at_empty && size == 0) || size > reader->size - offset - HEADER_SIZE) {
+            break;
+        }
+        offset += HEADER_SIZE + size;
+    }
+    return offset;
+}
+
 bool tags_read_id3v2(TagReader *reader, uint32_t offset, uint32_t *tag_size)
 {
     uint8_t header[HEADER_SIZE];

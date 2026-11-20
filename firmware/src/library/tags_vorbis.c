@@ -9,7 +9,6 @@ enum {
     BLOCK_VORBIS_COMMENT = 4,
     BLOCK_PICTURE = 6,
     FRONT_COVER = 3,
-    ID3_HEADER_SIZE = 10,
     OGG_HEADER_SIZE = 27,
     VORBIS_PACKET_PREFIX = 7,
     OPUS_PACKET_PREFIX = 8,
@@ -181,23 +180,6 @@ static ByteSource file_source(TagReader *reader)
     return (ByteSource){.read = read_file_bytes, .context = reader};
 }
 
-static uint32_t synchsafe(const uint8_t *bytes)
-{
-    return (uint32_t)(bytes[0] & 0x7F) << 21 | (uint32_t)(bytes[1] & 0x7F) << 14 |
-           (uint32_t)(bytes[2] & 0x7F) << 7 | (uint32_t)(bytes[3] & 0x7F);
-}
-
-static uint32_t skip_id3(const TagReader *reader)
-{
-    uint32_t offset = 0;
-    uint8_t header[ID3_HEADER_SIZE];
-    while (tag_read(reader, offset, header, sizeof header) && header[0] == 'I' &&
-           header[1] == 'D' && header[2] == '3') {
-        offset += ID3_HEADER_SIZE + synchsafe(header + 6);
-    }
-    return offset;
-}
-
 static void read_streaminfo(TagReader *reader, const uint8_t *info)
 {
     uint32_t rate = (uint32_t)info[10] << 12 | (uint32_t)info[11] << 4 | info[12] >> 4;
@@ -236,7 +218,7 @@ static void read_flac_picture(TagReader *reader, uint32_t offset, uint32_t end)
 
 bool tags_read_flac(TagReader *reader)
 {
-    uint32_t offset = skip_id3(reader);
+    uint32_t offset = tags_skip_id3v2(reader, false);
     uint8_t header[34];
     if (!tag_read(reader, offset, header, 4) || !tag_same_text((const char *)header, 4, "fLaC")) {
         return false;

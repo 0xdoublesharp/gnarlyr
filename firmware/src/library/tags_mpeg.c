@@ -2,7 +2,6 @@
 
 enum {
     HEADER_SIZE = 4,
-    ID3_HEADER_SIZE = 10,
     MAX_READ = 1024 * 1024,
     MAX_SYNCS = 1500,
     ENOUGH_FRAMES = 4,
@@ -38,23 +37,6 @@ typedef struct MpegFrame {
     bool has_length;
     uint64_t samples;
 } MpegFrame;
-
-static uint32_t synchsafe(const uint8_t *bytes)
-{
-    return (uint32_t)(bytes[0] & 0x7F) << 21 | (uint32_t)(bytes[1] & 0x7F) << 14 |
-           (uint32_t)(bytes[2] & 0x7F) << 7 | (uint32_t)(bytes[3] & 0x7F);
-}
-
-static uint32_t skip_id3(const TagReader *reader)
-{
-    uint32_t offset = 0;
-    uint8_t header[ID3_HEADER_SIZE];
-    while (tag_read(reader, offset, header, sizeof header) &&
-           tag_same_text((const char *)header, 3, "ID3") && synchsafe(header + 6) > 0) {
-        offset += ID3_HEADER_SIZE + synchsafe(header + 6);
-    }
-    return offset;
-}
 
 static uint32_t bitrate_row(uint32_t version, uint32_t layer)
 {
@@ -226,7 +208,7 @@ bool tags_read_mp3(TagReader *reader)
     tags_read_apev2(reader);
     tags_read_id3v1(reader);
     MpegFrame frame;
-    if (!find_first_frame(reader, skip_id3(reader), &frame)) {
+    if (!find_first_frame(reader, tags_skip_id3v2(reader, true), &frame)) {
         return false;
     }
     if (frame.has_length) {

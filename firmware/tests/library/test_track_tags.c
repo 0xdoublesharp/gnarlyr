@@ -1519,6 +1519,186 @@ static void replay_gain_text_decoding_handles_every_encoding_boundary(void)
     CHECK_EQUAL(0, strcmp("", out));
 }
 
+static const uint32_t SPARSE_SIZE = 0xFFFFFFF0u;
+static const uint32_t SPARSE_STEP = 0x0FFFFFFFu;
+static const uint32_t SPARSE_READ_LIMIT = 16384;
+static const uint32_t SPARSE_PROMPT_READS = 8192;
+static const uint32_t SPARSE_OVERSHOOT = 0x40;
+
+typedef struct SparseFile {
+    uint32_t offsets[24];
+    uint32_t sizes[24];
+    uint32_t visits[24];
+    uint32_t count;
+    uint32_t reads;
+} SparseFile;
+
+static void put_synchsafe(uint8_t *bytes, uint32_t value)
+{
+    for (int index = 3; index >= 0; index--) {
+        bytes[index] = (uint8_t)(value & 0x7F);
+        value >>= 7;
+    }
+}
+
+static void sparse_add(SparseFile *file, uint32_t offset, uint32_t size)
+{
+    file->offsets[file->count] = offset;
+    file->sizes[file->count] = size;
+    file->visits[file->count] = 0;
+    file->count++;
+}
+
+static void sparse_build(SparseFile *file, uint32_t overshoot)
+{
+    uint64_t end = ((uint64_t)1 << 32) + overshoot;
+    uint64_t offset = 0;
+    file->count = 0;
+    file->reads = 0;
+    while (offset < end) {
+        uint64_t left = end - offset - 10;
+        sparse_add(file, (uint32_t)offset, left <= SPARSE_STEP ? (uint32_t)left : SPARSE_STEP);
+        offset += 10 + (uint64_t)file->sizes[file->count - 1];
+    }
+    if (overshoot != 0) {
+        sparse_add(file, overshoot, file->offsets[1] - overshoot - 10);
+    }
+}
+
+static bool sparse_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    SparseFile *file = context;
+    if (++file->reads > SPARSE_READ_LIMIT || offset > SPARSE_SIZE ||
+        length > SPARSE_SIZE - offset) {
+        return false;
+    }
+    memset(buffer, 0, length);
+    for (uint32_t index = 0; index < file->count; index++) {
+        if (file->offsets[index] == offset) {
+            file->visits[index]++;
+            if (length >= 10) {
+                memcpy(buffer, "ID3\x04\x00\x00", 6);
+                put_synchsafe((uint8_t *)buffer + 6, file->sizes[index]);
+            }
+        }
+    }
+    return true;
+}
+
+static void check_sparse_read(TagFormat format, uint32_t overshoot, uint32_t first_visits)
+{
+    static SparseFile file;
+    static TrackTags tags;
+    sparse_build(&file, overshoot);
+    ByteSource source = {.read = sparse_read, .context = &file};
+    track_tags_read(source, SPARSE_SIZE, format, &tags);
+    CHECK(file.reads < SPARSE_PROMPT_READS);
+    CHECK(file.visits[0] <= first_visits);
+    for (uint32_t index = 1; index < file.count; index++) {
+        CHECK(file.visits[index] <= 2);
+    }
+}
+
+static void chained_id3_headers_past_4_gib_stop_without_wrapping(void)
+{
+    check_sparse_read(TAG_FORMAT_FLAC, 0, 1);
+    check_sparse_read(TAG_FORMAT_FLAC, SPARSE_OVERSHOOT, 1);
+    check_sparse_read(TAG_FORMAT_MP3, 0, 2);
+    check_sparse_read(TAG_FORMAT_MP3, SPARSE_OVERSHOOT, 2);
+}
+
+static uint8_t *with_id3_padding(const Fixture *fixture, uint32_t at, uint32_t count,
+                                 uint32_t *size)
+{
+    static const uint8_t PADDING[16] = {'I', 'D', '3', 4, 0, 0, 0, 0, 0, 6};
+    *size = fixture->size + count * sizeof PADDING;
+    uint8_t *bytes = malloc(*size);
+    memcpy(bytes, fixture->bytes, at);
+    for (uint32_t index = 0; index < count; index++) {
+        memcpy(bytes + at + index * sizeof PADDING, PADDING, sizeof PADDING);
+    }
+    memcpy(bytes + at + count * sizeof PADDING, fixture->bytes + at, fixture->size - at);
+    return bytes;
+}
+
+static void check_same_tags(const TrackTags *plain, const TrackTags *padded, uint32_t shift)
+{
+    for (int field = 0; field < TAG_FIELD_COUNT; field++) {
+        CHECK_EQUAL(0, strcmp(plain->text[field], padded->text[field]));
+    }
+    CHECK_EQUAL(plain->duration_ms, padded->duration_ms);
+    CHECK_EQUAL(plain->picture.kind, padded->picture.kind);
+    CHECK_EQUAL(plain->picture.length, padded->picture.length);
+    CHECK_EQUAL(plain->picture.offset + shift, padded->picture.offset);
+}
+
+static void check_padded_read(const char *name, uint32_t at, uint32_t count)
+{
+    static TrackTags plain;
+    static TrackTags padded;
+    Fixture fixture;
+    CHECK(load(&fixture, name));
+    CHECK(read_fixture(name, &plain));
+    uint32_t size = 0;
+    uint8_t *bytes = with_id3_padding(&fixture, at, count, &size);
+    MemorySource memory = {.bytes = bytes, .size = size};
+    CHECK(track_tags_read(memory_source(&memory), size, track_tags_format_for_name(name), &padded));
+    check_same_tags(&plain, &padded, at == 0 ? count * 16 : 0);
+    free(bytes);
+    free(fixture.bytes);
+}
+
+static uint32_t first_id3_size(const char *name)
+{
+    Fixture fixture;
+    CHECK(load(&fixture, name));
+    uint32_t size = 10 + ((uint32_t)fixture.bytes[6] << 21 | (uint32_t)fixture.bytes[7] << 14 |
+                          (uint32_t)fixture.bytes[8] << 7 | fixture.bytes[9]);
+    free(fixture.bytes);
+    return size;
+}
+
+static void files_after_one_or_two_id3_headers_read_as_before(void)
+{
+    check_padded_read("tagged.flac", 0, 1);
+    check_padded_read("tagged.flac", 0, 2);
+    check_padded_read("id3v24.mp3", first_id3_size("id3v24.mp3"), 1);
+    check_padded_read("id3v23_vbr.mp3", first_id3_size("id3v23_vbr.mp3"), 1);
+}
+
+static uint32_t skip_in(const uint8_t *bytes, uint32_t size, bool stop_at_empty)
+{
+    MemorySource memory = {.bytes = bytes, .size = size};
+    TagReader reader = {.source = memory_source(&memory), .size = size};
+    return tags_skip_id3v2(&reader, stop_at_empty);
+}
+
+static void put_id3_header(uint8_t *bytes, uint32_t size)
+{
+    memcpy(bytes, "ID3\x04\x00\x00", 6);
+    put_synchsafe(bytes + 6, size);
+}
+
+static void id3_skip_stops_at_the_file_end_and_on_empty_mp3_headers(void)
+{
+    uint8_t bytes[64] = {0};
+    CHECK_EQUAL(0u, skip_in(bytes, sizeof bytes, false));
+    put_id3_header(bytes, 5);
+    CHECK_EQUAL(15u, skip_in(bytes, sizeof bytes, true));
+    put_id3_header(bytes + 15, 3);
+    CHECK_EQUAL(28u, skip_in(bytes, sizeof bytes, true));
+    CHECK_EQUAL(28u, skip_in(bytes, 28, true));
+    CHECK_EQUAL(15u, skip_in(bytes, 27, true));
+    put_id3_header(bytes + 15, 100);
+    CHECK_EQUAL(15u, skip_in(bytes, sizeof bytes, false));
+    put_id3_header(bytes, 0);
+    CHECK_EQUAL(0u, skip_in(bytes, sizeof bytes, true));
+    put_id3_header(bytes + 10, 0);
+    put_id3_header(bytes + 20, 0);
+    CHECK_EQUAL(30u, skip_in(bytes, sizeof bytes, false));
+    CHECK_EQUAL(0u, skip_in(bytes, 9, false));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1563,6 +1743,9 @@ int main(void)
         TEST_CASE(ogg_pictures_read_back_as_the_embedded_image),
         TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
         TEST_CASE(replay_gain_text_decoding_handles_every_encoding_boundary),
+        TEST_CASE(chained_id3_headers_past_4_gib_stop_without_wrapping),
+        TEST_CASE(files_after_one_or_two_id3_headers_read_as_before),
+        TEST_CASE(id3_skip_stops_at_the_file_end_and_on_empty_mp3_headers),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
