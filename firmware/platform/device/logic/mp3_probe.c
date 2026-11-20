@@ -52,12 +52,6 @@ typedef struct Header {
     uint16_t samples;
 } Header;
 
-static uint32_t big_endian(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 |
-           (uint32_t)bytes[3];
-}
-
 static bool same_tag(const uint8_t *bytes, const char *tag, uint32_t length)
 {
     for (uint32_t index = 0; index < length; index++) {
@@ -104,12 +98,6 @@ static bool parse_header(const uint8_t *bytes, Header *header)
     return true;
 }
 
-static uint32_t syncsafe(const uint8_t *bytes)
-{
-    return (uint32_t)(bytes[0] & 0x7F) << 21 | (uint32_t)(bytes[1] & 0x7F) << 14 |
-           (uint32_t)(bytes[2] & 0x7F) << 7 | (uint32_t)(bytes[3] & 0x7F);
-}
-
 static uint32_t audio_start(FlacInput input)
 {
     uint8_t bytes[TAG_HEADER_BYTES];
@@ -118,7 +106,7 @@ static uint32_t audio_start(FlacInput input)
         return 0;
     }
     uint32_t footer = (bytes[5] & TAG_FOOTER_FLAG) != 0 ? TAG_FOOTER_BYTES : 0;
-    return TAG_HEADER_BYTES + syncsafe(bytes + 6) + footer;
+    return TAG_HEADER_BYTES + bytes_synchsafe(bytes + 6) + footer;
 }
 
 static uint32_t audio_end(FlacInput input, uint32_t start)
@@ -215,12 +203,12 @@ static bool read_info(FlacInput input, uint32_t frame, const Header *header, uin
     }
     uint32_t at = HEADER_BYTES + side_info_bytes(header);
     if (same_tag(bytes + at, "Xing", 4) || same_tag(bytes + at, "Info", 4)) {
-        uint32_t flags = big_endian(bytes + at + 4);
+        uint32_t flags = bytes_be32(bytes + at + 4);
         uint32_t field = at + 8;
         if ((flags & XING_FRAMES_FLAG) == 0) {
             return false;
         }
-        stream->total_samples = big_endian(bytes + field) * header->samples;
+        stream->total_samples = bytes_be32(bytes + field) * header->samples;
         field += 4;
         if ((flags & XING_BYTES_FLAG) != 0) {
             field += 4;
@@ -241,7 +229,7 @@ static bool read_info(FlacInput input, uint32_t frame, const Header *header, uin
         return true;
     }
     if (same_tag(bytes + VBRI_OFFSET, "VBRI", 4)) {
-        stream->total_samples = big_endian(bytes + VBRI_OFFSET + 14) * header->samples;
+        stream->total_samples = bytes_be32(bytes + VBRI_OFFSET + 14) * header->samples;
         return true;
     }
     return false;

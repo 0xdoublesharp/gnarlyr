@@ -33,6 +33,7 @@ add_library(echo_core STATIC
     power_policy.c
     random.c
     random_below.c
+    record.c
     string_builder.c
     utf8.c
 )

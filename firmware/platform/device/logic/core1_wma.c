@@ -2,6 +2,8 @@
 
 #include <string.h>
 
+#include "core/bytes.h"
+
 #if !defined(__arm__)
 #include <setjmp.h>
 static jmp_buf checkpoint;
@@ -18,12 +20,6 @@ _Noreturn void wma_fail(void)
 #else
     longjmp(checkpoint, 1);
 #endif
-}
-
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
 }
 
 static void start_wma(void *context, FlacInput input, FlacInfo info, uint32_t first_sample,
@@ -49,12 +45,12 @@ static Core1DecodeResult configure(Core1Wma *wma)
     if (!wma->input.read(wma->input.context, 0, header, sizeof header)) {
         return CORE1_STARVED;
     }
-    asf_waveformatex_t config = {.codec_id = (uint16_t)little32(header),
-                                 .channels = (uint16_t)little32(header + 4),
-                                 .rate = little32(header + 8),
-                                 .bitrate = little32(header + 12),
-                                 .blockalign = (uint16_t)little32(header + 16),
-                                 .datalen = (uint16_t)little32(header + 20)};
+    asf_waveformatex_t config = {.codec_id = (uint16_t)bytes_le32(header),
+                                 .channels = (uint16_t)bytes_le32(header + 4),
+                                 .rate = bytes_le32(header + 8),
+                                 .bitrate = bytes_le32(header + 12),
+                                 .blockalign = (uint16_t)bytes_le32(header + 16),
+                                 .datalen = (uint16_t)bytes_le32(header + 20)};
     if ((config.codec_id != 0x160 && config.codec_id != 0x161) || config.channels < 1 ||
         config.channels > 2 || config.rate < 8000 || config.rate > 48000 || config.bitrate == 0 ||
         config.bitrate > 768000 || config.blockalign == 0 || config.blockalign > WMA_PACKET_BYTES ||
@@ -80,7 +76,7 @@ static Core1DecodeResult fetch(Core1Wma *wma)
     if (!wma->input.read(wma->input.context, wma->position, header, sizeof header)) {
         return CORE1_STARVED;
     }
-    uint32_t bytes = little32(header);
+    uint32_t bytes = bytes_le32(header);
     if (bytes == 0) {
         return CORE1_FINISHED;
     }

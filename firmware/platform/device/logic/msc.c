@@ -58,27 +58,6 @@ _Static_assert(sizeof INQUIRY_VENDOR - 1 <= INQUIRY_VENDOR_BYTES,
 _Static_assert(sizeof INQUIRY_REVISION - 1 <= INQUIRY_REVISION_BYTES,
                "the firmware's major.minor version fits the INQUIRY revision field");
 
-static uint32_t be32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 | bytes[3];
-}
-
-static void put_be32(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)(value >> 24);
-    bytes[1] = (uint8_t)(value >> 16);
-    bytes[2] = (uint8_t)(value >> 8);
-    bytes[3] = (uint8_t)value;
-}
-
-static void put_le32(uint8_t *bytes, uint32_t value)
-{
-    bytes[0] = (uint8_t)value;
-    bytes[1] = (uint8_t)(value >> 8);
-    bytes[2] = (uint8_t)(value >> 16);
-    bytes[3] = (uint8_t)(value >> 24);
-}
-
 void msc_init(Msc *msc, const MscLun *luns, uint8_t count)
 {
     *msc = (Msc){.lun_count = count, .stats = {.last_failed_lba = UINT32_MAX}, .write_sectors = 1};
@@ -286,8 +265,8 @@ static void request_sense(Msc *msc)
 
 static void read_capacity(Msc *msc, const MscLun *lun)
 {
-    put_be32(msc->response, lun->sector_count - 1);
-    put_be32(msc->response + 4, MSC_SECTOR_SIZE);
+    bytes_put_be32(msc->response, lun->sector_count - 1);
+    bytes_put_be32(msc->response + 4, MSC_SECTOR_SIZE);
     respond(msc, 8);
 }
 
@@ -297,8 +276,8 @@ static void read_format_capacities(Msc *msc, const MscLun *lun)
     for (uint32_t index = 0; index < 4; index++) {
         msc->response[index] = HEADER[index];
     }
-    put_be32(msc->response + 4, lun->sector_count);
-    put_be32(msc->response + 8, 0x02000200u);
+    bytes_put_be32(msc->response + 4, lun->sector_count);
+    bytes_put_be32(msc->response + 8, 0x02000200u);
     respond(msc, 12);
 }
 
@@ -322,7 +301,7 @@ static void mode_sense(Msc *msc, const MscLun *lun, bool ten_byte)
 static bool start_transfer(Msc *msc, const MscLun *lun, const uint8_t *block)
 {
     uint32_t count = (uint32_t)block[7] << 8 | block[8];
-    msc->lba = be32(block + 2);
+    msc->lba = bytes_be32(block + 2);
     msc->sector_offset = 0;
     msc->read_count = 0;
     msc->batch_bytes = 0;
@@ -890,8 +869,8 @@ static void status_packet(Msc *msc, uint8_t *packet, uint32_t *length)
     packet[1] = 'S';
     packet[2] = 'B';
     packet[3] = 'S';
-    put_le32(packet + 4, msc->tag);
-    put_le32(packet + 8, residue(msc));
+    bytes_put_le32(packet + 4, msc->tag);
+    bytes_put_le32(packet + 8, residue(msc));
     packet[12] = msc->status;
     *length = CSW_LENGTH;
     count_command(msc);

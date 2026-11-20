@@ -62,6 +62,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     platform/device/board/user_state_module.c
     platform/device/board/user_state_fat.c
     platform/device/logic/fat_delete.c
+    platform/device/logic/fat_label.c
     platform/device/logic/slot_copy.c
     platform/device/logic/update_trial.c
     src/core/format_chain.c

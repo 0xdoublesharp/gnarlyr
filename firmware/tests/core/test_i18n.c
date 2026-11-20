@@ -337,8 +337,8 @@ static void counts_are_written_as_decimal_numbers(void)
     char text[48];
     StringBuilder builder = string_builder_make(text, sizeof text);
     i18n_detach();
-    i18n_format_counts(&builder, STR_COVERS_DONE, 7, 4000000000u);
-    CHECK(strcmp("7 of 4000000000 albums", text) == 0);
+    i18n_format_counts(&builder, STR_PREPARING_FILE, 7, 4000000000u);
+    CHECK(strcmp("File 7 of 4000000000", text) == 0);
     builder = string_builder_make(text, sizeof text);
     i18n_format_counts(&builder, STR_SCAN_TRACKS, 1563, 0);
     CHECK(strcmp("1563 tracks so far", text) == 0);

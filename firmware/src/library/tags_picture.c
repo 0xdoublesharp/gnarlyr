@@ -123,9 +123,11 @@ static bool base64_read(void *context, uint32_t offset, void *buffer, uint32_t l
 static bool block_word(TagPictureReader *reader, uint32_t offset, uint32_t *value)
 {
     uint8_t word[4];
-    bool read = base64_read(reader, offset, word, sizeof word);
-    *value = tag_be32(word);
-    return read;
+    if (!base64_read(reader, offset, word, sizeof word)) {
+        return false;
+    }
+    *value = bytes_be32(word);
+    return true;
 }
 
 static bool open_base64(TagPictureReader *reader, const TagPicture *picture, ImageSource *image)

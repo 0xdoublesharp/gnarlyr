@@ -183,7 +183,7 @@ static ByteSource file_source(TagReader *reader)
 static void read_streaminfo(TagReader *reader, const uint8_t *info)
 {
     uint32_t rate = (uint32_t)info[10] << 12 | (uint32_t)info[11] << 4 | info[12] >> 4;
-    uint64_t samples = (uint64_t)(info[13] & 0x0F) << 32 | tag_be32(info + 14);
+    uint64_t samples = (uint64_t)(info[13] & 0x0F) << 32 | bytes_be32(info + 14);
     if (rate > 0) {
         tag_set_duration(reader, samples, rate);
     }
@@ -195,19 +195,19 @@ static void read_flac_picture(TagReader *reader, uint32_t offset, uint32_t end)
     if (!tag_read(reader, offset, word, 4)) {
         return;
     }
-    bool front = tag_be32(word) == FRONT_COVER;
+    bool front = bytes_be32(word) == FRONT_COVER;
     uint32_t cursor = offset + 4;
     for (int skipped = 0; skipped < 2; skipped++) {
         if (!tag_read(reader, cursor, word, 4)) {
             return;
         }
-        cursor += 4 + tag_be32(word);
+        cursor += 4 + bytes_be32(word);
     }
     cursor += 16;
     if (cursor > end - 4 || !tag_read(reader, cursor, word, 4)) {
         return;
     }
-    uint32_t length = tag_be32(word);
+    uint32_t length = bytes_be32(word);
     if (length <= end - cursor - 4) {
         tag_offer_picture(reader, (TagPicture){.kind = TAG_PICTURE_RAW,
                                                .front = front,

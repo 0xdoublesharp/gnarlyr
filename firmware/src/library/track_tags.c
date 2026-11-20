@@ -73,20 +73,9 @@ uint64_t tag_le64(const uint8_t *bytes)
     return (uint64_t)tag_le32(bytes) | (uint64_t)tag_le32(bytes + 4) << 32;
 }
 
-uint16_t tag_be16(const uint8_t *bytes)
-{
-    return (uint16_t)(bytes[0] << 8 | bytes[1]);
-}
-
-uint32_t tag_be32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] << 24 | (uint32_t)bytes[1] << 16 | (uint32_t)bytes[2] << 8 |
-           (uint32_t)bytes[3];
-}
-
 uint64_t tag_be64(const uint8_t *bytes)
 {
-    return (uint64_t)tag_be32(bytes) << 32 | (uint64_t)tag_be32(bytes + 4);
+    return (uint64_t)bytes_be32(bytes) << 32 | (uint64_t)bytes_be32(bytes + 4);
 }
 
 bool tag_same_text(const char *text, uint32_t length, const char *wanted)
@@ -182,10 +171,10 @@ static uint32_t next_utf8(const uint8_t *text, uint32_t length, uint32_t *index)
 
 static uint32_t next_utf16(const uint8_t *text, uint32_t length, uint32_t *index, bool big_endian)
 {
-    uint32_t unit = big_endian ? tag_be16(text + *index) : tag_le16(text + *index);
+    uint32_t unit = big_endian ? bytes_be16(text + *index) : tag_le16(text + *index);
     *index += 2;
     if (unit >= 0xD800 && unit < 0xDC00 && *index + 1 < length) {
-        uint32_t low = big_endian ? tag_be16(text + *index) : tag_le16(text + *index);
+        uint32_t low = big_endian ? bytes_be16(text + *index) : tag_le16(text + *index);
         if (low >= 0xDC00 && low < 0xE000) {
             *index += 2;
             return 0x10000 + ((unit - 0xD800) << 10) + (low - 0xDC00);
@@ -297,8 +286,8 @@ static uint32_t gain_bom(const uint8_t *text, uint32_t length, TagEncoding *enco
     if (length < 2 || (*encoding != TAG_UTF16LE && *encoding != TAG_UTF16BE)) {
         return 0;
     }
-    if (tag_be16(text) == 0xFEFF || tag_be16(text) == 0xFFFE) {
-        *encoding = tag_be16(text) == 0xFEFF ? TAG_UTF16BE : TAG_UTF16LE;
+    if (bytes_be16(text) == 0xFEFF || bytes_be16(text) == 0xFFFE) {
+        *encoding = bytes_be16(text) == 0xFEFF ? TAG_UTF16BE : TAG_UTF16LE;
         return 2;
     }
     return 0;
@@ -313,7 +302,7 @@ bool tag_decode_gain_text(char *out, const uint8_t *text, uint32_t length, TagEn
     uint32_t count = 0;
     for (uint32_t at = gain_bom(text, length, &encoding); at < length; at += width) {
         uint32_t value = width == 1                ? text[at]
-                         : encoding == TAG_UTF16BE ? tag_be16(text + at)
+                         : encoding == TAG_UTF16BE ? bytes_be16(text + at)
                                                    : tag_le16(text + at);
         if (value == 0) {
             if (!empty_gain_tail(text, length, at)) {

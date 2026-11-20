@@ -54,13 +54,13 @@ static bool xing_length(const TagReader *reader, const MpegFrame *frame, uint32_
                                                 tag_same_text((const char *)xing, 4, "Info"))) {
         return false;
     }
-    uint32_t flags = tag_be32(xing + 4);
+    uint32_t flags = bytes_be32(xing + 4);
     uint32_t frames = 0;
     if ((flags & XING_FRAMES) != 0) {
         if (!tag_read(reader, offset + 8, xing + 8, 4)) {
             return false;
         }
-        frames = tag_be32(xing + 8);
+        frames = bytes_be32(xing + 8);
     }
     *result = *frame;
     result->sketchy = false;
@@ -76,13 +76,13 @@ static bool vbri_length(const TagReader *reader, const MpegFrame *frame, uint32_
 {
     uint8_t vbri[VBRI_SIZE];
     if (!tag_read(reader, frame->offset + VBRI_OFFSET, vbri, sizeof vbri) ||
-        !tag_same_text((const char *)vbri, 4, "VBRI") || tag_be16(vbri + 4) != 1) {
+        !tag_same_text((const char *)vbri, 4, "VBRI") || bytes_be16(vbri + 4) != 1) {
         return false;
     }
     *result = *frame;
     result->sketchy = false;
     result->has_length = true;
-    result->samples = (uint64_t)frame_size * tag_be32(vbri + 14);
+    result->samples = (uint64_t)frame_size * bytes_be32(vbri + 14);
     return true;
 }
 

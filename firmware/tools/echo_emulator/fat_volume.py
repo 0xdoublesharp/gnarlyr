@@ -4,6 +4,7 @@ SECTOR = 512
 RESERVED_SECTORS = 32
 FAT_COUNT = 2
 END_OF_CHAIN = 0x0FFFFFFF
+ATTRIBUTE_VOLUME = 0x08
 ATTRIBUTE_DIRECTORY = 0x10
 ATTRIBUTE_ARCHIVE = 0x20
 ATTRIBUTE_LONG_NAME = 0x0F
@@ -72,8 +73,10 @@ class Node:
 
 
 class Fat32Volume:
-    def __init__(self, megabytes=300, sectors_per_cluster=8, fsinfo=False, next_free=None):
+    def __init__(self, megabytes=300, sectors_per_cluster=8, fsinfo=False, next_free=None,
+                 label=None):
         self.next_free = next_free
+        self.label = label
         self.sectors_per_cluster = sectors_per_cluster
         self.cluster_bytes = sectors_per_cluster * SECTOR
         self.fsinfo = fsinfo
@@ -108,7 +111,7 @@ class Fat32Volume:
         return max(1, (length + self.cluster_bytes - 1) // self.cluster_bytes) if length else 0
 
     def entry_count(self, node):
-        count = 0 if node is self.root else 2
+        count = (1 if self.label else 0) if node is self.root else 2
         for child in node.children:
             plain = fits_short_name(child.name) and not child.long_name
             count += 1 if plain else long_entry_total(child.name) + 1
@@ -152,7 +155,7 @@ class Fat32Volume:
         boot[64] = 0x80
         boot[66] = 0x29
         struct.pack_into("<I", boot, 67, 0x12345678)
-        boot[71:82] = b"EMULATOR   "
+        boot[71:82] = (self.label or "EMULATOR").encode("ascii").ljust(11)
         boot[82:90] = b"FAT32   "
         struct.pack_into("<H", boot, 510, 0xAA55)
         return bytes(boot)
@@ -195,6 +198,8 @@ class Fat32Volume:
 
     def directory_bytes(self, node, parent):
         entries = []
+        if node is self.root and self.label:
+            entries.append(self.entry_bytes(self.label.encode("ascii").ljust(11), ATTRIBUTE_VOLUME, 0, 0))
         if node is not self.root:
             up = 0 if parent is self.root else parent.first
             entries.append(self.entry_bytes(b".".ljust(11), ATTRIBUTE_DIRECTORY, node.first, 0))

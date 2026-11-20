@@ -27,41 +27,6 @@ static const StoreKind KIND = {.magic = {'D', 'S', 'T', 'G'}, .version = 1};
 const char PERSONAL_TAG_PATH_A[] = "/" FIRMWARE_DATA_DIRECTORY "/tags-a.bin";
 const char PERSONAL_TAG_PATH_B[] = "/" FIRMWARE_DATA_DIRECTORY "/tags-b.bin";
 
-static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t length)
-{
-    const PersonalTagFile *source = context;
-    HalFile file;
-    if (!hal_file_open(&file, source->path)) {
-        return false;
-    }
-    bool read = hal_file_read(file, offset, bytes, length);
-    hal_file_close(&file);
-    return read;
-}
-
-static bool write_file(void *context, uint32_t offset, const void *bytes, uint32_t length)
-{
-    const PersonalTagFile *file = context;
-    return hal_file_write_at(file->path, offset, bytes, length);
-}
-
-static bool find_file(PersonalTagFile *file)
-{
-    HalFile handle;
-    file->size = 0;
-    if (!hal_file_open(&handle, file->path)) {
-        return false;
-    }
-    file->size = handle.size;
-    hal_file_close(&handle);
-    return true;
-}
-
-static StoreFile file_io(PersonalTagFile *file)
-{
-    return (StoreFile){.source = {read_file, file}, .write = write_file, .size = file->size};
-}
-
 static bool known_bank(const PersonalTags *tags, uint8_t bank, const StoreFile *file)
 {
     uint8_t bytes[STORE_BLOCK_BYTES];
@@ -83,9 +48,9 @@ static bool known_bank(const PersonalTags *tags, uint8_t bank, const StoreFile *
 static bool prepare_file(void *context, uint8_t bank, uint32_t size, StoreFile *io)
 {
     PersonalTags *tags = context;
-    PersonalTagFile *file = &tags->files[bank];
-    bool exists = find_file(file);
-    StoreFile previous = file_io(file);
+    PathFile *file = &tags->files[bank];
+    bool exists = path_file_find(file);
+    StoreFile previous = path_file_store(file);
     if (exists && !known_bank(tags, bank, &previous)) {
         return false;
     }
@@ -98,11 +63,11 @@ static bool prepare_file(void *context, uint8_t bank, uint32_t size, StoreFile *
     if (!exists) {
         HalReserveResult reserved = hal_file_reserve(file->path, size);
         if ((reserved != HAL_RESERVE_CREATED && reserved != HAL_RESERVE_EXISTS) ||
-            !find_file(file)) {
+            !path_file_find(file)) {
             return false;
         }
     }
-    *io = file_io(file);
+    *io = path_file_store(file);
     return io->size >= size && known_bank(tags, bank, io);
 }
 
@@ -160,8 +125,8 @@ StoreLoad personal_tags_init(PersonalTags *tags, const Library *library)
     *tags = (PersonalTags){.library = library,
                            .files = {{.path = PERSONAL_TAG_PATH_A}, {.path = PERSONAL_TAG_PATH_B}}};
     for (uint8_t bank = 0; bank < 2; bank++) {
-        find_file(&tags->files[bank]);
-        tags->storage.files[bank] = file_io(&tags->files[bank]);
+        path_file_find(&tags->files[bank]);
+        tags->storage.files[bank] = path_file_store(&tags->files[bank]);
     }
     tags->storage.prepare = prepare_file;
     tags->storage.context = tags;

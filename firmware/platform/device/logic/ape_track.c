@@ -2,66 +2,58 @@
 
 #include <stddef.h>
 
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
-static uint16_t little16(const uint8_t *bytes)
-{
-    return (uint16_t)((uint32_t)bytes[0] | (uint32_t)bytes[1] << 8);
-}
+#include "core/bytes.h"
 
 static bool modern(FlacInput input, const uint8_t *head, ApeTrack *track)
 {
-    uint32_t descriptor = little32(head + 8);
-    uint32_t header = little32(head + 12);
-    uint32_t seeks = little32(head + 16);
-    uint64_t start = (uint64_t)descriptor + header + seeks + little32(head + 20);
-    uint64_t end = start + little32(head + 24);
+    uint32_t descriptor = bytes_le32(head + 8);
+    uint32_t header = bytes_le32(head + 12);
+    uint32_t seeks = bytes_le32(head + 16);
+    uint64_t start = (uint64_t)descriptor + header + seeks + bytes_le32(head + 20);
+    uint64_t end = start + bytes_le32(head + 24);
     uint8_t format[24];
     if (descriptor < 52 || header < sizeof format || start >= input.size || end > input.size ||
-        little32(head + 28) != 0 || !input.read(input.context, descriptor, format, sizeof format)) {
+        bytes_le32(head + 28) != 0 ||
+        !input.read(input.context, descriptor, format, sizeof format)) {
         return false;
     }
     track->seek_offset = descriptor + header;
     track->audio_start = (uint32_t)start;
     track->audio_end = (uint32_t)end;
-    track->level = little16(format);
-    track->frame_samples = little32(format + 4);
-    track->final_samples = little32(format + 8);
-    track->frames = little32(format + 12);
-    track->bits = little16(format + 16);
-    track->channels = little16(format + 18);
-    track->rate = little32(format + 20);
+    track->level = (uint16_t)bytes_le16(format);
+    track->frame_samples = bytes_le32(format + 4);
+    track->final_samples = bytes_le32(format + 8);
+    track->frames = bytes_le32(format + 12);
+    track->bits = (uint16_t)bytes_le16(format + 16);
+    track->channels = (uint16_t)bytes_le16(format + 18);
+    track->rate = bytes_le32(format + 20);
     return (uint64_t)track->frames * 4 <= seeks;
 }
 
 static bool legacy(FlacInput input, const uint8_t *head, ApeTrack *track)
 {
-    uint32_t flags = little16(head + 8);
+    uint32_t flags = bytes_le16(head + 8);
     uint32_t header = 32 + ((flags & 4) != 0 ? 4u : 0u);
-    uint32_t seeks = little32(head + header);
-    track->level = little16(head + 6);
-    track->channels = little16(head + 10);
-    track->rate = little32(head + 12);
-    track->frames = little32(head + 24);
-    track->final_samples = little32(head + 28);
+    uint32_t seeks = bytes_le32(head + header);
+    track->level = (uint16_t)bytes_le16(head + 6);
+    track->channels = (uint16_t)bytes_le16(head + 10);
+    track->rate = bytes_le32(head + 12);
+    track->frames = bytes_le32(head + 24);
+    track->final_samples = bytes_le32(head + 28);
     track->frame_samples = 73728 * 4;
     track->bits = (flags & 8) != 0 ? 24 : 16;
     if ((flags & 1) != 0 || ((flags & 16) != 0 && seeks < track->frames)) {
         return false;
     }
     header += (flags & 16) != 0 ? 4u : 0u;
-    uint64_t seek = (uint64_t)header + little32(head + 16);
+    uint64_t seek = (uint64_t)header + bytes_le32(head + 16);
     uint64_t start = seek + (uint64_t)((flags & 16) != 0 ? seeks : track->frames) * 4;
-    if (start >= input.size || little32(head + 20) >= input.size - start) {
+    if (start >= input.size || bytes_le32(head + 20) >= input.size - start) {
         return false;
     }
     track->seek_offset = (uint32_t)seek;
     track->audio_start = (uint32_t)start;
-    track->audio_end = input.size - little32(head + 20);
+    track->audio_end = input.size - bytes_le32(head + 20);
     return true;
 }
 
@@ -73,7 +65,7 @@ static bool seek_entry(FlacInput input, const ApeTrack *track, uint32_t frame, u
         !input.read(input.context, (uint32_t)at, entry, sizeof entry)) {
         return false;
     }
-    *offset = little32(entry);
+    *offset = bytes_le32(entry);
     return *offset >= track->audio_start && *offset < track->audio_end;
 }
 
@@ -100,10 +92,10 @@ bool ape_track_probe(FlacInput input, ApeTrack *track)
     }
     track->unsupported = false;
     if (input.read == NULL || input.size < sizeof head ||
-        !input.read(input.context, 0, head, sizeof head) || little32(head) != 0x2043414Du) {
+        !input.read(input.context, 0, head, sizeof head) || bytes_le32(head) != 0x2043414Du) {
         return false;
     }
-    candidate.version = little16(head + 4);
+    candidate.version = (uint16_t)bytes_le16(head + 4);
     if (candidate.version < 3970 || candidate.version > 3990) {
         track->unsupported = true;
         return false;

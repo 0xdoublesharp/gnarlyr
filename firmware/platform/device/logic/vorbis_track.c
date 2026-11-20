@@ -2,13 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
 #include "device/ogg_record.h"
-
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static bool header(const uint8_t *bytes, const OggPacket *packet, uint32_t index)
 {
@@ -29,11 +24,11 @@ static bool identification(const uint8_t *bytes, const OggPacket *packet, OggTra
 {
     uint32_t small = bytes[28] & 15u;
     uint32_t large = bytes[28] >> 4;
-    if (packet->bytes != 30 || little32(bytes + 7) != 0 || bytes[11] < 1 || bytes[11] > 2 ||
+    if (packet->bytes != 30 || bytes_le32(bytes + 7) != 0 || bytes[11] < 1 || bytes[11] > 2 ||
         small < 6 || large < small || large > 13 || bytes[29] != 1) {
         return false;
     }
-    track->rate = little32(bytes + 12);
+    track->rate = bytes_le32(bytes + 12);
     track->channels = bytes[11];
     track->min_block = (uint16_t)(1u << small);
     track->max_block = (uint16_t)(1u << large);

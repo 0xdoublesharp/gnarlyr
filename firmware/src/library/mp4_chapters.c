@@ -56,7 +56,7 @@ static bool read_u32(const TagReader *reader, uint32_t offset, uint32_t *value)
     if (!tag_read(reader, offset, bytes, sizeof bytes)) {
         return false;
     }
-    *value = tag_be32(bytes);
+    *value = bytes_be32(bytes);
     return true;
 }
 
@@ -251,8 +251,8 @@ static bool chunk_offset(const TagReader *reader, const TextTables *tables, uint
     if (!tag_read(reader, tables->chunks.body + TABLE_HEAD + width * (chunk - 1), bytes, width)) {
         return false;
     }
-    *offset = tag_be32(bytes + width - 4);
-    return !tables->wide || tag_be32(bytes) == 0;
+    *offset = bytes_be32(bytes + width - 4);
+    return !tables->wide || bytes_be32(bytes) == 0;
 }
 
 static bool enter_chunk(const TagReader *reader, const TextTables *tables, Walk *walk)
@@ -359,7 +359,7 @@ static uint32_t text_length(const Mp4Chapters *chapters, uint32_t index, const u
 {
     uint32_t length = read;
     if (chapters->prefixed) {
-        uint32_t declared = read >= TEXT_PREFIX ? tag_be16(raw) : 0;
+        uint32_t declared = read >= TEXT_PREFIX ? bytes_be16(raw) : 0;
         uint32_t room =
             chapters->length[index] >= TEXT_PREFIX ? chapters->length[index] - TEXT_PREFIX : 0;
         length = declared < room ? declared : room;

@@ -77,8 +77,7 @@ def text(data, start, size, required=True, url=False):
 
 
 def icon_box(slot):
-    name = ICON_NAMES[slot - 256]
-    narrow = name in ("BOLT", "BLUETOOTH_SMALL", "LOCK", "SONG_SMALL")
+    narrow = SLOTS["icon_bolt"] <= slot <= SLOTS["icon_plug"]
     small = slot >= SLOTS["icon_play"]
     return (9 if narrow else 14, 14) if small else (20, 20)
 

@@ -2,6 +2,7 @@
 
 #include "core/format_chain.h"
 #include "core/hash.h"
+#include "core/record.h"
 #include "equalizer_peak.h"
 
 enum {
@@ -163,7 +164,7 @@ static int16_t clock_offset(const uint8_t *extension)
 
 static void read_extension(const uint8_t *extension, Settings *settings)
 {
-    settings->status_items = extension[STATUS_ITEMS_BYTE];
+    settings->status_items = extension[STATUS_ITEMS_BYTE] & STATUS_ITEMS_BITS;
     settings->battery_care =
         (uint8_t)((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT);
     uint8_t comfort = extension[COMFORT_BYTE];
@@ -171,7 +172,7 @@ static void read_extension(const uint8_t *extension, Settings *settings)
     settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
     settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
     settings->clock_offset_minutes = clock_offset(extension);
-    settings->power_on_flags = extension[POWER_ON_BYTE];
+    settings->power_on_flags = extension[POWER_ON_BYTE] & POWER_ON_BITS;
     settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
     settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
     settings->transition_tenths = extension[TRANSITION_BYTE];
@@ -299,11 +300,6 @@ SettingsEqualizerCurve settings_equalizer_curve(const Settings *settings)
     return curve;
 }
 
-static uint32_t checksum_of(const uint8_t *bytes, int field)
-{
-    return hash_update(HASH_START, bytes, (uint32_t)field);
-}
-
 static void encode_extension(const Settings *settings, uint8_t *extension)
 {
     extension[COMFORT_BYTE] = (uint8_t)((settings->rewind_on_resume ? REWIND_BIT : 0) |
@@ -383,10 +379,9 @@ void settings_encode(const Settings *settings, uint8_t *bytes)
         bytes[LANGUAGE_FIELD + index] = (uint8_t)settings->language[index];
     }
     encode_extension(settings, bytes + EXTENSION_FIELD);
-    hash_store(bytes + EXTENSION_CHECKSUM_FIELD, checksum_of(bytes, EXTENSION_CHECKSUM_FIELD));
+    record_seal(bytes, EXTENSION_CHECKSUM_FIELD);
     encode_second(settings, bytes + SECOND_FIELD);
-    hash_store(bytes + SECOND_CHECKSUM_FIELD,
-               hash_update(HASH_START, bytes + SECOND_FIELD, EXTENSION_SIZE));
+    record_seal(bytes + SECOND_FIELD, EXTENSION_SIZE);
 }
 
 static bool magic_valid(const uint8_t *bytes)
@@ -413,10 +408,8 @@ static bool header_valid(const uint8_t *bytes)
     uint8_t flags = bytes[VERSION_FIELD + 1];
     return bytes[VERSION_FIELD] == VERSION && (flags & 0xC0u) == 0 &&
            (flags & 3u) < REPLAY_GAIN_MODE_COUNT && (flags >> 4u & 3u) < USB_CONNECT_COUNT &&
-           hash_load(bytes + EXTENSION_CHECKSUM_FIELD) ==
-               checksum_of(bytes, EXTENSION_CHECKSUM_FIELD) &&
-           hash_load(bytes + SECOND_CHECKSUM_FIELD) ==
-               hash_update(HASH_START, bytes + SECOND_FIELD, EXTENSION_SIZE);
+           record_sealed(bytes, EXTENSION_CHECKSUM_FIELD) &&
+           record_sealed(bytes + SECOND_FIELD, EXTENSION_SIZE);
 }
 
 static bool gains_valid(const uint8_t *bytes)
@@ -620,14 +613,14 @@ void settings_buttons_encode(const Settings *settings, uint8_t *bytes)
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
         bytes[8 + index] = (uint8_t)settings_button_action(settings, (PlaybackButton)index);
     }
-    hash_store(bytes + 28, hash_update(HASH_START, bytes, 28));
+    record_seal(bytes, 28);
 }
 
 bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *settings)
 {
     if (length != SETTINGS_BUTTONS_FILE_SIZE || bytes[0] != 'D' || bytes[1] != 'S' ||
         bytes[2] != 'B' || bytes[3] != 'T' || bytes[4] != 1 || bytes[5] != PLAYBACK_BUTTON_COUNT ||
-        hash_load(bytes + 28) != hash_update(HASH_START, bytes, 28)) {
+        !record_sealed(bytes, 28)) {
         return false;
     }
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {

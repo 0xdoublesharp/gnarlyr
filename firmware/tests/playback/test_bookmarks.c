@@ -1,5 +1,6 @@
 #include "check.h"
 #include "playback/bookmarks.h"
+#include <string.h>
 
 static Bookmarks bookmarks;
 static uint8_t bytes[BOOKMARKS_FILE_CAPACITY];
@@ -117,9 +118,31 @@ static void a_damaged_or_empty_file_is_rejected(void)
     CHECK(!bookmarks_decode(bytes, 3, &decoded));
 }
 
+static const uint8_t GOLDEN_BOOKMARKS[] = {
+    0x44, 0x53, 0x42, 0x4B, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x44, 0x33, 0x22, 0x11,
+    0xD4, 0xC3, 0xB2, 0xA1, 0x91, 0x82, 0x0B, 0x00, 0x03, 0x00, 0x01, 0x00, 0x88, 0x77, 0x66, 0x55,
+    0x0D, 0xF0, 0xAD, 0x0B, 0xC0, 0xD4, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7A, 0x53, 0x6C, 0xAC,
+};
+static void the_stored_bytes_stay_those_of_the_first_layout(void)
+{
+    Bookmarks sample = {.count = 2};
+    sample.entries[0] = (Bookmark){0x11223344u, 0xA1B2C3D4u, 754321u, 3, 1};
+    sample.entries[1] = (Bookmark){0x55667788u, 0x0BADF00Du, 120000u, 0, 0};
+    uint8_t encoded[sizeof GOLDEN_BOOKMARKS];
+    CHECK_EQUAL(sizeof GOLDEN_BOOKMARKS, bookmarks_encode(&sample, encoded));
+    CHECK(memcmp(GOLDEN_BOOKMARKS, encoded, sizeof encoded) == 0);
+    Bookmarks decoded;
+    CHECK(bookmarks_decode(GOLDEN_BOOKMARKS, sizeof GOLDEN_BOOKMARKS, &decoded));
+    CHECK_EQUAL(2, decoded.count);
+    CHECK_EQUAL(0x0BADF00Du, decoded.entries[1].track_key);
+    CHECK_EQUAL(3, decoded.entries[0].chapter);
+    CHECK_EQUAL(1, decoded.entries[0].flags);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_stored_bytes_stay_those_of_the_first_layout),
         TEST_CASE(a_new_list_finds_nothing),
         TEST_CASE(a_put_bookmark_is_found_by_its_key),
         TEST_CASE(putting_the_same_key_replaces_it),

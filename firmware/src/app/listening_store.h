@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "path_file.h"
 #include "playback/listening_export.h"
 #include "playback/listening_track.h"
 #include "player.h"
@@ -10,10 +11,6 @@
 enum {
     LISTENING_EXPORT_FILE_BYTES = 2 * 1024 * 1024
 };
-
-typedef struct ListeningFile {
-    const char *path;
-} ListeningFile;
 
 typedef struct ListeningObservation {
     PlayerStatus status;
@@ -23,7 +20,7 @@ typedef struct ListeningObservation {
 
 typedef struct ListeningStore {
     ListeningLog log;
-    ListeningFile file;
+    PathFile file;
     const Library *library;
     ListeningPlay active;
     ListeningPlay pending;
@@ -37,7 +34,7 @@ typedef struct ListeningStore {
     bool failed;
 } ListeningStore;
 
-StoreFile listening_store_file(ListeningFile *file, const char *path, uint32_t bytes);
+StoreFile listening_store_file(PathFile *file, const char *path, uint32_t bytes);
 void listening_store_attach(ListeningStore *store, const Library *library, StoreFile file);
 void listening_store_load(ListeningStore *store, const Library *library);
 void listening_store_detach(ListeningStore *store);

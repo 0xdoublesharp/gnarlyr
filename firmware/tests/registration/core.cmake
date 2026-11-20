@@ -20,6 +20,8 @@ echo_add_unit_test(NAME test_dac_identity SOURCES core/test_dac_identity.c LIBRA
 echo_add_unit_test(NAME test_random SOURCES core/test_random.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_permutation SOURCES core/test_permutation.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_hash SOURCES core/test_hash.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_bytes SOURCES core/test_bytes.c LIBRARIES echo_core)
+echo_add_unit_test(NAME test_record SOURCES core/test_record.c LIBRARIES echo_core)
 echo_add_unit_test(NAME test_i18n SOURCES core/test_i18n.c LIBRARIES echo_core echo_test_pack)
 echo_add_unit_test(NAME test_i18n_fallback
     SOURCES core/test_i18n_fallback.c support/test_pack.c ${PROJECT_SOURCE_DIR}/src/core/i18n.c

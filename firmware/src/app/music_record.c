@@ -15,13 +15,6 @@ enum {
 _Static_assert(STATE_AT == INTERNAL_AT + 12, "the state follows the internal fingerprint");
 _Static_assert((int)MUSIC_DRIVE_UNKNOWN == (int)MUSIC_CHECK_STATE_UNKNOWN, "one unknown state");
 
-static void put_word(uint8_t *bytes, uint32_t value)
-{
-    for (int index = 0; index < 4; index++) {
-        bytes[index] = (uint8_t)(value >> (8 * index));
-    }
-}
-
 static MusicFingerprint decode_print(const uint8_t *bytes)
 {
     return (MusicFingerprint){.complete = true,
@@ -32,9 +25,9 @@ static MusicFingerprint decode_print(const uint8_t *bytes)
 
 static void encode_print(uint8_t *bytes, MusicFingerprint print)
 {
-    put_word(bytes, print.first);
-    put_word(bytes + 4, print.second);
-    put_word(bytes + 8, print.entries);
+    bytes_put_le32(bytes, print.first);
+    bytes_put_le32(bytes + 4, print.second);
+    bytes_put_le32(bytes + 8, print.entries);
 }
 
 bool music_record_read(MusicRecord *record)
@@ -54,12 +47,12 @@ bool music_record_read(MusicRecord *record)
 void music_record_write(const MusicRecord *record)
 {
     uint8_t bytes[MUSIC_CHECK_RECORD_BYTES];
-    put_word(bytes, MUSIC_CHECK_RECORD_MAGIC);
+    bytes_put_le32(bytes, MUSIC_CHECK_RECORD_MAGIC);
     encode_print(bytes + CARD_AT, record->card);
     music_check_put_version(bytes + MUSIC_CHECK_PRINT_BYTES);
     encode_print(bytes + INTERNAL_AT, record->internal);
-    put_word(bytes + STATE_AT, record->internal_state);
-    put_word(bytes + GENERATION_AT, record->generation);
+    bytes_put_le32(bytes + STATE_AT, record->internal_state);
+    bytes_put_le32(bytes + GENERATION_AT, record->generation);
     (void)hal_file_write_at(MUSIC_CHECK_PATH, 0, bytes, sizeof bytes);
 }
 

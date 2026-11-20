@@ -12,7 +12,7 @@ enum {
     WHOLE_SCALES = 3,
     ODD_SIDE = 26,
     ODD_STROKE = 3,
-    MENU_BARS = 3,
+    SETTINGS_BARS = 3,
     BACKGROUND = 0x0821,
     MAIN = 0xFFFF,
     ACCENT = 0xF800
@@ -21,32 +21,38 @@ enum {
 static const IconInk INK = {MAIN, ACCENT};
 
 static const uint8_t MIRRORED[] = {
-    ICON_PODCAST,  ICON_AUDIO,     ICON_COVER_FLOW,  ICON_ARTIST, ICON_FAVORITE,
-    ICON_DISPLAY,  ICON_POWER,     ICON_CONTROLS,    ICON_START,  ICON_JACK,
-    ICON_KEY_PLUS, ICON_KEY_MINUS, ICON_KEY_MENU,    ICON_DISC,   ICON_HUB,
-    ICON_PAUSE,    ICON_SEEK,      ICON_ALBUM_SMALL, ICON_LOCK,   ICON_PLUG,
+    ICON_PODCAST, ICON_AUDIO, ICON_COVER_FLOW, ICON_ARTIST,      ICON_FAVORITE, ICON_JACK,
+    ICON_DISC,    ICON_HUB,   ICON_PAUSE,      ICON_ALBUM_SMALL, ICON_LOCK,     ICON_PLUG,
 };
 
 static const uint8_t FLIPPED[] = {
     ICON_GENRE,
-    ICON_SHUFFLE,
-    ICON_THEME,
-    ICON_SLEEP,
-    ICON_BLUETOOTH,
-    ICON_KEY_PLUS,
-    ICON_KEY_MINUS,
-    ICON_KEY_MENU,
     ICON_DISC,
     ICON_HUB,
     ICON_PLAY,
     ICON_PAUSE,
     ICON_NEXT,
     ICON_PREVIOUS,
-    ICON_SEEK,
     ICON_SPEAKER,
     ICON_ALBUM_SMALL,
     ICON_SHUFFLE_SMALL,
     ICON_BLUETOOTH_SMALL,
+};
+
+static const uint8_t UNDRAWN[] = {
+    ICON_SHUFFLE,   ICON_DISPLAY,  ICON_THEME,    ICON_POWER,     ICON_SLEEP,
+    ICON_CONTROLS,  ICON_START,    ICON_RESCAN,   ICON_BLUETOOTH, ICON_KEY_PLUS,
+    ICON_KEY_MINUS, ICON_KEY_PLAY, ICON_KEY_MENU, ICON_SEEK,
+};
+
+static const uint8_t ICON_NUMBERS[][2] = {
+    {ICON_MUSIC, 1},        {ICON_FAVORITE, 16}, {ICON_SHUFFLE, 17},   {ICON_REPEAT, 18},
+    {ICON_DISPLAY, 19},     {ICON_THEME, 20},    {ICON_POWER, 21},     {ICON_SLEEP, 22},
+    {ICON_TIMEOUT, 23},     {ICON_CONTROLS, 24}, {ICON_START, 25},     {ICON_RESCAN, 26},
+    {ICON_DIAGNOSTICS, 27}, {ICON_USB, 30},      {ICON_BLUETOOTH, 31}, {ICON_KEY_PLUS, 32},
+    {ICON_KEY_MINUS, 33},   {ICON_KEY_PLAY, 34}, {ICON_KEY_MENU, 35},  {ICON_DISC, 36},
+    {ICON_PREVIOUS, 43},    {ICON_SEEK, 44},     {ICON_QUEUE, 45},     {ICON_BOLT, 49},
+    {ICON_SONG_SMALL, 52},  {ICON_PLUG, 53},
 };
 
 static const uint32_t SHAPES[ICON_COUNT] = {
@@ -67,25 +73,12 @@ static const uint32_t SHAPES[ICON_COUNT] = {
     [ICON_SONG] = 0x46395B4F,
     [ICON_PLAYLIST] = 0x5C1D410F,
     [ICON_FAVORITE] = 0x3097EBB5,
-    [ICON_SHUFFLE] = 0x4AD0B802,
     [ICON_REPEAT] = 0xF6F17BD1,
-    [ICON_DISPLAY] = 0x3BFC49B1,
-    [ICON_THEME] = 0xF562B02D,
-    [ICON_POWER] = 0xEF225AA3,
-    [ICON_SLEEP] = 0x5288ECE9,
     [ICON_TIMEOUT] = 0xE35E07CB,
-    [ICON_CONTROLS] = 0xA7F1E9A9,
-    [ICON_START] = 0xB28DA15D,
-    [ICON_RESCAN] = 0xD98FE13D,
     [ICON_DIAGNOSTICS] = 0x2B171105,
     [ICON_GAIN] = 0xC875ED0D,
     [ICON_JACK] = 0x9EACD88D,
     [ICON_USB] = 0x907285B1,
-    [ICON_BLUETOOTH] = 0x01F30915,
-    [ICON_KEY_PLUS] = 0x861C7F19,
-    [ICON_KEY_MINUS] = 0x8F6E6859,
-    [ICON_KEY_PLAY] = 0x296191DB,
-    [ICON_KEY_MENU] = 0x915B7939,
     [ICON_DISC] = 0x9C6F6D25,
     [ICON_HUB] = 0x1ACF85C1,
     [ICON_SEARCH] = 0x2AC8F027,
@@ -94,7 +87,6 @@ static const uint32_t SHAPES[ICON_COUNT] = {
     [ICON_PAUSE] = 0xA739DBA5,
     [ICON_NEXT] = 0xE55CF759,
     [ICON_PREVIOUS] = 0x523E8999,
-    [ICON_SEEK] = 0xE7C1C5FD,
     [ICON_QUEUE] = 0x939F1D1B,
     [ICON_SPEAKER] = 0xC62C77C9,
     [ICON_ALBUM_SMALL] = 0x739C8001,
@@ -219,6 +211,11 @@ static bool listed(const uint8_t *list, size_t count, IconId icon)
     return false;
 }
 
+static bool drawn_icon(int icon)
+{
+    return !listed(UNDRAWN, sizeof UNDRAWN, (IconId)icon);
+}
+
 static void check_symmetry(const Canvas *canvas, IconId icon)
 {
     if (listed(MIRRORED, sizeof MIRRORED, icon)) {
@@ -278,7 +275,9 @@ static void every_icon_is_whole_at_each_text_size_in_both_orientations(void)
         for (int turn = 0; turn < 2; turn++) {
             Theme theme = theme_for(size, orientations[turn]);
             for (int icon = ICON_NONE + 1; icon < ICON_COUNT; icon++) {
-                check_on_screen(&theme, (IconId)icon);
+                if (drawn_icon(icon)) {
+                    check_on_screen(&theme, (IconId)icon);
+                }
             }
         }
     }
@@ -305,6 +304,9 @@ static void every_icon_stays_inside_its_area_at_any_size(void)
 {
     for (int side = SMALLEST_SIDE; side <= LARGEST_SIDE; side++) {
         for (int icon = ICON_NONE + 1; icon < ICON_COUNT; icon++) {
+            if (!drawn_icon(icon)) {
+                continue;
+            }
             Canvas canvas = blank_canvas();
             Rect area = {ORIGIN, ORIGIN, side, side};
             icon_draw(&canvas, (IconId)icon, area, INK);
@@ -318,8 +320,10 @@ static void symmetric_icons_stay_symmetric_at_whole_multiples_of_their_grid(void
 {
     for (int scale = 1; scale <= WHOLE_SCALES; scale++) {
         for (int icon = ICON_NONE + 1; icon < ICON_COUNT; icon++) {
-            check_whole((IconId)icon,
-                        area_of_height((IconId)icon, scale * icon_rows((IconId)icon)));
+            if (drawn_icon(icon)) {
+                check_whole((IconId)icon,
+                            area_of_height((IconId)icon, scale * icon_rows((IconId)icon)));
+            }
         }
     }
 }
@@ -327,10 +331,12 @@ static void symmetric_icons_stay_symmetric_at_whole_multiples_of_their_grid(void
 static void every_icon_keeps_its_drawn_shape(void)
 {
     for (int icon = ICON_NONE + 1; icon < ICON_COUNT; icon++) {
-        Canvas canvas = blank_canvas();
-        Rect area = natural_area((IconId)icon);
-        icon_draw(&canvas, (IconId)icon, area, INK);
-        CHECK_EQUAL(SHAPES[icon], shape_hash(&canvas, area));
+        if (drawn_icon(icon)) {
+            Canvas canvas = blank_canvas();
+            Rect area = natural_area((IconId)icon);
+            icon_draw(&canvas, (IconId)icon, area, INK);
+            CHECK_EQUAL(SHAPES[icon], shape_hash(&canvas, area));
+        }
     }
 }
 
@@ -369,18 +375,18 @@ static bool row_has_color(const Canvas *canvas, int y, Color color)
 static void the_strokes_of_an_icon_share_one_width_at_an_odd_size(void)
 {
     Canvas canvas = blank_canvas();
-    icon_draw(&canvas, ICON_KEY_MENU, (Rect){ORIGIN, ORIGIN, ODD_SIDE, ODD_SIDE}, INK);
+    icon_draw(&canvas, ICON_SETTINGS, (Rect){ORIGIN, ORIGIN, ODD_SIDE, ODD_SIDE}, INK);
     int run = 0;
     int bars = 0;
     for (int y = 0; y < CANVAS_SIZE; y++) {
-        bool inked = row_has_color(&canvas, y, ACCENT);
+        bool inked = row_has_color(&canvas, y, MAIN);
         if (!inked && run > 0) {
             CHECK_EQUAL(ODD_STROKE, run);
             bars++;
         }
         run = inked ? run + 1 : 0;
     }
-    CHECK_EQUAL(MENU_BARS, bars);
+    CHECK_EQUAL(SETTINGS_BARS, bars);
 }
 
 static void an_icon_scales_to_fill_a_larger_area(void)
@@ -409,9 +415,11 @@ static void enlarged_diagonals_use_the_destination_resolution(void)
 {
     Canvas canvas = blank_canvas();
     Rect area = {ORIGIN, ORIGIN, 2 * ICON_LARGE_GRID, 2 * ICON_LARGE_GRID};
-    icon_draw(&canvas, ICON_SHUFFLE, area, (IconInk){MAIN, MAIN});
-    CHECK_EQUAL(MAIN, canvas_pixel_at(&canvas, ORIGIN + 12, ORIGIN + 9));
-    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, ORIGIN + 13, ORIGIN + 9));
+    icon_draw(&canvas, ICON_GENRE, area, (IconInk){MAIN, MAIN});
+    CHECK_EQUAL(MAIN, canvas_pixel_at(&canvas, ORIGIN + 14, ORIGIN + 12));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, ORIGIN + 15, ORIGIN + 12));
+    CHECK_EQUAL(MAIN, canvas_pixel_at(&canvas, ORIGIN + 13, ORIGIN + 13));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, ORIGIN + 14, ORIGIN + 13));
     CHECK_EQUAL(0, count_ink(&canvas, area, false));
 }
 
@@ -425,6 +433,25 @@ static void accent_parts_use_the_accent_ink(void)
     canvas = blank_canvas();
     icon_draw(&canvas, ICON_NOW_PLAYING, area, (IconInk){MAIN, MAIN});
     CHECK_EQUAL(0, count_color(&canvas, ACCENT));
+}
+
+static void undrawn_icons_draw_nothing_at_any_size(void)
+{
+    for (size_t index = 0; index < sizeof UNDRAWN; index++) {
+        for (int side = SMALLEST_SIDE; side <= LARGEST_SIDE; side++) {
+            Canvas canvas = blank_canvas();
+            Rect area = {ORIGIN, ORIGIN, side, side};
+            icon_draw(&canvas, (IconId)UNDRAWN[index], area, INK);
+            CHECK_EQUAL(0, count_color(&canvas, MAIN) + count_color(&canvas, ACCENT));
+        }
+    }
+}
+
+static void icon_ids_keep_their_numbers(void)
+{
+    for (size_t index = 0; index < sizeof ICON_NUMBERS / sizeof ICON_NUMBERS[0]; index++) {
+        CHECK_EQUAL(ICON_NUMBERS[index][1], ICON_NUMBERS[index][0]);
+    }
 }
 
 static void no_icon_draws_nothing(void)
@@ -452,6 +479,8 @@ int main(void)
         TEST_CASE(an_icon_stays_inside_the_canvas_clip),
         TEST_CASE(enlarged_diagonals_use_the_destination_resolution),
         TEST_CASE(accent_parts_use_the_accent_ink),
+        TEST_CASE(undrawn_icons_draw_nothing_at_any_size),
+        TEST_CASE(icon_ids_keep_their_numbers),
         TEST_CASE(no_icon_draws_nothing),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

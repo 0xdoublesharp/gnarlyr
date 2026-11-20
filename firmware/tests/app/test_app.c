@@ -5798,15 +5798,19 @@ static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_res
     tap(KEY_PLAY);
     Settings settings;
     CHECK(saved_settings(&settings));
-    CHECK_EQUAL(0xB3, settings.power_on_flags);
+    CHECK_EQUAL(0x10, settings.power_on_flags);
+    CHECK_EQUAL(0x23, settings.status_items);
+    CHECK(settings.speech_boost);
     restart_app();
     CHECK(saved_settings(&settings));
-    CHECK_EQUAL(0xB3, settings.power_on_flags);
+    CHECK_EQUAL(0x10, settings.power_on_flags);
     open_setting(SETTINGS_USB_ANSWER_INDEX + 1);
     move_down(1);
     tap(KEY_PLAY);
     CHECK(saved_settings(&settings));
-    CHECK_EQUAL(0xA3, settings.power_on_flags);
+    CHECK_EQUAL(0, settings.power_on_flags);
+    CHECK_EQUAL(0x23, settings.status_items);
+    CHECK(settings.speech_boost);
 }
 
 static void the_home_menu_opens_the_same_three_mode_selector(void)

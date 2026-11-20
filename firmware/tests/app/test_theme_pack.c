@@ -7,6 +7,7 @@
 #include "theme_fixture.h"
 #include "theme_pack.h"
 #include "theme_signature.h"
+#include "ui/icons.h"
 #include "ui/theme.h"
 
 static uint8_t bytes[65536];
@@ -149,6 +150,23 @@ static void slots_keep_their_sizes_and_variants_stay_unique(void)
     CHECK(open_as(THEME_PACK_COMPLETE));
 }
 
+static void icon_slots_keep_their_numbers_whether_or_not_the_icon_is_drawn(void)
+{
+    static const ThemeFixtureArt icons[] = {
+        {THEME_ART_ICON + ICON_SHUFFLE, 0, 255, 20, 20, ART_CODEC_INDEXED, 0},
+        {THEME_ART_ICON + ICON_KEY_MENU, 0, 255, 20, 20, ART_CODEC_INDEXED, 0},
+        {THEME_ART_ICON + ICON_SEEK, 0, 255, 14, 14, ART_CODEC_INDEXED, 0},
+        {THEME_ART_ICON + ICON_PLUG, 0, 255, 9, 14, ART_CODEC_INDEXED, 0},
+    };
+    CHECK_EQUAL(256, THEME_ART_ICON);
+    CHECK_EQUAL(273, icons[0].slot);
+    CHECK_EQUAL(291, icons[1].slot);
+    CHECK_EQUAL(300, icons[2].slot);
+    CHECK_EQUAL(309, icons[3].slot);
+    build(icons, 4, NULL, 0);
+    CHECK(open_as(THEME_PACK_COMPLETE));
+}
+
 static void fill_stack(void)
 {
     volatile uint8_t junk[16384];
@@ -286,6 +304,7 @@ int main(void)
         TEST_CASE(version_1_and_reserved_header_fields_are_refused),
         TEST_CASE(every_descriptor_bound_is_checked),
         TEST_CASE(slots_keep_their_sizes_and_variants_stay_unique),
+        TEST_CASE(icon_slots_keep_their_numbers_whether_or_not_the_icon_is_drawn),
         TEST_CASE(a_transparent_lossless_icon_passes_the_complete_check),
         TEST_CASE(payloads_are_decode_checked_only_by_the_complete_check),
         TEST_CASE(style_entries_are_bounded_known_and_unique),

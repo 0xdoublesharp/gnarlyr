@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "core/bytes.h"
+
 enum {
     OGG_HEADER_BYTES = 27,
     OGG_CRC_OFFSET = 22,
@@ -10,12 +12,6 @@ enum {
     OGG_FIRST = 2,
     OGG_LAST = 4
 };
-
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
 
 static uint32_t crc_update(uint32_t crc, const uint8_t *bytes, uint32_t length)
 {
@@ -101,13 +97,14 @@ OggPacketResult ogg_page_read(FlacInput input, uint32_t offset, OggPage *page)
         return OGG_PACKET_INVALID;
     }
     candidate.next = candidate.body + size;
-    result = check_page(input, offset, candidate.next - offset, little32(header + OGG_CRC_OFFSET));
+    result =
+        check_page(input, offset, candidate.next - offset, bytes_le32(header + OGG_CRC_OFFSET));
     if (result != OGG_PACKET_READY) {
         return result;
     }
-    candidate.serial = little32(header + 14);
-    candidate.sequence = little32(header + 18);
-    candidate.granule = (uint64_t)little32(header + 6) | (uint64_t)little32(header + 10) << 32;
+    candidate.serial = bytes_le32(header + 14);
+    candidate.sequence = bytes_le32(header + 18);
+    candidate.granule = (uint64_t)bytes_le32(header + 6) | (uint64_t)bytes_le32(header + 10) << 32;
     *page = candidate;
     return OGG_PACKET_READY;
 }

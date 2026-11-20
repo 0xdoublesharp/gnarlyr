@@ -241,8 +241,8 @@ src/settings/parametric_import.c: "PK"
 src/settings/parametric_import.c: "PREAMP"
 src/app/screens/moments_screen.c: "/moments.bin"
 
-# The internal volume label older builds wrote; mounting renames it to the firmware name.
-platform/device/board/internal_volume.c: "ECHO"
+# FiiO's stock internal volume label; module 15 renames it to the firmware name at start-up.
+platform/device/board/trial_boot_module.c: "ECHO"
 
 src/app/theme_catalog.c: ".gtheme"
 src/app/theme_runtime.c: "/themes"

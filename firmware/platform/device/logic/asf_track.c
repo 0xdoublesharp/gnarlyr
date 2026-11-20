@@ -2,25 +2,16 @@
 
 #include <stddef.h>
 
-static uint32_t little32(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 | (uint32_t)bytes[2] << 16 |
-           (uint32_t)bytes[3] << 24;
-}
-
-static uint32_t little16(const uint8_t *bytes)
-{
-    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8;
-}
+#include "core/bytes.h"
 
 static uint64_t little64(const uint8_t *bytes)
 {
-    return (uint64_t)little32(bytes) | (uint64_t)little32(bytes + 4) << 32;
+    return (uint64_t)bytes_le32(bytes) | (uint64_t)bytes_le32(bytes + 4) << 32;
 }
 
 static bool guid(const uint8_t *bytes, uint32_t first, const uint8_t *tail)
 {
-    if (little32(bytes) != first) {
+    if (bytes_le32(bytes) != first) {
         return false;
     }
     for (uint32_t index = 0; index < 12; index++) {
@@ -50,13 +41,13 @@ static bool properties(FlacInput input, uint32_t at, uint32_t size, AsfTrack *tr
     uint64_t preroll = little64(bytes + 56);
     uint64_t packets = little64(bytes + 32);
     if (play <= preroll || play - preroll > UINT32_MAX || packets == 0 || packets > UINT32_MAX ||
-        little32(bytes + 64) != 2 || little32(bytes + 68) != little32(bytes + 72)) {
+        bytes_le32(bytes + 64) != 2 || bytes_le32(bytes + 68) != bytes_le32(bytes + 72)) {
         return false;
     }
     track->duration_ms = (uint32_t)(play - preroll);
     track->preroll_ms = (uint32_t)preroll;
     track->packets = (uint32_t)packets;
-    track->packet_bytes = little32(bytes + 72);
+    track->packet_bytes = bytes_le32(bytes + 72);
     return track->packet_bytes >= 16 && track->packet_bytes <= ASF_PACKET_BYTES;
 }
 
@@ -69,18 +60,18 @@ static bool audio_stream(FlacInput input, uint32_t at, uint32_t size, AsfTrack *
     if (!guid(bytes, 0xF8699E40u, AUDIO_TAIL)) {
         return true;
     }
-    uint32_t type_bytes = little32(bytes + 40);
-    uint32_t flags = little16(bytes + 48);
-    uint32_t extra = little16(bytes + 70);
+    uint32_t type_bytes = bytes_le32(bytes + 40);
+    uint32_t flags = bytes_le16(bytes + 48);
+    uint32_t extra = bytes_le16(bytes + 70);
     if (track->stream != 0 || type_bytes < 18 || type_bytes > size - 78 ||
         extra > type_bytes - 18 || (flags & 0x8000) != 0 || (flags & 0x7F) == 0) {
         return false;
     }
-    track->codec = (uint16_t)little16(bytes + 54);
-    track->channels = (uint16_t)little16(bytes + 56);
-    track->rate = little32(bytes + 58);
-    uint64_t bitrate = (uint64_t)little32(bytes + 62) * 8;
-    track->block_align = (uint16_t)little16(bytes + 66);
+    track->codec = (uint16_t)bytes_le16(bytes + 54);
+    track->channels = (uint16_t)bytes_le16(bytes + 56);
+    track->rate = bytes_le32(bytes + 58);
+    uint64_t bitrate = (uint64_t)bytes_le32(bytes + 62) * 8;
+    track->block_align = (uint16_t)bytes_le16(bytes + 66);
     track->stream = (uint8_t)(flags & 0x7F);
     track->extra_bytes = (uint16_t)(extra < sizeof track->extra ? extra : sizeof track->extra);
     if (bitrate == 0 || bitrate > 768000 || extra < (track->codec == 0x160 ? 4u : 6u)) {
@@ -108,7 +99,7 @@ static bool object(FlacInput input, uint32_t *offset, uint32_t limit, AsfTrack *
         return false;
     }
     uint64_t size = little64(header + 16);
-    track->unsupported = little32(header) == 0x2211B3FBu || little32(header) == 0x298AE614u;
+    track->unsupported = bytes_le32(header) == 0x2211B3FBu || bytes_le32(header) == 0x298AE614u;
     if (size < sizeof header || size > limit - at || track->unsupported) {
         return false;
     }
@@ -129,7 +120,7 @@ static bool probe(FlacInput input, AsfTrack *track)
         return false;
     }
     uint64_t size = little64(header + 16);
-    uint32_t count = little32(header + 24);
+    uint32_t count = bytes_le32(header + 24);
     if (size < 30 || size > input.size || count > (size - 30) / 24) {
         return false;
     }
