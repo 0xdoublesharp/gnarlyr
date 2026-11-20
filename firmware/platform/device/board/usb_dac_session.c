@@ -4,6 +4,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/headphone_audio.h"
 #include "core/i18n.h"
 #include "debug_probe.h"
@@ -334,7 +335,7 @@ static void sample_buffer(void)
 
 static void step_meter(uint32_t now_ms)
 {
-    if (menu_open || now_ms - meter_ms < METER_FRAME_MS) {
+    if (menu_open || !deadline_elapsed(now_ms, meter_ms, METER_FRAME_MS)) {
         return;
     }
     uint8_t changed = follow_levels(now_ms);
@@ -531,7 +532,7 @@ static void follow_back(HalKeyTransition key)
         if (menu_open) {
             follow_menu(usb_dac_menu_key(&menu, KEY_BACK, key.time_ms));
         }
-    } else if (back_armed && key.time_ms - back_pressed_ms >= BACK_HOLD_MS) {
+    } else if (back_armed && deadline_elapsed(key.time_ms, back_pressed_ms, BACK_HOLD_MS)) {
         next = DAC_NEXT_MODES;
     } else if (back_armed) {
         back_armed = false;

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "debug_runner_state.h"
 #include "hal/clock.h"
 #include "hal/system.h"
@@ -93,7 +94,7 @@ void debug_runner_abort(void)
 
 static bool reached(uint32_t now_ms)
 {
-    return (int32_t)(now_ms - debug_runner.until_ms) >= 0;
+    return deadline_reached(now_ms, debug_runner.until_ms);
 }
 
 static void reconnect_when_due(uint32_t now_ms)

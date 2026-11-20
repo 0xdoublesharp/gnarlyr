@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "player_private.h"
@@ -87,7 +88,7 @@ StoreResult order_publish_step(OrderPublish *job)
             return finish(job, false);
         }
         hal_audio_service();
-        if (hal_clock_microseconds() - started >= BUDGET_US) {
+        if (deadline_elapsed(hal_clock_microseconds(), started, BUDGET_US)) {
             break;
         }
     }

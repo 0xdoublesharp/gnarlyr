@@ -1,5 +1,6 @@
 #include "home_art.h"
 
+#include "core/deadline.h"
 #include "gfx/image.h"
 #include "ui/icons.h"
 #include "ui/label.h"
@@ -84,7 +85,7 @@ static void cycle(HomeArt *art, uint32_t count, uint32_t now_ms)
         art->next_change_ms = now_ms + HOME_ART_CYCLE_MS;
         return;
     }
-    if ((int32_t)(now_ms - art->next_change_ms) >= 0) {
+    if (deadline_reached(now_ms, art->next_change_ms)) {
         show_next_with_a_cover(art, count);
         art->next_change_ms = now_ms + HOME_ART_CYCLE_MS;
     }

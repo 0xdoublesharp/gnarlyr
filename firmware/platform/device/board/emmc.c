@@ -4,6 +4,7 @@
 
 #include "app/debug_loop.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "cru.h"
 #include "device/block_read.h"
@@ -91,7 +92,8 @@ static bool wait_for_ocr(void)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     uint32_t since = hal_clock_milliseconds();
-    for (int attempt = 0; attempt < OCR_TRIES && hal_clock_milliseconds() - since < OCR_WAIT_MS;
+    for (int attempt = 0;
+         attempt < OCR_TRIES && !deadline_elapsed(hal_clock_milliseconds(), since, OCR_WAIT_MS);
          attempt++) {
         if (command(CMD_SEND_OP_COND, OCR_ARGUMENT, SD_RESPONSE_SHORT_NO_CRC, words) &&
             (words[0] & OCR_READY) != 0) {

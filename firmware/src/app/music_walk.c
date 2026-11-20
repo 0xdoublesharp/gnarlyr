@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "app/app.h"
+#include "core/deadline.h"
 #include "core/drive_path.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
@@ -41,7 +42,7 @@ static void show_counts(const MusicWalk *state, uint32_t now)
     char text[160];
     StringBuilder builder = string_builder_make(text, sizeof text);
     i18n_format_counts(&builder, STR_CHECK_COUNTS, state->folders, state->files);
-    if (now - state->started_ms >= 5000) {
+    if (deadline_elapsed(now, state->started_ms, 5000)) {
         string_builder_append_char(&builder, '\n');
         i18n_format_counts(&builder, STR_CHECK_ELAPSED, (now - state->started_ms) / 1000, 0);
     }
@@ -63,7 +64,7 @@ static void show_progress(MusicWalk *state)
         return;
     }
     uint32_t now = hal_clock_milliseconds();
-    if (now - state->shown_ms < 150) {
+    if (!deadline_elapsed(now, state->shown_ms, 150)) {
         return;
     }
     state->shown_ms = now;

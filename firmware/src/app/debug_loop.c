@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "debug_loop_internal.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
@@ -120,7 +121,7 @@ static void follow_audio(void)
 void debug_loop_follow(uint32_t now_ms, const Player *player)
 {
     follow_player(player);
-    if (now_ms - loop.followed_ms >= FOLLOW_INTERVAL_MS) {
+    if (deadline_elapsed(now_ms, loop.followed_ms, FOLLOW_INTERVAL_MS)) {
         loop.followed_ms = now_ms;
         follow_audio();
     }

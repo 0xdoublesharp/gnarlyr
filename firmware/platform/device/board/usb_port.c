@@ -1,5 +1,6 @@
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "device/usb_fifo.h"
 #include "fifo_words.h"
@@ -542,7 +543,8 @@ static void pump_audio_in(UsbPort *port)
     uint16_t usage = 0;
     uint32_t now = hal_clock_milliseconds();
     bool pending = usb_audio_hid_report(&port->hid, &usage);
-    bool idle = port->audio->hid_idle != 0 && now - port->hid_sent_ms >= 4u * port->audio->hid_idle;
+    bool idle = port->audio->hid_idle != 0 &&
+                deadline_elapsed(now, port->hid_sent_ms, 4u * port->audio->hid_idle);
     if ((pending || idle) && send_periodic(2, usage, 2, false)) {
         port->audio->hid_usage = usage;
         port->hid_sent_ms = now;
@@ -587,7 +589,8 @@ static bool burst_over(const UsbPort *port, UsbBurst *burst, uint32_t turn)
     if (storage_active(port)) {
         burst->served = true;
         burst->listening = false;
-        return timed && hal_clock_milliseconds() - burst->start_ms >= STREAM_BURST_MS;
+        return timed &&
+               deadline_elapsed(hal_clock_milliseconds(), burst->start_ms, STREAM_BURST_MS);
     }
     if (!burst->served || port->yield_when_idle) {
         return true;
@@ -597,7 +600,7 @@ static bool burst_over(const UsbPort *port, UsbBurst *burst, uint32_t turn)
         burst->listening = true;
         burst->idle_ms = now;
     }
-    return now - burst->idle_ms >= STREAM_LISTEN_MS;
+    return deadline_elapsed(now, burst->idle_ms, STREAM_LISTEN_MS);
 }
 
 static void stream_burst(UsbPort *port)
@@ -629,7 +632,7 @@ static void stream_burst(UsbPort *port)
 bool usb_wait_for_host(UsbPort *port, uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
-    while (hal_clock_milliseconds() - start < timeout_ms) {
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, timeout_ms)) {
         if ((read_register(GINTSTS) & GINT_USB_RESET) != 0) {
             handle_reset(port);
             return true;

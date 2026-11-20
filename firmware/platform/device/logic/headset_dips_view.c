@@ -1,9 +1,11 @@
 #include "device/headset_dips.h"
 
+#include "core/deadline.h"
+
 HeadsetDipView headset_dips_view(const HeadsetDips *dips, uint32_t time_ms)
 {
-    bool recent =
-        dips->count > 0 && (dips->dipping || time_ms - dips->last_dip_ms < HEADSET_DIPS_HOLD_MS);
+    bool recent = dips->count > 0 && (dips->dipping || !deadline_elapsed(time_ms, dips->last_dip_ms,
+                                                                         HEADSET_DIPS_HOLD_MS));
     if (!recent) {
         return (HeadsetDipView){.recent = false};
     }

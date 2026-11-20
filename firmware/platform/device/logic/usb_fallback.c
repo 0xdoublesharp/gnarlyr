@@ -1,5 +1,7 @@
 #include "device/usb_fallback.h"
 
+#include "core/deadline.h"
+
 void usb_fallback_start(UsbFallback *fallback, bool high_speed)
 {
     *fallback = (UsbFallback){.watching = high_speed, .cause = USB_FALLBACK_NONE};
@@ -23,7 +25,8 @@ bool usb_fallback_due(UsbFallback *fallback, UsbFallbackSigns signs, uint32_t no
         return false;
     }
     bool resets_only = !fallback->timing && signs.resets >= USB_FALLBACK_RESETS;
-    if (!resets_only && (!fallback->timing || now_ms - fallback->started_ms < USB_FALLBACK_MS)) {
+    if (!resets_only &&
+        (!fallback->timing || !deadline_elapsed(now_ms, fallback->started_ms, USB_FALLBACK_MS))) {
         return false;
     }
     fallback->watching = false;

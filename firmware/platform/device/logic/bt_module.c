@@ -1,5 +1,7 @@
 #include "device/bt_module.h"
 
+#include "core/deadline.h"
+
 enum {
     ADDRESS_SIZE = HAL_BLUETOOTH_ADDRESS_SIZE,
     SCAN_HEADER_SIZE = 4,
@@ -269,7 +271,8 @@ static void handle_disconnected(BtModule *module, uint32_t now_ms)
 
 static void notice_suspend(BtModule *module, bool playing, uint32_t now_ms)
 {
-    bool settling = now_ms - module->stream_changed_ms < BT_MODULE_STREAM_SETTLE_MS;
+    bool settling =
+        !deadline_elapsed(now_ms, module->stream_changed_ms, BT_MODULE_STREAM_SETTLE_MS);
     if (!playing && module->status.streaming && settling && !module->stream_restarted) {
         module->restart_stream = true;
         module->stream_restarted = true;
@@ -552,11 +555,12 @@ static uint32_t query_period(const BtModule *module)
 
 static bool query_status(BtModule *module, uint32_t now_ms, BtModuleFrame *frame)
 {
-    if (module->query_paused && now_ms - module->query_paused_ms < BT_MODULE_QUERY_PAUSE_MS) {
+    if (module->query_paused &&
+        !deadline_elapsed(now_ms, module->query_paused_ms, BT_MODULE_QUERY_PAUSE_MS)) {
         return false;
     }
     module->query_paused = false;
-    if (now_ms - module->last_query_ms < query_period(module)) {
+    if (!deadline_elapsed(now_ms, module->last_query_ms, query_period(module))) {
         return false;
     }
     module->last_query_ms = now_ms;
@@ -588,7 +592,7 @@ static void stream_frame(BtModule *module, bool on, uint32_t now_ms, BtModuleFra
 static bool send_pending_stream(BtModule *module, uint32_t now_ms, BtModuleFrame *frame)
 {
     if (!module->stream_pending ||
-        now_ms - module->stream_changed_ms < BT_MODULE_PLAY_NOTICE_DELAY_MS) {
+        !deadline_elapsed(now_ms, module->stream_changed_ms, BT_MODULE_PLAY_NOTICE_DELAY_MS)) {
         return false;
     }
     module->stream_pending = false;
@@ -608,7 +612,7 @@ static bool restart_suspended_stream(BtModule *module, uint32_t now_ms, BtModule
 
 static bool wait_for_ready(BtModule *module, uint32_t now_ms)
 {
-    if (now_ms - module->state_since_ms >= BT_MODULE_READY_TIMEOUT_MS) {
+    if (deadline_elapsed(now_ms, module->state_since_ms, BT_MODULE_READY_TIMEOUT_MS)) {
         set_state(module, HAL_BLUETOOTH_NO_REPLY, now_ms);
     }
     return false;
@@ -616,7 +620,7 @@ static bool wait_for_ready(BtModule *module, uint32_t now_ms)
 
 bool bt_module_poll(BtModule *module, uint32_t now_ms, BtModuleFrame *frame)
 {
-    parse(module, now_ms - module->last_byte_ms >= BT_MODULE_SILENCE_MS, now_ms);
+    parse(module, deadline_elapsed(now_ms, module->last_byte_ms, BT_MODULE_SILENCE_MS), now_ms);
     switch (module->status.state) {
     case HAL_BLUETOOTH_STARTING:
         return wait_for_ready(module, now_ms);

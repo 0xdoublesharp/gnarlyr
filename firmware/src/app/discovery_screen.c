@@ -4,6 +4,7 @@
 
 #include "discovery_preferences.h"
 
+#include "core/deadline.h"
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
@@ -1046,7 +1047,7 @@ static bool step_view(DiscoveryScreen *screen)
         }
         library_view_step(&work.view);
         hal_audio_service();
-        if (hal_clock_microseconds() - started >= WORK_BUDGET_US) {
+        if (deadline_elapsed(hal_clock_microseconds(), started, WORK_BUDGET_US)) {
             break;
         }
     }

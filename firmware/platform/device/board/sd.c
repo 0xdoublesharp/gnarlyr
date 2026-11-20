@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "cru.h"
 #include "device/card_presence.h"
@@ -226,7 +227,8 @@ static bool wait_for_transfer_state(void)
     SdCommand status = {CMD_SEND_STATUS, sd_card_rca_argument(&card), SD_RESPONSE_SHORT, false};
     uint32_t started_ms = hal_clock_milliseconds();
     for (int attempt = 0; attempt < STATUS_TRIES; attempt++) {
-        if (!sd_present() || hal_clock_milliseconds() - started_ms >= TRANSFER_READY_TIMEOUT_MS) {
+        if (!sd_present() ||
+            deadline_elapsed(hal_clock_milliseconds(), started_ms, TRANSFER_READY_TIMEOUT_MS)) {
             return false;
         }
         if (mmc_command(&SD_MMC_HOST, status, words) && (words[0] & STATUS_READY_FOR_DATA) != 0 &&

@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/clock.h"
@@ -76,7 +77,8 @@ static bool progress(void *context, uint32_t done, uint32_t total)
         return false;
     }
     if (screen->config.notice != NULL &&
-        (done == 0 || done == total || now_ms - screen->progress_ms >= PROGRESS_MS)) {
+        (done == 0 || done == total ||
+         deadline_elapsed(now_ms, screen->progress_ms, PROGRESS_MS))) {
         screen->progress_ms = now_ms;
         char text[64];
         StringBuilder line = string_builder_make(text, sizeof text);

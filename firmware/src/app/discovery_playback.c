@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "library/album_order.h"
@@ -85,7 +86,7 @@ static bool prepare_albums(DiscoveryScreen *screen)
             return order_publish_begin(&work.publish, screen->config.player, source, 0);
         }
         hal_audio_service();
-        if (hal_clock_microseconds() - started >= 2000) {
+        if (deadline_elapsed(hal_clock_microseconds(), started, 2000)) {
             break;
         }
     }

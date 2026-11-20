@@ -4,6 +4,7 @@
 
 #include "app/app.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/seam.h"
 #include "device/fat.h"
@@ -265,12 +266,12 @@ void board_trial_poll_power(uint32_t now_ms)
 {
     if (!escape_held()) {
         escape_since_ms = now_ms;
-    } else if (now_ms - escape_since_ms >= ESCAPE_HOLD_MS) {
+    } else if (deadline_elapsed(now_ms, escape_since_ms, ESCAPE_HOLD_MS)) {
         board_loader_reboot();
     }
     if (!usb_session_shared()->trial.running || !board_power_key_down()) {
         power_since_ms = now_ms;
-    } else if (now_ms - power_since_ms >= UPDATE_TRIAL_RESET_HOLD_MS) {
+    } else if (deadline_elapsed(now_ms, power_since_ms, UPDATE_TRIAL_RESET_HOLD_MS)) {
         board_restart();
     }
 }

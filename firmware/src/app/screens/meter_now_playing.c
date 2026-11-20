@@ -1,5 +1,6 @@
 #include "meter_now_playing.h"
 
+#include "core/deadline.h"
 #include "core/hash.h"
 #include "core/seam.h"
 #include "gfx/strip_renderer.h"
@@ -233,7 +234,7 @@ static void update_bars(MeterState *state, const AudioVisualLevels *levels, uint
         if (next >= state->caps[band] && next > 0) {
             state->caps[band] = next;
             state->cap_until[band] = now + METER_CAP_HOLD_MS;
-        } else if ((int32_t)(now - state->cap_until[band]) >= 0) {
+        } else if (deadline_reached(now, state->cap_until[band])) {
             state->caps[band] = falling(state->caps[band], elapsed / 12);
         }
     }

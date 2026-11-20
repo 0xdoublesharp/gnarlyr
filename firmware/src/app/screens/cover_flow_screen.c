@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board_layout.h"
+#include "core/deadline.h"
 #include "core/hash.h"
 #include "core/i18n.h"
 #include "core/random.h"
@@ -580,7 +581,7 @@ static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
 static void draw_section(const CoverFlowScreen *flow, Canvas *canvas)
 {
     if (flow->section_shown_until_ms == 0 ||
-        (int32_t)(flow->now_ms - flow->section_shown_until_ms) >= 0) {
+        deadline_reached(flow->now_ms, flow->section_shown_until_ms)) {
         return;
     }
     const Theme *theme = flow->config.theme;

@@ -1,5 +1,7 @@
 #include "device/usb_forced.h"
 
+#include "core/deadline.h"
+
 static bool host_still_talks(UsbForced *forced, UsbForcedNow now)
 {
     if (!forced->heard || now.commands != forced->commands) {
@@ -7,7 +9,7 @@ static bool host_still_talks(UsbForced *forced, UsbForcedNow now)
         forced->commands = now.commands;
         forced->heard_ms = now.now_ms;
     }
-    return now.now_ms - forced->heard_ms < USB_FORCED_IDLE_MS;
+    return !deadline_elapsed(now.now_ms, forced->heard_ms, USB_FORCED_IDLE_MS);
 }
 
 bool usb_forced_connected(UsbForced *forced, UsbForcedNow now)

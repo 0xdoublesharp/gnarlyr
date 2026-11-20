@@ -1,5 +1,6 @@
 #include "hal/bluetooth.h"
 #include "board.h"
+#include "core/deadline.h"
 #include "cru.h"
 #include "dac.h"
 #include "device/bt_module.h"
@@ -179,7 +180,8 @@ bool board_bluetooth_routed(void)
 
 bool board_bluetooth_settling(void)
 {
-    return rerouted_ms != 0 && hal_clock_milliseconds() - rerouted_ms < ROUTE_SETTLE_MS;
+    return rerouted_ms != 0 &&
+           !deadline_elapsed(hal_clock_milliseconds(), rerouted_ms, ROUTE_SETTLE_MS);
 }
 
 static void follow_stream(void)

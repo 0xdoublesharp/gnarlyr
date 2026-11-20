@@ -132,7 +132,7 @@ static bool timed_out(const PowerPolicy *policy, uint32_t now_ms)
 bool power_policy_update(PowerPolicy *policy, uint32_t now_ms)
 {
     if (policy->standby_active) {
-        return now_ms - policy->standby_started_ms >= policy->standby_duration_ms;
+        return deadline_elapsed(now_ms, policy->standby_started_ms, policy->standby_duration_ms);
     }
     if (policy->display_on && timed_out(policy, now_ms)) {
         policy->display_on = false;

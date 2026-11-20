@@ -1,5 +1,7 @@
 #include "core/key_crossing.h"
 
+#include "core/deadline.h"
+
 enum {
     CROSSING_IDLE,
     CROSSING_RELEASED,
@@ -81,7 +83,7 @@ static bool held_back(KeyCrossing *crossing, KeyStep step, KeyCrossingOut *out)
         return true;
     }
     if (crossing->state == CROSSING_UNDER_PLAY && play && !step.pressed &&
-        step.time_ms - crossing->from_ms < KEY_CROSSING_WINDOW_MS) {
+        !deadline_elapsed(step.time_ms, crossing->from_ms, KEY_CROSSING_WINDOW_MS)) {
         crossing->state = CROSSING_LEFT_PLAY;
         crossing->play_ms = step.time_ms;
         return true;
@@ -115,7 +117,7 @@ void key_crossing_settle(KeyCrossing *crossing, uint32_t now_ms, KeyCrossingOut 
     } else if (crossing->state == CROSSING_LEFT_PLAY) {
         leave_play(crossing, out);
     } else if (crossing->state == CROSSING_UNDER_PLAY &&
-               now_ms - crossing->from_ms >= KEY_CROSSING_WINDOW_MS) {
+               deadline_elapsed(now_ms, crossing->from_ms, KEY_CROSSING_WINDOW_MS)) {
         replay(crossing, out);
     }
 }

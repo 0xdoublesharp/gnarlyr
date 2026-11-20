@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "core/utf8.h"
@@ -410,7 +411,7 @@ static void update_export(void)
 {
     uint32_t started_ms = hal_clock_milliseconds();
     for (int step = 0; step < EXPORT_STEPS && work->export_stage <= EXPORT_WRITE &&
-                       hal_clock_milliseconds() - started_ms < EXPORT_BUDGET_MS;
+                       !deadline_elapsed(hal_clock_milliseconds(), started_ms, EXPORT_BUDGET_MS);
          step++) {
         advance_export();
         hal_audio_service();

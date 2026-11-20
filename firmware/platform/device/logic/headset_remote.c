@@ -1,5 +1,7 @@
 #include "device/headset_remote.h"
 
+#include "core/deadline.h"
+
 enum {
     PLAY_LIMIT = 16,
     VOLUME_UP_LIMIT = 46,
@@ -128,7 +130,7 @@ static void follow_button(HeadsetRemote *remote, HalHeadsetButton button, uint32
 static void follow_hold(HeadsetRemote *remote, uint32_t time_ms)
 {
     if (remote->held == HAL_HEADSET_BUTTON_NONE || remote->long_sent ||
-        time_ms - remote->held_ms < HEADSET_REMOTE_LONG_PRESS_MS) {
+        !deadline_elapsed(time_ms, remote->held_ms, HEADSET_REMOTE_LONG_PRESS_MS)) {
         return;
     }
     remote->long_sent = true;
@@ -144,7 +146,7 @@ static void follow_hold(HeadsetRemote *remote, uint32_t time_ms)
 static void finish_clicks(HeadsetRemote *remote, uint32_t time_ms)
 {
     if (remote->clicks == 0 || remote->held != HAL_HEADSET_BUTTON_NONE ||
-        time_ms - remote->click_ms < HEADSET_REMOTE_CLICK_GAP_MS) {
+        !deadline_elapsed(time_ms, remote->click_ms, HEADSET_REMOTE_CLICK_GAP_MS)) {
         return;
     }
     if (remote->clicks <= HEADSET_REMOTE_MAX_CLICKS) {

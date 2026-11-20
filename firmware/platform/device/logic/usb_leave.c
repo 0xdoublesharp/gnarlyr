@@ -1,5 +1,7 @@
 #include "device/usb_leave.h"
 
+#include "core/deadline.h"
+
 void usb_leave_key(UsbLeave *leave, bool pressed, uint32_t now_ms)
 {
     leave->holding = pressed;
@@ -21,12 +23,13 @@ static void enter(UsbLeave *leave, UsbLeaveState state, uint32_t now_ms)
 
 static bool held_for(const UsbLeave *leave, uint32_t from_ms, uint32_t span_ms, uint32_t now_ms)
 {
-    return leave->holding && now_ms - from_ms >= span_ms;
+    return leave->holding && deadline_elapsed(now_ms, from_ms, span_ms);
 }
 
 static uint32_t force_start(const UsbLeave *leave)
 {
-    return leave->since_ms - leave->pressed_ms < 0x80000000u ? leave->since_ms : leave->pressed_ms;
+    return deadline_reached(leave->since_ms, leave->pressed_ms) ? leave->since_ms
+                                                                : leave->pressed_ms;
 }
 
 static void serving(UsbLeave *leave, UsbLeaveNow now)
@@ -49,7 +52,7 @@ static void removing(UsbLeave *leave, UsbLeaveNow now)
 {
     if (now.refused) {
         enter(leave, USB_LEAVE_FORCED, now.now_ms);
-    } else if (now.now_ms - leave->since_ms >= USB_LEAVE_GRACE_MS) {
+    } else if (deadline_elapsed(now.now_ms, leave->since_ms, USB_LEAVE_GRACE_MS)) {
         enter(leave, USB_LEAVE_EJECTED, now.now_ms);
     }
 }

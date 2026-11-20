@@ -1,6 +1,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/deadline.h"
 #include "cru.h"
 #include "device/panel.h"
 #include "device/vop.h"
@@ -68,7 +69,7 @@ static void bus_serviced_delay(void *context, uint32_t milliseconds)
 {
     (void)context;
     uint32_t start = hal_clock_milliseconds();
-    while (hal_clock_milliseconds() - start < milliseconds) {
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, milliseconds)) {
         hal_audio_service();
         hal_system_keep_alive();
     }
@@ -133,7 +134,7 @@ static bool wait_for_push(void)
 {
     uint32_t start = hal_clock_microseconds();
     while (dmac_push_busy()) {
-        if (hal_clock_microseconds() - start >= PUSH_TIMEOUT_US) {
+        if (deadline_elapsed(hal_clock_microseconds(), start, PUSH_TIMEOUT_US)) {
             return false;
         }
         dmac_push_wait_event();

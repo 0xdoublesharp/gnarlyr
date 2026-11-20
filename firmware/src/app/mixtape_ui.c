@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/deadline.h"
 #include "core/i18n.h"
 
 #include "hal/clock.h"
@@ -317,7 +318,7 @@ void mixtape_ui_step(MixtapeUi *ui, uint32_t now_ms)
             copy_queue(ui);
             break;
         }
-        if (hal_clock_microseconds() - started >= 8000) {
+        if (deadline_elapsed(hal_clock_microseconds(), started, 8000)) {
             break;
         }
     }
