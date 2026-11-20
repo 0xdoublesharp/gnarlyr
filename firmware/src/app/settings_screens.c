@@ -532,56 +532,56 @@ static void choose_status_layout(void *context, int index)
     settings_action_save(context);
 }
 
+static int current_status_item(const void *context, uint8_t item)
+{
+    return (settings_of(context)->status_items & item) != 0;
+}
+
+static void choose_status_item(void *context, int index, uint8_t item)
+{
+    Settings *settings = editable_settings(context);
+    settings->status_items = (uint8_t)((settings->status_items & ~item) | (index != 0 ? item : 0));
+    settings_action_save(context);
+}
+
 static int current_status_volume(const void *context)
 {
-    return (settings_of(context)->status_items & SETTINGS_STATUS_VOLUME) != 0;
+    return current_status_item(context, SETTINGS_STATUS_VOLUME);
 }
 
 static void choose_status_volume(void *context, int index)
 {
-    Settings *settings = editable_settings(context);
-    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_VOLUME) |
-                                       (index != 0 ? SETTINGS_STATUS_VOLUME : 0));
-    settings_action_save(context);
+    choose_status_item(context, index, SETTINGS_STATUS_VOLUME);
 }
 
 static int current_status_repeat(const void *context)
 {
-    return (settings_of(context)->status_items & SETTINGS_STATUS_REPEAT) != 0;
+    return current_status_item(context, SETTINGS_STATUS_REPEAT);
 }
 
 static void choose_status_repeat(void *context, int index)
 {
-    Settings *settings = editable_settings(context);
-    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_REPEAT) |
-                                       (index != 0 ? SETTINGS_STATUS_REPEAT : 0));
-    settings_action_save(context);
+    choose_status_item(context, index, SETTINGS_STATUS_REPEAT);
 }
 
 static int current_status_position(const void *context)
 {
-    return (settings_of(context)->status_items & SETTINGS_STATUS_POSITION) != 0;
+    return current_status_item(context, SETTINGS_STATUS_POSITION);
 }
 
 static void choose_status_position(void *context, int index)
 {
-    Settings *settings = editable_settings(context);
-    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_POSITION) |
-                                       (index != 0 ? SETTINGS_STATUS_POSITION : 0));
-    settings_action_save(context);
+    choose_status_item(context, index, SETTINGS_STATUS_POSITION);
 }
 
 static int current_status_style(const void *context)
 {
-    return (settings_of(context)->status_items & SETTINGS_STATUS_SEGMENTED) != 0;
+    return current_status_item(context, SETTINGS_STATUS_SEGMENTED);
 }
 
 static void choose_status_style(void *context, int index)
 {
-    Settings *settings = editable_settings(context);
-    settings->status_items = (uint8_t)((settings->status_items & ~SETTINGS_STATUS_SEGMENTED) |
-                                       (index != 0 ? SETTINGS_STATUS_SEGMENTED : 0));
-    settings_action_save(context);
+    choose_status_item(context, index, SETTINGS_STATUS_SEGMENTED);
 }
 
 static const StringId CROSSFEED_OPTIONS[] = {STR_OFF, STR_CROSSFEED_LOW, STR_CROSSFEED_MEDIUM,

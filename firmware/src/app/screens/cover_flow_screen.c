@@ -401,23 +401,17 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     CoverFlowScreen *flow = context;
     flow->now_ms = now_ms;
     Navigation navigation = navigation_from_key(event);
-    switch (navigation.intent) {
-    case NAVIGATION_PREVIOUS:
-    case NAVIGATION_NEXT:
+    if (navigation.intent == NAVIGATION_PREVIOUS || navigation.intent == NAVIGATION_NEXT) {
         move_target(flow, navigation);
         return screen_action_none();
-    case NAVIGATION_SELECT:
-        return open_album(flow);
-    case NAVIGATION_OPTIONS:
-        return toggle_favorite(flow);
-    case NAVIGATION_BACK:
-        return screen_action_pop();
-    case NAVIGATION_HOME:
-        return screen_action_pop_to_root();
-    case NAVIGATION_NONE:
-        return screen_action_none();
     }
-    return screen_action_none();
+    if (navigation.intent == NAVIGATION_SELECT) {
+        return open_album(flow);
+    }
+    if (navigation.intent == NAVIGATION_OPTIONS) {
+        return toggle_favorite(flow);
+    }
+    return navigation_exit_action(event);
 }
 
 static void repaint_placeholders(CoverFlowScreen *flow)
