@@ -733,6 +733,14 @@ static void a_pack_changed_after_its_preview_is_not_saved(void)
     CHECK(toast.visible);
     uint8_t stored = 0;
     CHECK(!hal_internal_file_read(THEME_SELECTION_PATH, &stored, 1) || stored == 0);
+    int row = picker->list.selected;
+    CHECK(strcmp(i18n_text(STR_THEME_DAMAGED), picker->model.detail(picker, row)) == 0);
+    picker->screen.handle_key(
+        picker, (KeyEvent){.key = KEY_VOLUME_DOWN, .gesture = KEY_GESTURE_PRESS}, 300);
+    picker->screen.handle_key(picker,
+                              (KeyEvent){.key = KEY_VOLUME_UP, .gesture = KEY_GESTURE_PRESS}, 400);
+    CHECK_EQUAL(row, picker->list.selected);
+    CHECK(!runtime.active);
 }
 
 int main(void)

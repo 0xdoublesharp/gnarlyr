@@ -91,7 +91,7 @@ static void preview(ThemePicker *picker)
 
 static bool pack_unchanged(ThemeRuntime *runtime, int at)
 {
-    const ThemeCatalogEntry *entry = &theme_picker_catalog()->entries[at];
+    ThemeCatalogEntry *entry = &theme_picker_catalog()->entries[at];
     uint8_t id[16];
     for (int byte = 0; byte < 16; byte++) {
         id[byte] = runtime->pack.id[byte];
@@ -101,6 +101,7 @@ static bool pack_unchanged(ThemeRuntime *runtime, int at)
         return true;
     }
     theme_catalog_mark_damaged(entry->filename);
+    entry->valid = false;
     theme_runtime_close(runtime);
     return false;
 }
