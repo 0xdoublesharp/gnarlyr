@@ -68,7 +68,8 @@ class CharacterSetTest(unittest.TestCase):
         config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
         header = (TOOLS_DIRECTORY.parent / "src" / "gfx" / "include" / "gfx" / "font_pack.h").read_text()
         constants = dict(re.findall(r"(FONT_PACK_\w+) = (\d+)", header))
-        self.assertLessEqual(len(config["faces"]), int(constants["FONT_PACK_FACES"]))
+        self.assertEqual(len(config["faces"]), int(constants["FONT_PACK_IMAGE_FACES"]))
+        self.assertEqual(glyph_pack.EXTRA_FACES, int(constants["FONT_PACK_EXTRA_FACES"]))
         for face in config["faces"]:
             limit = face.get("max_bitmap", glyph_pack.MAX_BITMAP_BYTES)
             self.assertLessEqual(limit, int(constants["FONT_PACK_MAX_BITMAP"]))
@@ -169,6 +170,16 @@ class PackTest(unittest.TestCase):
         for size in (40, 512, 1100, len(blob) - 1):
             with self.assertRaises(glyph_pack.PackError):
                 glyph_pack.read_face(blob[:size])
+
+    def test_a_bitmap_larger_than_the_player_holds_is_refused(self):
+        glyph_pack.pack_glyphs([glyph(0xE000, 26, 27)])
+        with self.assertRaises(glyph_pack.PackError):
+            glyph_pack.pack_glyphs([glyph(0xE000, 27, 27)])
+
+    def test_the_bitmap_limit_is_the_players(self):
+        header = (TOOLS_DIRECTORY.parent / "src" / "gfx" / "include" / "gfx" / "font_pack.h").read_text()
+        constants = dict(re.findall(r"(FONT_PACK_\w+) = (\w+)", header))
+        self.assertEqual(glyph_pack.MAX_FACE_BITMAP, int(constants["FONT_PACK_MAX_BITMAP"]))
 
     def test_metrics_out_of_range_are_refused(self):
         with self.assertRaises(glyph_pack.PackError):

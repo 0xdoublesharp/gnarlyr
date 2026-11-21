@@ -302,6 +302,6 @@ echo_add_unit_test(NAME test_sunset_scene
 )
 echo_add_unit_test(NAME test_extra_font
     SOURCES app/test_extra_font.c app/fake_hal.c support/test_glyph_face.c
-    LIBRARIES echo_app echo_library_fixtures
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )

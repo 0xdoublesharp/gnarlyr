@@ -17,8 +17,8 @@ enum {
     MEMORY_BYTES = 16384
 };
 
-static const TestGlyphFace SMALL_FACE = {GLYPHS, FIRST_CODEPOINT, 2};
-static const TestGlyphFace LARGE_FACE = {LARGE_GLYPHS, 0x1000, 1};
+static const TestGlyphFace SMALL_FACE = {GLYPHS, FIRST_CODEPOINT, 2, 0, 0};
+static const TestGlyphFace LARGE_FACE = {LARGE_GLYPHS, 0x1000, 1, 0, 0};
 
 typedef struct FakePack {
     uint8_t bytes[PACK_CAPACITY];
@@ -177,7 +177,7 @@ static void glyphs_on_both_sides_of_a_directory_sector_are_found(void)
 
 static void a_face_holds_more_than_sixteen_index_sectors(void)
 {
-    TestGlyphFace face = {FONT_PACK_ENTRIES_PER_SECTOR * 40, 0x3000, 1};
+    TestGlyphFace face = {FONT_PACK_ENTRIES_PER_SECTOR * 40, 0x3000, 1, 0, 0};
     build_face(face);
     font_pack_attach(READER, memory, sizeof memory);
     for (uint32_t glyph = 0; glyph < face.count; glyph += 37) {
@@ -455,7 +455,7 @@ typedef struct FakeFile {
 static FakeFile extra_file;
 static FakeFile base_file;
 static const char *const LANGUAGES[] = {"ko", "zh-TW"};
-static const TestGlyphFace BASE_FACE = {20, BASE_FIRST, 1};
+static const TestGlyphFace BASE_FACE = {20, BASE_FIRST, 1, 0, 0};
 
 static bool read_file(FakeFile *file, uint32_t offset, void *buffer, uint32_t length)
 {
@@ -490,10 +490,10 @@ static TestExtraFont extra_font(void)
 {
     TestExtraFont font = {.languages = LANGUAGES, .language_count = 2};
     for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
-        font.faces[face] = (TestGlyphFace){300, HANGUL, 1};
+        font.faces[face] = (TestGlyphFace){300, HANGUL, 1, 0, 0};
     }
-    font.faces[1] = (TestGlyphFace){0, 0, 0};
-    font.faces[2] = (TestGlyphFace){50, FIRST_CODEPOINT, 2};
+    font.faces[1] = (TestGlyphFace){0, 0, 0, 0, 0};
+    font.faces[2] = (TestGlyphFace){50, FIRST_CODEPOINT, 2, 0, 0};
     return font;
 }
 
@@ -586,7 +586,7 @@ static void an_extra_face_reads_nothing_past_its_row(void)
 {
     attach_both();
     font_pack_detach_extra();
-    TestGlyphFace face = {300, HANGUL, 1};
+    TestGlyphFace face = {300, HANGUL, 1, 0, 0};
     bytes_put_le32(extra_file.bytes + FONT_PACK_EXTRA_TABLE + 4,
                    test_glyph_face_data_offset(face) + 10 * TEST_GLYPH_BYTES);
     test_extra_font_seal(extra_file.bytes);
@@ -637,7 +637,7 @@ static void a_replaced_file_is_read_afresh(void)
     attach_both();
     CHECK(font_pack_find(EXTRA_FACE, HANGUL + 1) != NULL);
     TestExtraFont font = extra_font();
-    font.faces[0] = (TestGlyphFace){300, HANGUL + 1, 1};
+    font.faces[0] = (TestGlyphFace){300, HANGUL + 1, 1, 0, 0};
     build_extra(&font);
     CHECK(font_pack_attach_extra(EXTRA_READER, extra_file.size));
     const Glyph *glyph = font_pack_find(EXTRA_FACE, HANGUL + 1);

@@ -24,7 +24,6 @@ HOLD_FREEZE = 2
 SETTINGS_LANGUAGE = slice(19, 24)
 SETTINGS_TEXT_SIZE = 24
 TEXT_SIZE_LARGE = 2
-FIXTURES = Path(__file__).resolve().parents[2] / "fixtures"
 PACKS = Path(__file__).resolve().parents[3] / "src" / "fonts" / "packs"
 CHINESE_FACES = ["inter_regular_16_latin1_sc", "inter_regular_22_sc", "inter_semibold_22_sc",
                  "inter_regular_18_sc", "inter_semibold_18_sc", "inter_regular_26_sc",
@@ -61,9 +60,19 @@ def korean_translations(catalogue):
     return translations
 
 
-def chinese_translations():
-    text = (FIXTURES / "lang" / "zh-CN.txt").read_text(encoding="utf-8")
-    return dict(lang_pack.entries_from_text(text, "zh-CN.txt"))
+def chinese_translations(catalogue):
+    face = glyph_pack.read_face((PACKS / f"{CHINESE_FACES[0]}.bin").read_bytes())
+    han = [codepoint for codepoint in sorted(face) if 0x4E00 <= codepoint <= 0x9FFF]
+    han = [han[index * len(han) // 160] for index in range(160)]
+
+    def word(match):
+        value = lang_pack.fnv(match.group(0).encode("ascii"))
+        return chr(han[value % len(han)]) + chr(han[(value >> 12) % len(han)])
+
+    return {name: "".join(piece if lang_pack.PLACEHOLDER.fullmatch(piece)
+                          else re.sub(r"[A-Za-z]+", word, piece)
+                          for piece in lang_pack.PIECE.findall(text))
+            for name, text in catalogue}
 
 
 class EchoImageTest(EchoImageHarness):
@@ -159,6 +168,13 @@ class EchoImageTest(EchoImageHarness):
                              if face == IMAGE_FACES + 2))
         self.assert_healthy(session)
 
+    def test_with_a_card_as_the_music_volume_the_extra_font_comes_from_internal_storage(self):
+        card = self.with_card()
+        session, machine = self.started_session(prepare=lambda session: card.insert(session.machine),
+                                                volume=self.korean_volume(hangul_font()))
+        self.assertTrue(self.attached(machine))
+        self.assert_healthy(session)
+
     def usb_session(self, volume, changed):
         session = self.session(volume=volume, vbus=True)
         machine = session.machine
@@ -175,7 +191,7 @@ class EchoImageTest(EchoImageHarness):
         return session, machine, attaches
 
     def chinese_volume(self):
-        translations = {**chinese_translations(), "STR_LANGUAGE_NAME": "Chinese"}
+        translations = chinese_translations(lang_pack.read_catalogue())
         return self.player_volume("zh-CN", translations, chinese_font(), TEXT_SIZE_LARGE)
 
     def held_glyphs(self, machine):
@@ -217,7 +233,7 @@ class EchoImageTest(EchoImageHarness):
             ("%d U+%04X %s" % (face, codepoint, chr(codepoint)), present)
             for (face, codepoint), present in added.items()))
         self.assertEqual(HOLD_FREEZE, frozen[0][0])
-        self.assertEqual([], [key for key in added if key[0] >= IMAGE_FACES])
+        self.assertEqual({}, added)
         machine.run(until_ms=machine.milliseconds() + 1500)
         self.assertEqual(HOLD_NONE, self.word(machine, "hold"))
         self.assertTrue(self.attached(machine))

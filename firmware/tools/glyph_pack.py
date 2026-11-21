@@ -44,6 +44,7 @@ HEADER_CHECK = HEADER.size
 ROOT_OFFSET = HEADER_CHECK - 2 * MAX_ROOT
 HEADER_BYTES = HEADER_CHECK + 8
 MAX_BITMAP_BYTES = 96
+MAX_FACE_BITMAP = 352
 MAX_CODEPOINT = 0xFFFF
 MAX_GLYPHS = MAX_CODEPOINT + 1
 
@@ -117,6 +118,9 @@ def directory_sectors(firsts, seed):
 
 
 def check_glyph(glyph):
+    if bitmap_bytes(glyph) > MAX_FACE_BITMAP:
+        raise PackError(f"U+{glyph.codepoint:04X}: its {bitmap_bytes(glyph)}-byte bitmap is over "
+                        f"the player's {MAX_FACE_BITMAP} bytes")
     for value, low, high, name in ((glyph.codepoint, 0, MAX_CODEPOINT, "codepoint"),
                                    (glyph.width, 0, 255, "width"), (glyph.height, 0, 255, "height"),
                                    (glyph.left, -128, 127, "left"), (glyph.top, -128, 127, "top"),

@@ -28,9 +28,24 @@ uint32_t test_glyph_face_data_offset(TestGlyphFace face)
            FONT_PACK_SECTOR_BYTES;
 }
 
+static uint32_t glyph_width(TestGlyphFace face)
+{
+    return face.width != 0 ? face.width : TEST_GLYPH_WIDTH;
+}
+
+static uint32_t glyph_height(TestGlyphFace face)
+{
+    return face.height != 0 ? face.height : TEST_GLYPH_HEIGHT;
+}
+
+uint32_t test_glyph_face_glyph_bytes(TestGlyphFace face)
+{
+    return (glyph_width(face) * glyph_height(face) + 1) / 2;
+}
+
 uint32_t test_glyph_face_size(TestGlyphFace face)
 {
-    return test_glyph_face_data_offset(face) + face.count * TEST_GLYPH_BYTES;
+    return test_glyph_face_data_offset(face) + face.count * test_glyph_face_glyph_bytes(face);
 }
 
 void test_glyph_face_seal_header(uint8_t *out)
@@ -58,7 +73,7 @@ static void write_header(uint8_t *out, TestGlyphFace face)
     bytes_put_le16(out + 16, test_glyph_face_codepoint(face, 0));
     bytes_put_le16(out + 18, test_glyph_face_codepoint(face, face.count - 1));
     bytes_put_le16(out + 20, test_glyph_face_roots(face));
-    bytes_put_le16(out + 22, TEST_GLYPH_BYTES);
+    bytes_put_le16(out + 22, test_glyph_face_glyph_bytes(face));
     uint32_t per_root = FONT_PACK_DIRECTORY_ENTRIES * FONT_PACK_ENTRIES_PER_SECTOR;
     for (uint32_t root = 0; root < test_glyph_face_roots(face); root++) {
         bytes_put_le16(out + FONT_PACK_ROOT_OFFSET + 2 * root,
@@ -87,10 +102,10 @@ static void write_glyph(uint8_t *out, TestGlyphFace face, uint32_t glyph)
     uint32_t sector = 1 + test_glyph_face_roots(face) + glyph / FONT_PACK_ENTRIES_PER_SECTOR;
     uint8_t *entry = out + sector * FONT_PACK_SECTOR_BYTES +
                      (glyph % FONT_PACK_ENTRIES_PER_SECTOR) * FONT_PACK_ENTRY_BYTES;
-    uint32_t bitmap = test_glyph_face_data_offset(face) + glyph * TEST_GLYPH_BYTES;
+    uint32_t bitmap = test_glyph_face_data_offset(face) + glyph * test_glyph_face_glyph_bytes(face);
     bytes_put_le16(entry, test_glyph_face_codepoint(face, glyph));
-    entry[2] = TEST_GLYPH_WIDTH;
-    entry[3] = TEST_GLYPH_HEIGHT;
+    entry[2] = (uint8_t)glyph_width(face);
+    entry[3] = (uint8_t)glyph_height(face);
     entry[4] = (uint8_t)TEST_GLYPH_LEFT;
     entry[5] = (uint8_t)TEST_GLYPH_TOP;
     entry[6] = TEST_GLYPH_ADVANCE;

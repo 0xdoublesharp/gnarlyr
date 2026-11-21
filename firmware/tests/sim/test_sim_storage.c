@@ -1,12 +1,18 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "check.h"
 #include "core/drive_path.h"
+#include "extra_font.h"
+#include "gfx/font_pack.h"
 #include "hal/storage.h"
+#include "hal/system.h"
 #include "playback/listening_export.h"
 #include "sim_storage.h"
+#include "test_glyph_face.h"
 
 typedef struct Found {
     bool found;
@@ -154,6 +160,66 @@ static void without_internal_storage_a_marked_path_opens_nothing(void)
     CHECK(!hal_file_open(&file, DRIVE_PATH_INTERNAL_ROOT "/Favorite Tracks.m3u"));
 }
 
+bool hal_system_restart_pending(void)
+{
+    return false;
+}
+
+static bool read_no_image_face(void *context, uint32_t face, uint32_t offset, void *buffer,
+                               uint32_t length)
+{
+    (void)context;
+    (void)face;
+    (void)offset;
+    (void)buffer;
+    (void)length;
+    return false;
+}
+
+static void write_internal_extra_font(const char *root)
+{
+    static uint8_t font[65536];
+    static const char *const languages[] = {"ko"};
+    TestExtraFont extra = {.languages = languages, .language_count = 1};
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        extra.faces[face] = (TestGlyphFace){50, 0xAC00, 1, 0, 0};
+    }
+    uint32_t size = test_extra_font_build(font, sizeof font, &extra);
+    char path[512];
+    snprintf(path, sizeof path, "%s", root);
+    mkdir(path, 0755);
+    snprintf(path, sizeof path, "%s/%s", root, FIRMWARE_DATA_DIRECTORY);
+    mkdir(path, 0755);
+    snprintf(path, sizeof path, "%s/%s/fonts", root, FIRMWARE_DATA_DIRECTORY);
+    mkdir(path, 0755);
+    snprintf(path, sizeof path, "%s/%s/fonts/extra.font", root, FIRMWARE_DATA_DIRECTORY);
+    FILE *file = fopen(path, "wb");
+    CHECK(file != NULL && fwrite(font, 1, size, file) == size);
+    if (file != NULL) {
+        fclose(file);
+    }
+}
+
+static void the_extra_font_opens_from_the_simulated_internal_drive(void)
+{
+    static uint32_t memory[(0x6800 - 1024) / 4];
+    static const char root[] = ECHO_TEST_OUTPUT_DIR "/sim_internal_fonts";
+    write_internal_extra_font(root);
+    sim_storage_configure(ECHO_FIXTURE_DIR "/cue_music", NULL);
+    sim_storage_configure_internal(root);
+    font_pack_attach((FontPackReader){read_no_image_face, NULL}, memory, sizeof memory);
+    HalFile handle;
+    extra_font_open(&handle);
+    CHECK(font_pack_extra_attached());
+    const Glyph *glyph = font_pack_find(FONT_PACK_IMAGE_FACES, 0xAC00 + 3);
+    CHECK(glyph != NULL && glyph->codepoint == 0xAC00 + 3);
+    extra_font_close(&handle);
+    CHECK(!font_pack_extra_attached());
+    sim_storage_configure_internal(NULL);
+    extra_font_open(&handle);
+    CHECK(!font_pack_extra_attached());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -166,6 +232,7 @@ int main(void)
         TEST_CASE(theme_packs_follow_the_music_volume_while_selection_stays_internal),
         TEST_CASE(a_marked_path_opens_lists_and_enters_folders_on_internal_storage),
         TEST_CASE(without_internal_storage_a_marked_path_opens_nothing),
+        TEST_CASE(the_extra_font_opens_from_the_simulated_internal_drive),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

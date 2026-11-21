@@ -15,6 +15,8 @@ typedef struct TestGlyphFace {
     uint32_t count;
     uint32_t first;
     uint32_t step;
+    uint8_t width;
+    uint8_t height;
 } TestGlyphFace;
 
 uint32_t test_glyph_face_codepoint(TestGlyphFace face, uint32_t glyph);
@@ -22,6 +24,7 @@ uint32_t test_glyph_face_index_sectors(TestGlyphFace face);
 uint32_t test_glyph_face_roots(TestGlyphFace face);
 uint32_t test_glyph_face_data_offset(TestGlyphFace face);
 uint32_t test_glyph_face_size(TestGlyphFace face);
+uint32_t test_glyph_face_glyph_bytes(TestGlyphFace face);
 uint32_t test_glyph_face_build(uint8_t *out, TestGlyphFace face);
 void test_glyph_face_seal_header(uint8_t *out);
 void test_glyph_face_seal_sector(uint8_t *out, uint32_t sector);

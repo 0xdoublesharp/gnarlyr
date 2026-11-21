@@ -13,9 +13,12 @@
 static const char EXTRA_FONT_PATH[] =
     DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/fonts/extra.font";
 
+static const char USB_FIGURES[] = "0123456789.,:%/+-";
+
 static const uint16_t USB_STATE_TEXT[] = {
-    STR_POWER_CONNECTING,  STR_USB_STATE_CONNECTED, STR_USB_STATE_READING, STR_USB_STATE_WRITING,
-    STR_USB_STATE_WAITING, STR_USB_STATE_LEAVING,   STR_USB_UNPLUGGED,     STR_USB_STOPPED,
+    STR_PLUG_COMPUTER,     STR_POWER_CONNECTING,  STR_USB_STATE_CONNECTED,
+    STR_USB_STATE_READING, STR_USB_STATE_WRITING, STR_USB_STATE_WAITING,
+    STR_USB_STATE_LEAVING, STR_USB_UNPLUGGED,     STR_USB_STOPPED,
 };
 
 static const uint16_t USB_SMALL_TEXT[] = {
@@ -53,6 +56,20 @@ static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB_WAITING_HINT,
     STR_USB_UNPLUGGED_HINT,
     STR_USB_STOPPED_HINT,
+    STR_UPDATE,
+    STR_UPDATE_CHECKING,
+    STR_UPDATE_INSTALLING,
+    STR_UPDATE_PROGRESS,
+    STR_UPDATE_INSTALLED,
+    STR_UPDATE_UNPLUG,
+    STR_UPDATE_UNPLUG_FIRST,
+    STR_UPDATE_TURNING_OFF,
+    STR_UPDATE_FAILED,
+    STR_UPDATE_FAILED_HINT,
+    STR_UPDATE_NOT_INSTALLED,
+    STR_UPDATE_REFUSED,
+    STR_UPDATE_INSTALLING_STOCK,
+    STR_UPDATE_INSTALLED_STOCK,
     STR_USB_STAT_COMMANDS,
     STR_USB_STAT_PER_COMMAND,
     STR_USB_STAT_FREE,
@@ -69,20 +86,6 @@ static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB_LINK_HIGH,
     STR_USB_LINK_FULL,
     STR_USB_UNKNOWN,
-    STR_UPDATE,
-    STR_UPDATE_CHECKING,
-    STR_UPDATE_INSTALLING,
-    STR_UPDATE_PROGRESS,
-    STR_UPDATE_INSTALLED,
-    STR_UPDATE_UNPLUG,
-    STR_UPDATE_UNPLUG_FIRST,
-    STR_UPDATE_TURNING_OFF,
-    STR_UPDATE_FAILED,
-    STR_UPDATE_FAILED_HINT,
-    STR_UPDATE_NOT_INSTALLED,
-    STR_UPDATE_REFUSED,
-    STR_UPDATE_INSTALLING_STOCK,
-    STR_UPDATE_INSTALLED_STOCK,
 };
 
 static bool read_extra_font(void *context, uint32_t face, uint32_t offset, void *buffer,
@@ -111,19 +114,25 @@ void extra_font_close(HalFile *file)
     }
 }
 
+static void hold_codepoints(const Font *font, const char *text)
+{
+    for (uint32_t codepoint = utf8_next(&text); codepoint != 0; codepoint = utf8_next(&text)) {
+        (void)font_find_glyph(font, codepoint);
+    }
+}
+
 static void hold_text(const Font *font, const uint16_t *ids, uint32_t count)
 {
     for (uint32_t index = 0; index < count; index++) {
-        const char *text = i18n_text((StringId)ids[index]);
-        for (uint32_t codepoint = utf8_next(&text); codepoint != 0; codepoint = utf8_next(&text)) {
-            (void)font_find_glyph(font, codepoint);
-        }
+        hold_codepoints(font, i18n_text((StringId)ids[index]));
     }
 }
 
 void extra_font_hold_for_usb(const Theme *theme)
 {
     font_pack_hold(FONT_PACK_HOLD_PIN);
+    hold_codepoints(theme->fonts.title, USB_FIGURES);
+    hold_codepoints(theme->fonts.small, USB_FIGURES);
     uint32_t states = sizeof USB_STATE_TEXT / sizeof USB_STATE_TEXT[0];
     hold_text(theme->fonts.title, USB_STATE_TEXT, states);
     hold_text(theme->fonts.small, USB_STATE_TEXT, states);

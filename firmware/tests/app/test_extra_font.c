@@ -5,10 +5,14 @@
 #include "check.h"
 #include "core/drive_path.h"
 #include "core/hash.h"
+#include "core/i18n.h"
+#include "core/utf8.h"
 #include "extra_font.h"
 #include "fake_hal.h"
 #include "gfx/font_pack.h"
 #include "test_glyph_face.h"
+#include "test_pack.h"
+#include "ui/theme.h"
 
 enum {
     FILE_CAPACITY = 64 * 1024,
@@ -38,7 +42,7 @@ static uint32_t build_file(uint32_t first)
 {
     TestExtraFont font = {.languages = LANGUAGES, .language_count = 2};
     for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
-        font.faces[face] = (TestGlyphFace){200, first, 1};
+        font.faces[face] = (TestGlyphFace){200, first, 1, 0, 0};
     }
     return test_extra_font_build(file_bytes, FILE_CAPACITY, &font);
 }
@@ -177,6 +181,120 @@ static void the_app_opens_it_at_start_and_lets_go_when_leaving_storage(void)
     CHECK_EQUAL(7, level_of(HANGUL + 7));
 }
 
+enum {
+    LARGE_FILE_CAPACITY = 600000,
+    LARGE_HANGUL = 1024,
+    SPREAD = LARGE_HANGUL / 2,
+    TITLE_FACE = 6,
+    HELD_REGION = 64 * 368
+};
+
+static uint8_t large_file[LARGE_FILE_CAPACITY];
+static uint8_t figures_face[FILE_CAPACITY];
+static uint32_t figures_size;
+static uint32_t large_size;
+
+static bool read_figures(void *context, uint32_t face, uint32_t offset, void *buffer,
+                         uint32_t length)
+{
+    (void)context;
+    if ((face != 0 && face != TITLE_FACE) || offset > figures_size ||
+        length > figures_size - offset) {
+        return false;
+    }
+    memcpy(buffer, figures_face + offset, length);
+    return true;
+}
+
+static bool read_large(void *context, uint32_t face, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    (void)face;
+    if (offset > large_size || length > large_size - offset) {
+        return false;
+    }
+    memcpy(buffer, large_file + offset, length);
+    return true;
+}
+
+static size_t put_hangul(char *text, uint32_t codepoint)
+{
+    text[0] = (char)(0xE0 | codepoint >> 12);
+    text[1] = (char)(0x80 | (codepoint >> 6 & 0x3F));
+    text[2] = (char)(0x80 | (codepoint & 0x3F));
+    return 3;
+}
+
+static void hangul_text(const char *english, char *text, size_t capacity)
+{
+    uint32_t hash = hash_update(HASH_START, english, strlen(english));
+    size_t length = put_hangul(text, HANGUL + hash % SPREAD);
+    length += put_hangul(text + length, HANGUL + SPREAD + (hash >> 16) % SPREAD);
+    for (const char *cursor = english; *cursor != '\0' && length + 4 < capacity; cursor++) {
+        if (cursor[0] == '{' && cursor[1] != '\0' && cursor[2] == '}') {
+            memcpy(text + length, cursor, 3);
+            length += 3;
+        }
+    }
+    text[length] = '\0';
+}
+
+static Theme large_text_theme(Font *title, Font *small)
+{
+    *title = (Font){.pack_face = TITLE_FACE + 1};
+    *small = (Font){.pack_face = 1};
+    Theme theme = {0};
+    theme.fonts = (ThemeFonts){.title = title, .body = small, .small = small, .header = title};
+    return theme;
+}
+
+static void attach_large_sources(void)
+{
+    fake_hal_reset();
+    font_pack_detach_extra();
+    figures_size = test_glyph_face_build(figures_face, (TestGlyphFace){10, '0', 1, 26, 26});
+    font_pack_attach((FontPackReader){read_figures, NULL}, memory, sizeof memory);
+    TestExtraFont font = {.languages = LANGUAGES, .language_count = 1};
+    font.faces[0] = (TestGlyphFace){LARGE_HANGUL, HANGUL, 1, 16, 16};
+    font.faces[TITLE_FACE] = (TestGlyphFace){LARGE_HANGUL, HANGUL, 1, 26, 26};
+    large_size = test_extra_font_build(large_file, LARGE_FILE_CAPACITY, &font);
+    CHECK(font_pack_attach_extra((FontPackReader){read_large, NULL}, large_size));
+}
+
+static bool all_drawn(const Font *font, const char *text)
+{
+    for (uint32_t codepoint = utf8_next(&text); codepoint != 0; codepoint = utf8_next(&text)) {
+        if (codepoint >= HANGUL && font_find_glyph(font, codepoint) == NULL) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void an_overfilled_hold_keeps_the_figures_and_the_first_texts(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    uint32_t size = test_pack_build(pack, (TestPackLanguage){"ko", "Hangul", hangul_text});
+    CHECK(i18n_attach(pack, size));
+    attach_large_sources();
+    Font title;
+    Font small;
+    Theme theme = large_text_theme(&title, &small);
+    extra_font_hold_for_usb(&theme);
+    CHECK(font_pack_held_bytes() + 368 > HELD_REGION);
+    for (uint32_t digit = '0'; digit <= '9'; digit++) {
+        CHECK(font_find_glyph(&title, digit) != NULL);
+        CHECK(font_find_glyph(&small, digit) != NULL);
+    }
+    CHECK(all_drawn(&title, i18n_text(STR_POWER_CONNECTING)));
+    CHECK(all_drawn(&title, i18n_text(STR_USB_STOPPED)));
+    CHECK(all_drawn(&small, i18n_text(STR_USB)));
+    CHECK(all_drawn(&small, i18n_text(STR_USB_EJECT_DRIVES)));
+    CHECK(!all_drawn(&small, i18n_text(STR_UPDATE_INSTALLED_STOCK)));
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+    i18n_detach();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -190,6 +308,7 @@ int main(void)
         TEST_CASE(nothing_is_read_while_a_restart_is_pending),
         TEST_CASE(a_restart_pending_after_usb_keeps_the_held_glyphs),
         TEST_CASE(the_app_opens_it_at_start_and_lets_go_when_leaving_storage),
+        TEST_CASE(an_overfilled_hold_keeps_the_figures_and_the_first_texts),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
