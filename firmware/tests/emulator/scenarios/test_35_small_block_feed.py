@@ -312,6 +312,9 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.machine import TRAMPOLINE
         from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
         returned = TRAMPOLINE + 0x904
+        machine.run(until=lambda: machine.exception_depth == 0,
+                    until_ms=machine.milliseconds() + CLOCK_CALL_LIMIT_MS)
+        self.assertEqual(0, machine.exception_depth)
         machine.add_address_hook(returned, lambda: machine.stop("clock change returned"))
         context = machine.uc.context_save()
         machine.uc.reg_write(UC_ARM_REG_R0, mhz)
