@@ -479,7 +479,7 @@ class RebuildTest(unittest.TestCase):
     def test_a_rebuild_follows_the_saved_language_and_reports_what_it_did(self):
         volume = Volume(self)
         volume.settings("ja")
-        volume.add_pack("ja", "日本語", covered_text(6))
+        volume.add_pack("ja", covered_text(2, 40), covered_text(6))
         volume.add_library("Track " + covered_text(4, 100) + " 🎵")
         report = self.rebuild(volume)
         self.assertEqual("written", report.action)
