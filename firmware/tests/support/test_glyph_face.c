@@ -113,3 +113,52 @@ uint32_t test_glyph_face_build(uint8_t *out, TestGlyphFace face)
     }
     return size;
 }
+
+void test_extra_font_seal(uint8_t *out)
+{
+    bytes_put_le32(out + FONT_PACK_SECTOR_CHECK,
+                   hash_update(HASH_START, out, FONT_PACK_SECTOR_CHECK));
+}
+
+uint32_t test_extra_font_face_offset(const uint8_t *file, uint32_t face)
+{
+    return bytes_le32(file + FONT_PACK_EXTRA_TABLE + 8 * face);
+}
+
+static uint32_t sector_rounded(uint32_t bytes)
+{
+    return (bytes + FONT_PACK_SECTOR_BYTES - 1) / FONT_PACK_SECTOR_BYTES * FONT_PACK_SECTOR_BYTES;
+}
+
+static void write_languages(uint8_t *out, const TestExtraFont *font)
+{
+    out[6] = (uint8_t)font->language_count;
+    for (uint32_t code = 0; code < font->language_count && code < FONT_PACK_EXTRA_LANGUAGES;
+         code++) {
+        size_t length = strlen(font->languages[code]);
+        memcpy(out + FONT_PACK_EXTRA_CODES + FONT_PACK_LANGUAGE_BYTES * code, font->languages[code],
+               length < 5 ? length : 5);
+    }
+}
+
+uint32_t test_extra_font_build(uint8_t *out, uint32_t capacity, const TestExtraFont *font)
+{
+    uint32_t size = FONT_PACK_SECTOR_BYTES;
+    memset(out, 0, capacity);
+    memcpy(out, "EGXF", 4);
+    out[4] = FONT_PACK_VERSION;
+    out[5] = FONT_PACK_EXTRA_FACES;
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        if (font->faces[face].count == 0) {
+            continue;
+        }
+        uint32_t bytes = test_glyph_face_build(out + size, font->faces[face]);
+        bytes_put_le32(out + FONT_PACK_EXTRA_TABLE + 8 * face, size);
+        bytes_put_le32(out + FONT_PACK_EXTRA_TABLE + 8 * face + 4, bytes);
+        size += sector_rounded(bytes);
+    }
+    write_languages(out, font);
+    bytes_put_le32(out + 8, size);
+    test_extra_font_seal(out);
+    return size;
+}

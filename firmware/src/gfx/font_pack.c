@@ -5,10 +5,14 @@
 enum {
     FACE_UNKNOWN = 0,
     FACE_READY = 1,
-    FACE_MISSING = 2
+    FACE_MISSING = 2,
+    EXTRA_COUNT_FIELD = 5,
+    EXTRA_LANGUAGES_FIELD = 6,
+    EXTRA_SIZE_FIELD = 8
 };
 
 static const uint8_t MAGIC[4] = {'E', 'G', 'L', 'F'};
+static const uint8_t EXTRA_MAGIC[4] = {'E', 'G', 'X', 'F'};
 
 typedef struct PackFace {
     uint8_t state;
@@ -28,16 +32,30 @@ typedef struct PackSlot {
     uint8_t bitmap[FONT_PACK_MAX_BITMAP];
 } PackSlot;
 
+_Static_assert(offsetof(PackSlot, bitmap) == offsetof(PackSlot, glyph) + sizeof(Glyph),
+               "a bitmap follows its glyph");
+
 typedef struct PackState {
     PackFace faces[FONT_PACK_FACES];
     uint8_t sector[FONT_PACK_SECTOR_BYTES];
 } PackState;
 
+typedef struct ExtraSource {
+    FontPackReader reader;
+    uint32_t start[FONT_PACK_EXTRA_FACES];
+    uint32_t size[FONT_PACK_EXTRA_FACES];
+    uint32_t language_count;
+    char languages[FONT_PACK_EXTRA_LANGUAGES * FONT_PACK_LANGUAGE_BYTES];
+} ExtraSource;
+
 static FontPackReader pack_reader;
+static ExtraSource extra;
 static PackState *state;
 static PackSlot *slots;
 static uint32_t slot_count;
 static uint32_t victim;
+static FontPackHold hold;
+static uint32_t held_bytes;
 
 uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
 {
@@ -54,7 +72,7 @@ uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
     state = memory;
     slots = (PackSlot *)(state + 1);
     slot_count = sets * FONT_PACK_WAYS;
-    font_pack_forget();
+    font_pack_hold(FONT_PACK_HOLD_NONE);
     return slot_count;
 }
 
@@ -67,6 +85,7 @@ void font_pack_detach(void)
 
 void font_pack_forget(void)
 {
+    held_bytes = 0;
     if (state == NULL) {
         return;
     }
@@ -78,8 +97,105 @@ void font_pack_forget(void)
     }
 }
 
+void font_pack_hold(FontPackHold next)
+{
+    if (next != FONT_PACK_HOLD_FREEZE) {
+        font_pack_forget();
+    }
+    hold = next;
+}
+
+uint32_t font_pack_held_bytes(void)
+{
+    return held_bytes;
+}
+
+static bool row_fits(uint32_t start, uint32_t size, uint32_t file_size)
+{
+    return size == 0 || (start % FONT_PACK_SECTOR_BYTES == 0 && start >= FONT_PACK_SECTOR_BYTES &&
+                         start <= file_size && size <= file_size - start);
+}
+
+static bool extra_header_valid(const uint8_t *header, uint32_t file_size)
+{
+    for (int byte = 0; byte < 4; byte++) {
+        if (header[byte] != EXTRA_MAGIC[byte]) {
+            return false;
+        }
+    }
+    bool valid = header[4] == FONT_PACK_VERSION &&
+                 header[EXTRA_COUNT_FIELD] == FONT_PACK_EXTRA_FACES &&
+                 header[EXTRA_LANGUAGES_FIELD] <= FONT_PACK_EXTRA_LANGUAGES &&
+                 bytes_le32(header + EXTRA_SIZE_FIELD) == file_size &&
+                 hash_update(HASH_START, header, FONT_PACK_SECTOR_CHECK) ==
+                     bytes_le32(header + FONT_PACK_SECTOR_CHECK);
+    for (uint32_t face = 0; valid && face < FONT_PACK_EXTRA_FACES; face++) {
+        const uint8_t *row = header + FONT_PACK_EXTRA_TABLE + 8 * face;
+        valid = row_fits(bytes_le32(row), bytes_le32(row + 4), file_size);
+    }
+    return valid;
+}
+
+static void keep_extra_header(const uint8_t *header)
+{
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        extra.start[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face);
+        extra.size[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face + 4);
+    }
+    extra.language_count = header[EXTRA_LANGUAGES_FIELD];
+    for (uint32_t byte = 0; byte < sizeof extra.languages; byte++) {
+        bool last = byte % FONT_PACK_LANGUAGE_BYTES == FONT_PACK_LANGUAGE_BYTES - 1;
+        extra.languages[byte] = last ? '\0' : (char)header[FONT_PACK_EXTRA_CODES + byte];
+    }
+}
+
+bool font_pack_attach_extra(FontPackReader reader, uint32_t size)
+{
+    font_pack_detach_extra();
+    if (state == NULL || reader.read == NULL ||
+        !reader.read(reader.context, FONT_PACK_IMAGE_FACES, 0, state->sector,
+                     FONT_PACK_SECTOR_BYTES) ||
+        !extra_header_valid(state->sector, size)) {
+        return false;
+    }
+    keep_extra_header(state->sector);
+    extra.reader = reader;
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+    return true;
+}
+
+void font_pack_detach_extra(void)
+{
+    extra.reader.read = NULL;
+    extra.language_count = 0;
+}
+
+bool font_pack_extra_attached(void)
+{
+    return extra.reader.read != NULL;
+}
+
+const char *font_pack_extra_language(uint32_t index)
+{
+    return index < extra.language_count ? extra.languages + index * FONT_PACK_LANGUAGE_BYTES : NULL;
+}
+
+static bool read_extra(uint32_t face, uint32_t offset, void *buffer, uint32_t length)
+{
+    uint32_t index = face - FONT_PACK_IMAGE_FACES;
+    if (extra.reader.read == NULL || hold == FONT_PACK_HOLD_FREEZE || offset > extra.size[index] ||
+        length > extra.size[index] - offset) {
+        return false;
+    }
+    return extra.reader.read(extra.reader.context, face, extra.start[index] + offset, buffer,
+                             length);
+}
+
 static bool read_face(uint32_t face, uint32_t offset, void *buffer, uint32_t length)
 {
+    if (face >= FONT_PACK_IMAGE_FACES) {
+        return read_extra(face, offset, buffer, length);
+    }
     return pack_reader.read(pack_reader.context, face, offset, buffer, length);
 }
 
@@ -229,12 +345,40 @@ static uint32_t set_of(uint32_t key)
     return (key * 2654435761u >> 16) & (slot_count / FONT_PACK_WAYS - 1);
 }
 
-const Glyph *font_pack_find(uint32_t face, uint32_t codepoint)
+static uint32_t held_entry_bytes(const PackSlot *slot)
 {
-    const PackFace *ready = state != NULL && face < FONT_PACK_FACES ? ready_face(face) : NULL;
-    if (ready == NULL || codepoint < ready->first || codepoint > ready->last) {
+    uint32_t bitmap = ((uint32_t)slot->glyph.width * slot->glyph.height + 1) / 2;
+    return ((uint32_t)offsetof(PackSlot, bitmap) + bitmap + 3u) & ~3u;
+}
+
+static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t codepoint)
+{
+    uint32_t key = (face + 1) << 16 | codepoint;
+    uint8_t *base = (uint8_t *)slots;
+    for (uint32_t at = 0; at < held_bytes; at += held_entry_bytes((PackSlot *)(base + at))) {
+        PackSlot *slot = (PackSlot *)(base + at);
+        if (slot->key == key) {
+            return slot->present ? &slot->glyph : NULL;
+        }
+    }
+    PackSlot *slot = (PackSlot *)(base + held_bytes);
+    if (held_bytes + sizeof(PackSlot) > slot_count * sizeof(PackSlot)) {
         return NULL;
     }
+    slot->present = load_glyph(face, ready, codepoint, slot);
+    if (!slot->present && face >= FONT_PACK_IMAGE_FACES && hold == FONT_PACK_HOLD_FREEZE) {
+        return NULL;
+    }
+    if (!slot->present) {
+        slot->glyph = (Glyph){0};
+    }
+    slot->key = key;
+    held_bytes += held_entry_bytes(slot);
+    return slot->present ? &slot->glyph : NULL;
+}
+
+static const Glyph *find_cached(uint32_t face, const PackFace *ready, uint32_t codepoint)
+{
     uint32_t key = (face + 1) << 16 | codepoint;
     PackSlot *set = slots + set_of(key) * FONT_PACK_WAYS;
     for (uint32_t way = 0; way < FONT_PACK_WAYS; way++) {
@@ -249,6 +393,18 @@ const Glyph *font_pack_find(uint32_t face, uint32_t codepoint)
     return slot->present ? &slot->glyph : NULL;
 }
 
+const Glyph *font_pack_find(uint32_t face, uint32_t codepoint)
+{
+    const PackFace *ready = state != NULL && face < FONT_PACK_FACES ? ready_face(face) : NULL;
+    if (ready == NULL || codepoint < ready->first || codepoint > ready->last) {
+        return NULL;
+    }
+    if (hold != FONT_PACK_HOLD_NONE) {
+        return find_held(face, ready, codepoint);
+    }
+    return find_cached(face, ready, codepoint);
+}
+
 const uint8_t *font_pack_bitmap(const Glyph *glyph)
 {
     const uint8_t *address = (const uint8_t *)glyph;
@@ -256,5 +412,5 @@ const uint8_t *font_pack_bitmap(const Glyph *glyph)
     if (slots == NULL || address < start || address >= start + slot_count * sizeof(PackSlot)) {
         return NULL;
     }
-    return slots[(size_t)(address - start) / sizeof(PackSlot)].bitmap;
+    return address + sizeof(Glyph);
 }

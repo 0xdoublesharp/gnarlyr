@@ -63,6 +63,7 @@ static Font PACKED_FONT;
 
 static void attach(void)
 {
+    font_pack_detach_extra();
     build_pack();
     font_pack_attach(READER, memory, sizeof memory);
     PACKED_FONT = TINY_FONT;
@@ -435,6 +436,314 @@ static void japanese_language_codes_try_the_japanese_face_before_chinese(void)
     i18n_detach();
 }
 
+enum {
+    EXTRA_CAPACITY = 64 * 1024,
+    EXTRA_FACE = FONT_PACK_IMAGE_FACES,
+    HANGUL = 0xAC00,
+    BASE_FIRST = 0x100,
+    HELD_ENTRY_BYTES = 20,
+    PINNED = 30
+};
+
+typedef struct FakeFile {
+    uint8_t bytes[EXTRA_CAPACITY];
+    uint32_t size;
+    uint32_t reads;
+    bool failing;
+} FakeFile;
+
+static FakeFile extra_file;
+static FakeFile base_file;
+static const char *const LANGUAGES[] = {"ko", "zh-TW"};
+static const TestGlyphFace BASE_FACE = {20, BASE_FIRST, 1};
+
+static bool read_file(FakeFile *file, uint32_t offset, void *buffer, uint32_t length)
+{
+    file->reads++;
+    if (file->failing || offset > file->size || length > file->size - offset) {
+        return false;
+    }
+    memcpy(buffer, file->bytes + offset, length);
+    return true;
+}
+
+static bool read_extra_file(void *context, uint32_t face, uint32_t offset, void *buffer,
+                            uint32_t length)
+{
+    (void)context;
+    (void)face;
+    return read_file(&extra_file, offset, buffer, length);
+}
+
+static bool read_image_faces(void *context, uint32_t face, uint32_t offset, void *buffer,
+                             uint32_t length)
+{
+    if (face == 0) {
+        return read_file(&base_file, offset, buffer, length);
+    }
+    return face >= 7 && read_pack(context, 0, offset, buffer, length);
+}
+
+static const FontPackReader EXTRA_READER = {read_extra_file, NULL};
+
+static TestExtraFont extra_font(void)
+{
+    TestExtraFont font = {.languages = LANGUAGES, .language_count = 2};
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        font.faces[face] = (TestGlyphFace){300, HANGUL, 1};
+    }
+    font.faces[1] = (TestGlyphFace){0, 0, 0};
+    font.faces[2] = (TestGlyphFace){50, FIRST_CODEPOINT, 2};
+    return font;
+}
+
+static void build_extra(const TestExtraFont *font)
+{
+    extra_file.reads = 0;
+    extra_file.failing = false;
+    extra_file.size = test_extra_font_build(extra_file.bytes, EXTRA_CAPACITY, font);
+}
+
+static bool attach_both(void)
+{
+    build_pack();
+    base_file.reads = 0;
+    base_file.failing = false;
+    base_file.size = test_glyph_face_build(base_file.bytes, BASE_FACE);
+    font_pack_attach((FontPackReader){read_image_faces, NULL}, memory, sizeof memory);
+    TestExtraFont font = extra_font();
+    build_extra(&font);
+    return font_pack_attach_extra(EXTRA_READER, extra_file.size);
+}
+
+static void extra_faces_come_from_the_container(void)
+{
+    CHECK(attach_both());
+    CHECK(font_pack_extra_attached());
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        const Glyph *glyph = font_pack_find(EXTRA_FACE + face, HANGUL + 5);
+        CHECK((glyph != NULL && glyph->codepoint == HANGUL + 5) == (face != 1 && face != 2));
+    }
+    const Glyph *glyph = font_pack_find(EXTRA_FACE, HANGUL + 7);
+    const uint8_t *bitmap = glyph != NULL ? font_pack_bitmap(glyph) : NULL;
+    CHECK(bitmap != NULL && font_bitmap_level(bitmap, glyph, 0, 0) == 7);
+    CHECK(glyph != NULL && glyph->advance == TEST_GLYPH_ADVANCE);
+}
+
+static void the_container_lists_its_languages(void)
+{
+    CHECK(attach_both());
+    const char *first = font_pack_extra_language(0);
+    const char *second = font_pack_extra_language(1);
+    CHECK(first != NULL && strcmp(first, "ko") == 0);
+    CHECK(second != NULL && strcmp(second, "zh-TW") == 0);
+    CHECK(font_pack_extra_language(2) == NULL);
+    font_pack_detach_extra();
+    CHECK(!font_pack_extra_attached());
+    CHECK(font_pack_extra_language(0) == NULL);
+}
+
+static bool attach_damaged(uint32_t offset, uint8_t value, bool seal)
+{
+    attach_both();
+    font_pack_detach_extra();
+    extra_file.bytes[offset] = value;
+    if (seal) {
+        test_extra_font_seal(extra_file.bytes);
+    }
+    return font_pack_attach_extra(EXTRA_READER, extra_file.size);
+}
+
+static void a_damaged_container_is_refused(void)
+{
+    CHECK(!attach_damaged(0, 'X', true));
+    CHECK(!attach_damaged(4, FONT_PACK_VERSION + 1, true));
+    CHECK(!attach_damaged(5, FONT_PACK_EXTRA_FACES + 1, true));
+    CHECK(!attach_damaged(6, FONT_PACK_EXTRA_LANGUAGES + 1, true));
+    CHECK(!attach_damaged(9, 0x7F, true));
+    CHECK(!attach_damaged(100, 1, false));
+    CHECK(!attach_damaged(FONT_PACK_EXTRA_TABLE, 1, true));
+    CHECK(!attach_damaged(FONT_PACK_EXTRA_TABLE + 7, 1, true));
+    CHECK(!attach_damaged(FONT_PACK_EXTRA_TABLE + 3, 0x7F, true));
+    CHECK(!font_pack_extra_attached());
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL) == NULL);
+    CHECK(attach_damaged(FONT_PACK_EXTRA_CODES + 2, 'x', true));
+}
+
+static void a_truncated_or_grown_container_is_refused(void)
+{
+    attach_both();
+    font_pack_detach_extra();
+    CHECK(!font_pack_attach_extra(EXTRA_READER, extra_file.size - 1));
+    CHECK(!font_pack_attach_extra(EXTRA_READER, extra_file.size + FONT_PACK_SECTOR_BYTES));
+    uint32_t size = extra_file.size;
+    extra_file.size = 100;
+    CHECK(!font_pack_attach_extra(EXTRA_READER, size));
+    CHECK(!font_pack_extra_attached());
+}
+
+static void an_extra_face_reads_nothing_past_its_row(void)
+{
+    attach_both();
+    font_pack_detach_extra();
+    TestGlyphFace face = {300, HANGUL, 1};
+    bytes_put_le32(extra_file.bytes + FONT_PACK_EXTRA_TABLE + 4,
+                   test_glyph_face_data_offset(face) + 10 * TEST_GLYPH_BYTES);
+    test_extra_font_seal(extra_file.bytes);
+    CHECK(font_pack_attach_extra(EXTRA_READER, extra_file.size));
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 9) != NULL);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 10) == NULL);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 299) == NULL);
+}
+
+static void the_base_face_comes_before_extra_and_extra_before_the_language_faces(void)
+{
+    attach_both();
+    PACKED_FONT = TINY_FONT;
+    PACKED_FONT.pack_face = 1;
+    const Glyph *base = font_find_glyph(&PACKED_FONT, BASE_FIRST + 3);
+    CHECK(base != NULL && base == font_pack_find(0, BASE_FIRST + 3));
+    const Glyph *hangul = font_find_glyph(&PACKED_FONT, HANGUL + 3);
+    CHECK(hangul != NULL && hangul == font_pack_find(EXTRA_FACE, HANGUL + 3));
+    const Glyph *han = font_find_glyph(&PACKED_FONT, codepoint_of(60));
+    CHECK(han != NULL && han == font_pack_find(7, codepoint_of(60)));
+    PACKED_FONT.pack_face = 3;
+    han = font_find_glyph(&PACKED_FONT, codepoint_of(10));
+    CHECK(han != NULL && han == font_pack_find(EXTRA_FACE + 2, codepoint_of(10)));
+}
+
+static void a_damaged_extra_sector_falls_back_to_the_language_face(void)
+{
+    attach_both();
+    uint32_t face = test_extra_font_face_offset(extra_file.bytes, 2);
+    extra_file.bytes[face + 2 * FONT_PACK_SECTOR_BYTES + 4] ^= 1;
+    PACKED_FONT = TINY_FONT;
+    PACKED_FONT.pack_face = 3;
+    const Glyph *han = font_find_glyph(&PACKED_FONT, codepoint_of(10));
+    CHECK(han != NULL && han->codepoint == codepoint_of(10));
+    CHECK(han != NULL && han == font_pack_find(9, codepoint_of(10)));
+}
+
+static void detaching_extra_keeps_the_image_faces(void)
+{
+    attach_both();
+    font_pack_detach_extra();
+    CHECK(font_pack_find(0, BASE_FIRST + 1) != NULL);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 1) == NULL);
+}
+
+static void a_replaced_file_is_read_afresh(void)
+{
+    attach_both();
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 1) != NULL);
+    TestExtraFont font = extra_font();
+    font.faces[0] = (TestGlyphFace){300, HANGUL + 1, 1};
+    build_extra(&font);
+    CHECK(font_pack_attach_extra(EXTRA_READER, extra_file.size));
+    const Glyph *glyph = font_pack_find(EXTRA_FACE, HANGUL + 1);
+    const uint8_t *bitmap = glyph != NULL ? font_pack_bitmap(glyph) : NULL;
+    CHECK(bitmap != NULL && font_bitmap_level(bitmap, glyph, 0, 0) == 0);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL) == NULL);
+}
+
+static void attaching_image_memory_again_keeps_the_extra_source(void)
+{
+    attach_both();
+    font_pack_attach((FontPackReader){read_image_faces, NULL}, memory, sizeof memory);
+    CHECK(font_pack_extra_attached());
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 2) != NULL);
+}
+
+static void a_failed_extra_read_finds_nothing(void)
+{
+    attach_both();
+    extra_file.failing = true;
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL) == NULL);
+    CHECK(font_pack_find(0, BASE_FIRST) != NULL);
+}
+
+static void pin_hangul(uint32_t count)
+{
+    font_pack_hold(FONT_PACK_HOLD_PIN);
+    for (uint32_t glyph = 0; glyph < count; glyph++) {
+        CHECK(font_pack_find(EXTRA_FACE, HANGUL + glyph) != NULL);
+    }
+}
+
+static void pinned_glyphs_stay_while_frozen_and_read_nothing(void)
+{
+    attach_both();
+    pin_hangul(PINNED);
+    font_pack_hold(FONT_PACK_HOLD_FREEZE);
+    uint32_t reads = extra_file.reads;
+    for (uint32_t glyph = PINNED; glyph < 300; glyph++) {
+        CHECK(font_pack_find(EXTRA_FACE, HANGUL + glyph) == NULL);
+        CHECK(font_pack_find(EXTRA_FACE + 3, HANGUL + glyph) == NULL);
+    }
+    for (uint32_t glyph = 0; glyph < PINNED; glyph++) {
+        const Glyph *found = font_pack_find(EXTRA_FACE, HANGUL + glyph);
+        const uint8_t *bitmap = found != NULL ? font_pack_bitmap(found) : NULL;
+        CHECK(bitmap != NULL && font_bitmap_level(bitmap, found, 0, 0) == glyph % 16);
+    }
+    CHECK_EQUAL(reads, extra_file.reads);
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+}
+
+static void frozen_extra_misses_take_no_room(void)
+{
+    attach_both();
+    pin_hangul(PINNED);
+    font_pack_hold(FONT_PACK_HOLD_FREEZE);
+    uint32_t held = font_pack_held_bytes();
+    CHECK_EQUAL(PINNED * HELD_ENTRY_BYTES, held);
+    for (uint32_t glyph = PINNED; glyph < 300; glyph++) {
+        font_pack_find(EXTRA_FACE, HANGUL + glyph);
+    }
+    CHECK_EQUAL(held, font_pack_held_bytes());
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+}
+
+static void image_faces_still_load_while_frozen(void)
+{
+    attach_both();
+    pin_hangul(PINNED);
+    font_pack_hold(FONT_PACK_HOLD_FREEZE);
+    uint32_t reads = base_file.reads;
+    CHECK(font_pack_find(0, BASE_FIRST + 4) != NULL);
+    CHECK(base_file.reads > reads);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL) != NULL);
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+}
+
+static void the_held_region_fills_to_a_known_count(void)
+{
+    attach_both();
+    font_pack_hold(FONT_PACK_HOLD_PIN);
+    uint32_t count = 0;
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        for (uint32_t glyph = 0; glyph < 300; glyph++) {
+            count += font_pack_find(EXTRA_FACE + face, HANGUL + glyph) != NULL ? 1u : 0u;
+        }
+    }
+    CHECK_EQUAL(count * HELD_ENTRY_BYTES, font_pack_held_bytes());
+    CHECK(count > 500);
+    CHECK(count < 5 * 300);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL) != NULL);
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+}
+
+static void releasing_the_hold_reads_again(void)
+{
+    attach_both();
+    pin_hangul(PINNED);
+    font_pack_hold(FONT_PACK_HOLD_FREEZE);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 200) == NULL);
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+    CHECK_EQUAL(0, font_pack_held_bytes());
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 200) != NULL);
+    CHECK(font_pack_find(EXTRA_FACE, HANGUL + 1) != NULL);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -470,6 +779,22 @@ int main(void)
         TEST_CASE(a_font_without_a_pack_face_ignores_packs),
         TEST_CASE(a_missing_glyph_is_read_from_the_cjk_fallback_face),
         TEST_CASE(japanese_language_codes_try_the_japanese_face_before_chinese),
+        TEST_CASE(extra_faces_come_from_the_container),
+        TEST_CASE(the_container_lists_its_languages),
+        TEST_CASE(a_damaged_container_is_refused),
+        TEST_CASE(a_truncated_or_grown_container_is_refused),
+        TEST_CASE(an_extra_face_reads_nothing_past_its_row),
+        TEST_CASE(the_base_face_comes_before_extra_and_extra_before_the_language_faces),
+        TEST_CASE(a_damaged_extra_sector_falls_back_to_the_language_face),
+        TEST_CASE(detaching_extra_keeps_the_image_faces),
+        TEST_CASE(a_replaced_file_is_read_afresh),
+        TEST_CASE(attaching_image_memory_again_keeps_the_extra_source),
+        TEST_CASE(a_failed_extra_read_finds_nothing),
+        TEST_CASE(pinned_glyphs_stay_while_frozen_and_read_nothing),
+        TEST_CASE(frozen_extra_misses_take_no_room),
+        TEST_CASE(image_faces_still_load_while_frozen),
+        TEST_CASE(the_held_region_fills_to_a_known_count),
+        TEST_CASE(releasing_the_hold_reads_again),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
