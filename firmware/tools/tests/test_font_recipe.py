@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import struct
 import sys
@@ -30,6 +31,11 @@ CATALOGUE = lang_pack.read_catalogue()
 SEGMENTS = lang_pack.read_segments(CATALOGUE)
 TEXT_ID = next(name for name, _ in CATALOGUE if name != lang_pack.NAME_ID)
 TEST_RECIPE = None
+
+
+def reader_limit():
+    header = (TOOLS.parent / "src" / "gfx" / "include" / "gfx" / "font_pack.h").read_text(encoding="utf-8")
+    return int(re.search(r"\bFONT_PACK_MAX_BITMAP = (\d+)", header).group(1))
 
 
 def subset_source(stem, weight):
@@ -131,9 +137,9 @@ class RecipeFileTest(unittest.TestCase):
             self.assertEqual(base["name"], face["name"])
             for cjk in (chinese, japanese):
                 self.assertEqual(cjk["size"], face["size"])
-                self.assertEqual(cjk["max_bitmap"], face["max_bitmap"])
+                self.assertLessEqual(cjk["max_bitmap"], face["max_bitmap"])
                 self.assertEqual("bold" if cjk["file"].endswith("-Bold.otf") else "regular", face["weight"])
-            self.assertLessEqual(face["max_bitmap"], 352)
+            self.assertEqual(reader_limit(), face["max_bitmap"])
 
     def test_coverage_is_drawable_bmp_text_including_hangul_and_the_image_characters(self):
         coverage = font_recipe.range_set(self.recipe["coverage"])
@@ -319,6 +325,19 @@ class BuildTest(unittest.TestCase):
         japanese, _ = self.build([text], language="ja")
         self.assertNotEqual(chinese, japanese)
 
+    def test_faces_whose_only_or_last_glyph_is_empty_round_trip(self):
+        space = font_build.empty_glyph(0x3000, 16)
+        inked = font_build.render_glyph(font_build.load_font(FONTS / "inter" / "Inter-Regular.ttf", 16), ord("A"))
+        faces = [glyph_pack.pack_glyphs([space]), glyph_pack.pack_glyphs([inked, space])]
+        faces += [None] * (glyph_pack.EXTRA_FACES - len(faces))
+        read, languages = glyph_pack.read_extra_font(glyph_pack.pack_extra_font(faces, ["zh"]))
+        self.assertEqual({0x3000: (0, 0, 0, 0, 16, b"")}, read[0])
+        self.assertEqual([ord("A"), 0x3000], sorted(read[1]))
+        self.assertTrue(read[1][ord("A")][5])
+        self.assertEqual((0, 0, 0, 0, 16, b""), read[1][0x3000])
+        self.assertEqual([None] * (glyph_pack.EXTRA_FACES - 2), read[2:])
+        self.assertEqual(["zh"], languages)
+
     def test_nothing_is_built_when_the_built_in_fonts_draw_everything(self):
         data, result = self.build(["Plain Latin text, Привет"])
         self.assertIsNone(data)
@@ -379,7 +398,7 @@ class AcquisitionTest(unittest.TestCase):
         with self.assertRaises(font_recipe.RecipeError) as raised:
             font_recipe.font_file(self.source, font_recipe.Options(cache=self.cache, fetch=offline))
         message = str(raised.exception)
-        for part in ("sc-Regular.otf", "no network", "--fonts-dir", self.source["url"]):
+        for part in ("sc-Regular.otf", "no network", str(self.cache), self.source["url"]):
             self.assertIn(part, message)
 
     def test_a_fonts_folder_must_hold_the_pinned_file(self):

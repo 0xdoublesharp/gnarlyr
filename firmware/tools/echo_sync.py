@@ -982,7 +982,7 @@ def update_fonts(drives, library, options):
     try:
         report = font_recipe.rebuild(volumes, font_recipe.Extras(library=library),
                                      font_recipe.Options(dry_run=options.dry_run))
-    except (font_recipe.RecipeError, OSError) as error:
+    except (font_recipe.RecipeError, font_recipe.glyph_pack.PackError, OSError) as error:
         print(f"not updated: {error}")
         return
     print(report.summary())
@@ -1063,7 +1063,8 @@ def options_from(arguments):
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(
         description=f"Build the {IDENTITY.name} library and album covers on the card, "
-                    "including internal music when both drives are available.")
+                    "including internal music when both drives are available, and the "
+                    "player's extra fonts on its internal storage.")
     parser.add_argument("card", nargs="?",
                         help="the card's drive or mount point, for example E:\\ or "
                              "/Volumes/CARD; without it, the tool asks")
@@ -1082,7 +1083,7 @@ def parse_arguments(argv):
                         help="compare fingerprints for the available drives and check the card's "
                              "library format header without writing files")
     parser.add_argument("--dry-run", action="store_true",
-                        help="do everything except writing to the card")
+                        help="do everything except writing to the drives")
     parser.add_argument("--yes", action="store_true",
                         help=f"create the card's {DATA_FOLDER} folder without asking")
     parser.add_argument("--verbose", action="store_true", help="list the albums without art")

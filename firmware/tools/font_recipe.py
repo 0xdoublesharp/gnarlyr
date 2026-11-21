@@ -385,7 +385,7 @@ def font_file(source, options):
         raise RecipeError(
             f"couldn't download {source['file']} ({source['size'] / MEBIBYTE:.1f} MB) from "
             f"{source['url']}: {getattr(error, 'reason', None) or error}. Connect to the internet "
-            f"and try again, or download it yourself and pass --fonts-dir with its folder") from error
+            f"and try again, or download it yourself into {path.parent}") from error
     return path
 
 

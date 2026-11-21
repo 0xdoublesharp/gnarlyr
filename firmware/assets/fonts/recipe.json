@@ -82,31 +82,31 @@
       "name": "inter_regular_16_latin1",
       "size": 16,
       "weight": "regular",
-      "max_bitmap": 160
+      "max_bitmap": 352
     },
     {
       "name": "inter_regular_22",
       "size": 22,
       "weight": "regular",
-      "max_bitmap": 256
+      "max_bitmap": 352
     },
     {
       "name": "inter_semibold_22",
       "size": 22,
       "weight": "bold",
-      "max_bitmap": 256
+      "max_bitmap": 352
     },
     {
       "name": "inter_regular_18",
       "size": 18,
       "weight": "regular",
-      "max_bitmap": 256
+      "max_bitmap": 352
     },
     {
       "name": "inter_semibold_18",
       "size": 18,
       "weight": "bold",
-      "max_bitmap": 256
+      "max_bitmap": 352
     },
     {
       "name": "inter_regular_26",
@@ -293,8 +293,7 @@
     [12688, 12731],
     [12736, 12771],
     [12784, 12830],
-    [12832, 13074],
-    [13076, 13076],
+    [12832, 13076],
     [13078, 13099],
     [13101, 13117],
     [13119, 13119],
@@ -303,12 +302,8 @@
     [13225, 13229],
     [13232, 13253],
     [13255, 13277],
-    [13280, 18302],
-    [18304, 18366],
-    [18368, 19893],
-    [19968, 24949],
-    [24952, 39466],
-    [39468, 40943],
+    [13280, 19893],
+    [19968, 40943],
     [43360, 43388],
     [44032, 55203],
     [55216, 55238],

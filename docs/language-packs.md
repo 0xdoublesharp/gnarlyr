@@ -31,7 +31,7 @@ To inspect offline, use `language-inspect /path/to/es.pack --build COMMIT`. The 
 
 The stdio server `python3 tools/echo_debug_mcp.py` exposes `echo_language_inspect`, `echo_language_list`, `echo_language_install` and `echo_language_select`. Their `pack`, `build`, `music_volume`, `select` and `timeout` arguments mirror the corresponding command options. Both interfaces return machine-readable results and errors from the same operations.
 
-Before publishing a pack, the helper validates its complete contents against that catalogue, writes a temporary file, flushes it and checks the readback. Replacing a pack retains a backup. Only language-pack paths are writable through these operations; firmware and debug operations keep their existing write boundaries.
+Before publishing a pack, the helper validates its complete contents against that catalogue, writes a temporary file, flushes it and checks the readback. Replacing a pack retains a backup. Only language-pack paths and `.gnarlyr/fonts/extra.font` on internal storage are writable through these operations; firmware and debug operations keep their existing write boundaries.
 
 After a firmware catalogue change, `language-list` reports old packs under `incompatible_files`. Install the rebuilt pack under the same code to preserve the previous bytes as a backup and publish its compatible replacement. A file of another pack format version is listed there with the reason `format_mismatch`; rebuild it from its translation file.
 
