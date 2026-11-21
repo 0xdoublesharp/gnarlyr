@@ -18,7 +18,7 @@ ARM_DEFAULT = SCRATCH / "tools/arm-15.3-expanded/Payload/bin"
 VENV_DEFAULT = SCRATCH / "tools" / f"{IDENTITY['name'].lower()}-python314"
 BUILD_NAME = ROOT.name if (ROOT / ".git").is_file() else SCRATCH.name
 GROUPS = {
-    "host": "^test_",
+    "host": "^(test_|cover_decode_matches_pillow$)",
     "smoke": "^(test_player|test_settings|test_up_next|test_session_journal|"
              "device_image_passes_the_updater_check|"
              "device_image_boot_test_normal_boot_reaches_the_home_screen_using_only_the_user_volume|"
