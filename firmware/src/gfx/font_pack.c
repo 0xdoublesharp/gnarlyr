@@ -1,21 +1,24 @@
 #include "gfx/font_pack.h"
 #include "core/bytes.h"
+#include "core/hash.h"
 
 enum {
     FACE_UNKNOWN = 0,
     FACE_READY = 1,
-    FACE_MISSING = 2,
-    MAX_CODEPOINT = 0xFFFF
+    FACE_MISSING = 2
 };
 
 static const uint8_t MAGIC[4] = {'E', 'G', 'L', 'F'};
 
 typedef struct PackFace {
     uint8_t state;
-    uint16_t directory_count;
-    uint32_t glyph_count;
-    uint32_t index_offset;
-    uint8_t directory[2 * FONT_PACK_MAX_DIRECTORY];
+    uint8_t roots;
+    uint16_t first;
+    uint16_t last;
+    uint8_t root[2 * FONT_PACK_MAX_ROOT];
+    uint32_t count;
+    uint32_t size;
+    uint32_t seed;
 } PackFace;
 
 typedef struct PackSlot {
@@ -27,7 +30,7 @@ typedef struct PackSlot {
 
 typedef struct PackState {
     PackFace faces[FONT_PACK_FACES];
-    uint8_t entries[FONT_PACK_ENTRIES_PER_SECTOR * FONT_PACK_ENTRY_BYTES];
+    uint8_t sector[FONT_PACK_SECTOR_BYTES];
 } PackState;
 
 static FontPackReader pack_reader;
@@ -80,28 +83,55 @@ static bool read_face(uint32_t face, uint32_t offset, void *buffer, uint32_t len
     return pack_reader.read(pack_reader.context, face, offset, buffer, length);
 }
 
-static bool open_face(uint32_t index, PackFace *face)
+static uint32_t sectors_for(uint32_t items, uint32_t per_sector)
 {
-    uint8_t header[FONT_PACK_HEADER_BYTES];
-    if (!read_face(index, 0, header, sizeof header)) {
-        return false;
-    }
+    return (items + per_sector - 1) / per_sector;
+}
+
+static uint32_t index_sectors(const PackFace *face)
+{
+    return sectors_for(face->count, FONT_PACK_ENTRIES_PER_SECTOR);
+}
+
+static bool header_valid(const uint8_t *header)
+{
+    uint32_t count = bytes_le32(header + 8);
+    uint32_t roots =
+        sectors_for(sectors_for(count, FONT_PACK_ENTRIES_PER_SECTOR), FONT_PACK_DIRECTORY_ENTRIES);
     for (int byte = 0; byte < 4; byte++) {
         if (header[byte] != MAGIC[byte]) {
             return false;
         }
     }
-    uint32_t count = bytes_le32(header + 8);
-    uint32_t sectors = (count + FONT_PACK_ENTRIES_PER_SECTOR - 1) / FONT_PACK_ENTRIES_PER_SECTOR;
-    if (header[4] != FONT_PACK_VERSION || header[5] != FONT_PACK_ENTRY_BYTES ||
-        bytes_le16(header + 6) != FONT_PACK_ENTRIES_PER_SECTOR || count == 0 ||
-        sectors > FONT_PACK_MAX_DIRECTORY) {
+    return header[4] == FONT_PACK_VERSION && header[5] == FONT_PACK_ENTRY_BYTES &&
+           bytes_le16(header + 6) == FONT_PACK_ENTRIES_PER_SECTOR &&
+           count - 1u < FONT_PACK_MAX_GLYPHS && bytes_le16(header + 20) == roots &&
+           roots <= FONT_PACK_MAX_ROOT && bytes_le16(header + 16) <= bytes_le16(header + 18) &&
+           hash_update(HASH_START, header, FONT_PACK_HEADER_CHECK) ==
+               bytes_le32(header + FONT_PACK_HEADER_CHECK);
+}
+
+static uint32_t data_offset(const PackFace *face)
+{
+    return (1u + face->roots + index_sectors(face)) * FONT_PACK_SECTOR_BYTES;
+}
+
+static bool open_face(uint32_t index, PackFace *face)
+{
+    const uint8_t *header = state->sector;
+    if (!read_face(index, 0, state->sector, FONT_PACK_HEADER_BYTES) || !header_valid(header)) {
         return false;
     }
-    face->glyph_count = count;
-    face->directory_count = (uint16_t)sectors;
-    face->index_offset = bytes_le32(header + 16);
-    return read_face(index, bytes_le32(header + 12), face->directory, 2 * sectors);
+    face->count = bytes_le32(header + 8);
+    face->size = bytes_le32(header + 12);
+    face->first = (uint16_t)bytes_le16(header + 16);
+    face->last = (uint16_t)bytes_le16(header + 18);
+    face->roots = (uint8_t)bytes_le16(header + 20);
+    for (uint32_t byte = 0; byte < sizeof face->root; byte++) {
+        face->root[byte] = header[FONT_PACK_ROOT_OFFSET + byte];
+    }
+    face->seed = bytes_le32(header + FONT_PACK_HEADER_CHECK);
+    return data_offset(face) <= face->size;
 }
 
 static PackFace *ready_face(uint32_t index)
@@ -113,14 +143,23 @@ static PackFace *ready_face(uint32_t index)
     return face->state == FACE_READY ? face : NULL;
 }
 
-static int index_sector(const PackFace *face, uint32_t codepoint)
+static bool read_sector(uint32_t index, const PackFace *face, uint32_t number)
 {
-    int low = 0;
-    int high = (int)face->directory_count - 1;
-    int found = -1;
+    return read_face(index, number * FONT_PACK_SECTOR_BYTES, state->sector,
+                     FONT_PACK_SECTOR_BYTES) &&
+           hash_update(face->seed, state->sector, FONT_PACK_SECTOR_CHECK) ==
+               bytes_le32(state->sector + FONT_PACK_SECTOR_CHECK);
+}
+
+static int32_t last_at_or_below(const uint8_t *base, uint32_t count, uint32_t stride,
+                                uint32_t codepoint)
+{
+    int32_t low = 0;
+    int32_t high = (int32_t)count - 1;
+    int32_t found = -1;
     while (low <= high) {
-        int middle = low + (high - low) / 2;
-        if (bytes_le16(face->directory + 2 * middle) <= codepoint) {
+        int32_t middle = low + (high - low) / 2;
+        if (bytes_le16(base + (uint32_t)middle * stride) <= codepoint) {
             found = middle;
             low = middle + 1;
         } else {
@@ -130,50 +169,50 @@ static int index_sector(const PackFace *face, uint32_t codepoint)
     return found;
 }
 
+static uint32_t smaller(uint32_t left, uint32_t right)
+{
+    return left < right ? left : right;
+}
+
+static int32_t find_index_sector(uint32_t index, const PackFace *face, uint32_t codepoint)
+{
+    int32_t directory = last_at_or_below(face->root, face->roots, 2, codepoint);
+    if (directory < 0 || !read_sector(index, face, 1u + (uint32_t)directory)) {
+        return -1;
+    }
+    uint32_t first = (uint32_t)directory * FONT_PACK_DIRECTORY_ENTRIES;
+    uint32_t count = smaller(FONT_PACK_DIRECTORY_ENTRIES, index_sectors(face) - first);
+    int32_t within = last_at_or_below(state->sector, count, 2, codepoint);
+    return within < 0 ? -1 : (int32_t)(first + (uint32_t)within);
+}
+
 static const uint8_t *find_entry(uint32_t index, const PackFace *face, uint32_t codepoint)
 {
-    int sector = index_sector(face, codepoint);
-    if (sector < 0) {
+    int32_t sector = find_index_sector(index, face, codepoint);
+    if (sector < 0 || !read_sector(index, face, 1u + face->roots + (uint32_t)sector)) {
         return NULL;
     }
     uint32_t first = (uint32_t)sector * FONT_PACK_ENTRIES_PER_SECTOR;
-    uint32_t count = face->glyph_count - first < FONT_PACK_ENTRIES_PER_SECTOR
-                         ? face->glyph_count - first
-                         : FONT_PACK_ENTRIES_PER_SECTOR;
-    uint32_t offset = face->index_offset + (uint32_t)sector * FONT_PACK_SECTOR_BYTES;
-    if (!read_face(index, offset, state->entries, count * FONT_PACK_ENTRY_BYTES)) {
-        return NULL;
-    }
-    int low = 0;
-    int high = (int)count - 1;
-    while (low <= high) {
-        int middle = low + (high - low) / 2;
-        const uint8_t *entry = state->entries + middle * FONT_PACK_ENTRY_BYTES;
-        uint32_t found = bytes_le16(entry);
-        if (found == codepoint) {
-            return entry;
-        }
-        if (found < codepoint) {
-            low = middle + 1;
-        } else {
-            high = middle - 1;
-        }
-    }
-    return NULL;
+    uint32_t count = smaller(FONT_PACK_ENTRIES_PER_SECTOR, face->count - first);
+    int32_t position = last_at_or_below(state->sector, count, FONT_PACK_ENTRY_BYTES, codepoint);
+    const uint8_t *entry = state->sector + (uint32_t)position * FONT_PACK_ENTRY_BYTES;
+    return position >= 0 && bytes_le16(entry) == codepoint ? entry : NULL;
 }
 
-static bool load_glyph(uint32_t index, uint32_t codepoint, PackSlot *slot)
+static bool bitmap_fits(const PackFace *face, uint32_t offset, uint32_t bytes)
 {
-    const PackFace *face = ready_face(index);
-    const uint8_t *entry = face != NULL ? find_entry(index, face, codepoint) : NULL;
+    return bytes <= FONT_PACK_MAX_BITMAP && offset >= data_offset(face) && offset <= face->size &&
+           bytes <= face->size - offset;
+}
+
+static bool load_glyph(uint32_t index, const PackFace *face, uint32_t codepoint, PackSlot *slot)
+{
+    const uint8_t *entry = find_entry(index, face, codepoint);
     if (entry == NULL) {
         return false;
     }
     uint32_t bytes = ((uint32_t)entry[2] * entry[3] + 1) / 2;
-    if (bytes > FONT_PACK_MAX_BITMAP ||
-        (bytes > 0 && !read_face(index, bytes_le32(entry + 8), slot->bitmap, bytes))) {
-        return false;
-    }
+    uint32_t offset = bytes_le32(entry + 8);
     slot->glyph = (Glyph){.codepoint = (uint16_t)codepoint,
                           .bitmap_offset = 0,
                           .width = entry[2],
@@ -181,7 +220,8 @@ static bool load_glyph(uint32_t index, uint32_t codepoint, PackSlot *slot)
                           .left = (int8_t)entry[4],
                           .top = (int8_t)entry[5],
                           .advance = entry[6]};
-    return true;
+    return bitmap_fits(face, offset, bytes) &&
+           (bytes == 0 || read_face(index, offset, slot->bitmap, bytes));
 }
 
 static uint32_t set_of(uint32_t key)
@@ -191,7 +231,8 @@ static uint32_t set_of(uint32_t key)
 
 const Glyph *font_pack_find(uint32_t face, uint32_t codepoint)
 {
-    if (state == NULL || face >= FONT_PACK_FACES || codepoint > MAX_CODEPOINT) {
+    const PackFace *ready = state != NULL && face < FONT_PACK_FACES ? ready_face(face) : NULL;
+    if (ready == NULL || codepoint < ready->first || codepoint > ready->last) {
         return NULL;
     }
     uint32_t key = (face + 1) << 16 | codepoint;
@@ -203,7 +244,7 @@ const Glyph *font_pack_find(uint32_t face, uint32_t codepoint)
     }
     PackSlot *slot = &set[victim++ % FONT_PACK_WAYS];
     slot->key = 0;
-    slot->present = load_glyph(face, codepoint, slot);
+    slot->present = load_glyph(face, ready, codepoint, slot);
     slot->key = key;
     return slot->present ? &slot->glyph : NULL;
 }

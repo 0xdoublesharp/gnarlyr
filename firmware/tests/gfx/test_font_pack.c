@@ -5,25 +5,24 @@
 #include "core/bytes.h"
 #include "core/i18n.h"
 #include "gfx/font_pack.h"
+#include "test_glyph_face.h"
 #include "test_pack.h"
 #include "tiny_font.h"
 
 enum {
     GLYPHS = 100,
     FIRST_CODEPOINT = 0x4E00,
-    DIRECTORY_OFFSET = FONT_PACK_SECTOR_BYTES,
-    INDEX_OFFSET = 2 * FONT_PACK_SECTOR_BYTES,
-    INDEX_SECTORS = (GLYPHS + FONT_PACK_ENTRIES_PER_SECTOR - 1) / FONT_PACK_ENTRIES_PER_SECTOR,
-    DATA_OFFSET = INDEX_OFFSET + INDEX_SECTORS * FONT_PACK_SECTOR_BYTES,
-    GLYPH_WIDTH = 3,
-    GLYPH_HEIGHT = 2,
-    GLYPH_BYTES = (GLYPH_WIDTH * GLYPH_HEIGHT + 1) / 2,
-    PACK_BYTES = DATA_OFFSET + GLYPHS * GLYPH_BYTES,
+    LARGE_GLYPHS = FONT_PACK_DIRECTORY_ENTRIES * FONT_PACK_ENTRIES_PER_SECTOR + 200,
+    PACK_CAPACITY = 200000,
     MEMORY_BYTES = 16384
 };
 
+static const TestGlyphFace SMALL_FACE = {GLYPHS, FIRST_CODEPOINT, 2};
+static const TestGlyphFace LARGE_FACE = {LARGE_GLYPHS, 0x1000, 1};
+
 typedef struct FakePack {
-    uint8_t bytes[PACK_BYTES];
+    uint8_t bytes[PACK_CAPACITY];
+    uint32_t size;
     uint32_t reads;
     bool failing;
 } FakePack;
@@ -33,47 +32,26 @@ static uint32_t memory[MEMORY_BYTES / 4];
 
 static uint32_t codepoint_of(uint32_t glyph)
 {
-    return FIRST_CODEPOINT + 2 * glyph;
+    return test_glyph_face_codepoint(SMALL_FACE, glyph);
+}
+
+static void build_face(TestGlyphFace face)
+{
+    pack.reads = 0;
+    pack.failing = false;
+    pack.size = test_glyph_face_build(pack.bytes, face);
 }
 
 static void build_pack(void)
 {
-    memset(&pack, 0, sizeof pack);
-    uint8_t *header = pack.bytes;
-    memcpy(header, "EGLF", 4);
-    header[4] = FONT_PACK_VERSION;
-    header[5] = FONT_PACK_ENTRY_BYTES;
-    bytes_put_le16(header + 6, FONT_PACK_ENTRIES_PER_SECTOR);
-    bytes_put_le32(header + 8, GLYPHS);
-    bytes_put_le32(header + 12, DIRECTORY_OFFSET);
-    bytes_put_le32(header + 16, INDEX_OFFSET);
-    bytes_put_le32(header + 20, DATA_OFFSET);
-    bytes_put_le32(header + 24, PACK_BYTES);
-    for (uint32_t glyph = 0; glyph < GLYPHS; glyph++) {
-        uint32_t sector = glyph / FONT_PACK_ENTRIES_PER_SECTOR;
-        uint32_t within = glyph % FONT_PACK_ENTRIES_PER_SECTOR;
-        if (within == 0) {
-            bytes_put_le16(pack.bytes + DIRECTORY_OFFSET + 2 * sector, codepoint_of(glyph));
-        }
-        uint8_t *entry = pack.bytes + INDEX_OFFSET + sector * FONT_PACK_SECTOR_BYTES +
-                         within * FONT_PACK_ENTRY_BYTES;
-        bytes_put_le16(entry, codepoint_of(glyph));
-        entry[2] = GLYPH_WIDTH;
-        entry[3] = GLYPH_HEIGHT;
-        entry[4] = 1;
-        entry[5] = (uint8_t)-2;
-        entry[6] = 9;
-        bytes_put_le32(entry + 8, DATA_OFFSET + glyph * GLYPH_BYTES);
-        uint8_t *bitmap = pack.bytes + DATA_OFFSET + glyph * GLYPH_BYTES;
-        bitmap[0] = (uint8_t)((glyph % 16) << 4 | 15);
-    }
+    build_face(SMALL_FACE);
 }
 
 static bool read_pack(void *context, uint32_t face, uint32_t offset, void *buffer, uint32_t length)
 {
     (void)context;
     pack.reads++;
-    if (pack.failing || face != 0 || offset > PACK_BYTES || length > PACK_BYTES - offset) {
+    if (pack.failing || face != 0 || offset > pack.size || length > pack.size - offset) {
         return false;
     }
     memcpy(buffer, pack.bytes + offset, length);
@@ -100,11 +78,11 @@ static void a_packed_glyph_has_its_metrics(void)
         return;
     }
     CHECK_EQUAL(codepoint_of(5), glyph->codepoint);
-    CHECK_EQUAL(GLYPH_WIDTH, glyph->width);
-    CHECK_EQUAL(GLYPH_HEIGHT, glyph->height);
-    CHECK_EQUAL(1, glyph->left);
-    CHECK_EQUAL(-2, glyph->top);
-    CHECK_EQUAL(9, glyph->advance);
+    CHECK_EQUAL(TEST_GLYPH_WIDTH, glyph->width);
+    CHECK_EQUAL(TEST_GLYPH_HEIGHT, glyph->height);
+    CHECK_EQUAL(TEST_GLYPH_LEFT, glyph->left);
+    CHECK_EQUAL(TEST_GLYPH_TOP, glyph->top);
+    CHECK_EQUAL(TEST_GLYPH_ADVANCE, glyph->advance);
 }
 
 static void a_packed_glyph_brings_its_bitmap(void)
@@ -158,7 +136,54 @@ static void the_header_is_read_once(void)
     font_pack_find(0, codepoint_of(1));
     uint32_t reads = pack.reads;
     font_pack_find(0, codepoint_of(2));
-    CHECK_EQUAL(reads + 2, pack.reads);
+    CHECK_EQUAL(reads + 3, pack.reads);
+}
+
+static void a_codepoint_outside_the_face_reads_nothing(void)
+{
+    attach();
+    font_pack_find(0, codepoint_of(1));
+    uint32_t reads = pack.reads;
+    CHECK(font_pack_find(0, FIRST_CODEPOINT - 1) == NULL);
+    CHECK(font_pack_find(0, codepoint_of(GLYPHS - 1) + 1) == NULL);
+    CHECK(font_pack_find(0, 'A') == NULL);
+    CHECK_EQUAL(reads, pack.reads);
+}
+
+static void glyphs_on_both_sides_of_a_directory_sector_are_found(void)
+{
+    build_face(LARGE_FACE);
+    font_pack_attach(READER, memory, sizeof memory);
+    CHECK_EQUAL(2, test_glyph_face_roots(LARGE_FACE));
+    uint32_t boundary = FONT_PACK_DIRECTORY_ENTRIES * FONT_PACK_ENTRIES_PER_SECTOR;
+    uint32_t glyphs[] = {0,
+                         1,
+                         boundary - 43,
+                         boundary - 1,
+                         boundary,
+                         boundary + 41,
+                         boundary + 42,
+                         LARGE_GLYPHS - 1};
+    for (uint32_t index = 0; index < sizeof glyphs / sizeof glyphs[0]; index++) {
+        uint32_t codepoint = test_glyph_face_codepoint(LARGE_FACE, glyphs[index]);
+        const Glyph *glyph = font_pack_find(0, codepoint);
+        CHECK(glyph != NULL && glyph->codepoint == codepoint);
+        const uint8_t *bitmap = glyph != NULL ? font_pack_bitmap(glyph) : NULL;
+        CHECK(bitmap != NULL && font_bitmap_level(bitmap, glyph, 0, 0) == glyphs[index] % 16);
+    }
+    CHECK(font_pack_find(0, test_glyph_face_codepoint(LARGE_FACE, LARGE_GLYPHS)) == NULL);
+}
+
+static void a_face_holds_more_than_sixteen_index_sectors(void)
+{
+    TestGlyphFace face = {FONT_PACK_ENTRIES_PER_SECTOR * 40, 0x3000, 1};
+    build_face(face);
+    font_pack_attach(READER, memory, sizeof memory);
+    for (uint32_t glyph = 0; glyph < face.count; glyph += 37) {
+        uint32_t codepoint = test_glyph_face_codepoint(face, glyph);
+        const Glyph *found = font_pack_find(0, codepoint);
+        CHECK(found != NULL && found->codepoint == codepoint);
+    }
 }
 
 static void forgetting_reads_the_pack_again(void)
@@ -175,6 +200,7 @@ static void a_pack_without_its_magic_is_ignored(void)
 {
     attach();
     pack.bytes[0] = 'X';
+    test_glyph_face_seal_header(pack.bytes);
     CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
 }
 
@@ -182,7 +208,104 @@ static void a_pack_of_another_version_is_ignored(void)
 {
     attach();
     pack.bytes[4] = FONT_PACK_VERSION + 1;
+    test_glyph_face_seal_header(pack.bytes);
     CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+}
+
+static void a_damaged_header_is_refused(void)
+{
+    attach();
+    pack.bytes[8] ^= 1;
+    CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+    CHECK(font_pack_find(0, codepoint_of(50)) == NULL);
+}
+
+static void a_header_whose_glyph_count_disagrees_with_its_directory_is_refused(void)
+{
+    static const uint32_t counts[] = {0, 11000, FONT_PACK_MAX_GLYPHS + 1};
+    for (uint32_t index = 0; index < sizeof counts / sizeof counts[0]; index++) {
+        attach();
+        bytes_put_le32(pack.bytes + 8, counts[index]);
+        test_glyph_face_seal_header(pack.bytes);
+        CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+    }
+}
+
+static void a_header_that_puts_its_data_past_its_end_is_refused(void)
+{
+    attach();
+    bytes_put_le32(pack.bytes + 12, test_glyph_face_data_offset(SMALL_FACE) - 1);
+    test_glyph_face_seal_header(pack.bytes);
+    CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+}
+
+static void a_damaged_directory_sector_finds_nothing_it_points_to(void)
+{
+    attach();
+    pack.bytes[FONT_PACK_SECTOR_BYTES + 3] ^= 1;
+    CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+    CHECK(font_pack_find(0, codepoint_of(GLYPHS - 1)) == NULL);
+}
+
+static void a_damaged_index_sector_loses_only_its_own_glyphs(void)
+{
+    attach();
+    uint32_t second = 1 + test_glyph_face_roots(SMALL_FACE) + 1;
+    pack.bytes[second * FONT_PACK_SECTOR_BYTES + 5] ^= 1;
+    CHECK(font_pack_find(0, codepoint_of(FONT_PACK_ENTRIES_PER_SECTOR)) == NULL);
+    CHECK(font_pack_find(0, codepoint_of(FONT_PACK_ENTRIES_PER_SECTOR + 1)) == NULL);
+    CHECK(font_pack_find(0, codepoint_of(0)) != NULL);
+    CHECK(font_pack_find(0, codepoint_of(GLYPHS - 1)) != NULL);
+}
+
+static void a_sector_from_another_face_is_refused(void)
+{
+    static uint8_t other[PACK_CAPACITY];
+    TestGlyphFace face = SMALL_FACE;
+    face.first = FIRST_CODEPOINT + 1;
+    test_glyph_face_build(other, face);
+    attach();
+    uint32_t index = (1 + test_glyph_face_roots(SMALL_FACE)) * FONT_PACK_SECTOR_BYTES;
+    memcpy(pack.bytes + index, other + index, FONT_PACK_SECTOR_BYTES);
+    CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+    CHECK(font_pack_find(0, codepoint_of(0) + 1) == NULL);
+}
+
+static void a_bitmap_outside_the_data_is_refused(void)
+{
+    static const uint32_t offsets[] = {0, 2 * FONT_PACK_SECTOR_BYTES, 0xFFFFFFFFu};
+    for (uint32_t index = 0; index < sizeof offsets / sizeof offsets[0]; index++) {
+        attach();
+        uint32_t sector = 1 + test_glyph_face_roots(SMALL_FACE);
+        uint8_t *entry = pack.bytes + sector * FONT_PACK_SECTOR_BYTES;
+        bytes_put_le32(entry + 8, offsets[index]);
+        test_glyph_face_seal_sector(pack.bytes, sector);
+        CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+        CHECK(font_pack_find(0, codepoint_of(1)) != NULL);
+    }
+}
+
+static void a_bitmap_running_past_the_end_is_refused(void)
+{
+    attach();
+    uint32_t sector = 1 + test_glyph_face_roots(SMALL_FACE);
+    uint8_t *entry = pack.bytes + sector * FONT_PACK_SECTOR_BYTES;
+    bytes_put_le32(entry + 8, test_glyph_face_size(SMALL_FACE) - 1);
+    test_glyph_face_seal_sector(pack.bytes, sector);
+    CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
+}
+
+static void a_truncated_face_finds_only_what_it_still_holds(void)
+{
+    uint32_t data = test_glyph_face_data_offset(SMALL_FACE);
+    uint32_t ends[] = {FONT_PACK_HEADER_BYTES - 1, FONT_PACK_SECTOR_BYTES,
+                       2 * FONT_PACK_SECTOR_BYTES + 100, data, data + 10 * TEST_GLYPH_BYTES};
+    for (uint32_t index = 0; index < sizeof ends / sizeof ends[0]; index++) {
+        attach();
+        pack.size = ends[index];
+        CHECK(font_pack_find(0, codepoint_of(GLYPHS - 1)) == NULL);
+        CHECK((font_pack_find(0, codepoint_of(9)) != NULL) == (index == 4));
+    }
 }
 
 static void a_failed_read_finds_nothing(void)
@@ -321,9 +444,21 @@ int main(void)
         TEST_CASE(codepoints_outside_the_pack_are_missing),
         TEST_CASE(a_second_lookup_reads_nothing),
         TEST_CASE(the_header_is_read_once),
+        TEST_CASE(a_codepoint_outside_the_face_reads_nothing),
+        TEST_CASE(glyphs_on_both_sides_of_a_directory_sector_are_found),
+        TEST_CASE(a_face_holds_more_than_sixteen_index_sectors),
         TEST_CASE(forgetting_reads_the_pack_again),
         TEST_CASE(a_pack_without_its_magic_is_ignored),
         TEST_CASE(a_pack_of_another_version_is_ignored),
+        TEST_CASE(a_damaged_header_is_refused),
+        TEST_CASE(a_header_whose_glyph_count_disagrees_with_its_directory_is_refused),
+        TEST_CASE(a_header_that_puts_its_data_past_its_end_is_refused),
+        TEST_CASE(a_damaged_directory_sector_finds_nothing_it_points_to),
+        TEST_CASE(a_damaged_index_sector_loses_only_its_own_glyphs),
+        TEST_CASE(a_sector_from_another_face_is_refused),
+        TEST_CASE(a_bitmap_outside_the_data_is_refused),
+        TEST_CASE(a_bitmap_running_past_the_end_is_refused),
+        TEST_CASE(a_truncated_face_finds_only_what_it_still_holds),
         TEST_CASE(a_failed_read_finds_nothing),
         TEST_CASE(too_little_memory_keeps_packs_off),
         TEST_CASE(the_memory_holds_whole_sets_of_slots),
