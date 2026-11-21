@@ -1,12 +1,12 @@
 # Gnarlyr.com
 
-Static firmware website. Serve this directory with any static host; there is no build step, dependency install or external font. Cloudflare adds its analytics beacon to served HTML. Open `index.html` directly for a local preview. The home page introduces the firmware with a Now Playing preview, three screenshot-led feature stories, benefit cards, a hardware purchase section and an installation journey. `firmware.html` covers the features and changes from stock. `companion.html` introduces the desktop beta with library browsing, reviewed and verified music copies, player controls, firmware review and language packs. Hardware specifications and detailed setup stay in their dedicated guides. `docs.html` is the visual player guide and the entry point for hardware, recovery and developer references. Hardware belongs under Docs and keeps its stable `hardware.html` URL. `install.html` covers ordinary first installation, music setup and later USB updates. `recovery.html` covers macOS recovery when the player will not start or expose its drives, with verified Gnarlyr and stock-restoration writes. `build.html` holds source builds, developer USB workflows and technical migration/recovery references. `languages.html` builds and checks language packs locally using `language-catalog.js` and `language-packs.js`; it works when opened directly from disk. The main home action goes to Install. All pages share `styles.css` and `site.js`. The script copies commands with success and selection feedback and opens help sections from fragment links. Instructions and expandable help remain available without JavaScript.
+Static firmware website with a small Python publishing step. There is no dependency install or external font. The publisher generates the complete multilingual site; opening the source `index.html` directly previews English copy. Cloudflare adds its analytics beacon to served HTML. Open `index.html` directly for a local preview. The home page introduces the firmware with a Now Playing preview, three screenshot-led feature stories, benefit cards, a hardware purchase section and an installation journey. `firmware.html` covers the features and changes from stock. `companion.html` introduces the desktop beta with library browsing, reviewed and verified music copies, player controls, firmware review and language packs. Hardware specifications and detailed setup stay in their dedicated guides. `docs.html` is the visual player guide and the entry point for hardware, recovery and developer references. Hardware belongs under Docs and keeps its stable `hardware.html` URL. `install.html` covers ordinary first installation, music setup and later USB updates. `recovery.html` covers macOS recovery when the player will not start or expose its drives, with verified Gnarlyr and stock-restoration writes. `build.html` holds source builds, developer USB workflows and technical migration/recovery references. `languages.html` builds and checks language packs locally using `language-catalog.js` and `language-packs.js`; it works when opened directly from disk. The main home action goes to Install. All pages share `styles.css` and `site.js`. The script copies commands with success and selection feedback and opens help sections from fragment links. Instructions and expandable help remain available without JavaScript.
 
 The cassette artwork is an original inline SVG, not a device photograph or firmware screenshot. The page includes responsive layouts, keyboard focus, reduced-motion support, readable command wrapping, and native expandable installation help. The [UX pass](../docs/gnarlyr-ux.md) records the accepted design and checks.
 
 The Docs screenshots are product assets under `site/assets/screens/`, generated from the real firmware simulator with generated sample audio and real album artwork. They illustrate the interface and do not establish device behavior. Keep final public image assets under `site/assets/`; the publisher includes that directory. Do not add empty screenshot placeholders or claim that the cassette illustration is a screenshot.
 
-DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the nine public HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those seventeen root files and optional image assets; this README and `deploy/` stay outside the served release.
+DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the nine English pages, five generated language homepages, shared CSS and JavaScript, firmware language catalogue and builder script, favicon, robots file, and sitemap together. The publisher allows seventeen root files, complete generated locale pages, and public image assets; this README, `i18n/` catalogues, and `deploy/` stay outside the served release.
 
 Firmware copy and all 77 player screenshots follow `30753143`. The guide includes combined internal/card libraries, Menu-and-volume scrub previews, paused track changes, Sunset Drive meters, Quick Settings value lists, and one-line portrait headers. Simulator scenes check their screen titles and dimensions; USB scenes use the native renderer. Screenshots show the interface, not physical-device acceptance. Export the browser language catalogue from the same firmware source. Keep fixes to our existing features out of the marketing feature list.
 
@@ -46,9 +46,71 @@ Language scenes include a `language` object with a short `code` and a `strings` 
 The player outline is CSS around the image, so regenerated PNGs retain their original pixels and full-size links. During publication, `publish_site.py` appends each referenced asset’s content hash to its URL in the published HTML. Stylesheets, scripts, screenshots and full-size image links therefore get new browser-cache keys when their contents change without editing source pages or changing their local preview paths.
 
 
+## Website languages
+
+English HTML remains the editable source. The publisher generates complete
+homepages at `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/` from that same layout.
+The language picker works without JavaScript. Other pages retain their English
+URLs; the picker labels links to translated homepages when the current guide
+has no translation. Screenshots and the shared social images remain in English.
+
+The initial languages are Spanish, German, Japanese, French, and Portuguese.
+They are the five most-used website content languages after English in the
+[W3Techs survey](https://w3techs.com/technologies/overview/content_language),
+checked November 21, 2026. This measures web presence, not Gnarlyr traffic or
+search demand. Portuguese uses Brazilian wording with a language-wide `pt` URL.
+
+`i18n/locales.json` declares the languages and the pages ready for publication.
+`i18n/LOCALE.json` contains translations, the English source text, and its SHA-256.
+These catalogues are source files and are never published. Stable `data-i18n`
+IDs keep a paragraph, including its inline links, together. Attributes have
+separate IDs. IDs stay in English source and are removed from published HTML.
+
+After editing translated copy:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/site_locales.py status
+```
+
+The command lists only missing, changed, or invalid entries, including their
+previous and current English text. Update those translations and hashes while
+keeping unchanged entries. Publication refuses missing or stale translations
+and changes to protected HTML markup or links. It also refuses new text that
+has not been marked for translation.
+
+For a new paragraph, or to prepare another page:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/site_locales.py annotate --page index.html
+PYTHONDONTWRITEBYTECODE=1 python3 tools/site_locales.py catalogue --page index.html
+```
+
+The first command adds IDs without changing existing ones. The second exports
+the English text and hashes for translation. Add another page to `pages` only
+when its complete catalogue is ready in all five languages. Interactive guides
+also need their JavaScript labels translated before enabling them. Review
+installation and recovery instructions against the English source.
+
+Each translated page has its own canonical URL, reciprocal `hreflang` links,
+an English `x-default`, localized search and social metadata, and a `WebSite`
+structured-data entry on each homepage. The generated sitemap lists canonical
+pages only. There are no language-detection redirects or English guide copies
+under locale paths. Analytics allows only the explicit published routes.
+
+For a review build, use a task-owned Scratch directory:
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python3 tools/site_locales.py render --output /Volumes/Scratch/SnowskyEcho/reports/site-i18n/public
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools python3 -m unittest discover -s tests -p 'test_*site*.py'
+node --test tests/test_site_analytics.mjs
+```
+
+The normal publisher builds language pages in memory, so translated HTML and
+copies of shared assets are not committed. The static runtime is unchanged.
+
 ## Link preview images
 
-Every public page has its own 1200 × 630 PNG card, Open Graph image metadata and a Twitter/X large-image card. The artwork uses the Sunset Disc from `assets/brand/sunset-disc.svg`, matching the firmware mark. The site header and favicon use the same shape and colors. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
+Each English page has its own 1200 × 630 PNG card, Open Graph image metadata, and a Twitter/X large-image card. Translated homepages share the homepage image, with localized title, description, locale, and alt metadata. The artwork uses the Sunset Disc from `assets/brand/sunset-disc.svg`, matching the firmware mark. The site header and favicon use the same shape and colors. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
 
 Regenerate images and metadata after changing that copy or the Sunset Disc artwork:
 

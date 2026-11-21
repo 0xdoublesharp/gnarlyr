@@ -73,6 +73,23 @@ test('validation hosts, local files, health probes, and unknown pages do not col
   ]) assert.equal(visit({ location: new URL(url) }).length, 0, url);
 });
 
+test('localized homepages collect only when explicitly listed as public routes', () => {
+  const localized = ['es', 'de', 'ja', 'fr', 'pt'].flatMap((code) => [`/${code}/`, `/${code}/index.html`]);
+  const document = {
+    title: 'Gnarlyr', referrer: '',
+    currentScript: { dataset: { domain, websiteId, paths: [...paths, ...localized].join(',') } },
+  };
+  for (const pathname of localized) {
+    const calls = visit({ document, location: new URL(`${site}${pathname}?private=1#secret`) });
+    assert.equal(calls.length, 1, pathname);
+    assert.equal(calls[0].body.payload.url, pathname);
+    assert.doesNotMatch(JSON.stringify(calls), /private|secret/);
+  }
+  for (const pathname of ['/ru/', '/es/docs.html', '/i18n/es.json']) {
+    assert.equal(visit({ document, location: new URL(`${site}${pathname}`) }).length, 0, pathname);
+  }
+});
+
 test('privacy preferences and unavailable local storage suppress collection', () => {
   for (const overrides of [
     { navigator: { doNotTrack: '1' } }, { navigator: { doNotTrack: 'yes' } },

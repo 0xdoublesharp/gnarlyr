@@ -1,0 +1,721 @@
+{
+  "version": 1,
+  "locale": "pt",
+  "messages": {
+    "home.a001": {
+      "source": "Give your Snowsky ECHO a new side: visual album browsing, editable queues, saved mixtapes, custom EQ, and a look you can make your own.",
+      "source_sha256": "a3d48c327b24894f04424308af16facdcc6ecc3b361097168da132092bdf2099",
+      "translation": "Dê uma nova cara ao seu Snowsky ECHO: navegação visual por álbuns, filas editáveis, mixtapes salvas, equalizador personalizado e um visual do seu jeito."
+    },
+    "home.a002": {
+      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
+      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
+      "translation": "Gnarlyr | Firmware personalizado para Snowsky ECHO"
+    },
+    "home.a003": {
+      "source": "Give your Snowsky ECHO a new side: visual album browsing, editable queues, saved mixtapes, custom EQ, and a look you can make your own.",
+      "source_sha256": "a3d48c327b24894f04424308af16facdcc6ecc3b361097168da132092bdf2099",
+      "translation": "Dê uma nova cara ao seu Snowsky ECHO: navegação visual por álbuns, filas editáveis, mixtapes salvas, equalizador personalizado e um visual do seu jeito."
+    },
+    "home.m001": {
+      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
+      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
+      "translation": "Gnarlyr | Firmware personalizado para Snowsky ECHO"
+    },
+    "home.a004": {
+      "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
+      "source_sha256": "eb24eeb7e499e7f4cff74678147e57d76d607d44e86dc8e337c6da66b8d250c9",
+      "translation": "Disco Sunset do Gnarlyr ao lado das palavras “A new side to your ECHO.”"
+    },
+    "home.a005": {
+      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
+      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
+      "translation": "Gnarlyr | Firmware personalizado para Snowsky ECHO"
+    },
+    "home.a006": {
+      "source": "Give your Snowsky ECHO a new side: visual album browsing, editable queues, saved mixtapes, custom EQ, and a look you can make your own.",
+      "source_sha256": "a3d48c327b24894f04424308af16facdcc6ecc3b361097168da132092bdf2099",
+      "translation": "Dê uma nova cara ao seu Snowsky ECHO: navegação visual por álbuns, filas editáveis, mixtapes salvas, equalizador personalizado e um visual do seu jeito."
+    },
+    "home.a007": {
+      "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
+      "source_sha256": "eb24eeb7e499e7f4cff74678147e57d76d607d44e86dc8e337c6da66b8d250c9",
+      "translation": "Disco Sunset do Gnarlyr ao lado das palavras “A new side to your ECHO.”"
+    },
+    "home.m002": {
+      "source": "Skip to content",
+      "source_sha256": "ac576a66d4563e600314a2ce6e731725e9826fd88baf2399e05f60bfb177dbc0",
+      "translation": "Pular para o conteúdo"
+    },
+    "home.a024": {
+      "source": "Gnarlyr home",
+      "source_sha256": "ad65862d443569fa469fd3d947ee3ad65071c6827d027cf8b9b3ea41672f1b42",
+      "translation": "Página inicial do Gnarlyr"
+    },
+    "home.a008": {
+      "source": "Main navigation",
+      "source_sha256": "eb355944b92d10582856f8aea34b3e319ba465b8aa4c294973cf53f665399a2c",
+      "translation": "Navegação principal"
+    },
+    "home.m003": {
+      "source": "Features",
+      "source_sha256": "5697d03daef4de9cf8db7cb11755f71358a32b4acca94909a9d449f71040d2dd",
+      "translation": "Recursos"
+    },
+    "home.m004": {
+      "source": "Docs",
+      "source_sha256": "7af023c43013b9a53fbff7dd4b5821588bba3319308878229740489152c43f6d",
+      "translation": "Documentação"
+    },
+    "home.m005": {
+      "source": "Hardware",
+      "source_sha256": "7975300f01bc46f86e52e528b29955be87a361f05f2fb96e14629bc0a5495d03",
+      "translation": "Hardware"
+    },
+    "home.m006": {
+      "source": "Companion",
+      "source_sha256": "1dadb3284b8b358259ac6c0d3fb12e6884aa8d566282a1277d2a06a026d12c4f",
+      "translation": "Companion"
+    },
+    "home.m007": {
+      "source": "Install",
+      "source_sha256": "569ca49f4aaf7846e952c1d4aeca72febd0b79fa1c4f9db08fd3127551218572",
+      "translation": "Instalar"
+    },
+    "home.m008": {
+      "source": "<span class=\"status-dot\" aria-hidden=\"true\"></span> Custom firmware / SNOWSKY ECHO",
+      "source_sha256": "67ffe1e2ebda6be83ed550aa651e49472dd14eedf7b33b3c8b4d8c364f964d7c",
+      "translation": "<span class=\"status-dot\" aria-hidden=\"true\"></span> Firmware personalizado / SNOWSKY ECHO"
+    },
+    "home.m009": {
+      "source": "<span>Your ECHO.</span><span class=\"gnarly\">Rewound.</span>",
+      "source_sha256": "d48122043035c480361d0084d12674a924304ef6e23ad6df0acfe82a9f9f10d9",
+      "translation": "<span>Seu ECHO.</span><span class=\"gnarly\">Rebobinado.</span>"
+    },
+    "home.m010": {
+      "source": "Rediscover the music you own. Browse album covers, build the perfect play order, and give your ECHO a look that feels like you.",
+      "source_sha256": "e2cf785c47194163ceda94ed178eaf5f3882b4229db74c384dd292849198cf8b",
+      "translation": "Redescubra as músicas que você tem. Explore capas de álbuns, crie a ordem de reprodução perfeita e deixe seu ECHO com a sua cara."
+    },
+    "home.m011": {
+      "source": "Install Gnarlyr <span aria-hidden=\"true\">→</span>",
+      "source_sha256": "6519b0344b5a5bfef9488223248b8a85634323e174f4d32791614c3ea8a4bd38",
+      "translation": "Instalar Gnarlyr <span aria-hidden=\"true\">→</span>"
+    },
+    "home.m012": {
+      "source": "See it in action ↓",
+      "source_sha256": "f92749dfa4dce9a970c5785b3ba754c3fe4cd71abbe33654f11befe67768dda9",
+      "translation": "Veja em ação ↓"
+    },
+    "home.m013": {
+      "source": "Meet the ECHO: specs &amp; hardware →",
+      "source_sha256": "2c8e234e3b6eb375830716ef27e206faf62cf6ad268edc6e584dd97056b0508e",
+      "translation": "Conheça o ECHO: especificações e hardware →"
+    },
+    "home.a009": {
+      "source": "Highlights",
+      "source_sha256": "6e517828c3d88ea3e62b2169a626c32e39be2e7cf52e99f7e9d764af6859bbd0",
+      "translation": "Destaques"
+    },
+    "home.m014": {
+      "source": "Gapless albums",
+      "source_sha256": "8d7843d53a03564fd3fa9c8fba73f10fc90eaac2ca5d1bef901007daed25b61d",
+      "translation": "Álbuns sem pausas"
+    },
+    "home.m015": {
+      "source": "Saved mixtapes",
+      "source_sha256": "32c65508b49a492a57b6172f1790a53cbadf3b5f4eaf0c10cf7add3dfc79b060",
+      "translation": "Mixtapes salvas"
+    },
+    "home.m016": {
+      "source": "Your own controls",
+      "source_sha256": "ce1b6f95fb92f99eda743e57d025abe949ff02fbea28f0d089088c312661257a",
+      "translation": "Controles do seu jeito"
+    },
+    "home.m017": {
+      "source": "Made for the full-size <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a>.",
+      "source_sha256": "7d45d356ba0b821ea50c1e8e0cd3399a9190ab314fb9cd32d4878adeedec7208",
+      "translation": "Feito para o <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a> de tamanho padrão."
+    },
+    "home.a010": {
+      "source": "Gnarlyr Now Playing screen showing song details and playback progress",
+      "source_sha256": "9b8beafc811d138c1b7329239b71b8da903bae1e60c1a56ea6d52350e5e67b18",
+      "translation": "Tela de reprodução do Gnarlyr mostrando detalhes da música e progresso"
+    },
+    "home.a011": {
+      "source": "Gnarlyr Now Playing screen showing song details and playback progress",
+      "source_sha256": "9b8beafc811d138c1b7329239b71b8da903bae1e60c1a56ea6d52350e5e67b18",
+      "translation": "Tela de reprodução do Gnarlyr mostrando detalhes da música e progresso"
+    },
+    "home.m018": {
+      "source": "<span class=\"live-dot\" aria-hidden=\"true\"></span> Now Playing, with a little more personality.",
+      "source_sha256": "a94e2020e2a53f86b85cbb705cae23e445bde3f8e0f0769529d9de9d908801db",
+      "translation": "<span class=\"live-dot\" aria-hidden=\"true\"></span> A música tocando, com um pouco mais de personalidade."
+    },
+    "home.m019": {
+      "source": "Meet your new daily player",
+      "source_sha256": "5d7ab504c96f46464ae56714020c27de0cbafdc3d5091d9c31ba55c76b7b5ebe",
+      "translation": "Conheça seu novo player para todo dia"
+    },
+    "home.m020": {
+      "source": "Good music. Great company.",
+      "source_sha256": "0779884b245e8d7e683e0d54c3294fe8dd530badede32539d83b9be6867ff8fc",
+      "translation": "Boa música. Ótima companhia."
+    },
+    "home.m021": {
+      "source": "Take the screen tour →",
+      "source_sha256": "a74900f4a915560772328d9ff0c9529d0eb7a6c72cf31da1c5ef00821f7b8a81",
+      "translation": "Conheça as telas →"
+    },
+    "home.m022": {
+      "source": "01 / BROWSE",
+      "source_sha256": "ecacbffa30aed44b6290a6968930536bbee293ddd26e8839a422ad1b0a043ec3",
+      "translation": "01 / EXPLORAR"
+    },
+    "home.a012": {
+      "source": "Gnarlyr Cover Flow with album artwork",
+      "source_sha256": "6201d6775567c7e37a63e5e6d5b1ecc74d25ab17e80cda109ef85ba3bccd5e7e",
+      "translation": "Cover Flow do Gnarlyr com capas de álbuns"
+    },
+    "home.a013": {
+      "source": "Gnarlyr Cover Flow with album artwork",
+      "source_sha256": "6201d6775567c7e37a63e5e6d5b1ecc74d25ab17e80cda109ef85ba3bccd5e7e",
+      "translation": "Cover Flow do Gnarlyr com capas de álbuns"
+    },
+    "home.m023": {
+      "source": "Find your next favorite.",
+      "source_sha256": "aff03956e5ebddfaade149d968f4c96b21c630a7257e77d50a71edcd08fdc954",
+      "translation": "Encontre seu próximo favorito."
+    },
+    "home.m024": {
+      "source": "Flip through album covers, browse an artist’s albums by year, or jump through long lists by letter. No artwork? Gnarlyr gives the album a cover of its own.",
+      "source_sha256": "3d60d64cdcee4e74f26ec483f6f2cb40a6e80f8175e4806e90910664569254be",
+      "translation": "Passe pelas capas, explore os álbuns de um artista por ano ou navegue por listas longas por letra. Sem capa? O Gnarlyr cria uma para o álbum."
+    },
+    "home.m025": {
+      "source": "Explore this screen →",
+      "source_sha256": "4df103adc3e408602b465236fccbe26f7fdfa87f45bc3d741b870691ff584a9a",
+      "translation": "Explore esta tela →"
+    },
+    "home.m026": {
+      "source": "02 / MIX",
+      "source_sha256": "b7617014b21559e9dfb40cc15346c717a4764232e2cae8fe13902f011b50b5fb",
+      "translation": "02 / MIXAR"
+    },
+    "home.a014": {
+      "source": "Gnarlyr Up Next showing an editable play order",
+      "source_sha256": "2b01478cb3219b98c61eac374217cf5e8488d5ccafa1a65fcc0211d1c9e184a1",
+      "translation": "Tela A seguir do Gnarlyr mostrando uma ordem de reprodução editável"
+    },
+    "home.a015": {
+      "source": "Gnarlyr Up Next showing an editable play order",
+      "source_sha256": "2b01478cb3219b98c61eac374217cf5e8488d5ccafa1a65fcc0211d1c9e184a1",
+      "translation": "Tela A seguir do Gnarlyr mostrando uma ordem de reprodução editável"
+    },
+    "home.m027": {
+      "source": "Make the queue yours.",
+      "source_sha256": "5a90c2aaef9384db821fb132fa9da79359e06bcbd2bd9cddd311dde5a1326257",
+      "translation": "Deixe a fila do seu jeito."
+    },
+    "home.m028": {
+      "source": "Move a song, add the next one, or save the whole mix. Save up to 32 mixtapes, including two-sided C60/C90 tapes you flip as you listen.",
+      "source_sha256": "3789d0a25990415d41b758726c0551e6db494f05a7d88e2fdb3293905770fb97",
+      "translation": "Mova uma música, adicione a próxima ou salve o mix inteiro. Guarde até 32 mixtapes, incluindo fitas C60/C90 de dois lados que você vira enquanto escuta."
+    },
+    "home.m029": {
+      "source": "Explore this screen →",
+      "source_sha256": "4df103adc3e408602b465236fccbe26f7fdfa87f45bc3d741b870691ff584a9a",
+      "translation": "Explore esta tela →"
+    },
+    "home.m030": {
+      "source": "03 / TUNE",
+      "source_sha256": "c660352217cc8a3f7f113e4e8f2f10a2f87d32b17c556d00a74148663024d4b9",
+      "translation": "03 / AJUSTAR"
+    },
+    "home.a016": {
+      "source": "Gnarlyr Sound shaping with Warmth, Brightness, and Bass controls",
+      "source_sha256": "3c2fe9e2a40cad5c835a8fdec5bffc661fd7a5e0ad321faff2ba3b8fd3ffb4f6",
+      "translation": "Ajuste de som do Gnarlyr com controles de Calor, Brilho e Graves"
+    },
+    "home.a017": {
+      "source": "Gnarlyr Sound shaping with Warmth, Brightness, and Bass controls",
+      "source_sha256": "3c2fe9e2a40cad5c835a8fdec5bffc661fd7a5e0ad321faff2ba3b8fd3ffb4f6",
+      "translation": "Ajuste de som do Gnarlyr com controles de Calor, Brilho e Graves"
+    },
+    "home.m031": {
+      "source": "Hear it your way.",
+      "source_sha256": "9bacc9f0b6715935716066e1d3cb63d6ef6563fd6846509f84458e4be07b9b1b",
+      "translation": "Ouça do seu jeito."
+    },
+    "home.m032": {
+      "source": "Add warmth, bring vocals closer, or fine-tune a parametric EQ. Save your sound and keep favorite controls in Quick Settings.",
+      "source_sha256": "73420e428f3904e9cb1b99bddafdb1027eb5fa64521649fa328fa40670fb433b",
+      "translation": "Adicione calor, aproxime os vocais ou ajuste o equalizador paramétrico. Salve seu som e mantenha seus controles favoritos nos Ajustes Rápidos."
+    },
+    "home.m033": {
+      "source": "Explore this screen →",
+      "source_sha256": "4df103adc3e408602b465236fccbe26f7fdfa87f45bc3d741b870691ff584a9a",
+      "translation": "Explore esta tela →"
+    },
+    "home.m034": {
+      "source": "Screens shown with a sample library.",
+      "source_sha256": "bef36488fd2f43e3d06d332e056c5c0a5aa274007cc82de648a491152263de08",
+      "translation": "Telas mostradas com uma biblioteca de exemplo."
+    },
+    "home.m035": {
+      "source": "More ways to use your ECHO",
+      "source_sha256": "6101659a44f13cb66095fd0bec803f55e9f62043f5dd3b00d343b310b02413b5",
+      "translation": "Mais maneiras de usar seu ECHO"
+    },
+    "home.m036": {
+      "source": "Built around how you listen.",
+      "source_sha256": "c215ede4fbac9ae0b662bf6142623e0204de4a208819381676818e3616a3e70b",
+      "translation": "Feito para o seu jeito de ouvir."
+    },
+    "home.m037": {
+      "source": "All features →",
+      "source_sha256": "03c78285097558d18b188fb66b01724a5e5d6a078a68aa5f22b4da54f70042f9",
+      "translation": "Todos os recursos →"
+    },
+    "home.m038": {
+      "source": "Let the album flow.",
+      "source_sha256": "696a4ff910b320f37be54af3f3952033916a6d750d562dd010f9fdc205a4731f",
+      "translation": "Deixe o álbum fluir."
+    },
+    "home.m039": {
+      "source": "Gapless playback keeps compatible tracks together, from live sets to continuous mixes.",
+      "source_sha256": "8c3e543760f276c0c387e4a683b3c3637a05a130001bf6ed2a4c773e44329a57",
+      "translation": "A reprodução sem pausas mantém as faixas compatíveis em sequência, de shows ao vivo a mixes contínuos."
+    },
+    "home.m040": {
+      "source": "Playback →",
+      "source_sha256": "9da8aa860ccd9ea5805e6cfa46d0f5a6a62c250af40e232d55935dd97d0097b9",
+      "translation": "Reprodução →"
+    },
+    "home.m041": {
+      "source": "Pick up your next chapter.",
+      "source_sha256": "a36fa99af4a10d35024aab6e54321c3b0145e6365e83c716423db9fb7e5a8ccf",
+      "translation": "Retome seu próximo capítulo."
+    },
+    "home.m042": {
+      "source": "M4B books get their own shelf, chapter titles, and bookmarks. Slow down or listen faster, from 0.5× to 3×, without changing the pitch.",
+      "source_sha256": "9f546e42d49f1ae311e1bfa0b82878cb43c285f6901115202df6f682ac872d3c",
+      "translation": "Livros M4B têm sua própria estante, títulos de capítulos e marcadores. Ouça mais devagar ou mais rápido, de 0,5× a 3×, sem mudar o tom."
+    },
+    "home.m043": {
+      "source": "Audiobooks →",
+      "source_sha256": "6ef7711c7585e791fc70f1abd05ec542565c49ab488df1d93948689d9aca1cbf",
+      "translation": "Audiolivros →"
+    },
+    "home.m044": {
+      "source": "Keep your hands on the music.",
+      "source_sha256": "c6557ac308d8cee9baf50e6816419d4259afbd161c28812b2de1e40ce1116952",
+      "translation": "Mantenha a música nas suas mãos."
+    },
+    "home.m045": {
+      "source": "Assign tap and hold shortcuts. Skip with Power + Volume even while locked, or control playback with the screen off.",
+      "source_sha256": "abbde972c95f3f3d9989e81eb342a74c01fff17fe26a658e42fab42813eb5bf3",
+      "translation": "Defina atalhos de toque e toque prolongado. Pule faixas com Energia + Volume mesmo com o aparelho bloqueado, ou controle a reprodução com a tela apagada."
+    },
+    "home.m046": {
+      "source": "Controls →",
+      "source_sha256": "232346cb3a52e32f24b22859d91a15cc3c62bb99cd211804562731ca3cd0ff16",
+      "translation": "Controles →"
+    },
+    "home.m047": {
+      "source": "A player that feels like yours.",
+      "source_sha256": "1d4feb9eaed109a88b7c5f9d38fdfdb1628d788f21871e50efc9803064f7b74b",
+      "translation": "Um player com a sua cara."
+    },
+    "home.m048": {
+      "source": "Choose Cover, Cassette, VU meters, or Spectrum for Now Playing. Add theme packs, pick a text size, and make the screen yours.",
+      "source_sha256": "566b0738ea463005eb02e6e2e1801b89bc90966654d8d8082f3095d7c571868b",
+      "translation": "Escolha Capa, Cassete, medidores VU ou Espectro para a tela de reprodução. Adicione pacotes de temas, escolha o tamanho do texto e personalize a tela."
+    },
+    "home.m049": {
+      "source": "Personalization →",
+      "source_sha256": "cb1b6a99c0fc9a6c20dafce4c39ef4bad088be41d405739eb6a326857225ea0c",
+      "translation": "Personalização →"
+    },
+    "home.m050": {
+      "source": "Parametric EQ &amp; AutoEQ",
+      "source_sha256": "718b082642bbac9beefca8d40055db3cf06289499671a6b6ac83db8042401209",
+      "translation": "Equalizador paramétrico e AutoEQ"
+    },
+    "home.m051": {
+      "source": "Sound shaping",
+      "source_sha256": "011730316bb8fd59455854bc8288cea144ddb82248058511e79a0537388a41c0",
+      "translation": "Ajuste de som"
+    },
+    "home.m052": {
+      "source": "Quick Settings",
+      "source_sha256": "d4bea702b12b7ab2ad76c59073cfe2b2db0d119cdbb3853aa2aa9be19a522a3f",
+      "translation": "Ajustes Rápidos"
+    },
+    "home.m053": {
+      "source": "Five Smart Lists",
+      "source_sha256": "7dde03267ad6409025f096cabd4fe05f382ce2d57c8294240c180a2800148b03",
+      "translation": "Cinco listas inteligentes"
+    },
+    "home.m054": {
+      "source": "Four headphone profiles",
+      "source_sha256": "6e9f00454fb4492e2a207a2ec9c8457cce465dd0a7497b47a309ff594ef00447",
+      "translation": "Quatro perfis de fone de ouvido"
+    },
+    "home.m055": {
+      "source": "64 saved Moments",
+      "source_sha256": "5b42495417ba94f96f1eaad8f88cf7a7a6dc8c0f1021b652fc93d344cdc1c284",
+      "translation": "64 Momentos salvos"
+    },
+    "home.m056": {
+      "source": "Listening Recap",
+      "source_sha256": "0c430db3ca979573de76673155199879bb7601536c5ddfa1903979e3033ad2b9",
+      "translation": "Retrospectiva de escuta"
+    },
+    "home.m057": {
+      "source": "Settings backups",
+      "source_sha256": "cb20b9ae2fbd64f9ff1dbf3d1f29173ead15a1cae47740a41277f3c8893777d3",
+      "translation": "Backups de configurações"
+    },
+    "home.m058": {
+      "source": "A–B repeat",
+      "source_sha256": "267c7856c43e4e7ab3a3ed0df7cf2a503c4a77b2dbcf822732b46187bc8f717c",
+      "translation": "Repetição A–B"
+    },
+    "home.m059": {
+      "source": "End-of-track sleep",
+      "source_sha256": "24ae993b6677f2b2f42129a60cba7823e7608398b66840d249bafc64d315a7ca",
+      "translation": "Desligamento ao fim da faixa"
+    },
+    "home.m060": {
+      "source": "Timed lyrics",
+      "source_sha256": "90a5fe85cefe45264fcec7dddc64e8d2b1721a84869ac9ba11f756acd1e4b78c",
+      "translation": "Letras sincronizadas"
+    },
+    "home.m061": {
+      "source": "Theme packs",
+      "source_sha256": "94c283396b95db92ae9cd01c82f1a0342214a7b1791aab72301fc215cc50ca5e",
+      "translation": "Pacotes de temas"
+    },
+    "home.m062": {
+      "source": "Crossfeed",
+      "source_sha256": "a9373ff653c9995ed0b3463f176af6becf7c4d59d4410525036ee9531bc1c828",
+      "translation": "Crossfeed"
+    },
+    "home.m063": {
+      "source": "Spoken-word controls",
+      "source_sha256": "c3e122ace573a1fc61aefecbe546c08279acc9361206522d08d4eb95c12387d0",
+      "translation": "Opções para audiolivros e podcasts"
+    },
+    "home.m064": {
+      "source": "Custom status bar",
+      "source_sha256": "253a149fb7d15539ce615f14536ea9d41f21abf6b38142db0c5a1442410792a0",
+      "translation": "Barra de status personalizada"
+    },
+    "home.m065": {
+      "source": "Bluetooth reconnect",
+      "source_sha256": "2670f4ff9e0a9007df3b2b5e0280dfaf1a56004a95e9218bf34826fb18f71c19",
+      "translation": "Reconexão Bluetooth"
+    },
+    "home.m066": {
+      "source": "Faster microSD transfers",
+      "source_sha256": "8e51942ee07d3115c962751ff7c58e54f702aac864bc773abb13a727df5db235",
+      "translation": "Transferências microSD mais rápidas"
+    },
+    "home.m067": {
+      "source": "Open-source firmware",
+      "source_sha256": "b3a3b607557ea8b05d17351968f841cb5381ebfe150974617b6ea477a5d4090f",
+      "translation": "Firmware de código aberto"
+    },
+    "home.m068": {
+      "source": "<strong>What changes from stock →</strong><span>Editable queues, saved mixes, chaptered books, and controls you can make your own.</span>",
+      "source_sha256": "6c840def94fca882fe204daa6a2233abb625ff25494d760a683fe8f7361cca9b",
+      "translation": "<strong>O que muda em relação ao original →</strong><span>Filas editáveis, mixes salvos, livros com capítulos e controles personalizáveis.</span>"
+    },
+    "home.m069": {
+      "source": "<strong>More from the hardware →</strong><span>Guarded audio changes, USB power choices, finer brightness control, and a settable clock.</span>",
+      "source_sha256": "160000cd86e956e02e5e37c53e5d7a65d0c60163e15d2c45c7b817717696729c",
+      "translation": "<strong>Mais do hardware →</strong><span>Alterações de áudio com proteção, opções de alimentação USB, controle mais preciso do brilho e relógio ajustável.</span>"
+    },
+    "home.m070": {
+      "source": "Your library. Ready to go.",
+      "source_sha256": "5fe1256ce1e80de8fdd85dc4882eb32a75538e9f4dd4ddf2c511eec6d35a8a97",
+      "translation": "Sua biblioteca. Pronta para ir."
+    },
+    "home.a018": {
+      "source": "Gnarlyr Home screen on a stylized player frame",
+      "source_sha256": "059e64932b9dbad4c3f21f4c463b6efd0c56732b384beeadda9c51efc34c8392",
+      "translation": "Tela inicial do Gnarlyr em uma moldura estilizada de player"
+    },
+    "home.a019": {
+      "source": "Gnarlyr Home screen on a stylized player frame",
+      "source_sha256": "059e64932b9dbad4c3f21f4c463b6efd0c56732b384beeadda9c51efc34c8392",
+      "translation": "Tela inicial do Gnarlyr em uma moldura estilizada de player"
+    },
+    "home.m071": {
+      "source": "The Gnarlyr interface · full-size ECHO",
+      "source_sha256": "d53e64eccf5e4d32fb14add4b99778f8b813ea056ac71e14d59cf4b736766748",
+      "translation": "A interface do Gnarlyr · ECHO de tamanho padrão"
+    },
+    "home.m072": {
+      "source": "Get the player. Make it yours.",
+      "source_sha256": "40de5798aaecaf8d2fc2139c1971abbd5091200eb966bb1c19f3798b02de68a0",
+      "translation": "Tenha o player. Deixe-o com a sua cara."
+    },
+    "home.m073": {
+      "source": "Give your music<br> a home of its own.",
+      "source_sha256": "f4692fe172ead464c407f81a707fa2c5d30b677fc43c58e1a9d9303ed918ad1a",
+      "translation": "Dê à sua música<br> um lugar só dela."
+    },
+    "home.m074": {
+      "source": "Physical buttons. A pocket full of albums. The full-size Snowsky ECHO brings your library along, and Gnarlyr lets you make more of it.",
+      "source_sha256": "0e3889a397fdb2a70b6b135064f7ae33c62bbe3ae0421341b548a0c3715566d6",
+      "translation": "Botões físicos. Um bolso cheio de álbuns. O Snowsky ECHO de tamanho padrão leva sua biblioteca com você, e o Gnarlyr ajuda a aproveitar ainda mais."
+    },
+    "home.m075": {
+      "source": "2.39-inch screen",
+      "source_sha256": "432a88078fd65c1b82d93e2388af7fd6c4739618ba014c2ddb179c2685213bac",
+      "translation": "Tela de 2,39 polegadas"
+    },
+    "home.m076": {
+      "source": "Album art, lyrics, and your queue",
+      "source_sha256": "47f098f7ff9009e358b82ce7adac4fc3880d254281eda3322056b866a0335974",
+      "translation": "Capas, letras e sua fila"
+    },
+    "home.m077": {
+      "source": "Two headphone outputs",
+      "source_sha256": "a81c250b800fcb11d086df42570418af645dbe84c3b64b0e6125c5ddfb60b960",
+      "translation": "Duas saídas para fones"
+    },
+    "home.m078": {
+      "source": "3.5 mm and balanced 4.4 mm",
+      "source_sha256": "ab586f15450934b719cea7ee32c2981ade56ada7c4c28006f045f3edb34d3dde",
+      "translation": "3,5 mm e 4,4 mm balanceada"
+    },
+    "home.m079": {
+      "source": "microSD + internal",
+      "source_sha256": "a111969b0b2d559bdd495c7b16b6f58411be85549c17bec8bf957e72e68bd89b",
+      "translation": "microSD + memória interna"
+    },
+    "home.m080": {
+      "source": "One library across both drives",
+      "source_sha256": "ee3937f46127d4fb4ae28d0b38b67655cc8c51f1bf445edfbc7aebf061c5896b",
+      "translation": "Uma biblioteca nos dois armazenamentos"
+    },
+    "home.m081": {
+      "source": "Dual CS43198 DACs",
+      "source_sha256": "4e1f02d224104232b8f9d4b6c4f7f7a5a9c87eab8fdc4475c71ac13d3a3c1584",
+      "translation": "Dois DACs CS43198"
+    },
+    "home.m082": {
+      "source": "A dedicated audio player",
+      "source_sha256": "d1d0671585df299ff6b3f1ca07c3e4bda784f8e8b6896cdf4ebfcb2ba3a543c0",
+      "translation": "Um player de áudio dedicado"
+    },
+    "home.a020": {
+      "source": "Shop the full-size ECHO",
+      "source_sha256": "de0d334178908683bfe62959c1e4d9d2bf9f412f6cb9024dadf9e9329439fb27",
+      "translation": "Comprar o ECHO de tamanho padrão"
+    },
+    "home.m083": {
+      "source": "Shop on Amazon <span aria-hidden=\"true\">↗</span>",
+      "source_sha256": "991d87e651f5f8b1bb0b908bb20ea4ce3d1a0efb7f916be248900b41a009324b",
+      "translation": "Comprar na Amazon <span aria-hidden=\"true\">↗</span>"
+    },
+    "home.m084": {
+      "source": "Shop on AliExpress <span aria-hidden=\"true\">↗</span>",
+      "source_sha256": "f51f9b66f8abd99b4a5a5ba38bde0d061dea5f8592def7bbb6ac6628a09d56f2",
+      "translation": "Comprar no AliExpress <span aria-hidden=\"true\">↗</span>"
+    },
+    "home.m085": {
+      "source": "Explore the hardware →",
+      "source_sha256": "859720734fd5984f6219a18993bd728ef9ec827e6a8118f9f76b977a64f0b675",
+      "translation": "Conheça o hardware →"
+    },
+    "home.m086": {
+      "source": "Choose the full-size ECHO. Install Gnarlyr separately with the <a href=\"install.html\">installation guide</a>.",
+      "source_sha256": "d8e96f38eadb1cba68e0221556ca4767420cbedf46a05672a8b55d9eebfd0083",
+      "translation": "Escolha o ECHO de tamanho padrão. Instale o Gnarlyr separadamente seguindo o <a href=\"install.html\">guia de instalação</a>."
+    },
+    "home.m087": {
+      "source": "As an Amazon Associate I earn from qualifying purchases. I may also earn a commission from AliExpress links.",
+      "source_sha256": "dbd55f4c6dd95663e64d63c4408a1c394bc08cbb48469433eefb2e9c6a3fdbb3",
+      "translation": "Como associado da Amazon, ganho uma comissão por compras qualificadas. Também posso receber uma comissão por links do AliExpress."
+    },
+    "home.m088": {
+      "source": "Gnarlyr Companion · desktop beta",
+      "source_sha256": "e991d81a62dfe0b9e43cddb510072ba805f15d963a89be4db7dd631334e6c281",
+      "translation": "Gnarlyr Companion · beta para computador"
+    },
+    "home.m089": {
+      "source": "Your music.<br>A bigger view.",
+      "source_sha256": "a1b87a4506111e8d5d19d1f16d42a4d7c2161ef37b16d09a4cb600f1f8337ce5",
+      "translation": "Sua música.<br>Em uma tela maior."
+    },
+    "home.m090": {
+      "source": "Choose albums on your computer, review the copy, and build a mixtape for the road. Prepare the player library, preview theme packs, and set up its sound and languages from the same app.",
+      "source_sha256": "91775141247f8411bd4adec026ad5af77b852c51555bb3befe3136113e301f79",
+      "translation": "Escolha álbuns no computador, confira a cópia e crie uma mixtape para a estrada. Prepare a biblioteca do player, visualize pacotes de temas e configure o som e os idiomas no mesmo aplicativo."
+    },
+    "home.m091": {
+      "source": "Browse local music and verify every copied file.",
+      "source_sha256": "07f8fbbbd0af747a5ff55435c9dec7890455a82f6d9b87febb9324917efa1548",
+      "translation": "Explore músicas locais e verifique cada arquivo copiado."
+    },
+    "home.m092": {
+      "source": "Make mixtapes and two-sided C60/C90 cassettes.",
+      "source_sha256": "2176c833d34880f7c43583a386bad6886087c19fbcb130d9773d204cf774da88",
+      "translation": "Crie mixtapes e fitas C60/C90 de dois lados."
+    },
+    "home.m093": {
+      "source": "Prepare the player library and preview theme packs.",
+      "source_sha256": "90d314ce8fc6e0abeec1f428ef61d9d8a6679dff00fb8521a9ea2ebe59a1340e",
+      "translation": "Prepare a biblioteca do player e visualize pacotes de temas."
+    },
+    "home.m094": {
+      "source": "Review player settings, language packs, and firmware.",
+      "source_sha256": "9691161a4103006cf95d5985966c31cf4061b65b9f6fd3685bb9968aaa5022d4",
+      "translation": "Confira as configurações do player, os pacotes de idiomas e o firmware."
+    },
+    "home.m095": {
+      "source": "Meet the companion →",
+      "source_sha256": "ecc03e5ef43370f508dafd1abece6ee7d27651bd080a43024492ba595992a579",
+      "translation": "Conheça o companion →"
+    },
+    "home.a021": {
+      "source": "Explore the Gnarlyr desktop companion",
+      "source_sha256": "c8994f309df133725825b6b003f739d8b5fadae95ce75457f8d0a3d9cafaece9",
+      "translation": "Conheça o companion Gnarlyr para computador"
+    },
+    "home.a022": {
+      "source": "Gnarlyr Companion browsing a sample album library",
+      "source_sha256": "f229062ce74cd006e3d5c7676083f84d8b4a487a69c2a1d39dc719e858f44d02",
+      "translation": "Gnarlyr Companion explorando uma biblioteca de álbuns de exemplo"
+    },
+    "home.m096": {
+      "source": "Desktop beta preview · sample music",
+      "source_sha256": "48fb86415a3da0b3a604411d4e8688a84a0d7132af6842ae7ed701ad41da44a4",
+      "translation": "Prévia do beta para computador · músicas de exemplo"
+    },
+    "home.m097": {
+      "source": "Already have an ECHO?",
+      "source_sha256": "b6244ad9b61470f21eb6b9110c0e6fa6a795faee9330b273bde344f539a5eab2",
+      "translation": "Já tem um ECHO?"
+    },
+    "home.m098": {
+      "source": "Your next favorite upgrade.",
+      "source_sha256": "c6ec16906209976c38d31590739f0c974a6de751572d97104d75450a83e45365",
+      "translation": "Sua próxima atualização favorita."
+    },
+    "home.m099": {
+      "source": "Keep the player you love. Give it a new way to play.",
+      "source_sha256": "6dcf6a92b7cf1bbfa18ff9704f82886cd9cc3c33cb8223907d68f6c0b67121f7",
+      "translation": "Continue com o player que você adora. Dê a ele uma nova maneira de tocar."
+    },
+    "home.m100": {
+      "source": "<span>01</span><div><h3>Get ready.</h3><p>Back up your music and follow the guide for your firmware image.</p></div>",
+      "source_sha256": "2215264d929f028e682e567e409bcedae05af51ac80ac7363ca293b421ed26f3",
+      "translation": "<span>01</span><div><h3>Prepare-se.</h3><p>Faça backup das suas músicas e siga o guia da sua imagem de firmware.</p></div>"
+    },
+    "home.m101": {
+      "source": "<span>02</span><div><h3>Make the switch.</h3><p>Copy one file to the player and let it install. Later updates work the same way.</p></div>",
+      "source_sha256": "cd61b52ad89e41160405576c5931ac3ab315138e78398ebc2f2d961b5727b213",
+      "translation": "<span>02</span><div><h3>Faça a troca.</h3><p>Copie um arquivo para o player e deixe que ele instale. As atualizações seguintes funcionam da mesma forma.</p></div>"
+    },
+    "home.m102": {
+      "source": "<span>03</span><div><h3>Find your first album.</h3><p>Add your music, choose a theme, and press play.</p></div>",
+      "source_sha256": "df92fa24f591d9bb5cc5cb94daf2a9bfb879e2d06b4aa310e782759b5b8c6ac2",
+      "translation": "<span>03</span><div><h3>Encontre seu primeiro álbum.</h3><p>Adicione suas músicas, escolha um tema e aperte o play.</p></div>"
+    },
+    "home.m103": {
+      "source": "Read the installation guide →",
+      "source_sha256": "1c19d9abfaf5994e2c277a621b519ad988bfadc543dd99c18f911d58004b9f0c",
+      "translation": "Leia o guia de instalação →"
+    },
+    "home.m104": {
+      "source": "Explore the player guide →",
+      "source_sha256": "43814c006dd728084d280ee68402aab24fb45c975ddff0fcea028ea5b5267e77",
+      "translation": "Explore o guia do player →"
+    },
+    "home.a023": {
+      "source": "More about Gnarlyr",
+      "source_sha256": "b8f043136dca17f61d2f7cf691c38b4e050c87ee08da8bb3437e2f575b9ed3ba",
+      "translation": "Mais sobre o Gnarlyr"
+    },
+    "home.m105": {
+      "source": "Home",
+      "source_sha256": "3a78695388b38b5cceefaf6796b0137877514593543b91af2752d5a17e3d736c",
+      "translation": "Início"
+    },
+    "home.m106": {
+      "source": "Features &amp; improvements",
+      "source_sha256": "2267f6ef99e634acc663d47d6e24cc506c6a9cbdcdb645f8c6e714d3611889a2",
+      "translation": "Recursos e melhorias"
+    },
+    "home.m107": {
+      "source": "Docs",
+      "source_sha256": "7af023c43013b9a53fbff7dd4b5821588bba3319308878229740489152c43f6d",
+      "translation": "Documentação"
+    },
+    "home.m108": {
+      "source": "Hardware",
+      "source_sha256": "7975300f01bc46f86e52e528b29955be87a361f05f2fb96e14629bc0a5495d03",
+      "translation": "Hardware"
+    },
+    "home.m109": {
+      "source": "Companion",
+      "source_sha256": "1dadb3284b8b358259ac6c0d3fb12e6884aa8d566282a1277d2a06a026d12c4f",
+      "translation": "Companion"
+    },
+    "home.m110": {
+      "source": "Install &amp; update",
+      "source_sha256": "fbd171c72da72d743d1f1571a2c9bd98927ae46cedf5baff4629ec7dc7ce2c50",
+      "translation": "Instalação e atualização"
+    },
+    "home.m111": {
+      "source": "Languages",
+      "source_sha256": "318655cea4bd2096fbfad433d7c019bac40750d1a456fc34d366df41fcc77197",
+      "translation": "Idiomas"
+    },
+    "home.m112": {
+      "source": "Developers",
+      "source_sha256": "fc799da2088d4e67e8481653d88c9601a83fcba3855e41d212de938c8a3574ae",
+      "translation": "Desenvolvedores"
+    },
+    "home.m113": {
+      "source": "GNARLYR.COM / Open-source ECHO firmware",
+      "source_sha256": "36c9408aa27d7f305028b12b0b2a549437a22d00a66bb0066113940ec25204c2",
+      "translation": "GNARLYR.COM / Firmware ECHO de código aberto"
+    },
+    "home.m114": {
+      "source": "Source ↗",
+      "source_sha256": "aed7112c3c66ec8107c1073694e5ade256bf09308d9677bf4da667594feb84a9",
+      "translation": "Código-fonte ↗"
+    },
+    "home.m115": {
+      "source": "Podium ↗",
+      "source_sha256": "1756cd9a20d736066677a78e0b7efdfa211a3576e2bdebfd99e65ee4a6f524f9",
+      "translation": "Podium ↗"
+    },
+    "home.m116": {
+      "source": "EchoPod ↗",
+      "source_sha256": "fe05e24a1800fe82fc51760cfd7e4073bfe6fbe1daac33652e9e0ca1328a72b2",
+      "translation": "EchoPod ↗"
+    },
+    "home.m117": {
+      "source": "ReChord ↗",
+      "source_sha256": "c3b7ee9716497a44d9dd4ca859b11b78a4aee7a42bb77dc443723eac305020c8",
+      "translation": "ReChord ↗"
+    },
+    "home.m118": {
+      "source": "GPL-3.0-or-later ↗",
+      "source_sha256": "65ae2173339c9c2a13c3ce0c9de9b4ab4ccd1fc8af873d2fcb5c0bcb47b19269",
+      "translation": "GPL-3.0-or-later ↗"
+    },
+    "home.m119": {
+      "source": "Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.\n",
+      "source_sha256": "3bb0640bd658adfdc1dc4891424bdef410d98a7c604eeb297ba0bbf7232d4988",
+      "translation": "Gnarlyr por doublesharp. Criado sobre Podium e EchoPod, com pesquisa de hardware do ReChord.\n"
+    }
+  }
+}

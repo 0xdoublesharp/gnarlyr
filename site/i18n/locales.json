@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "origin": "https://gnarlyr.com",
+  "pages": ["index.html"],
+  "locales": [
+    {"code": "en", "name": "English", "og_locale": "en_US", "language_label": "Site language", "home_label": "home", "guide_note": ""},
+    {"code": "es", "name": "Español", "og_locale": "es_ES", "language_label": "Idioma del sitio", "home_label": "inicio", "guide_note": "Las guías y las capturas de pantalla están en inglés."},
+    {"code": "de", "name": "Deutsch", "og_locale": "de_DE", "language_label": "Sprache der Website", "home_label": "Startseite", "guide_note": "Anleitungen und Screenshots sind auf Englisch."},
+    {"code": "ja", "name": "日本語", "og_locale": "ja_JP", "language_label": "サイトの言語", "home_label": "ホーム", "guide_note": "ガイドとスクリーンショットは英語です。"},
+    {"code": "fr", "name": "Français", "og_locale": "fr_FR", "language_label": "Langue du site", "home_label": "accueil", "guide_note": "Les guides et les captures d’écran sont en anglais."},
+    {"code": "pt", "name": "Português", "og_locale": "pt_BR", "language_label": "Idioma do site", "home_label": "início", "guide_note": "Os guias e as capturas de tela estão em inglês."}
+  ]
+}

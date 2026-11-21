@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `3abe0086367b5f92aff389d1c2e18a3fb768104c9fef1bf2ea8e008b4f506646` |
-| Rollback content release | `4e80d8a354288e0b70e9e8ec92531d3b44251ed684521a93804dcc82db2606a4` |
+| Current content release | `1808aea3c9f6b44bda10762c969a86feb59053e33ce88f3aa6083518a31ce24c` |
+| Rollback content release | `3abe0086367b5f92aff389d1c2e18a3fb768104c9fef1bf2ea8e008b4f506646` |
 
 The rollback retains the previous Priceless screenshot release.
 
@@ -46,7 +46,7 @@ as the other registered sites; session recording stays disabled.
 
 Every public HTML page defers `analytics.js`, which sends one pageview to
 `/api/send` on the Umami origin. Only the canonical production HTTPS hostname
-and the nine public page routes collect. Query strings and fragments are omitted,
+and explicit routes for the nine English pages and five translated homepages collect. Query strings and fragments are omitted,
 referrers contain only their origin, and Do Not Track, Global Privacy Control,
 and the `umami.disabled` browser preference suppress collection. The validation
 hostname, local previews, health probes, and unknown routes do not collect.
@@ -77,8 +77,7 @@ normal service configuration/start operations. Website publication is manual, wi
 The publisher includes only `index.html`, `companion.html`, `firmware.html`, `hardware.html`,
 `docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `analytics.js`, `favicon.svg`, `robots.txt`,
 `sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
-64 MiB total. Firmware, README files, deployment files and hidden files are
-excluded. The publisher versions local stylesheet, script and image URLs in each HTML page
+64 MiB total. It also generates complete homepages at `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/` from the English source and private `site/i18n/` catalogues. Those catalogues, firmware, README files, deployment files, and hidden files are excluded. Missing, stale, or invalid translations stop publication. See `site/README.md` for the translation workflow. The publisher versions local stylesheet, script and image URLs in each HTML page
 with the SHA-256 prefix of the referenced asset. Social-preview PNGs under
 `site/assets/social/` use content-hashed filenames and absolute HTTPS metadata URLs.
 Regenerate them with `tools/site_social.py` after changing card copy or artwork. This keeps cached styling and
@@ -109,10 +108,10 @@ Do not restart the shared proxy for an ordinary site release.
 Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/analytics.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
 `/languages.html`, `/companion.html`, `/language-catalog.js`, `/language-packs.js`, and
-`/healthz`; compare all seventeen public root files and every published image byte-for-byte against the publisher’s `public_files()` output at
+`/healthz`, plus `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/`; compare every published file, including the five language homepages, byte-for-byte against the publisher’s `public_files()` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
-`/README.md`, `/deploy/compose.yaml`, and an unknown path. Companion HTML, screenshots, and social artwork are included in the public release. Verify origin TLS
+`/README.md`, `/deploy/compose.yaml`, `/i18n/locales.json`, `/i18n/es.json`, `/es/docs.html`, `/ru/`, and an unknown path. Companion HTML, screenshots, and social artwork are included in the public release. Verify origin TLS
 separately with `curl --resolve HOST:443:159.89.222.183 https://HOST/`;
 Cloudflare edge HTTPS alone does not verify the origin certificate.
 

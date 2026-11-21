@@ -28,6 +28,7 @@ class Metadata(HTMLParser):
     def __init__(self):
         super().__init__()
         self.values = {}
+        self.translation_ids = {}
 
     def handle_starttag(self, tag, attributes):
         attributes = dict(attributes)
@@ -35,6 +36,8 @@ class Metadata(HTMLParser):
             key = attributes.get("property", attributes.get("name"))
             if key:
                 self.values[key] = attributes.get("content", "")
+                if attributes.get("data-i18n-attrs"):
+                    self.translation_ids[key] = attributes["data-i18n-attrs"]
 
 
 def card_svg(card, artwork, domain):
@@ -77,7 +80,8 @@ def metadata_tags(source, card, url):
         "twitter:description": values["og:description"], "twitter:image": url,
         "twitter:image:alt": alt,
     }
-    return "\n".join(f'<meta {attribute}="{key}" content="{escape(value, quote=True)}">'
+    return "\n".join(f'<meta {attribute}="{key}" content="{escape(value, quote=True)}"'
+                     + (f' data-i18n-attrs="{escape(metadata.translation_ids[key], quote=True)}"' if key in metadata.translation_ids else "") + '>'
                      for attribute, fields in (("property", properties), ("name", names))
                      for key, value in fields.items())
 
