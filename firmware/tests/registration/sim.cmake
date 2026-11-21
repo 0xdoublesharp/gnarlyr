@@ -1,6 +1,24 @@
 if(ECHO_BUILD_SIM)
     target_link_libraries(test_usb_screen PRIVATE echo_sim_glyphs)
-    target_compile_definitions(test_usb_screen PRIVATE ECHO_TEST_GLYPHS)
+    set(ECHO_CHINESE_LANGUAGES ${CMAKE_CURRENT_BINARY_DIR}/chinese_languages)
+    set(ECHO_CHINESE_PACK ${ECHO_CHINESE_LANGUAGES}/zh-CN.pack)
+    configure_file(${ECHO_LANGUAGE_SOURCES}/en.txt ${ECHO_CHINESE_LANGUAGES}/en.txt COPYONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/fixtures/lang/zh-CN.txt
+        ${ECHO_CHINESE_LANGUAGES}/zh-CN.txt COPYONLY)
+    add_custom_command(
+        OUTPUT ${ECHO_CHINESE_PACK}
+        COMMAND ${Python3_EXECUTABLE} ${ECHO_LANGUAGE_TOOL}
+            --languages ${ECHO_CHINESE_LANGUAGES} --layout ${ECHO_LANGUAGE_LAYOUT}
+            --pack zh-CN --output ${ECHO_CHINESE_PACK}
+        DEPENDS ${ECHO_CHINESE_LANGUAGES}/en.txt ${ECHO_CHINESE_LANGUAGES}/zh-CN.txt
+            ${ECHO_LANGUAGE_TOOL} ${ECHO_LANGUAGE_LAYOUT}
+        VERBATIM
+    )
+    add_custom_target(echo_chinese_test_pack DEPENDS ${ECHO_CHINESE_PACK})
+    add_dependencies(test_usb_screen echo_chinese_test_pack)
+    target_compile_definitions(test_usb_screen PRIVATE ECHO_TEST_GLYPHS
+        ECHO_CHINESE_PACK="${ECHO_CHINESE_PACK}"
+        ECHO_GLYPH_PACK_DIRECTORY="${PROJECT_SOURCE_DIR}/src/fonts/packs")
     target_link_libraries(test_wire_boot PRIVATE echo_sim_glyphs)
     target_compile_definitions(test_wire_boot PRIVATE ECHO_TEST_GLYPHS)
     echo_add_unit_test(NAME test_sim_options

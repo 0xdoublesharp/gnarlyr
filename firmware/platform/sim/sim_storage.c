@@ -13,7 +13,7 @@
 #include "playback/listening_export.h"
 
 enum {
-    OPEN_FILE_CAPACITY = 8,
+    OPEN_FILE_CAPACITY = 9,
     OPEN_DIR_CAPACITY = HAL_OPEN_DIRS,
     PATH_CAPACITY = 1024
 };

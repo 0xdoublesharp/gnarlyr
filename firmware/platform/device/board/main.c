@@ -93,6 +93,7 @@ static void run_usb_session(void)
     raise_clock_for_usb();
     board_trial_session_starting();
     const UsbOverlayEntry *usb = load_usb_code();
+    app_hold_usb_glyphs(usb != NULL);
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
     board_trial_snapshot(1);
@@ -109,6 +110,7 @@ static void run_usb_session(void)
         app_start_after_storage();
         app_request_rescan_if_music_changed();
     }
+    app_hold_usb_glyphs(false);
     app_resume_after_usb();
     board_stall_pause(false);
 }
