@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "release": "Sans2.004",
+  "commit": "523d033d6cb47f4a80c58a35753646f5c3608a78",
+  "license": "OFL-1.1",
+  "sources": {
+    "sc": {
+      "regular": {
+        "file": "NotoSansCJK-Regular.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Regular.ttc",
+        "sha256": "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a",
+        "size": 19484784,
+        "font_number": 2
+      },
+      "bold": {
+        "file": "NotoSansCJK-Bold.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Bold.ttc",
+        "sha256": "faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb",
+        "size": 20050760,
+        "font_number": 2
+      }
+    },
+    "tc": {
+      "regular": {
+        "file": "NotoSansCJK-Regular.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Regular.ttc",
+        "sha256": "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a",
+        "size": 19484784,
+        "font_number": 3
+      },
+      "bold": {
+        "file": "NotoSansCJK-Bold.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Bold.ttc",
+        "sha256": "faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb",
+        "size": 20050760,
+        "font_number": 3
+      }
+    },
+    "jp": {
+      "regular": {
+        "file": "NotoSansCJK-Regular.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Regular.ttc",
+        "sha256": "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a",
+        "size": 19484784,
+        "font_number": 0
+      },
+      "bold": {
+        "file": "NotoSansCJK-Bold.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Bold.ttc",
+        "sha256": "faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb",
+        "size": 20050760,
+        "font_number": 0
+      }
+    },
+    "kr": {
+      "regular": {
+        "file": "NotoSansCJK-Regular.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Regular.ttc",
+        "sha256": "b76b0433203017ca80401b2ee0dd69350349871c4b19d504c34dbdd80541690a",
+        "size": 19484784,
+        "font_number": 1
+      },
+      "bold": {
+        "file": "NotoSansCJK-Bold.ttc",
+        "url": "https://raw.githubusercontent.com/notofonts/noto-cjk/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/OTC/NotoSansCJK-Bold.ttc",
+        "sha256": "faa5f3656a78b2e2d450d27fe8382c778bc2b6bb5ea29c986664a6a435056ceb",
+        "size": 20050760,
+        "font_number": 1
+      }
+    }
+  },
+  "styles": {
+    "default": "sc",
+    "ja": "jp",
+    "ko": "kr",
+    "zh": "sc",
+    "zh-HK": "tc",
+    "zh-TW": "tc"
+  },
+  "faces": [
+    {
+      "name": "inter_regular_16_latin1",
+      "size": 16,
+      "weight": "regular",
+      "max_bitmap": 160
+    },
+    {
+      "name": "inter_regular_22",
+      "size": 22,
+      "weight": "regular",
+      "max_bitmap": 256
+    },
+    {
+      "name": "inter_semibold_22",
+      "size": 22,
+      "weight": "bold",
+      "max_bitmap": 256
+    },
+    {
+      "name": "inter_regular_18",
+      "size": 18,
+      "weight": "regular",
+      "max_bitmap": 256
+    },
+    {
+      "name": "inter_semibold_18",
+      "size": 18,
+      "weight": "bold",
+      "max_bitmap": 256
+    },
+    {
+      "name": "inter_regular_26",
+      "size": 26,
+      "weight": "regular",
+      "max_bitmap": 352
+    },
+    {
+      "name": "inter_semibold_26",
+      "size": 26,
+      "weight": "bold",
+      "max_bitmap": 352
+    }
+  ],
+  "coverage": []
+}
