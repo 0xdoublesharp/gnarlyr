@@ -141,7 +141,7 @@ class RecipeFileTest(unittest.TestCase):
         self.assertFalse(any(unicodedata.category(chr(codepoint)) in ("Cc", "Cs") for codepoint in coverage))
         self.assertLessEqual(set(range(0xAC00, 0xD7A4)), coverage)
         for name in ("sc-characters.txt", "jp-characters.txt"):
-            wanted = {ord(character) for character in (NOTO / name).read_text(encoding="utf-8").strip()}
+            wanted = {int(line[2:], 16) for line in (NOTO / name).read_text(encoding="utf-8").split()}
             self.assertLessEqual(wanted, coverage, name)
 
     def test_coverage_never_claims_a_character_the_subset_faces_cannot_all_draw(self):
