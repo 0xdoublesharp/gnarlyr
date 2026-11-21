@@ -301,12 +301,13 @@ def main():
         parent.mkdir(parents=True, exist_ok=True)
         work = Path(tempfile.mkdtemp(prefix="run-", dir=parent))
         env = {**os.environ, "TMPDIR": str(work), "PYTHONDONTWRITEBYTECODE": "1"}
+        jobs = str(bounded(int(env.get("COMPUTE_JOBS", "2")), 1, 16, "jobs"))
         if not args.no_build:
-            run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "echo_sim", "--jobs", "4"], work / "build.log", env)
+            run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "echo_sim", "--jobs", jobs], work / "build.log", env)
         native = work / "native-screens"
         if any(case.get("native_snapshot") for case in screens):
             if not args.no_build:
-                run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "test_usb_screen", "--jobs", "4"], work / "native-build.log", env)
+                run([sys.executable, source_root / "tools/firmware.py", "build", "--preset", "dev", "--target", "test_usb_screen", "--jobs", jobs], work / "native-build.log", env)
             native.mkdir()
             run([source_root / "firmware/build/dev/tests/test_usb_screen"], work / "native-render.log",
                 {**env, "ECHO_TEST_SCREENSHOTS": str(native)})

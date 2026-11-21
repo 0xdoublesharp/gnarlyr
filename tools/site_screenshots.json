@@ -2032,6 +2032,128 @@
         "play:long",
         "up"
       ]
+    },
+    {
+      "name": "home-portrait",
+      "file": "home-portrait.png",
+      "expected_title": "{firmware_name}",
+      "keys": [
+        "up",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "play",
+        "back:long"
+      ],
+      "size": [
+        222,
+        480
+      ]
+    },
+    {
+      "name": "now-playing-portrait",
+      "file": "now-playing-portrait.png",
+      "expected_title": "Now Playing",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "play",
+        "back:long",
+        "up",
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "play",
+        "back:long",
+        "up",
+        "play"
+      ],
+      "size": [
+        222,
+        480
+      ]
+    },
+    {
+      "name": "quick-settings-style",
+      "file": "quick-settings-style.png",
+      "expected_title": "Now Playing style",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "play",
+        "menu",
+        "up",
+        "up",
+        "up",
+        "play"
+      ]
+    },
+    {
+      "name": "quick-settings-speed",
+      "file": "quick-settings-speed.png",
+      "expected_title": "Playback speed",
+      "keys": [
+        "play",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play",
+        "down",
+        "down",
+        "play",
+        "menu",
+        "down",
+        "down",
+        "down",
+        "down",
+        "play"
+      ]
     }
   ]
 }
