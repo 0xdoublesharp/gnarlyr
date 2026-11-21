@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `67339e52e8bcad8efb577e4af41b05e5a2caf64eb67b201fb017f13b85b1e214` |
-| Rollback content release | `1ac55fcdb9bc9f491b99f356512b0e785701a30a4a3f0bebbc74df24d7fab147` |
+| Current content release | `4e80d8a354288e0b70e9e8ec92531d3b44251ed684521a93804dcc82db2606a4` |
+| Rollback content release | `67339e52e8bcad8efb577e4af41b05e5a2caf64eb67b201fb017f13b85b1e214` |
 
 The rollback retains the previous Priceless screenshot release.
 

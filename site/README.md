@@ -8,7 +8,7 @@ The Docs screenshots are product assets under `site/assets/screens/`, generated 
 
 DoublePaaS hosting uses the [deployment contract](../docs/deployment.md). Publish the nine public HTML pages, shared CSS and JavaScript, language catalogue and builder script, favicon, robots file and sitemap together. The publisher allows those seventeen root files and optional image assets; this README and `deploy/` stay outside the served release.
 
-Firmware copy and all 77 player screenshots follow `7bb61127`. The guide includes combined internal/card libraries, Menu-and-volume scrub previews, paused track changes, Sunset Drive meters, Quick Settings value lists, and one-line portrait headers. Simulator scenes check their screen titles and dimensions; USB scenes use the native renderer. Screenshots show the interface, not physical-device acceptance. Export the browser language catalogue from the same firmware source. Keep fixes to our existing features out of the marketing feature list.
+Firmware copy and all 77 player screenshots follow `30753143`. The guide includes combined internal/card libraries, Menu-and-volume scrub previews, paused track changes, Sunset Drive meters, Quick Settings value lists, and one-line portrait headers. Simulator scenes check their screen titles and dimensions; USB scenes use the native renderer. Screenshots show the interface, not physical-device acceptance. Export the browser language catalogue from the same firmware source. Keep fixes to our existing features out of the marketing feature list.
 
 Ogg playback and unverified converter performance stay outside public playback claims. Playback-speed controls, A–B repeat, end-of-track sleep, artist album strips and Recap follow the integrated source; physical playback acceptance is described in Developers. Features keeps the practical recommendation to convert speech below 32 kHz before copying it. Developers covers source builds, USB tools, clock sync, file validation, CUE parsing and ReplayGain. Hardware ratings link to FiiO and Cirrus. Keep unrelated firmware edits outside a website-only publication. Export the browser language catalogue from the capture source when its menus or pack limits change.
 
@@ -48,9 +48,9 @@ The player outline is CSS around the image, so regenerated PNGs retain their ori
 
 ## Link preview images
 
-Every public page has its own 1200 × 630 PNG card, Open Graph image metadata and a Twitter/X large-image card. The artwork comes from the homepage’s editable cassette SVG. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
+Every public page has its own 1200 × 630 PNG card, Open Graph image metadata and a Twitter/X large-image card. The artwork uses the Sunset Disc from `assets/brand/sunset-disc.svg`, matching the firmware mark. The site header and favicon use the same shape and colors. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
 
-Regenerate images and metadata after changing that copy or the cassette artwork:
+Regenerate images and metadata after changing that copy or the Sunset Disc artwork:
 
 ```sh
 python3 tools/site_social.py

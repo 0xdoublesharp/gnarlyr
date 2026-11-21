@@ -42,7 +42,7 @@ def card_svg(card, artwork, domain):
                     for i, line in enumerate(card["title"]))
     description = "".join(f'<text x="66" y="{418 + i * 34}" font-size="24" fill="#b9acc8">{escape(line)}</text>'
                           for i, line in enumerate(card["description"]))
-    illustration = artwork.replace('<svg ', '<svg x="625" y="64" width="560" height="467" ', 1)
+    illustration = artwork.replace('<svg ', '<svg x="710" y="100" width="390" height="390" ', 1)
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
 <defs><radialGradient id="backdrop"><stop stop-color="#34203f"/><stop offset="1" stop-color="#150f25"/></radialGradient></defs>
 <rect width="1200" height="630" fill="#150f25"/>
@@ -66,7 +66,7 @@ def metadata_tags(source, card, url):
     for key in ("og:title", "og:description", "og:type", "og:url"):
         if not values.get(key):
             raise ValueError(f'{card["page"]} needs {key}')
-    alt = f'{IDENTITY["name"]} cassette artwork beside the words “{" ".join(card["title"])}”'
+    alt = f'{IDENTITY["name"]} Sunset Disc beside the words “{" ".join(card["title"])}”'
     properties = {
         "og:site_name": IDENTITY["name"], "og:locale": "en_US", "og:image": url,
         "og:image:secure_url": url, "og:image:type": "image/png",
@@ -114,7 +114,7 @@ def main():
     metadata.feed(home)
     base_url = metadata.values["og:url"]
     domain = urlsplit(base_url).netloc
-    artwork = re.search(r'<div class="art"[^>]*>\s*(<svg\b.*?</svg>)', home, re.S)[1]
+    artwork = (SITE / "assets/brand/sunset-disc.svg").read_text()
     output = SITE / "assets/social"
     SCRATCH.mkdir(parents=True, exist_ok=True)
     rendered = []

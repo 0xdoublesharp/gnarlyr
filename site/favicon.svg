@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="9" fill="#150f25"/><g fill="none" stroke="#ff88bd" stroke-width="1.8"><rect x="5" y="10" width="30" height="22" rx="3"/><rect x="9" y="14" width="22" height="9" rx="2"/><circle cx="14" cy="18.5" r="2.5"/><circle cx="26" cy="18.5" r="2.5"/><path d="m12 32 3-5h10l3 5"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="tile" x2="0" y2="1"><stop stop-color="#2f1a49"/><stop offset="46.875%" stop-color="#1d1538"/></linearGradient>
+    <linearGradient id="sun" x2="0" y2="1"><stop stop-color="#ffd28f"/><stop offset="46.875%" stop-color="#ff8e95"/><stop offset="1" stop-color="#ef55bd"/></linearGradient>
+    <clipPath id="disc"><circle cx="64" cy="64" r="48"/></clipPath>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="28" fill="#7954a3"/>
+  <rect x="3.6" y="3.6" width="120.8" height="120.8" rx="26.4" fill="url(#tile)"/>
+  <path d="M16 16h96v59H16zM16 80.5h96v12.5H16zM16 99.5h96V112H16z" fill="url(#sun)" clip-path="url(#disc)"/>
+</svg>

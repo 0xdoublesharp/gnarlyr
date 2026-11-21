@@ -24,7 +24,7 @@
     .skip:hover { color: var(--ink); }
     .header { min-height: 96px; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
     .brand { display: inline-flex; gap: 10px; align-items: center; text-decoration: none; }
-    .brand svg { width: 30px; height: 24px; color: var(--pink); }
+    .brand-mark { display: block; width: 32px; height: 32px; flex: none; }
     .wordmark { font-size: 25px; font-weight: 900; font-style: italic; letter-spacing: -1.4px; }
     .brand-dot { color: var(--pink); }
     nav { display: flex; align-items: center; gap: 24px; font-size: 14px; font-weight: 600; }
@@ -168,7 +168,7 @@
       .header { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding-block: 18px 8px; }
       .wordmark { font-size: 21px; }
       .brand { gap: 7px; }
-      .brand svg { width: 23px; }
+      .brand-mark { width: 25px; height: 25px; }
       nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 6px; font-size: 13px; }
       nav a { justify-content: center; padding-inline: 0; }
       nav .nav-cta { padding: 7px 0; }
