@@ -51,6 +51,7 @@
 #include "spoken_library.h"
 #include "text_spy.h"
 #include "theme_runtime.h"
+#include "ui/brand_mark.h"
 #include "ui/header.h"
 #include "ui/slide.h"
 #include "ui/status_bar.h"
@@ -6773,9 +6774,10 @@ static void portrait_home_has_one_header_line_with_the_logo_and_others_keep_thei
     step();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
     const Theme *theme = expected_theme();
-    Color ink = theme->colors.header_text;
     StatusBarState marked = {.logo = true};
     Rect logo = status_bar_item_area(theme, &marked, STATUS_BAR_LOGO);
+    Color ink = brand_mark_sun_row(0, logo.height);
+    CHECK(!area_has_color(logo, theme->colors.header_text));
     int band = theme->metrics.status_height;
     int middle = theme->metrics.screen_width / 2;
     CHECK(logo.y + logo.height <= band);

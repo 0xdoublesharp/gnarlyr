@@ -96,7 +96,7 @@ static const uint32_t SHAPES[ICON_COUNT] = {
     [ICON_LOCK] = 0x0849F8C2,
     [ICON_SONG_SMALL] = 0xCB86ADB1,
     [ICON_PLUG] = 0xA3B73949,
-    [ICON_LOGO] = 0xB71D9164,
+    [ICON_LOGO] = 0xD1B9CC15,
 };
 
 static Color pixels[CANVAS_SIZE * CANVAS_SIZE];
