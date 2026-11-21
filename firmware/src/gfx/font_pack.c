@@ -1,6 +1,7 @@
 #include "gfx/font_pack.h"
 #include "core/bytes.h"
 #include "core/hash.h"
+#include "core/seam.h"
 
 enum {
     FACE_UNKNOWN = 0,
@@ -49,7 +50,7 @@ typedef struct ExtraSource {
 } ExtraSource;
 
 static FontPackReader pack_reader;
-static ExtraSource extra;
+static ExtraSource extra_source;
 static PackState *state;
 static PackSlot *slots;
 static uint32_t slot_count;
@@ -97,7 +98,7 @@ void font_pack_forget(void)
     }
 }
 
-void font_pack_hold(FontPackHold next)
+CORE_SEAM void font_pack_hold(FontPackHold next)
 {
     if (next != FONT_PACK_HOLD_FREEZE) {
         font_pack_forget();
@@ -139,17 +140,17 @@ static bool extra_header_valid(const uint8_t *header, uint32_t file_size)
 static void keep_extra_header(const uint8_t *header)
 {
     for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
-        extra.start[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face);
-        extra.size[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face + 4);
+        extra_source.start[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face);
+        extra_source.size[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face + 4);
     }
-    extra.language_count = header[EXTRA_LANGUAGES_FIELD];
-    for (uint32_t byte = 0; byte < sizeof extra.languages; byte++) {
+    extra_source.language_count = header[EXTRA_LANGUAGES_FIELD];
+    for (uint32_t byte = 0; byte < sizeof extra_source.languages; byte++) {
         bool last = byte % FONT_PACK_LANGUAGE_BYTES == FONT_PACK_LANGUAGE_BYTES - 1;
-        extra.languages[byte] = last ? '\0' : (char)header[FONT_PACK_EXTRA_CODES + byte];
+        extra_source.languages[byte] = last ? '\0' : (char)header[FONT_PACK_EXTRA_CODES + byte];
     }
 }
 
-bool font_pack_attach_extra(FontPackReader reader, uint32_t size)
+CORE_SEAM bool font_pack_attach_extra(FontPackReader reader, uint32_t size)
 {
     font_pack_detach_extra();
     if (state == NULL || reader.read == NULL ||
@@ -159,36 +160,38 @@ bool font_pack_attach_extra(FontPackReader reader, uint32_t size)
         return false;
     }
     keep_extra_header(state->sector);
-    extra.reader = reader;
+    extra_source.reader = reader;
     font_pack_hold(FONT_PACK_HOLD_NONE);
     return true;
 }
 
 void font_pack_detach_extra(void)
 {
-    extra.reader.read = NULL;
-    extra.language_count = 0;
+    extra_source.reader.read = NULL;
+    extra_source.language_count = 0;
 }
 
 bool font_pack_extra_attached(void)
 {
-    return extra.reader.read != NULL;
+    return extra_source.reader.read != NULL;
 }
 
 const char *font_pack_extra_language(uint32_t index)
 {
-    return index < extra.language_count ? extra.languages + index * FONT_PACK_LANGUAGE_BYTES : NULL;
+    return index < extra_source.language_count
+               ? extra_source.languages + index * FONT_PACK_LANGUAGE_BYTES
+               : NULL;
 }
 
 static bool read_extra(uint32_t face, uint32_t offset, void *buffer, uint32_t length)
 {
     uint32_t index = face - FONT_PACK_IMAGE_FACES;
-    if (extra.reader.read == NULL || hold == FONT_PACK_HOLD_FREEZE || offset > extra.size[index] ||
-        length > extra.size[index] - offset) {
+    if (extra_source.reader.read == NULL || hold == FONT_PACK_HOLD_FREEZE ||
+        offset > extra_source.size[index] || length > extra_source.size[index] - offset) {
         return false;
     }
-    return extra.reader.read(extra.reader.context, face, extra.start[index] + offset, buffer,
-                             length);
+    return extra_source.reader.read(extra_source.reader.context, face,
+                                    extra_source.start[index] + offset, buffer, length);
 }
 
 static bool read_face(uint32_t face, uint32_t offset, void *buffer, uint32_t length)
