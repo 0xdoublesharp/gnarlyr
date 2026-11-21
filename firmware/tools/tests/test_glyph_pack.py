@@ -89,11 +89,31 @@ class PackTest(unittest.TestCase):
     def test_the_header_matches_the_player_reader(self):
         blob = glyph_pack.pack_glyphs([glyph(0xE000 + index) for index in range(50)])
         magic, version, entry, per_sector = struct.unpack_from("<4sBBH", blob)
-        count, directory, index = struct.unpack_from("<III", blob, 8)
+        count, size, first, last, roots = struct.unpack_from("<IIHHH", blob, 8)
         self.assertEqual((b"EGLF", 1, 12, 42), (magic, version, entry, per_sector))
-        self.assertEqual((50, 512, 1024), (count, directory, index))
-        self.assertEqual(0xE000 + 42, struct.unpack_from("<H", blob, directory + 2)[0])
-        self.assertEqual(0xE000 + 42, struct.unpack_from("<H", blob, index + 512)[0])
+        self.assertEqual((50, len(blob), 0xE000, 0xE000 + 49, 1), (count, size, first, last, roots))
+        self.assertEqual(0xE000, struct.unpack_from("<H", blob, glyph_pack.ROOT_OFFSET)[0])
+        self.assertEqual(0xE000 + 42, struct.unpack_from("<H", blob, 512 + 2)[0])
+        self.assertEqual(0xE000 + 42, struct.unpack_from("<H", blob, 1024 + 512)[0])
+        self.assertEqual(glyph_pack.fnv(blob[:40]), struct.unpack_from("<I", blob, 40)[0])
+
+    def test_the_header_names_the_firmware_constants(self):
+        header = (TOOLS_DIRECTORY.parent / "src" / "gfx" / "include" / "gfx" / "font_pack.h").read_text()
+        constants = dict(re.findall(r"(FONT_PACK_\w+) = (\w+)", header))
+        self.assertEqual(glyph_pack.HEADER_BYTES, int(constants["FONT_PACK_HEADER_BYTES"]))
+        self.assertEqual(glyph_pack.HEADER_CHECK, int(constants["FONT_PACK_HEADER_CHECK"]))
+        self.assertEqual(glyph_pack.ROOT_OFFSET, int(constants["FONT_PACK_ROOT_OFFSET"]))
+        self.assertEqual(glyph_pack.CHECK_OFFSET, int(constants["FONT_PACK_SECTOR_CHECK"]))
+        self.assertEqual(glyph_pack.DIRECTORY_ENTRIES, int(constants["FONT_PACK_DIRECTORY_ENTRIES"]))
+        self.assertEqual(glyph_pack.MAX_ROOT, int(constants["FONT_PACK_MAX_ROOT"]))
+        self.assertEqual(glyph_pack.MAX_GLYPHS, int(constants["FONT_PACK_MAX_GLYPHS"], 0))
+
+    def test_every_sector_carries_its_check_seeded_by_the_header(self):
+        blob = glyph_pack.pack_glyphs([glyph(0x100 + index) for index in range(100)])
+        seed = struct.unpack_from("<I", blob, 40)[0]
+        for sector in range(1, 5):
+            body = blob[sector * 512:(sector + 1) * 512]
+            self.assertEqual(glyph_pack.fnv(body[:508], seed), struct.unpack_from("<I", body, 508)[0])
 
     def test_entries_fill_whole_sectors(self):
         self.assertEqual(42, glyph_pack.ENTRIES_PER_SECTOR)
@@ -115,14 +135,100 @@ class PackTest(unittest.TestCase):
         with self.assertRaises(glyph_pack.PackError):
             glyph_pack.pack_glyphs([])
 
-    def test_too_many_glyphs_are_refused(self):
-        count = glyph_pack.MAX_DIRECTORY * glyph_pack.ENTRIES_PER_SECTOR + 1
+    def test_a_face_holds_more_glyphs_than_one_directory_sector_names(self):
+        count = glyph_pack.DIRECTORY_ENTRIES * glyph_pack.ENTRIES_PER_SECTOR + 50
+        glyphs = [glyph(0x1000 + index, 1, 1, levels=[index % 16]) for index in range(count)]
+        blob = glyph_pack.pack_glyphs(glyphs)
+        read = glyph_pack.read_face(blob)
+        self.assertEqual(count, len(read))
+        self.assertEqual(2, struct.unpack_from("<H", blob, 20)[0])
+        self.assertEqual(0x1000 + glyph_pack.DIRECTORY_ENTRIES * glyph_pack.ENTRIES_PER_SECTOR,
+                         struct.unpack_from("<H", blob, glyph_pack.ROOT_OFFSET + 2)[0])
+        self.assertEqual(bytes([(count - 1) % 16 << 4]), read[0x1000 + count - 1][5])
+
+    def test_glyphs_out_of_order_are_refused(self):
         with self.assertRaises(glyph_pack.PackError):
-            glyph_pack.pack_glyphs([glyph(index, 0, 0, levels=[]) for index in range(count)])
+            glyph_pack.pack_glyphs([glyph(0xE001), glyph(0xE000)])
+        with self.assertRaises(glyph_pack.PackError):
+            glyph_pack.pack_glyphs([glyph(0xE000), glyph(0xE000)])
+
+    def test_codepoints_past_the_basic_plane_are_refused(self):
+        with self.assertRaises(glyph_pack.PackError):
+            glyph_pack.pack_glyphs([glyph(0x10000)])
+
+    def test_damage_anywhere_before_the_bitmaps_is_refused(self):
+        blob = glyph_pack.pack_glyphs([glyph(0xE000 + index) for index in range(50)])
+        for offset in (8, 30, 512 + 1, 1024 + 13, 1536 + 507):
+            damaged = bytearray(blob)
+            damaged[offset] ^= 1
+            with self.assertRaises(glyph_pack.PackError):
+                glyph_pack.read_face(bytes(damaged))
+
+    def test_a_truncated_face_is_refused(self):
+        blob = glyph_pack.pack_glyphs([glyph(0xE000 + index) for index in range(50)])
+        for size in (40, 512, 1100, len(blob) - 1):
+            with self.assertRaises(glyph_pack.PackError):
+                glyph_pack.read_face(blob[:size])
 
     def test_metrics_out_of_range_are_refused(self):
         with self.assertRaises(glyph_pack.PackError):
             glyph_pack.pack_glyphs([glyph(0xE000, left=200)])
+
+
+class ExtraFontTest(unittest.TestCase):
+    def face(self, first, count=3):
+        return glyph_pack.pack_glyphs([glyph(first + index) for index in range(count)])
+
+    def test_the_container_reads_back(self):
+        faces = [self.face(0xAC00), None, self.face(0x4E00, 60), None, None, None, self.face(0x3041)]
+        blob = glyph_pack.pack_extra_font(faces, ["zh-TW", "ko"])
+        read, languages = glyph_pack.read_extra_font(blob)
+        self.assertEqual(["ko", "zh-TW"], languages)
+        self.assertEqual([glyph_pack.read_face(face) if face else None for face in faces], read)
+
+    def test_the_container_is_byte_identical_for_the_same_inputs(self):
+        faces = [self.face(0xAC00)] + [None] * 6
+        self.assertEqual(glyph_pack.pack_extra_font(faces, ["ko", "ja"]),
+                         glyph_pack.pack_extra_font(faces, ["ja", "ko", "ja"]))
+
+    def test_the_header_matches_the_player_reader(self):
+        faces = [None, self.face(0xAC00)] + [None] * 5
+        blob = glyph_pack.pack_extra_font(faces, ["ko"])
+        magic, version, count, languages, size = struct.unpack_from("<4sBBBxI", blob)
+        self.assertEqual((b"EGXF", 1, 7, 1, len(blob)), (magic, version, count, languages, size))
+        self.assertEqual((0, 0), struct.unpack_from("<II", blob, 12))
+        self.assertEqual((512, len(faces[1])), struct.unpack_from("<II", blob, 20))
+        self.assertEqual(b"ko\0\0\0\0\0\0", blob[68:76])
+        self.assertEqual(glyph_pack.fnv(blob[:508]), struct.unpack_from("<I", blob, 508)[0])
+        self.assertEqual(0, len(blob) % 512)
+
+    def test_faces_start_on_sectors(self):
+        faces = [self.face(0xAC00, count) for count in (1, 43, 2, 90, 5, 6, 7)]
+        blob = glyph_pack.pack_extra_font(faces, [])
+        offsets = [struct.unpack_from("<II", blob, 12 + 8 * face)[0] for face in range(7)]
+        self.assertTrue(all(offset % 512 == 0 for offset in offsets))
+
+    def test_bad_inputs_are_refused(self):
+        for faces, languages in (([None] * 6, []), ([None] * 7, ["toolong"]), ([None] * 7, ["k o"]),
+                                 ([None] * 7, [f"l{index}" for index in range(33)]),
+                                 ([b"EGLF"] + [None] * 6, [])):
+            with self.assertRaises(glyph_pack.PackError):
+                glyph_pack.pack_extra_font(faces, languages)
+
+    def test_a_damaged_or_truncated_container_is_refused(self):
+        blob = glyph_pack.pack_extra_font([self.face(0xAC00)] + [None] * 6, ["ko"])
+        for damaged in (blob[:-1], blob[:511], blob + bytes(512),
+                        blob[:70] + b"x" + blob[71:], blob[:600] + b"x" + blob[601:]):
+            with self.assertRaises(glyph_pack.PackError):
+                glyph_pack.read_extra_font(damaged)
+
+    def test_the_extra_faces_follow_the_base_faces(self):
+        config = json.loads((ASSETS_DIRECTORY / "glyph_pack.json").read_text())
+        self.assertEqual(7, glyph_pack.EXTRA_FACES)
+        self.assertEqual(["inter_regular_16_latin1", "inter_regular_22", "inter_semibold_22",
+                          "inter_regular_18", "inter_semibold_18", "inter_regular_26",
+                          "inter_semibold_26"],
+                         [face["name"] for face in config["faces"][:glyph_pack.EXTRA_FACES]])
 
 
 class BuildFaceTest(unittest.TestCase):
