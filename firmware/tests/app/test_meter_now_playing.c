@@ -25,7 +25,6 @@ static Canvas start(int orientation, int size, int appearance, NowPlayingStyle s
     default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
     default_theme_set_text_size(&theme, (TextSize)size);
     default_theme_set_orientation(&theme, (Orientation)orientation);
-    theme_drop_title_row(&theme);
     settings = settings_defaults();
     settings_set_now_playing_style(&settings, style);
     now_playing_screen_init(&screen, (NowPlayingConfig){.theme = &theme, .settings = &settings});
@@ -90,12 +89,12 @@ static void art_and_text_fit_every_theme_orientation_and_size(void)
                         CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding,
                                     layout.stage.y);
                     }
-                    CHECK(layout.stage.y + layout.stage.height < (orientation == 0 ? 196 : 367));
+                    CHECK(layout.stage.y + layout.stage.height < (orientation == 0 ? 196 : 377));
                     for (int line = 0; line < 2; line++) {
                         CHECK(layout.text[line].height >=
                               font_line_height(line == 0 ? theme.fonts.title : theme.fonts.body));
                         CHECK(layout.text[line].y + layout.text[line].height <=
-                              (orientation == 0 ? 196 : 367));
+                              (orientation == 0 ? 196 : 377));
                         CHECK(layout.text[line].x + layout.text[line].width <=
                               theme.metrics.screen_width - theme.metrics.padding);
                         CHECK(rect_is_empty(rect_intersection(layout.text[line], layout.stage)));

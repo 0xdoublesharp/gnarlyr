@@ -32,6 +32,11 @@ typedef struct CoverFlowTextLayout {
     int reflection_rows;
 } CoverFlowTextLayout;
 
+typedef struct SplashStack {
+    Rect mark;
+    Rect label;
+} SplashStack;
+
 typedef struct BoardLayout {
     int home_art_width;
     int home_art_min_height;
@@ -53,4 +58,5 @@ extern const BoardCoverLayout BOARD_COVER_LAYOUT;
 int board_text_size(const Theme *theme);
 const NowPlayingLayout *board_now_playing_layout(const Theme *theme);
 const char *board_splash_text(const Theme *theme);
+SplashStack board_splash_stack(const Theme *theme, Rect area);
 const CoverFlowTextLayout *board_cover_flow_text_layout(const Theme *theme);

@@ -29,7 +29,6 @@ static void labels_and_reels_fit_all_sizes_and_orientations(void)
             Theme theme = BOARD_THEME;
             default_theme_set_text_size(&theme, (TextSize)size);
             default_theme_set_orientation(&theme, (Orientation)orientation);
-            theme_drop_title_row(&theme);
             CassetteNowPlayingLayout layout = cassette_now_playing_layout(&theme);
             CHECK(layout.body.width > 160);
             CHECK(layout.body.y >= theme.metrics.header_height);
@@ -58,7 +57,6 @@ static Canvas start_view(int orientation, int size)
     theme = BOARD_THEME;
     default_theme_set_text_size(&theme, (TextSize)size);
     default_theme_set_orientation(&theme, (Orientation)orientation);
-    theme_drop_title_row(&theme);
     settings = settings_defaults();
     settings_set_now_playing_style(&settings, NOW_PLAYING_CASSETTE);
     now_playing_screen_init(&screen,

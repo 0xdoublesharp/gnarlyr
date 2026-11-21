@@ -15,6 +15,7 @@
 #include "screens/usb_screen_parts.h"
 #include "text_spy.h"
 #include "theme_runtime.h"
+#include "ui/brand_mark.h"
 #include "ui/label.h"
 #include "ui/wire_motion.h"
 #ifdef ECHO_TEST_GLYPHS
@@ -314,6 +315,30 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
         CHECK(saw(i18n_text(STR_PLAYING)));
         CHECK(saw("44.1 kHz · 24-bit"));
         CHECK(saw(i18n_text(STR_USB_DAC_HOST)));
+    }
+}
+
+static void the_usb_header_leads_the_whole_name_with_the_mark_in_all_six_layouts(void)
+{
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(APPEARANCE_GRAPHITE, orientation, size);
+            UsbScene scene = storage_scene(USB_SCENE_WRITING);
+            AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+            status.scene = &scene;
+            Canvas canvas = canvas_for(&theme);
+            text_spy_reset();
+            usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
+            UsbScreenLayout layout = usb_screen_layout(&theme, status);
+            Rect row = layout.header;
+            row.height =
+                theme_is_portrait(&theme) ? font_line_height(theme.fonts.header) : row.height - 1;
+            Rect mark = brand_mark_lead_area(row, theme.fonts.header);
+            int middle = mark.width / 2;
+            CHECK_EQUAL(brand_mark_sun_row(middle, mark.width),
+                        canvas_pixel_at(&canvas, mark.x + middle, mark.y + middle));
+            CHECK(saw(FIRMWARE_SHORT_NAME));
+        }
     }
 }
 
@@ -959,13 +984,13 @@ static double contrast(Color first, Color second)
 
 static int header_ink(const Theme *theme, Color color)
 {
-    return pixels_of(theme, (Rect){0, 0, theme->metrics.screen_width, theme->metrics.header_height},
-                     color);
+    return pixels_of(
+        theme, (Rect){0, 0, theme->metrics.screen_width, usb_screen_header_height(theme)}, color);
 }
 
 static Color fallback_ink(const Theme *theme)
 {
-    int count = theme->metrics.screen_width * theme->metrics.header_height;
+    int count = theme->metrics.screen_width * usb_screen_header_height(theme);
     Color best = theme->colors.header_background;
     int most = 0;
     for (int index = 0; index < count; index++) {
@@ -1302,6 +1327,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(rendering_service_preserves_the_complete_dac_frame),
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
+        TEST_CASE(the_usb_header_leads_the_whole_name_with_the_mark_in_all_six_layouts),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),
         TEST_CASE(a_pack_closed_while_bands_draw_repaints_the_whole_screen_at_once),

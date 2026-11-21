@@ -288,6 +288,10 @@ if(TARGET echo_sim_glyphs)
     add_test(NAME meter_style_captures
         COMMAND meter_style_captures ${CMAKE_CURRENT_BINARY_DIR}/meter_style_frames
     )
+    add_executable(sunset_disc_captures app/sunset_disc_captures.c app/fake_hal.c)
+    target_link_libraries(sunset_disc_captures PRIVATE echo_app echo_library_fixtures echo_device_logic
+        echo_sim_glyphs echo_check echo_options m)
+    target_include_directories(sunset_disc_captures PRIVATE ${PROJECT_SOURCE_DIR}/src/app)
 endif()
 
 echo_add_unit_test(NAME test_sunset_scene

@@ -60,7 +60,7 @@ static void fallback_draw(void *context, Canvas *canvas)
     int padding = theme->metrics.padding;
     int line = font_line_height(theme->fonts.body);
     canvas_fill_rect(canvas, content, theme->colors.background);
-    header_draw(canvas, theme, i18n_text(STR_NOW_PLAYING));
+    header_draw(canvas, theme, NULL);
     Rect row = {content.x + padding, content.y + padding, content.width - 2 * padding, line};
     bool playing = now_playing->status.state == PLAYER_PLAYING;
     const char *lines[] = {now_playing->status.has_track ? now_playing->title : "",
@@ -91,7 +91,7 @@ void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig co
         .title = i18n_text(STR_NOW_PLAYING),
         .context = now_playing,
         .hold_volume_keys = true,
-        .one_line_header = true,
+        .untitled_header = true,
     };
     now_playing_fallback_attach(now_playing);
     now_playing->config = config;

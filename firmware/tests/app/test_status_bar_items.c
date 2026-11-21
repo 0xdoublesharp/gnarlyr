@@ -5,6 +5,7 @@
 #include "gfx/text.h"
 #include "hal/display.h"
 #include "screen_snapshot.h"
+#include "ui/brand_mark.h"
 #include "ui/header.h"
 #include "ui/status_bar.h"
 
@@ -25,11 +26,23 @@ static StatusBarState all_items(void)
 }
 
 static const uint16_t PORTRAIT_ORDER[] = {
-    STATUS_BAR_CLOCK,  STATUS_BAR_PLAYBACK, STATUS_BAR_BLUETOOTH, STATUS_BAR_SHUFFLE,
-    STATUS_BAR_VOLUME, STATUS_BAR_POSITION, STATUS_BAR_REPEAT,    STATUS_BAR_PERCENT};
+    STATUS_BAR_CLOCK,   STATUS_BAR_VOLUME,   STATUS_BAR_POSITION,  STATUS_BAR_REPEAT,
+    STATUS_BAR_PERCENT, STATUS_BAR_PLAYBACK, STATUS_BAR_BLUETOOTH, STATUS_BAR_SHUFFLE};
 
-static const uint16_t LANDSCAPE_ORDER[] = {STATUS_BAR_VOLUME, STATUS_BAR_POSITION, STATUS_BAR_CLOCK,
-                                           STATUS_BAR_REPEAT, STATUS_BAR_PERCENT};
+static const uint16_t LANDSCAPE_ORDER[] = {
+    STATUS_BAR_VOLUME,  STATUS_BAR_POSITION, STATUS_BAR_CLOCK,     STATUS_BAR_REPEAT,
+    STATUS_BAR_PERCENT, STATUS_BAR_PLAYBACK, STATUS_BAR_BLUETOOTH, STATUS_BAR_SHUFFLE};
+
+static const uint16_t *order_for(const Theme *theme)
+{
+    return theme_is_portrait(theme) ? PORTRAIT_ORDER : LANDSCAPE_ORDER;
+}
+
+static void publish(Theme *theme, const StatusBarState *state)
+{
+    Rect area = status_bar_title_area(theme, state);
+    theme->header_room = (HeaderRoom){(int16_t)area.x, (int16_t)(area.x + area.width), 0};
+}
 
 static StatusBarState everything(void)
 {
@@ -101,40 +114,34 @@ static void every_orientation_and_text_size_respects_fitting_priority(void)
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
             for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
                 Theme theme = theme_for(orientation, size, compact != 0);
-                bool portrait = theme.metrics.status_height > 0;
-                int band = portrait ? theme.metrics.status_height : theme.metrics.header_height;
                 for (int width = 160; width <= theme.metrics.screen_width; width++) {
                     Theme narrow = theme;
                     narrow.metrics.screen_width = width;
-                    StatusBarState state = portrait ? everything() : all_items();
-                    check_separate(&narrow, &state, 0, band);
-                    check_greedy(&narrow, state, portrait ? PORTRAIT_ORDER : LANDSCAPE_ORDER,
-                                 portrait ? 8 : 5);
+                    StatusBarState state = everything();
+                    state.logo = true;
+                    check_separate(&narrow, &state, 0, narrow.metrics.header_height);
+                    check_greedy(&narrow, state, order_for(&narrow), 8);
                 }
             }
         }
     }
 }
 
-static void portrait_keeps_every_icon_on_the_top_line_at_every_text_size(void)
+static void a_long_title_keeps_only_the_logo_the_lock_and_the_battery(void)
 {
-    const char *clocks[] = {"09:41", "12:59 PM"};
-    const char *volumes[] = {"47", "60"};
-    const char *positions[] = {"3/12", "999/999"};
     for (int compact = 0; compact < 2; compact++) {
-        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-            Theme theme = theme_for(ORIENTATION_PORTRAIT, size, compact != 0);
-            for (int variant = 0; variant < 8; variant++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = theme_for(orientation, size, compact != 0);
                 StatusBarState state = everything();
-                state.clock = clocks[variant & 1];
-                state.volume = volumes[(variant >> 1) & 1];
-                state.position = positions[variant >> 2];
-                state.percent = (variant & 1) != 0 ? "100%" : "5%";
-                state.title_width = 400;
-                check_separate(&theme, &state, 0, theme.metrics.status_height);
-                uint16_t chosen = status_bar_items(&theme, &state);
-                CHECK((chosen & STATUS_BAR_LOCK) != 0);
-                CHECK((chosen & STATUS_BAR_CLOCK) != 0);
+                state.logo = true;
+                state.title_width = 600;
+                check_separate(&theme, &state, 0, theme.metrics.header_height);
+                CHECK_EQUAL(STATUS_BAR_LOGO | STATUS_BAR_LOCK, status_bar_items(&theme, &state));
+                Rect title = status_bar_title_area(&theme, &state);
+                Rect lock = status_bar_item_area(&theme, &state, STATUS_BAR_LOCK);
+                CHECK(title.x + title.width <= lock.x);
+                CHECK(lock.x + lock.width <= status_bar_battery_body(&theme).x);
                 state.battery_known = false;
                 CHECK((status_bar_items(&theme, &state) & STATUS_BAR_LOCK) != 0);
             }
@@ -142,104 +149,116 @@ static void portrait_keeps_every_icon_on_the_top_line_at_every_text_size(void)
     }
 }
 
-static void portrait_drops_the_same_items_at_every_text_size(void)
+static void the_title_outranks_every_optional_item(void)
 {
-    uint16_t lead = STATUS_BAR_LOCK | STATUS_BAR_CLOCK | STATUS_BAR_PLAYBACK | STATUS_BAR_BLUETOOTH;
-    uint16_t expected[2] = {lead | STATUS_BAR_SHUFFLE, lead};
-    uint16_t marked[2] = {STATUS_BAR_LOGO | lead, STATUS_BAR_LOGO | STATUS_BAR_LOCK |
-                                                      STATUS_BAR_CLOCK | STATUS_BAR_PLAYBACK};
-    for (int compact = 0; compact < 2; compact++) {
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-            Theme theme = theme_for(ORIENTATION_PORTRAIT, size, compact != 0);
+            Theme theme = theme_for(orientation, size, false);
             StatusBarState state = everything();
-            CHECK_EQUAL(expected[compact], status_bar_items(&theme, &state));
             state.logo = true;
-            CHECK_EQUAL(marked[compact], status_bar_items(&theme, &state));
+            for (int width = 0; width <= theme.metrics.screen_width; width += 3) {
+                state.title_width = width;
+                uint16_t items = status_bar_items(&theme, &state);
+                Rect title = status_bar_title_area(&theme, &state);
+                bool optional = (items & ~(STATUS_BAR_LOGO | STATUS_BAR_LOCK)) != 0;
+                CHECK(!optional || width <= title.width);
+                for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
+                    Rect area = status_bar_item_area(&theme, &state, (uint16_t)(1u << slot));
+                    if ((items & (1u << slot)) != 0 && (1u << slot) != STATUS_BAR_LOGO) {
+                        CHECK(area.x >= title.x + (width < title.width ? width : title.width));
+                    }
+                }
+            }
         }
     }
 }
 
-static void portrait_home_keeps_the_logo_first_and_drops_in_priority_order(void)
+static void the_logo_leads_the_header_in_both_orientations(void)
 {
     for (int compact = 0; compact < 2; compact++) {
-        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-            Theme theme = theme_for(ORIENTATION_PORTRAIT, size, compact != 0);
-            for (int width = 160; width <= theme.metrics.screen_width; width++) {
-                Theme narrow = theme;
-                narrow.metrics.screen_width = width;
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                Theme theme = theme_for(orientation, size, compact != 0);
                 StatusBarState state = everything();
                 state.logo = true;
-                check_separate(&narrow, &state, 0, narrow.metrics.status_height);
-                check_greedy(&narrow, state, PORTRAIT_ORDER, 8);
+                state.title_width = 60;
                 StatusBarLayout layout;
-                status_bar_layout(&narrow, &state, &layout);
-                CHECK((layout.items & (STATUS_BAR_LOGO | STATUS_BAR_LOCK)) ==
-                      (STATUS_BAR_LOGO | STATUS_BAR_LOCK));
-                Rect logo = status_bar_item_area(&narrow, &state, STATUS_BAR_LOGO);
-                CHECK_EQUAL(narrow.metrics.padding, logo.x);
-                CHECK_EQUAL(narrow.metrics.status_icon_size, logo.width);
+                status_bar_layout(&theme, &state, &layout);
+                Rect logo = layout.areas[5];
+                CHECK((layout.items & STATUS_BAR_LOGO) != 0);
+                CHECK_EQUAL(theme.metrics.padding, logo.x);
+                CHECK_EQUAL(theme.metrics.status_icon_size, logo.width);
+                CHECK(status_bar_title_area(&theme, &state).x >=
+                      logo.x + logo.width + theme.metrics.padding);
                 for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
                     if ((layout.items & (1u << slot)) != 0 && (1u << slot) != STATUS_BAR_LOGO) {
                         CHECK(layout.areas[slot].x > logo.x + logo.width);
                     }
                 }
+                state.logo = false;
+                CHECK((status_bar_items(&theme, &state) & STATUS_BAR_LOGO) == 0);
             }
         }
     }
 }
 
-static void the_logo_shows_only_on_a_portrait_screen_that_asks_for_it(void)
+static bool is_sun(Color color, int size)
+{
+    for (int row = 0; row < size; row++) {
+        if (color == brand_mark_sun_row(row, size)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static Color header_pixels[HEADER_CAPTURE_PIXELS];
+
+static void the_logo_is_drawn_once_at_the_left_of_the_header(void)
+{
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int compact = 0; compact < 2; compact++) {
+            Theme theme = theme_for(orientation, TEXT_SIZE_MEDIUM, compact != 0);
+            StatusBarState state = everything();
+            state.logo = true;
+            Canvas canvas = canvas_make(header_pixels, (Rect){0, 0, theme.metrics.screen_width,
+                                                              theme.metrics.screen_height});
+            header_draw(&canvas, &theme, "");
+            status_bar_draw(&canvas, &theme, state);
+            Rect logo = status_bar_item_area(&theme, &state, STATUS_BAR_LOGO);
+            int size = theme.metrics.status_icon_size;
+            int inside = 0;
+            for (int y = 0; y < theme.metrics.header_height; y++) {
+                for (int x = 0; x < theme.metrics.screen_width; x++) {
+                    bool sun = is_sun(canvas_pixel_at(&canvas, x, y), size);
+                    bool within = x >= logo.x && x < logo.x + logo.width && y >= logo.y &&
+                                  y < logo.y + logo.height;
+                    CHECK(!sun || within);
+                    inside += sun ? 1 : 0;
+                }
+            }
+            CHECK(inside > size * size / 2);
+        }
+    }
+}
+
+static void the_position_sits_left_of_the_clock_in_both_orientations(void)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             Theme theme = theme_for(orientation, size, false);
-            StatusBarState plain = everything();
-            plain.title_width = 120;
-            StatusBarState marked = plain;
-            marked.logo = true;
-            StatusBarLayout without;
-            StatusBarLayout with;
-            status_bar_layout(&theme, &plain, &without);
-            status_bar_layout(&theme, &marked, &with);
-            CHECK((without.items & STATUS_BAR_LOGO) == 0);
-            if (orientation == ORIENTATION_LANDSCAPE) {
-                CHECK_EQUAL(without.items, with.items);
-                for (int slot = 0; slot < STATUS_BAR_SLOTS; slot++) {
-                    if ((with.items & (1u << slot)) != 0) {
-                        CHECK_EQUAL(without.areas[slot].x, with.areas[slot].x);
-                    }
-                }
-            } else {
-                CHECK((with.items & STATUS_BAR_LOGO) != 0);
-            }
+            StatusBarState state = all_items();
+            state.playback = STATUS_PLAYBACK_NONE;
+            state.volume = NULL;
+            state.percent = NULL;
+            state.logo = true;
+            uint16_t items = status_bar_items(&theme, &state);
+            CHECK((items & STATUS_BAR_POSITION) != 0);
+            CHECK((items & STATUS_BAR_CLOCK) != 0);
+            Rect area = status_bar_item_area(&theme, &state, STATUS_BAR_POSITION);
+            CHECK(area.y + area.height <= theme.metrics.header_height);
+            CHECK(area.x + area.width < status_bar_item_area(&theme, &state, STATUS_BAR_CLOCK).x);
         }
-    }
-}
-
-static void portrait_puts_the_position_left_of_the_clock_and_landscape_protects_the_title(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = BOARD_THEME;
-        default_theme_set_text_size(&theme, (TextSize)size);
-        StatusBarState state = all_items();
-        default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
-        state.playback = STATUS_PLAYBACK_NONE;
-        state.volume = NULL;
-        state.title_width = 300;
-        uint16_t portrait = status_bar_items(&theme, &state);
-        CHECK((portrait & STATUS_BAR_POSITION) != 0);
-        Rect area = status_bar_item_area(&theme, &state, STATUS_BAR_POSITION);
-        CHECK(area.y + area.height <= theme.metrics.status_height);
-        CHECK(area.x + area.width < status_bar_item_area(&theme, &state, STATUS_BAR_CLOCK).x);
-        state = all_items();
-        default_theme_set_orientation(&theme, ORIENTATION_LANDSCAPE);
-        state.title_width = 300;
-        uint16_t shown = status_bar_items(&theme, &state);
-        CHECK((shown & STATUS_BAR_POSITION) == 0);
-        CHECK((shown & STATUS_BAR_VOLUME) != 0);
-        CHECK((shown & STATUS_BAR_CLOCK) == 0);
-        state.title_width = 0;
-        CHECK((status_bar_items(&theme, &state) & STATUS_BAR_POSITION) != 0);
     }
 }
 
@@ -310,25 +329,23 @@ static void compact_reclaims_space_and_keeps_the_combined_battery(void)
     }
 }
 
-static Color header_pixels[HEADER_CAPTURE_PIXELS];
-
-static void a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_centred(void)
+static void a_title_starts_after_the_logo_in_both_orientations(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = BOARD_THEME;
         default_theme_set_orientation(&theme, (Orientation)orientation);
         const Font *font = theme.fonts.header;
-        Rect bounds = header_title_bounds(&theme);
+        StatusBarState state = all_items();
+        state.logo = true;
+        state.title_width = text_width(font, "Settings");
+        publish(&theme, &state);
         Rect area = header_title_area(&theme, font, "Settings");
-        int width = text_width(font, "Settings");
-        int centred = bounds.x + (bounds.width - width) / 2;
-        CHECK_EQUAL(orientation == ORIENTATION_PORTRAIT ? bounds.x : centred, area.x);
+        Rect logo = status_bar_item_area(&theme, &state, STATUS_BAR_LOGO);
+        CHECK_EQUAL(logo.x + logo.width + theme.metrics.padding, area.x);
         Canvas canvas = canvas_make(
             header_pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
         canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
         header_draw(&canvas, &theme, "Settings");
-        StatusBarState state = all_items();
-        state.title_width = text_width(font, "Settings");
         status_bar_draw(&canvas, &theme, state);
         screen_snapshot_write(&canvas, "header", orientation);
     }
@@ -341,22 +358,18 @@ static void crowded_status_icons_leave_long_titles_untouched(void)
     for (int compact = 0; compact < 2; compact++) {
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
             for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-                Theme theme = BOARD_THEME;
-                default_theme_set_text_size(&theme, (TextSize)size);
-                default_theme_set_orientation(&theme, (Orientation)orientation);
-                default_theme_set_status_bar(&theme, compact != 0);
-                StatusBarState state = all_items();
-                state.locked = true;
-                state.bluetooth = STATUS_BLUETOOTH_CONNECTED;
-                state.shuffle = STATUS_SHUFFLE_ALBUMS;
+                Theme theme = theme_for(orientation, size, compact != 0);
+                StatusBarState state = everything();
+                state.logo = true;
                 state.title_width = text_width(theme.fonts.header, title);
+                publish(&theme, &state);
                 Canvas canvas = canvas_make(header_pixels, (Rect){0, 0, theme.metrics.screen_width,
                                                                   theme.metrics.screen_height});
                 canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
                 header_draw(&canvas, &theme, title);
                 memcpy(before, header_pixels, sizeof before);
                 status_bar_draw(&canvas, &theme, state);
-                Rect area = header_title_area(&theme, theme.fonts.header, title);
+                Rect area = header_title_bounds(&theme);
                 bool unchanged = true;
                 for (int y = area.y; y < area.y + area.height; y++) {
                     for (int x = area.x; x < area.x + area.width; x++) {
@@ -365,7 +378,46 @@ static void crowded_status_icons_leave_long_titles_untouched(void)
                     }
                 }
                 CHECK(unchanged);
-                screen_snapshot_write(&canvas, "long-title", compact * 6 + orientation * 3 + size);
+                screen_snapshot_write(&canvas, "long-title", compact * 9 + orientation * 3 + size);
+            }
+        }
+    }
+}
+
+static Color strip_pixels[HEADER_CAPTURE_PIXELS];
+
+static void draw_header_in(Canvas *canvas, const Theme *theme, const StatusBarState *state,
+                           const char *title)
+{
+    canvas_fill_rect(canvas, canvas->clip, theme->colors.background);
+    header_draw(canvas, theme, title);
+    status_bar_draw(canvas, theme, *state);
+}
+
+static void the_header_draws_the_same_whole_or_in_strips(void)
+{
+    const char *title = "A long album or settings title that needs the whole header";
+    static const int STRIPS[] = {23, 49, 7};
+    for (int compact = 0; compact < 2; compact++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            Theme theme = theme_for(orientation, TEXT_SIZE_MEDIUM, compact != 0);
+            StatusBarState state = everything();
+            state.logo = true;
+            state.title_width = text_width(theme.fonts.header, title);
+            publish(&theme, &state);
+            theme.header_room.shift = 17;
+            Rect screen = {0, 0, theme.metrics.screen_width, theme.metrics.screen_height};
+            Canvas whole = canvas_make(header_pixels, screen);
+            draw_header_in(&whole, &theme, &state, title);
+            for (int kind = 0; kind < 3; kind++) {
+                Canvas strips = canvas_make(strip_pixels, screen);
+                for (int y = 0; y < theme.metrics.header_height; y += STRIPS[kind]) {
+                    Canvas strip =
+                        canvas_clipped(&strips, (Rect){0, y, screen.width, STRIPS[kind]});
+                    draw_header_in(&strip, &theme, &state, title);
+                }
+                int rows = theme.metrics.header_height * screen.width;
+                CHECK(memcmp(header_pixels, strip_pixels, (size_t)rows * sizeof(Color)) == 0);
             }
         }
     }
@@ -375,14 +427,15 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(crowded_status_icons_leave_long_titles_untouched),
+        TEST_CASE(the_header_draws_the_same_whole_or_in_strips),
         TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
-        TEST_CASE(portrait_keeps_every_icon_on_the_top_line_at_every_text_size),
-        TEST_CASE(portrait_drops_the_same_items_at_every_text_size),
-        TEST_CASE(portrait_home_keeps_the_logo_first_and_drops_in_priority_order),
-        TEST_CASE(the_logo_shows_only_on_a_portrait_screen_that_asks_for_it),
-        TEST_CASE(portrait_puts_the_position_left_of_the_clock_and_landscape_protects_the_title),
-        TEST_CASE(a_portrait_title_starts_at_the_header_inset_and_a_landscape_one_is_centred),
+        TEST_CASE(a_long_title_keeps_only_the_logo_the_lock_and_the_battery),
+        TEST_CASE(the_title_outranks_every_optional_item),
+        TEST_CASE(the_logo_leads_the_header_in_both_orientations),
+        TEST_CASE(the_logo_is_drawn_once_at_the_left_of_the_header),
+        TEST_CASE(the_position_sits_left_of_the_clock_in_both_orientations),
+        TEST_CASE(a_title_starts_after_the_logo_in_both_orientations),
         TEST_CASE(queue_formatting_accepts_a_future_side_prefix_and_an_empty_queue),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

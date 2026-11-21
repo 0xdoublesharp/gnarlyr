@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/string_builder.h"
+#include "gfx/text.h"
 #include "hal/clock.h"
 #include "ui/header.h"
 #include "ui/list_navigation.h"
@@ -232,6 +233,9 @@ static void update(void *context, uint32_t now_ms)
 {
     HomeEditor *editor = context;
     editor->now_ms = now_ms;
+    const Font *font = editor->config.theme->fonts.header;
+    editor->screen.header_title_width =
+        editor->moving ? (uint16_t)text_width(font, i18n_text(STR_HOME_MOVING)) : 0;
 }
 
 static void draw(void *context, Canvas *canvas)

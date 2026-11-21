@@ -399,13 +399,12 @@ static void build_home(AppScreens *screens, AppScreensContext context)
     MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
                        .items = screens->home_items,
                        .item_count = app_screens_arrange_home_items(screens),
-                       .theme = context.compact_theme,
+                       .theme = context.theme,
                        .panel = {.width = BOARD_LAYOUT.home_art_width,
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
                                  .context = &screens->home_art}};
     menu_screen_init(&screens->home, home);
-    screens->home.screen.one_line_header = true;
-    screens->home.screen.header_logo = true;
+    screens->home.screen.untitled_header = true;
     screen_modules_prepare_home(screens);
     screens->home.list.background = THEME_ART_HOME;
 }
@@ -420,7 +419,7 @@ Screen *app_screens_init(AppScreens *screens, AppScreensContext context)
     NowPlayingConfig now_playing = {.player = context.player,
                                     .settings = &context.settings->settings,
                                     .library = &context.store->library,
-                                    .theme = context.compact_theme,
+                                    .theme = context.theme,
                                     .covers = context.covers,
                                     .toast = context.toast,
                                     .quick_settings =

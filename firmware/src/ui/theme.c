@@ -25,20 +25,6 @@ bool theme_is_portrait(const Theme *theme)
     return theme->metrics.screen_height > theme->metrics.screen_width;
 }
 
-Rect theme_title_area(const Theme *theme)
-{
-    const ThemeMetrics *metrics = &theme->metrics;
-    return (Rect){0, metrics->status_height, metrics->screen_width,
-                  metrics->header_height - metrics->status_height};
-}
-
-void theme_drop_title_row(Theme *theme)
-{
-    if (theme_is_portrait(theme)) {
-        theme->metrics.header_height = theme->metrics.status_height;
-    }
-}
-
 bool theme_art_draw(const Theme *theme, Canvas *canvas, int slot, Rect area)
 {
     return theme->draw_art != NULL && theme->draw_art(theme, canvas, slot, area);

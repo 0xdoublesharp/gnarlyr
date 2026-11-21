@@ -12,6 +12,7 @@
 #include "screens/charge_rate.h"
 #include "screens/charge_screen.h"
 #include "text_spy.h"
+#include "ui/brand_mark.h"
 #include "ui/label.h"
 
 static void usb_power_does_not_mean_the_battery_is_full(void)
@@ -172,6 +173,33 @@ static void graphical_charge_layout_fits_all_six_variants_without_text_overlap(v
             } else {
                 CHECK(layout.battery.y + layout.battery.height <= layout.percent.y);
             }
+        }
+    }
+}
+
+static bool shows_mark(const Canvas *canvas, Rect row, const Font *font)
+{
+    Rect mark = brand_mark_lead_area(row, font);
+    int middle = mark.width / 2;
+    return canvas_pixel_at(canvas, mark.x + middle, mark.y + middle) ==
+           brand_mark_sun_row(middle, mark.width);
+}
+
+static void the_charge_header_leads_the_whole_name_with_the_mark_in_all_six_variants(void)
+{
+    HalBattery battery = {.known = true, .percent = 64, .usb_power = true, .charging = true};
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = charge_theme(size, orientation);
+            Canvas canvas = charge_canvas(&theme);
+            text_spy_reset();
+            charge_screen_draw_at(&canvas, &theme, battery, 0);
+            int line = font_line_height(theme.fonts.header);
+            int pad = theme.metrics.padding;
+            bool portrait = theme_is_portrait(&theme);
+            Rect row = {pad, 0, theme.metrics.screen_width - 2 * pad, portrait ? line : line + 1};
+            CHECK(shows_mark(&canvas, row, theme.fonts.header));
+            CHECK(saw(FIRMWARE_SHORT_NAME));
         }
     }
 }
@@ -559,6 +587,7 @@ int main(void)
         TEST_CASE(actual_usb_charging_has_brief_clock_driven_energy_motion),
         TEST_CASE(charged_battery_and_noncharging_power_states_stay_still),
         TEST_CASE(graphical_charge_layout_fits_all_six_variants_without_text_overlap),
+        TEST_CASE(the_charge_header_leads_the_whole_name_with_the_mark_in_all_six_variants),
         TEST_CASE(unknown_artwork_never_uses_a_stale_percentage),
         TEST_CASE(values_above_full_render_as_full_instead_of_overflowing_the_battery),
         TEST_CASE(charging_artwork_draws_identically_in_display_strips),

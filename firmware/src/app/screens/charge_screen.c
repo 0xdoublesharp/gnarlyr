@@ -5,6 +5,7 @@
 #include "core/string_builder.h"
 #include "hal/clock.h"
 #include "ui/header.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 
 enum {
@@ -78,6 +79,9 @@ CORE_SEAM void usb_screen_draw_fallback(Canvas *canvas, const Theme *theme, HalB
     canvas_fill_rect(canvas, screen, theme->colors.background);
     header_draw(canvas, theme, charge_screen_usb_title(status.view));
     int pad = theme->metrics.padding;
+    int icon = theme->metrics.status_icon_size;
+    icon_draw(canvas, ICON_LOGO, (Rect){pad, (theme->metrics.header_height - icon) / 2, icon, icon},
+              (IconInk){0, 0});
     int line = font_line_height(theme->fonts.body);
     Rect area = {pad, theme->metrics.header_height + pad, screen.width - 2 * pad, line};
     char text[TEXT_CAPACITY];

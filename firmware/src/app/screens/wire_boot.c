@@ -1,8 +1,11 @@
 #include "screens/wire_boot.h"
 
+#include "board_layout.h"
 #include "gfx/text.h"
 #include "gfx/wireframe.h"
 #include "hal/clock.h"
+#include "ui/brand_mark.h"
+#include "ui/label.h"
 
 enum {
     BOOT_COLUMNS = 5,
@@ -42,6 +45,7 @@ typedef struct Ground {
     int travel;
     int fade;
     int light;
+    bool painted;
 } Ground;
 
 static int phase(int progress, int start, int end)
@@ -151,24 +155,40 @@ static void draw_horizon(const Ground *ground, Color color, int share)
                    (WirePoint){middle + half, y, 0}, (WireStroke){color, UINT8_MAX});
 }
 
-static void draw_mark(const Ground *ground, const Theme *theme, const char *text, int shown)
+static SplashStack mark_stack(const Theme *theme, Rect sky, bool closing)
+{
+    SplashStack stack = board_splash_stack(theme, sky);
+    if (closing) {
+        int line = stack.label.height;
+        stack.label.y = sky.y + (sky.height - line) / 2;
+        stack.mark = (Rect){sky.x, stack.label.y, 0, 0};
+    }
+    return stack;
+}
+
+static void draw_mark(const Ground *ground, const Theme *theme, WireBootFrame frame, int shown)
 {
     const Font *font = theme->fonts.title;
     Rect sky = {ground->area.x, ground->area.y, ground->area.width,
                 ground->horizon - ground->area.y};
-    int rest = sky.y + (sky.height + font->ascent - font->descent) / 2;
-    int hidden = ground->horizon + font->ascent;
-    Color color =
-        color_between(theme->colors.backdrop_bottom, theme->colors.text, shown, WIRE_BOOT_ONE);
+    SplashStack stack = mark_stack(theme, sky, frame.closing || ground->painted);
+    int drop = share_of(ground->horizon - stack.mark.y, WIRE_BOOT_ONE - shown);
+    Color behind = theme->colors.backdrop_bottom;
     Canvas clipped = canvas_clipped(ground->canvas, sky);
-    Point pen = {sky.x + (sky.width - text_width(font, text)) / 2,
-                 hidden - share_of(hidden - rest, shown)};
-    text_draw(&clipped, (TextStyle){font, ink(ground, color), false}, pen, text);
+    stack.mark.y += drop;
+    brand_mark_draw(&clipped,
+                    (BrandMark){stack.mark, behind, (uint8_t)(shown * UINT8_MAX / WIRE_BOOT_ONE),
+                                brand_mark_needs_tile(behind)});
+    Color color = color_between(behind, theme->colors.text, shown, WIRE_BOOT_ONE);
+    Point pen = {sky.x + (sky.width - text_width(font, frame.text)) / 2,
+                 label_baseline(font, stack.label) + drop};
+    text_draw(&clipped, (TextStyle){font, ink(ground, color), false}, pen, frame.text);
 }
 
-static void draw_backdrop(const Ground *ground, const Theme *theme, bool art)
+static void draw_backdrop(Ground *ground, const Theme *theme, bool art)
 {
-    if (art && theme_art_draw(theme, ground->canvas, THEME_ART_SPLASH, ground->area)) {
+    ground->painted = art && theme_art_draw(theme, ground->canvas, THEME_ART_SPLASH, ground->area);
+    if (ground->painted) {
         return;
     }
     canvas_fill_gradient(ground->canvas, ground->area, ink(ground, theme->colors.backdrop_top),
@@ -184,7 +204,7 @@ void wire_boot_draw(Canvas *canvas, const Theme *theme, Rect area, WireBootFrame
     draw_backdrop(&ground, theme, !frame.closing);
     draw_columns(&ground, grid);
     draw_rows(&ground, grid);
-    draw_mark(&ground, theme, frame.text, pose.mark);
+    draw_mark(&ground, theme, frame, pose.mark);
     draw_horizon(&ground, grid, pose.line);
 }
 

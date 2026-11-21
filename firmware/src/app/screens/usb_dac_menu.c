@@ -3,6 +3,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/audio.h"
+#include "usb_screen_parts.h"
 
 enum {
     OUTPUT_CHOICES = 3,
@@ -86,7 +87,7 @@ void usb_dac_menu_show_volume(UsbDacMenu *menu, uint8_t volume)
 
 int usb_dac_menu_rows(const Theme *theme)
 {
-    int rows = (theme->metrics.screen_height - theme->metrics.header_height -
+    int rows = (theme->metrics.screen_height - usb_screen_header_height(theme) -
                 3 * theme->metrics.padding - font_line_height(theme->fonts.small)) /
                theme->metrics.row_height;
     return rows < USB_DAC_ROW_COUNT ? rows : USB_DAC_ROW_COUNT;

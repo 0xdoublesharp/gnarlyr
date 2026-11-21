@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "about_layout.h"
 #include "board_layout.h"
 #include "check.h"
 #include "default_theme.h"
@@ -11,7 +12,11 @@
 enum {
     MIN_VISIBLE_ROWS = 6,
     MIN_TEXT_COLUMN = 160,
-    MAX_STRIP_PIXELS = 12000
+    MAX_STRIP_PIXELS = 12000,
+    HORIZON_SHARE = 9,
+    HORIZON_PARTS = 16,
+    MIN_SPLASH_MARK = 48,
+    MIN_ABOUT_ROWS = 3
 };
 
 static int line_height(const Font *font)
@@ -206,9 +211,7 @@ static void the_portrait_theme_stands_the_display_up(void)
     CHECK_EQUAL(HAL_DISPLAY_LONG_SIDE, theme.metrics.screen_height);
     CHECK(theme_is_portrait(&theme));
     CHECK(!theme_is_portrait(&BOARD_THEME));
-    CHECK(theme.metrics.status_height > 0);
-    CHECK_EQUAL(BOARD_THEME.metrics.header_height + theme.metrics.status_height,
-                theme.metrics.header_height);
+    CHECK_EQUAL(BOARD_THEME.metrics.header_height, theme.metrics.header_height);
     CHECK_EQUAL(theme.metrics.padding, theme.metrics.header_inset);
 }
 
@@ -220,7 +223,6 @@ static void turning_back_to_landscape_restores_the_board_theme(void)
     CHECK_EQUAL(BOARD_THEME.metrics.screen_height, theme.metrics.screen_height);
     CHECK_EQUAL(BOARD_THEME.metrics.header_height, theme.metrics.header_height);
     CHECK_EQUAL(BOARD_THEME.metrics.header_inset, theme.metrics.header_inset);
-    CHECK_EQUAL(0, theme.metrics.status_height);
     CHECK_EQUAL(TEXT_SIZE_LARGE, theme.metrics.text_size);
 }
 
@@ -248,7 +250,7 @@ static void the_portrait_title_fits_its_row_at_every_size(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = portrait_theme_of_size(size);
-        CHECK(line_height(theme.fonts.header) <= theme_title_area(&theme).height);
+        CHECK(line_height(theme.fonts.header) <= theme_header_area(&theme).height);
     }
 }
 
@@ -257,9 +259,9 @@ static void portrait_now_playing_lines_follow_each_other_on_screen(void)
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = portrait_theme_of_size(size);
         const NowPlayingLayout *layout = board_now_playing_layout(&theme);
-        CHECK(layout->cover_top >= theme.metrics.status_height);
+        CHECK(layout->cover_top >= theme.metrics.header_height);
         CHECK(layout->cover_top + layout->cover_size <= layout->title_top);
-        CHECK_EQUAL(theme.metrics.status_height + theme.metrics.padding,
+        CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding,
                     layout->cover_top - PORTRAIT_COVER_FRAME);
         CHECK(layout->cover_top + layout->cover_size + PORTRAIT_COVER_FRAME <=
               theme.metrics.screen_height);
@@ -360,6 +362,56 @@ static void the_splash_text_fits_the_screen_at_every_size_and_orientation(void)
     }
 }
 
+static bool inside(Rect inner, Rect outer)
+{
+    return inner.x >= outer.x && inner.y >= outer.y &&
+           inner.x + inner.width <= outer.x + outer.width &&
+           inner.y + inner.height <= outer.y + outer.height;
+}
+
+static void check_stack(const Theme *theme, Rect area)
+{
+    SplashStack stack = board_splash_stack(theme, area);
+    CHECK(inside(stack.mark, area));
+    CHECK(inside(stack.label, area));
+    CHECK(stack.mark.y + stack.mark.height <= stack.label.y);
+    CHECK(stack.mark.width >= MIN_SPLASH_MARK);
+    CHECK_EQUAL(stack.mark.width, stack.mark.height);
+    int offset = 2 * stack.mark.x + stack.mark.width - 2 * area.x - area.width;
+    CHECK(offset >= -1 && offset <= 1);
+    CHECK(text_width(theme->fonts.title, board_splash_text(theme)) <= stack.label.width);
+}
+
+static void the_splash_stacks_the_mark_over_the_name_in_the_screen_and_the_sky(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            Theme theme = theme_turned(size, (Orientation)orientation);
+            int width = theme.metrics.screen_width;
+            int height = theme.metrics.screen_height;
+            check_stack(&theme, (Rect){0, 0, width, height});
+            check_stack(&theme, (Rect){0, 0, width, height * HORIZON_SHARE / HORIZON_PARTS});
+        }
+    }
+}
+
+static void about_puts_the_mark_and_name_in_a_band_above_the_rows(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+            Theme theme = theme_turned(size, (Orientation)orientation);
+            AboutBand about = about_layout_band(&theme, FIRMWARE_NAME);
+            Rect content = theme_content_area(&theme);
+            CHECK_EQUAL(content.y, about.band.y);
+            CHECK(inside(about.mark, about.band));
+            CHECK(inside(about.name, about.band));
+            CHECK(about.mark.x + about.mark.width < about.name.x);
+            CHECK(text_width(theme.fonts.title, FIRMWARE_NAME) <= about.name.width);
+            CHECK(content.height - about.band.height >= MIN_ABOUT_ROWS * theme.metrics.row_height);
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -368,6 +420,8 @@ int main(void)
         TEST_CASE(the_splash_shows_the_full_name_at_every_size_in_landscape),
         TEST_CASE(the_portrait_splash_shows_the_short_name_only_where_the_full_name_is_too_wide),
         TEST_CASE(the_splash_text_fits_the_screen_at_every_size_and_orientation),
+        TEST_CASE(the_splash_stacks_the_mark_over_the_name_in_the_screen_and_the_sky),
+        TEST_CASE(about_puts_the_mark_and_name_in_a_band_above_the_rows),
         TEST_CASE(the_portrait_theme_stands_the_display_up),
         TEST_CASE(turning_back_to_landscape_restores_the_board_theme),
         TEST_CASE(both_portraits_share_one_theme),

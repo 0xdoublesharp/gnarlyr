@@ -15,8 +15,7 @@ enum {
     PANEL_WIDTH = 120,
     PANEL_HEIGHT = 30,
     PANEL_PADDING = 12,
-    PANEL_ICON_SIZE = 14,
-    PORTRAIT_STATUS_HEIGHT = 20
+    PANEL_ICON_SIZE = 14
 };
 
 static Theme status_theme(void)
@@ -140,9 +139,6 @@ static void the_battery_ends_at_the_right_padding_and_fits_the_narrowest_status_
     CHECK_EQUAL(PANEL_WIDTH - PANEL_PADDING, area.x + area.width);
     CHECK(area.width <= 30);
     CHECK(area.y >= 0 && area.y + area.height <= PANEL_HEIGHT);
-    theme.metrics.status_height = PORTRAIT_STATUS_HEIGHT;
-    area = status_bar_battery_area(&theme);
-    CHECK(area.y >= 1 && area.y + area.height <= PORTRAIT_STATUS_HEIGHT - 1);
 }
 
 static void the_icons_centre_on_the_battery_line_in_both_orientations(void)
@@ -154,10 +150,9 @@ static void the_icons_centre_on_the_battery_line_in_both_orientations(void)
                             .locked = true,
                             .battery_known = true};
     for (int band = 0; band < 2; band++) {
-        theme.metrics.status_height = band == 0 ? 0 : PORTRAIT_STATUS_HEIGHT;
+        theme.metrics.screen_height = band == 0 ? PANEL_HEIGHT : PANEL_WIDTH * 3;
         Rect body = status_bar_battery_body(&theme);
-        int line = band == 0 ? theme.metrics.header_height : PORTRAIT_STATUS_HEIGHT;
-        CHECK(body.y >= 0 && body.y + body.height <= line);
+        CHECK(body.y >= 0 && body.y + body.height <= theme.metrics.header_height);
         static const uint16_t ICONS[] = {STATUS_BAR_PLAYBACK, STATUS_BAR_BLUETOOTH,
                                          STATUS_BAR_LOCK};
         for (int index = 0; index < 3; index++) {
@@ -459,20 +454,16 @@ static void a_shown_percentage_pushes_the_clock_further_left(void)
     CHECK(pushed.x + pushed.width <= percent_area(&theme, "50%").x);
 }
 
-static void a_clock_that_would_reach_the_left_icons_is_left_out(void)
+static void the_clock_outranks_a_play_icon_that_would_reach_it(void)
 {
     Theme theme = panel_theme();
     StatusBarState state = battery_at(HALF_BATTERY, false);
     state.clock = "09:41";
     state.playback = STATUS_PLAYBACK_PLAYING;
-    Rect clock = status_bar_clock_area(&theme, state);
-    CHECK(clock.x > status_bar_left_end(&theme, state));
-    CHECK(!status_bar_clock_fits(&theme, state));
-    Canvas canvas = draw_panel(&theme, state);
-    Rect right = {status_bar_left_end(&theme, state) + 1, clock.y,
-                  status_bar_battery_body(&theme).x - status_bar_left_end(&theme, state) - 2,
-                  clock.height};
-    CHECK(ui_test_area_has_only(&canvas, right, theme.colors.header_background));
+    CHECK(status_bar_clock_fits(&theme, state));
+    CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PLAYBACK) == 0);
+    state.clock = NULL;
+    CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PLAYBACK) != 0);
 }
 
 static void without_a_battery_reading_the_clock_ends_at_the_right_padding(void)
@@ -517,12 +508,13 @@ static void volume_draws_a_speaker_and_the_player_units_when_enabled(void)
     CHECK(ui_test_area_has_color(&canvas, volume, theme.colors.header_text));
 }
 
-static void a_queue_position_is_centred_when_the_title_is_hidden(void)
+static void a_queue_position_ends_at_the_right_group(void)
 {
     Theme theme = panel_theme();
-    Canvas canvas = draw_panel(&theme, (StatusBarState){.position = "3/12"});
-    int width = text_width(theme.fonts.small, "3/12");
-    Rect position = {(PANEL_WIDTH - width) / 2, 7, width, 16};
+    StatusBarState state = {.position = "3/12"};
+    Canvas canvas = draw_panel(&theme, state);
+    Rect position = status_bar_item_area(&theme, &state, STATUS_BAR_POSITION);
+    CHECK_EQUAL(PANEL_WIDTH - PANEL_PADDING / 2, position.x + position.width + PANEL_PADDING / 2);
     CHECK(ui_test_area_has_color(&canvas, position, theme.colors.header_text));
 }
 
@@ -585,7 +577,7 @@ int main(void)
         TEST_CASE(segmented_levels_round_up_and_keep_the_low_and_critical_thresholds),
         TEST_CASE(repeat_one_adds_a_song_badge_and_repeat_off_draws_nothing),
         TEST_CASE(volume_draws_a_speaker_and_the_player_units_when_enabled),
-        TEST_CASE(a_queue_position_is_centred_when_the_title_is_hidden),
+        TEST_CASE(a_queue_position_ends_at_the_right_group),
         TEST_CASE(a_segmented_battery_has_gaps_between_five_green_bars),
         TEST_CASE(a_locked_player_shows_a_padlock),
         TEST_CASE(an_idle_player_without_a_battery_reading_draws_nothing),
@@ -616,7 +608,7 @@ int main(void)
         TEST_CASE(the_clock_is_hidden_unless_the_app_passes_it),
         TEST_CASE(a_shown_clock_sits_left_of_the_battery_in_the_header_text),
         TEST_CASE(a_shown_percentage_pushes_the_clock_further_left),
-        TEST_CASE(a_clock_that_would_reach_the_left_icons_is_left_out),
+        TEST_CASE(the_clock_outranks_a_play_icon_that_would_reach_it),
         TEST_CASE(without_a_battery_reading_the_clock_ends_at_the_right_padding),
         TEST_CASE(an_unknown_battery_draws_no_battery),
     };

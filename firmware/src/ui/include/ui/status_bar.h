@@ -93,6 +93,7 @@ bool status_bar_clock_fits(const Theme *theme, StatusBarState state);
 void status_bar_position_text(StringBuilder *builder, StatusQueuePosition position);
 void status_bar_layout(const Theme *theme, const StatusBarState *state, StatusBarLayout *layout);
 uint16_t status_bar_items(const Theme *theme, const StatusBarState *state);
+Rect status_bar_title_area(const Theme *theme, const StatusBarState *state);
 Rect status_bar_item_area(const Theme *theme, const StatusBarState *state, uint16_t item);
 StatusBatteryLook status_bar_battery_look(const Theme *theme, StatusBarState state);
 void status_bar_draw(Canvas *canvas, const Theme *theme, StatusBarState state);

@@ -66,9 +66,14 @@ typedef struct ThemeMetrics {
     int scrollbar_inset;
     int detail_gap;
     int status_icon_size;
-    int status_height;
     int text_size;
 } ThemeMetrics;
+
+typedef struct HeaderRoom {
+    int16_t left;
+    int16_t right;
+    int16_t shift;
+} HeaderRoom;
 
 typedef struct Theme {
     ThemeColors colors;
@@ -81,13 +86,12 @@ typedef struct Theme {
     bool header_rule;
     void *art_context;
     bool (*draw_art)(const struct Theme *theme, Canvas *canvas, int slot, Rect area);
+    HeaderRoom header_room;
 } Theme;
 
 Rect theme_header_area(const Theme *theme);
 Rect theme_content_area(const Theme *theme);
 int theme_visible_rows(const Theme *theme);
 bool theme_is_portrait(const Theme *theme);
-Rect theme_title_area(const Theme *theme);
-void theme_drop_title_row(Theme *theme);
 bool theme_art_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);
 void theme_background_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);

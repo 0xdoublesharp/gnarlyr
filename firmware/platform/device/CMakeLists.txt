@@ -275,6 +275,7 @@ set(ECHO_OVERLAY_IMPORTS
     charge_screen_text
     charge_screen_level_text
     charge_screen_usb_title
+    brand_mark_draw
     canvas_fill_rect
     canvas_fill_gradient
     canvas_clipped

@@ -54,6 +54,7 @@
 #include "settings_choose.h"
 #include "settings_store.h"
 #include "standby.h"
+#include "ui/brand_mark.h"
 #include "ui/fade.h"
 #include "ui/header.h"
 #include "ui/label.h"
@@ -219,7 +220,6 @@ static const FadeTiming GOODBYE_TIMINGS[] = {{.fade_ms = 600, .hold_ms = 400, .r
 static _Alignas(uint32_t) Color strip_pixels[HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT];
 static uint32_t row_hashes[HAL_DISPLAY_LONG_SIDE];
 static Theme notice_theme;
-static Theme compact_theme;
 
 static void render_when_due(uint32_t now_ms, uint32_t started_us);
 static bool fade_running(void);
@@ -1298,14 +1298,24 @@ static void draw_fade(Canvas *canvas, const Fade *fade, const char *text, bool a
     }
     const Theme *theme = board_theme();
     Rect screen = whole_screen();
-    if (art) {
-        theme_art_draw(theme, canvas, THEME_ART_SPLASH, screen);
+    uint8_t alpha = fade_alpha(fade, app.now_ms);
+    Color background = theme->colors.background;
+    TextStyle style = {.font = theme->fonts.title,
+                       .color = color_blend(background, theme->colors.text, alpha)};
+    Rect area = screen;
+    bool painted = art && theme_art_draw(theme, canvas, THEME_ART_SPLASH, screen);
+    if (!painted) {
+        canvas_fill_rect(canvas, screen, background);
     }
-    Color color =
-        color_blend(theme->colors.background, theme->colors.text, fade_alpha(fade, app.now_ms));
-    TextStyle style = {.font = theme->fonts.title, .color = color};
+    if (art && !painted) {
+        SplashStack stack = board_splash_stack(theme, screen);
+        brand_mark_draw(canvas, (BrandMark){stack.mark, background,
+                                            (uint8_t)(alpha * UINT8_MAX / FADE_OPAQUE),
+                                            brand_mark_needs_tile(background)});
+        area = stack.label;
+    }
     label_draw(canvas, style,
-               (Label){.area = label_centered_area(style.font, screen, text), .text = text});
+               (Label){.area = label_centered_area(style.font, area, text), .text = text});
 }
 
 static bool draw_running_fade(Canvas *canvas)
@@ -1329,47 +1339,64 @@ static void draw_shifted(Screen *screen, Canvas *canvas, int x, Rect area)
     }
 }
 
-static void follow_compact_theme(void)
+static const Screen *shown_header_screen(const Screen *top)
 {
-    compact_theme = *board_theme();
-    theme_drop_title_row(&compact_theme);
+    if (!slide_running() || slide_shows_arriving_title(&app.slide, app.now_ms)) {
+        return top;
+    }
+    return app.leaving;
 }
 
-static bool is_compact(const Screen *screen)
+static const char *header_title_of(const Screen *screen)
 {
-    return screen->one_line_header;
+    return screen->untitled_header ? NULL : screen->title;
 }
 
 static void draw_slide(Canvas *canvas, Screen *arriving)
 {
     Screen *leaving = app.leaving;
-    const Theme *theme =
-        is_compact(arriving) || is_compact(leaving) ? &compact_theme : board_theme();
+    const Theme *theme = board_theme();
     bool whole = arriving->full_screen || leaving->full_screen;
     Rect area = whole ? whole_screen() : theme_content_area(theme);
     int width = app.theme.metrics.screen_width;
     draw_shifted(leaving, canvas, slide_leaving_x(&app.slide, app.now_ms, width), area);
     draw_shifted(arriving, canvas, slide_arriving_x(&app.slide, app.now_ms, width), area);
     if (!whole) {
-        bool arrived = slide_shows_arriving_title(&app.slide, app.now_ms);
-        header_draw(canvas, theme, arrived ? arriving->title : leaving->title);
+        header_draw(canvas, theme, header_title_of(shown_header_screen(arriving)));
     }
 }
 
 static StatusBarState shown_status_bar(const AppState *state, const Screen *screen)
 {
     StatusBarState bar = state->status_bar;
-    const Theme *theme = board_theme();
-    const char *title = screen->title;
+    const Screen *titled = shown_header_screen(screen);
+    const char *title = header_title_of(titled);
     if (title != NULL) {
-        bar.title_width = screen->header_title_width != 0 ? screen->header_title_width
-                                                          : text_width(theme->fonts.header, title);
+        bar.title_width = titled->header_title_width != 0
+                              ? titled->header_title_width
+                              : text_width(board_theme()->fonts.header, title);
     }
     if (screen == &app.screens.now_playing.screen) {
         bar.playback = STATUS_PLAYBACK_NONE;
     }
-    bar.logo = screen->header_logo;
+    bar.logo = true;
     return bar;
+}
+
+static void publish_header_room(uint32_t now_ms)
+{
+    Screen *screen = top_screen();
+    Theme *theme = hal_system_restart_pending() ? &notice_theme : &app.theme;
+    StatusBarState bar = shown_status_bar(&app, screen);
+    Rect area = status_bar_title_area(theme, &bar);
+    area.height -= 1;
+    int shift = 0;
+    if (!slide_running() && !screen->full_screen && bar.title_width > area.width) {
+        shift = marquee_offset_in(theme->marquee, bar.title_width, area,
+                                  now_ms - app.power.last_activity_ms);
+    }
+    theme->header_room =
+        (HeaderRoom){(int16_t)area.x, (int16_t)(area.x + area.width), (int16_t)shift};
 }
 
 static void draw_frame(void *context, Canvas *canvas)
@@ -1384,7 +1411,7 @@ static void draw_frame(void *context, Canvas *canvas)
     } else {
         screen->draw(screen->context, canvas);
     }
-    if (!screen->full_screen) {
+    if (!screen->full_screen && canvas->clip.y < board_theme()->metrics.header_height) {
         status_bar_draw(canvas, board_theme(), shown_status_bar(state, screen));
     }
     toast_draw(&state->toast, canvas, board_theme());
@@ -1588,6 +1615,7 @@ static void render_frame(void)
     uint32_t started_us = hal_clock_microseconds();
     app.send_us = 0;
     app.status_bar = current_status_bar();
+    publish_header_room(app.now_ms);
     bool screen_paints = top_screen()->paints_every_pixel && !fade_running() && !slide_running();
     render((FrameDrawer){.draw = draw_frame, .context = &app}, screen_paints);
     uint32_t render_us = hal_clock_microseconds() - started_us;
@@ -1646,7 +1674,6 @@ static void follow_appearance(void)
     notice_theme.header_rule = app.theme.header_rule;
     default_theme_set_text_size(&app.theme, shown->text_size);
     default_theme_set_status_bar(&app.theme, shown->status_bar_compact);
-    follow_compact_theme();
 }
 
 static void start_hardware(uint32_t now_ms)
@@ -1673,7 +1700,6 @@ static void build_screens(uint32_t now_ms)
         .theme = board_theme(),
         .styled_theme = &app.theme,
         .themes = &app.themes,
-        .compact_theme = &compact_theme,
         .store = &app.library,
         .player = &app.player,
         .spoken = &app.spoken,
@@ -2776,6 +2802,23 @@ DebugFrameSources app_debug_frame_sources(void)
 const char *app_screen_title(void)
 {
     return top_screen()->title;
+}
+
+uint16_t app_status_items(void)
+{
+    StatusBarState bar = shown_status_bar(&app, top_screen());
+    return status_bar_items(board_theme(), &bar);
+}
+
+Rect app_status_item_area(uint16_t item)
+{
+    StatusBarState bar = shown_status_bar(&app, top_screen());
+    return status_bar_item_area(board_theme(), &bar, item);
+}
+
+Rect app_header_title_area(void)
+{
+    return header_title_bounds(board_theme());
 }
 
 int app_screen_depth(void)

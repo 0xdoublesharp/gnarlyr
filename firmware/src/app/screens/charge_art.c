@@ -4,6 +4,7 @@
 #include "core/i18n.h"
 #include "core/utf8.h"
 #include "home_art.h"
+#include "ui/brand_mark.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 
@@ -126,7 +127,17 @@ static ChargeScreenLayout landscape_layout(const Theme *theme, ChargeScreenLayou
     return layout;
 }
 
-ChargeScreenLayout charge_screen_art_layout(const Theme *theme)
+static Theme charging_theme(const Theme *theme)
+{
+    Theme charging = *theme;
+    charging.metrics.header_height = font_line_height(theme->fonts.header) + 2;
+    if (theme_is_portrait(theme)) {
+        charging.metrics.header_height += font_line_height(theme->fonts.small);
+    }
+    return charging;
+}
+
+static ChargeScreenLayout layout_of(const Theme *theme)
 {
     int pad = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * pad;
@@ -140,6 +151,12 @@ ChargeScreenLayout charge_screen_art_layout(const Theme *theme)
         .detail = {pad, theme->metrics.screen_height - pad - detail, width, detail}};
     return theme_is_portrait(theme) ? portrait_layout(theme, layout)
                                     : landscape_layout(theme, layout);
+}
+
+ChargeScreenLayout charge_screen_art_layout(const Theme *theme)
+{
+    Theme charging = charging_theme(theme);
+    return layout_of(&charging);
 }
 
 static Color tint(Color color, Color toward)
@@ -174,6 +191,16 @@ static void draw_header(const ChargeArt *art)
         title.x += name.width - title.width;
     }
     Color ink = theme->colors.header_text;
+    if (!theme_is_portrait(theme)) {
+        name.width = title.x - theme->metrics.padding - name.x;
+    }
+    Rect mark = brand_mark_lead_area(name, theme->fonts.header);
+    int step = brand_mark_lead_step(mark);
+    if (name.width - step >= text_width(theme->fonts.header, FIRMWARE_SHORT_NAME)) {
+        brand_mark_draw(art->canvas, (BrandMark){mark, 0, UINT8_MAX, false});
+        name.x += step;
+        name.width -= step;
+    }
     label_draw(art->canvas, (TextStyle){theme->fonts.header, ink, false},
                (Label){name, FIRMWARE_SHORT_NAME});
     label_draw(art->canvas, (TextStyle){theme->fonts.small, tint(theme->colors.accent, ink), false},
@@ -428,16 +455,12 @@ static void draw_trend(const ChargeArt *art)
 void charge_art_draw(Canvas *canvas, const Theme *theme, HalBattery battery, uint32_t now_ms)
 {
     charge_art_observe(battery, now_ms);
-    Theme charging = *theme;
-    charging.metrics.header_height = font_line_height(theme->fonts.header) + 2;
-    if (theme_is_portrait(theme)) {
-        charging.metrics.header_height += font_line_height(theme->fonts.small);
-    }
+    Theme charging = charging_theme(theme);
     theme = &charging;
     ChargeArt art = {.canvas = canvas,
                      .theme = theme,
                      .battery = battery,
-                     .layout = charge_screen_art_layout(theme),
+                     .layout = layout_of(theme),
                      .glow = glow_at(battery, now_ms)};
     draw_stage(&art);
     draw_header(&art);

@@ -124,7 +124,7 @@ void menu_screen_draw(void *context, Canvas *canvas)
     const Theme *theme = menu->config.theme;
     const MenuPanel *panel = &menu->config.panel;
     Rect content = theme_content_area(theme);
-    header_draw(canvas, theme, menu->config.title);
+    header_draw(canvas, theme, menu->screen.untitled_header ? NULL : menu->config.title);
     if (panel->width <= 0 || panel->draw == NULL) {
         list_view_draw(&menu->list, canvas, content, menu->now_ms);
         return;

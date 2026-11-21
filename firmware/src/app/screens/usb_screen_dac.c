@@ -245,7 +245,7 @@ static void draw_rows(const UsbPainter *painter, Rect lines)
 static void draw_menu(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
-    int top = theme->metrics.header_height;
+    int top = painter->layout.header.height;
     Rect area = {0, top, theme->metrics.screen_width,
                  painter->layout.detail.y - theme->metrics.padding - top};
     canvas_fill_rect(painter->canvas, area, theme->colors.background);

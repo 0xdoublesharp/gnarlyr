@@ -2,6 +2,7 @@
 
 #include "core/i18n.h"
 #include "home_art.h"
+#include "ui/brand_mark.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/wire_figure.h"
@@ -155,11 +156,17 @@ static UsbScreenLayout landscape_layout(const Theme *theme, UsbScreenLayout layo
     return layout;
 }
 
+int usb_screen_header_height(const Theme *theme)
+{
+    int small = theme_is_portrait(theme) ? font_line_height(theme->fonts.small) : 0;
+    return font_line_height(theme->fonts.header) + 2 + small;
+}
+
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
 {
     int pad = theme->metrics.padding;
     UsbScreenLayout layout = {
-        .header = {pad, 0, theme->metrics.screen_width - 2 * pad, theme->metrics.header_height},
+        .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
         .detail = detail_area(theme, status.detail)};
     return theme_is_portrait(theme) ? portrait_layout(theme, layout)
                                     : landscape_layout(theme, layout);
@@ -283,7 +290,7 @@ static void draw_tag(const UsbPainter *painter, Rect row, int after, SpeedTag ta
 static Rect header_band(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
-    Rect band = {0, 0, theme->metrics.screen_width, theme->metrics.header_height};
+    Rect band = {0, 0, theme->metrics.screen_width, painter->layout.header.height};
     canvas_fill_rect(painter->canvas, band, theme->colors.header_background);
     canvas_fill_rect(painter->canvas, (Rect){0, band.height - 1, band.width, 1},
                      theme->header_rule ? theme->colors.accent : theme->colors.divider);
@@ -296,6 +303,19 @@ static const char *header_title(const UsbPainter *painter, const char *title)
 {
     bool storage = painter->status.view == APP_USB_STORAGE;
     return storage && linked(painter) ? i18n_text(STR_USB_STATE_CONNECTED) : title;
+}
+
+static void draw_name(const UsbPainter *painter, Rect area, TextStyle style)
+{
+    usb_screen_service(painter->scene);
+    Rect mark = brand_mark_lead_area(area, style.font);
+    int step = brand_mark_lead_step(mark);
+    if (area.width - step >= text_width(style.font, FIRMWARE_SHORT_NAME)) {
+        brand_mark_draw(painter->canvas, (BrandMark){mark, 0, UINT8_MAX, false});
+        area.x += step;
+        area.width -= step;
+    }
+    usb_screen_text(painter, area, style, FIRMWARE_SHORT_NAME);
 }
 
 static void draw_header(const UsbPainter *painter, const char *mode_title)
@@ -316,7 +336,7 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
     int title_width = text_width(theme->fonts.small, title);
     SpeedTag tag = speed_tag(painter);
     if (theme_is_portrait(theme)) {
-        usb_screen_text(painter, (Rect){row.x, row.y, room, row.height}, name, FIRMWARE_SHORT_NAME);
+        draw_name(painter, (Rect){row.x, row.y, room, row.height}, name);
         Rect status = {second.x, second.y, second.width - tag.width, second.height};
         usb_screen_text(painter, status, mode, title);
         draw_tag(painter, second, second.x + second.width - tag.width, tag);
@@ -324,8 +344,7 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
     }
     int gap = theme->metrics.padding;
     int title_x = row.x + room - gap - title_width - tag.width;
-    usb_screen_text(painter, (Rect){row.x, row.y, title_x - gap - row.x, row.height}, name,
-                    FIRMWARE_SHORT_NAME);
+    draw_name(painter, (Rect){row.x, row.y, title_x - gap - row.x, row.height}, name);
     usb_screen_text(painter, (Rect){title_x, row.y, title_width, row.height}, mode, title);
     draw_tag(painter, (Rect){row.x, row.y, row.x + room - row.x, row.height}, title_x + title_width,
              tag);
@@ -351,7 +370,7 @@ static void draw_stage(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
     const ThemeColors *colors = &theme->colors;
-    int top = theme->metrics.header_height;
+    int top = painter->layout.header.height;
     int rule = painter->layout.detail.y - theme->metrics.padding;
     int width = theme->metrics.screen_width;
     canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top}, colors->backdrop_top,

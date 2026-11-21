@@ -24,7 +24,7 @@ CassetteNowPlayingLayout cassette_now_playing_layout(const Theme *theme)
 {
     bool portrait = theme_is_portrait(theme);
     int padding = theme->metrics.padding;
-    Rect body = {padding, portrait ? 32 : 34, theme->metrics.screen_width - padding * 2,
+    Rect body = {padding, portrait ? 42 : 34, theme->metrics.screen_width - padding * 2,
                  portrait ? 286 : 156};
     int left = body.x + 18;
     int width = body.width - 36;

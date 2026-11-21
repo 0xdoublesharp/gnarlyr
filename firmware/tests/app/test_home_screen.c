@@ -70,7 +70,6 @@ static void build(void)
     screens = (AppScreens){.context = {.options = &options,
                                        .theme = &BOARD_THEME,
                                        .styled_theme = &styled,
-                                       .compact_theme = &BOARD_THEME,
                                        .store = &store,
                                        .player = &player,
                                        .settings = &settings,

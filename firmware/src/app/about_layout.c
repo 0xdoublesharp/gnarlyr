@@ -5,9 +5,16 @@
 
 #include "gfx/font.h"
 #include "gfx/text.h"
+#include "ui/brand_mark.h"
 #include "ui/header.h"
+#include "ui/label.h"
 #include "ui/list_view.h"
 #include "ui/theme.h"
+
+enum {
+    MARK_LINE_SHARE = 1,
+    MARK_LINE_PARTS = 1
+};
 
 static bool row_wraps(const ListView *list, int index, int width)
 {
@@ -88,16 +95,51 @@ static void draw_rows(MenuScreen *menu, Canvas *canvas, Rect rows, int width)
     }
 }
 
+AboutBand about_layout_band(const Theme *theme, const char *name)
+{
+    int pad = theme->metrics.padding;
+    int line = font_line_height(theme->fonts.title);
+    int size = line * MARK_LINE_SHARE / MARK_LINE_PARTS;
+    Rect content = theme_content_area(theme);
+    Rect band = {content.x, content.y, content.width, size + pad};
+    int group = size + pad + text_width(theme->fonts.title, name);
+    int left = band.x + (band.width - group) / 2;
+    left = left > pad ? left : pad;
+    Rect mark = {left, band.y + (band.height - size) / 2, size, size};
+    int name_x = mark.x + size + pad;
+    return (AboutBand){
+        band,
+        mark,
+        {name_x, band.y + (band.height - line) / 2, band.x + band.width - pad - name_x, line}};
+}
+
+static Rect draw_band(Canvas *canvas, const Theme *theme)
+{
+    const char *name = FIRMWARE_NAME;
+    AboutBand about = about_layout_band(theme, name);
+    theme_background_draw(theme, canvas, THEME_ART_LIST, about.band);
+    Color behind = theme->colors.background;
+    brand_mark_draw(canvas,
+                    (BrandMark){about.mark, behind, UINT8_MAX, brand_mark_needs_tile(behind)});
+    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false},
+               (Label){about.name, name});
+    Rect content = theme_content_area(theme);
+    return (Rect){content.x, content.y + about.band.height, content.width,
+                  content.height - about.band.height};
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     MenuScreen *menu = context;
     ListView *list = &menu->list;
     const Theme *theme = menu->config.theme;
-    Rect content = theme_content_area(theme);
+    header_draw(canvas, theme, menu->config.title);
+    Rect content = draw_band(canvas, theme);
     int count = menu->config.item_count;
     int width = text_width_of(menu, content);
     if (!theme_is_portrait(theme) || !any_wraps(list, count, width)) {
-        menu_screen_draw(context, canvas);
+        list_view_fit_rows(list, list_view_rows_in(list, content.height));
+        list_view_draw(list, canvas, content, menu->now_ms);
         return;
     }
     int last = last_top(list, count, width, content.height);
@@ -106,7 +148,6 @@ static void draw(void *context, Canvas *canvas)
            rows_height(list, list->top, list->selected, width) > content.height) {
         list->top++;
     }
-    header_draw(canvas, theme, menu->config.title);
     theme_background_draw(theme, canvas, THEME_ART_LIST, content);
     Rect rows = content;
     if (width < content.width - 2 * theme->metrics.padding) {

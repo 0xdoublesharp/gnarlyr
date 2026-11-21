@@ -61,18 +61,54 @@ static void a_long_title_stays_clear_of_the_header_insets(void)
     CHECK(!ui_test_area_has_color(&canvas, right, TEST_THEME.colors.header_text));
 }
 
-static void the_title_sits_in_the_row_below_the_status_row(void)
+static void a_published_room_puts_the_title_at_its_left_edge(void)
 {
     Theme theme = TEST_THEME;
-    theme.metrics.header_height = 2 * TEST_HEADER_HEIGHT;
-    theme.metrics.status_height = TEST_HEADER_HEIGHT;
-    theme.metrics.header_inset = theme.metrics.padding;
+    theme.header_room = (HeaderRoom){10, 30, 0};
     Canvas canvas = ui_test_canvas();
     header_draw(&canvas, &theme, "A");
-    Rect status_row = {0, 0, TEST_SCREEN_WIDTH, TEST_HEADER_HEIGHT};
-    Rect title_row = {0, TEST_HEADER_HEIGHT, TEST_SCREEN_WIDTH, TEST_HEADER_HEIGHT};
-    CHECK(ui_test_area_has_color(&canvas, title_row, theme.colors.header_text));
-    CHECK(!ui_test_area_has_color(&canvas, status_row, theme.colors.header_text));
+    Rect before = {0, 0, 10, TEST_HEADER_HEIGHT};
+    Rect start = {10, 0, 4, TEST_HEADER_HEIGHT};
+    CHECK(!ui_test_area_has_color(&canvas, before, theme.colors.header_text));
+    CHECK(ui_test_area_has_color(&canvas, start, theme.colors.header_text));
+}
+
+static void a_title_wider_than_its_room_stays_inside_it(void)
+{
+    Theme theme = TEST_THEME;
+    theme.header_room = (HeaderRoom){10, 30, 0};
+    Canvas canvas = ui_test_canvas();
+    header_draw(&canvas, &theme, "ABABABABABABAB");
+    Rect after = {30, 0, TEST_SCREEN_WIDTH - 30, TEST_HEADER_HEIGHT};
+    CHECK(!ui_test_area_has_color(&canvas, after, theme.colors.header_text));
+    theme.header_room.shift = 3;
+    header_draw(&canvas, &theme, "ABABABABABABAB");
+    CHECK(!ui_test_area_has_color(&canvas, after, theme.colors.header_text));
+}
+
+static void a_marquee_shift_moves_the_title_left(void)
+{
+    Theme theme = TEST_THEME;
+    theme.header_room = (HeaderRoom){10, 30, 0};
+    Canvas canvas = ui_test_canvas();
+    header_draw(&canvas, &theme, "ABABABABABABAB");
+    Color still[TEST_HEADER_HEIGHT][20];
+    for (int y = 0; y < TEST_HEADER_HEIGHT; y++) {
+        for (int x = 0; x < 20; x++) {
+            still[y][x] = canvas_pixel_at(&canvas, 10 + x, y);
+        }
+    }
+    bool moved = false;
+    for (int shift = 1; shift < 6 && !moved; shift++) {
+        theme.header_room.shift = (int16_t)shift;
+        header_draw(&canvas, &theme, "ABABABABABABAB");
+        for (int y = 0; y < TEST_HEADER_HEIGHT; y++) {
+            for (int x = 0; x < 20; x++) {
+                moved |= canvas_pixel_at(&canvas, 10 + x, y) != still[y][x];
+            }
+        }
+    }
+    CHECK(moved);
 }
 
 static void a_long_title_may_use_the_width_a_portrait_header_gives_it(void)
@@ -106,7 +142,9 @@ int main(void)
         TEST_CASE(the_title_is_centred),
         TEST_CASE(the_title_keeps_the_header_font_whatever_the_text_size),
         TEST_CASE(a_long_title_stays_clear_of_the_header_insets),
-        TEST_CASE(the_title_sits_in_the_row_below_the_status_row),
+        TEST_CASE(a_published_room_puts_the_title_at_its_left_edge),
+        TEST_CASE(a_title_wider_than_its_room_stays_inside_it),
+        TEST_CASE(a_marquee_shift_moves_the_title_left),
         TEST_CASE(a_long_title_may_use_the_width_a_portrait_header_gives_it),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

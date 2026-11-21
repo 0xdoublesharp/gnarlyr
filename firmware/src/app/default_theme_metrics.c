@@ -4,9 +4,9 @@
 #include "hal/display.h"
 
 enum {
-    LANDSCAPE_HEADER_HEIGHT = 30,
+    HEADER_HEIGHT = 30,
     LANDSCAPE_HEADER_INSET = 84,
-    PORTRAIT_STATUS_HEIGHT = 20
+    COMPACT_HEADER_HEIGHT = 22
 };
 
 #define THEME_COLORS                                                                               \
@@ -47,7 +47,7 @@ const Theme ECHO_THEME = {
         {
             .screen_width = HAL_DISPLAY_WIDTH,
             .screen_height = HAL_DISPLAY_HEIGHT,
-            .header_height = LANDSCAPE_HEADER_HEIGHT,
+            .header_height = HEADER_HEIGHT,
             .header_inset = LANDSCAPE_HEADER_INSET,
             .row_height = 32,
             .padding = 12,
@@ -74,7 +74,7 @@ const Theme ECHO_NOTICE_THEME = {
         {
             .screen_width = HAL_DISPLAY_WIDTH,
             .screen_height = HAL_DISPLAY_HEIGHT,
-            .header_height = LANDSCAPE_HEADER_HEIGHT,
+            .header_height = HEADER_HEIGHT,
             .header_inset = LANDSCAPE_HEADER_INSET,
             .row_height = 32,
             .padding = 12,
@@ -145,20 +145,16 @@ void default_theme_set_orientation(Theme *theme, Orientation orientation)
     ThemeMetrics *metrics = &theme->metrics;
     metrics->screen_width = portrait ? HAL_DISPLAY_SHORT_SIDE : HAL_DISPLAY_LONG_SIDE;
     metrics->screen_height = portrait ? HAL_DISPLAY_LONG_SIDE : HAL_DISPLAY_SHORT_SIDE;
-    metrics->status_height = portrait ? PORTRAIT_STATUS_HEIGHT : 0;
-    metrics->header_height = LANDSCAPE_HEADER_HEIGHT + metrics->status_height;
+    metrics->header_height = theme->status_bar_compact ? COMPACT_HEADER_HEIGHT : HEADER_HEIGHT;
     metrics->header_inset = portrait ? metrics->padding : LANDSCAPE_HEADER_INSET;
 }
 
 void default_theme_set_status_bar(Theme *theme, bool compact)
 {
-    bool portrait = theme_is_portrait(theme);
     theme->status_bar_compact = compact;
     theme->metrics.status_icon_size = compact ? 10 : 14;
     theme->metrics.row_height =
         TEXT_SIZES[theme->metrics.text_size].row_height -
         (compact ? (theme->metrics.text_size == TEXT_SIZE_SMALL ? 1 : 2) : 0);
-    theme->metrics.status_height = portrait ? (compact ? 18 : PORTRAIT_STATUS_HEIGHT) : 0;
-    theme->metrics.header_height =
-        (compact ? 22 : LANDSCAPE_HEADER_HEIGHT) + theme->metrics.status_height;
+    theme->metrics.header_height = compact ? COMPACT_HEADER_HEIGHT : HEADER_HEIGHT;
 }
