@@ -1,5 +1,6 @@
 // Capture the real companion with disposable sample music and player folders.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -74,7 +75,7 @@ try {
     for (const [index, title] of album.tracks.entries()) {
       const artwork = album.cover ? ["-i", album.cover, "-map", "0:a", "-map", "1:v", "-c:v", "copy", "-disposition:v", "attached_pic"] : [];
       const result = spawnSync("ffmpeg", ["-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", ...artwork,
-        "-t", String(180 + index * 30), "-c:a", "flac", "-metadata", `artist=${album.artist}`,
+        "-t", String(180 + index * 30), "-c:a", "flac", "-threads", "1", "-metadata", `artist=${album.artist}`,
         "-metadata", `album=${album.title}`, "-metadata", `title=${title}`, "-metadata", `track=${index + 1}`,
         "-metadata", `date=${album.year ?? "2026"}`, join(folder, `${String(index + 1).padStart(2, "0")} ${title}.flac`)],
         { env, encoding: "utf8", timeout: 30000 });
@@ -169,8 +170,20 @@ try {
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   await cp(music, card, { recursive: true });
   const theme = join(work, "pocket-scope.gtheme");
-  const packed = spawnSync(join(root, "firmware/.venv/bin/python"), [join(root, "firmware/tools/theme_pack.py"),
-    join(root, "examples/themes/pocket-scope"), "--output", theme], { env, encoding: "utf8", timeout: 30000 });
+  // Render a pack supported by this app's bundled engine, even when the
+  // firmware checkout has moved to a newer prerelease theme format.
+  const themePin = JSON.parse(await readFile(join(source, "workers/theme-engine.json"), "utf8"));
+  const themeTool = join(source, ".build/echo-sync/source/themes/firmware/tools/theme_pack.py");
+  assert.equal(createHash("sha256").update(await readFile(themeTool)).digest("hex"),
+    themePin.files["firmware/tools/theme_pack.py"]);
+  const themeSource = join(work, "pocket-scope-source");
+  await cp(join(root, "examples/themes/pocket-scope"), themeSource, { recursive: true });
+  const themeManifest = JSON.parse(await readFile(join(themeSource, "theme.json"), "utf8"));
+  // The current app's format-1 builder uses RGB565 without a codec selector.
+  delete themeManifest.codec;
+  await writeFile(join(themeSource, "theme.json"), JSON.stringify(themeManifest));
+  const packed = spawnSync(join(root, "firmware/.venv/bin/python"), [themeTool,
+    themeSource, "--output", theme], { env, encoding: "utf8", timeout: 30000 });
   assert.equal(packed.status, 0, packed.stderr);
   await page.getByRole("button", { name: "Themes", exact: true }).click();
   await pick(theme);
