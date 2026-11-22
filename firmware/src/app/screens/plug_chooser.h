@@ -22,33 +22,38 @@ typedef struct PlugChooserConfig {
     const Theme *theme;
 } PlugChooserConfig;
 
+typedef struct PlugChooserLayout {
+    Rect title;
+    Rect art;
+    Rect cue;
+    Rect list;
+    Rect line;
+    Rect footer;
+    int column;
+} PlugChooserLayout;
+
 typedef struct PlugChooser {
     Screen screen;
     PlugChooserConfig config;
     PlugChoices choices;
     ListModel model;
     ListView list;
+    PlugChooserLayout layout;
     uint32_t now_ms;
     uint32_t until_ms;
     uint32_t seconds;
+    int row_width;
+    uint8_t heights[PLUG_MODE_COUNT];
     bool timed;
+    bool paused;
     bool expired;
     bool redraw;
     char countdown[PLUG_COUNTDOWN_CAPACITY];
 } PlugChooser;
 
-typedef struct PlugChooserLayout {
-    Rect art;
-    Rect name;
-    Rect line;
-    Rect footer;
-    Rect count;
-    Rect list;
-} PlugChooserLayout;
-
 Screen *plug_chooser_init(PlugChooser *chooser, PlugChooserConfig config);
 PlugMode plug_chooser_mode(const PlugChooser *chooser, int row);
 const char *plug_chooser_line(const PlugChooser *chooser);
-int plug_chooser_footer_rows(const PlugChooser *chooser);
-PlugChooserLayout plug_chooser_layout(const Theme *theme, int footer_rows, int rows);
+bool plug_chooser_has_footer(const PlugChooser *chooser);
+int plug_chooser_shown_rows(const PlugChooser *chooser);
 void plug_art_draw(Canvas *canvas, const Theme *theme, Rect area, PlugMode mode);

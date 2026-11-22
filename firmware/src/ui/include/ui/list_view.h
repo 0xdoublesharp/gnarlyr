@@ -29,7 +29,8 @@ enum {
     LIST_VIEW_DETAIL_LINE_GAP = 2,
     LIST_LINES_ONE = 0,
     LIST_LINES_VALUE_UNDER = 1,
-    LIST_LINES_WRAPPED = 2
+    LIST_LINES_WRAPPED = 2,
+    LIST_VIEW_MAX_WRAPPED_LINES = 3
 };
 
 typedef enum ListRowRole {
@@ -89,3 +90,4 @@ void list_view_draw_row(const ListView *view, Canvas *canvas, int index, Rect ar
                         uint32_t now_ms);
 void list_view_draw_scrollbar(const ListView *view, Canvas *canvas, Rect area, int hidden);
 int list_view_rows_in(const ListView *view, int height);
+int list_view_row_height_at(const ListView *view, int index, int width);

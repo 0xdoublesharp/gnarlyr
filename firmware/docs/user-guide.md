@@ -138,7 +138,7 @@ After a disconnect from the player, the computer sees the drives disappear rathe
 
 ## When you plug in
 
-Plugged into a computer, the player doesn't connect by itself. It shows **Computer found** and these choices. The highlighted choice's picture and a line saying what it does appear beside the list (in landscape, on the left) or above it (in portrait). In portrait the list rows use short names (Computer, Charge/Play, USB power and USB audio) and the highlighted choice's full name appears in large text above its line.
+Plugged into a computer, the player doesn't connect by itself. It shows **Computer found** and these choices. The highlighted choice's picture sits beside the list (in landscape, on the left) or above it (in portrait), and a line saying what it does sits under the list. Every choice shows its full name; a long name wraps onto a second or third line. In portrait the title moves below the top bar. When not every choice fits, the place ("1 of 4") with an arrow towards the hidden choices shows under the picture (landscape) or under the list (portrait).
 
 | Choice | Picture | What it does |
 |---|---|---|
@@ -147,7 +147,7 @@ Plugged into a computer, the player doesn't connect by itself. It shows **Comput
 | **Run from USB power** | plug | "Powers the player from USB to save the battery." Keep listening without charging: the cable powers the player and the battery rests. When the battery is low, the line says "Battery low: charges first" and the player charges until it is safe (see [Run from USB power](#run-from-usb-power)). |
 | **USB audio (DAC)** | speaker | "Play your computer's sound on the player." Your computer's audio plays through the player's headphone outputs (see [Using the player as a USB DAC](#using-the-player-as-a-usb-dac)). Music on the player stops. The player charges. |
 
-**Connect to computer** is the first row and is highlighted, so one press of Play connects. Doing nothing means **Charge & play**: the screen counts down "Charging in 15 s", and any button starts the count again. Back, the end of the count or the screen going dark all mean Charge & play, and music and menus carry on. To answer the same way every time, hold Play on a choice (the screen's footer says "Hold Play: always do this"): the player confirms with "Always: …" and saves it as Settings → When plugged in.
+**Connect to computer** is the first row and is highlighted, so one press of Play connects. Doing nothing means **Charge & play**: the top bar counts down "Charging in 15 s" while a line under it shrinks. The first press of a volume button stops the count, and the top bar says "Auto-charge paused" (in portrait it shows under the picture); the screen then waits for your choice. Back, the end of the count or the screen going dark all mean Charge & play, and music and menus carry on. The prompt shows no charging bolt in the battery, because the countdown already says it will charge. To answer the same way every time, hold Play on a choice (the screen's footer says "Hold Play Always do this"): the player confirms with "Always: …" and saves it as Settings → When plugged in.
 
 The player asks once per plug-in. Unplug and plug in again to be asked again, or use **USB mode** to change without unplugging (below). A wall charger never asks: the player charges, or plays on USB power when that is your saved choice and then says "Run from USB power".
 

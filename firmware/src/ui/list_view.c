@@ -108,6 +108,23 @@ void list_view_measure(ListView *view, int width)
     }
 }
 
+int list_view_row_height_at(const ListView *view, int index, int width)
+{
+    if (view->lines == LIST_LINES_ONE) {
+        return list_view_row_height(view);
+    }
+    int room = width - 2 * view->theme->metrics.padding - icon_room(view);
+    int lines = lines_needed(view, index, room);
+    if (lines == LIST_LINES_WRAPPED) {
+        const Font *font = view->theme->fonts.title;
+        int wrapped = label_wrap_count(font, view->model->label(view->model->context, index), room);
+        wrapped = max_of(2, min_of(LIST_VIEW_MAX_WRAPPED_LINES, wrapped));
+        return wrapped * (font_line_height(font) + DETAIL_LINE_GAP);
+    }
+    int below = font_line_height(view->theme->fonts.small) + DETAIL_LINE_GAP;
+    return view->theme->metrics.row_height + (lines == LIST_LINES_VALUE_UNDER ? below : 0);
+}
+
 int list_view_rows_in(const ListView *view, int height)
 {
     return min_of(THEME_MAX_ROWS, max_of(0, height) / list_view_row_height(view));
@@ -427,10 +444,12 @@ static void draw_wrapped_label(const ListView *view, Canvas *canvas, Row row)
 {
     TextStyle style = label_style(view, row);
     int line = font_line_height(style.font);
-    Rect area = {row.text.x, row.area.y + (row.area.height - 2 * line) / 2, row.text.width,
-                 2 * line};
-    label_draw_paragraph(canvas, style,
-                         (Label){area, view->model->label(view->model->context, row.index)});
+    const char *text = view->model->label(view->model->context, row.index);
+    int lines = min_of(row.area.height / line, label_wrap_count(style.font, text, row.text.width));
+    lines = max_of(2, lines);
+    Rect area = {row.text.x, row.area.y + (row.area.height - lines * line) / 2, row.text.width,
+                 lines * line};
+    label_draw_paragraph(canvas, style, (Label){area, text});
 }
 
 static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)
