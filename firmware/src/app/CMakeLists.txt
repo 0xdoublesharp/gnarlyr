@@ -96,6 +96,7 @@ add_library(echo_app STATIC
     modules/format_module.c
     artist_album.c
     player.c
+    player_restore.c
     plug_modes.c
     screen_modules.c
     settings_preview.c
@@ -116,6 +117,7 @@ add_library(echo_app STATIC
     headphone_store_edit.c
     headphone_editor.c
     spoken_store.c
+    start_stores.c
     wall_time.c
     screens/bluetooth_screen.c
     screens/card_format_screen.c

@@ -727,7 +727,10 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             ${PROJECT_SOURCE_DIR}/src/app)
         target_compile_definitions(${module_target}_objects PRIVATE
             headphone_store_load=trial_headphone_store_load
-            settings_store_read=trial_settings_store_read)
+            settings_store_read=trial_settings_store_read
+            player_restore=trial_player_restore
+            favorites_store_read=trial_favorites_store_read
+            spoken_store_read=trial_spoken_store_read)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

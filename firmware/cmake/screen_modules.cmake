@@ -77,6 +77,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/settings/headphone_profile.c
     src/app/settings_store_read.c
     src/settings/settings_decode.c
+    src/app/player_restore.c
+    src/app/start_stores.c
+    src/library/favorites_decode.c
+    src/playback/bookmarks_decode.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
