@@ -2,9 +2,10 @@
 
 #include <stddef.h>
 
+#include "cassette_art.h"
 #include "core/i18n.h"
-
 #include "core/string_builder.h"
+#include "home_art.h"
 #include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
@@ -62,6 +63,18 @@ static const char *row_label(const void *context, int index)
     return row >= 0 && row < MIXTAPE_VISIBLE_ROWS ? ui->labels[row] : "";
 }
 
+static bool row_opens(const void *context, int index)
+{
+    (void)index;
+    return ((const MixtapeUi *)context)->mode == MIXTAPE_LIST;
+}
+
+static void fit_list(MixtapeUi *ui)
+{
+    list_view_measure(&ui->list, theme_content_area(ui->config.theme).width);
+    list_view_fit(&ui->list);
+}
+
 static const char *row_detail(const void *context, int index)
 {
     const MixtapeUi *ui = context;
@@ -103,6 +116,7 @@ void mixtape_ui_refresh(MixtapeUi *ui)
                                                   : ui->name;
     list_view_select(&ui->list, ui->list.selected, ui->now_ms);
     refresh_labels(ui);
+    fit_list(ui);
 }
 
 static void enter_mode(MixtapeUi *ui, uint8_t mode)
@@ -117,6 +131,7 @@ static void enter_mode(MixtapeUi *ui, uint8_t mode)
     ui->rows_first = -1;
     list_view_init(&ui->list, &ui->model, ui->config.theme, ui->now_ms);
     refresh_labels(ui);
+    fit_list(ui);
 }
 
 static bool new_slot(MixtapeUi *ui)
@@ -384,6 +399,50 @@ static void draw_name(const MixtapeUi *ui, Canvas *canvas)
                       footer);
 }
 
+static Rect art_band(const MixtapeUi *ui)
+{
+    const Theme *theme = ui->config.theme;
+    Rect content = theme_content_area(theme);
+    int shown = ui->model.count(ui) - ui->list.top;
+    shown = shown < ui->list.visible_rows ? shown : ui->list.visible_rows;
+    int top = content.y + shown * list_view_row_height(&ui->list) + theme->metrics.padding;
+    int bottom = content.y + content.height;
+    bool room = ui->mode == MIXTAPE_LIST && content.height > content.width &&
+                bottom - top >= CASSETTE_HEIGHT + 2 * theme->metrics.padding;
+    return room ? (Rect){content.x, top, content.width, bottom - top} : (Rect){0, 0, 0, 0};
+}
+
+static void draw_hint(const MixtapeUi *ui, Canvas *canvas, Rect area)
+{
+    const Theme *theme = ui->config.theme;
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    const char *hint = i18n_text(STR_NEW_CASSETTE_HINT);
+    int lines = label_wrap_count(style.font, hint, area.width);
+    if (ui->list.selected == ui->model.count(ui) - 1 &&
+        lines * font_line_height(style.font) <= area.height) {
+        label_draw_paragraph(canvas, style, (Label){area, hint});
+    }
+}
+
+static void draw_art(const MixtapeUi *ui, Canvas *canvas, Rect band)
+{
+    const Theme *theme = ui->config.theme;
+    int pad = theme->metrics.padding;
+    canvas_fill_rect(canvas, (Rect){band.x, band.y, band.width, 1}, theme->colors.divider);
+    int horizon = band.y + pad + CASSETTE_HEIGHT * 3 / 4;
+    int depth = CASSETTE_HEIGHT / 2;
+    int bottom = band.y + band.height;
+    depth = depth < bottom - horizon ? depth : bottom - horizon;
+    Canvas floor = canvas_clipped(canvas, (Rect){band.x, horizon, band.width, depth});
+    home_art_draw_backdrop(&floor, (Rect){band.x, horizon - depth, band.width, 2 * depth}, theme);
+    Rect cassette = {band.x + (band.width - CASSETTE_WIDTH) / 2, band.y + pad, CASSETTE_WIDTH,
+                     CASSETTE_HEIGHT};
+    cassette_art_draw(canvas, cassette, theme,
+                      (CassetteTape){.position_ms = 1, .duration_ms = 2, .label = ""});
+    int top = horizon + depth + pad / 2;
+    draw_hint(ui, canvas, (Rect){band.x + pad, top, band.width - 2 * pad, bottom - top});
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     const MixtapeUi *ui = context;
@@ -404,6 +463,10 @@ static void draw(void *context, Canvas *canvas)
         draw_name(ui, canvas);
     } else {
         list_view_draw(&ui->list, canvas, theme_content_area(ui->config.theme), ui->now_ms);
+        Rect band = art_band(ui);
+        if (!rect_is_empty(band)) {
+            draw_art(ui, canvas, band);
+        }
     }
 }
 
@@ -422,7 +485,9 @@ Screen *mixtape_ui_init(MixtapeUi *ui, MixtapeUiConfig config)
                             .count = row_count,
                             .label = row_label,
                             .detail = row_detail,
-                            .detail_max_width = 0};
+                            .opens = row_opens,
+                            .detail_max_width = 0,
+                            .wraps = true};
     list_view_init(&ui->list, &ui->model, config.theme, 0);
     mixtape_ui_refresh(ui);
     return &ui->screen;
