@@ -402,11 +402,11 @@ if(NOT ECHO_RELEASE)
         app_debug_frame_sources
         draw_profile_average_us
         frame_stats_average_us
-        frame_stats_worst_us
         board_battery_gauge
         board_debug_audio
-        dac_path_diagnostics
-        board_debug_battery_raw
+        board_dac_diagnostics
+        dac_path_is_up
+        board_debug_battery
         board_debug_grf_start
         board_debug_read_grf
         board_debug_interrupted_line
@@ -416,9 +416,10 @@ if(NOT ECHO_RELEASE)
         board_debug_usb_is_powered
         board_debug_usb_kept_on
         board_power_charge_pin
-        board_power_shown
-        board_profile
+        board_power_display
+        board_pc_profile
         board_profile_hold
+        board_profile_wait
         board_restart
         debug_loop_event
         debug_loop_log
@@ -435,7 +436,7 @@ if(NOT ECHO_RELEASE)
         hal_system_core1_load
         hal_system_idle_microseconds
         hal_system_restart_pending
-        hal_system_start_info
+        board_start_info
         hal_system_version
     )
     if(ECHO_USB_SCREEN_CAPTURES)
@@ -581,6 +582,8 @@ add_executable(echo_usb_overlay
 )
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
+        board/profiler_prepare.c
+        board/debug_report_reads.c
         logic/rtc_registers.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c

@@ -124,7 +124,7 @@ static bool dac_up;
 static DacAnalog chip_analog;
 static bool muted;
 static bool guarded;
-static DacDiagnostics diagnostics;
+DacDiagnostics board_dac_diagnostics;
 static DacLevel chip_volume;
 static uint32_t retried_ms;
 static void (*fade_service)(void);
@@ -247,9 +247,9 @@ bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
     bool ok = i2c_stop() && received;
     if (map == 0x020000) {
         uint32_t chip = address == DAC_LEFT_ADDRESS ? 0 : 1;
-        diagnostics.power[chip] = *value;
-        diagnostics.valid =
-            (uint8_t)((diagnostics.valid & ~(1u << chip)) | ((ok ? 1u : 0u) << chip));
+        board_dac_diagnostics.power[chip] = *value;
+        board_dac_diagnostics.valid =
+            (uint8_t)((board_dac_diagnostics.valid & ~(1u << chip)) | ((ok ? 1u : 0u) << chip));
     }
     return ok;
 }
@@ -463,7 +463,7 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
         stop_i2s();
         return result_of(configured);
     }
-    diagnostics.start_us = hal_clock_microseconds() - started;
+    board_dac_diagnostics.start_us = hal_clock_microseconds() - started;
     dac_up = true;
     chip_analog = analog;
     muted = true;
@@ -476,7 +476,7 @@ static void stop_audio_path(void)
     uint32_t started = hal_clock_microseconds();
     dac_up = false;
     dac_output_off(&BUS);
-    diagnostics.stop_us = hal_clock_microseconds() - started;
+    board_dac_diagnostics.stop_us = hal_clock_microseconds() - started;
     chip_volume = (DacLevel){.applied = DAC_VOLUME_MUTED};
     stop_i2s();
 }
@@ -614,7 +614,7 @@ static bool set_analog(DacAnalog next)
     dac_path_set_muted(true);
     uint32_t started = hal_clock_microseconds();
     bool changed = apply_analog(next);
-    diagnostics.gain_us = hal_clock_microseconds() - started;
+    board_dac_diagnostics.gain_us = hal_clock_microseconds() - started;
     muted = was_muted;
     if (changed) {
         analog = next;
@@ -679,11 +679,4 @@ CORE_SEAM void dac_path_guard(bool held)
     } else if (dac_up && !muted) {
         dac_path_set_muted(false);
     }
-}
-
-DacDiagnostics dac_path_diagnostics(void)
-{
-    DacDiagnostics result = diagnostics;
-    result.up = dac_up;
-    return result;
 }

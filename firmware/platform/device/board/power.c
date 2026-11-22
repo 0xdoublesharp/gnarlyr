@@ -114,7 +114,7 @@ bool hal_power_take_usb_start(void)
     usb_start = false;
     return started;
 }
-static BatteryDisplay display;
+BatteryDisplay board_power_display;
 static bool usb_seen;
 static bool usb_before;
 
@@ -151,11 +151,11 @@ HalBattery hal_power_battery(void)
     }
     uint8_t percent = BATTERY_FULL_PERCENT;
     if (state == CHARGE_FULL && !disabled) {
-        battery_display_show_full(&display);
+        battery_display_show_full(&board_power_display);
     } else {
         bool current_flowing = charging && !status_high;
-        percent = battery_display_update(&display, battery_gauge_percent(&gauge, current_flowing),
-                                         usb_power);
+        percent = battery_display_update(&board_power_display,
+                                         battery_gauge_percent(&gauge, current_flowing), usb_power);
     }
     return (HalBattery){.known = true,
                         .percent = percent,
@@ -169,11 +169,6 @@ BoardChargePin board_power_charge_pin(void)
 {
     return (BoardChargePin){.ready = charge_status_ready,
                             .high = charge_status_ready && gpio_read(CHARGE_STATUS)};
-}
-
-BatteryDisplay board_power_shown(void)
-{
-    return display;
 }
 
 CORE_SEAM void board_power_cut(void)

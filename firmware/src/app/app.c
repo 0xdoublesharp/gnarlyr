@@ -1688,10 +1688,10 @@ static void start_hardware(uint32_t now_ms)
     set_display(true);
 }
 
-static void open_start_screen(uint32_t now_ms)
+static void open_start_screen(StartScreen start, uint32_t now_ms)
 {
     Screen *path[START_PATH_CAPACITY];
-    int count = app_screens_start_path(&app.screens, app.settings.settings.start_screen, path);
+    int count = app_screens_start_path(&app.screens, start, path);
     for (int index = 0; index < count; index++) {
         apply_action(screen_action_push(path[index]), now_ms);
     }
@@ -1727,7 +1727,7 @@ static void build_screens(uint32_t now_ms)
 static void start_screens(uint32_t now_ms)
 {
     build_screens(now_ms);
-    open_start_screen(now_ms);
+    open_start_screen(app.settings.settings.start_screen, now_ms);
     screen_changed();
 }
 
@@ -2277,12 +2277,8 @@ bool app_preparing(void)
 static void open_debug_screen(uint32_t target, uint32_t now_ms)
 {
     static const StartScreen SCREENS[] = {START_MAIN_MENU, START_COVER_FLOW, START_NOW_PLAYING};
-    Screen *path[START_PATH_CAPACITY];
     apply_action(screen_action_pop_to_root(), now_ms);
-    int count = app_screens_start_path(&app.screens, SCREENS[target % 3], path);
-    for (int index = 0; index < count; index++) {
-        apply_action(screen_action_push(path[index]), now_ms);
-    }
+    open_start_screen(SCREENS[target % 3], now_ms);
     screen_changed();
     app.render_urgent = true;
 }

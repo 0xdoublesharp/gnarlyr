@@ -335,13 +335,22 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/diagnostics_menu.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/screens/key_test_screen.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_format
+        src/app/screens/key_test_screen.c
+        platform/device/board/watchdog_test.c
+        platform/device/board/profiler_switch.c
+        platform/device/board/profiler_prepare.c
+        platform/device/logic/pc_profile_control.c
+    )
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
         src/app/debug_requests.c
         src/app/debug_steps.c
         src/app/settings_choose.c
         src/core/debug_span.c
+        platform/device/board/profiler_switch.c
+        platform/device/board/profiler_prepare.c
+        platform/device/logic/pc_profile_control.c
         src/app/debug_screenshot.c
         platform/device/board/debug_battery_trace.c
         platform/device/board/debug_poke.c

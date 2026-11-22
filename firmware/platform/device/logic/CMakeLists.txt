@@ -173,6 +173,7 @@ add_library(echo_device_logic STATIC
     panel.c
     panic_text.c
     pc_profile.c
+    pc_profile_control.c
     pll.c
     power_history.c
     rtc_registers.c

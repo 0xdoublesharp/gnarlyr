@@ -49,11 +49,3 @@ void board_watchdog_after_clock_change(void)
         register_write(WDT_RESTART, RESTART_KEY);
     }
 }
-
-void hal_system_watchdog_test(void)
-{
-    board_start_record_step(HAL_START_STEP_WATCHDOG_TEST);
-    __asm__ volatile("cpsid i" ::: "memory");
-    for (;;) {
-    }
-}

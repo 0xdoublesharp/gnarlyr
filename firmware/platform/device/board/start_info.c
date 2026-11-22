@@ -16,16 +16,16 @@ enum {
 };
 
 __attribute__((section(".noinit"))) static StartRecord record;
-static StartInfo info;
+StartInfo board_start_info;
 
 void board_start_record_boot(void)
 {
-    info = start_record_boot(&record);
+    board_start_info = start_record_boot(&record);
 }
 
 CORE_SEAM bool board_start_after_loader(void)
 {
-    return info.last_step == HAL_START_STEP_LOADER;
+    return board_start_info.last_step == HAL_START_STEP_LOADER;
 }
 
 void board_start_record_tick(uint32_t uptime_ms)
@@ -76,19 +76,4 @@ __attribute__((used)) void device_fault_handler(const uint32_t *frame)
 __attribute__((naked)) void device_fault_entry(void)
 {
     __asm__ volatile("mrs r0, msp\n\tb device_fault_handler");
-}
-
-HalStartInfo hal_system_start_info(void)
-{
-    return (HalStartInfo){.warm = info.warm,
-                          .starts = info.starts,
-                          .previous_uptime_ms = info.previous_uptime_ms,
-                          .previous_power_off = info.previous_power_off,
-                          .fault_status = info.fault_status,
-                          .hard_fault_status = info.hard_fault_status,
-                          .fault_pc = info.fault_address,
-                          .last_step = info.last_step,
-                          .last_step_finished = info.last_step_finished,
-                          .last_step_ms = info.last_step_ms,
-                          .last_millivolts = info.last_millivolts};
 }
