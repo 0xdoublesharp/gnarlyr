@@ -126,6 +126,15 @@ class PackTest(unittest.TestCase):
         self.assertEqual(b"", read[0xA0][5])
         self.assertEqual(bytes([0xFF, 0xFF]), read[0xA1][5])
 
+    def test_an_empty_last_or_only_glyph_reads_back(self):
+        for glyphs in ([glyph(0x3000, 0, 0, levels=[])],
+                       [glyph(0x2FFF), glyph(0x3000, 0, 0, levels=[])],
+                       [glyph(0x2000 + index) for index in range(42)] + [glyph(0x3000, 0, 0, levels=[])]):
+            blob = glyph_pack.pack_glyphs(glyphs)
+            self.assertEqual(b"", glyph_pack.read_face(blob)[0x3000][5])
+            faces, _ = glyph_pack.read_extra_font(glyph_pack.pack_extra_font([blob] * 7, ["zh-CN"]))
+            self.assertEqual(b"", faces[0][0x3000][5])
+
     def test_a_corrupted_face_is_refused(self):
         blob = bytearray(glyph_pack.pack_glyphs([glyph(0xE000)]))
         blob[-1] ^= 1

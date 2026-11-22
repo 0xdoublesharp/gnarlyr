@@ -744,6 +744,87 @@ static void releasing_the_hold_reads_again(void)
     CHECK(font_pack_find(EXTRA_FACE, HANGUL + 1) != NULL);
 }
 
+static void any_extra_face_holds_bitmaps_up_to_the_slot_size(void)
+{
+    attach_both();
+    font_pack_detach_extra();
+    TestExtraFont font = extra_font();
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        font.faces[face] = (TestGlyphFace){20, HANGUL, 1, 32, 22};
+    }
+    font.faces[3] = (TestGlyphFace){20, HANGUL, 1, 27, 27};
+    build_extra(&font);
+    CHECK(font_pack_attach_extra(EXTRA_READER, extra_file.size));
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        const Glyph *glyph = font_pack_find(EXTRA_FACE + face, HANGUL + 4);
+        CHECK((glyph != NULL) == (face != 3));
+        CHECK(glyph == NULL || (glyph->width * glyph->height + 1) / 2 == FONT_PACK_MAX_BITMAP);
+        CHECK(glyph == NULL || font_bitmap_level(font_pack_bitmap(glyph), glyph, 0, 0) == 4);
+    }
+    PACKED_FONT = TINY_FONT;
+    PACKED_FONT.pack_face = 1;
+    const Glyph *small = font_find_glyph(&PACKED_FONT, HANGUL + 5);
+    CHECK(small != NULL && small->codepoint == HANGUL + 5 && small->width == 32);
+    font_pack_hold(FONT_PACK_HOLD_PIN);
+    const Glyph *held = font_pack_find(EXTRA_FACE, HANGUL + 6);
+    CHECK(held != NULL && font_bitmap_level(font_pack_bitmap(held), held, 0, 0) == 6);
+    CHECK_EQUAL(16 + FONT_PACK_MAX_BITMAP, font_pack_held_bytes());
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+}
+
+static void empty_the_last_glyph(uint8_t *bytes, TestGlyphFace face)
+{
+    uint32_t last = face.count - 1;
+    uint32_t roots = test_glyph_face_roots(face);
+    uint32_t sector = 1 + roots + last / FONT_PACK_ENTRIES_PER_SECTOR;
+    uint8_t *entry = bytes + sector * FONT_PACK_SECTOR_BYTES +
+                     (last % FONT_PACK_ENTRIES_PER_SECTOR) * FONT_PACK_ENTRY_BYTES;
+    entry[2] = 0;
+    entry[3] = 0;
+    entry[6] = 13;
+    uint32_t size = test_glyph_face_data_offset(face) + last * test_glyph_face_glyph_bytes(face);
+    bytes_put_le32(bytes + 12, size);
+    test_glyph_face_seal_header(bytes);
+    for (uint32_t number = 1; number < 1 + roots + test_glyph_face_index_sectors(face); number++) {
+        test_glyph_face_seal_sector(bytes, number);
+    }
+}
+
+static void check_empty_glyph(uint32_t face, uint32_t codepoint)
+{
+    const Glyph *glyph = font_pack_find(face, codepoint);
+    CHECK(glyph != NULL && glyph->codepoint == codepoint);
+    CHECK(glyph != NULL && glyph->width == 0 && glyph->height == 0 && glyph->advance == 13);
+    CHECK(glyph == NULL || font_pack_bitmap(glyph) != NULL);
+}
+
+static void an_empty_last_or_only_glyph_loads_in_image_and_extra_faces(void)
+{
+    static const uint32_t counts[] = {1, 2, FONT_PACK_ENTRIES_PER_SECTOR + 1};
+    for (uint32_t index = 0; index < sizeof counts / sizeof counts[0]; index++) {
+        TestGlyphFace face = {counts[index], 0x3000, 1, 0, 0};
+        attach();
+        pack.size = test_glyph_face_build(pack.bytes, face);
+        empty_the_last_glyph(pack.bytes, face);
+        pack.size = bytes_le32(pack.bytes + 12);
+        uint32_t last = test_glyph_face_codepoint(face, face.count - 1);
+        check_empty_glyph(0, last);
+        CHECK(counts[index] == 1 || font_pack_find(0, 0x3000) != NULL);
+        attach_both();
+        font_pack_detach_extra();
+        uint32_t start = test_extra_font_face_offset(extra_file.bytes, 0);
+        test_glyph_face_build(extra_file.bytes + start, face);
+        empty_the_last_glyph(extra_file.bytes + start, face);
+        CHECK(font_pack_attach_extra(EXTRA_READER, extra_file.size));
+        check_empty_glyph(EXTRA_FACE, last);
+        font_pack_hold(FONT_PACK_HOLD_PIN);
+        check_empty_glyph(EXTRA_FACE, last);
+        font_pack_hold(FONT_PACK_HOLD_FREEZE);
+        check_empty_glyph(EXTRA_FACE, last);
+        font_pack_hold(FONT_PACK_HOLD_NONE);
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -795,6 +876,8 @@ int main(void)
         TEST_CASE(image_faces_still_load_while_frozen),
         TEST_CASE(the_held_region_fills_to_a_known_count),
         TEST_CASE(releasing_the_hold_reads_again),
+        TEST_CASE(any_extra_face_holds_bitmaps_up_to_the_slot_size),
+        TEST_CASE(an_empty_last_or_only_glyph_loads_in_image_and_extra_faces),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
