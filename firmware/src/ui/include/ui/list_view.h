@@ -52,10 +52,10 @@ typedef struct ListModel {
     int detail_max_width;
     int (*section)(const void *context, int index);
     IconId (*icon)(const void *context, int index);
-    bool detail_below;
     ListSections (*sections)(const void *context, int index);
-    bool section_reverse;
     ListRowRole (*role)(const void *context, int index);
+    bool detail_below;
+    bool section_reverse;
     bool wraps;
 } ListModel;
 
