@@ -10,7 +10,8 @@ from echo_image_harness import (
     SETTINGS_PATH,
 )
 
-GAIN_ROW_FROM_TOP = 13
+SOUND_GAIN_ROW = 1
+SOUND_FILTER_ROW = 9
 HIGH_GAIN_RISE_LEVELS = 6
 DAC_UNITS_PER_LEVEL = 2
 HIGH_GAIN_RISE_UNITS = HIGH_GAIN_RISE_LEVELS * DAC_UNITS_PER_LEVEL
@@ -46,14 +47,15 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         gains.clear()
         filters.clear()
-        rig.press_many("next", GAIN_ROW_FROM_TOP)
+        rig.press("play")
+        rig.press_many("next", SOUND_GAIN_ROW)
         rig.press("play")
         rig.press("next")
         rig.press("play")
         self.assertEqual(1, len(gains), gains)
         self.assertEqual(1, gains[-1][0])
         self.assertGreaterEqual(gains[-1][1], before + HIGH_GAIN_RISE_UNITS, (before, gains))
-        rig.press("next")
+        rig.press_many("next", SOUND_FILTER_ROW - SOUND_GAIN_ROW)
         rig.press("play")
         rig.press_many("next", NON_OVERSAMPLING)
         rig.press("play")
@@ -85,7 +87,8 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         rig.audio.analog_fault = True
         events.clear()
-        rig.press_many("next", GAIN_ROW_FROM_TOP)
+        rig.press("play")
+        rig.press_many("next", SOUND_GAIN_ROW)
         rig.press("play")
         rig.press("next")
         rig.press("play")
