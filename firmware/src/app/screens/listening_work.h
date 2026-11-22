@@ -80,4 +80,7 @@ typedef struct ListeningModuleWork {
     } as;
 } ListeningModuleWork;
 
+_Static_assert(sizeof(SmartListWork) <= sizeof(RecapWork),
+               "Smart Lists work fits beside the Recap work");
+
 extern ListeningModuleWork listening_module_work;

@@ -13,7 +13,7 @@
 
 enum {
     SMART_LIST_WORK_ENTRIES = 1024,
-    SMART_LIST_TALLIES = SMART_LIST_WORK_ENTRIES * sizeof(TrackKey) / sizeof(SmartTally),
+    SMART_LIST_TALLIES = 419,
     SMART_LIST_LABEL_BYTES = 128,
     SMART_LIST_DETAIL_BYTES = 48
 };
@@ -38,16 +38,22 @@ typedef struct SmartListWork {
     TrackKeys keys;
     PathFile file;
     union {
-        TrackKeysUpdate update;
-        SmartListRanking ranking;
-        OrderPublish publish;
-    } job;
-    union {
-        TrackKey entries[SMART_LIST_WORK_ENTRIES];
-        SmartTally tallies[SMART_LIST_TALLIES];
-        uint16_t albums[FAVORITES_CAPACITY];
-        SmartListRows rows;
-    } scratch;
+        struct {
+            TrackKeysUpdate job;
+            TrackKey entries[SMART_LIST_WORK_ENTRIES];
+        } update;
+        struct {
+            SmartListRanking ranking;
+            union {
+                SmartTally tallies[SMART_LIST_TALLIES];
+                uint16_t albums[FAVORITES_CAPACITY];
+            } scratch;
+        } rank;
+        struct {
+            OrderPublish publish;
+            SmartListRows rows;
+        } ready;
+    } phase;
     int first;
     uint8_t stage;
     bool rows_ready;

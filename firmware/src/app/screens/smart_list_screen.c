@@ -131,11 +131,12 @@ static uint16_t gather_albums(const SmartListScreen *screen, SmartListFavorites 
     if (store == NULL) {
         return 0;
     }
-    FavoritesCollector collector = {work->scratch.albums, FAVORITES_CAPACITY, keep_audio_fed, NULL};
+    FavoritesCollector collector = {work->phase.rank.scratch.albums, FAVORITES_CAPACITY,
+                                    keep_audio_fed, NULL};
     uint16_t albums = favorites_collect(&store->favorites, library, collector);
     for (uint16_t index = 0; index < albums; index++) {
         LibraryAlbum album;
-        if (library_read_album(library, work->scratch.albums[index], &album)) {
+        if (library_read_album(library, work->phase.rank.scratch.albums[index], &album)) {
             add_album(favorites, &count,
                       (SmartFavoriteAlbum){album.first_track, album.track_count, place});
             place += album.track_count;
@@ -146,7 +147,7 @@ static uint16_t gather_albums(const SmartListScreen *screen, SmartListFavorites 
 
 static SmartFavorites gather_favorites(const SmartListScreen *screen)
 {
-    SmartListFavorites *favorites = &work->job.ranking.favorites;
+    SmartListFavorites *favorites = &work->phase.rank.ranking.favorites;
     const LibraryExtraPlaylist *extra = library_of(screen)->extra;
     uint16_t tracks = 0;
     if (screen->kind != SMART_LIST_FORGOTTEN) {
@@ -161,7 +162,8 @@ static SmartFavorites gather_favorites(const SmartListScreen *screen)
 
 static void begin_rank(SmartListScreen *screen)
 {
-    SmartListRanking *ranking = &work->job.ranking;
+    SmartListRanking *ranking = &work->phase.rank.ranking;
+    work->rows_ready = false;
     screen->checking = false;
     screen->percent = 0;
     ranking->stamp = current_stamp(screen);
@@ -169,7 +171,7 @@ static void begin_rank(SmartListScreen *screen)
                               .log = &screen->config.listening->log,
                               .keys = &work->keys,
                               .favorites = gather_favorites(screen),
-                              .scratch = {work->scratch.tallies, SMART_LIST_TALLIES},
+                              .scratch = {work->phase.rank.scratch.tallies, SMART_LIST_TALLIES},
                               .library = library_of(screen)};
     if (!smart_list_begin(&ranking->list, config)) {
         fail(screen);
@@ -180,10 +182,11 @@ static void begin_rank(SmartListScreen *screen)
 
 static void begin_update(SmartListScreen *screen)
 {
-    TrackKeysWork lent = {work->scratch.entries, SMART_LIST_WORK_ENTRIES};
+    TrackKeysWork lent = {work->phase.update.entries, SMART_LIST_WORK_ENTRIES};
+    work->rows_ready = false;
     screen->checking = true;
     screen->percent = 0;
-    if (!track_keys_update_begin(&work->job.update, &work->keys, library_of(screen), lent)) {
+    if (!track_keys_update_begin(&work->phase.update.job, &work->keys, library_of(screen), lent)) {
         fail(screen);
         return;
     }
@@ -209,13 +212,13 @@ static void start_work(SmartListScreen *screen)
 
 static void keep_result(SmartListScreen *screen)
 {
-    const SmartList *list = &work->job.ranking.list;
+    const SmartList *list = &work->phase.rank.ranking.list;
     SmartListCache *cache = &screen->caches[screen->kind];
     cache->count = list->count;
     for (uint16_t position = 0; position < list->count; position++) {
         cache->tracks[position] = smart_list_track(list, position);
     }
-    cache->stamp = work->job.ranking.stamp;
+    cache->stamp = work->phase.rank.ranking.stamp;
     cache->valid = true;
     work->stage = STAGE_NONE;
     work->rows_ready = false;
@@ -227,9 +230,10 @@ static void keep_result(SmartListScreen *screen)
 
 static void step_update(SmartListScreen *screen)
 {
-    StoreResult result = track_keys_update_step(&work->job.update);
-    screen->percent = track_keys_update_progress(&work->job.update);
+    StoreResult result = track_keys_update_step(&work->phase.update.job);
+    screen->percent = track_keys_update_progress(&work->phase.update.job);
     if (result == STORE_DONE) {
+        work->stage = STAGE_NONE;
         begin_rank(screen);
     } else if (result != STORE_WORKING) {
         fail(screen);
@@ -238,7 +242,7 @@ static void step_update(SmartListScreen *screen)
 
 static void step_rank(SmartListScreen *screen)
 {
-    SmartList *list = &work->job.ranking.list;
+    SmartList *list = &work->phase.rank.ranking.list;
     StoreResult result = smart_list_step(list);
     screen->percent = list->percent;
     if (result == STORE_DONE) {
@@ -295,11 +299,11 @@ static void refresh_rows(SmartListScreen *screen)
     work->rows_ready = true;
     for (int row = 0; row < THEME_MAX_ROWS; row++) {
         int index = work->first + row;
-        work->scratch.rows.labels[row][0] = '\0';
-        work->scratch.rows.details[row][0] = '\0';
+        work->phase.ready.rows.labels[row][0] = '\0';
+        work->phase.ready.rows.details[row][0] = '\0';
         if (index < cache->count) {
-            describe(screen, cache->tracks[index], work->scratch.rows.labels[row],
-                     work->scratch.rows.details[row]);
+            describe(screen, cache->tracks[index], work->phase.ready.rows.labels[row],
+                     work->phase.ready.rows.details[row]);
         }
     }
 }
@@ -319,14 +323,15 @@ static int row_count(const void *context)
 static const char *row_label(const void *context, int index)
 {
     int row = cached_row(context, index);
-    return row >= 0 ? work->scratch.rows.labels[row] : "";
+    return row >= 0 ? work->phase.ready.rows.labels[row] : "";
 }
 
 static const char *row_detail(const void *context, int index)
 {
     int row = cached_row(context, index);
-    return row >= 0 && work->scratch.rows.details[row][0] != '\0' ? work->scratch.rows.details[row]
-                                                                  : NULL;
+    return row >= 0 && work->phase.ready.rows.details[row][0] != '\0'
+               ? work->phase.ready.rows.details[row]
+               : NULL;
 }
 
 static bool read_tracks(void *context, uint16_t first, uint16_t count, uint16_t *tracks)
@@ -353,7 +358,7 @@ static bool is_loaded(const SmartListScreen *screen, uint16_t track)
 static bool publish(SmartListScreen *screen, uint16_t position)
 {
     SmartListCache *cache = &screen->caches[screen->kind];
-    OrderPublish *job = &work->job.publish;
+    OrderPublish *job = &work->phase.ready.publish;
     TrackOrderSource source = {read_tracks, cache, cache->count};
     StoreResult result = STORE_FAILED;
     if (!owns_work(screen)) {
@@ -398,7 +403,7 @@ static ScreenAction song_actions(void *context, int index)
 static void abandon(SmartListScreen *screen)
 {
     if (owns_work(screen) && work->stage == STAGE_UPDATE) {
-        track_keys_update_abort(&work->job.update);
+        track_keys_update_abort(&work->phase.update.job);
     }
     if (owns_work(screen)) {
         work->stage = STAGE_NONE;
