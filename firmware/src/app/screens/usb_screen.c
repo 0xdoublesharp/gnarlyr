@@ -102,18 +102,6 @@ static FooterHints footer_of(AppUsbStatus status)
     return (FooterHints){scene->hints, scene->hint_count, FOOTER_ALIGN_END};
 }
 
-void usb_screen_use_hints(const Theme *theme, UsbScene *scene, const FooterHint *items,
-                          uint8_t count)
-{
-    if (scene->hints == items && scene->hint_count == count) {
-        return;
-    }
-    scene->hints = items;
-    scene->hint_count = count;
-    FooterHints hints = {items, count, FOOTER_ALIGN_END};
-    scene->footer_height = (uint8_t)footer_hints_height(theme, hints);
-}
-
 int usb_screen_page_kind(const UsbScene *scene, int pages)
 {
     if (pages <= 1) {
@@ -196,7 +184,7 @@ int usb_screen_header_height(const Theme *theme)
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
 {
     int pad = theme->metrics.padding;
-    int band = usb_screen_scene(status)->footer_height;
+    int band = footer_hints_height(theme, footer_of(status));
     Rect footer = {0, theme->metrics.screen_height - band, theme->metrics.screen_width, band};
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
@@ -699,8 +687,8 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
             (Label){painter->layout.detail, detail_text(painter)}, painter->scene->service);
     }
     if (usb_screen_touches(painter, painter->layout.footer)) {
-        footer_hints_draw(painter->canvas, theme, painter->layout.footer,
-                          footer_of(painter->status));
+        FooterHints hints = {painter->scene->hints, painter->scene->hint_count, FOOTER_ALIGN_END};
+        footer_hints_draw(painter->canvas, theme, painter->layout.footer, hints);
     }
 }
 

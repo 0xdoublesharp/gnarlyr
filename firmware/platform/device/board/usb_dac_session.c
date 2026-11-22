@@ -260,8 +260,8 @@ enum {
 static void dac_hints(int pages)
 {
     int kind = usb_screen_page_kind(scene, pages);
-    usb_screen_use_hints(app_theme(), scene, DAC_HINTS + DAC_FIRST[kind],
-                         kind == USB_PAGE_ONLY ? 2 : 3);
+    scene->hints = DAC_HINTS + DAC_FIRST[kind];
+    scene->hint_count = kind == USB_PAGE_ONLY ? 2 : 3;
 }
 
 static void paged_hints(void)
@@ -284,8 +284,8 @@ static AppUsbStatus dac_status(void)
     AppUsbStatus status = {.view = APP_USB_DAC, .scene = scene};
     paged_hints();
     if (menu_open) {
-        usb_screen_use_hints(app_theme(), scene,
-                             DAC_HINTS + (menu.adjusting ? DAC_ADJUST_HINTS : DAC_MENU_HINTS), 2);
+        scene->hints = DAC_HINTS + (menu.adjusting ? DAC_ADJUST_HINTS : DAC_MENU_HINTS);
+        scene->hint_count = 2;
         status.detail = gain_refused ? i18n_text(STR_GAIN_NOT_CHANGED) : NULL;
     }
     return status;

@@ -77,23 +77,19 @@ static const FooterHint DAC_PAGES[][3] = {
      {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}}};
 static const uint8_t STORAGE_COUNTS[] = {2, 3, 4, 4};
 
-static void use_page_hints(const Theme *theme, UsbScene *scene, bool dac, int pages)
+static void use_page_hints(UsbScene *scene, bool dac, int pages)
 {
     int kind = usb_screen_page_kind(scene, pages);
-    scene->hints = NULL;
-    if (dac) {
-        usb_screen_use_hints(theme, scene, DAC_PAGES[kind], kind == USB_PAGE_ONLY ? 2 : 3);
-    } else {
-        usb_screen_use_hints(theme, scene, STORAGE_PAGES[kind], STORAGE_COUNTS[kind]);
-    }
+    scene->hints = dac ? DAC_PAGES[kind] : STORAGE_PAGES[kind];
+    scene->hint_count = dac ? (kind == USB_PAGE_ONLY ? 2 : 3) : STORAGE_COUNTS[kind];
 }
 
 static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status, UsbScene *scene)
 {
     status.scene = scene;
     if (scene->menu != NULL) {
-        scene->hints = NULL;
-        usb_screen_use_hints(theme, scene, MENU_HINTS, 2);
+        scene->hints = MENU_HINTS;
+        scene->hint_count = 2;
         return status;
     }
     bool dac = status.view == APP_USB_DAC;
@@ -101,8 +97,8 @@ static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status, UsbS
     if (!dac && !storage) {
         return status;
     }
-    use_page_hints(theme, scene, dac, 2);
-    use_page_hints(theme, scene, dac, usb_screen_pages(theme, status));
+    use_page_hints(scene, dac, 2);
+    use_page_hints(scene, dac, usb_screen_pages(theme, status));
     return status;
 }
 

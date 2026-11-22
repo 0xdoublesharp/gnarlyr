@@ -252,8 +252,8 @@ static void storage_hints(int pages)
 {
     int kind = usb_screen_page_kind(scene, pages);
     int skip = card_present ? 0 : 1;
-    usb_screen_use_hints(app_theme(), scene, STORAGE_HINTS + STORAGE_FIRST[kind] + skip,
-                         (uint8_t)(STORAGE_COUNT[kind] - skip));
+    scene->hints = STORAGE_HINTS + STORAGE_FIRST[kind] + skip;
+    scene->hint_count = (uint8_t)(STORAGE_COUNT[kind] - skip);
 }
 
 static const char *storage_detail(void)
@@ -276,7 +276,7 @@ static AppUsbStatus storage_status(void)
                                                                    : STR_POWER_INTERNAL),
                            .detail = storage_detail(),
                            .scene = scene};
-    usb_screen_use_hints(app_theme(), scene, NULL, 0);
+    scene->hint_count = 0;
     if (scene->state != USB_SCENE_WAITING && scene->state != USB_SCENE_LEAVING) {
         storage_hints(2);
         storage_hints(usb_screen_pages(app_theme(), status));
