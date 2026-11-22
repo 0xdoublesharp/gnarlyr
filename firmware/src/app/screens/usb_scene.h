@@ -122,6 +122,7 @@ typedef struct UsbScreenLayout {
     Rect lines;
     Rect meter;
     Rect detail;
+    Rect footer;
 } UsbScreenLayout;
 
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status);

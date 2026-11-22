@@ -8,6 +8,7 @@
 #include "emmc.h"
 #include "hal/system.h"
 #include "screens/usb_scene.h"
+#include "ui/footer_hints.h"
 #include "usb.h"
 
 typedef enum UsbSessionEnd {
@@ -103,13 +104,13 @@ enum {
 uint32_t *usb_session_buffer(void);
 
 enum {
-    USB_SESSION_HINT_CAPACITY = 96
+    USB_SESSION_HINTS = 4
 };
 
 typedef struct UsbSessionScreen {
     UsbPort port;
     UsbScene scene;
-    char hint[USB_SESSION_HINT_CAPACITY];
+    FooterHint hints[USB_SESSION_HINTS];
 } UsbSessionScreen;
 
 extern UsbSessionScreen usb_session_screen;
