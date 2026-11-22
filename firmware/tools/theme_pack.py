@@ -78,7 +78,7 @@ def text(data, start, size, required=True, url=False):
 
 def icon_box(slot):
     narrow = SLOTS["icon_bolt"] <= slot <= SLOTS["icon_chevron"]
-    small = slot >= SLOTS["icon_play"]
+    small = SLOTS["icon_play"] <= slot <= SLOTS["icon_logo"]
     return (9 if narrow else 14, 14) if small else (20, 20)
 
 
