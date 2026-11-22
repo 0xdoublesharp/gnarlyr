@@ -368,7 +368,9 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
     }
     Color ink = usb_screen_tint(theme->colors.accent, theme->colors.header_text);
     usb_screen_text(painter, words, (TextStyle){theme->fonts.small, ink, false}, state);
-    draw_name(painter, row, header_title(painter, mode_title));
+    if (usb_screen_touches(painter, row)) {
+        draw_name(painter, row, header_title(painter, mode_title));
+    }
 }
 
 static void draw_floor(const UsbPainter *painter, int rule)

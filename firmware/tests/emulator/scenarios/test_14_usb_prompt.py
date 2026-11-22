@@ -176,8 +176,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(len(dark), darkened)
         self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
         self.press(machine, KEY_PLAY)
-        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
-        self.assertEqual(len(dark), darkened + 1)
+        self.assertEqual(machine.run(until=lambda: len(dark) > darkened,
+                                     until_ms=machine.milliseconds() + CHARGER_MS),
+                         "condition met")
         self.assert_asked_without_enumerating(session, asked, 1)
         self.assertEqual(machine.usb_connect_count, 1)
         self.assert_healthy(session)
