@@ -473,9 +473,82 @@ static void the_chevron_points_right_from_its_middle_row(void)
     CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 1, 12));
 }
 
+static ListRowRole labelled_role(const void *context, int index)
+{
+    (void)context;
+    return index == 0 || index == 3 ? LIST_ROW_SECTION
+           : index == 2             ? LIST_ROW_NEEDS
+                                    : LIST_ROW_PLAIN;
+}
+
+static ListView labelled_list(int count)
+{
+    ListView view = list_of(count);
+    model.role = labelled_role;
+    list_view_init(&view, &model, &TEST_THEME, 0);
+    return view;
+}
+
+static void a_section_label_is_never_focused(void)
+{
+    ListView view = labelled_list(6);
+    CHECK_EQUAL(1, view.selected);
+    move_times(&view, 1, 2);
+    CHECK_EQUAL(4, view.selected);
+    move_times(&view, -1, 1);
+    CHECK_EQUAL(2, view.selected);
+    list_view_select(&view, 3, 0);
+    CHECK_EQUAL(4, view.selected);
+    list_view_select(&view, 1, 0);
+    list_view_move(&view, -1, true, 0);
+    CHECK_EQUAL(5, view.selected);
+    list_view_move(&view, 1, true, 0);
+    CHECK_EQUAL(1, view.selected);
+}
+
+static void focusing_the_first_row_under_a_label_scrolls_the_label_into_view(void)
+{
+    ListView view = labelled_list(10);
+    list_view_select(&view, 9, 0);
+    CHECK(view.top > 0);
+    list_view_select(&view, 1, 0);
+    CHECK_EQUAL(0, view.top);
+}
+
+static void a_section_label_is_drawn_in_the_accent_colour_without_focus(void)
+{
+    ListView view = labelled_list(6);
+    Theme theme = TEST_THEME;
+    theme.colors.accent = 0x07FF;
+    view.theme = &theme;
+    Canvas canvas = ui_test_canvas();
+    list_view_draw(&view, &canvas, theme_content_area(&theme), 0);
+    Rect label = {0, row_rect(0).y, TEST_SCREEN_WIDTH, TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, label, theme.colors.accent));
+    CHECK(!ui_test_area_has_color(&canvas, label, theme.colors.selection_background));
+}
+
+static void a_row_that_needs_something_is_dim_and_brightens_a_step_when_focused(void)
+{
+    ListView view = labelled_list(6);
+    Canvas canvas = ui_test_canvas();
+    Rect row = {0, row_rect(2).y, TEST_SCREEN_WIDTH, TEST_ROW_HEIGHT};
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    CHECK(ui_test_area_has_color(&canvas, row, TEST_THEME.colors.text_tertiary));
+    CHECK(!ui_test_area_has_color(&canvas, row, TEST_THEME.colors.text));
+    list_view_select(&view, 2, 0);
+    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
+    CHECK(ui_test_area_has_color(&canvas, row, TEST_THEME.colors.text_secondary));
+    CHECK(!ui_test_area_has_color(&canvas, row, TEST_THEME.colors.selection_text));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_section_label_is_never_focused),
+        TEST_CASE(focusing_the_first_row_under_a_label_scrolls_the_label_into_view),
+        TEST_CASE(a_section_label_is_drawn_in_the_accent_colour_without_focus),
+        TEST_CASE(a_row_that_needs_something_is_dim_and_brightens_a_step_when_focused),
         TEST_CASE(the_chevron_is_eight_wide_and_ten_wide_at_large_text),
         TEST_CASE(the_chevron_points_right_from_its_middle_row),
         TEST_CASE(a_new_list_selects_the_first_item),
