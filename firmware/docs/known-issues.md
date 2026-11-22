@@ -12,6 +12,7 @@ These apply to 1.0.0-beta.1, the public beta. It is the `device` build, which wr
 - **Two safety nets haven't been tried on a player since their latest fixes:** entering recovery mode by holding Power and Vol+ with the cable in a computer, and the automatic rollback of an update that doesn't start properly. The paperclip route to recovery mode ([`device-recovery.md`](device-recovery.md)) has been used on the player.
 - **Settings reset once if you come from a Gnarlyr development build.** Their files changed format, so the beta starts from defaults; the library is rebuilt.
 - **Some playback has had little listening on a player:** Ogg, Opus, APE, WMA and DSD files, and Bluetooth headphones.
+- **Lists redraw once a second during playback.** Screens without a playback time, such as lists and Settings, still redraw the whole screen at each playback second; beta.2 moves that redraw onto the scrolling-text step.
 
 ### Reporting a problem
 

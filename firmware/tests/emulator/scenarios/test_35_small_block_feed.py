@@ -28,6 +28,9 @@ WINDOW_SHIFTS_MS = (0, 5, 11)
 RING_FRAMES = 14000
 ROW_GAP_LIMIT_MS = 250
 FRAME_PACER_FAST_FRAMES = 6
+MARQUEE_STEP_MS = 100
+MARQUEE_STEP_SLACK_MS = 15
+POSITION_FRAME_CLOSE_MS = 60
 ROW_CYCLE_WATCH_MS = 16000
 MARQUEE_PAUSE_MS = 1200
 FIRST_STEP_LIMIT_MS = 250
@@ -113,6 +116,20 @@ def encode(case):
                    "-fflags", "+bitexact"] + codec + [str(path)]
         subprocess.run(command, check=True)
         return name, path.read_bytes()
+
+
+def position_frames(drawn):
+    found = []
+    for index in range(1, len(drawn)):
+        before = drawn[index - 1]
+        after = drawn[index + 1] if index + 1 < len(drawn) else None
+        if after is None:
+            if drawn[index] - before < POSITION_FRAME_CLOSE_MS:
+                found.append(drawn[index])
+        elif (abs(after - before - MARQUEE_STEP_MS) <= MARQUEE_STEP_SLACK_MS
+              and drawn[index] - before < MARQUEE_STEP_MS - MARQUEE_STEP_SLACK_MS):
+            found.append(drawn[index])
+    return found
 
 
 class EchoImageTest(EchoImageHarness):
@@ -217,7 +234,10 @@ class EchoImageTest(EchoImageHarness):
         gaps = [later - earlier for earlier, later in zip(drawn, drawn[1:])]
         self.assertLessEqual(max(gaps, default=MEASURE_MS), ROW_GAP_LIMIT_MS, (drawn, result))
         span_ms = rig.machine.milliseconds() - pressed_ms
-        self.assertLessEqual(len(drawn), span_ms * 12 // 1000 + FRAME_PACER_FAST_FRAMES, (drawn, result))
+        position = position_frames(drawn)
+        self.assertLessEqual(len(drawn) - len(position),
+                             span_ms * 12 // 1000 + FRAME_PACER_FAST_FRAMES, (drawn, position, result))
+        self.assertLessEqual(len(position), -(-span_ms // 1000), (drawn, position, result))
         self.assertGreaterEqual(len(drawn), span_ms * 5 // 1000, (drawn, result))
         self.assertEqual(0, result["underruns"], result)
         self.assert_healthy(rig.session)
