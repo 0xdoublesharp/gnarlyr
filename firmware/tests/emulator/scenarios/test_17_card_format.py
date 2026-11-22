@@ -31,8 +31,9 @@ class EchoImageTest(EchoImageHarness):
         internal_before = rig.session.disk.snapshot()
         rig.press("previous")
         rig.press("play")
-        for _ in range(6):
-            rig.press("previous")
+        rig.press_many("previous", 2)
+        rig.press("play")
+        rig.press("previous")
         rig.press("play")
         self.assertEqual([], inserted[0].writes)
         rig.press("play")
