@@ -16,12 +16,14 @@ enum {
     I18N_NAME_BYTES = 28,
     I18N_PACK_CAPACITY = 18432,
     I18N_FILE_CAPACITY = 65535,
-    I18N_MAX_ARGUMENTS = 10
+    I18N_MAX_ARGUMENTS = 10,
+    I18N_NEEDS_EXTRA_FONT = 1
 };
 
 typedef struct I18nPackInfo {
     uint32_t size;
     uint32_t resident;
+    uint16_t flags;
     char code[I18N_CODE_BYTES];
     char name[I18N_NAME_BYTES];
 } I18nPackInfo;
