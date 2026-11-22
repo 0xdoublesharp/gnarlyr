@@ -13,8 +13,10 @@ enum {
     SMALLEST_COVER = 64,
     CUE_HEIGHT = 48,
     CUE_LINE = 20,
+    CUE_INSET = 4,
     CUE_MARK_WIDTH = 13,
-    CUE_MARK_HEIGHT = 8,
+    CUE_MARK_HEIGHT = 7,
+    CUE_MARK_TOP = 6,
     CUE_MARK_STROKE = 3,
     NUMBER_CAPACITY = 8
 };
@@ -132,18 +134,6 @@ static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
     style.color = theme->colors.text_secondary;
     label_draw(canvas, style,
                (Label){label_centered_area(style.font, area, art->artist), art->artist});
-    PlayerStatus status = player_status(art->player);
-    if (status.has_track && status.duration_ms != 0) {
-        Rect progress = {area.x + 4, area.y + 24, area.width - 8, 2};
-        canvas_fill_rect(canvas, progress, theme->colors.divider);
-        uint32_t position =
-            status.position_ms < status.duration_ms ? status.position_ms : status.duration_ms;
-        if (status.state == PLAYER_PLAYING && position < status.duration_ms) {
-            position = position / 1000 * 1000;
-        }
-        progress.width = (int)((uint64_t)progress.width * position / status.duration_ms);
-        canvas_fill_rect(canvas, progress, theme->colors.accent);
-    }
 }
 
 static int hidden_below(const HomeArt *art)
@@ -155,57 +145,39 @@ static int hidden_below(const HomeArt *art)
     return list->model->count(list->model->context) - list->top - list->visible_rows;
 }
 
-static void draw_turned_chevron(Canvas *canvas, Rect box, Color ink)
-{
-    for (int row = 0; row < CUE_MARK_HEIGHT; row++) {
-        int inset = row * (CUE_MARK_WIDTH - CUE_MARK_STROKE) / (2 * CUE_MARK_HEIGHT);
-        canvas_fill_rect(canvas, (Rect){box.x + inset, box.y + row, CUE_MARK_STROKE, 1}, ink);
-        canvas_fill_rect(canvas,
-                         (Rect){box.x + CUE_MARK_WIDTH - inset - CUE_MARK_STROKE, box.y + row,
-                                CUE_MARK_STROKE, 1},
-                         ink);
-    }
-}
-
 static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
 {
     const Theme *theme = art->theme;
     const ListView *list = art->list;
     const ListModel *model = list->model;
-    char numbers[3][NUMBER_CAPACITY];
+    int last = list->top + list->visible_rows;
+    uint32_t range[3] = {(uint32_t)list->top + 1, (uint32_t)last,
+                         (uint32_t)model->count(model->context)};
+    char numbers[3 * NUMBER_CAPACITY];
     const char *values[3];
-    int range[3] = {list->top + 1, list->top + list->visible_rows, model->count(model->context)};
+    StringBuilder number = string_builder_make(numbers, sizeof numbers);
     for (int index = 0; index < 3; index++) {
-        StringBuilder number = string_builder_make(numbers[index], NUMBER_CAPACITY);
-        string_builder_append_unsigned(&number, (uint32_t)range[index]);
-        values[index] = numbers[index];
+        values[index] = numbers + number.length;
+        string_builder_append_unsigned(&number, range[index]);
+        string_builder_append_char(&number, '\0');
     }
     char text[3 * NUMBER_CAPACITY + 16];
     StringBuilder line = string_builder_make(text, sizeof text);
     i18n_format(&line, STR_RANGE_OF, values, 3);
     canvas_fill_rect(canvas, area, theme->colors.header_background);
-    canvas_fill_rect(canvas, (Rect){area.x, area.y, area.width, 1}, theme->colors.divider);
-    int padding = theme->metrics.padding;
-    Rect row = {area.x + padding, area.y + 4, area.width - 2 * padding, CUE_LINE};
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-               (Label){row, text});
+    TextStyle style = {theme->fonts.small, theme->colors.text_secondary, false};
+    Rect row = {area.x + theme->metrics.padding, area.y + CUE_INSET, area.width, CUE_LINE};
+    label_draw(canvas, style, (Label){row, text});
     row.y += CUE_LINE;
-    draw_turned_chevron(canvas, (Rect){row.x, row.y + (CUE_LINE - CUE_MARK_HEIGHT) / 2, 0, 0},
-                        theme->colors.accent);
-    row.x += CUE_MARK_WIDTH + 4;
-    row.width -= CUE_MARK_WIDTH + 4;
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent, false},
-               (Label){row, model->label(model->context, list->top + list->visible_rows)});
-}
-
-static void draw_backdrop(const HomeArt *art, Canvas *canvas, Rect area, int floor)
-{
-    Rect sky = area;
-    if (theme_is_portrait(art->theme) && floor > area.y) {
-        sky.height = 2 * (floor - area.y);
+    style.color = theme->colors.accent;
+    for (int step = 0; step < CUE_MARK_HEIGHT; step++) {
+        Rect stroke = {row.x + step, row.y + CUE_MARK_TOP + step, CUE_MARK_STROKE, 1};
+        canvas_fill_rect(canvas, stroke, style.color);
+        stroke.x = row.x + CUE_MARK_WIDTH - CUE_MARK_STROKE - step;
+        canvas_fill_rect(canvas, stroke, style.color);
     }
-    Canvas band = canvas_clipped(canvas, area);
-    home_art_draw_backdrop(&band, sky, art->theme);
+    row.x += CUE_MARK_WIDTH + CUE_INSET;
+    label_draw(canvas, style, (Label){row, model->label(model->context, last)});
 }
 
 void home_art_draw(void *context, Canvas *canvas, Rect area)
@@ -222,7 +194,12 @@ void home_art_draw(void *context, Canvas *canvas, Rect area)
     size = captions && size < COVER_FULL_SIZE ? size : COVER_FULL_SIZE;
     int left = area.x + (area.width - size) / 2;
     int top = area.y + (below && !captions ? (area.height - size) / 2 : COVER_MARGIN_TOP);
-    draw_backdrop(art, canvas, area, captions ? top + size + CAPTION_ROOM - COVER_MARGIN_TOP : 0);
+    Rect sky = area;
+    int floor = 2 * (top + size + CAPTION_ROOM - COVER_MARGIN_TOP - area.y);
+    if (below && captions && floor > sky.height) {
+        sky.height = floor;
+    }
+    home_art_draw_backdrop(canvas, sky, theme);
     canvas_fill_rect(canvas, divider, theme->colors.divider);
     Image cover;
     if (art->has_album && cover_cache_full(art->covers, art->album, &cover) == COVER_LOADED) {
