@@ -457,15 +457,24 @@ static uint32_t shown_position(const NowPlayingScreen *now_playing)
                : status->position_ms;
 }
 
+static Rect stage_of(const Theme *theme, Rect art)
+{
+    int width = theme_is_portrait(theme) ? theme->metrics.screen_width
+                                         : art.x + art.width + theme->metrics.padding - ART_SPINE;
+    return (Rect){0, art.y - theme->metrics.padding, width,
+                  art.height + theme->metrics.padding + ART_SHADOW + 2};
+}
+
+static bool touches(const Canvas *canvas, Rect area)
+{
+    return !rect_is_empty(rect_intersection(canvas->clip, area));
+}
+
 static void draw_stage(const NowPlayingScreen *now_playing, Canvas *canvas, bool artwork, Rect art)
 {
     const Theme *theme = now_playing->config.theme;
-    int top = art.y - theme->metrics.padding;
-    int width = theme_is_portrait(theme) ? theme->metrics.screen_width
-                                         : art.x + art.width + theme->metrics.padding - ART_SPINE;
     if (!artwork) {
-        home_art_draw_backdrop(
-            canvas, (Rect){0, top, width, art.height + theme->metrics.padding + 7}, theme);
+        home_art_draw_backdrop(canvas, stage_of(theme, art), theme);
     }
     neon_art_frame(canvas, (Rect){art.x - 4, art.y - 4, art.width + 8, art.height + 8},
                    neon_art_ink(theme, theme->colors.accent));
@@ -813,13 +822,15 @@ static void draw(void *context, Canvas *canvas)
     if (styled(now_playing)) {
         watch_position(now_playing, MARQUEE_BAND_TIME, content);
         now_playing->config.cassette_draw(now_playing, canvas);
-    } else {
+    } else if (touches(canvas, stage_of(theme, frame.art))) {
         draw_cover(now_playing, canvas, artwork, frame.art);
     }
     if (lift > 0) {
         draw_title(theme, canvas, lift);
     }
-    draw_column(now_playing, canvas, frame.column);
+    if (touches(canvas, frame.column)) {
+        draw_column(now_playing, canvas, frame.column);
+    }
     draw_badge(now_playing, canvas, frame.art);
     draw_transport(now_playing, canvas, frame);
 }

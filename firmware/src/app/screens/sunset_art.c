@@ -1,7 +1,6 @@
 #include "sunset_art.h"
 
 #include "core/i18n.h"
-#include "neon_art.h"
 #include "ui/label.h"
 
 enum {
@@ -31,19 +30,6 @@ static int glow_top(const SunsetScene *scene)
 static Color glow_color(const ThemeColors *colors)
 {
     return color_between(colors->backdrop_bottom, colors->accent_alt, 1, 3);
-}
-
-static Color sky_at(const SunsetArt *art, int y)
-{
-    const ThemeColors *colors = &art->theme->colors;
-    const SunsetScene *scene = &art->scene;
-    int glow = glow_top(scene);
-    if (y < glow) {
-        return color_between(colors->backdrop_top, colors->backdrop_bottom, y - scene->stage.y,
-                             glow - scene->stage.y - 1);
-    }
-    return color_between(colors->backdrop_bottom, glow_color(colors), y - glow,
-                         scene->horizon - glow - 1);
 }
 
 static void stars(const SunsetArt *art, Canvas *canvas)
@@ -153,15 +139,34 @@ static void horizon_lines(const SunsetArt *art, Canvas *canvas)
                      color_between(colors->accent, colors->text, 1, 2));
 }
 
+static int ridge_at(const SunsetScene *scene, int point, int x)
+{
+    Point from = sunset_scene_ridge(scene, point - 1);
+    Point to = sunset_scene_ridge(scene, point);
+    int span = to.x > from.x ? to.x - from.x : 1;
+    return from.y + (to.y - from.y) * (x - from.x) / span;
+}
+
 static void ridge(const SunsetArt *art, Canvas *canvas)
 {
+    const SunsetScene *scene = &art->scene;
+    Rect clip = rect_intersection(canvas->clip, scene->stage);
+    int peak = scene->horizon - (scene->horizon - scene->stage.y) / 3;
+    if (clip.y > scene->horizon || clip.y + clip.height < peak) {
+        return;
+    }
     const ThemeColors *colors = &art->theme->colors;
     Color ink = color_between(colors->backdrop_bottom, colors->text_secondary, 2, 3);
-    NeonInk soft = {ink, color_between(sky_at(art, art->scene.horizon - 4), ink, 1, 3)};
-    for (int point = 1; point < SUNSET_RIDGE_POINTS; point++) {
+    int point = 1;
+    for (int x = clip.x; x < clip.x + clip.width; x++) {
+        while (point < SUNSET_RIDGE_POINTS - 1 && sunset_scene_ridge(scene, point).x <= x) {
+            point++;
+        }
         if (point != SUNSET_RIDGE_BREAK) {
-            neon_art_line(canvas, sunset_scene_ridge(&art->scene, point - 1),
-                          sunset_scene_ridge(&art->scene, point), soft);
+            int y = ridge_at(scene, point, x);
+            int next = ridge_at(scene, point, x + 1);
+            int low = smaller(y, next);
+            canvas_fill_rect(canvas, (Rect){x, low, 1, larger(y, next) - low + 1}, ink);
         }
     }
 }
