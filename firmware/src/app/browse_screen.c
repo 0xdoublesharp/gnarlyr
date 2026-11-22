@@ -4,7 +4,6 @@
 #include <stddef.h>
 
 #include "core/i18n.h"
-#include "core/seam.h"
 #include "core/string_builder.h"
 #include "favorite_playlist.h"
 #include "hal/audio.h"
@@ -398,17 +397,17 @@ static ScreenAction queue_song(BrowsePool *pool, bool next)
     return screen_action_pop();
 }
 
-static ScreenAction play_song_next(void *context)
+ScreenAction browse_song_play_next(void *context)
 {
     return queue_song(context, true);
 }
 
-static ScreenAction add_song_to_up_next(void *context)
+ScreenAction browse_song_add_to_up_next(void *context)
 {
     return queue_song(context, false);
 }
 
-static ScreenAction add_song_to_favorites(void *context)
+ScreenAction browse_song_add_to_favorites(void *context)
 {
     BrowsePool *pool = context;
     if (pool->config.manage != NULL) {
@@ -418,7 +417,7 @@ static ScreenAction add_song_to_favorites(void *context)
     return screen_action_pop();
 }
 
-static ScreenAction add_to_tape(void *context)
+ScreenAction browse_song_add_to_tape(void *context)
 {
     BrowsePool *pool = context;
     Screen *screen =
@@ -426,21 +425,21 @@ static ScreenAction add_to_tape(void *context)
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
-static ScreenAction open_track_info(void *context)
+ScreenAction browse_song_open_info(void *context)
 {
     BrowsePool *pool = context;
     Screen *screen = pool->config.info(pool->config.tools_context, pool->song_actions.track);
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
-static ScreenAction open_track_tags(void *context)
+ScreenAction browse_song_open_tags(void *context)
 {
     BrowsePool *pool = context;
     Screen *screen = pool->config.tags(pool->config.tools_context, pool->song_actions.track);
     return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
-static ScreenAction manage_song(void *context)
+ScreenAction browse_song_manage(void *context)
 {
     BrowsePool *pool = context;
     SongActions *actions = &pool->song_actions;
@@ -450,68 +449,14 @@ static ScreenAction manage_song(void *context)
     return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
 }
 
-enum {
-    ACTION_ALWAYS,
-    ACTION_INFO,
-    ACTION_TAGS,
-    ACTION_MANAGE
-};
-
-typedef struct SongAction {
-    StringId label;
-    ScreenAction (*select)(void *context);
-    uint8_t needs;
-    bool opens;
-} SongAction;
-
-static const SongAction SONG_ACTIONS[] = {
-    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false},
-    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true},
-    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true},
-    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true},
-    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false},
-    {STR_DELETE_FILE, manage_song, ACTION_MANAGE, false},
-};
-
-static bool action_offered(const BrowsePool *pool, uint8_t needs)
-{
-    const bool offered[] = {true, pool->config.info != NULL, pool->config.tags != NULL,
-                            pool->config.manage != NULL};
-    return offered[needs];
-}
-
-CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
-                                           uint32_t now_ms)
-{
-    SongActions *actions = &pool->song_actions;
-    actions->track = track;
-    actions->confirming = false;
-    actions->now_ms = now_ms;
-    StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
-    string_builder_append(&title, name);
-    int count = 0;
-    for (size_t index = 0; index < sizeof SONG_ACTIONS / sizeof SONG_ACTIONS[0]; index++) {
-        const SongAction *action = &SONG_ACTIONS[index];
-        if (action_offered(pool, action->needs)) {
-            actions->items[count++] = (MenuItem){.label = i18n_text(action->label),
-                                                 .select = action->select,
-                                                 .context = pool,
-                                                 .opens = action->opens};
-        }
-    }
-    MenuConfig config = {.title = actions->title,
-                         .items = actions->items,
-                         .item_count = count,
-                         .theme = pool->config.theme};
-    return menu_screen_init(&actions->menu, config);
-}
-
 static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t track)
 {
-    return screen_action_push(
-        browse_pool_song_actions(browse->pool, track, row_label(browse, index), browse->now_ms));
+    BrowsePool *pool = browse->pool;
+    Screen *screen =
+        pool->config.song_actions != NULL
+            ? pool->config.song_actions(pool, track, row_label(browse, index), browse->now_ms)
+            : NULL;
+    return screen != NULL ? screen_action_push(screen) : screen_action_none();
 }
 
 static ScreenAction play_folder(BrowseScreen *browse, BrowseItem item)
