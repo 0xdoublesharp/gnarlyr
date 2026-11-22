@@ -1,4 +1,5 @@
 import contextlib
+import ctypes
 import io
 import os
 import sys
@@ -7,6 +8,7 @@ import zlib
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -77,6 +79,64 @@ class CacheConfinementTest(unittest.TestCase):
             with echo_sync.open_card_file(target, writable=False):
                 self.fail("opened missing cache file without approval to create it")
         self.assertFalse(target.exists())
+
+    def test_windows_cache_creation_opens_the_name_without_following_reparse_points(self):
+        target = self.folder / self.spec.name
+        native = mock.Mock()
+        transfer = mock.Mock(side_effect=lambda handle, _mode: handle)
+        runtime = SimpleNamespace(open_osfhandle=transfer)
+        native.CreateFileW.side_effect = lambda name, *_: os.open(name, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        with (mock.patch.object(ctypes, "WinDLL", return_value=native, create=True),
+              mock.patch.object(ctypes, "get_last_error", return_value=80, create=True),
+              mock.patch.object(ctypes, "WinError", return_value=FileExistsError("linked cache"), create=True),
+              mock.patch.dict(sys.modules, {"msvcrt": runtime}),
+              mock.patch.object(os, "O_BINARY", 0x8000, create=True),
+              mock.patch.object(os, "O_NOFOLLOW", 0, create=True),
+              mock.patch.object(os, "supports_dir_fd", set()),
+              mock.patch.object(sys, "platform", "win32")):
+            echo_sync.write_card_file(target, b"new library", self.spec)
+            native.CreateFileW.assert_called_once_with(
+                str(target), 0xC0000000, 3, None, 1, 0x00200000, None)
+            self.assertTrue(target.read_bytes().startswith(b"new library"))
+            native.CloseHandle.assert_not_called()
+
+            target.unlink()
+            missing = self.outside / "not-created.bin"
+            target.symlink_to(missing)
+            with self.assertRaisesRegex(echo_sync.SyncError, "linked"):
+                echo_sync.write_card_file(target, b"new library", self.spec)
+            self.assertFalse(missing.exists())
+            self.assertEqual(1, native.CreateFileW.call_count)
+            target.unlink()
+
+            native.CreateFileW.side_effect = None
+            native.CreateFileW.return_value = ctypes.c_void_p(-1).value
+            with self.assertRaisesRegex(FileExistsError, "linked cache"):
+                echo_sync.create_windows_cache(target, False)
+            native.CloseHandle.assert_not_called()
+
+            native.CreateFileW.return_value = 1234
+            transfer.side_effect = OSError("descriptor unavailable")
+            with self.assertRaisesRegex(OSError, "descriptor unavailable"):
+                echo_sync.create_windows_cache(target, True)
+            native.CloseHandle.assert_called_once_with(1234)
+
+    def test_exclusive_creation_preserves_a_cache_created_after_the_first_open(self):
+        target = self.folder / self.spec.name
+        original_open = os.open
+
+        def competing_open(name, flags, mode=0o600, *, dir_fd=None):
+            if name == target and flags & os.O_CREAT:
+                with os.fdopen(original_open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL), "wb") as competing:
+                    competing.write(self.original)
+            return original_open(name, flags, mode, dir_fd=dir_fd)
+
+        with (mock.patch.object(sys, "platform", "linux"),
+              mock.patch.object(os, "supports_dir_fd", set()),
+              mock.patch.object(os, "open", side_effect=competing_open)):
+            with self.assertRaises(FileExistsError):
+                echo_sync.write_card_file(target, b"new library", self.spec)
+        self.assertEqual(self.original, target.read_bytes())
 
     def test_sync_refuses_a_redirected_data_folder_before_changing_any_cache(self):
         self.folder.rmdir()
