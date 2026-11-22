@@ -62,11 +62,11 @@ static void the_baseline_centres_the_line_in_its_area(void)
 static void a_label_never_paints_outside_its_area(void)
 {
     Canvas canvas = blank_canvas();
-    label_draw(&canvas, INK_STYLE, (Label){.area = {2, 0, 4, 4}, .text = "AB"});
+    label_draw(&canvas, INK_STYLE, (Label){.area = {2, 0, 6, 4}, .text = "AB"});
     int inked_inside = 0;
     for (int y = 0; y < HEIGHT; y++) {
         for (int x = 0; x < WIDTH; x++) {
-            bool inside = x >= 2 && x < 6;
+            bool inside = x >= 2 && x < 8;
             Color pixel = canvas_pixel_at(&canvas, x, y);
             CHECK(inside || pixel == BACKGROUND);
             inked_inside += inside && pixel != BACKGROUND ? 1 : 0;

@@ -51,6 +51,37 @@ static void partial_coverage_blends_with_the_background(void)
     CHECK_EQUAL(INK, canvas_pixel_at(&canvas, 1, 0));
 }
 
+static const uint8_t BOX_BITMAP[] = {0xFF, 0xFF, 0xFF, 0xFF};
+static const Glyph BOX_GLYPHS[] = {{'?', 0, 2, 4, 2, 3, 6}};
+static const Font BOX_FONT = {
+    .glyphs = BOX_GLYPHS, .bitmap = BOX_BITMAP, .glyph_count = 1, .ascent = 3, .descent = 1};
+
+static void a_character_no_font_can_draw_is_an_outlined_box_halfway_to_the_background(void)
+{
+    Canvas canvas = blank_canvas();
+    TextStyle style = {.font = &BOX_FONT, .color = INK};
+    CHECK_EQUAL(6, text_draw(&canvas, style, (Point){0, 3}, "Z"));
+    Color box = (Color)(((INK >> 1) & 0x7BEF) + ((BACKGROUND >> 1) & 0x7BEF));
+    for (int x = 1; x <= 4; x++) {
+        CHECK_EQUAL(box, canvas_pixel_at(&canvas, x, 0));
+        CHECK_EQUAL(box, canvas_pixel_at(&canvas, x, 3));
+    }
+    CHECK_EQUAL(box, canvas_pixel_at(&canvas, 1, 1));
+    CHECK_EQUAL(box, canvas_pixel_at(&canvas, 4, 2));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 2, 1));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 0, 1));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 5, 1));
+}
+
+static void a_question_mark_still_draws_its_own_glyph(void)
+{
+    Canvas canvas = blank_canvas();
+    TextStyle style = {.font = &BOX_FONT, .color = INK};
+    text_draw(&canvas, style, (Point){0, 3}, "?");
+    CHECK_EQUAL(INK, canvas_pixel_at(&canvas, 2, 1));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 1, 1));
+}
+
 static void drawing_returns_the_advanced_pen(void)
 {
     Canvas canvas = blank_canvas();
@@ -154,6 +185,8 @@ int main(void)
         TEST_CASE(a_span_draws_only_its_bytes),
         TEST_CASE(tabular_digits_take_the_widest_digit_and_sit_centred),
         TEST_CASE(a_span_stops_at_a_nul_inside_its_bytes),
+        TEST_CASE(a_character_no_font_can_draw_is_an_outlined_box_halfway_to_the_background),
+        TEST_CASE(a_question_mark_still_draws_its_own_glyph),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
