@@ -117,6 +117,14 @@ if(ARM_GCC)
             list(APPEND target_audit_definitions --module-source ${module}=${audit_source})
         endforeach()
     endforeach()
+    foreach(source IN LISTS ECHO_RESCAN_OVERLAY_APP_SOURCES)
+        string(REGEX REPLACE "^src/" "" audit_source ${source})
+        list(APPEND target_audit_definitions --module-source rescan_overlay=${audit_source})
+    endforeach()
+    foreach(source IN LISTS ECHO_USB_OVERLAY_APP_SOURCES)
+        string(REGEX REPLACE "^src/" "" audit_source ${source})
+        list(APPEND target_audit_definitions --module-source usb_overlay=${audit_source})
+    endforeach()
     add_test(NAME target_audit
         COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/target_audit.py
             --source-root ${PROJECT_SOURCE_DIR}/src

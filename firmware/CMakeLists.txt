@@ -41,6 +41,7 @@ set(ECHO_LANGUAGES en CACHE STRING "Language packs built into the image, the def
 include(cmake/project_options.cmake)
 include(cmake/language_packs.cmake)
 include(cmake/screen_modules.cmake)
+include(cmake/overlay_sources.cmake)
 include(cmake/host_module_guard.cmake)
 
 add_subdirectory(src)

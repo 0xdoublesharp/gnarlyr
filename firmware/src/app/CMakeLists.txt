@@ -161,11 +161,12 @@ if(ECHO_BUILD_DEVICE)
     target_sources(echo_app PRIVATE extension_calls.c)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
-    target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c hidden_scan.c scan_guard.c
-        missing_fonts_record.c
-        debug_frames.c debug_runner_begin.c
-        screens/usb_dac_menu.c screens/usb_meter.c screens/usb_screen.c
-        screens/usb_screen_dac.c screens/usb_screen_stats.c screens/usb_screen_traffic.c screens/usb_screen_terrain.c)
+    list(TRANSFORM ECHO_RESCAN_OVERLAY_APP_SOURCES PREPEND ${PROJECT_SOURCE_DIR}/ OUTPUT_VARIABLE
+        echo_rescan_overlay_app_sources)
+    list(TRANSFORM ECHO_USB_OVERLAY_APP_SOURCES PREPEND ${PROJECT_SOURCE_DIR}/ OUTPUT_VARIABLE
+        echo_usb_overlay_app_sources)
+    target_sources(echo_app PRIVATE modules/linked_modules.c ${echo_rescan_overlay_app_sources}
+        ${echo_usb_overlay_app_sources})
 endif()
 target_include_directories(echo_app PUBLIC include PRIVATE .)
 target_link_libraries(echo_app

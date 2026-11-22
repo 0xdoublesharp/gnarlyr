@@ -1,0 +1,17 @@
+set(ECHO_RESCAN_OVERLAY_APP_SOURCES
+    src/app/library_rescan_job.c
+    src/app/hidden_scan.c
+    src/app/scan_guard.c
+    src/app/missing_fonts_record.c
+)
+set(ECHO_USB_OVERLAY_APP_SOURCES
+    src/app/debug_frames.c
+    src/app/debug_runner_begin.c
+    src/app/screens/usb_dac_menu.c
+    src/app/screens/usb_meter.c
+    src/app/screens/usb_screen.c
+    src/app/screens/usb_screen_dac.c
+    src/app/screens/usb_screen_stats.c
+    src/app/screens/usb_screen_traffic.c
+    src/app/screens/usb_screen_terrain.c
+)
