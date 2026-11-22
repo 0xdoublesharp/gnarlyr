@@ -338,8 +338,6 @@ def open_card_file(path, create=False, writable=True):
     path = path.absolute()
     parent = checked_cache_folder(path.parent)
     flags = (os.O_RDWR if writable else os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
-    if create:
-        flags |= os.O_CREAT
     directory = None
     descriptor = None
     try:
@@ -348,9 +346,14 @@ def open_card_file(path, create=False, writable=True):
                                 getattr(os, "O_NOFOLLOW", 0))
             if not same_file(parent, os.fstat(directory)):
                 raise SyncError("The cache folder changed. Nothing was written.")
-            descriptor = os.open(path.name, flags, 0o600, dir_fd=directory)
-        else:
-            descriptor = os.open(path, flags, 0o600)
+        leaf = path.name if directory is not None else path
+        try:
+            descriptor = os.open(leaf, flags, 0o600, dir_fd=directory)
+        except FileNotFoundError:
+            if not create:
+                raise
+            descriptor = os.open(leaf, flags | os.O_CREAT | os.O_EXCL, 0o600,
+                                 dir_fd=directory)
         current = os.fstat(descriptor)
         if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1 or
                 not same_file(current, path.lstat()) or

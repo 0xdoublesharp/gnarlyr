@@ -62,6 +62,22 @@ class CacheConfinementTest(unittest.TestCase):
             echo_sync.write_card_file(target, b"new library", self.spec)
         self.assertFalse(missing.exists())
 
+    def test_path_based_cache_open_does_not_create_a_dangling_link_target(self):
+        missing = self.outside / "new.bin"
+        target = self.folder / self.spec.name
+        target.symlink_to(missing)
+        with (mock.patch.object(os, "supports_dir_fd", set()),
+              mock.patch.object(os, "O_NOFOLLOW", 0, create=True)):
+            with self.assertRaises((echo_sync.SyncError, OSError)):
+                echo_sync.write_card_file(target, b"new library", self.spec)
+        self.assertFalse(missing.exists())
+        self.assertTrue(target.is_symlink())
+        target.unlink()
+        with self.assertRaises(FileNotFoundError):
+            with echo_sync.open_card_file(target, writable=False):
+                self.fail("opened missing cache file without approval to create it")
+        self.assertFalse(target.exists())
+
     def test_sync_refuses_a_redirected_data_folder_before_changing_any_cache(self):
         self.folder.rmdir()
         self.folder.symlink_to(self.outside, target_is_directory=True)

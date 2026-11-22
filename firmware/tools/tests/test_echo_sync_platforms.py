@@ -190,21 +190,24 @@ class PlayerDriveDiscoveryTest(unittest.TestCase):
         for field, value in (("idVendor", "1209"), ("idProduct", "0001"),
                              ("product", echo_sync.IDENTITY.name)):
             (player / field).write_text(value)
-        for disk, lun in (("sda", 0), ("sdb1", 1), ("sdc", 2)):
-            path = player / "host5" / f"5:0:0:{lun}" / "block" / disk
-            path.mkdir(parents=True)
-            (block / disk).symlink_to(path)
-        self.assertEqual((player, 0), echo_sync.linux_player_lun("/dev/sda", block))
-        self.assertEqual((player, 1), echo_sync.linux_player_lun("/dev/sdb1", block))
-        self.assertIsNone(echo_sync.linux_player_lun("/dev/sdc", block))
-        self.assertIsNone(echo_sync.linux_player_lun("/dev/absent", block))
-        self.assertIsNone(echo_sync.linux_player_lun("tmpfs", block))
-        local = self.root / "virtual" / "block" / "loop0"
-        local.mkdir(parents=True)
-        (block / "loop0").symlink_to(local)
-        self.assertIsNone(echo_sync.linux_player_lun("/dev/loop0", block))
-        (player / "product").write_text("Another USB device")
-        self.assertIsNone(echo_sync.linux_player_lun("/dev/sda", block))
+        address = echo_sync.SCSI_ADDRESS
+        parser = SimpleNamespace(fullmatch=lambda name: address.fullmatch(name.replace("_", ":")))
+        with mock.patch.object(echo_sync, "SCSI_ADDRESS", parser):
+            for disk, lun in (("sda", 0), ("sdb1", 1), ("sdc", 2)):
+                path = player / "host5" / f"5_0_0_{lun}" / "block" / disk
+                path.mkdir(parents=True)
+                (block / disk).symlink_to(path, target_is_directory=True)
+            self.assertEqual((player, 0), echo_sync.linux_player_lun("/dev/sda", block))
+            self.assertEqual((player, 1), echo_sync.linux_player_lun("/dev/sdb1", block))
+            self.assertIsNone(echo_sync.linux_player_lun("/dev/sdc", block))
+            self.assertIsNone(echo_sync.linux_player_lun("/dev/absent", block))
+            self.assertIsNone(echo_sync.linux_player_lun("tmpfs", block))
+            local = self.root / "virtual" / "block" / "loop0"
+            local.mkdir(parents=True)
+            (block / "loop0").symlink_to(local, target_is_directory=True)
+            self.assertIsNone(echo_sync.linux_player_lun("/dev/loop0", block))
+            (player / "product").write_text("Another USB device")
+            self.assertIsNone(echo_sync.linux_player_lun("/dev/sda", block))
 
         rows = [("/dev/sda", str(self.internal), "vfat", ""),
                 ("/dev/sdb1", str(self.card), "exfat", ""),
