@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "device/updater.h"
+#include "playback/store.h"
 #include "trial_record.h"
 
 #define TRIAL_BOOT_MODULE_NUMBER 15u
@@ -11,6 +12,9 @@
 struct UsbShared;
 struct HeadphoneStore;
 struct SettingsStore;
+struct Player;
+struct Favorites;
+struct Bookmarks;
 
 typedef struct TrialBootModuleEntry {
     uint32_t magic;
@@ -19,6 +23,9 @@ typedef struct TrialBootModuleEntry {
     bool (*settle)(struct UsbShared *shared);
     void (*headphones_load)(struct HeadphoneStore *store);
     void (*settings_read)(struct SettingsStore *store);
+    bool (*player_restore)(struct Player *player, bool cold_start);
+    StoreLoad (*favorites_read)(struct Favorites *favorites);
+    StoreLoad (*spoken_read)(struct Bookmarks *bookmarks);
 } TrialBootModuleEntry;
 
 typedef struct TrialInstall {

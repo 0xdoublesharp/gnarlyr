@@ -54,4 +54,5 @@ const PlayingModuleEntry PLAYING_MODULE_ENTRY = {
     .now_playing_attach = attach,
     .wire_boot = wire_boot_fade,
     .artist_strip = artist_strip,
-    .only_album = artist_album_only};
+    .only_album = artist_album_only,
+    .song_actions = browse_pool_song_actions};

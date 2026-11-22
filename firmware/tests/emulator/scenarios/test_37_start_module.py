@@ -123,13 +123,14 @@ class EchoImageTest(EchoImageHarness):
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, START_MODULE, 600, lambda byte: byte ^ 0xFF)
         machine = session.machine
-        calls = machine.trace("headphone_store_load")
-        reads = machine.trace("settings_store_read")
+        wrappers = [machine.trace(name) for name in
+                    ("headphone_store_load", "settings_store_read", "player_restore",
+                     "favorites_store_read", "spoken_store_read")]
         applied, watch = self.started(session)
         self.assertTrue(applied)
         self.assertEqual(0, applied[-1][2], applied)
         failed = [call for call in self.start_loads(watch) if not call["loaded"]]
-        self.assertEqual(len(calls) + len(reads), len(failed), failed)
+        self.assertEqual(sum(len(calls) for calls in wrappers), len(failed), failed)
         settled = len(watch.loads())
         machine.run(until_ms=machine.milliseconds() + 1500)
         self.assertEqual(settled, len(watch.loads()))
@@ -149,6 +150,20 @@ class EchoImageTest(EchoImageHarness):
                          [watch.describe(call) for call in watch.loads()])
         self.assertEqual(SAVED_VOLUME, session.machine.read_memory(
             session.machine.symbols["volume_level"], 1)[0])
+        self.assert_healthy(session)
+
+    def test_the_session_favorites_and_positions_are_read_through_the_same_start_module_load(self):
+        session = self.session(volume=self.settings_volume())
+        machine = session.machine
+        starts = machine.trace("headphone_store_load")
+        reads = [machine.trace(name) for name in
+                 ("player_restore", "favorites_store_read", "spoken_store_read")]
+        _, watch = self.started(session)
+        self.assertTrue(starts)
+        for calls in reads:
+            self.assertEqual(len(starts), len(calls))
+        self.assertEqual(len(starts), len(self.start_loads(watch)),
+                         [watch.describe(call) for call in watch.loads()])
         self.assert_healthy(session)
 
     def test_without_an_intact_start_module_the_saved_settings_are_never_overwritten(self):

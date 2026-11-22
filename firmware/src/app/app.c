@@ -1841,6 +1841,7 @@ static void start_app(bool power_on)
     app.theme = BOARD_THEME;
     theme_runtime_close(&app.themes);
     app.themes = (ThemeRuntime){.file = {.handle = -1}};
+    start_playback(power_on);
     uint8_t selection;
     if (hal_internal_file_read(THEME_SELECTION_PATH, &selection, 1)) {
         const ViewsModuleEntry *themes = hal_system_load_module(SCREEN_MODULE_VIEWS);
@@ -1851,7 +1852,6 @@ static void start_app(bool power_on)
     app.screens.bound_modules = 0;
     apply_orientation(app.settings.settings.orientation);
     follow_appearance();
-    start_playback(power_on);
     start_hardware(now_ms);
     if (!power_on) {
         bluetooth_link_resume(&app.bluetooth, &app.toast, now_ms);

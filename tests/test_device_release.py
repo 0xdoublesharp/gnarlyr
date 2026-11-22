@@ -50,7 +50,7 @@ class FakeRelease(release.Release):
             return OLD
         raise AssertionError(arguments)
 
-    def build(self, root):
+    def build(self, root, *, env=None):
         return self.root / "firmware/build/device"
 
 
@@ -77,7 +77,7 @@ class ReleaseTests(unittest.TestCase):
         self.new_build = self.make_build(self.root / "firmware/build/device", NEW)
         self.old_candidate = self.runner.freeze(self.old_build, OLD)
 
-    def make_build(self, path, sha, recorded=True):
+    def make_build(self, path, sha, recorded=True, build_label=None):
         directory = path / "platform/device"
         directory.mkdir(parents=True, exist_ok=True)
         names = ("echo_device", "echo_usb_overlay", "echo_rescan_overlay", "echo_module_settings")
@@ -89,7 +89,7 @@ class ReleaseTests(unittest.TestCase):
                                    [directory / "echo_module_settings.elf"])
         data = bytearray(0x500004)
         data[echo_debug.IMAGE_BRAND] = echo_debug.IDENTITY["id"].encode().ljust(8, b"\0")
-        data[echo_debug.IMAGE_BUILD] = sha[:7].encode().ljust(8, b"\0")
+        data[echo_debug.IMAGE_BUILD] = (build_label or sha[:7]).encode().ljust(8, b"\0")
         (path / echo_debug.UPDATE_FILE).write_bytes(data)
         return path
 
@@ -138,6 +138,27 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "already installed"):
             self.execute()
 
+    def test_installed_beta_label_resolves_before_selecting_its_upgrade_source(self):
+        self.device.build = "beta.1"
+        git = self.runner.git
+        revision = f"refs/tags/v{echo_debug.IDENTITY['version']}-{self.device.build}^{{commit}}"
+
+        def resolve_tag(*arguments):
+            if arguments == ("rev-parse", "--verify", "--quiet", revision):
+                return OLD
+            return git(*arguments)
+
+        with mock.patch.object(self.runner, "git", side_effect=resolve_tag):
+            with self.assertRaisesRegex(ValueError, "the player's build 'beta\\.1'"):
+                self.execute()
+            self.proof.assert_not_called()
+            self.old_candidate.rename(self.scratch / "untagged-candidate")
+            self.make_build(self.old_build, OLD, build_label=self.device.build)
+            self.runner.freeze(self.old_build, OLD)
+            result = self.execute()
+        self.assertEqual(result["installed_commit"], OLD)
+        self.proof.assert_called_once_with(self.old_candidate, Path(result["candidate"]))
+
     def test_dirty_tree_is_refused(self):
         with mock.patch.object(self.runner, "git", return_value=" M source.c"):
             with self.assertRaisesRegex(ValueError, "clean"):
@@ -177,6 +198,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertTrue((historical / "platform/device/echo_module_settings.elf").is_file())
 
     def test_missing_historical_candidate_builds_exact_commit_and_removes_checkout(self):
+        self.runner.env["ECHO_BUILD_TAG"] = "beta.2"
         with mock.patch.object(self.runner, "git") as git:
             with mock.patch.object(self.runner, "build", return_value=self.old_build) as build:
                 with mock.patch.object(self.runner, "freeze", return_value=self.old_candidate) as freeze:
@@ -185,7 +207,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(git.call_args_list[0].args[:3], ("worktree", "add", "--detach"))
         self.assertEqual(git.call_args_list[0].args[-1], NEW)
         freeze.assert_called_once_with(self.old_build, NEW, historical=True)
-        build.assert_called_once()
+        build.assert_called_once_with(Path(git.call_args_list[0].args[3]), env={})
 
     def test_failed_historical_build_removes_only_its_checkout_and_output(self):
         calls = []

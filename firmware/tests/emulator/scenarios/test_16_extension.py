@@ -95,6 +95,42 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(all(draws))
         self.assert_healthy(session)
 
+    def usb_figure_session(self):
+        from unicorn import UC_HOOK_CODE
+        from echo_emulator.modules import module_layout, overlay_path
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.note("usb_session_storage_changed")
+        overlay = next(code for code in machine.overlays if code.name == "echo_usb_overlay")
+        self.assertNotIn("WIRE_MODEL_CASSETTE", overlay.symbols)
+        extension = next(code for code in machine.modules
+                         if code.number == make_image.EXTENSION_MODULE_NUMBER)
+        first = make_image.EXTENSION_MODULE_BASE
+        functions, _ = module_layout(overlay_path(extension), first,
+                                     first + make_image.EXTENSION_MODULE_CAPACITY - 1)
+        figure = next(address for address, name in functions.items() if name == "wire_figure_draw")
+        shim, drawn = [], []
+        for address, calls in ((overlay.symbols["wire_figure_draw"], shim), (figure, drawn)):
+            def entered(uc, at, size, user, calls=calls):
+                calls.append(at)
+            machine.uc.hook_add(UC_HOOK_CODE, entered, begin=address, end=address)
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        drawn.clear()
+        self.assertEqual(session.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertTrue(shim)
+        return session, drawn
+
+    def test_usb_draws_its_cassette_with_the_extension_figure_code(self):
+        session, drawn = self.usb_figure_session()
+        self.assertTrue(drawn)
+        self.assert_healthy(session)
+
+    def test_usb_runs_without_its_cassette_when_both_extension_copies_are_damaged(self):
+        self.damaged_extension_slots = ("slot_1", "slot_2")
+        session, drawn = self.usb_figure_session()
+        self.assertEqual([], drawn)
+        self.assert_healthy(session)
+
     def test_a_damaged_extension_module_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
         session = self.session()
         number = make_image.EXTENSION_MODULE_NUMBER
