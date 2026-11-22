@@ -14,6 +14,15 @@ _Static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "the target is little-
 #define FORMAL_CARD_FRESH 0
 #endif
 
+#define FORMAL_OBJECT_LIMIT (1u << 19)
+
+#define FORMAL_TEXT_ENDS(out, capacity)                                                            \
+    __CPROVER_exists                                                                               \
+    {                                                                                              \
+        uint32_t formal_at;                                                                        \
+        formal_at < (capacity) && (out)[formal_at] == '\0'                                         \
+    }
+
 #ifndef FORMAL_CARD_BYTES
 #define FORMAL_CARD_BYTES 64
 #endif

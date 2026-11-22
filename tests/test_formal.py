@@ -33,7 +33,8 @@ class ManifestTests(unittest.TestCase):
     def test_every_harness_names_files_that_exist(self):
         harnesses = manifest()["cbmc"]["harnesses"]
         for name, harness in harnesses.items():
-            entry = formal.FORMAL / "cbmc" / "harnesses" / f"{harness['entry']}.c"
+            folder = "units" if harness.get("unit") else "harnesses"
+            entry = formal.FORMAL / "cbmc" / folder / f"{harness['entry']}.c"
             self.assertTrue(entry.is_file(), name)
             for source in harness["sources"]:
                 self.assertTrue((formal.SOURCE / source).is_file(), f"{name}: {source}")
@@ -162,6 +163,103 @@ class CoverageTests(unittest.TestCase):
         self.assertNotIn("--unsigned-overflow-check", command)
 
 
+class PatchTests(unittest.TestCase):
+    SOURCE = ("static int twice(int value)\n{\n    for (int at = 0; at < 2; at++) {\n        value++;\n    }\n"
+              "    return value;\n}\n")
+
+    def test_contracts_and_loop_contracts_are_inserted_on_the_same_line(self):
+        text, applied = formal.patch_text(self.SOURCE, {"twice": "FORMAL_CONTRACT_twice"},
+                                          {"twice": {0: "FORMAL_LOOP_twice_0"}}, "a.c")
+        self.assertIn("static int twice(int value) FORMAL_CONTRACT_twice\n", text)
+        self.assertIn("for (int at = 0; at < 2; at++) FORMAL_LOOP_twice_0 {", text)
+        self.assertEqual(text.count("\n"), self.SOURCE.count("\n"))
+        self.assertEqual(applied, ["FORMAL_CONTRACT_twice", "FORMAL_LOOP_twice_0"])
+
+    def test_a_function_with_some_loops_annotated_must_annotate_all(self):
+        source = self.SOURCE.replace("    return value;", "    while (value > 9) {\n        value--;\n    }\n    return value;")
+        with self.assertRaises(SystemExit):
+            formal.patch_text(source, {}, {"twice": {0: "FORMAL_LOOP_twice_0"}}, "a.c")
+
+    def test_a_do_while_tail_is_not_a_loop_head(self):
+        source = "void f(void)\n{\n    do {\n    } while (g());\n}\n"
+        self.assertEqual(formal.loop_heads(source, 0, len(source)), [])
+
+    def test_a_planted_change_must_match_exactly_once_on_one_line(self):
+        self.assertIn("at <= 2", formal.plant_text(self.SOURCE, {"find": "at < 2", "replace": "at <= 2"}, "a.c"))
+        with self.assertRaises(SystemExit):
+            formal.plant_text(self.SOURCE, {"find": "value", "replace": "x"}, "a.c")
+
+    def test_loops_of_functions_with_loop_contracts_are_not_unwound_first(self):
+        output = "Loop twice.0:\nLoop other.0:\nLoop __CPROVER_contracts_x.0:\n"
+        unwindset = formal.plain_unwindset(output, ["FORMAL_LOOP_twice_0"], {"unwind": 9, "unwindset": "other.0:3"})
+        self.assertEqual(unwindset, "other.0:3")
+
+    def test_unit_harnesses_use_dfcc_with_their_enforced_and_replaced_contracts(self):
+        harness = {"unit": True, "enforce": "f", "replace": ["g", "h/variant"]}
+        options = formal.dfcc_options(harness, ["FORMAL_LOOP_f_0"])
+        self.assertEqual(options[:4], ["--dfcc", "harness", "--enforce-contract", "f"])
+        self.assertIn("h/variant", options)
+        self.assertEqual(options[-1], "--apply-loop-contracts")
+
+
+class PlantedTests(unittest.TestCase):
+    def test_a_planted_fault_must_be_caught_at_its_line(self):
+        output = ("[f.pointer_dereference.3] line 12 dereference failure: FAILURE\n"
+                  "** 1 of 9 failed (2 iterations)\nVERIFICATION FAILED")
+        planted = {"expect": "failed", "planted": {"function": "f", "line": 12}}
+        self.assertEqual(formal.judge_cbmc(10, output, planted)[0], "expected-failure")
+        planted["planted"]["line"] = 13
+        self.assertEqual(formal.judge_cbmc(10, output, planted)[0], "failed")
+
+    def test_a_planted_fault_can_name_the_contract_property_it_breaks(self):
+        output = "[g.postcondition.1] line 4 Check ensures clause: FAILURE\nVERIFICATION FAILED"
+        planted = {"expect": "failed", "planted": {"property": "g.postcondition"}}
+        self.assertEqual(formal.judge_cbmc(10, output, planted)[0], "expected-failure")
+
+
+class SelectionTests(unittest.TestCase):
+    TABLE = {"cbmc": {"harnesses": {"id3_a": {"default": False}, "id3_b": {}, "flac_a": {}}},
+             "tla": {"models": {}}}
+
+    def test_harness_patterns_select_several_harnesses_including_opt_in_ones(self):
+        chosen = formal.selected(self.TABLE, ("cbmc",), ["id3_*"])
+        self.assertEqual(chosen, [("cbmc", "id3_a"), ("cbmc", "id3_b")])
+        self.assertEqual(len(formal.selected(self.TABLE, ("cbmc",), ["id3_b,flac_a"])), 2)
+
+    def test_coverage_is_counted_for_the_target_functions_only(self):
+        output = ("[f.coverage.1] file a.c line 3 function f block 1 (lines x): SATISFIED\n"
+                  "[f.coverage.2] file a.c line 4 function __CPROVER_contracts_original_f block 2 (lines x): FAILED\n"
+                  "[g.coverage.1] file a.c line 9 function g block 1 (lines x): SATISFIED\n")
+        self.assertEqual(formal.coverage_by_function(output, ["f"]), {"f": (1, 2)})
+
+
+class ClosureTests(unittest.TestCase):
+    def test_every_replaced_contract_is_enforced_and_every_reader_function_has_a_harness(self):
+        self.assertEqual(formal.closure_problems(manifest()), [])
+
+    def test_a_replaced_contract_without_a_harness_is_reported(self):
+        table = {"cbmc": {"harnesses": {"a": {"replace": ["g"], "targets": []}}}}
+        self.assertEqual(formal.closure_problems(table), ["a: replaces g, which no harness enforces"])
+
+    def test_a_pending_function_passes_closure_but_is_listed(self):
+        table = {"cbmc": {"harnesses": {}, "families": {
+            "f": {"files": ["src/library/tags_id3.c"], "outside": [], "pending": []}}}}
+        functions = formal.defined_functions((formal.SOURCE / "src/library/tags_id3.c").read_text())
+        table["cbmc"]["families"]["f"]["pending"] = functions
+        self.assertEqual(formal.closure_problems(table), [])
+        self.assertEqual(len(formal.closure_pending(table)), len(functions))
+        self.assertIn(f"f: {functions[0]} awaits a harness for the current code", formal.closure_pending(table))
+
+    def test_every_unit_harness_is_opt_in_and_every_planted_one_expects_a_failure(self):
+        for name, harness in manifest()["cbmc"]["harnesses"].items():
+            if harness.get("unit"):
+                self.assertFalse(harness.get("default", True), name)
+                self.assertTrue((formal.FORMAL / "cbmc" / "units" / f"{harness['entry']}.c").is_file(), name)
+            if harness.get("plant"):
+                self.assertEqual(harness.get("expect"), "failed", name)
+                self.assertTrue(harness.get("planted"), name)
+
+
 class RunTests(unittest.TestCase):
     def test_a_harness_run_compiles_instruments_and_checks_in_its_own_folder(self):
         failures = "\n".join(f"[{name}] x: FAILURE" for name in manifest()["cbmc"]["harnesses"]["canary"]["failures"])
@@ -184,6 +282,29 @@ class RunTests(unittest.TestCase):
         self.assertIn("-metadir", command)
         self.assertEqual(command[-1], "CoreHandoff.tla")
         self.assertEqual(outcome.status, "passed")
+
+
+class ReproTests(unittest.TestCase):
+    def outcome(self, entry, code):
+        table = {"repro": {"r": {"entry": "r.c", "sources": [], **entry}}}
+        with tempfile.TemporaryDirectory() as work:
+            runner = FakeRunner([(0, ""), (code, "no cycle\n")])
+            return formal.run_repro("r", table, Path(work), {}, runner)
+
+    def test_a_counterexample_that_still_reproduces_is_reported(self):
+        outcome = self.outcome({}, 0)
+        self.assertEqual("reproduced", outcome.status)
+        self.assertTrue(formal.good(outcome))
+
+    def test_a_fixed_finding_counts_only_when_the_entry_expects_the_fix(self):
+        self.assertEqual("not-reproduced", self.outcome({}, 1).status)
+        self.assertFalse(formal.good(self.outcome({}, 1)))
+        fixed = self.outcome({"expect": "fixed"}, 1)
+        self.assertEqual("fixed", fixed.status)
+        self.assertTrue(formal.good(fixed))
+        regressed = self.outcome({"expect": "fixed"}, 0)
+        self.assertEqual("regressed", regressed.status)
+        self.assertFalse(formal.good(regressed))
 
 
 class ToolDetectionTests(unittest.TestCase):

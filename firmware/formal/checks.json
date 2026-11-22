@@ -378,8 +378,3213 @@
         ],
         "unwinding_assertions": false,
         "default": false
+      },
+      "tag_read": {
+        "unit": true,
+        "entry": "tag_read",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tag_read",
+        "replace": [
+          "tag_unsync_read"
+        ],
+        "targets": [
+          "tag_read"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "tag_decode": {
+        "unit": true,
+        "entry": "tag_decode",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tag_decode",
+        "replace": [],
+        "targets": [
+          "tag_decode",
+          "put_code_point",
+          "next_code_point",
+          "next_utf8",
+          "next_utf16",
+          "utf8_size",
+          "is_space"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "tag_decode_gain_text": {
+        "unit": true,
+        "entry": "tag_decode_gain_text",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tag_decode_gain_text",
+        "replace": [],
+        "targets": [
+          "tag_decode_gain_text",
+          "gain_bom",
+          "empty_gain_tail"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "replay_gain_field": {
+        "unit": true,
+        "entry": "replay_gain_field",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "replay_gain.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "replay_gain_field",
+        "replace": [],
+        "targets": [
+          "replay_gain_field",
+          "lower"
+        ],
+        "unwind": 24,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "replay_gain_offer": {
+        "unit": true,
+        "entry": "replay_gain_offer",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "replay_gain.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "replay_gain_offer",
+        "replace": [
+          "number_of",
+          "gain_value",
+          "peak_value"
+        ],
+        "targets": [
+          "replay_gain_offer"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "rg_number": {
+        "unit": true,
+        "entry": "rg_number",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "replay_gain.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "number_of",
+        "replace": [],
+        "targets": [
+          "number_of",
+          "skip_space",
+          "decimal_part",
+          "exponent_part",
+          "accumulate",
+          "digit"
+        ],
+        "unwind": 66,
+        "timeout": 3600,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "rg_gain_value": {
+        "unit": true,
+        "entry": "rg_gain_value",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "replay_gain.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "gain_value",
+        "replace": [],
+        "targets": [
+          "gain_value",
+          "fraction_value"
+        ],
+        "unwind": 202,
+        "timeout": 3600,
+        "default": false,
+        "unwindset": "fraction_value.0:21",
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "rg_peak_value": {
+        "unit": true,
+        "entry": "rg_peak_value",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "replay_gain.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "peak_value",
+        "replace": [],
+        "targets": [
+          "peak_value",
+          "peak_integer",
+          "peak_fraction"
+        ],
+        "unwind": 202,
+        "timeout": 3600,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "replay_gain_offer_r128": {
+        "unit": true,
+        "entry": "replay_gain_offer_r128",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "replay_gain.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "replay_gain_offer_r128",
+        "replace": [],
+        "targets": [
+          "replay_gain_offer_r128",
+          "r128_value"
+        ],
+        "unwind": 8,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "tag_unsync_read": {
+        "unit": true,
+        "entry": "tag_unsync_read",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": null,
+        "replace": [],
+        "targets": [
+          "tag_unsync_read",
+          "unsync_rewind",
+          "unsync_take",
+          "tag_unsync_start"
+        ],
+        "unwind": 65,
+        "timeout": 1200,
+        "default": false,
+        "dfcc": false,
+        "proves": "tag_unsync_read",
+        "restrict_function_pointers": [
+          "tag_unsync_read.function_pointer_call.1/formal_card_read"
+        ],
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_unsync": {
+        "unit": true,
+        "entry": "id3_unsync",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "remove_unsync",
+        "replace": [],
+        "targets": [
+          "remove_unsync"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_value_end": {
+        "unit": true,
+        "entry": "id3_value_end",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "value_end",
+        "replace": [],
+        "targets": [
+          "value_end"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_genre_text": {
+        "unit": true,
+        "entry": "id3_genre_text",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "offer_genre_text",
+        "replace": [],
+        "targets": [
+          "offer_genre_text",
+          "all_digits",
+          "number_of",
+          "genre_for_id",
+          "leading_id",
+          "offer_text",
+          "tag_offer_decoded",
+          "tags_id3_genre",
+          "tag_same_text"
+        ],
+        "unwind": 257,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_text_frame": {
+        "unit": true,
+        "entry": "id3_text_frame",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_text_frame",
+        "replace": [
+          "tag_read",
+          "tag_decode",
+          "remove_unsync",
+          "value_end",
+          "offer_genre_text"
+        ],
+        "targets": [
+          "read_text_frame",
+          "for_each_value",
+          "decode_value",
+          "encoding_of",
+          "terminator_width",
+          "offer_value",
+          "offer_genre",
+          "keep_year",
+          "length_of",
+          "tag_mark_present"
+        ],
+        "unwind": 257,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_skip_value": {
+        "unit": true,
+        "entry": "id3_skip_value",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "skip_value",
+        "replace": [
+          "tag_read"
+        ],
+        "targets": [
+          "skip_value"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_picture_frame": {
+        "unit": true,
+        "entry": "id3_picture_frame",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_picture_frame",
+        "replace": [
+          "tag_read",
+          "skip_value"
+        ],
+        "targets": [
+          "read_picture_frame",
+          "offer_picture_frame",
+          "read_through",
+          "tag_unsync_start",
+          "tag_offer_picture"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_gain_frame": {
+        "unit": true,
+        "entry": "id3_gain_frame",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_replay_gain_frame",
+        "replace": [
+          "tag_read",
+          "remove_unsync",
+          "value_end",
+          "tag_decode_gain_text",
+          "replay_gain_field",
+          "replay_gain_offer"
+        ],
+        "targets": [
+          "read_replay_gain_frame",
+          "gain_frame_encoding",
+          "tag_offer_replay_gain"
+        ],
+        "unwind": 66,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_frame": {
+        "unit": true,
+        "entry": "id3_frame",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_frame",
+        "replace": [
+          "read_text_frame",
+          "read_picture_frame",
+          "read_replay_gain_frame"
+        ],
+        "targets": [
+          "read_frame",
+          "frame_named"
+        ],
+        "unwind": 13,
+        "timeout": 1200,
+        "default": false,
+        "unwindset": "tag_same_text.0:6",
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_frames": {
+        "unit": true,
+        "entry": "id3_frames",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_frames",
+        "replace": [
+          "read_frame",
+          "tag_read"
+        ],
+        "targets": [
+          "read_frames",
+          "frame_size_of",
+          "usable_frame",
+          "bytes_synchsafe",
+          "synchsafe_bytes"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_header": {
+        "unit": true,
+        "entry": "id3_header",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_read_id3v2",
+        "replace": [
+          "read_frames",
+          "tag_read"
+        ],
+        "targets": [
+          "tags_read_id3v2",
+          "extended_header_size"
+        ],
+        "unwind": 257,
+        "timeout": 1200,
+        "default": false,
+        "unwindset": "tag_same_text.0:5",
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_v1": {
+        "unit": true,
+        "entry": "id3_v1",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_read_id3v1",
+        "replace": [
+          "tag_read",
+          "tag_decode"
+        ],
+        "targets": [
+          "tags_read_id3v1",
+          "v1_text_length",
+          "offer_v1",
+          "offer_v1_track",
+          "tag_offer"
+        ],
+        "unwind": 31,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "tag_set_duration": {
+        "unit": true,
+        "entry": "tag_set_duration",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tag_set_duration",
+        "replace": [],
+        "targets": [
+          "tag_set_duration",
+          "ratio",
+          "normalized",
+          "divided",
+          "rounded_shift",
+          "set_seconds"
+        ],
+        "unwind": 66,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "vorbis_entry": {
+        "unit": true,
+        "entry": "vorbis_entry",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_vorbis.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_vorbis.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "offer_entry",
+        "replace": [
+          "tag_read",
+          "tag_decode",
+          "replay_gain_field",
+          "replay_gain_offer",
+          "replay_gain_offer_r128"
+        ],
+        "targets": [
+          "offer_entry",
+          "key_length",
+          "field_for_key",
+          "base64_picture_is_front",
+          "tags_base64_value",
+          "r128_field",
+          "source_read",
+          "read_file_bytes",
+          "tag_offer",
+          "tag_same_text_folded",
+          "tag_offer_picture"
+        ],
+        "unwind": 33,
+        "timeout": 1200,
+        "default": false,
+        "unwindset": "base64_picture_is_front.0:7,field_for_key.0:9,tag_same_text_folded.0:23,key_length.0:33",
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "vorbis_comment_walk": {
+        "unit": true,
+        "entry": "vorbis_comment_walk",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_vorbis.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_vorbis.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_read_vorbis_comment",
+        "replace": [
+          "offer_entry",
+          "tag_read"
+        ],
+        "targets": [
+          "tags_read_vorbis_comment",
+          "tag_le32"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "id3_skip": {
+        "unit": true,
+        "entry": "id3_skip",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_skip_id3v2",
+        "replace": [
+          "tag_read"
+        ],
+        "targets": [
+          "tags_skip_id3v2",
+          "bytes_synchsafe"
+        ],
+        "unwind": 2,
+        "unwindset": "tag_same_text.0:4",
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "flac_picture": {
+        "unit": true,
+        "entry": "flac_picture",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_vorbis.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_vorbis.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_flac_picture",
+        "replace": [
+          "tag_read"
+        ],
+        "targets": [
+          "read_flac_picture",
+          "bytes_be32"
+        ],
+        "unwind": 3,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "flac_blocks": {
+        "unit": true,
+        "entry": "flac_blocks",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_vorbis.c",
+          "src/library/tags_id3.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_vorbis.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h",
+          "tags_vorbis.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_read_flac",
+        "replace": [
+          "tags_skip_id3v2",
+          "tag_read",
+          "tags_read_vorbis_comment",
+          "read_flac_picture",
+          "tag_set_duration"
+        ],
+        "targets": [
+          "tags_read_flac",
+          "read_streaminfo",
+          "file_source"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_read_atom": {
+        "unit": true,
+        "entry": "mp4_read_atom",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_mp4_read_atom",
+        "replace": [
+          "tag_read"
+        ],
+        "targets": [
+          "tags_mp4_read_atom",
+          "tag_be64"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_find_child": {
+        "unit": true,
+        "entry": "mp4_find_child",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_mp4_find_child",
+        "replace": [
+          "tags_mp4_read_atom"
+        ],
+        "targets": [
+          "tags_mp4_find_child"
+        ],
+        "unwind": 6,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_sound_track": {
+        "unit": true,
+        "entry": "mp4_sound_track",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "sound_track",
+        "replace": [
+          "tags_mp4_read_atom",
+          "tags_mp4_find_child",
+          "tag_read"
+        ],
+        "targets": [
+          "sound_track",
+          "is_sound_track"
+        ],
+        "unwind": 6,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_duration": {
+        "unit": true,
+        "entry": "mp4_duration",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_duration",
+        "replace": [
+          "tags_mp4_find_child",
+          "tag_read",
+          "tag_set_duration"
+        ],
+        "targets": [
+          "read_duration"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_gain_item": {
+        "unit": true,
+        "entry": "mp4_gain_item",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_gain_item",
+        "replace": [
+          "tags_mp4_find_child",
+          "tags_mp4_read_atom",
+          "tag_read",
+          "replay_gain_field",
+          "replay_gain_offer"
+        ],
+        "targets": [
+          "read_gain_item",
+          "gain_atom_text",
+          "read_gain_data"
+        ],
+        "unwind": 30,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_item": {
+        "unit": true,
+        "entry": "mp4_item",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_item",
+        "replace": [
+          "tags_mp4_read_atom",
+          "read_gain_item",
+          "tag_read",
+          "tag_decode"
+        ],
+        "targets": [
+          "read_item",
+          "item_for",
+          "read_value",
+          "read_old_genre",
+          "read_cover",
+          "offer_number",
+          "tag_offer_decoded",
+          "bytes_be16"
+        ],
+        "unwind": 31,
+        "timeout": 1200,
+        "default": false,
+        "unwindset": "item_for.0:9,offer_number.0:9,offer_number.1:9",
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_items": {
+        "unit": true,
+        "entry": "mp4_items",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_items",
+        "replace": [
+          "tags_mp4_read_atom",
+          "read_item"
+        ],
+        "targets": [
+          "read_items"
+        ],
+        "unwind": 6,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_tags": {
+        "unit": true,
+        "entry": "mp4_tags",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_tags",
+        "replace": [
+          "tags_mp4_find_child",
+          "read_items"
+        ],
+        "targets": [
+          "read_tags"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "mp4_top": {
+        "unit": true,
+        "entry": "mp4_top",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tags_read_mp4",
+        "replace": [
+          "tags_mp4_find_child",
+          "sound_track",
+          "read_duration",
+          "read_tags"
+        ],
+        "targets": [
+          "tags_read_mp4"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ]
+      },
+      "playlist_byte_at": {
+        "unit": true,
+        "entry": "playlist_byte_at",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "byte_at",
+        "replace": [],
+        "targets": [
+          "byte_at"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_valid_sequence": {
+        "unit": true,
+        "entry": "playlist_valid_sequence",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "valid_sequence",
+        "replace": [
+          "byte_at"
+        ],
+        "targets": [
+          "valid_sequence",
+          "second_byte_valid"
+        ],
+        "unwind": 4,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_is_utf8": {
+        "unit": true,
+        "entry": "playlist_is_utf8",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "is_utf8",
+        "replace": [
+          "byte_at",
+          "valid_sequence"
+        ],
+        "targets": [
+          "is_utf8",
+          "sequence_length"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_open": {
+        "unit": true,
+        "entry": "playlist_open",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "playlist_reader_open",
+        "replace": [
+          "is_utf8",
+          "byte_at"
+        ],
+        "targets": [
+          "playlist_reader_open",
+          "has_bom"
+        ],
+        "unwind": 4,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_code_point": {
+        "unit": true,
+        "entry": "playlist_code_point",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "next_code_point",
+        "replace": [
+          "byte_at"
+        ],
+        "targets": [
+          "next_code_point",
+          "sequence_length"
+        ],
+        "unwind": 4,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_put": {
+        "unit": true,
+        "entry": "playlist_put",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "put",
+        "replace": [],
+        "targets": [
+          "put",
+          "is_space"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_read_line": {
+        "unit": true,
+        "entry": "playlist_read_line",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_line",
+        "replace": [
+          "next_code_point",
+          "put",
+          "byte_at"
+        ],
+        "targets": [
+          "read_line",
+          "is_line_break"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false
+      },
+      "playlist_next": {
+        "unit": true,
+        "entry": "playlist_next",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "playlist_reader_next",
+        "replace": [
+          "read_line"
+        ],
+        "targets": [
+          "playlist_reader_next",
+          "note_directive"
+        ],
+        "unwind": 26,
+        "timeout": 1200,
+        "default": false,
+        "unwindset": "note_directive.0:16,note_directive.1:12"
+      },
+      "playlist_cue_view": {
+        "unit": true,
+        "entry": "playlist_cue_view",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "playlist_reader_next/formal_cue_reader_next",
+        "replace": [
+          "next_code_point",
+          "put",
+          "byte_at"
+        ],
+        "targets": [
+          "playlist_reader_next",
+          "note_directive",
+          "read_line",
+          "is_line_break"
+        ],
+        "unwind": 26,
+        "timeout": 1200,
+        "default": false,
+        "unwindset": "note_directive.0:16,note_directive.1:12"
+      },
+      "cue_handle_line": {
+        "unit": true,
+        "entry": "cue_handle_line",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "patch": [
+          "src/library/playlist_reader.c",
+          "src/library/cue_sheet.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "handle_line",
+        "replace": [],
+        "targets": [
+          "handle_line",
+          "find_word",
+          "after_word",
+          "skip_blanks",
+          "fold",
+          "is_blank",
+          "value_of",
+          "read_digits",
+          "track_number",
+          "read_index",
+          "copy_text",
+          "begin_building",
+          "set_text",
+          "note_file",
+          "note_rem",
+          "close_building",
+          "building_ready"
+        ],
+        "unwind": 1025,
+        "timeout": 3600,
+        "default": false,
+        "unwindset": "after_word.0:10,find_word.0:7,read_index.0:4,copy_text.0:256"
+      },
+      "cue_next": {
+        "unit": true,
+        "entry": "cue_next",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "patch": [
+          "src/library/playlist_reader.c",
+          "src/library/cue_sheet.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "cue_sheet_next",
+        "replace": [
+          "playlist_reader_next/formal_cue_reader_next",
+          "handle_line"
+        ],
+        "targets": [
+          "cue_sheet_next",
+          "finish"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false
+      },
+      "cue_usable": {
+        "unit": true,
+        "entry": "cue_usable",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "patch": [
+          "src/library/playlist_reader.c",
+          "src/library/cue_sheet.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "cue_sheet_usable",
+        "replace": [
+          "cue_sheet_next"
+        ],
+        "targets": [
+          "cue_sheet_usable"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false
+      },
+      "cue_open": {
+        "unit": true,
+        "entry": "cue_open",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "patch": [
+          "src/library/playlist_reader.c",
+          "src/library/cue_sheet.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "cue_sheet_open",
+        "replace": [
+          "playlist_reader_open"
+        ],
+        "targets": [
+          "cue_sheet_open"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false
+      },
+      "theme_crc": {
+        "unit": true,
+        "entry": "theme_crc",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c",
+          "src/app/theme_pack.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "theme_pack_crc",
+        "replace": [],
+        "targets": [
+          "theme_pack_crc"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_zeroes": {
+        "unit": true,
+        "entry": "theme_zeroes",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "zeroes",
+        "replace": [],
+        "targets": [
+          "zeroes"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_text": {
+        "unit": true,
+        "entry": "theme_text",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "text_valid",
+        "replace": [
+          "zeroes"
+        ],
+        "targets": [
+          "text_valid",
+          "utf8_next",
+          "decode_sequence",
+          "is_valid_scalar",
+          "is_continuation"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_url": {
+        "unit": true,
+        "entry": "theme_url",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "url_valid",
+        "replace": [
+          "text_valid"
+        ],
+        "targets": [
+          "url_valid"
+        ],
+        "unwind": 9,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_version": {
+        "unit": true,
+        "entry": "theme_version",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "version_valid",
+        "replace": [],
+        "targets": [
+          "version_valid"
+        ],
+        "unwind": 8,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_header": {
+        "unit": true,
+        "entry": "theme_header",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "header_valid",
+        "replace": [
+          "text_valid",
+          "zeroes",
+          "url_valid",
+          "version_valid"
+        ],
+        "targets": [
+          "header_valid",
+          "store_get16",
+          "store_get32"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_crc_walk": {
+        "unit": true,
+        "entry": "theme_crc_walk",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "crc_valid",
+        "replace": [
+          "theme_pack_crc"
+        ],
+        "targets": [
+          "crc_valid"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ]
+      },
+      "theme_palette": {
+        "unit": true,
+        "entry": "theme_palette",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "decode_palette",
+        "replace": [],
+        "targets": [
+          "decode_palette",
+          "low_contrast",
+          "luminance",
+          "theme_palette_decode"
+        ],
+        "unwind": 41,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ],
+        "unwindset": "theme_palette_decode.0:21"
+      },
+      "tag_decode_planted": {
+        "unit": true,
+        "entry": "tag_decode",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "contracts": [
+          "tags.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "tag_decode",
+        "replace": [],
+        "targets": [
+          "tag_decode",
+          "put_code_point",
+          "next_code_point",
+          "next_utf8",
+          "next_utf16",
+          "utf8_size",
+          "is_space"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ],
+        "plant": {
+          "file": "src/library/track_tags.c",
+          "find": "if (builder->length + size >= TRACK_TAG_TEXT_CAPACITY) {",
+          "replace": "if (builder->length + size > TRACK_TAG_TEXT_CAPACITY) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "function": "put_code_point",
+          "line": 161
+        }
+      },
+      "id3_unsync_planted": {
+        "unit": true,
+        "entry": "id3_unsync",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_id3.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_id3.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "remove_unsync",
+        "replace": [],
+        "targets": [
+          "remove_unsync"
+        ],
+        "unwind": 2,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ],
+        "plant": {
+          "file": "src/library/tags_id3.c",
+          "find": "if (data[index] == 0xFF && index + 1 < length && data[index + 1] == 0x00) {",
+          "replace": "if (data[index] == 0xFF && index < length && data[index + 1] == 0x00) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "function": "remove_unsync",
+          "line": 100
+        }
+      },
+      "flac_picture_planted": {
+        "unit": true,
+        "entry": "flac_picture",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_vorbis.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_vorbis.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_flac_picture",
+        "replace": [
+          "tag_read"
+        ],
+        "targets": [
+          "read_flac_picture",
+          "bytes_be32"
+        ],
+        "unwind": 3,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ],
+        "plant": {
+          "file": "src/library/tags_vorbis.c",
+          "find": "if (cursor > end - 4 || !tag_read(reader, cursor, word, 4)) {",
+          "replace": "if (cursor > end - 3 || !tag_read(reader, cursor, word, 4)) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "property": "read_flac_picture.postcondition"
+        }
+      },
+      "mp4_gain_item_planted": {
+        "unit": true,
+        "entry": "mp4_gain_item",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c"
+        ],
+        "patch": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c",
+          "src/library/tags_genres.c",
+          "src/library/replay_gain.c",
+          "src/library/tag_duration.c",
+          "src/library/tags_mp4.c"
+        ],
+        "contracts": [
+          "tags.h",
+          "tags_mp4.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "read_gain_item",
+        "replace": [
+          "tags_mp4_find_child",
+          "tags_mp4_read_atom",
+          "tag_read",
+          "replay_gain_field",
+          "replay_gain_offer"
+        ],
+        "targets": [
+          "read_gain_item",
+          "gain_atom_text",
+          "read_gain_data"
+        ],
+        "unwind": 30,
+        "timeout": 1200,
+        "default": false,
+        "bodiless": [
+          "base64_read",
+          "base64_chunk",
+          "decode_group",
+          "block_word",
+          "open_base64",
+          "tag_picture_open",
+          "tags_ogg_stream_read"
+        ],
+        "plant": {
+          "file": "src/library/tags_mp4.c",
+          "find": "if (length < 4 || length - 4 >= 64 || !tag_read(reader, atom->body + 4, text, length - 4)) {",
+          "replace": "if (length < 4 || length - 4 > 64 || !tag_read(reader, atom->body + 4, text, length - 4)) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "function": "gain_atom_text",
+          "line": 208
+        }
+      },
+      "playlist_put_planted": {
+        "unit": true,
+        "entry": "playlist_put",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [],
+        "patch": [
+          "src/library/playlist_reader.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "put",
+        "replace": [],
+        "targets": [
+          "put",
+          "is_space"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "plant": {
+          "file": "src/library/playlist_reader.c",
+          "find": "if (line->length + size >= line->capacity || (line->length == 0 && is_space(code_point))) {",
+          "replace": "if (line->length + size > line->capacity || (line->length == 0 && is_space(code_point))) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "property": "put.postcondition"
+        }
+      },
+      "cue_handle_line_planted": {
+        "unit": true,
+        "entry": "cue_handle_line",
+        "includes": [
+          "src/library"
+        ],
+        "sources": [
+          "src/library/playlist_reader.c"
+        ],
+        "patch": [
+          "src/library/playlist_reader.c",
+          "src/library/cue_sheet.c"
+        ],
+        "contracts": [
+          "playlist.h",
+          "cue.h"
+        ],
+        "stubs": [
+          "card.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "handle_line",
+        "replace": [],
+        "targets": [
+          "handle_line",
+          "find_word",
+          "after_word",
+          "skip_blanks",
+          "fold",
+          "is_blank",
+          "value_of",
+          "read_digits",
+          "track_number",
+          "read_index",
+          "copy_text",
+          "begin_building",
+          "set_text",
+          "note_file",
+          "note_rem",
+          "close_building",
+          "building_ready"
+        ],
+        "unwind": 1025,
+        "timeout": 3600,
+        "default": false,
+        "unwindset": "after_word.0:10,find_word.0:7,read_index.0:4,copy_text.0:256",
+        "plant": {
+          "file": "src/library/cue_sheet.c",
+          "find": "for (int field = 0; field < 3; field++) {",
+          "replace": "for (int field = 0; field <= 3; field++) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "function": "read_index",
+          "line": 128
+        }
+      },
+      "theme_text_planted": {
+        "unit": true,
+        "entry": "theme_text",
+        "includes": [
+          "src/app"
+        ],
+        "sources": [
+          "src/app/theme_palette.c",
+          "src/core/utf8.c",
+          "src/ui/icons.c",
+          "src/playback/store.c"
+        ],
+        "patch": [
+          "src/app/theme_pack.c"
+        ],
+        "contracts": [
+          "theme.h"
+        ],
+        "stubs": [
+          "card.c",
+          "hash.c",
+          "hal.c",
+          "theme.c"
+        ],
+        "defines": {
+          "FORMAL_CARD_FRESH": 1
+        },
+        "enforce": "text_valid",
+        "replace": [
+          "zeroes"
+        ],
+        "targets": [
+          "text_valid",
+          "utf8_next",
+          "decode_sequence",
+          "is_valid_scalar",
+          "is_continuation"
+        ],
+        "unwind": 5,
+        "timeout": 1200,
+        "default": false,
+        "checks": [
+          "--unsigned-overflow-check"
+        ],
+        "plant": {
+          "file": "src/app/theme_pack.c",
+          "find": "while (end < length && bytes[end] != 0) {",
+          "replace": "while (end <= length && bytes[end] != 0) {"
+        },
+        "expect": "failed",
+        "planted": {
+          "function": "text_valid",
+          "line": 40
+        }
       }
-    }
+    },
+    "families": {
+      "id3v2": {
+        "files": [
+          "src/library/tags_id3.c"
+        ]
+      },
+      "flac": {
+        "files": [
+          "src/library/tags_vorbis.c"
+        ],
+        "outside": [
+          "read_page",
+          "page_end",
+          "read_serial_page",
+          "stream_seek",
+          "tags_ogg_stream_open",
+          "tags_ogg_stream_read",
+          "first_eos_granule",
+          "capture_at",
+          "page_ending_file",
+          "last_page",
+          "stream_granule",
+          "ogg_codec",
+          "tags_read_ogg"
+        ]
+      },
+      "mp4": {
+        "files": [
+          "src/library/tags_mp4.c"
+        ]
+      },
+      "tag_helpers": {
+        "files": [
+          "src/library/track_tags.c",
+          "src/library/tags_picture.c"
+        ],
+        "outside": [
+          "lower",
+          "same_folded",
+          "track_tags_format_for_name",
+          "read_format",
+          "track_tags_read",
+          "tag_le16",
+          "tag_le64",
+          "decode_group",
+          "base64_chunk",
+          "base64_read",
+          "block_word",
+          "open_base64",
+          "tag_picture_open"
+        ]
+      },
+      "playlist": {
+        "files": [
+          "src/library/playlist_reader.c"
+        ]
+      },
+      "cue": {
+        "files": [
+          "src/library/cue_sheet.c"
+        ]
+      },
+      "theme_v1": {
+        "files": [
+          "src/app/theme_pack.c"
+        ],
+        "pending": [
+          "theme_pack_asset",
+          "theme_pack_table",
+          "codec_valid",
+          "full_screen",
+          "icon_valid",
+          "slot_valid",
+          "descriptor_valid",
+          "read_asset",
+          "key_taken",
+          "assets_valid",
+          "style_entry_valid",
+          "style_valid",
+          "head_valid",
+          "rows_batch_valid",
+          "payloads_valid",
+          "structure_valid",
+          "complete_valid",
+          "theme_pack_open"
+        ]
+      }
+    },
+    "axioms": []
   },
   "tla": {
     "version": "1.7.4",
@@ -566,6 +3771,29 @@
         "timeout": 1800,
         "property": "NoSlotReadWhileWritten"
       }
+    }
+  },
+  "repro": {
+    "id3_skip_wrap": {
+      "entry": "id3_skip_wrap.c",
+      "includes": [
+        "src/library"
+      ],
+      "sources": [
+        "src/library/track_tags.c",
+        "src/library/tags_ape.c",
+        "src/library/tags_asf.c",
+        "src/library/tags_genres.c",
+        "src/library/tags_id3.c",
+        "src/library/tags_mp4.c",
+        "src/library/tags_mpeg.c",
+        "src/library/tags_picture.c",
+        "src/library/tags_riff.c",
+        "src/library/tags_vorbis.c",
+        "src/library/replay_gain.c",
+        "src/library/tag_duration.c"
+      ],
+      "expect": "fixed"
     }
   }
 }
