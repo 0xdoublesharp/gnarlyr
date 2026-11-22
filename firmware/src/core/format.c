@@ -55,36 +55,6 @@ void format_sample_rate(uint32_t hertz, char *buffer, size_t capacity)
     string_builder_append(&builder, " kHz");
 }
 
-static void append_three_digits(StringBuilder *builder, uint32_t value)
-{
-    if (value < SMALLEST_TWO_DIGIT * SMALLEST_TWO_DIGIT) {
-        string_builder_append_char(builder, '0');
-    }
-    append_two_digits(builder, value);
-}
-
-static void append_grouped(StringBuilder *builder, uint32_t value)
-{
-    uint32_t scale = 1;
-    while (value / scale >= THOUSAND) {
-        scale *= THOUSAND;
-    }
-    string_builder_append_unsigned(builder, value / scale);
-    while (scale > 1) {
-        value %= scale;
-        scale /= THOUSAND;
-        string_builder_append_char(builder, ',');
-        append_three_digits(builder, value / scale);
-    }
-}
-
-void format_bitrate(uint32_t kbps, char *buffer, size_t capacity)
-{
-    StringBuilder builder = string_builder_make(buffer, capacity);
-    append_grouped(&builder, kbps);
-    string_builder_append(&builder, " kbps");
-}
-
 uint32_t average_kbps(uint32_t audio_bytes, uint32_t total_samples, uint32_t sample_rate)
 {
     if (total_samples == 0 || sample_rate == 0) {

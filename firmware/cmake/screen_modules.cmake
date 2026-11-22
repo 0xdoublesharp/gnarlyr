@@ -100,6 +100,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_extension
 )
 set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/app/screens/now_playing_screen.c
+    src/core/format_bitrate.c
     src/app/cassette_art.c
     src/app/modules/playing_module.c
     src/app/screens/cassette_now_playing.c
@@ -129,6 +130,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
 set(ECHO_SCREEN_MODULE_SOURCES_stage
     src/app/board_cover_layout.c
     src/app/screens/now_playing_screen.c
+    src/core/format_bitrate.c
     src/app/cassette_art.c
     src/app/modules/stage_module.c
     src/app/screens/meter_now_playing.c
