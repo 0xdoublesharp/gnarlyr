@@ -1595,6 +1595,24 @@ static void a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_he
     font_pack_detach_extra();
     i18n_detach();
 }
+static void the_translated_usb_titles_fit_the_portrait_header_with_the_mark(void)
+{
+    static const char *const TITLES[] = {"USB-Speicher",  "USB-Audio",     "USB-Strom",
+                                         "USBストレージ", "USBオーディオ", "USB給電"};
+    sim_glyphs_attach();
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_for(0, ORIENTATION_PORTRAIT, size);
+        UsbScreenLayout layout = usb_screen_layout(&theme, storage_status(STR_USB_EJECT_DRIVES));
+        Rect row = layout.header;
+        row.height = font_line_height(theme.fonts.header);
+        Rect mark = brand_mark_lead_area(row, theme.fonts.header);
+        int room = row.width - brand_mark_lead_step(mark);
+        for (int index = 0; index < 6; index++) {
+            CHECK(text_width(theme.fonts.header, TITLES[index]) <= room);
+        }
+    }
+}
+
 #endif
 
 int main(void)
@@ -1605,6 +1623,7 @@ int main(void)
 #ifdef ECHO_TEST_GLYPHS
         TEST_CASE(storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared),
         TEST_CASE(a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_held_glyphs),
+        TEST_CASE(the_translated_usb_titles_fit_the_portrait_header_with_the_mark),
 #endif
         TEST_CASE(the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),

@@ -223,7 +223,7 @@ static void draw_battery_icon(const UsbPainter *painter, Rect body)
     canvas_fill_rect(painter->canvas, fill, battery.usb_power ? colors->success : ink);
 }
 
-static int draw_battery(const UsbPainter *painter, Rect row, Rect words)
+static int draw_battery(const UsbPainter *painter, Rect row, bool level)
 {
     const Theme *theme = painter->theme;
     char text[USB_SCREEN_TEXT_CAPACITY];
@@ -231,11 +231,13 @@ static int draw_battery(const UsbPainter *painter, Rect row, Rect words)
     Rect body = {row.x + row.width - BATTERY_WIDTH - BATTERY_NUB,
                  row.y + (row.height - BATTERY_HEIGHT) / 2, BATTERY_WIDTH, BATTERY_HEIGHT};
     draw_battery_icon(painter, body);
-    int width = text_width(theme->fonts.small, text);
-    int right = words.y == row.y ? body.x - theme->metrics.padding / 2 : words.x + words.width;
-    usb_screen_text(painter, (Rect){right - width, words.y, width, words.height},
-                    (TextStyle){theme->fonts.small, theme->colors.header_text, false}, text);
-    return right - width - words.x;
+    int width = level ? text_width(theme->fonts.small, text) : 0;
+    int left = body.x - theme->metrics.padding / 2 - width;
+    if (level) {
+        usb_screen_text(painter, (Rect){left, row.y, width, row.height},
+                        (TextStyle){theme->fonts.small, theme->colors.header_text, false}, text);
+    }
+    return left - row.x;
 }
 
 typedef struct SpeedTag {
@@ -352,16 +354,14 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
         status.y += row.height;
         status.height -= row.height;
     }
-    int room = draw_battery(painter, row, status);
+    int room = draw_battery(painter, status, !theme_is_portrait(theme));
     SpeedTag tag = speed_tag(painter);
     int tag_x = status.x + room - tag.width - theme->metrics.padding;
     draw_tag(painter, status, tag_x, tag);
     bool connected = linked(painter) && painter->status.view == APP_USB_STORAGE;
     const char *state = connected ? i18n_text(STR_USB_STATE_CONNECTED) : "";
     Rect words = {status.x, status.y, tag_x - status.x, status.height};
-    if (theme_is_portrait(theme)) {
-        row.width -= BATTERY_WIDTH + BATTERY_NUB + theme->metrics.padding;
-    } else {
+    if (!theme_is_portrait(theme)) {
         words.width = text_width(theme->fonts.small, state);
         words.x = tag_x - words.width;
         row.width = words.x - theme->metrics.padding - row.x;
