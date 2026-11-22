@@ -82,7 +82,6 @@ void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t no
 int list_view_row_height(const ListView *view);
 void list_view_measure(ListView *view, int width);
 int list_view_chevron_width(const Theme *theme);
-void list_view_chevron_draw(Canvas *canvas, Rect box, Color color);
 
 void list_view_draw_row(const ListView *view, Canvas *canvas, int index, Rect area,
                         uint32_t now_ms);

@@ -32,7 +32,7 @@ enum {
     FIRST_NARROW = ICON_BOLT,
     FIRST_UNDRAWN = ICON_SHUFFLE,
     UNDRAWN_SPAN = 32,
-    LAST_NARROW = ICON_PLUG,
+    LAST_NARROW = ICON_CHEVRON,
     KIND_SHIFT = 29,
     A_SHIFT = 22,
     B_SHIFT = 17,
@@ -163,6 +163,7 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
         LAST(BLOCK(0, 15, 19, 17))
 #define PLUG_GLYPH                                                                                 \
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
+#define CHEVRON_GLYPH THICK(0, 0, 5, 6), LAST(THICK(5, 7, 0, 13))
 
 static const uint32_t GLYPHS[] = {
     MUSIC_GLYPH,
@@ -205,6 +206,7 @@ static const uint32_t GLYPHS[] = {
     LOCK_GLYPH,
     SONG_SMALL_GLYPH,
     PLUG_GLYPH,
+    CHEVRON_GLYPH,
 };
 
 typedef struct Pen {

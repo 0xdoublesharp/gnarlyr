@@ -49,13 +49,13 @@ class ThemeToolTests(unittest.TestCase):
             "bluetooth", "key_plus", "key_minus", "key_play", "key_menu", "disc", "hub", "search",
             "computer", "play", "pause", "next", "previous", "playing", "queue", "speaker",
             "album_small", "shuffle_small", "bolt", "bluetooth_small", "lock", "song_small",
-            "plug",
+            "plug", "chevron",
 )
         for number, name in enumerate(names, start=1):
             self.assertEqual(256 + number, theme_pack.SLOTS["icon_" + name])
         self.assertEqual((20, 20), theme_pack.icon_box(theme_pack.SLOTS["icon_shuffle"]))
         self.assertEqual((14, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_playing"]))
-        for name in ("bolt", "bluetooth_small", "lock", "song_small", "plug"):
+        for name in ("bolt", "bluetooth_small", "lock", "song_small", "plug", "chevron"):
             self.assertEqual((9, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_" + name]))
 
     def test_palette_and_all_metadata_round_trip(self):

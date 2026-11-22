@@ -461,18 +461,6 @@ static void the_chevron_is_eight_wide_and_ten_wide_at_large_text(void)
     CHECK_EQUAL(10, list_view_chevron_width(&theme));
 }
 
-static void the_chevron_points_right_from_its_middle_row(void)
-{
-    Canvas canvas = ui_test_canvas();
-    canvas_clear(&canvas, 0);
-    list_view_chevron_draw(&canvas, (Rect){0, 0, 8, 13}, 0xFFFF);
-    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 6, 6));
-    CHECK_EQUAL(0, canvas_pixel_at(&canvas, 1, 6));
-    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 1, 0));
-    CHECK_EQUAL(0, canvas_pixel_at(&canvas, 6, 0));
-    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 1, 12));
-}
-
 static ListRowRole labelled_role(const void *context, int index)
 {
     (void)context;
@@ -619,7 +607,6 @@ int main(void)
         TEST_CASE(a_section_label_is_drawn_in_the_accent_colour_without_focus),
         TEST_CASE(a_row_that_needs_something_is_dim_and_brightens_a_step_when_focused),
         TEST_CASE(the_chevron_is_eight_wide_and_ten_wide_at_large_text),
-        TEST_CASE(the_chevron_points_right_from_its_middle_row),
         TEST_CASE(a_new_list_selects_the_first_item),
         TEST_CASE(optional_row_icons_use_the_themes_accent_ink),
         TEST_CASE(selected_icons_use_only_the_selected_text_ink),
