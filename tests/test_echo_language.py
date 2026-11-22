@@ -467,8 +467,10 @@ class LanguageCommands(VolumeCase):
                                ("firmware/src/core/include/core/i18n.h", "I18N_VERSION = 1,", "I18N_VERSION = 0,"),
                                ("firmware/src/settings/include/settings/settings.h",
                                 "SETTINGS_FORMAT_VERSION = 1", "SETTINGS_FORMAT_VERSION = 2"),
-                               ("firmware/src/settings/settings.c", "EXTENSION_CHECKSUM_FIELD = 54",
-                                "EXTENSION_CHECKSUM_FIELD = 38")):
+                               ("firmware/src/settings/settings_format.h", "EXTENSION_CHECKSUM_FIELD = 54",
+                                "EXTENSION_CHECKSUM_FIELD = 38"),
+                               ("firmware/src/settings/settings.c", "(settings->battery_percent ? 8u : 0u)",
+                                "(settings->battery_percent ? 16u : 0u)")):
             with self.subTest(path=path, new=new), self.with_source(path, old, new):
                 status, result = self.run_cli("language-install", str(self.pack), host=self.host())
                 self.assertEqual(status, 1)
@@ -476,11 +478,30 @@ class LanguageCommands(VolumeCase):
                 self.assertEqual(list(self.lang.iterdir()), [])
 
     def test_installed_builds_with_a_numeric_settings_version_remain_supported(self):
-        with self.with_source("firmware/src/settings/settings.c",
+        with self.with_source("firmware/src/settings/settings_format.h",
                               "VERSION = SETTINGS_FORMAT_VERSION", "VERSION = 1"):
             tool, host = self.live_tool()
             self.assertTrue(tool.language_list()["ok"])
             self.assertEqual(host.ejected, [])
+
+    def older_layout(self, numbered):
+        fields = (ROOT / "firmware/src/settings/settings_format.h").read_text()
+        if numbered:
+            fields = fields.replace("VERSION = SETTINGS_FORMAT_VERSION", "VERSION = 1")
+
+        def show(snapshot, name):
+            if name == "firmware/src/settings/settings_format.h":
+                raise ValueError("the installed build cannot be resolved in this repository")
+            text = working_tree_show(snapshot, name)
+            return fields + text if name == "firmware/src/settings/settings.c" else text
+        return mock.patch.object(echo_language.Snapshot, "show", show)
+
+    def test_installed_builds_with_the_fields_in_the_settings_source_remain_supported(self):
+        for numbered in (False, True):
+            with self.subTest(numbered=numbered), self.older_layout(numbered):
+                tool, host = self.live_tool()
+                self.assertTrue(tool.language_list()["ok"])
+                self.assertEqual(host.ejected, [])
 
     def test_changed_replay_gain_modes_or_home_items_fail_closed(self):
         for path, old, new in (("firmware/src/core/include/core/replay_gain.h", "    REPLAY_GAIN_MODE_COUNT",

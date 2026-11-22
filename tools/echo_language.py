@@ -101,13 +101,20 @@ class Snapshot:
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
 
+    def settings_fields(self, source):
+        try:
+            return self.show("firmware/src/settings/settings_format.h")
+        except (ValueError, OSError):
+            return source
+
     def check_settings_layout(self):
         source = self.show("firmware/src/settings/settings.c")
+        fields = self.settings_fields(source)
         header = self.show("firmware/src/settings/include/settings/settings.h")
         version = constant(header, "SETTINGS_FORMAT_VERSION") if re.search(
-            r"\bVERSION\s*=\s*SETTINGS_FORMAT_VERSION\b", source) else constant(source, "VERSION")
+            r"\bVERSION\s*=\s*SETTINGS_FORMAT_VERSION\b", fields) else constant(fields, "VERSION")
         if (version != SETTINGS_VERSION or
-                any(constant(source, name) != value for name, value in SETTINGS_SOURCE.items()) or
+                any(constant(fields, name) != value for name, value in SETTINGS_SOURCE.items()) or
                 any(constant(header, name) != value for name, value in SETTINGS_HEADER.items()) or
                 FLAGS_ENCODING not in re.sub(r"\s+", "", source)):
             raise ValueError(f"the installed build does not use the version {SETTINGS_VERSION} settings layout")

@@ -238,7 +238,8 @@ def render_case(case, context):
     if not any(line.startswith(case["expected_title"] + ":") for line in result.splitlines()):
         raise ValueError(f"{case['name']} did not reach {case['expected_title']!r}; inspect {work / (case['name'] + '.log')}")
     if case.get("language"):
-        schema = (source_root / "firmware/src/settings/settings.c").read_text()
+        fields = source_root / "firmware/src/settings/settings_format.h"
+        schema = (fields if fields.exists() else source_root / "firmware/src/settings/settings.c").read_text()
         offset = int(re.search(r"\bLANGUAGE_FIELD\s*=\s*(\d+)", schema)[1])
         saved = (system / "settings.bin").read_bytes()
         code = case["language"]["code"].encode("ascii")
