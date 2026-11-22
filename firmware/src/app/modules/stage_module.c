@@ -23,4 +23,5 @@ const PlayingModuleEntry STAGE_MODULE_ENTRY = {.module =
                                                .sections = browse_sections_range,
                                                .now_playing_attach = attach,
                                                .wire_boot = wire_boot_fade,
-                                               .only_album = artist_album_only};
+                                               .only_album = artist_album_only,
+                                               .song_actions = browse_pool_song_actions};

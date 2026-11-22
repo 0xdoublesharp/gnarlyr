@@ -394,6 +394,18 @@ static void toggling_an_album_adds_it_and_saves(void)
     CHECK(!favorites_store_contains_album(&favorites, OTHER_ALBUM));
 }
 
+static void an_unread_favorites_store_never_rewrites_the_file(void)
+{
+    fake_hal_reset();
+    favorites_store_load(&favorites, fixture_library_open(&fixture));
+    favorites.unread = true;
+    FavoriteResult result = favorites_store_toggle_album(&favorites, CHOSEN_ALBUM);
+    CHECK_EQUAL(FAVORITE_ADDED, result.change);
+    CHECK(!result.saved);
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes(FAVORITES_STORE_PATH, &size) == NULL);
+}
+
 static void favorites_are_loaded_again(void)
 {
     fake_hal_reset();
@@ -850,6 +862,7 @@ int main(void)
         TEST_CASE(an_unread_settings_store_never_overwrites_the_saved_files),
         TEST_CASE(hardware_settings_reach_the_hal),
         TEST_CASE(toggling_an_album_adds_it_and_saves),
+        TEST_CASE(an_unread_favorites_store_never_rewrites_the_file),
         TEST_CASE(favorites_are_loaded_again),
         TEST_CASE(adding_a_song_creates_the_playlist_with_a_header),
         TEST_CASE(an_internal_song_goes_to_the_favorite_tracks_file_of_internal_storage),

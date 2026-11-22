@@ -83,6 +83,39 @@ class LanguageCommands(VolumeCase):
         self.assertEqual(status, 0)
         self.assertEqual(result["pack"]["code"], "fr")
         self.assertEqual(result["firmware_build"], BUILD)
+        self.assertTrue(result["firmware_commit"].startswith(BUILD))
+
+    def test_installed_beta_build_resolves_its_annotated_release_tag(self):
+        repo = Path(self.directory.name) / "source"
+        repo.mkdir()
+
+        def git(*args):
+            return subprocess.check_output(
+                ["git", "-c", "user.name=Firmware Tests", "-c", "user.email=tests@example.invalid",
+                 *args], cwd=repo, text=True).strip()
+
+        git("init", "--quiet")
+        git("commit", "--quiet", "--allow-empty", "-m", "Tagged firmware")
+        commit = git("rev-parse", "HEAD")
+        build = "beta.1"
+        git("tag", "-a", f"v{echo_debug.IDENTITY['version']}-{build}", "-m", "Beta")
+        git("commit", "--quiet", "--allow-empty", "-m", "Newer checkout")
+        self.write_report(report_text([line.replace("1051212", build) for line in SYSTEM_LINES]))
+        with mock.patch.object(echo_debug, "ROOT", repo), mock.patch.object(
+                echo_language, "pack_tools", return_value=PACK):
+            status, result = self.run_cli("language-list", host=self.host())
+        self.assertEqual(status, 0, result)
+        self.assertEqual(result["firmware_build"], build)
+        self.assertEqual(result["firmware_commit"], commit)
+
+    def test_unknown_beta_label_names_the_missing_tag_and_refuses_writes(self):
+        build = "beta.404"
+        self.write_report(report_text([line.replace("1051212", build) for line in SYSTEM_LINES]))
+        status, result = self.run_cli("language-install", str(self.pack), host=self.host())
+        self.assertEqual(status, 1)
+        self.assertEqual(result["error"]["code"], "language_build_unknown")
+        self.assertIn(f"v{echo_debug.IDENTITY['version']}-{build}", result["error"]["message"])
+        self.assertEqual(list(self.lang.iterdir()), [])
 
     def with_i18n(self, name, value):
         original = echo_language.Snapshot.show

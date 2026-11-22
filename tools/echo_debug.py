@@ -960,7 +960,7 @@ def build_parser():
     usb_shots.add_argument("--out", type=Path, required=True, help="a folder for the PNG files, not on the player")
     inspect_language = commands.add_parser("language-inspect", help="validate a language pack against a clean firmware build")
     inspect_language.add_argument("pack", type=Path)
-    inspect_language.add_argument("--build", help="clean firmware commit, otherwise the installed build")
+    inspect_language.add_argument("--build", help="clean firmware commit or pre-release label, otherwise the installed build")
     list_languages = commands.add_parser("language-list", help="list the active music volume's language packs")
     install_language = commands.add_parser("language-install", help="validate, publish and refresh a language pack")
     install_language.add_argument("pack", type=Path)

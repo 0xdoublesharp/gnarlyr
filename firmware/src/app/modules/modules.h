@@ -18,6 +18,7 @@ typedef struct PlayingModuleEntry {
     void (*wire_boot)(Canvas *canvas, const Theme *theme, const Fade *fade, const char *text);
     Screen *(*artist_strip)(AppScreens *screens, BrowseScreen *browse, BrowseQuery albums);
     bool (*only_album)(const BrowseScreen *browse, BrowseQuery albums, BrowseQuery *album);
+    Screen *(*song_actions)(BrowsePool *pool, uint16_t track, const char *name, uint32_t now_ms);
 } PlayingModuleEntry;
 
 typedef struct ViewsModuleEntry {

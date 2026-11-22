@@ -34,6 +34,7 @@ typedef struct SpokenStore {
     bool dirty;
     uint32_t last_put_ms;
     uint32_t last_save_ms;
+    bool unread;
 } SpokenStore;
 
 typedef struct SpokenRow {
@@ -44,6 +45,7 @@ typedef struct SpokenRow {
 } SpokenRow;
 
 void spoken_store_load(SpokenStore *store, const Library *library);
+StoreLoad spoken_store_read(Bookmarks *bookmarks);
 void spoken_store_follow(SpokenStore *store, PlayerStatus status, uint32_t now_ms);
 void spoken_store_flush(SpokenStore *store, PlayerStatus status, uint32_t now_ms);
 PlayerResume spoken_store_resume(SpokenStore *store);

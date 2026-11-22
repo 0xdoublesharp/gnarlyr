@@ -5,25 +5,13 @@
 
 const char FAVORITES_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/favorites.bin";
 
-static bool read_favorites(uint8_t *bytes, uint32_t *length)
-{
-    HalFile file;
-    if (!hal_file_open(&file, FAVORITES_STORE_PATH)) {
-        return false;
-    }
-    *length = file.size < FAVORITES_FILE_CAPACITY ? file.size : FAVORITES_FILE_CAPACITY;
-    bool read = hal_file_read(file, 0, bytes, *length);
-    hal_file_close(&file);
-    return read;
-}
-
 void favorites_store_load(FavoritesStore *store, const Library *library)
 {
-    uint8_t bytes[FAVORITES_FILE_CAPACITY];
-    uint32_t length = 0;
     store->library = library;
     store->revision++;
-    if (!read_favorites(bytes, &length) || !favorites_decode(bytes, length, &store->favorites)) {
+    StoreLoad load = favorites_store_read(&store->favorites);
+    store->unread = load == STORE_UNSUPPORTED;
+    if (load != STORE_READY) {
         favorites_clear(&store->favorites);
     }
 }
@@ -35,6 +23,9 @@ bool favorites_store_contains_album(const FavoritesStore *store, uint16_t album)
 
 static bool save(const FavoritesStore *store)
 {
+    if (store->unread) {
+        return false;
+    }
     uint8_t bytes[FAVORITES_FILE_CAPACITY];
     uint32_t length = favorites_encode(&store->favorites, bytes);
     return hal_file_write(FAVORITES_STORE_PATH, bytes, length);
