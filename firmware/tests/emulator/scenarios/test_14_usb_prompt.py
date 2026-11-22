@@ -163,6 +163,25 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.panics, ["hal_power_off"])
         self.print_usb_log("charge screen, host, quiet prompt", machine)
 
+    def test_on_the_charge_screen_a_volume_press_pauses_auto_charge_until_a_choice(self):
+        session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
+        machine.host_arrives()
+        self.assertEqual(machine.run(until=lambda: asked,
+                                     until_ms=machine.milliseconds() + PROMPT_NOTICED_MS),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        darkened = len(dark)
+        self.press(machine, KEY_NEXT)
+        machine.run(until_ms=asked[0] + USB_PROMPT_MS + PROMPT_NOTICED_MS)
+        self.assertEqual(len(dark), darkened)
+        self.assertEqual(machine.gpio[2].regs[GPIO_DATA] >> BACKLIGHT_PIN & 1, 1)
+        self.press(machine, KEY_PLAY)
+        machine.run(until_ms=machine.milliseconds() + PROMPT_NOTICED_MS)
+        self.assertEqual(len(dark), darkened + 1)
+        self.assert_asked_without_enumerating(session, asked, 1)
+        self.assertEqual(machine.usb_connect_count, 1)
+        self.assert_healthy(session)
+
     def test_on_the_charge_screen_connect_to_computer_in_the_prompt_starts_the_session(self):
         session, machine, asked, charge_frames, dark = self.charging_on_a_charger()
         machine.host_arrives()
