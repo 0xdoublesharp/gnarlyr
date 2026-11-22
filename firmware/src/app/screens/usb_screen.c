@@ -188,8 +188,7 @@ UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
     Rect footer = {0, theme->metrics.screen_height - band, theme->metrics.screen_width, band};
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
-        .detail = detail_area(theme, status.detail, footer),
-        .footer = footer};
+        .detail = detail_area(theme, status.detail, footer)};
     return theme_is_portrait(theme) ? portrait_layout(theme, layout)
                                     : landscape_layout(theme, layout);
 }
@@ -686,9 +685,12 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
             painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
             (Label){painter->layout.detail, detail_text(painter)}, painter->scene->service);
     }
-    if (usb_screen_touches(painter, painter->layout.footer)) {
+    Rect detail = painter->layout.detail;
+    int top = detail.y + detail.height + theme->metrics.padding / 2;
+    Rect band = {0, top, theme->metrics.screen_width, theme->metrics.screen_height - top};
+    if (painter->scene->hint_count > 0 && usb_screen_touches(painter, band)) {
         FooterHints hints = {painter->scene->hints, painter->scene->hint_count, FOOTER_ALIGN_END};
-        footer_hints_draw(painter->canvas, theme, painter->layout.footer, hints);
+        footer_hints_draw(painter->canvas, theme, band, hints);
     }
 }
 
