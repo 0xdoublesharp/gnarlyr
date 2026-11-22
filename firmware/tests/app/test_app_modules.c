@@ -228,6 +228,82 @@ static void smart_lists_open_from_music_and_play_through_the_listening_module(vo
     CHECK(title_is("Music"));
 }
 
+static void hold_play(void)
+{
+    fake_hal_queue_transition(KEY_PLAY, true, now_ms);
+    for (int held = 0; held < 50; held++) {
+        now_ms += 20;
+        step();
+    }
+    fake_hal_queue_transition(KEY_PLAY, false, now_ms);
+    now_ms += 10;
+    step();
+}
+
+static void add_track_files(void)
+{
+    static FixtureLibrary fixture;
+    Library *library = fixture_library_open(&fixture);
+    for (uint32_t index = 0; index < FIXTURE_TRACKS; index++) {
+        LibraryTrack track;
+        char path[256] = "/";
+        CHECK(library_read_track(library, index, &track));
+        CHECK(library_read_string(library, track.path, path + 1, sizeof path - 1));
+        fake_hal_add_file(path[1] == '/' ? path + 1 : path, NULL, 100);
+    }
+}
+
+static void open_never_played_track_actions(void)
+{
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(3);
+    tap(KEY_PLAY);
+    CHECK(title_is("Never Played"));
+    for (int frame = 0; frame < 50; frame++) {
+        wait_ms(20);
+    }
+    wait_ms(SLIDE_DURATION_MS);
+    hold_play();
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Delete file?"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+}
+
+static void a_smart_list_delete_question_swaps_to_views_and_back_on_cancel_or_delete(void)
+{
+    start_app();
+    add_track_files();
+    open_never_played_track_actions();
+    tap(KEY_BACK);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(!title_is("Delete file?"));
+    tap(KEY_BACK);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Never Played"));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING, (int)fake_hal_loaded_module());
+    hold_play();
+    wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(title_is("Delete file?"));
+    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    CHECK(toast_is("File deleted"));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING, (int)fake_hal_loaded_module());
+    CHECK(title_is("Never Played"));
+}
+
 static void home_art_loads_playing_and_cover_flow_reuses_it(void)
 {
     start_app();
@@ -1040,6 +1116,7 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(about_music_says_card_and_internal_for_a_combined_library),
         TEST_CASE(delete_and_clear_questions_belong_to_the_modules_that_draw_them),
+        TEST_CASE(a_smart_list_delete_question_swaps_to_views_and_back_on_cancel_or_delete),
         TEST_CASE(a_moved_internal_music_generation_asks_for_a_music_check_at_start),
         TEST_CASE(an_unknown_internal_half_asks_for_one_music_check_at_start),
         TEST_CASE(a_matching_internal_music_generation_asks_for_nothing_at_start),
