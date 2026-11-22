@@ -261,9 +261,10 @@ static void default_button_values_fit_beside_their_labels_in_landscape(void)
 static void buttons_name_the_effective_action_and_mark_only_changed_ones_custom(void)
 {
     static const StringId defaults[PLAYBACK_BUTTON_COUNT] = {
-        STR_BUTTON_VOLUME_UP,  STR_BUTTON_KEEP_RAISING, STR_BUTTON_VOLUME_DOWN,
-        STR_BUTTON_KEEP_LOWERING, STR_BUTTON_PLAY_PAUSE, STR_BUTTON_NO_ACTION,
-        STR_QUICK_SETTINGS,    STR_LYRICS};
+        STR_BUTTON_VOLUME_UP,   STR_BUTTON_KEEP_RAISING,
+        STR_BUTTON_VOLUME_DOWN, STR_BUTTON_KEEP_LOWERING,
+        STR_BUTTON_PLAY_PAUSE,  STR_BUTTON_NO_ACTION,
+        STR_QUICK_SETTINGS,     STR_LYRICS};
     open_default_buttons(TEXT_SIZE_MEDIUM);
     store.settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NEXT;
     MenuScreen *menu = &buttons.menu;
@@ -427,9 +428,9 @@ static void open_grouped(void)
 static void settings_open_on_nine_groups_with_language_fourth_and_about_last(void)
 {
     static const StringId order[SETTINGS_GROUP_COUNT] = {
-        STR_SETTINGS_SOUND,         STR_SETTINGS_PLAYBACK,      STR_SETTINGS_DISPLAY_TEXT,
-        STR_LANGUAGE,               STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
-        STR_SETTINGS_BUTTONS,       STR_SETTINGS_LIBRARY,       STR_ABOUT};
+        STR_SETTINGS_SOUND,   STR_SETTINGS_PLAYBACK,      STR_SETTINGS_DISPLAY_TEXT,
+        STR_LANGUAGE,         STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
+        STR_SETTINGS_BUTTONS, STR_SETTINGS_LIBRARY,       STR_ABOUT};
     open_grouped();
     MenuScreen *menu = &grouped.menu;
     CHECK_EQUAL(SETTINGS_GROUP_COUNT, menu->model.count(menu));
@@ -451,7 +452,8 @@ static int times_offered(const char *label)
     int times = 0;
     for (int group = 0; group < SETTINGS_GROUP_COUNT; group++) {
         const MenuItem *row = &grouped.groups[group];
-        ScreenAction opened = row->select != NULL ? row->select(row->context) : screen_action_none();
+        ScreenAction opened =
+            row->select != NULL ? row->select(row->context) : screen_action_none();
         if (opened.target != &grouped.group_menu.screen) {
             times += strcmp(label, row->label) == 0 ? 1 : 0;
             continue;
@@ -465,19 +467,53 @@ static int times_offered(const char *label)
 
 static void every_former_settings_row_is_in_exactly_one_group(void)
 {
-    static const StringId rows[] = {
-        STR_SHUFFLE,          STR_REPEAT,          STR_BLUETOOTH,         STR_SLEEP_TIMER,
-        STR_AUTO_OFF,         STR_SCREEN_TIMEOUT,  STR_CLOCK_FORMAT,      STR_SET_CLOCK,
-        STR_BRIGHTNESS,       STR_COLOR,           STR_TEXT_SIZE,         STR_ORIENTATION,
-        STR_LANGUAGE,         STR_GAIN,            STR_DAC_FILTER,        STR_OUTPUT,
-        STR_EQUALIZER,        STR_CUSTOM_EQ,       STR_REPLAY_GAIN,       STR_PREVENT_CLIPPING,
-        STR_START_SCREEN,     STR_RESCAN_LIBRARY,  STR_HIDDEN_TRACKS,     STR_USB_MODE,
-        STR_THEME,            STR_STATUS_BAR,      STR_PLAYBACK_SPEED,    STR_REWIND_ON_RESUME,
-        STR_SAFE_START_VOLUME, STR_TRANSITIONS,    STR_TRANSITION_LENGTH, STR_USB_ANSWER,
-        STR_POWER_ON,         STR_SKIP_SILENCE,    STR_SPEECH_BOOST,      STR_CROSSFEED,
-        STR_HEADPHONES,       STR_CARD_EJECT,      STR_CARD_MOUNT,        STR_CARD_FORMAT,
-        STR_HOME_SCREEN,      STR_PEQ,             STR_STANDBY_POWER,     STR_NOW_PLAYING_STYLE,
-        STR_BACKUPS,          STR_SETTINGS_BUTTONS, STR_ABOUT};
+    static const StringId rows[] = {STR_SHUFFLE,
+                                    STR_REPEAT,
+                                    STR_BLUETOOTH,
+                                    STR_SLEEP_TIMER,
+                                    STR_AUTO_OFF,
+                                    STR_SCREEN_TIMEOUT,
+                                    STR_CLOCK_FORMAT,
+                                    STR_SET_CLOCK,
+                                    STR_BRIGHTNESS,
+                                    STR_COLOR,
+                                    STR_TEXT_SIZE,
+                                    STR_ORIENTATION,
+                                    STR_LANGUAGE,
+                                    STR_GAIN,
+                                    STR_DAC_FILTER,
+                                    STR_OUTPUT,
+                                    STR_EQUALIZER,
+                                    STR_CUSTOM_EQ,
+                                    STR_REPLAY_GAIN,
+                                    STR_PREVENT_CLIPPING,
+                                    STR_START_SCREEN,
+                                    STR_RESCAN_LIBRARY,
+                                    STR_HIDDEN_TRACKS,
+                                    STR_USB_MODE,
+                                    STR_THEME,
+                                    STR_STATUS_BAR,
+                                    STR_PLAYBACK_SPEED,
+                                    STR_REWIND_ON_RESUME,
+                                    STR_SAFE_START_VOLUME,
+                                    STR_TRANSITIONS,
+                                    STR_TRANSITION_LENGTH,
+                                    STR_USB_ANSWER,
+                                    STR_POWER_ON,
+                                    STR_SKIP_SILENCE,
+                                    STR_SPEECH_BOOST,
+                                    STR_CROSSFEED,
+                                    STR_HEADPHONES,
+                                    STR_CARD_EJECT,
+                                    STR_CARD_MOUNT,
+                                    STR_CARD_FORMAT,
+                                    STR_HOME_SCREEN,
+                                    STR_PEQ,
+                                    STR_STANDBY_POWER,
+                                    STR_NOW_PLAYING_STYLE,
+                                    STR_BACKUPS,
+                                    STR_SETTINGS_BUTTONS,
+                                    STR_ABOUT};
     open_grouped();
     for (size_t index = 0; index < sizeof rows / sizeof rows[0]; index++) {
         CHECK_EQUAL(1, times_offered(i18n_text(rows[index])));
@@ -485,9 +521,10 @@ static void every_former_settings_row_is_in_exactly_one_group(void)
     int listed = 0;
     for (int group = 0; group < SETTINGS_GROUP_COUNT; group++) {
         const MenuItem *row = &grouped.groups[group];
-        ScreenAction opened = row->select != NULL ? row->select(row->context) : screen_action_none();
-        listed += opened.target == &grouped.group_menu.screen ? grouped.group_menu.config.item_count
-                                                              : 1;
+        ScreenAction opened =
+            row->select != NULL ? row->select(row->context) : screen_action_none();
+        listed +=
+            opened.target == &grouped.group_menu.screen ? grouped.group_menu.config.item_count : 1;
     }
     CHECK_EQUAL((int)(sizeof rows / sizeof rows[0]), listed);
 }

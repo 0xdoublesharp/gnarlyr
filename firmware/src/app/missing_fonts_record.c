@@ -106,7 +106,8 @@ static bool scan_library(MissingScan *scan)
                  bytes_le16(header + 4) == VERSION;
     uint32_t offset = bytes_le32(header + STRINGS_ENTRY);
     uint32_t length = bytes_le32(header + STRINGS_ENTRY + 4);
-    sound = sound && offset >= LIBRARY_HEADER && offset <= file.size && length <= file.size - offset;
+    sound =
+        sound && offset >= LIBRARY_HEADER && offset <= file.size && length <= file.size - offset;
     if (sound) {
         read_names(scan, file, offset, length);
     }
@@ -166,8 +167,13 @@ void missing_fonts_record(void *memory, uint32_t size, const Font *font)
     for (uint32_t index = 0; index < 2 * MAP_BYTES; index++) {
         work[index] = 0;
     }
-    MissingScan scan = {work, work + MAP_BYTES, (char *)work + 2 * MAP_BYTES,
-                        work + 2 * MAP_BYTES + CHUNK_BYTES + 1, font, 0, 0};
+    MissingScan scan = {work,
+                        work + MAP_BYTES,
+                        (char *)work + 2 * MAP_BYTES,
+                        work + 2 * MAP_BYTES + CHUNK_BYTES + 1,
+                        font,
+                        0,
+                        0};
     if (!scan_library(&scan)) {
         return;
     }

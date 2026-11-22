@@ -33,8 +33,8 @@ static bool still_missing(HalFile file, const Font *font)
     char chunk[READ_BYTES + 1];
     uint32_t carry = 0;
     for (uint32_t offset = 0; offset < file.size;) {
-        uint32_t take = file.size - offset < READ_BYTES - carry ? file.size - offset
-                                                                 : READ_BYTES - carry;
+        uint32_t take =
+            file.size - offset < READ_BYTES - carry ? file.size - offset : READ_BYTES - carry;
         if (!hal_file_read(file, offset, chunk + carry, take)) {
             return false;
         }
@@ -43,7 +43,8 @@ static bool still_missing(HalFile file, const Font *font)
         uint32_t whole = (uint32_t)utf8_complete_length(chunk, length);
         chunk[whole] = '\0';
         const char *cursor = chunk;
-        for (uint32_t codepoint = utf8_next(&cursor); codepoint != 0; codepoint = utf8_next(&cursor)) {
+        for (uint32_t codepoint = utf8_next(&cursor); codepoint != 0;
+             codepoint = utf8_next(&cursor)) {
             if (missing_fonts_undrawable(font, codepoint)) {
                 return true;
             }
@@ -84,7 +85,7 @@ const char *missing_fonts_notice(char *text, uint32_t capacity, const Font *font
         return NULL;
     }
     StringBuilder notice = string_builder_make(text, capacity);
-    i18n_format_counts(&notice, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS,
-                       names, 0);
+    i18n_format_counts(&notice, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS, names,
+                       0);
     return text;
 }

@@ -79,8 +79,8 @@ static void open_picker(bool with_extra_font)
     handle = (HalFile){.handle = -1};
     uint32_t size = test_pack_build(english, (TestPackLanguage){"en", "English", NULL});
     fake_hal_add_language_pack(0, english, size);
-    fake_hal_add_language_file(
-        "de.pack", german, test_pack_build(german, (TestPackLanguage){"de", "Deutsch", NULL}));
+    fake_hal_add_language_file("de.pack", german,
+                               test_pack_build(german, (TestPackLanguage){"de", "Deutsch", NULL}));
     fake_hal_add_language_file(
         "ko.pack", korean,
         flagged(korean, (TestPackLanguage){"ko", "\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4", NULL}));
@@ -145,7 +145,10 @@ static void play_on_a_language_that_needs_fonts_explains_and_chooses_nothing(voi
     CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_PLAY).type);
     CHECK_EQUAL(-1, chosen);
     CHECK_EQUAL(KOREAN_ROW, picker.explained);
-    CHECK(strcmp("Korean needs fonts. Connect to a computer to add them.", picker.notice) == 0);
+    char notice[LANGUAGE_NOTICE_BYTES];
+    const char *text = language_picker_notice(&picker, notice, sizeof notice);
+    CHECK(text != NULL &&
+          strcmp("Korean needs fonts. Connect to a computer to add them.", text) == 0);
     CHECK(picker.list.visible_rows < rows || languages.count < rows);
     press(KEY_VOLUME_UP);
     CHECK_EQUAL(-1, picker.explained);

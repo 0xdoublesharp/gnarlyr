@@ -4,9 +4,9 @@
 #include <stddef.h>
 
 #include "gfx/font.h"
+#include "gfx/text.h"
 #include "missing_fonts.h"
 #include "notice_band.h"
-#include "gfx/text.h"
 #include "ui/brand_mark.h"
 #include "ui/header.h"
 #include "ui/label.h"

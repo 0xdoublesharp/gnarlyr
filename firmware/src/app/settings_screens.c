@@ -948,9 +948,9 @@ static void bind_status_bar(SettingsScreens *screens)
                          .detail_below = true};
     menu_screen_init(&screens->status_menu, config);
     screens->items[SETTINGS_STATUS_BAR_ITEM] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
-                                                            .select = open_status_bar,
-                                                            .context = screens,
-                                                            .opens = true};
+                                                          .select = open_status_bar,
+                                                          .context = screens,
+                                                          .opens = true};
 }
 
 static ScreenAction open_status_bar(void *context)
@@ -966,22 +966,27 @@ enum {
 };
 
 static const int8_t ROW_CHOICES[SETTINGS_ITEM_COUNT] = {
-    13, 11, 14, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, 30, 15, 16, 12,
-    0, 1, 21, 24, 25, 22, 28, 29, 23, 2,
-    8, 9, 19, 7, 6, 4, ROW_SPECIAL, SETTINGS_NOW_PLAYING_CHOICE, ROW_SPECIAL, 17, 5, ROW_SPECIAL,
-    3, ROW_SPECIAL, 27,
-    26, 18, ROW_SPECIAL,
-    ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL};
+    13,          11,          14,          ROW_SPECIAL,
+    ROW_SPECIAL, ROW_SPECIAL, 30,          15,
+    16,          12,          0,           1,
+    21,          24,          25,          22,
+    28,          29,          23,          2,
+    8,           9,           19,          7,
+    6,           4,           ROW_SPECIAL, SETTINGS_NOW_PLAYING_CHOICE,
+    ROW_SPECIAL, 17,          5,           ROW_SPECIAL,
+    3,           ROW_SPECIAL, 27,          26,
+    18,          ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL,
+    ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL};
 
 static const uint8_t GROUP_FIRST[LIST_GROUPS + 1] = {
-    SETTINGS_SOUND_FIRST,       SETTINGS_PLAYBACK_FIRST, SETTINGS_DISPLAY_FIRST,
-    SETTINGS_POWER_FIRST,       SETTINGS_POWER_FIRST,    SETTINGS_CONNECTIONS_FIRST,
-    SETTINGS_LIBRARY_FIRST,     SETTINGS_LIBRARY_FIRST,  SETTINGS_ITEM_COUNT};
+    SETTINGS_SOUND_FIRST,   SETTINGS_PLAYBACK_FIRST, SETTINGS_DISPLAY_FIRST,
+    SETTINGS_POWER_FIRST,   SETTINGS_POWER_FIRST,    SETTINGS_CONNECTIONS_FIRST,
+    SETTINGS_LIBRARY_FIRST, SETTINGS_LIBRARY_FIRST,  SETTINGS_ITEM_COUNT};
 
 static const StringId GROUP_TITLES[SETTINGS_GROUP_COUNT] = {
-    STR_SETTINGS_SOUND,         STR_SETTINGS_PLAYBACK,   STR_SETTINGS_DISPLAY_TEXT,
-    STR_LANGUAGE,               STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
-    STR_SETTINGS_BUTTONS,       STR_SETTINGS_LIBRARY,    STR_ABOUT};
+    STR_SETTINGS_SOUND,   STR_SETTINGS_PLAYBACK,      STR_SETTINGS_DISPLAY_TEXT,
+    STR_LANGUAGE,         STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
+    STR_SETTINGS_BUTTONS, STR_SETTINGS_LIBRARY,       STR_ABOUT};
 
 static const IconId GROUP_ICONS[SETTINGS_GROUP_COUNT] = {
     ICON_AUDIO, ICON_NOW_PLAYING, ICON_COMPUTER, ICON_GLOBE, ICON_POWER,
@@ -1080,7 +1085,8 @@ static void bind_card_rows(SettingsScreens *screens)
 
 static MenuItem opening(StringId label, ScreenAction (*select)(void *), void *context)
 {
-    return (MenuItem){.label = i18n_text(label), .select = select, .context = context, .opens = true};
+    return (MenuItem){
+        .label = i18n_text(label), .select = select, .context = context, .opens = true};
 }
 
 static void bind_special_rows(SettingsScreens *screens)

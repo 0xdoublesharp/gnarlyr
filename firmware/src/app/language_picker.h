@@ -8,7 +8,7 @@
 #include "ui/theme.h"
 
 enum {
-    LANGUAGE_LABEL_BYTES = 48,
+    LANGUAGE_LABEL_BYTES = 32,
     LANGUAGE_NOTICE_BYTES = 128
 };
 
@@ -27,8 +27,8 @@ typedef struct LanguagePicker {
     int explained;
     uint32_t now_ms;
     char labels[LANGUAGE_CAPACITY][LANGUAGE_LABEL_BYTES];
-    char notice[LANGUAGE_NOTICE_BYTES];
 } LanguagePicker;
 
 Screen *language_picker_init(LanguagePicker *picker, LanguagePickerConfig config);
 const char *language_exonym(const char *code);
+const char *language_picker_notice(const LanguagePicker *picker, char *text, uint32_t capacity);

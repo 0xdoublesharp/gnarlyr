@@ -18,9 +18,9 @@ static const char KNOWN_CODES[KNOWN_LANGUAGES][PRIMARY_BYTES] = {
     {'e', 'n'}, {'d', 'e'}, {'f', 'r'}, {'e', 's'}, {'i', 't'}, {'p', 't'},
     {'n', 'l'}, {'r', 'u'}, {'j', 'a'}, {'k', 'o'}, {'z', 'h'}};
 static const StringId EXONYMS[KNOWN_LANGUAGES] = {
-    STR_LANGUAGE_ENGLISH,    STR_LANGUAGE_GERMAN,  STR_LANGUAGE_FRENCH,   STR_LANGUAGE_SPANISH,
-    STR_LANGUAGE_ITALIAN,    STR_LANGUAGE_PORTUGUESE, STR_LANGUAGE_DUTCH, STR_LANGUAGE_RUSSIAN,
-    STR_LANGUAGE_JAPANESE,   STR_LANGUAGE_KOREAN,  STR_LANGUAGE_CHINESE};
+    STR_LANGUAGE_ENGLISH,  STR_LANGUAGE_GERMAN,     STR_LANGUAGE_FRENCH, STR_LANGUAGE_SPANISH,
+    STR_LANGUAGE_ITALIAN,  STR_LANGUAGE_PORTUGUESE, STR_LANGUAGE_DUTCH,  STR_LANGUAGE_RUSSIAN,
+    STR_LANGUAGE_JAPANESE, STR_LANGUAGE_KOREAN,     STR_LANGUAGE_CHINESE};
 
 static char lower(char letter)
 {
@@ -111,39 +111,44 @@ static void build_label(LanguagePicker *picker, int index)
     }
 }
 
-static void explain(LanguagePicker *picker, int index)
+const char *language_picker_notice(const LanguagePicker *picker, char *text, uint32_t capacity)
 {
+    int index = picker->explained;
+    if (index < 0 || index != picker->list.selected) {
+        return NULL;
+    }
     const char *exonym = drawable_name(picker, index);
-    StringBuilder notice = string_builder_make(picker->notice, sizeof picker->notice);
+    StringBuilder notice = string_builder_make(text, capacity);
     i18n_format_text(&notice, STR_LANGUAGE_NEEDS_FONTS,
                      exonym != NULL ? exonym : picker->config.languages->codes[index]);
-    picker->explained = index;
+    return text;
 }
 
 static ScreenAction choose_language(void *context, int index)
 {
     LanguagePicker *picker = context;
     if (needs_fonts(picker, index) && !is_current(picker, index)) {
-        explain(picker, index);
+        picker->explained = index;
         return screen_action_none();
     }
     picker->config.choose(picker->config.context, index);
     return screen_action_pop();
 }
 
-static Rect list_area(const LanguagePicker *picker)
+static Rect list_area(const LanguagePicker *picker, const char *notice)
 {
     const Theme *theme = picker->config.theme;
     Rect content = theme_content_area(theme);
-    if (picker->explained >= 0 && picker->explained == picker->list.selected) {
-        content.height -= notice_band_height(theme, picker->notice, content.width);
+    if (notice != NULL) {
+        content.height -= notice_band_height(theme, notice, content.width);
     }
     return content;
 }
 
 static void fit(LanguagePicker *picker)
 {
-    Rect area = list_area(picker);
+    char text[LANGUAGE_NOTICE_BYTES];
+    Rect area = list_area(picker, language_picker_notice(picker, text, sizeof text));
     list_view_fit_rows(&picker->list, list_view_rows_in(&picker->list, area.height));
 }
 
@@ -184,12 +189,14 @@ static void draw(void *context, Canvas *canvas)
     const LanguagePicker *picker = context;
     const Theme *theme = picker->config.theme;
     header_draw(canvas, theme, picker->screen.title);
-    Rect area = list_area(picker);
+    char text[LANGUAGE_NOTICE_BYTES];
+    const char *notice = language_picker_notice(picker, text, sizeof text);
+    Rect area = list_area(picker, notice);
     list_view_draw(&picker->list, canvas, area, picker->now_ms);
     Rect content = theme_content_area(theme);
-    if (area.height < content.height) {
+    if (notice != NULL) {
         Rect band = {content.x, area.y + area.height, content.width, content.height - area.height};
-        notice_band_draw(canvas, theme, band, picker->notice);
+        notice_band_draw(canvas, theme, band, notice);
     }
 }
 
