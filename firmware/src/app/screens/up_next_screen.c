@@ -31,7 +31,8 @@ enum {
     QUEUE_INSET = 8,
     QUEUE_PITCH = 9,
     QUEUE_LINES = 3,
-    QUEUE_PLUS = 5
+    QUEUE_PLUS = 5,
+    ACTION_LINES = 3
 };
 
 typedef struct QueueWalk {
@@ -453,15 +454,16 @@ static void draw_track(const UpNextScreen *up_next, Canvas *canvas, int index, R
     }
     const char *badge = up_next_screen_badge(up_next, index);
     int room = badge != NULL ? text_width(small.font, badge) + theme->metrics.detail_gap : 0;
-    Rect title = {row.x, row.y, row.width - room, theme->metrics.row_height};
+    bool under = theme_is_portrait(theme);
+    Rect title = {row.x, row.y, row.width - (under ? 0 : room), theme->metrics.row_height};
     list_view_draw_row(&up_next->list, canvas, index, title, up_next->now_ms);
+    Rect artist = {row.x + padding, row.y + title.height - TRACK_LIFT,
+                   row.width - 2 * padding - (under ? room : 0), line};
     if (badge != NULL) {
         Rect area = {row.x + row.width - padding - room + theme->metrics.detail_gap,
-                     row.y + (title.height - line) / 2, room, line};
+                     under ? artist.y : row.y + (title.height - line) / 2, room, line};
         label_draw(canvas, small, (Label){area, badge});
     }
-    Rect artist = {row.x + padding, row.y + title.height - TRACK_LIFT, row.width - 2 * padding,
-                   line};
     label_draw(canvas, small, (Label){artist, up_next_screen_artist(up_next, index)});
 }
 
@@ -525,7 +527,8 @@ static int action_height(const Theme *theme)
         theme->metrics.screen_width - 3 * theme->metrics.padding - list_view_chevron_width(theme);
     const char *label = i18n_text(STR_ADD_TRACKS_FROM_MUSIC);
     int lines = label_wrap_count(theme->fonts.title, label, width);
-    return lines > 1 ? 2 * font_line_height(theme->fonts.title) + 2 * TRACK_GAP
+    lines = lines < ACTION_LINES ? lines : ACTION_LINES;
+    return lines > 1 ? lines * font_line_height(theme->fonts.title) + 2 * TRACK_GAP
                      : theme->metrics.row_height;
 }
 
@@ -547,7 +550,8 @@ static void draw_action(const UpNextScreen *up_next, Canvas *canvas, Rect row)
                        false};
     int width = row.width - 3 * padding - chevron;
     const char *label = i18n_text(STR_ADD_TRACKS_FROM_MUSIC);
-    int lines = label_wrap_count(style.font, label, width) > 1 ? 2 : 1;
+    int lines = label_wrap_count(style.font, label, width);
+    lines = lines < ACTION_LINES ? lines : ACTION_LINES;
     int height = lines * font_line_height(style.font);
     label_draw_paragraph(
         canvas, style,

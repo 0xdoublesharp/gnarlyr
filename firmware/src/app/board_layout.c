@@ -10,7 +10,7 @@ enum {
 };
 
 const BoardLayout BOARD_LAYOUT = {
-    .home_art_width = 180,
+    .home_art_width = 140,
     .home_art_min_height = COVER_FULL_SIZE + 16,
 };
 

@@ -9,10 +9,13 @@
 #include "hal/display.h"
 #include "library/covers.h"
 #include "ui/header.h"
+#include "ui/list_view.h"
 
 enum {
     MIN_VISIBLE_ROWS = 6,
     MIN_TEXT_COLUMN = 160,
+    HOME_ICON_ROOM = 28,
+    GERMAN_NOW_PLAYING_LARGE = 262,
     MAX_STRIP_PIXELS = 12000,
     HORIZON_SHARE = 9,
     HORIZON_PARTS = 16,
@@ -132,6 +135,15 @@ static void the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list(void)
 {
     CHECK(BOARD_LAYOUT.home_art_width >= COVER_FULL_SIZE);
     CHECK(BOARD_LAYOUT.home_art_width <= HAL_DISPLAY_WIDTH / 2);
+}
+
+static void a_long_home_label_fits_one_row_beside_the_art_at_large(void)
+{
+    Theme theme = theme_of_size(TEXT_SIZE_LARGE);
+    int room = HAL_DISPLAY_WIDTH - BOARD_LAYOUT.home_art_width - 2 * theme.metrics.padding -
+               HOME_ICON_ROOM - theme.metrics.scrollbar_width - theme.metrics.scrollbar_inset -
+               list_view_chevron_width(&theme) - theme.metrics.detail_gap;
+    CHECK(room >= GERMAN_NOW_PLAYING_LARGE);
 }
 
 static void a_strip_buffer_stays_small_and_strips_cover_the_screen(void)
@@ -437,6 +449,7 @@ int main(void)
         TEST_CASE(cover_flow_text_sits_below_the_cover_and_on_screen),
         TEST_CASE(cover_flow_text_lines_fit_the_theme_fonts),
         TEST_CASE(the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list),
+        TEST_CASE(a_long_home_label_fits_one_row_beside_the_art_at_large),
         TEST_CASE(a_strip_buffer_stays_small_and_strips_cover_the_screen),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
