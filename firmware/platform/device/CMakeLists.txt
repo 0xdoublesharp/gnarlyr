@@ -727,7 +727,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
         target_include_directories(${module_target}_objects PRIVATE board
             ${PROJECT_SOURCE_DIR}/src/app)
         target_compile_definitions(${module_target}_objects PRIVATE
-            headphone_store_load=trial_headphone_store_load)
+            headphone_store_load=trial_headphone_store_load
+            settings_store_read=trial_settings_store_read)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

@@ -17,6 +17,7 @@ NOTE_NAME = "NOTE.TXT"
 NOTE_ENTRY = b"NOTE    TXT"
 HEADPHONES = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
 DAC_MENU_HEADPHONES_ROW = 3
+SAVED_VOLUME = 5
 
 
 def profile_file():
@@ -25,7 +26,17 @@ def profile_file():
     return headphone_bank(1, 12, PROFILE_CEILING) + bytes(broken)
 
 
+def saved_settings():
+    return image_tests.settings_file(0, 4096, b13=SAVED_VOLUME)
+
+
 class EchoImageTest(EchoImageHarness):
+    def settings_volume(self):
+        volume = self.profile_volume()
+        volume.add_file("settings.bin", saved_settings(), None,
+                        image_tests.IDENTITY.data_directory)
+        return volume
+
     def profile_volume(self):
         from echo_emulator.fat_volume import Fat32Volume
         volume = Fat32Volume()
@@ -113,11 +124,12 @@ class EchoImageTest(EchoImageHarness):
             session.change_module(slot, START_MODULE, 600, lambda byte: byte ^ 0xFF)
         machine = session.machine
         calls = machine.trace("headphone_store_load")
+        reads = machine.trace("settings_store_read")
         applied, watch = self.started(session)
         self.assertTrue(applied)
         self.assertEqual(0, applied[-1][2], applied)
         failed = [call for call in self.start_loads(watch) if not call["loaded"]]
-        self.assertEqual(len(calls), len(failed), failed)
+        self.assertEqual(len(calls) + len(reads), len(failed), failed)
         settled = len(watch.loads())
         machine.run(until_ms=machine.milliseconds() + 1500)
         self.assertEqual(settled, len(watch.loads()))
@@ -126,6 +138,30 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         self.assertEqual(session.fat().read(HEADPHONES), profile_file())
         self.assert_healthy(session)
+
+    def test_settings_are_read_through_the_start_module_that_loads_the_headphones(self):
+        session = self.session(volume=self.settings_volume())
+        reads = session.machine.trace("settings_store_read")
+        starts = session.machine.trace("headphone_store_load")
+        _, watch = self.started(session)
+        self.assertEqual(len(starts), len(reads))
+        self.assertEqual(len(starts), len(self.start_loads(watch)),
+                         [watch.describe(call) for call in watch.loads()])
+        self.assertEqual(SAVED_VOLUME, session.machine.read_memory(
+            session.machine.symbols["volume_level"], 1)[0])
+        self.assert_healthy(session)
+
+    def test_without_an_intact_start_module_the_saved_settings_are_never_overwritten(self):
+        session = self.session(volume=self.settings_volume())
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, START_MODULE, 600, lambda byte: byte ^ 0xFF)
+        machine = session.machine
+        self.started(session)
+        self.open_settings(machine)
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
+                         "firmware reached hal_power_off")
+        self.assertEqual(saved_settings(), session.fat().read(image_tests.SETTINGS_PATH))
 
     def test_without_an_intact_start_module_the_dac_menu_keeps_the_ceiling_after_settings(self):
         session = self.session(volume=self.profile_volume(), usb_answer=None)

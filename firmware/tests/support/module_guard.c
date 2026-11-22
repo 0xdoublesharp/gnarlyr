@@ -345,6 +345,8 @@ const char *module_guard_module_name(uint32_t module)
         return "playing";
     case 16:
         return "stage";
+    case 17:
+        return "format";
     default:
         return "unknown";
     }

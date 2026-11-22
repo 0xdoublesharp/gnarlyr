@@ -20,6 +20,7 @@ void sd_forget(void);
 void sd_eject(bool eject);
 bool sd_ejected(void);
 uint32_t sd_allocation_unit(void);
+bool card_usb_busy(void);
 
 struct SdCard;
 struct MmcHost;

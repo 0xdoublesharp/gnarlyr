@@ -20,6 +20,7 @@
 #include "internal_volume.h"
 #include "mmc.h"
 #include "overlay.h"
+#include "settings_store.h"
 #include "trial_module.h"
 #include "usb.h"
 #include "usb_session.h"
@@ -140,6 +141,19 @@ CORE_SEAM void headphone_store_load(HeadphoneStore *store)
                               .load = STORE_UNSUPPORTED};
     store->file.needs_reload = true;
     hal_audio_set_headphones(store->active);
+}
+
+CORE_SEAM void settings_store_read(SettingsStore *store)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    if (entry != NULL) {
+        entry->settings_read(store);
+        return;
+    }
+    store->settings = settings_defaults();
+    store->has_saved = false;
+    store->has_saved_buttons = false;
+    store->unread = true;
 }
 
 bool hal_system_settle_user_state(bool requested)

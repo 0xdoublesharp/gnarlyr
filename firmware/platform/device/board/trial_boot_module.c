@@ -10,6 +10,7 @@
 #include "internal_volume.h"
 #include "overlay.h"
 #include "screen_modules.h"
+#include "settings_store.h"
 #include "trial_module.h"
 #include "trial_record.h"
 #include "usb_session.h"
@@ -208,4 +209,4 @@ static void start_with_headphones(HeadphoneStore *store)
 
 const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
     SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_end, settle, start_with_headphones};
+    trial_boot_module_session_end, settle, start_with_headphones, settings_store_read};

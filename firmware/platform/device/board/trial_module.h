@@ -10,6 +10,7 @@
 
 struct UsbShared;
 struct HeadphoneStore;
+struct SettingsStore;
 
 typedef struct TrialBootModuleEntry {
     uint32_t magic;
@@ -17,6 +18,7 @@ typedef struct TrialBootModuleEntry {
     void (*session_end)(struct UsbShared *shared, uint32_t *buffer);
     bool (*settle)(struct UsbShared *shared);
     void (*headphones_load)(struct HeadphoneStore *store);
+    void (*settings_read)(struct SettingsStore *store);
 } TrialBootModuleEntry;
 
 typedef struct TrialInstall {

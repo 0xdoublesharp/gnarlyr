@@ -7,16 +7,17 @@
 
 const void *app_linked_module(uint32_t module)
 {
-    static const void *const ENTRIES[SCREEN_MODULE_STAGE + 1] = {
+    static const void *const ENTRIES[SCREEN_MODULE_FORMAT + 1] = {
         [SCREEN_MODULE_EQUALIZER] = &EQUALIZER_MODULE_ENTRY,
         [SCREEN_MODULE_VIEWS] = &VIEWS_MODULE_ENTRY,
         [SCREEN_MODULE_PLAYING] = &PLAYING_MODULE_ENTRY,
         [SCREEN_MODULE_STAGE] = &STAGE_MODULE_ENTRY,
+        [SCREEN_MODULE_FORMAT] = &FORMAT_MODULE_ENTRY,
         [SCREEN_MODULE_SETTINGS] = &SETTINGS_MODULE_ENTRY,
         [SCREEN_MODULE_LIBRARY] = &LIBRARY_MODULE_ENTRY,
         [SCREEN_MODULE_LISTENING] = &LISTENING_MODULE_ENTRY,
     };
-    return module <= SCREEN_MODULE_STAGE ? ENTRIES[module] : NULL;
+    return module <= SCREEN_MODULE_FORMAT ? ENTRIES[module] : NULL;
 }
 
 const void *app_linked_debug_code(void)

@@ -25,4 +25,5 @@ typedef struct CardFormatScreen {
     char message[192];
 } CardFormatScreen;
 
+void card_format_screen_bind(CardFormatScreen *screen, CardFormatConfig config);
 Screen *card_format_screen_init(CardFormatScreen *screen, CardFormatConfig config);

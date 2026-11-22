@@ -1,4 +1,4 @@
-set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial stage)
+set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial stage format)
 set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
@@ -75,6 +75,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/app/headphone_parameters.c
     src/settings/headphone_file.c
     src/settings/headphone_profile.c
+    src/app/settings_store_read.c
+    src/settings/settings_decode.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
@@ -239,11 +241,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     platform/device/logic/exfat_list.c
     platform/device/logic/fat_utf8.c
     platform/device/board/card_eject.c
-    platform/device/board/sd_allocation.c
+    platform/device/board/card_info.c
     src/app/app_screens_home.c
-    platform/device/board/card_format.c
-    platform/device/logic/card_format.c
-    src/app/screens/card_format_screen.c
     src/app/headphone_editor.c
     src/app/headphone_store_edit.c
     src/app/headphone_store_file.c
@@ -273,6 +272,14 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/screens/bluetooth_screen.c
     src/app/bluetooth_link_ui.c
     src/ui/choice_screen.c
+)
+set(ECHO_SCREEN_MODULE_SOURCES_format
+    src/app/modules/format_module.c
+    src/app/screens/card_format_screen.c
+    platform/device/board/card_format.c
+    platform/device/board/card_info.c
+    platform/device/board/sd_allocation.c
+    platform/device/logic/card_format.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_library
     src/app/modules/library_module.c

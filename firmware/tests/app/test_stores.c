@@ -309,6 +309,25 @@ static void a_shorter_newer_settings_file_is_never_overwritten(void)
     CHECK_EQUAL(0, memcmp(bytes, saved, sizeof bytes));
 }
 
+static void an_unread_settings_store_never_overwrites_the_saved_files(void)
+{
+    fake_hal_reset();
+    settings_store_load(&settings);
+    settings.settings.brightness = BRIGHT;
+    CHECK(settings_store_save(&settings));
+    settings_store_load(&settings);
+    settings.unread = true;
+    settings.settings.brightness = settings_defaults().brightness;
+    int writes = fake_hal_write_count();
+    CHECK(!settings_store_save(&settings));
+    CHECK(!settings_store_set_clock_offset(&settings, 60));
+    CHECK(settings.values_failed);
+    CHECK_EQUAL(writes, fake_hal_write_count());
+    settings_store_load(&settings);
+    CHECK(!settings.unread);
+    CHECK_EQUAL(BRIGHT, settings.settings.brightness);
+}
+
 static void a_corrupted_settings_file_falls_back_to_the_defaults(void)
 {
     static const uint8_t garbage[SETTINGS_FILE_SIZE] = {'D', 'S', 'S', 'T', 9};
@@ -828,6 +847,7 @@ int main(void)
         TEST_CASE(a_settings_file_of_version_zero_is_replaced_by_the_defaults),
         TEST_CASE(a_shorter_newer_settings_file_is_never_overwritten),
         TEST_CASE(a_corrupted_settings_file_falls_back_to_the_defaults),
+        TEST_CASE(an_unread_settings_store_never_overwrites_the_saved_files),
         TEST_CASE(hardware_settings_reach_the_hal),
         TEST_CASE(toggling_an_album_adds_it_and_saves),
         TEST_CASE(favorites_are_loaded_again),
