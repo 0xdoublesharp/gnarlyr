@@ -387,7 +387,7 @@ static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
     start_app();
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(title_is("Listening"));
+    CHECK(title_is("Recap"));
     int depth = app_screen_depth();
     for (int row = 0; row < 5; row++) {
         move_down(row);
@@ -398,7 +398,7 @@ static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
         }
         CHECK_EQUAL(depth, app_screen_depth());
         tap(KEY_BACK);
-        CHECK(title_is("Listening"));
+        CHECK(title_is("Recap"));
         CHECK_EQUAL(depth, app_screen_depth());
         move_up(row);
     }
@@ -412,7 +412,7 @@ static void a_storage_session_mid_slide_ends_the_slide_before_the_restart_draws(
     move_down(2);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is("Listening"));
+    CHECK(title_is("Recap"));
     move_up(1);
     tap(KEY_PLAY);
     CHECK(title_is("Moments"));
@@ -448,7 +448,7 @@ static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
     CHECK_EQUAL(reserves, fake_hal_reserve_count());
     CHECK_EQUAL(depth, app_screen_depth());
     tap(KEY_BACK);
-    CHECK(title_is("Listening"));
+    CHECK(title_is("Recap"));
     tap(KEY_BACK);
     CHECK(title_is("Home"));
 }
@@ -1984,7 +1984,7 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
     wait_ms(1000);
     CHECK(!selection_is_red());
     open_setting(SETTINGS_COLOR_INDEX);
-    CHECK(title_is("Accent Color"));
+    CHECK(title_is("Accent color"));
     move_down(ACCENT_RED);
     tap(KEY_PLAY);
     CHECK(title_is("Settings"));
@@ -6127,7 +6127,7 @@ static void add_to_favorite_playlist_writes_a_playlist_file(void)
     hold(KEY_PLAY);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(toast_is("Added to Favorites"));
+    CHECK(toast_is("Added to favorites"));
     CHECK(title_is("Back In Black"));
     uint32_t size = 0;
     const char *text = (const char *)fake_hal_file_bytes("/Favorite Tracks.m3u", &size);
@@ -6138,7 +6138,7 @@ static void add_to_favorite_playlist_writes_a_playlist_file(void)
     hold(KEY_PLAY);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(toast_is("Already in Favorites"));
+    CHECK(toast_is("Already in favorites"));
 }
 
 static void open_favorite_tracks(void)
@@ -6165,7 +6165,7 @@ static void a_favorite_shows_in_playlists_without_a_rescan(void)
     hold(KEY_PLAY);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(toast_is("Added to Favorites"));
+    CHECK(toast_is("Added to favorites"));
     open_favorite_tracks();
     CHECK(title_is("Favorite Tracks"));
     tap(KEY_PLAY);
@@ -6194,7 +6194,7 @@ static void add_to_favorite_playlist_says_it_failed_when_its_module_cannot_load(
     fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
     tap(KEY_PLAY);
     fake_hal_break_module(SCREEN_MODULE_VIEWS, false);
-    CHECK(toast_is("Couldn't add to Favorites"));
+    CHECK(toast_is("Couldn't add to favorites"));
     uint32_t size = 0;
     CHECK(fake_hal_file_bytes("/Favorite Tracks.m3u", &size) == NULL);
 }
@@ -6211,17 +6211,17 @@ static void add_to_favorite_playlist_keeps_the_cue_part_apart(void)
     hold(KEY_PLAY);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(toast_is("Added to Favorites"));
+    CHECK(toast_is("Added to favorites"));
     move_down(1);
     hold(KEY_PLAY);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(toast_is("Added to Favorites"));
+    CHECK(toast_is("Added to favorites"));
     move_up(1);
     hold(KEY_PLAY);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(toast_is("Already in Favorites"));
+    CHECK(toast_is("Already in favorites"));
     uint32_t size = 0;
     const char *text = (const char *)fake_hal_file_bytes("/Favorite Tracks.m3u", &size);
     CHECK(text != NULL);
@@ -6531,7 +6531,7 @@ static void holding_play_on_an_album_adds_it_to_favorites(void)
     start_app_with_library();
     open_albums_and_hold_the_first();
     CHECK(title_is("Albums"));
-    CHECK(toast_is("Added to Favorites"));
+    CHECK(toast_is("Added to favorites"));
     tap(KEY_BACK);
     move_down(MUSIC_FAVORITES_INDEX - MUSIC_ALBUMS_INDEX);
     tap(KEY_PLAY);
@@ -6548,7 +6548,7 @@ static void holding_play_in_favorites_removes_the_album(void)
     move_down(MUSIC_FAVORITES_INDEX - MUSIC_ALBUMS_INDEX);
     tap(KEY_PLAY);
     hold(KEY_PLAY);
-    CHECK(toast_is("Removed from Favorites"));
+    CHECK(toast_is("Removed from favorites"));
     tap(KEY_PLAY);
     CHECK(title_is("Favorites"));
 }
@@ -6730,7 +6730,7 @@ static void holding_play_in_cover_flow_toggles_a_favorite(void)
     start_app_with_library();
     open_music_entry(MUSIC_COVER_FLOW_INDEX);
     hold(KEY_PLAY);
-    CHECK(toast_is("Added to Favorites"));
+    CHECK(toast_is("Added to favorites"));
     CHECK(title_is("Cover Flow"));
 }
 
@@ -8385,7 +8385,7 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
-    static const char *const titles[] = {"Music",    "Mixtapes", "Listening",
+    static const char *const titles[] = {"Music",    "Mixtapes", "Recap",
                                          "USB mode", "Clock",    "Settings"};
     CHECK(selected < 6 && title_is(titles[selected]));
 }

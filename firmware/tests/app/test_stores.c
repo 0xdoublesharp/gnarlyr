@@ -751,7 +751,7 @@ static void shaping_words_and_positions_survive_restart_and_plain_edits_clear_th
     settings_store_load(&store);
     CHECK(strcmp(store.parametric.description, "Warm · Bright") == 0);
     CHECK_EQUAL(2, parametric_store_bank()->shaping[0].positions[0]);
-    SettingsScreens screens;
+    static SettingsScreens screens;
     Player row_player = {0};
     Toast row_toast = {0};
     PowerPolicy power = {0};

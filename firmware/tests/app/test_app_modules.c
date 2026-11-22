@@ -325,13 +325,13 @@ static void a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module(v
     CHECK_EQUAL(1, fake_hal_module_loads());
     move_down(6);
     tap(KEY_PLAY);
-    CHECK(title_is("All Songs"));
+    CHECK(title_is("All songs"));
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     CHECK(title_is("Now Playing"));
     tap(KEY_BACK);
-    CHECK(title_is("All Songs"));
+    CHECK(title_is("All songs"));
     CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
     CHECK_EQUAL(1, fake_hal_module_loads());
 }

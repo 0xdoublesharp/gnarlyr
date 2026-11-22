@@ -123,10 +123,14 @@ Rect footer_hints_area(const Theme *theme, Rect content, FooterHints hints)
 
 static void draw_frame(Canvas *canvas, Rect box, Color color)
 {
-    canvas_fill_rect(canvas, (Rect){box.x, box.y, box.width, 1}, color);
-    canvas_fill_rect(canvas, (Rect){box.x, box.y + box.height - 1, box.width, 1}, color);
-    canvas_fill_rect(canvas, (Rect){box.x, box.y, 1, box.height}, color);
-    canvas_fill_rect(canvas, (Rect){box.x + box.width - 1, box.y, 1, box.height}, color);
+    for (int side = 0; side < 4; side++) {
+        Rect edge = box;
+        edge.x += side == 1 ? box.width - 1 : 0;
+        edge.y += side == 3 ? box.height - 1 : 0;
+        edge.width = side < 2 ? 1 : box.width;
+        edge.height = side < 2 ? box.height : 1;
+        canvas_fill_rect(canvas, edge, color);
+    }
 }
 
 static void draw_cell(Canvas *canvas, const Theme *theme, const FooterRun *run, Rect cell,

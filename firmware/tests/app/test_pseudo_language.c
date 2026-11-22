@@ -729,7 +729,7 @@ static void walk_listening(void)
     begin();
     down(2);
     tap(KEY_PLAY);
-    show_titled("Listening", STR_LISTENING);
+    show_titled("Recap", STR_LISTENING);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     show_titled("Moments", STR_MOMENTS);

@@ -33,6 +33,7 @@ enum {
     FIRST_UNDRAWN = ICON_SHUFFLE,
     UNDRAWN_SPAN = 32,
     LAST_NARROW = ICON_CHEVRON,
+    LAST_SMALL = ICON_LOGO,
     KIND_SHIFT = 29,
     A_SHIFT = 22,
     B_SHIFT = 17,
@@ -164,6 +165,16 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
 #define PLUG_GLYPH                                                                                 \
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
 #define CHEVRON_GLYPH THICK(0, 0, 5, 6), LAST(THICK(5, 7, 0, 13))
+#define INFO_GLYPH RING(1, 1, 18), ACCENT(FILL(9, 4, 10, 5)), LAST(ACCENT(FILL(9, 8, 10, 14)))
+#define TAG_GLYPH                                                                                  \
+    LINE(1, 4, 12, 4), LINE(12, 4, 18, 10), LINE(18, 10, 12, 16), LINE(12, 16, 1, 16),             \
+        LINE(1, 4, 1, 16), LAST(ACCENT(DISC(4, 8, 4)))
+#define HIDE_GLYPH                                                                                 \
+    LINE(0, 10, 9, 5), LINE(9, 5, 18, 10), LINE(18, 10, 9, 15), LINE(9, 15, 0, 10),                \
+        ACCENT(DISC(7, 8, 4)), LAST(LINE(3, 17, 15, 2))
+#define DELETE_GLYPH                                                                               \
+    LINE(1, 4, 17, 4), FILL(7, 1, 12, 2), BOX(4, 6, 15, 18), ACCENT(LINE(7, 9, 7, 15)),            \
+        LAST(ACCENT(LINE(11, 9, 11, 15)))
 
 static const uint32_t GLYPHS[] = {
     MUSIC_GLYPH,
@@ -207,6 +218,10 @@ static const uint32_t GLYPHS[] = {
     SONG_SMALL_GLYPH,
     PLUG_GLYPH,
     CHEVRON_GLYPH,
+    INFO_GLYPH,
+    TAG_GLYPH,
+    HIDE_GLYPH,
+    DELETE_GLYPH,
 };
 
 typedef struct Pen {
@@ -446,7 +461,7 @@ static const uint32_t *glyph(IconId icon)
 {
     const uint32_t *word = GLYPHS;
     for (int index = ICON_NONE + 1; index < (int)icon; index++) {
-        while (drawn(index) && (*word++ & ICON_LAST_BIT) == 0) {
+        while (index != ICON_LOGO && drawn(index) && (*word++ & ICON_LAST_BIT) == 0) {
         }
     }
     return word;
@@ -454,7 +469,7 @@ static const uint32_t *glyph(IconId icon)
 
 int icon_rows(IconId icon)
 {
-    return (int)icon >= FIRST_SMALL ? ICON_SMALL_GRID : ICON_LARGE_GRID;
+    return (int)icon >= FIRST_SMALL && (int)icon <= LAST_SMALL ? ICON_SMALL_GRID : ICON_LARGE_GRID;
 }
 
 int icon_width(IconId icon, int height)

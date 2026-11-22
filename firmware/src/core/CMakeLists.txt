@@ -9,6 +9,7 @@ add_library(echo_core STATIC
     debug_span.c
     drive_path.c
     format.c
+    format_bitrate.c
     format_chain.c
     frame_pacer.c
     frame_stats.c

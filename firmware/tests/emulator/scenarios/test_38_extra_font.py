@@ -164,8 +164,10 @@ class EchoImageTest(EchoImageHarness):
         session, machine = self.started_session(volume=self.korean_volume(bytes(font)))
         self.assertTrue(self.attached(machine))
         lookups = self.hangul_lookups(machine)
-        self.assertFalse(any(present for (face, _), present in lookups.items()
-                             if face == IMAGE_FACES + 2))
+        self.assertTrue(any(not present for (face, _), present in lookups.items()
+                            if face == IMAGE_FACES + 2))
+        self.assertTrue(all(present for (face, _), present in lookups.items()
+                            if face >= IMAGE_FACES and face != IMAGE_FACES + 2))
         self.assert_healthy(session)
 
     def test_with_a_card_as_the_music_volume_the_extra_font_comes_from_internal_storage(self):
