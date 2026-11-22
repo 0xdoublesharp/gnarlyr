@@ -155,16 +155,8 @@ static Screen *ask_delete(const TrackRemoval *removal, uint16_t track)
         tell(removal, DELETE_TEXT[result]);
         return NULL;
     }
-    MenuConfig config = actions->menu.config;
-    MenuItem choice = actions->items[config.item_count - 1];
-    actions->items[0] = choice;
-    actions->items[0].label = i18n_text(STR_CANCEL);
-    actions->items[1] = choice;
-    hidden_tracks_file_name(identity.path, actions->title, sizeof actions->title);
-    actions->confirming = true;
-    config.title = actions->title;
-    config.item_count = 2;
-    return menu_screen_init(&actions->menu, config);
+    hidden_tracks_file_name(identity.path, actions->file, sizeof actions->file);
+    return browse_pool_song_confirm(actions);
 }
 
 Screen *track_removal_manage(TrackRemoval removal, uint16_t track, SongManage manage)
@@ -178,7 +170,6 @@ Screen *track_removal_manage(TrackRemoval removal, uint16_t track, SongManage ma
     case SONG_MANAGE_DELETE:
         tell(&removal, DELETE_TEXT[track_removal_delete(removal.tracks, track)]);
         return NULL;
-    case SONG_MANAGE_KEEP:
     case SONG_MANAGE_TAPE:
     case SONG_MANAGE_FAVORITE:
         break;

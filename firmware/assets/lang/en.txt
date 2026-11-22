@@ -1030,8 +1030,13 @@ STR_RECAP_PERCENT = {0}%
 STR_RECAP_HIGHLIGHTS = Highlights
 STR_RECAP_TOP_ARTIST = Top artist
 STR_RECAP_TOP_SONG = Top song
-# Hiding and deleting a track. The title of the delete question is the file's name.
+# Hiding and deleting a track. STR_DELETE_FILE_ASK opens the delete question, whose title is
+# STR_DELETE_FILE_QUESTION; the file's name follows above STR_DELETE_FILE_NOTE, and STR_DELETE_FILE
+# is the choice that deletes.
 STR_HIDE_TRACK = Hide track
+STR_DELETE_FILE_ASK = Delete file…
+STR_DELETE_FILE_QUESTION = Delete file?
+STR_DELETE_FILE_NOTE = This permanently deletes the file from storage.
 STR_DELETE_FILE = Delete file
 STR_CANCEL = Cancel
 STR_HIDDEN_TRACKS = Hidden tracks

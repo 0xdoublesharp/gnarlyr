@@ -445,9 +445,35 @@ static ScreenAction manage_song(void *context)
     BrowsePool *pool = context;
     SongActions *actions = &pool->song_actions;
     int choice = actions->menu.list.selected + 2 - actions->menu.config.item_count;
-    SongManage manage = (SongManage)(choice + (actions->confirming ? SONG_MANAGE_KEEP : 0));
-    Screen *screen = pool->config.manage(pool->config.tools_context, actions->track, manage);
+    Screen *screen =
+        pool->config.manage(pool->config.tools_context, actions->track, (SongManage)choice);
     return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
+}
+
+static ScreenAction choose_delete(void *context, int index)
+{
+    SongActions *actions = context;
+    if (index == CONFIRM_CANCEL) {
+        list_view_select(&actions->menu.list, actions->menu.config.item_count - 2, actions->now_ms);
+        return screen_action_replace(&actions->menu.screen);
+    }
+    BrowsePoolConfig *config = &actions->pool->config;
+    (void)config->manage(config->tools_context, actions->track, SONG_MANAGE_DELETE);
+    return screen_action_pop();
+}
+
+Screen *browse_pool_song_confirm(SongActions *actions)
+{
+    ConfirmConfig config = {.title = i18n_text(STR_DELETE_FILE_QUESTION),
+                            .subject = actions->file,
+                            .sections = {{NULL, i18n_text(STR_DELETE_FILE_NOTE)}},
+                            .choices = {i18n_text(STR_CANCEL), i18n_text(STR_DELETE_FILE)},
+                            .choice_count = 2,
+                            .first_danger = 1,
+                            .choose = choose_delete,
+                            .context = actions,
+                            .theme = actions->pool->config.theme};
+    return confirm_screen_init(&actions->confirm, config);
 }
 
 enum {
@@ -462,17 +488,18 @@ typedef struct SongAction {
     ScreenAction (*select)(void *context);
     uint8_t needs;
     bool opens;
+    uint8_t role;
 } SongAction;
 
 static const SongAction SONG_ACTIONS[] = {
-    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false},
-    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true},
-    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true},
-    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true},
-    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false},
-    {STR_DELETE_FILE, manage_song, ACTION_MANAGE, false},
+    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false, 0},
+    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false, 0},
+    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false, 0},
+    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true, 0},
+    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true, 0},
+    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true, 0},
+    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false, 0},
+    {STR_DELETE_FILE_ASK, manage_song, ACTION_MANAGE, false, LIST_ROW_DANGER | LIST_ROW_DIVIDED},
 };
 
 static bool action_offered(const BrowsePool *pool, uint8_t needs)
@@ -487,7 +514,7 @@ CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, con
 {
     SongActions *actions = &pool->song_actions;
     actions->track = track;
-    actions->confirming = false;
+    actions->pool = pool;
     actions->now_ms = now_ms;
     StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
     string_builder_append(&title, name);
@@ -498,7 +525,8 @@ CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, con
             actions->items[count++] = (MenuItem){.label = i18n_text(action->label),
                                                  .select = action->select,
                                                  .context = pool,
-                                                 .opens = action->opens};
+                                                 .opens = action->opens,
+                                                 .role = action->role};
         }
     }
     MenuConfig config = {.title = actions->title,
