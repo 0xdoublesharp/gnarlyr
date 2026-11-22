@@ -4,9 +4,12 @@
 #include <stdint.h>
 
 #include "app/debug_loop.h"
+#include "dac.h"
+#include "device/battery_gauge.h"
 #include "device/debug_report.h"
 #include "device/fat.h"
 #include "device/pc_profile.h"
+#include "device/start_record.h"
 #include "usb_session.h"
 
 #define DEBUG_RESTART_PATH "/" FIRMWARE_DATA_DIRECTORY "/debug/restart.req"
@@ -17,12 +20,19 @@
 
 void board_profile_sample(uint32_t pc);
 void board_profile_wait(void);
-const PcProfile *board_profile(void);
+extern PcProfile board_pc_profile;
+extern StartInfo board_start_info;
+extern BatteryDisplay board_power_display;
+extern DacDiagnostics board_dac_diagnostics;
+
+PcProfile *board_profile(void);
 void board_profile_hold(bool hold);
 typedef struct BoardBatteryReading {
     bool known;
     uint16_t raw;
 } BoardBatteryReading;
+
+extern BoardBatteryReading board_debug_battery;
 
 void board_debug_battery_reading(uint16_t raw);
 BoardBatteryReading board_debug_battery_raw(void);

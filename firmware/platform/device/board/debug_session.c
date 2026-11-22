@@ -52,7 +52,7 @@ static Reconnect reconnect;
 static DebugReportAudio audio;
 static PowerHistory history;
 static PowerWatch watch;
-static BoardBatteryReading battery;
+BoardBatteryReading board_debug_battery;
 static bool usb_powered;
 static bool usb_kept_on;
 static bool usb_supply_held_off;
@@ -99,12 +99,7 @@ const uint32_t *board_debug_grf_start(void)
 
 void board_debug_battery_reading(uint16_t raw)
 {
-    battery = (BoardBatteryReading){.known = true, .raw = raw};
-}
-
-BoardBatteryReading board_debug_battery_raw(void)
-{
-    return battery;
+    board_debug_battery = (BoardBatteryReading){.known = true, .raw = raw};
 }
 
 const PowerHistory *board_debug_power_history(void)
@@ -146,7 +141,7 @@ static void trace_sample(uint32_t now_ms, PowerSample sample)
 static void take_sample(uint32_t now_ms)
 {
     BatteryGauge gauge = board_battery_gauge();
-    BatteryDisplay shown = board_power_shown();
+    BatteryDisplay shown = board_power_display;
     if (!battery_gauge_known(&gauge) || !shown.shown_known) {
         return;
     }
