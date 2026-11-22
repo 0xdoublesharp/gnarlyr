@@ -1,12 +1,22 @@
 #include "home_art.h"
 
 #include "core/deadline.h"
+#include "core/i18n.h"
+#include "core/string_builder.h"
 #include "gfx/image.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 
 enum {
-    COVER_MARGIN_TOP = 8
+    COVER_MARGIN_TOP = 8,
+    CAPTION_ROOM = 62,
+    SMALLEST_COVER = 64,
+    CUE_HEIGHT = 48,
+    CUE_LINE = 20,
+    CUE_MARK_WIDTH = 13,
+    CUE_MARK_HEIGHT = 8,
+    CUE_MARK_STROKE = 3,
+    NUMBER_CAPACITY = 8
 };
 
 static void update_metadata(HomeArt *art)
@@ -136,6 +146,68 @@ static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
     }
 }
 
+static int hidden_below(const HomeArt *art)
+{
+    const ListView *list = art->list;
+    if (list == NULL || list->model == NULL) {
+        return 0;
+    }
+    return list->model->count(list->model->context) - list->top - list->visible_rows;
+}
+
+static void draw_turned_chevron(Canvas *canvas, Rect box, Color ink)
+{
+    for (int row = 0; row < CUE_MARK_HEIGHT; row++) {
+        int inset = row * (CUE_MARK_WIDTH - CUE_MARK_STROKE) / (2 * CUE_MARK_HEIGHT);
+        canvas_fill_rect(canvas, (Rect){box.x + inset, box.y + row, CUE_MARK_STROKE, 1}, ink);
+        canvas_fill_rect(canvas,
+                         (Rect){box.x + CUE_MARK_WIDTH - inset - CUE_MARK_STROKE, box.y + row,
+                                CUE_MARK_STROKE, 1},
+                         ink);
+    }
+}
+
+static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
+{
+    const Theme *theme = art->theme;
+    const ListView *list = art->list;
+    const ListModel *model = list->model;
+    char numbers[3][NUMBER_CAPACITY];
+    const char *values[3];
+    int range[3] = {list->top + 1, list->top + list->visible_rows, model->count(model->context)};
+    for (int index = 0; index < 3; index++) {
+        StringBuilder number = string_builder_make(numbers[index], NUMBER_CAPACITY);
+        string_builder_append_unsigned(&number, (uint32_t)range[index]);
+        values[index] = numbers[index];
+    }
+    char text[3 * NUMBER_CAPACITY + 16];
+    StringBuilder line = string_builder_make(text, sizeof text);
+    i18n_format(&line, STR_RANGE_OF, values, 3);
+    canvas_fill_rect(canvas, area, theme->colors.header_background);
+    canvas_fill_rect(canvas, (Rect){area.x, area.y, area.width, 1}, theme->colors.divider);
+    int padding = theme->metrics.padding;
+    Rect row = {area.x + padding, area.y + 4, area.width - 2 * padding, CUE_LINE};
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
+               (Label){row, text});
+    row.y += CUE_LINE;
+    draw_turned_chevron(canvas, (Rect){row.x, row.y + (CUE_LINE - CUE_MARK_HEIGHT) / 2, 0, 0},
+                        theme->colors.accent);
+    row.x += CUE_MARK_WIDTH + 4;
+    row.width -= CUE_MARK_WIDTH + 4;
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent, false},
+               (Label){row, model->label(model->context, list->top + list->visible_rows)});
+}
+
+static void draw_backdrop(const HomeArt *art, Canvas *canvas, Rect area, int floor)
+{
+    Rect sky = area;
+    if (theme_is_portrait(art->theme) && floor > area.y) {
+        sky.height = 2 * (floor - area.y);
+    }
+    Canvas band = canvas_clipped(canvas, area);
+    home_art_draw_backdrop(&band, sky, art->theme);
+}
+
 void home_art_draw(void *context, Canvas *canvas, Rect area)
 {
     const HomeArt *art = context;
@@ -143,22 +215,27 @@ void home_art_draw(void *context, Canvas *canvas, Rect area)
     bool below = theme_is_portrait(theme);
     Rect divider =
         below ? (Rect){area.x, area.y, area.width, 1} : (Rect){area.x, area.y, 1, area.height};
-    home_art_draw_backdrop(canvas, area, theme);
+    int cue = hidden_below(art) > 0 ? CUE_HEIGHT : 0;
+    area.height -= cue;
+    int size = area.height - CAPTION_ROOM;
+    bool captions = size >= SMALLEST_COVER;
+    size = captions && size < COVER_FULL_SIZE ? size : COVER_FULL_SIZE;
+    int left = area.x + (area.width - size) / 2;
+    int top = area.y + (below && !captions ? (area.height - size) / 2 : COVER_MARGIN_TOP);
+    draw_backdrop(art, canvas, area, captions ? top + size + CAPTION_ROOM - COVER_MARGIN_TOP : 0);
     canvas_fill_rect(canvas, divider, theme->colors.divider);
-    bool captions = area.height >= COVER_FULL_SIZE + 70;
-    int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
-    int top =
-        area.y + (below && !captions ? (area.height - COVER_FULL_SIZE) / 2 : COVER_MARGIN_TOP);
     Image cover;
     if (art->has_album && cover_cache_full(art->covers, art->album, &cover) == COVER_LOADED) {
-        Quad quad = {left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE};
-        image_draw_quad(canvas, cover, quad);
+        image_draw_quad(canvas, cover, (Quad){left, size, top, size, top, size});
     } else {
-        icon_draw(canvas, ICON_MIXTAPE, (Rect){left + 16, top + 16, 80, 80},
+        icon_draw(canvas, ICON_MIXTAPE,
+                  (Rect){left + size / 7, top + size / 7, size * 5 / 7, size * 5 / 7},
                   (IconInk){theme->colors.text_secondary, theme->colors.accent});
     }
     if (captions) {
-        draw_caption(art, canvas,
-                     (Rect){area.x + 10, top + COVER_FULL_SIZE + 6, area.width - 20, 18});
+        draw_caption(art, canvas, (Rect){area.x + 10, top + size + 6, area.width - 20, 18});
+    }
+    if (cue > 0) {
+        draw_cue(art, canvas, (Rect){area.x, area.y + area.height, area.width, cue});
     }
 }

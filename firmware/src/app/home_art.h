@@ -7,6 +7,7 @@
 #include "gfx/canvas.h"
 #include "library_store.h"
 #include "player.h"
+#include "ui/list_view.h"
 #include "ui/theme.h"
 
 enum {
@@ -18,6 +19,7 @@ typedef struct HomeArt {
     const LibraryStore *store;
     Player *player;
     const Theme *theme;
+    const ListView *list;
     bool cycling;
     bool has_album;
     uint16_t album;

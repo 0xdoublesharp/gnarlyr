@@ -182,7 +182,7 @@ static void a_home_mapping_wakes_the_screen_before_showing_home(void)
     CHECK(!fake_hal_display_on());
     tap(KEY_MENU);
     CHECK(fake_hal_display_on());
-    CHECK(strcmp(app_screen_title(), FIRMWARE_SHORT_NAME) == 0);
+    CHECK(strcmp(app_screen_title(), "Home") == 0);
 }
 
 static void reset_buttons_restores_the_live_controls_and_saved_defaults(void)

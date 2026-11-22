@@ -3,6 +3,7 @@
 #include "about_layout.h"
 #include "board_layout.h"
 #include "check.h"
+#include "core/i18n.h"
 #include "default_theme.h"
 #include "gfx/text.h"
 #include "hal/display.h"
@@ -319,7 +320,7 @@ static void the_home_title_fits_the_header_at_every_size_and_orientation(void)
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
             Theme theme = theme_turned(size, (Orientation)orientation);
-            CHECK(text_width(theme.fonts.header, FIRMWARE_SHORT_NAME) <=
+            CHECK(text_width(theme.fonts.header, i18n_text(STR_HOME)) <=
                   header_title_bounds(&theme).width);
         }
     }

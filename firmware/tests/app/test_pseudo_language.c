@@ -818,7 +818,7 @@ static void walk_everything(void)
 {
     begin();
     tap(portrait ? KEY_VOLUME_DOWN : KEY_VOLUME_UP);
-    CHECK(strcmp(FIRMWARE_SHORT_NAME, app_screen_title()) == 0);
+    CHECK(strcmp(i18n_text(STR_HOME), app_screen_title()) == 0);
     CHECK(show("Home") >= 2);
     walk_music();
     walk_smart_lists();
