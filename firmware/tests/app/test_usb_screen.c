@@ -51,9 +51,11 @@ typedef struct Variant {
 
 static const FooterHint MENU_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
                                         {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
-static const FooterHint STORAGE_PAGES[][2] = {
-    {{FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
-    {{FOOTER_KEY_MENU, STR_HINT_VIEW_STATS}, {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+static const FooterHint STORAGE_PAGES[][3] = {
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD}, {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
     {{FOOTER_KEY_MENU, STR_HINT_MORE_STATS}, {FOOTER_KEY_BACK, STR_HINT_RETURN}},
     {{FOOTER_KEY_BACK, STR_HINT_RETURN}}};
 static const FooterHint DAC_PAGES[][3] = {
@@ -67,7 +69,7 @@ static const FooterHint DAC_PAGES[][3] = {
     {{FOOTER_KEY_MENU, STR_SETTINGS},
      {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
      {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}}};
-static const uint8_t STORAGE_COUNTS[] = {1, 2, 2, 1};
+static const uint8_t STORAGE_COUNTS[] = {2, 3, 2, 1};
 
 static void use_page_hints(UsbScene *scene, bool dac, int pages)
 {

@@ -31,7 +31,7 @@ static void the_prompt_puts_connect_to_computer_first_and_highlights_it(void)
     PlugChoices choices = choices_at(PLUG_PLACE_PROMPT, PLUG_MODE_ASK, CHARGED);
     check_modes(choices, EXPECTED, 4);
     CHECK_EQUAL(0, choices.cursor);
-    CHECK_EQUAL(1, choices.marked);
+    CHECK_EQUAL(PLUG_NOT_MARKED, choices.marked);
 }
 
 static void switching_later_highlights_and_marks_the_mode_in_use(void)
