@@ -6,7 +6,7 @@ This is the adopted design for Gnarlyr's screens. New and changed screens follow
 
 - Adopted on 2026-11-21.
 - Deferred to beta.2 are the search letter strip, live preview, and results (L09/L09b), the EQ caption rewrite (L13), and the Recap empty-state art (L14).
-- Also deferred: the file and history-device drawings beside the Delete file? and Clear history? confirms (L07b, L10). The confirm screen is built into the views and listening modules, and views has about 500 bytes left on the `device` image. Mixtapes in portrait (P04) shows today's cassette art on the grid instead of a new wire cassette, without the help line under it.
+- Also deferred: the file and history-device drawings beside the Delete file? and Clear history? confirms (L07b, L10). The confirm screen is built into the views and listening modules, and views has too little room left on the `device` image for both drawings. Mixtapes in portrait (P04) shows today's cassette art on the grid instead of a new wire cassette, without the help line under it.
 - The sheets are HTML mockups rendered at the panel's real size (480 × 222 landscape, 222 × 480 portrait) in English, German and Japanese. They reuse some of today's firmware, such as the battery and the ported drawings, but the design as a set is not implemented yet. Where today's firmware behaves differently, [architecture.md](architecture.md) and [user-guide.md](user-guide.md) describe what it does now, and this document describes the target.
 - Pending firmware work the design depends on:
   - **Plug-in countdown pause.** On the plug-in prompt, the first Vol press stops the countdown and the header says "Auto-charge paused". Today any button starts the 15 s count again ([user-guide.md](user-guide.md), When you plug in).

@@ -194,6 +194,25 @@ static void the_favourite_playlist_row_needs_a_manage_handler(void)
     CHECK_EQUAL(SCREEN_ACTION_POP, item.select(item.context).type);
 }
 
+static void every_track_action_has_an_icon_and_the_file_rows_say_what_happens(void)
+{
+    BrowsePoolConfig config = {
+        .library = fixture_library_open(&fixture), .theme = &BOARD_THEME, .manage = manage_nothing};
+    browse_pool_init(&pool, config);
+    CHECK(browse_pool_song_actions(&pool, 0, "Song", 0) != NULL);
+    int count = pool.song_actions.menu.config.item_count;
+    for (int index = 0; index < count; index++) {
+        CHECK(pool.song_actions.items[index].icon != ICON_NONE);
+    }
+    MenuItem hide = pool.song_actions.items[song_action_row(STR_HIDE_TRACK)];
+    MenuItem erase = pool.song_actions.items[count - 1];
+    CHECK(strcmp(i18n_text(STR_KEEP_FILE), hide.value(hide.context)) == 0);
+    CHECK(strcmp(i18n_text(STR_DELETE_FILE_ASK), erase.label) == 0);
+    CHECK(strcmp(i18n_text(STR_ERASE_FROM_STORAGE), erase.value(erase.context)) == 0);
+    CHECK_EQUAL(LIST_ROW_DANGER_DIVIDED, erase.role);
+    CHECK_EQUAL(LIST_ROW_PLAIN, hide.role);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -208,6 +227,7 @@ int main(void)
         TEST_CASE(album_tracks_have_no_letters),
         TEST_CASE(invalid_levels_and_missing_favorites_return_no_screen),
         TEST_CASE(the_favourite_playlist_row_needs_a_manage_handler),
+        TEST_CASE(every_track_action_has_an_icon_and_the_file_rows_say_what_happens),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
