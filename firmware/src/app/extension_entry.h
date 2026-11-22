@@ -8,6 +8,7 @@
 #include "hal/system.h"
 #include "standby.h"
 #include "ui/screen.h"
+#include "ui/wire_figure.h"
 #include "ui/wire_motion.h"
 
 struct AppScreens;
@@ -25,6 +26,7 @@ typedef struct ExtensionModuleEntry {
     void (*motion_tick)(WireMotion *motion, uint32_t now_ms);
     Rect (*motion_fit)(Rect space);
     void (*motion_draw)(WireMotion *motion, Canvas *canvas, const Theme *theme, Rect space);
+    void (*figure_draw)(Canvas *canvas, const Theme *theme, Rect area, WireFigureFrame frame);
     bool (*file_remove)(const char *path);
     bool (*theme_draw)(const Theme *theme, Canvas *canvas, int slot, Rect area);
     void (*forget_time_file)(void);
