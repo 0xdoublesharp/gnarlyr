@@ -5,24 +5,6 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 
-static const StringId ACTIONS[BUTTON_ACTION_COUNT] = {
-    STR_BUTTON_DEFAULT,
-    STR_OFF,
-    STR_BUTTON_PLAY_PAUSE,
-    STR_UP_NEXT,
-    STR_AB_LOOP,
-    STR_BUTTON_NEXT,
-    STR_BUTTON_PREVIOUS,
-    STR_BUTTON_VOLUME_UP,
-    STR_BUTTON_VOLUME_DOWN,
-    STR_BUTTON_HOME,
-};
-static const StringId BUTTONS[PLAYBACK_BUTTON_COUNT] = {
-    STR_BUTTON_VOLUME_UP_TAP,    STR_BUTTON_VOLUME_UP_HOLD, STR_BUTTON_VOLUME_DOWN_TAP,
-    STR_BUTTON_VOLUME_DOWN_HOLD, STR_BUTTON_PLAY_TAP,       STR_BUTTON_PLAY_HOLD,
-    STR_BUTTON_MENU_TAP,         STR_BUTTON_MENU_HOLD,
-};
-
 static const StringId SHOWN_ACTIONS[BUTTON_ACTION_COUNT] = {
     STR_BUTTON_DEFAULT,
     STR_OFF,
@@ -51,8 +33,6 @@ static const IconId ICONS[PLAYBACK_BUTTON_COUNT] = {
     ICON_PLAY,    ICON_PLAY,    ICON_KEY_MENU, ICON_KEY_MENU,
 };
 
-static const StringId LONG_ACTIONS[] = {STR_LONG_CURRENT, STR_QUICK_SETTINGS, STR_UP_NEXT,
-                                        STR_ADD_TO_TAPE,  STR_SHUFFLE,        STR_SLEEP_TIMER};
 static const StringId SHOWN_LONG_ACTIONS[] = {
     STR_BUTTON_SCREEN_ACTION, STR_QUICK_SETTINGS, STR_UP_NEXT,
     STR_ADD_TO_TAPE,          STR_SHUFFLE,        STR_SLEEP_TIMER};
@@ -218,6 +198,26 @@ Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig confi
 }
 
 #ifdef ECHO_DEBUG_LOOP
+static const StringId ACTIONS[BUTTON_ACTION_COUNT] = {
+    STR_BUTTON_DEFAULT,
+    STR_OFF,
+    STR_BUTTON_PLAY_PAUSE,
+    STR_UP_NEXT,
+    STR_AB_LOOP,
+    STR_BUTTON_NEXT,
+    STR_BUTTON_PREVIOUS,
+    STR_BUTTON_VOLUME_UP,
+    STR_BUTTON_VOLUME_DOWN,
+    STR_BUTTON_HOME,
+};
+static const StringId BUTTONS[PLAYBACK_BUTTON_COUNT] = {
+    STR_BUTTON_VOLUME_UP_TAP,    STR_BUTTON_VOLUME_UP_HOLD, STR_BUTTON_VOLUME_DOWN_TAP,
+    STR_BUTTON_VOLUME_DOWN_HOLD, STR_BUTTON_PLAY_TAP,       STR_BUTTON_PLAY_HOLD,
+    STR_BUTTON_MENU_TAP,         STR_BUTTON_MENU_HOLD,
+};
+static const StringId LONG_ACTIONS[] = {STR_LONG_CURRENT, STR_QUICK_SETTINGS, STR_UP_NEXT,
+                                        STR_ADD_TO_TAPE,  STR_SHUFFLE,        STR_SLEEP_TIMER};
+
 const ButtonChoices BUTTON_CHOICES = {.buttons = BUTTONS,
                                       .actions = ACTIONS,
                                       .long_actions = LONG_ACTIONS,

@@ -6,7 +6,6 @@
 #include "core/i18n.h"
 #include "gfx/font.h"
 #include "gfx/text.h"
-#include "notice_band.h"
 #include "ui/brand_mark.h"
 #include "ui/header.h"
 #include "ui/label.h"
@@ -19,7 +18,8 @@ enum {
 };
 
 enum {
-    NOTICE_BYTES = 160
+    NOTICE_BYTES = 160,
+    NOTICE_LINES = 4
 };
 
 static const uint32_t *names_needing_fonts;
@@ -146,10 +146,19 @@ static Rect draw_notice(Canvas *canvas, const Theme *theme, Rect content)
     StringBuilder text = string_builder_make(notice, sizeof notice);
     i18n_format_counts(&text, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS, names,
                        0);
-    int height = notice_band_height(theme, notice, content.width);
-    content.height -= height;
-    notice_band_draw(canvas, theme,
-                     (Rect){content.x, content.y + content.height, content.width, height}, notice);
+    const Font *font = theme->fonts.small;
+    int pad = theme->metrics.padding;
+    Rect lines = {content.x + 2 * pad, 0, content.width - 3 * pad, 0};
+    int count = label_wrap_count(font, notice, lines.width);
+    lines.height = (count < NOTICE_LINES ? count : NOTICE_LINES) * font_line_height(font);
+    content.height -= lines.height + pad;
+    lines.y = content.y + content.height + pad / 2;
+    theme_background_draw(theme, canvas, THEME_ART_LIST,
+                          (Rect){content.x, lines.y - pad / 2, content.width, lines.height + pad});
+    canvas_fill_rect(canvas, (Rect){content.x + pad, lines.y + pad / 2, pad / 2, pad / 2},
+                     theme->colors.accent_alt);
+    label_draw_paragraph(canvas, (TextStyle){.font = font, .color = theme->colors.text_secondary},
+                         (Label){lines, notice});
     return content;
 }
 
