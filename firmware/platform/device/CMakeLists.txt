@@ -428,7 +428,6 @@ if(NOT ECHO_RELEASE)
         debug_runner
         debug_runner_note_state
         debug_runner_script
-        debug_span_matches
         hal_internal_file_read
         hal_internal_file_reserve
         hal_internal_file_write
@@ -591,7 +590,8 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
-        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c)
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_span.c)
     set_source_files_properties(
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
@@ -605,6 +605,7 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_span.c
         ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
         ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
         ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
@@ -659,6 +660,7 @@ set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/logic/audio_shape.c
     ${CMAKE_CURRENT_SOURCE_DIR}/logic/audio_trig.c
     ${CMAKE_CURRENT_SOURCE_DIR}/logic/equalizer_design.c
+    ${PROJECT_SOURCE_DIR}/src/app/debug_requests.c
     ${PROJECT_SOURCE_DIR}/src/app/debug_steps.c
     ${PROJECT_SOURCE_DIR}/src/app/debug_screenshot.c
     PROPERTIES COMPILE_OPTIONS -Os

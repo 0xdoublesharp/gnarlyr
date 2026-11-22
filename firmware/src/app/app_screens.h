@@ -123,27 +123,34 @@ typedef struct PlayingModuleScreens {
     UpNextScreen up_next;
 } PlayingModuleScreens;
 
+typedef struct AboutScreens {
+    MenuScreen diagnostics;
+    ClockOption diagnostic_clock;
+    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+#ifdef ECHO_DEBUG_LOOP
+    MenuScreen stall_question;
+    MenuItem stall_items[2];
+#endif
+} AboutScreens;
+
 typedef struct ViewsModuleScreens {
     MixtapeUi mixtapes;
     CassetteFlipScreen cassette_flip;
     ClockScreen clock;
     CalendarScreen calendar;
-    MenuScreen diagnostics;
-    ClockOption diagnostic_clock;
-    MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
+#ifndef ECHO_DEBUG_LOOP
+    AboutScreens about;
+#endif
     LyricsScreen lyrics;
     ThemePicker themes;
     TrackQuestion delete_question;
-#ifdef ECHO_DEBUG_LOOP
-    MenuScreen stall_question;
-    MenuItem stall_items[2];
-#endif
 } ViewsModuleScreens;
 
 typedef struct FormatModuleScreens {
     CardFormatScreen card;
 #ifdef ECHO_DEBUG_LOOP
     KeyTestScreen key_test;
+    AboutScreens about;
 #endif
 } FormatModuleScreens;
 
@@ -207,5 +214,21 @@ MenuItem app_screens_open_item(StringId label, Screen *target);
 Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem *items, int count,
                                const Theme *theme);
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme);
+
+#ifdef ECHO_DEBUG_LOOP
+#define APP_ABOUT_MODULE SCREEN_MODULE_FORMAT
+
+static inline AboutScreens *app_screens_about(AppScreens *screens)
+{
+    return &screens->modules.format.about;
+}
+#else
+#define APP_ABOUT_MODULE SCREEN_MODULE_VIEWS
+
+static inline AboutScreens *app_screens_about(AppScreens *screens)
+{
+    return &screens->modules.views.about;
+}
+#endif
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path);
 ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now_ms);

@@ -43,15 +43,30 @@ typedef struct DebugFrameSources {
 
 DebugFrameSources app_debug_frame_sources(void);
 
-struct SettingsChooseTarget;
+struct AppScreens;
+struct Player;
+struct PowerPolicy;
+struct SettingsStore;
+
+typedef struct DebugAppHooks {
+    struct PowerPolicy *power;
+    struct Player *player;
+    struct AppScreens *screens;
+    struct SettingsStore *settings;
+    bool *charging;
+    bool *rescan_manual;
+    bool *rescan_requested;
+    void (*stop_charging)(uint32_t now_ms);
+    void (*settle)(uint32_t now_ms);
+    void (*open)(uint32_t target, uint32_t now_ms);
+    void (*frame)(DebugScreenshot *shot);
+} DebugAppHooks;
 
 typedef struct DebugCodeEntry {
-    DebugRequest (*step)(uint32_t now_ms, DebugRunnerView view);
+    void (*step)(uint32_t now_ms, DebugRunnerView view, const DebugAppHooks *app);
     void (*stop)(uint32_t now_ms, DebugScriptState state);
     void (*frame)(DebugFrameSources sources);
     bool (*screenshot)(const DebugScreenshot *shot);
-    bool (*choose_setting)(const struct SettingsChooseTarget *target, DebugSpan title,
-                           DebugSpan option);
 } DebugCodeEntry;
 
 #ifdef ECHO_DEBUG_LOOP
@@ -61,8 +76,7 @@ extern const DebugCodeEntry DEBUG_CODE_ENTRY;
 #define DEBUG_CODE (&DEBUG_CODE_ENTRY)
 
 bool debug_runner_active(void);
-DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view);
-void debug_runner_done(bool succeeded);
+void debug_runner_step(uint32_t now_ms, DebugRunnerView view, const DebugAppHooks *app);
 void debug_runner_key_pressed(void);
 bool debug_runner_next_key(HalKeyTransition *transition);
 void debug_runner_frame(DebugFrameSources sources);
@@ -77,20 +91,16 @@ static inline bool debug_runner_active(void)
     return false;
 }
 
-static inline DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view)
+static inline void debug_runner_step(uint32_t now_ms, DebugRunnerView view,
+                                     const DebugAppHooks *app)
 {
     (void)now_ms;
     (void)view;
-    return (DebugRequest){.kind = DEBUG_REQUEST_NONE};
+    (void)app;
 }
 
 static inline void debug_runner_key_pressed(void)
 {
-}
-
-static inline void debug_runner_done(bool succeeded)
-{
-    (void)succeeded;
 }
 
 static inline bool debug_runner_next_key(HalKeyTransition *transition)

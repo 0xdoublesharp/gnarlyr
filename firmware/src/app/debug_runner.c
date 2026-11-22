@@ -41,30 +41,12 @@ void debug_runner_key_pressed(void)
     debug_runner.key_pressed = true;
 }
 
-void debug_runner_set_status(DebugLineStatus status)
-{
-    debug_runner.run.status[debug_runner.line - 1] = (uint8_t)status;
-    debug_runner.phase = DEBUG_PHASE_NEXT;
-}
-
 void debug_runner_finish(uint32_t now_ms, DebugScriptState state)
 {
     hal_system_hold_usb_supply_off(false);
     debug_runner.run.finished_ms = now_ms;
     hal_system_script_mark(0);
     debug_runner_note_state(state);
-}
-
-void debug_runner_done(bool succeeded)
-{
-    if (debug_runner.phase != DEBUG_PHASE_REQUESTED) {
-        return;
-    }
-    if (succeeded && debug_runner.requested == DEBUG_REQUEST_SCREENSHOT) {
-        DebugScriptRun *run = &debug_runner.run;
-        run->screenshot_lines[run->screenshot_count++] = debug_runner.line;
-    }
-    debug_runner_set_status(succeeded ? DEBUG_LINE_OK : DEBUG_LINE_FAILED);
 }
 
 static const DebugCodeEntry *debug_code(void)
@@ -105,23 +87,22 @@ static void reconnect_when_due(uint32_t now_ms)
     }
 }
 
-DebugRequest debug_runner_step(uint32_t now_ms, DebugRunnerView view)
+void debug_runner_step(uint32_t now_ms, DebugRunnerView view, const DebugAppHooks *app)
 {
-    DebugRequest none = {.kind = DEBUG_REQUEST_NONE};
     if (!debug_runner_active()) {
         if (!view.power_down) {
             reconnect_when_due(now_ms);
         }
-        return none;
+        return;
     }
     const DebugCodeEntry *code = debug_code();
     if (code == NULL) {
         debug_runner_finish(now_ms, DEBUG_SCRIPT_ABORTED);
         debug_runner.reconnect_due = true;
         debug_runner.until_ms = now_ms + DEBUG_SCRIPT_END_MS;
-        return none;
+        return;
     }
-    return code->step(now_ms, view);
+    code->step(now_ms, view, app);
 }
 
 void debug_runner_frame(DebugFrameSources sources)

@@ -16,6 +16,12 @@ enum {
     MICROSECONDS_PER_MILLISECOND = 1000
 };
 
+void debug_runner_set_status(DebugLineStatus status)
+{
+    debug_runner.run.status[debug_runner.line - 1] = (uint8_t)status;
+    debug_runner.phase = DEBUG_PHASE_NEXT;
+}
+
 static void send_key(bool pressed, uint32_t now_ms)
 {
     debug_runner.key_down = pressed;

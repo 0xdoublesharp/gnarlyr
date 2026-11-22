@@ -17,7 +17,8 @@ static MenuItem value_item(StringId label, const char *(*value)(const void *cont
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
     (void)options;
-    MenuItem *items = screens->modules.views.diagnostics_items;
+    AboutScreens *about = app_screens_about(screens);
+    MenuItem *items = about->diagnostics_items;
     items[0] = value_item(STR_ABOUT_FIRMWARE, diagnostics_row_firmware);
     items[1] = value_item(STR_ABOUT_BATTERY, diagnostics_row_battery);
     items[2] = value_item(STR_ABOUT_JACK_35, diagnostics_row_jack_single_ended);
@@ -25,8 +26,7 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     items[4] = value_item(STR_MUSIC, diagnostics_row_music);
     items[5] = value_item(STR_ABOUT_HEADSET, diagnostics_row_headset);
     items[6] = value_item(STR_ABOUT_CPU_CLOCK, diagnostics_row_cpu_clock);
-    app_screens_build_menu(&screens->modules.views.diagnostics, STR_ABOUT, items,
-                           RELEASE_DIAGNOSTICS_COUNT, theme);
-    about_layout_attach(&screens->modules.views.diagnostics);
+    app_screens_build_menu(&about->diagnostics, STR_ABOUT, items, RELEASE_DIAGNOSTICS_COUNT, theme);
+    about_layout_attach(&about->diagnostics);
     about_layout_notice(screens->modules.settings.settings.missing_notice);
 }

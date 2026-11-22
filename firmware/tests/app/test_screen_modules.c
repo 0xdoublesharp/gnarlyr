@@ -115,9 +115,9 @@ static void each_module_builds_its_own_screens(void)
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_SETTINGS) != NULL);
     CHECK(screens.modules.settings.settings.menu.screen.draw != NULL);
     CHECK(screens.modules.settings.bluetooth.screen.draw != NULL);
-    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS,
-                screen_modules_of(&screens, &screens.modules.views.diagnostics.screen));
+    CHECK(app_screens_about(&screens)->diagnostics.screen.draw == NULL);
+    CHECK_EQUAL(APP_ABOUT_MODULE,
+                screen_modules_of(&screens, &app_screens_about(&screens)->diagnostics.screen));
     CHECK(screens.modules.playing.cover_flow.screen.draw == NULL);
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
 }
@@ -141,7 +141,7 @@ static void using_a_module_loads_it_and_builds_its_screens(void)
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(screens.modules.playing.cover_flow.screen.draw != NULL);
     CHECK(screens.modules.playing.up_next.screen.draw != NULL);
-    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
+    CHECK(screens.modules.views.clock.screen.draw == NULL);
 }
 
 static void a_module_builds_its_screens_once_until_the_screens_are_built_again(void)
@@ -202,11 +202,11 @@ static void the_eleventh_module_loads_independently_of_views(void)
     CHECK_EQUAL(11, (int)SCREEN_MODULE_PLAYING);
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_PLAYING) != NULL);
     CHECK_EQUAL(11, (int)fake_hal_loaded_module());
-    CHECK(screens.modules.views.diagnostics.screen.draw == NULL);
+    CHECK(screens.modules.views.clock.screen.draw == NULL);
     CHECK(screens.modules.playing.cover_flow.screen.draw != NULL);
     CHECK(screen_modules_use(&screens, SCREEN_MODULE_VIEWS) != NULL);
     CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
-    CHECK(screens.modules.views.diagnostics.screen.draw != NULL);
+    CHECK(screens.modules.views.clock.screen.draw != NULL);
 }
 
 static const PlayingModuleEntry *attach_now_playing(NowPlayingStyle style)

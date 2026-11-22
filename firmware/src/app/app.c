@@ -2277,55 +2277,6 @@ bool app_preparing(void)
     return app.prepare_pending;
 }
 
-static void start_debug_script(uint32_t now_ms)
-{
-    if (app.charging) {
-        stop_charging(now_ms);
-    }
-    power_policy_wake(&app.power, now_ms);
-}
-
-static void set_debug_screen(bool on, uint32_t now_ms)
-{
-    if (on) {
-        power_policy_wake(&app.power, now_ms);
-    } else {
-        power_policy_rest(&app.power);
-    }
-    debug_runner_done(true);
-}
-
-static bool save_debug_screenshot(DebugSpan name, uint32_t slot)
-{
-    top_owned(app.now_ms);
-    DebugScreenshot shot = {.renderer = frame_renderer(whole_screen(), false),
-                            .drawer = {.draw = draw_frame, .context = &app},
-                            .name = name,
-                            .slot = slot};
-    app.status_bar = current_status_bar();
-    return debug_runner_screenshot(&shot);
-}
-
-static void combo_screenshot(void)
-{
-#ifdef ECHO_DEBUG_LOOP
-    save_debug_screenshot((DebugSpan){0}, 0);
-#endif
-}
-
-static bool choose_setting(const DebugRequest *request, uint32_t now_ms)
-{
-    const SettingsModuleEntry *module = settings_module();
-    const DebugCodeEntry *code = hal_system_load_debug_code();
-    SettingsChooseTarget target = {&app.screens.modules.settings.settings,
-                                   module != NULL ? module->choose_tables : NULL};
-    app.settings.values_failed = false;
-    bool chosen = target.tables != NULL && code != NULL &&
-                  code->choose_setting(&target, request->argument, request->value);
-    settle_screens(now_ms);
-    return chosen && !app.settings.values_failed;
-}
-
 static void open_debug_screen(uint32_t target, uint32_t now_ms)
 {
     static const StartScreen SCREENS[] = {START_MAIN_MENU, START_COVER_FLOW, START_NOW_PLAYING};
@@ -2339,30 +2290,40 @@ static void open_debug_screen(uint32_t target, uint32_t now_ms)
     app.render_urgent = true;
 }
 
+static void frame_debug_screenshot(DebugScreenshot *shot)
+{
+    top_owned(app.now_ms);
+    shot->renderer = frame_renderer(whole_screen(), false);
+    shot->drawer = (FrameDrawer){.draw = draw_frame, .context = &app};
+    app.status_bar = current_status_bar();
+}
+
+static const DebugAppHooks DEBUG_APP_HOOKS = {.power = &app.power,
+                                              .player = &app.player,
+                                              .screens = &app.screens,
+                                              .settings = &app.settings,
+                                              .charging = &app.charging,
+                                              .rescan_manual = &app.rescan_manual,
+                                              .rescan_requested = &app.rescan_requested,
+                                              .stop_charging = stop_charging,
+                                              .settle = settle_screens,
+                                              .open = open_debug_screen,
+                                              .frame = frame_debug_screenshot};
+
+static void combo_screenshot(void)
+{
+#ifdef ECHO_DEBUG_LOOP
+    DebugScreenshot shot = {.slot = 0};
+    frame_debug_screenshot(&shot);
+    debug_runner_screenshot(&shot);
+#endif
+}
+
 static void run_debug_script(uint32_t now_ms)
 {
-    DebugRequest request = debug_runner_step(
-        now_ms, (DebugRunnerView){fade_running(), app.display_on, app.keys.states[KEY_POWER].held});
-
-    if (request.kind == DEBUG_REQUEST_START) {
-        start_debug_script(now_ms);
-    } else if (request.kind == DEBUG_REQUEST_SCREEN) {
-        set_debug_screen(request.slot != 0, now_ms);
-    } else if (request.kind == DEBUG_REQUEST_SET) {
-        debug_runner_done(choose_setting(&request, now_ms));
-    } else if (request.kind == DEBUG_REQUEST_SCREENSHOT) {
-        debug_runner_done(save_debug_screenshot(request.argument, request.slot));
-    } else if (request.kind == DEBUG_REQUEST_STANDBY) {
-        player_hold_standby(&app.player, request.slot == 0);
-        debug_runner_done(true);
-    } else if (request.kind == DEBUG_REQUEST_RESCAN) {
-        app.rescan_manual |= request.slot == 0;
-        app.rescan_requested |= request.slot != 0;
-        debug_runner_done(true);
-    } else if (request.kind == DEBUG_REQUEST_OPEN) {
-        open_debug_screen(request.slot, now_ms);
-        debug_runner_done(true);
-    }
+    debug_runner_step(
+        now_ms, (DebugRunnerView){fade_running(), app.display_on, app.keys.states[KEY_POWER].held},
+        &DEBUG_APP_HOOKS);
 }
 
 static void follow_destination(Screen **pending, uint32_t now_ms)
@@ -2864,10 +2825,10 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    if (screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS) == NULL) {
+    if (screen_modules_use(&app.screens, APP_ABOUT_MODULE) == NULL) {
         return NULL;
     }
-    const MenuItem *item = &app.screens.modules.views.diagnostics_items[index];
+    const MenuItem *item = &app_screens_about(&app.screens)->diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }
 

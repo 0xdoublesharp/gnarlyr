@@ -67,7 +67,7 @@ static ScreenAction freeze_player(void *context)
     return screen_action_pop();
 }
 
-static void build_stall_question(ViewsModuleScreens *own, const Theme *theme)
+static void build_stall_question(AboutScreens *own, const Theme *theme)
 {
     own->stall_items[0] = (MenuItem){.label = i18n_text(STR_CANCEL), .select = keep_running};
     own->stall_items[1] =
@@ -79,8 +79,9 @@ static void build_stall_question(ViewsModuleScreens *own, const Theme *theme)
 static ScreenAction ask_stall_test(void *context)
 {
     AppScreens *screens = context;
-    build_stall_question(&screens->modules.views, screens->context.theme);
-    return screen_action_push(&screens->modules.views.stall_question.screen);
+    AboutScreens *about = app_screens_about(screens);
+    build_stall_question(about, screens->context.theme);
+    return screen_action_push(&about->stall_question.screen);
 }
 
 static ScreenAction run_watchdog_test(void *context)
@@ -154,30 +155,30 @@ static const DiagnosticsRow ROWS[DIAGNOSTICS_ITEM_COUNT] = {
 
 static void options_init(AppScreens *screens)
 {
-    screens->modules.views.diagnostic_clock = (ClockOption){.failed = false};
+    app_screens_about(screens)->diagnostic_clock = (ClockOption){.failed = false};
 }
 
 static void build_rows(AppScreens *screens, AppOptions *options)
 {
+    AboutScreens *about = app_screens_about(screens);
     void *contexts[CONTEXT_COUNT] = {[CONTEXT_OPTIONS] = options,
-                                     [CONTEXT_CLOCK] = &screens->modules.views.diagnostic_clock,
+                                     [CONTEXT_CLOCK] = &about->diagnostic_clock,
                                      [CONTEXT_BLUETOOTH] = &screens->modules.settings.bluetooth,
                                      [CONTEXT_KEY_TEST] = &screens->modules.format.key_test.screen,
                                      [CONTEXT_SCREENS] = screens};
     for (int index = 0; index < DIAGNOSTICS_ITEM_COUNT; index++) {
         const DiagnosticsRow *row = &ROWS[index];
-        screens->modules.views.diagnostics_items[index] =
-            (MenuItem){.label = i18n_text(row->label),
-                       .select = row->select,
-                       .context = contexts[row->context],
-                       .value = row->value,
-                       .opens = row->opens};
+        about->diagnostics_items[index] = (MenuItem){.label = i18n_text(row->label),
+                                                     .select = row->select,
+                                                     .context = contexts[row->context],
+                                                     .value = row->value,
+                                                     .opens = row->opens};
     }
 }
 
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme)
 {
-    ViewsModuleScreens *own = &screens->modules.views;
+    AboutScreens *own = app_screens_about(screens);
     options_init(screens);
     build_rows(screens, options);
     app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,
