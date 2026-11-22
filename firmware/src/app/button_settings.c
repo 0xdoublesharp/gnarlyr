@@ -22,6 +22,15 @@ static const StringId BUTTONS[PLAYBACK_BUTTON_COUNT] = {
     STR_BUTTON_MENU_TAP,         STR_BUTTON_MENU_HOLD,
 };
 
+static const StringId DEFAULT_ACTIONS[PLAYBACK_BUTTON_COUNT] = {
+    STR_BUTTON_VOLUME_UP,   STR_BUTTON_KEEP_RAISING, STR_BUTTON_VOLUME_DOWN, STR_BUTTON_KEEP_LOWERING,
+    STR_BUTTON_PLAY_PAUSE,  STR_BUTTON_NO_ACTION,    STR_QUICK_SETTINGS,     STR_LYRICS,
+};
+static const IconId ICONS[PLAYBACK_BUTTON_COUNT] = {
+    ICON_SPEAKER, ICON_SPEAKER, ICON_SPEAKER, ICON_SPEAKER,
+    ICON_PLAY,    ICON_PLAY,    ICON_KEY_MENU, ICON_KEY_MENU,
+};
+
 static const StringId LONG_ACTIONS[] = {STR_LONG_CURRENT, STR_QUICK_SETTINGS, STR_UP_NEXT,
                                         STR_ADD_TO_TAPE,  STR_SHUFFLE,        STR_SLEEP_TIMER};
 
@@ -68,10 +77,22 @@ static int current(const void *context)
     return entry->owner->config.settings->button_actions[entry->button];
 }
 
+static bool customised(int action)
+{
+    return action > BUTTON_ACTION_DEFAULT && action < BUTTON_ACTION_COUNT;
+}
+
 static const char *value(const void *context)
 {
+    const ButtonEntry *entry = context;
     int action = current(context);
-    return i18n_text(ACTIONS[action >= 0 && action < BUTTON_ACTION_COUNT ? action : 0]);
+    return i18n_text(customised(action) ? ACTIONS[action] : DEFAULT_ACTIONS[entry->button]);
+}
+
+static const char *custom_note(const MenuItem *item)
+{
+    bool custom = item->value == value && customised(current(item->context));
+    return custom ? i18n_text(STR_BUTTON_CUSTOM) : NULL;
 }
 
 static void choose(void *context, int action)
@@ -115,32 +136,64 @@ static ScreenAction reset(void *context)
     return screen_action_none();
 }
 
+static const char *skip_value(const void *context)
+{
+    (void)context;
+    return i18n_text(STR_BUTTON_SKIP_TRACK);
+}
+
+static const char *seek_value(const void *context)
+{
+    (void)context;
+    return i18n_text(STR_BUTTON_SEEK);
+}
+
+static MenuItem section(StringId label)
+{
+    return (MenuItem){.label = i18n_text(label), .role = LIST_ROW_SECTION};
+}
+
+static void bind_rows(ButtonSettings *buttons)
+{
+    MenuItem *items = buttons->items;
+    items[0] = section(STR_NOW_PLAYING);
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        buttons->entries[index] = (ButtonEntry){.owner = buttons, .button = (PlaybackButton)index};
+        items[BUTTON_ROW_FIRST + index] = (MenuItem){.label = i18n_text(BUTTONS[index]),
+                                                     .select = open,
+                                                     .context = &buttons->entries[index],
+                                                     .value = value,
+                                                     .opens = true,
+                                                     .icon = ICONS[index]};
+    }
+    items[BUTTON_ROW_SKIP] = (MenuItem){
+        .label = i18n_text(STR_BUTTON_HOLD_PLAY_VOL), .value = skip_value, .icon = ICON_PLAY};
+    items[BUTTON_ROW_SEEK] = (MenuItem){
+        .label = i18n_text(STR_BUTTON_HOLD_MENU_VOL), .value = seek_value, .icon = ICON_KEY_MENU};
+    items[BUTTON_ROW_EVERY_SCREEN] = section(STR_BUTTONS_EVERY_SCREEN);
+    items[BUTTON_ROW_LONG] = (MenuItem){.label = i18n_text(STR_MENU_LONG_ACTION),
+                                        .select = long_open,
+                                        .context = buttons,
+                                        .value = long_value,
+                                        .opens = true,
+                                        .icon = ICON_KEY_MENU};
+    items[BUTTON_ROW_RESET] =
+        (MenuItem){.label = i18n_text(STR_RESET_BUTTONS), .select = reset, .context = buttons};
+}
+
 Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig config)
 {
     buttons->config = config;
-    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
-        buttons->entries[index] = (ButtonEntry){.owner = buttons, .button = (PlaybackButton)index};
-        buttons->items[index] = (MenuItem){
-            .label = i18n_text(BUTTONS[index]),
-            .select = open,
-            .context = &buttons->entries[index],
-            .value = value,
-            .opens = true,
-        };
-    }
-    buttons->items[PLAYBACK_BUTTON_COUNT + 1] =
-        (MenuItem){.label = i18n_text(STR_RESET_BUTTONS), .select = reset, .context = buttons};
-    buttons->items[PLAYBACK_BUTTON_COUNT] = (MenuItem){.label = i18n_text(STR_MENU_LONG_ACTION),
-                                                       .select = long_open,
-                                                       .context = buttons,
-                                                       .value = long_value,
-                                                       .opens = true};
-    MenuConfig menu = {.title = i18n_text(STR_CONTROLS),
+    bind_rows(buttons);
+    MenuConfig menu = {.title = i18n_text(STR_SETTINGS_BUTTONS),
                        .items = buttons->items,
-                       .item_count = PLAYBACK_BUTTON_COUNT + 2,
+                       .item_count = BUTTON_ROW_COUNT,
                        .theme = config.theme,
-                       .detail_below = true};
-    return menu_screen_init(&buttons->menu, menu);
+                       .detail_below = true,
+                       .note = custom_note};
+    Screen *screen = menu_screen_init(&buttons->menu, menu);
+    list_view_select(&buttons->menu.list, BUTTON_ROW_FIRST, 0);
+    return screen;
 }
 
 #ifdef ECHO_DEBUG_LOOP

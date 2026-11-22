@@ -11,6 +11,11 @@
 #include "settings_screens.h"
 #include "ui/label.h"
 
+enum {
+    ROW_ICON_BOX = 20,
+    ROW_ICON_GAP = 4
+};
+
 static Color pixels[HAL_DISPLAY_SHORT_SIDE * HAL_DISPLAY_LONG_SIDE];
 static Color expected[HAL_DISPLAY_SHORT_SIDE * 80];
 static Theme theme;
@@ -94,15 +99,18 @@ static void every_control_label_and_value_is_shown_whole_in_portrait(void)
         open_controls((TextSize)size, ORIENTATION_PORTRAIT);
         MenuScreen *menu = &buttons.menu;
         int row_height = expected_row_height();
-        for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        for (int index = BUTTON_ROW_FIRST; index < BUTTON_ROW_SKIP; index++) {
             list_view_select(&menu->list, index, 0);
             menu->screen.update(menu, 0);
             Canvas canvas = canvas_make(
                 pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
             menu->screen.draw(menu, &canvas);
             int y = theme.metrics.header_height + (index - menu->list.top) * row_height;
-            int inset = theme.metrics.padding;
-            int width = theme.metrics.screen_width - 2 * inset;
+            int icon = ROW_ICON_BOX + (theme.metrics.padding - ROW_ICON_GAP > ROW_ICON_GAP
+                                           ? theme.metrics.padding - ROW_ICON_GAP
+                                           : ROW_ICON_GAP);
+            int inset = theme.metrics.padding + icon;
+            int width = theme.metrics.screen_width - 2 * theme.metrics.padding - icon;
             if (menu->model.count(menu) > menu->list.visible_rows) {
                 width -= theme.metrics.scrollbar_width + theme.metrics.scrollbar_inset;
             }
@@ -234,12 +242,63 @@ static void status_bar_choices_fit_every_size_and_orientation_and_save_independe
     }
 }
 
-static void landscape_controls_keep_the_original_row_geometry(void)
+static void open_default_buttons(TextSize size)
 {
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        open_controls((TextSize)size, ORIENTATION_LANDSCAPE);
+    open_controls(size, ORIENTATION_LANDSCAPE);
+    store.settings = settings_defaults();
+    buttons.menu.screen.enter(&buttons.menu, 0);
+}
+
+static void default_button_values_fit_beside_their_labels_in_landscape(void)
+{
+    for (int size = TEXT_SIZE_SMALL; size <= TEXT_SIZE_MEDIUM; size++) {
+        open_default_buttons((TextSize)size);
+        CHECK_EQUAL(LIST_LINES_ONE, buttons.menu.list.lines);
         CHECK_EQUAL(theme_visible_rows(&theme), buttons.menu.list.visible_rows);
     }
+}
+
+static void buttons_name_the_effective_action_and_mark_only_changed_ones_custom(void)
+{
+    static const StringId defaults[PLAYBACK_BUTTON_COUNT] = {
+        STR_BUTTON_VOLUME_UP,  STR_BUTTON_KEEP_RAISING, STR_BUTTON_VOLUME_DOWN,
+        STR_BUTTON_KEEP_LOWERING, STR_BUTTON_PLAY_PAUSE, STR_BUTTON_NO_ACTION,
+        STR_QUICK_SETTINGS,    STR_LYRICS};
+    open_default_buttons(TEXT_SIZE_MEDIUM);
+    store.settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NEXT;
+    MenuScreen *menu = &buttons.menu;
+    CHECK_EQUAL(BUTTON_ROW_FIRST, menu->list.selected);
+    CHECK_EQUAL(LIST_ROW_SECTION, menu->model.role(menu, 0));
+    CHECK(strcmp(i18n_text(STR_NOW_PLAYING), menu->model.label(menu, 0)) == 0);
+    for (int button = 0; button < PLAYBACK_BUTTON_COUNT; button++) {
+        int row = BUTTON_ROW_FIRST + button;
+        bool custom = button == PLAYBACK_VOLUME_UP_HOLD;
+        StringId shown = custom ? STR_BUTTON_NEXT : defaults[button];
+        CHECK(strcmp(i18n_text(shown), menu->model.detail(menu, row)) == 0);
+        const char *note = menu->model.note(menu, row);
+        CHECK(custom ? note != NULL && strcmp(i18n_text(STR_BUTTON_CUSTOM), note) == 0
+                     : note == NULL);
+        CHECK(menu->model.icon(menu, row) != ICON_NONE);
+    }
+    CHECK(strcmp(i18n_text(STR_BUTTON_SKIP_TRACK), menu->model.detail(menu, BUTTON_ROW_SKIP)) == 0);
+    CHECK(strcmp(i18n_text(STR_BUTTON_SEEK), menu->model.detail(menu, BUTTON_ROW_SEEK)) == 0);
+    CHECK(!menu->model.opens(menu, BUTTON_ROW_SKIP));
+    CHECK_EQUAL(LIST_ROW_SECTION, menu->model.role(menu, BUTTON_ROW_EVERY_SCREEN));
+    CHECK(strcmp(i18n_text(STR_LONG_CURRENT), menu->model.detail(menu, BUTTON_ROW_LONG)) == 0);
+    CHECK(menu->model.note(menu, BUTTON_ROW_LONG) == NULL);
+}
+
+static void the_chord_rows_only_explain_and_sections_are_skipped(void)
+{
+    open_default_buttons(TEXT_SIZE_MEDIUM);
+    MenuScreen *menu = &buttons.menu;
+    list_view_select(&menu->list, BUTTON_ROW_SKIP, 0);
+    KeyEvent play = {.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS};
+    CHECK_EQUAL(SCREEN_ACTION_NONE, menu->screen.handle_key(menu, play, 0).type);
+    KeyEvent next = {.key = KEY_VOLUME_UP, .gesture = KEY_GESTURE_PRESS};
+    menu->screen.handle_key(menu, next, 0);
+    menu->screen.handle_key(menu, next, 0);
+    CHECK_EQUAL(BUTTON_ROW_LONG, menu->list.selected);
 }
 
 static void control_choices_validate_names_and_report_each_change(void)
@@ -272,11 +331,9 @@ static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(voi
     buttons.config.context = &changed_count;
 
     store.settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = UINT8_MAX;
-    CHECK(strcmp(buttons.items[PLAYBACK_VOLUME_UP_TAP].value(
-                     buttons.items[PLAYBACK_VOLUME_UP_TAP].context),
-                 i18n_text(STR_BUTTON_DEFAULT)) == 0);
-    ScreenAction action =
-        buttons.items[PLAYBACK_VOLUME_UP_TAP].select(buttons.items[PLAYBACK_VOLUME_UP_TAP].context);
+    const MenuItem *volume_up = &buttons.items[BUTTON_ROW_FIRST + PLAYBACK_VOLUME_UP_TAP];
+    CHECK(strcmp(volume_up->value(volume_up->context), i18n_text(STR_BUTTON_VOLUME_UP)) == 0);
+    ScreenAction action = volume_up->select(volume_up->context);
     CHECK(action.target == &buttons.choice.screen);
     CHECK_EQUAL(UINT8_MAX, buttons.choice.config.current(buttons.choice.config.context));
     buttons.choice.config.choose(buttons.choice.config.context, -1);
@@ -287,11 +344,9 @@ static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(voi
     CHECK_EQUAL(1, changed_count);
 
     store.settings.long_press_action = UINT8_MAX;
-    CHECK(strcmp(buttons.items[PLAYBACK_BUTTON_COUNT].value(
-                     buttons.items[PLAYBACK_BUTTON_COUNT].context),
-                 i18n_text(STR_LONG_CURRENT)) == 0);
-    action =
-        buttons.items[PLAYBACK_BUTTON_COUNT].select(buttons.items[PLAYBACK_BUTTON_COUNT].context);
+    const MenuItem *long_row = &buttons.items[BUTTON_ROW_LONG];
+    CHECK(strcmp(long_row->value(long_row->context), i18n_text(STR_LONG_CURRENT)) == 0);
+    action = long_row->select(long_row->context);
     CHECK(action.target == &buttons.choice.screen);
     buttons.choice.config.choose(buttons.choice.config.context, -1);
     buttons.choice.config.choose(buttons.choice.config.context, 6);
@@ -304,8 +359,7 @@ static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(voi
         store.settings.button_actions[index] = UINT8_MAX;
     }
     store.settings.long_press_action = UINT8_MAX;
-    action = buttons.items[PLAYBACK_BUTTON_COUNT + 1].select(
-        buttons.items[PLAYBACK_BUTTON_COUNT + 1].context);
+    action = buttons.items[BUTTON_ROW_RESET].select(buttons.items[BUTTON_ROW_RESET].context);
     CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
     CHECK_EQUAL(0, store.settings.long_press_action);
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
@@ -446,7 +500,9 @@ int main(void)
         TEST_CASE(status_bar_choices_fit_every_size_and_orientation_and_save_independently),
         TEST_CASE(value_rows_get_a_separate_line_in_large_portrait),
         TEST_CASE(every_control_label_and_value_is_shown_whole_in_portrait),
-        TEST_CASE(landscape_controls_keep_the_original_row_geometry),
+        TEST_CASE(default_button_values_fit_beside_their_labels_in_landscape),
+        TEST_CASE(buttons_name_the_effective_action_and_mark_only_changed_ones_custom),
+        TEST_CASE(the_chord_rows_only_explain_and_sections_are_skipped),
         TEST_CASE(settings_values_use_the_same_whole_label_layout_in_large_portrait),
         TEST_CASE(control_choices_validate_names_and_report_each_change),
         TEST_CASE(control_menu_recovers_invalid_values_and_bounds_choice_callbacks),

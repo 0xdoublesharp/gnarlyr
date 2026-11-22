@@ -34,6 +34,7 @@ typedef struct MenuConfig {
     const Theme *theme;
     MenuPanel panel;
     bool detail_below;
+    const char *(*note)(const MenuItem *item);
 } MenuConfig;
 
 typedef struct MenuScreen {

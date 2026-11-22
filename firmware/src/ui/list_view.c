@@ -89,6 +89,8 @@ static int lines_needed(const ListView *view, int index, int room)
         return width > room ? LIST_LINES_WRAPPED : LIST_LINES_ONE;
     }
     width += theme->metrics.detail_gap + text_width(theme->fonts.body, detail);
+    const char *note = model->note != NULL ? model->note(model->context, index) : NULL;
+    width += note != NULL ? theme->metrics.detail_gap + text_width(theme->fonts.small, note) : 0;
     return width > room ? LIST_LINES_VALUE_UNDER : LIST_LINES_ONE;
 }
 
@@ -359,6 +361,21 @@ static Row draw_chevron(const ListView *view, Canvas *canvas, Row row)
     return row;
 }
 
+static Row draw_note(const ListView *view, Canvas *canvas, Row row)
+{
+    const ListModel *model = view->model;
+    const char *note = model->note != NULL ? model->note(model->context, row.index) : NULL;
+    if (note == NULL) {
+        return row;
+    }
+    TextStyle style = {.font = view->theme->fonts.small, .color = view->theme->colors.accent};
+    int width = min_of(text_width(style.font, note), max_of(0, row.text.width));
+    Rect area = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
+    label_draw(canvas, style, (Label){.area = area, .text = note});
+    row.text.width -= width + view->theme->metrics.detail_gap;
+    return row;
+}
+
 static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
 {
     const ListModel *model = view->model;
@@ -407,6 +424,13 @@ static void draw_detail_below(const ListView *view, Canvas *canvas, Row row)
     const char *detail = model->detail != NULL ? model->detail(model->context, row.index) : NULL;
     if (detail != NULL) {
         label_draw(canvas, style, (Label){row.text, detail});
+        int used = text_width(style.font, detail) + theme->metrics.detail_gap;
+        const char *note = model->note != NULL ? model->note(model->context, row.index) : NULL;
+        if (note != NULL) {
+            row.text.x += used;
+            row.text.width = min_of(max_of(0, row.text.width - used), text_width(style.font, note));
+            draw_note(view, canvas, row);
+        }
     }
 }
 
@@ -497,7 +521,8 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
         draw_detail_below(view, canvas, row);
         draw_label(view, canvas, row, now_ms);
     } else {
-        draw_label(view, canvas, draw_detail(view, canvas, draw_chevron(view, canvas, row)),
+        draw_label(view, canvas,
+                   draw_detail(view, canvas, draw_note(view, canvas, draw_chevron(view, canvas, row))),
                    now_ms);
     }
 }
