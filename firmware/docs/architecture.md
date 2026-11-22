@@ -43,6 +43,8 @@ The CMake targets enforce these rules. Each module exposes only its own `include
 
 ## Screens and input
 
+The adopted screen design (type, metrics, header, rows, footers, dialogs, illustrations, button behaviour and themes) is specified in [design-system.md](design-system.md), which also lists the parts the firmware does not draw yet.
+
 - A `Screen` is a title plus callbacks: `enter`, `handle_key`, `update` and `draw`. `handle_key` returns a `ScreenAction` (none, push, pop, or pop to root), and the app applies it to the `ScreenStack`. Screens never reach into the stack themselves.
 - Raw key transitions come from `hal`. `core/key_tracker` turns them into gestures (press, long press, repeat), and `ui/navigation` maps gestures to intents (previous, next, select, back, home). Remapping buttons is a change in one place.
 - Each key has a gesture type: tap-or-hold, repeat (press on down, then repeats), tap-hold-repeat (tap on release, long press, then repeats), or hold-at-release (tap or long press, both decided when the key lets go). The volume keys repeat, except on screens that set `hold_volume_keys` (Now Playing), where they're tap-hold-repeat when Settings → Controls maps a volume tap or hold. ▶‖ and ≡ are tap-or-hold, except on the chord screens (Now Playing, the screen off and the key test), where they're hold-at-release so a volume press can still turn a long hold into a chord. A volume key pressed under a chord is always tap-hold-repeat. The app switches the types whenever the top screen or the display changes.

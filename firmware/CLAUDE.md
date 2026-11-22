@@ -120,6 +120,7 @@ Every screen should be thoughtful, elegant and pleasant to use. In practice:
 - Every action gives feedback, every list has a considered empty state, and every wait says what is happening.
 - Text is short, plain and consistent in wording across screens.
 - Motion is brief and never delays input.
+- New screens follow `docs/design-system.md`, the adopted design with its reference sheets.
 
 A screen change comes with simulator captures at the affected sizes and orientations for review.
 
