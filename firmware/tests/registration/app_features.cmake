@@ -43,9 +43,10 @@ echo_add_unit_test(NAME test_plug_modes
 )
 
 echo_add_unit_test(NAME test_usb_chooser
-    SOURCES app/test_usb_chooser.c app/fake_hal.c support/screen_snapshot.c
-    LIBRARIES echo_app echo_library_fixtures
-    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${CMAKE_CURRENT_SOURCE_DIR}/support
+    SOURCES app/test_usb_chooser.c app/fake_hal.c support/screen_snapshot.c support/text_spy.c
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
+        ${CMAKE_CURRENT_SOURCE_DIR}/support
 )
 
 echo_add_unit_test(NAME test_portrait_settings_layout

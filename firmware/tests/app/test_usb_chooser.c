@@ -6,6 +6,8 @@
 #include "fake_hal.h"
 #include "screen_snapshot.h"
 #include "settings_screens.h"
+#include "test_pack.h"
+#include "text_spy.h"
 #include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
@@ -28,16 +30,27 @@ static Player player;
 static Toast toast;
 static Theme theme;
 
-static void start(HalBattery battery)
+static void start_in(HalBattery battery, const uint8_t *pack, uint32_t size)
 {
     fake_hal_reset();
     fake_hal_set_battery(battery);
     i18n_detach();
+    if (pack != NULL) {
+        CHECK(i18n_attach(pack, size));
+        uint32_t segment = test_pack_segment_of(STR_PLUG_PAUSED);
+        I18nSegment row = test_pack_segment(pack, segment);
+        CHECK(segment == 0 || i18n_attach_segment(segment, pack + row.offset, &row));
+    }
     theme = BOARD_THEME;
     store.settings = settings_defaults();
     toast = (Toast){0};
     SettingsContext context = {.store = &store, .player = &player, .toast = &toast};
     settings_screens_init(&screens, context, &theme);
+}
+
+static void start(HalBattery battery)
+{
+    start_in(battery, NULL, 0);
 }
 
 static Screen *open_chooser(bool prompt)
@@ -427,6 +440,124 @@ static void the_portrait_prompt_says_paused_in_the_body(void)
     draw_variant(screen, "plug-paused-portrait", 0);
 }
 
+static const char *const PLUG_WORDS[][3] = {
+    {"Computer found", "Computer gefunden",
+     "\xE3\x82\xB3\xE3\x83\xB3\xE3\x83\x94\xE3\x83\xA5\xE3\x83\xBC\xE3\x82\xBF\xE3\x83\xBC\xE3\x82"
+     "\x92\xE6\xA4\x9C\xE5\x87\xBA"},
+    {"Auto-charge paused", "Auto-Laden pausiert",
+     "\xE8\x87\xAA\xE5\x8B\x95\xE5\x85\x85\xE9\x9B\xBB\xE3\x82\x92\xE4\xB8\x80\xE6\x99\x82\xE5\x81"
+     "\x9C\xE6\xAD\xA2"},
+    {"Charging in {0} s", "Laden in {0} s",
+     "{0}\xE7\xA7\x92\xE5\xBE\x8C\xE3\x81\xAB\xE5\x85\x85\xE9\x9B\xBB"},
+    {"Connect to computer", "Mit Computer verbinden",
+     "\xE3\x82\xB3\xE3\x83\xB3\xE3\x83\x94\xE3\x83\xA5\xE3\x83\xBC\xE3\x82\xBF\xE3\x83\xBC\xE3\x81"
+     "\xAB\xE6\x8E\xA5\xE7\xB6\x9A"},
+    {"Charge & play", "Laden & abspielen",
+     "\xE5\x85\x85\xE9\x9B\xBB\xE3\x81\x97\xE3\x81\xAA\xE3\x81\x8C\xE3\x82\x89\xE5\x86\x8D\xE7\x94"
+     "\x9F"},
+    {"Run from USB power",
+     "\xC3\x9C"
+     "ber USB-Strom betreiben",
+     "USB\xE7\xB5\xA6\xE9\x9B\xBB\xE3\x81\xA7\xE5\x8B\x95\xE4\xBD\x9C"}};
+
+static void translate(const char *english, char *text, size_t capacity, int language)
+{
+    const char *chosen = english;
+    for (size_t row = 0; row < sizeof PLUG_WORDS / sizeof PLUG_WORDS[0]; row++) {
+        chosen = strcmp(english, PLUG_WORDS[row][0]) == 0 ? PLUG_WORDS[row][language] : chosen;
+    }
+    size_t length = strlen(chosen) < capacity - 1 ? strlen(chosen) : capacity - 1;
+    memcpy(text, chosen, length);
+    text[length] = 0;
+}
+
+static void german(const char *english, char *text, size_t capacity)
+{
+    translate(english, text, capacity, 1);
+}
+
+static void japanese(const char *english, char *text, size_t capacity)
+{
+    translate(english, text, capacity, 2);
+}
+
+static void japanese_widths(const char *english, char *text, size_t capacity)
+{
+    const char *chosen = english;
+    chosen = strcmp(english, PLUG_WORDS[0][0]) == 0 ? "MMMMMMMMMMMMMM" : chosen;
+    chosen = strcmp(english, PLUG_WORDS[1][0]) == 0 ? "MMMM MMMM MMM" : chosen;
+    size_t length = strlen(chosen) < capacity - 1 ? strlen(chosen) : capacity - 1;
+    memcpy(text, chosen, length);
+    text[length] = 0;
+}
+
+static bool drawn_in_the_body(const char *text)
+{
+    char shown[TEXT_SPY_TEXT * 4] = "";
+    char wanted[TEXT_SPY_TEXT] = "";
+    size_t used = 0;
+    for (int index = 0; index < text_spy_count() && used + TEXT_SPY_TEXT < sizeof shown; index++) {
+        for (const char *at = text_spy_entry(index)->shown; *at != 0; at++) {
+            shown[used] = *at;
+            used += *at != ' ' ? 1 : 0;
+        }
+    }
+    shown[used] = 0;
+    used = 0;
+    for (const char *at = text; *at != 0 && used + 1 < sizeof wanted; at++) {
+        wanted[used] = *at;
+        used += *at != ' ' ? 1 : 0;
+    }
+    wanted[used] = 0;
+    return strstr(shown, wanted) != NULL;
+}
+
+static int paused_prompt_shows_it(int orientation, int size)
+{
+    use_theme(0, orientation, size);
+    Screen *screen = open_at(PLUG_PLACE_PROMPT);
+    press(screen, KEY_VOLUME_UP, 100);
+    CHECK(screens.usb.paused);
+    const char *paused = i18n_text(STR_PLUG_PAUSED);
+    if (screen->header_status != NULL) {
+        CHECK(strcmp(paused, screen->header_status) == 0);
+        the_header_status_is_laid_out(&screens.usb, paused);
+        return 0;
+    }
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    text_spy_reset();
+    screen->draw(screen->context, &canvas);
+    CHECK(drawn_in_the_body(paused));
+    static int shot;
+    screen_snapshot_write(&canvas, "plug-paused-body", shot++);
+    return 1;
+}
+
+static void the_paused_prompt_says_so_in_every_language_and_layout(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    static const TestPackLanguage LANGUAGES[] = {{"en", "English", NULL},
+                                                 {"de", "Deutsch", german},
+                                                 {"ja", "Japanese", japanese},
+                                                 {"jw", "Japanese widths", japanese_widths}};
+    int landscape_body = 0;
+    for (size_t language = 0; language < sizeof LANGUAGES / sizeof LANGUAGES[0]; language++) {
+        for (int orientation = 0; orientation < 2; orientation++) {
+            for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+                bool english = LANGUAGES[language].translate == NULL;
+                uint32_t bytes = english ? 0 : test_pack_build(pack, LANGUAGES[language]);
+                start_in(ON_A_CABLE, english ? NULL : pack, bytes);
+                int body = paused_prompt_shows_it(orientation, size);
+                CHECK(orientation == ORIENTATION_LANDSCAPE || body == 1);
+                landscape_body += orientation == ORIENTATION_LANDSCAPE ? body : 0;
+            }
+        }
+    }
+    i18n_detach();
+    CHECK(landscape_body > 0);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -436,6 +567,7 @@ int main(void)
         TEST_CASE(medium_landscape_shows_all_four_choices_and_the_explanation),
         TEST_CASE(the_portrait_prompt_moves_its_title_into_the_body),
         TEST_CASE(the_portrait_prompt_says_paused_in_the_body),
+        TEST_CASE(the_paused_prompt_says_so_in_every_language_and_layout),
         TEST_CASE(the_prompt_counts_down_to_charging),
         TEST_CASE(the_prompt_lapses_after_fifteen_quiet_seconds),
         TEST_CASE(the_countdown_shows_in_the_header_without_the_charging_bolt),

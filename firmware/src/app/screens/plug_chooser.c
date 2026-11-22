@@ -7,6 +7,7 @@
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
+#include "ui/status_bar.h"
 
 enum {
     MILLISECONDS_PER_SECOND = 1000,
@@ -98,6 +99,22 @@ static int small_line(const Theme *theme)
 static bool title_in_body(const PlugChooser *chooser)
 {
     return chooser->timed && theme_is_portrait(chooser->config.theme);
+}
+
+static bool paused_in_header(const PlugChooser *chooser)
+{
+    if (title_in_body(chooser)) {
+        return false;
+    }
+    const Theme *theme = chooser->config.theme;
+    StatusBarState bar = {.battery_known = true,
+                          .battery_percent = 100,
+                          .usb_power = true,
+                          .position = i18n_text(STR_PLUG_PAUSED),
+                          .title_width = text_width(theme->fonts.header, chooser->config.title),
+                          .logo = true,
+                          .hides_charging = true};
+    return (status_bar_items(theme, &bar) & STATUS_BAR_POSITION) != 0;
 }
 
 static int mark_width(const PlugChooser *chooser)
@@ -283,7 +300,7 @@ static void pause_countdown(PlugChooser *chooser)
     }
     chooser->paused = true;
     chooser->redraw = true;
-    chooser->screen.header_status = title_in_body(chooser) ? NULL : i18n_text(STR_PLUG_PAUSED);
+    chooser->screen.header_status = paused_in_header(chooser) ? i18n_text(STR_PLUG_PAUSED) : NULL;
 }
 
 static ScreenAction choose_row(PlugChooser *chooser, int index, bool always)
@@ -476,13 +493,14 @@ static void draw_body(const PlugChooser *chooser, Canvas *canvas)
                          theme->colors.divider);
     }
     Rect art = layout->art;
-    if (chooser->paused && title_in_body(chooser)) {
-        int line = small_line(theme);
-        art.height -= line + theme->metrics.padding / 2;
-        label_draw_wrapped(
+    if (chooser->paused && chooser->screen.header_status == NULL) {
+        const char *paused = i18n_text(STR_PLUG_PAUSED);
+        int height = label_wrap_count(theme->fonts.small, paused, art.width) * small_line(theme);
+        art.height -= height + theme->metrics.padding / 2;
+        label_draw_paragraph(
             canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-            (Label){{art.x, art.y + art.height + theme->metrics.padding / 2, art.width, line},
-                    i18n_text(STR_PLUG_PAUSED)});
+            (Label){{art.x, art.y + art.height + theme->metrics.padding / 2, art.width, height},
+                    paused});
     }
     plug_art_draw(canvas, theme, art, selected_mode(chooser));
 }
