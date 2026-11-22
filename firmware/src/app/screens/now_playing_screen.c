@@ -538,9 +538,11 @@ static void flow_text(ColumnFlow *flow, TextStyle style, const char *text, int l
     if (text[0] == '\0') {
         return;
     }
+    bool still = staged(flow->screen);
     int count = lines > 1 ? label_wrap_count(style.font, text, flow->area.width) : 1;
-    bool wrap = count > 1 && count <= lines;
-    Label label = {{flow->area.x, flow->area.y, flow->area.width, wrap ? line * count : line},
+    int shown = count < lines ? count : lines;
+    bool wrap = count > 1 && (count <= lines || still);
+    Label label = {{flow->area.x, flow->area.y, flow->area.width, wrap ? line * shown : line},
                    text};
     if (label.area.height > flow->area.height) {
         flow->area.height = -1;
@@ -548,6 +550,8 @@ static void flow_text(ColumnFlow *flow, TextStyle style, const char *text, int l
     }
     if (wrap) {
         label_draw_paragraph(flow->canvas, style, label);
+    } else if (still) {
+        label_draw(flow->canvas, style, label);
     } else {
         draw_scrolling(flow->screen, flow->canvas, label, style);
     }
