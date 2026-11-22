@@ -3,9 +3,9 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "core/i18n.h"
 #include "gfx/font.h"
 #include "gfx/text.h"
-#include "missing_fonts.h"
 #include "notice_band.h"
 #include "ui/brand_mark.h"
 #include "ui/header.h"
@@ -18,8 +18,11 @@ enum {
     MARK_LINE_PARTS = 1
 };
 
-static char notice_text[MISSING_FONTS_NOTICE_BYTES];
-static const char *notice;
+enum {
+    NOTICE_BYTES = 160
+};
+
+static const uint32_t *names_needing_fonts;
 
 static bool row_wraps(const ListView *list, int index, int width)
 {
@@ -135,9 +138,14 @@ static Rect draw_band(Canvas *canvas, const Theme *theme)
 
 static Rect draw_notice(Canvas *canvas, const Theme *theme, Rect content)
 {
-    if (notice == NULL) {
+    uint32_t names = names_needing_fonts != NULL ? *names_needing_fonts : 0;
+    if (names == 0) {
         return content;
     }
+    char notice[NOTICE_BYTES];
+    StringBuilder text = string_builder_make(notice, sizeof notice);
+    i18n_format_counts(&text, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS, names,
+                       0);
     int height = notice_band_height(theme, notice, content.width);
     content.height -= height;
     notice_band_draw(canvas, theme,
@@ -174,9 +182,9 @@ static void draw(void *context, Canvas *canvas)
     draw_rows(menu, canvas, rows, width);
 }
 
-void about_layout_check_fonts(const Theme *theme)
+void about_layout_count_names(const uint32_t *names)
 {
-    notice = missing_fonts_notice(notice_text, sizeof notice_text, theme->fonts.body);
+    names_needing_fonts = names;
 }
 
 void about_layout_attach(MenuScreen *menu)

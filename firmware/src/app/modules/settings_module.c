@@ -59,9 +59,7 @@ static void bind(AppScreens *screens)
     };
     bluetooth_screen_init(&own->bluetooth, context->bluetooth, context->theme);
     settings_screens_init(&own->settings, settings, context->theme);
-    MenuItem *about = &own->settings.groups[SETTINGS_GROUP_ABOUT];
-    about->select = menu_open_screen;
-    about->context = &screens->modules.views.diagnostics.screen;
+    own->settings.about = &screens->modules.views.diagnostics.screen;
     for (int at = 0; at < SETTINGS_ITEM_COUNT; at++) {
         if (own->settings.items[at].label == i18n_text(STR_THEME)) {
             own->settings.items[at] =

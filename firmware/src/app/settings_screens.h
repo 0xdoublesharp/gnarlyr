@@ -157,6 +157,8 @@ struct SettingsScreens {
     const char *safe_volume_options[SETTINGS_SAFE_VOLUME_OPTIONS];
     PlugChooser usb;
     bool card_needs_format;
+    uint32_t missing_names;
+    Screen *about;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
     SettingsGroupEntry group_entries[SETTINGS_GROUP_COUNT];
     MenuItem groups[SETTINGS_GROUP_COUNT];

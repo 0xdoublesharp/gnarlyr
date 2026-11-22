@@ -1,6 +1,7 @@
 #include "settings_screens.h"
 #include "app/app.h"
 #include "audio_settings.h"
+#include "missing_fonts.h"
 #include "settings_actions.h"
 
 #include <stddef.h>
@@ -1016,6 +1017,13 @@ static ScreenAction open_language(void *context)
     return screen_action_push(language_picker_init(&screens->language, config));
 }
 
+static ScreenAction open_about(void *context)
+{
+    SettingsScreens *screens = context;
+    screens->missing_names = missing_fonts_names(screens->theme->fonts.body);
+    return screens->about != NULL ? screen_action_push(screens->about) : screen_action_none();
+}
+
 static const char *text_size_value(const void *context)
 {
     const SettingsGroupEntry *entry = context;
@@ -1057,7 +1065,8 @@ static void bind_groups(SettingsScreens *screens, Screen *buttons)
     screens->groups[SETTINGS_GROUP_LANGUAGE].value = describe_current_language;
     screens->groups[SETTINGS_GROUP_BUTTONS].select = menu_open_screen;
     screens->groups[SETTINGS_GROUP_BUTTONS].context = buttons;
-    screens->groups[SETTINGS_GROUP_ABOUT].select = NULL;
+    screens->groups[SETTINGS_GROUP_ABOUT].select = open_about;
+    screens->groups[SETTINGS_GROUP_ABOUT].context = screens;
 }
 
 static void bind_card_rows(SettingsScreens *screens)

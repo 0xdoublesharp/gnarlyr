@@ -214,7 +214,6 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/diagnostics_rows.c
     src/app/diagnostics_values.c
     src/app/about_layout.c
-    src/app/missing_fonts.c
     src/app/notice_band.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
@@ -263,6 +262,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/core/headphone_audio_switch.c
     src/app/language_list.c
     src/app/language_picker.c
+    src/app/missing_fonts.c
     src/app/notice_band.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c

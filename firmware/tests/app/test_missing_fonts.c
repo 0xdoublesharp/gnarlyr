@@ -9,6 +9,7 @@
 #include "gfx/font_pack.h"
 #include "library_store.h"
 #include "missing_fonts.h"
+#include "settings_screens.h"
 #include "test_glyph_face.h"
 
 enum {
@@ -97,9 +98,6 @@ static void a_scan_records_each_undrawable_character_once_in_code_point_order(vo
     const uint8_t *count = fake_hal_file_bytes(MISSING_FONTS_COUNT_PATH, &size);
     CHECK(count != NULL && bytes_le32(count) == 2);
     CHECK_EQUAL(2, missing_fonts_names(theme.fonts.body));
-    char notice[MISSING_FONTS_NOTICE_BYTES];
-    CHECK(strcmp("2 names need fonts. Connect to a computer to add them.",
-                 missing_fonts_notice(notice, sizeof notice, theme.fonts.body)) == 0);
 }
 
 static void a_library_the_fonts_draw_writes_no_file(void)
@@ -111,8 +109,6 @@ static void a_library_the_fonts_draw_writes_no_file(void)
     uint32_t size = 0;
     CHECK(fake_hal_file_bytes(MISSING_FONTS_PATH, &size) == NULL);
     CHECK_EQUAL(0, missing_fonts_names(theme.fonts.body));
-    char notice[MISSING_FONTS_NOTICE_BYTES];
-    CHECK(missing_fonts_notice(notice, sizeof notice, theme.fonts.body) == NULL);
 }
 
 static void the_notice_goes_away_once_extra_fonts_draw_the_characters(void)
@@ -121,9 +117,7 @@ static void the_notice_goes_away_once_extra_fonts_draw_the_characters(void)
     start();
     add_library(names, 1);
     missing_fonts_record(work, sizeof work, theme.fonts.body);
-    char notice[MISSING_FONTS_NOTICE_BYTES];
-    CHECK(strcmp("1 name needs fonts. Connect to a computer to add them.",
-                 missing_fonts_notice(notice, sizeof notice, theme.fonts.body)) == 0);
+    CHECK_EQUAL(1, missing_fonts_names(theme.fonts.body));
     attach_hangul();
     CHECK(font_pack_extra_attached());
     CHECK_EQUAL(0, missing_fonts_names(theme.fonts.body));
@@ -143,6 +137,37 @@ static void too_little_memory_or_a_damaged_library_records_nothing(void)
     CHECK(fake_hal_file_bytes(MISSING_FONTS_PATH, &size) == NULL);
 }
 
+static void choosing_about_in_settings_counts_the_names_for_its_notice(void)
+{
+    static const char *const names[] = {"\xEA\xB0\x80", "\xEA\xB0\x81", "Abba"};
+    static SettingsScreens screens;
+    static SettingsStore store;
+    static Player player;
+    static Library songs;
+    static PowerPolicy power;
+    static Toast toast;
+    static BluetoothLink link;
+    static BluetoothScreen bluetooth;
+    static Screen about;
+    start();
+    add_library(names, 3);
+    missing_fonts_record(work, sizeof work, theme.fonts.body);
+    store.settings = settings_defaults();
+    player_init(&player, &songs);
+    bluetooth_screen_init(&bluetooth, &link, &theme);
+    SettingsContext context = {.store = &store,
+                               .player = &player,
+                               .power = &power,
+                               .toast = &toast,
+                               .bluetooth = &bluetooth,
+                               .theme = &theme};
+    settings_screens_init(&screens, context, &theme);
+    screens.about = &about;
+    const MenuItem *row = &screens.groups[SETTINGS_GROUP_ABOUT];
+    CHECK(row->select(row->context).target == &about);
+    CHECK_EQUAL(2, screens.missing_names);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -150,6 +175,7 @@ int main(void)
         TEST_CASE(a_library_the_fonts_draw_writes_no_file),
         TEST_CASE(the_notice_goes_away_once_extra_fonts_draw_the_characters),
         TEST_CASE(too_little_memory_or_a_damaged_library_records_nothing),
+        TEST_CASE(choosing_about_in_settings_counts_the_names_for_its_notice),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

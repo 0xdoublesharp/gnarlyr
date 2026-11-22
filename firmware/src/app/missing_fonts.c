@@ -4,8 +4,6 @@
 
 #include "core/bytes.h"
 #include "core/drive_path.h"
-#include "core/i18n.h"
-#include "core/string_builder.h"
 #include "core/utf8.h"
 #include "hal/storage.h"
 
@@ -76,16 +74,4 @@ uint32_t missing_fonts_names(const Font *font)
     bool missing = still_missing(file, font);
     hal_file_close(&file);
     return missing ? names : 0;
-}
-
-const char *missing_fonts_notice(char *text, uint32_t capacity, const Font *font)
-{
-    uint32_t names = missing_fonts_names(font);
-    if (names == 0) {
-        return NULL;
-    }
-    StringBuilder notice = string_builder_make(text, capacity);
-    i18n_format_counts(&notice, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS, names,
-                       0);
-    return text;
 }
