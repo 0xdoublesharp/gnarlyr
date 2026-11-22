@@ -18,6 +18,8 @@ CORE0_TOTAL_BUDGETS = {(VU, "flac44"): 14.19, (SPECTRUM, "flac44"): 13.77,
                        (VU, "flac96_512"): 16.55, (SPECTRUM, "flac96_512"): 18.40}
 CORE0_TOLERANCE = {"flac44": 0.4, "flac96_512": 0.6}
 MUSIC_SECONDS = 16
+METER_MOVING_PIXELS = 300
+METER_LIT_PIXELS = 1000
 MUSIC = ("0.35*sin(2*PI*55*t)*(0.4+0.6*lt(mod(t,0.5),0.12))"
          "+0.18*sin(2*PI*110*t+sin(3*t))"
          "+0.12*sin(2*PI*660*t)*(0.5+0.5*sin(2*PI*0.7*t))"
@@ -208,6 +210,35 @@ class EchoImageTest(EchoImageHarness):
         self.assertLessEqual(rise, CORE0_RISE_BUDGETS[(style, case)] + CORE0_TOLERANCE[case])
         self.assertLessEqual(animated["busy"],
                              CORE0_TOTAL_BUDGETS[(style, case)] + CORE0_TOLERANCE[case])
+
+    def meters_light_and_move(self, style):
+        rig = self.visual_rig(style, False)
+        machine = rig.machine
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        rig.run_for(1500)
+        frames = []
+        for _ in range(4):
+            rig.run_for(250)
+            frames.append(list(machine.panel.frame))
+        moves = [sum(1 for a, b in zip(first, second) if a != b)
+                 for first, second in zip(frames, frames[1:])]
+        rig.press("play")
+        rig.run_for(2500)
+        rested = list(machine.panel.frame)
+        lit = [sum(1 for a, b in zip(frame, rested) if a != b) for frame in frames]
+        print("\n[%s meters] moving pixels %s, lit pixels against the rested meters %s" %
+              ("VU" if style == VU else "Spectrum", moves, lit))
+        self.assertGreaterEqual(sum(1 for count in moves if count > METER_MOVING_PIXELS), 2)
+        self.assertTrue(all(count > METER_LIT_PIXELS for count in lit))
+        self.assert_healthy(rig.session)
+
+    def test_vu_meters_light_up_and_move_with_the_music(self):
+        self.meters_light_and_move(VU)
+
+    def test_spectrum_bars_light_up_and_move_with_the_music(self):
+        self.meters_light_and_move(SPECTRUM)
 
     def test_vu_style_keeps_a_96_khz_24_bit_small_block_flac_fed_with_the_screen_on(self):
         self.matched_cost(VU, "flac96_512")
