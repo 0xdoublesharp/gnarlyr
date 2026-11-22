@@ -159,5 +159,6 @@ static void draw(void *context, Canvas *canvas)
 
 void about_layout_attach(MenuScreen *menu)
 {
+    menu->model.wraps = false;
     menu->screen.draw = draw;
 }

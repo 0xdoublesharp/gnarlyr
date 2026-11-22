@@ -161,7 +161,7 @@ static void every_field_and_the_controls_fit_all_six_layouts(void)
                 draw();
                 bool cancel_shown = false;
                 for (int index = 0; index < text_spy_count(); index++) {
-                    cancel_shown |= strstr(text_spy_entry(index)->shown, "cancel") != NULL;
+                    cancel_shown |= strstr(text_spy_entry(index)->shown, i18n_text(STR_CANCEL)) != NULL;
                 }
                 CHECK(cancel_shown);
             }

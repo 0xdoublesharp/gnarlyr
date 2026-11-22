@@ -161,6 +161,31 @@ static void a_portrait_dialog_keeps_its_choices_whole(void)
         ui_test_area_has_color(&canvas, (Rect){0, WIDE - 48 - 32, TALL, 32}, theme.colors.danger));
 }
 
+static void a_long_choice_wraps_onto_a_second_line(void)
+{
+    Theme theme = real_theme();
+    theme.fonts = (ThemeFonts){&FONT_INTER_SEMIBOLD_26, &FONT_INTER_REGULAR_26,
+                               &FONT_INTER_REGULAR_16, &FONT_INTER_SEMIBOLD_26};
+    theme.metrics.screen_width = TALL;
+    theme.metrics.screen_height = WIDE;
+    ConfirmConfig config = {.title = "Clear history?",
+                            .choices = {"Cancel", "Export and clear every listen"},
+                            .choice_count = 2,
+                            .first_danger = 1,
+                            .choose = choose,
+                            .theme = &theme};
+    Screen *screen = confirm_screen_init(&confirm, config);
+    screen->enter(screen->context, 0);
+    CHECK_EQUAL(LIST_LINES_WRAPPED, confirm.list.lines);
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, TALL, WIDE});
+    canvas_clear(&canvas, 0x0821);
+    screen->draw(screen->context, &canvas);
+    int row = list_view_row_height(&confirm.list);
+    int line = font_line_height(theme.fonts.title);
+    Rect second_line = {0, WIDE - 48 - row / 2, TALL, line};
+    CHECK(ui_test_area_has_color(&canvas, second_line, theme.colors.danger));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -174,6 +199,7 @@ int main(void)
         TEST_CASE(the_footer_band_closes_the_screen),
         TEST_CASE(choices_sit_above_the_footer_under_the_consequences),
         TEST_CASE(a_portrait_dialog_keeps_its_choices_whole),
+        TEST_CASE(a_long_choice_wraps_onto_a_second_line),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

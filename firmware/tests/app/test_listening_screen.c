@@ -79,12 +79,10 @@ static bool saw_whole(const char *text)
     return false;
 }
 
-static bool saw_start(const char *text)
+static bool saw_cut(void)
 {
     for (int index = 0; index < text_spy_count(); index++) {
-        const char *shown = text_spy_entry(index)->shown;
-        size_t length = strlen(shown);
-        if (length > 0 && strncmp(shown, text, length) == 0) {
+        if (strstr(text_spy_entry(index)->shown, "\xE2\x80\xA6") != NULL) {
             return true;
         }
     }
@@ -806,8 +804,10 @@ static void confirmation_renders_whole_at_every_size_and_orientation(void)
         static const StringId CHOICES[] = {STR_CANCEL, STR_EXPORT_AND_CLEAR, STR_CLEAR_NOW};
         for (int choice = 0; choice < 3; choice++) {
             list_view_select(&screen.confirm.list, choice, clock_ms);
-            draw();
-            CHECK(saw(i18n_text(CHOICES[choice])) || saw_start(i18n_text(CHOICES[choice])));
+            Canvas focused = draw();
+            CHECK(saw_whole(i18n_text(CHOICES[choice])));
+            CHECK(!saw_cut());
+            screen_snapshot_write(&focused, "clear-listening-choice", variant * 3 + choice);
         }
     }
 }

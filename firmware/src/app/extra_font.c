@@ -13,7 +13,7 @@
 static const char EXTRA_FONT_PATH[] =
     DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/fonts/extra.font";
 
-static const char USB_FIGURES[] = "0123456789.,:%/+-";
+static const char USB_FIGURES[] = "0123456789.,:%/+-\xC2\xB7";
 
 static const uint16_t USB_STATE_TEXT[] = {
     STR_PLUG_COMPUTER,     STR_POWER_CONNECTING,  STR_USB_STATE_CONNECTED,
@@ -90,6 +90,12 @@ static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB_LINK_HIGH,
     STR_USB_LINK_FULL,
     STR_USB_UNKNOWN,
+    STR_CHIP_VOL,
+    STR_HINT_LEAVE,
+    STR_HINT_CHANGE,
+    STR_HINT_CLOSE,
+    STR_SETTINGS,
+    STR_DONE,
 };
 
 static bool read_extra_font(void *context, uint32_t face, uint32_t offset, void *buffer,

@@ -2030,7 +2030,7 @@ static void accent_color_previews_and_back_restores_the_saved_selection(void)
     Theme theme = *expected_theme();
     default_theme_set_accent(&theme, ACCENT_RED);
     int y = theme.metrics.header_height + theme.metrics.row_height / 2;
-    CHECK_EQUAL(theme.colors.selection_background,
+    CHECK_EQUAL(theme_selection_fill(&theme),
                 fake_hal_pixel(theme.metrics.padding / 2, y + theme.metrics.row_height));
     SettingsStore store;
     settings_store_load(&store);
@@ -2038,7 +2038,7 @@ static void accent_color_previews_and_back_restores_the_saved_selection(void)
     tap(KEY_BACK);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
-    CHECK_EQUAL(expected_theme()->colors.selection_background,
+    CHECK_EQUAL(theme_selection_fill(expected_theme()),
                 fake_hal_pixel(theme.metrics.padding / 2, y));
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);

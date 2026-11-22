@@ -160,6 +160,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     ConfirmScreen *confirm = context;
     confirm->now_ms = now_ms;
+    list_view_measure(&confirm->list, theme_content_area(confirm->config.theme).width);
     list_view_restart_marquee(&confirm->list, now_ms);
 }
 
@@ -172,8 +173,11 @@ static void update(void *context, uint32_t now_ms)
 Screen *confirm_screen_init(ConfirmScreen *confirm, ConfirmConfig config)
 {
     *confirm = (ConfirmScreen){.config = config};
-    confirm->model = (ListModel){
-        .context = confirm, .count = choice_count, .label = choice_label, .role = choice_role};
+    confirm->model = (ListModel){.context = confirm,
+                                 .count = choice_count,
+                                 .label = choice_label,
+                                 .role = choice_role,
+                                 .wraps = true};
     list_view_init(&confirm->list, &confirm->model, config.theme, 0);
     confirm->screen = (Screen){
         .title = config.title,
