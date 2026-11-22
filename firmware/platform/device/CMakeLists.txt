@@ -563,7 +563,6 @@ add_executable(echo_usb_overlay
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
     ${PROJECT_SOURCE_DIR}/src/gfx/text_style.c
     ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
-    ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
     ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
     ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c
     ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
@@ -574,6 +573,7 @@ add_executable(echo_usb_overlay
     logic/updater_install.c
     board/usb_dac_session.c
     board/time_file_take.c
+    board/usb_figure.c
     logic/fat_delete.c
     board/usb_card.c
     board/fifo_words.c
@@ -603,7 +603,6 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
         ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
         ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
-        ${PROJECT_SOURCE_DIR}/src/ui/wire_figure.c
         board/time_file_take.c
         board/trial_module.c
         board/trial_record.c
@@ -728,7 +727,10 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             ${PROJECT_SOURCE_DIR}/src/app)
         target_compile_definitions(${module_target}_objects PRIVATE
             headphone_store_load=trial_headphone_store_load
-            settings_store_read=trial_settings_store_read)
+            settings_store_read=trial_settings_store_read
+            player_restore=trial_player_restore
+            favorites_store_read=trial_favorites_store_read
+            spoken_store_read=trial_spoken_store_read)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

@@ -77,6 +77,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/settings/headphone_profile.c
     src/app/settings_store_read.c
     src/settings/settings_decode.c
+    src/app/player_restore.c
+    src/app/start_stores.c
+    src/library/favorites_decode.c
+    src/playback/bookmarks_decode.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c
@@ -120,6 +124,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_playing
     src/library/sort_fold_table.c
     src/app/browse_sections.c
     src/app/artist_album.c
+    src/app/song_actions.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_stage
     src/app/board_cover_layout.c
@@ -139,6 +144,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_stage
     src/library/sort_fold_table.c
     src/app/browse_sections.c
     src/app/artist_album.c
+    src/app/song_actions.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     platform/device/board/storage_list.c
@@ -319,12 +325,13 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/listening_clear.c
     src/app/listening_clear.c
     src/app/cover_cache_half.c
+    src/app/song_actions.c
 )
 if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/screens/key_test_screen.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/screens/key_test_screen.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
         src/app/debug_steps.c

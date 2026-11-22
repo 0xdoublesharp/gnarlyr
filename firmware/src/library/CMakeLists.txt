@@ -4,6 +4,7 @@ add_library(echo_library STATIC
     covers.c
     lyrics.c
     favorites.c
+    favorites_decode.c
     library.c
     library_browse.c
     library_content.c

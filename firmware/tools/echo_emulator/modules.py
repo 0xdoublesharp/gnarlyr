@@ -166,9 +166,15 @@ class SlotOwnership:
         self.empty_hooks = []
         self.extent_hook = None
         self.layouts = {}
+        self.foreign = {}
+        self.foreign_module = None
         taken = set()
         for overlay in machine.modules:
-            if overlay.base != SLOT_FIRST or overlay.number not in SLOT_MODULE_NAMES:
+            if overlay.base != SLOT_FIRST:
+                continue
+            if overlay.number not in SLOT_MODULE_NAMES:
+                self.foreign[overlay.number] = module_layout(overlay_path(overlay), SLOT_FIRST,
+                                                             SLOT_LAST)[0]
                 continue
             functions, end = module_layout(overlay_path(overlay), SLOT_FIRST, SLOT_LAST)
             self.layouts[overlay.number] = (functions, end)
@@ -229,6 +235,7 @@ class SlotOwnership:
             self.owner, self.state = module, "loaded"
         elif loaded:
             self.owner, self.state = None, "foreign module %d" % module
+            self.foreign_module = module
             self.record("loaded module %d" % module)
         else:
             self.owner, self.state = None, "empty"
@@ -268,6 +275,9 @@ class SlotOwnership:
         if self.state == "overlay" or not self.resident_call(address):
             return
         if self.owner is None:
+            if self.state.startswith("foreign") and address in self.foreign.get(
+                    self.foreign_module, {}):
+                return
             self.fault("call into the UI slot with no module loaded", address)
         elif address not in self.layouts[self.owner][0]:
             self.fault("call from resident code to a function of a module that was evicted", address)

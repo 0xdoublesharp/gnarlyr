@@ -170,6 +170,15 @@ static Screen *track_manage(void *context, uint16_t track, SongManage manage)
     return entry != NULL ? entry->manage(screens, track, manage) : NULL;
 }
 
+static Screen *browse_song_actions(BrowsePool *pool, uint16_t track, const char *name,
+                                   uint32_t now_ms)
+{
+    AppScreens *screens = pool->config.tools_context;
+    const PlayingModuleEntry *entry =
+        (const PlayingModuleEntry *)screen_modules_use(screens, screen_modules_playing(screens));
+    return entry != NULL ? entry->song_actions(pool, track, name, now_ms) : NULL;
+}
+
 static const PlayingModuleEntry *browse_tools(const BrowseScreen *browse)
 {
     AppScreens *screens = browse->pool->config.tools_context;
@@ -283,6 +292,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         .info = track_info,
         .tags = track_tags,
         .manage = track_manage,
+        .song_actions = browse_song_actions,
         .play_group = browse_play_group,
         .section = browse_section,
         .sections = browse_sections,
