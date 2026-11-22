@@ -7,15 +7,16 @@
   "screens": [
     "library-dark",
     "library-light",
+    "app-language",
     "sync-preview",
     "player-library",
+    "player-library-review",
     "player-settings",
     "firmware-review",
     "languages",
     "themes",
     "mixtapes",
     "first-install",
-    "setup-notice",
     "recovery"
   ],
   "licensed_artwork": true
