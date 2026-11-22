@@ -87,7 +87,6 @@ static UsbForced forced;
 static uint32_t write_buffer[WRITE_BUFFER_SECTORS * MSC_SECTOR_SIZE / 4];
 UsbSessionScreen usb_session_screen;
 static SessionClock session_clock;
-static FooterHint *const hints = usb_session_screen.hints;
 
 _Static_assert(sizeof write_buffer == USB_SESSION_BUFFER_BYTES,
                "the session buffer size is shared");
@@ -238,28 +237,23 @@ static void watch_speed(uint32_t now)
     }
 }
 
-static StringId menu_action(int pages)
-{
-    if (scene->page + 1 >= pages) {
-        return STR_HINT_OVERVIEW;
-    }
-    return scene->page == USB_SCENE_OVERVIEW ? STR_HINT_VIEW_STATS : STR_HINT_MORE_STATS;
-}
+static const FooterHint STORAGE_HINTS[] = {
+    {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},      {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT},
+    {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},      {FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
+    {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}, {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+    {FOOTER_KEY_MENU, STR_HINT_MORE_STATS},      {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+    {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}, {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+    {FOOTER_KEY_MENU, STR_HINT_OVERVIEW},        {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+    {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}};
+static const uint8_t STORAGE_FIRST[] = {0, 2, 5, 9};
+static const uint8_t STORAGE_COUNT[] = {2, 3, 4, 4};
 
-static uint8_t storage_hints(int pages)
+static void storage_hints(int pages)
 {
-    uint8_t count = 0;
-    if (card_present) {
-        hints[count++] = (FooterHint){FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD};
-    }
-    if (pages > 1) {
-        hints[count++] = (FooterHint){FOOTER_KEY_MENU, (uint16_t)menu_action(pages)};
-    }
-    if (pages > 1 && scene->page != USB_SCENE_OVERVIEW) {
-        hints[count++] = (FooterHint){FOOTER_KEY_BACK, STR_HINT_OVERVIEW};
-    }
-    hints[count++] = (FooterHint){FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT};
-    return count;
+    int kind = usb_screen_page_kind(scene, pages);
+    int skip = card_present ? 0 : 1;
+    usb_screen_use_hints(app_theme(), scene, STORAGE_HINTS + STORAGE_FIRST[kind] + skip,
+                         (uint8_t)(STORAGE_COUNT[kind] - skip));
 }
 
 static const char *storage_detail(void)
@@ -282,11 +276,10 @@ static AppUsbStatus storage_status(void)
                                                                    : STR_POWER_INTERNAL),
                            .detail = storage_detail(),
                            .scene = scene};
-    scene->hints = hints;
-    scene->hint_count = 0;
+    usb_screen_use_hints(app_theme(), scene, NULL, 0);
     if (scene->state != USB_SCENE_WAITING && scene->state != USB_SCENE_LEAVING) {
-        scene->hint_count = storage_hints(2);
-        scene->hint_count = storage_hints(usb_screen_pages(app_theme(), status));
+        storage_hints(2);
+        storage_hints(usb_screen_pages(app_theme(), status));
     }
     return status;
 }

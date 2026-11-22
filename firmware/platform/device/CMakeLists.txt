@@ -279,7 +279,7 @@ set(ECHO_OVERLAY_IMPORTS
     canvas_fill_gradient
     canvas_clipped
     font_find_glyph
-    footer_hints_area
+    footer_hints_height
     footer_hints_draw
     label_draw
     label_draw_wrapped

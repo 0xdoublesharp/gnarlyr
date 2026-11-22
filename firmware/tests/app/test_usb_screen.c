@@ -49,40 +49,51 @@ typedef struct Variant {
     const char *name;
 } Variant;
 
-static FooterHint paged_hints[4];
 static const FooterHint MENU_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
                                         {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
+static const FooterHint STORAGE_PAGES[][4] = {
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD}, {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_MORE_STATS},
+     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}}};
+static const FooterHint DAC_PAGES[][3] = {
+    {{FOOTER_KEY_MENU, STR_SETTINGS}, {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
+    {{FOOTER_KEY_MENU, STR_SETTINGS},
+     {FOOTER_KEY_BACK, STR_HINT_VIEW_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
+    {{FOOTER_KEY_MENU, STR_SETTINGS},
+     {FOOTER_KEY_BACK, STR_HINT_MORE_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
+    {{FOOTER_KEY_MENU, STR_SETTINGS},
+     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}}};
+static const uint8_t STORAGE_COUNTS[] = {2, 3, 4, 4};
 
-static StringId page_action(uint8_t page, int pages)
+static void use_page_hints(const Theme *theme, UsbScene *scene, bool dac, int pages)
 {
-    return page + 1 >= pages ? STR_HINT_OVERVIEW
-           : page == 0       ? STR_HINT_VIEW_STATS
-                             : STR_HINT_MORE_STATS;
-}
-
-static uint8_t page_hints(bool dac, uint8_t page, int pages)
-{
-    uint8_t count = 0;
-    paged_hints[count++] = dac ? (FooterHint){FOOTER_KEY_MENU, STR_SETTINGS}
-                               : (FooterHint){FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD};
-    if (pages > 1) {
-        paged_hints[count++] = (FooterHint){dac ? FOOTER_KEY_BACK : FOOTER_KEY_MENU,
-                                            (uint16_t)page_action(page, pages)};
+    int kind = usb_screen_page_kind(scene, pages);
+    scene->hints = NULL;
+    if (dac) {
+        usb_screen_use_hints(theme, scene, DAC_PAGES[kind], kind == USB_PAGE_ONLY ? 2 : 3);
+    } else {
+        usb_screen_use_hints(theme, scene, STORAGE_PAGES[kind], STORAGE_COUNTS[kind]);
     }
-    if (!dac && pages > 1 && page != 0) {
-        paged_hints[count++] = (FooterHint){FOOTER_KEY_BACK, STR_HINT_OVERVIEW};
-    }
-    paged_hints[count++] =
-        (FooterHint){FOOTER_KEY_HOLD_BACK, dac ? STR_HINT_LEAVE : STR_HINT_DISCONNECT};
-    return count;
 }
 
 static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status, UsbScene *scene)
 {
     status.scene = scene;
     if (scene->menu != NULL) {
-        scene->hints = MENU_HINTS;
-        scene->hint_count = 2;
+        scene->hints = NULL;
+        usb_screen_use_hints(theme, scene, MENU_HINTS, 2);
         return status;
     }
     bool dac = status.view == APP_USB_DAC;
@@ -90,9 +101,8 @@ static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status, UsbS
     if (!dac && !storage) {
         return status;
     }
-    scene->hints = paged_hints;
-    scene->hint_count = page_hints(dac, scene->page, 2);
-    scene->hint_count = page_hints(dac, scene->page, usb_screen_pages(theme, status));
+    use_page_hints(theme, scene, dac, 2);
+    use_page_hints(theme, scene, dac, usb_screen_pages(theme, status));
     return status;
 }
 

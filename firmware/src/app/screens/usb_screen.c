@@ -96,33 +96,33 @@ static int detail_lines(const Theme *theme, const char *detail, int width)
     return memo->lines;
 }
 
-typedef struct FooterMemo {
-    const Theme *theme;
-    uint32_t sum;
-    int height;
-} FooterMemo;
-
-static FooterMemo footer_memo;
-
 static FooterHints footer_of(AppUsbStatus status)
 {
     const UsbScene *scene = usb_screen_scene(status);
     return (FooterHints){scene->hints, scene->hint_count, FOOTER_ALIGN_END};
 }
 
-static Rect footer_area(const Theme *theme, FooterHints hints)
+void usb_screen_use_hints(const Theme *theme, UsbScene *scene, const FooterHint *items,
+                          uint8_t count)
 {
-    uint32_t sum = (uint32_t)theme->metrics.screen_width * MEMO_PRIME + hints.count;
-    for (int index = 0; index < hints.count; index++) {
-        sum = sum * MEMO_PRIME + hints.items[index].key;
-        sum = sum * MEMO_PRIME + hints.items[index].verb;
+    if (scene->hints == items && scene->hint_count == count) {
+        return;
     }
-    FooterMemo *memo = &footer_memo;
-    if (memo->theme != theme || memo->sum != sum) {
-        *memo = (FooterMemo){theme, sum, footer_hints_height(theme, hints)};
+    scene->hints = items;
+    scene->hint_count = count;
+    FooterHints hints = {items, count, FOOTER_ALIGN_END};
+    scene->footer_height = (uint8_t)footer_hints_height(theme, hints);
+}
+
+int usb_screen_page_kind(const UsbScene *scene, int pages)
+{
+    if (pages <= 1) {
+        return USB_PAGE_ONLY;
     }
-    int height = memo->height;
-    return (Rect){0, theme->metrics.screen_height - height, theme->metrics.screen_width, height};
+    if (scene->page == USB_SCENE_OVERVIEW) {
+        return USB_PAGE_OVERVIEW;
+    }
+    return scene->page + 1 >= pages ? USB_PAGE_LAST : USB_PAGE_MIDDLE;
 }
 
 static Rect detail_area(const Theme *theme, const char *detail, Rect footer)
@@ -196,7 +196,8 @@ int usb_screen_header_height(const Theme *theme)
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
 {
     int pad = theme->metrics.padding;
-    Rect footer = footer_area(theme, footer_of(status));
+    int band = usb_screen_scene(status)->footer_height;
+    Rect footer = {0, theme->metrics.screen_height - band, theme->metrics.screen_width, band};
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
         .detail = detail_area(theme, status.detail, footer),

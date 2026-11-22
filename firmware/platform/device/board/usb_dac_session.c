@@ -71,7 +71,6 @@ _Static_assert(2 * USB_DAC_RING_FRAMES * sizeof(uint32_t) <= USB_SESSION_BUFFER_
 
 static const char CAPTURE_DAC[] = "dac";
 static DacTally tally;
-static FooterHint *const hints = usb_session_screen.hints;
 static int hinted_page;
 static int hint_pages;
 static bool gain_refused;
@@ -236,55 +235,57 @@ static void follow_info(uint32_t now_ms)
         settings.headphones < profiles->count ? profiles->slots[settings.headphones].name : NULL;
 }
 
-static StringId back_action(int pages)
+static const FooterHint DAC_HINTS[] = {{FOOTER_KEY_MENU, STR_SETTINGS},
+                                       {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE},
+                                       {FOOTER_KEY_MENU, STR_SETTINGS},
+                                       {FOOTER_KEY_BACK, STR_HINT_VIEW_STATS},
+                                       {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE},
+                                       {FOOTER_KEY_MENU, STR_SETTINGS},
+                                       {FOOTER_KEY_BACK, STR_HINT_MORE_STATS},
+                                       {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE},
+                                       {FOOTER_KEY_MENU, STR_SETTINGS},
+                                       {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+                                       {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE},
+                                       {FOOTER_KEY_PLAY, STR_HINT_CHANGE},
+                                       {FOOTER_KEY_BACK, STR_HINT_CLOSE},
+                                       {FOOTER_KEY_VOL, STR_HINT_CHANGE},
+                                       {FOOTER_KEY_PLAY, STR_DONE}};
+static const uint8_t DAC_FIRST[] = {0, 2, 5, 8};
+
+enum {
+    DAC_MENU_HINTS = 11,
+    DAC_ADJUST_HINTS = 13
+};
+
+static void dac_hints(int pages)
 {
-    if (scene->page + 1 >= pages) {
-        return STR_HINT_OVERVIEW;
-    }
-    return scene->page == USB_SCENE_OVERVIEW ? STR_HINT_VIEW_STATS : STR_HINT_MORE_STATS;
+    int kind = usb_screen_page_kind(scene, pages);
+    usb_screen_use_hints(app_theme(), scene, DAC_HINTS + DAC_FIRST[kind],
+                         kind == USB_PAGE_ONLY ? 2 : 3);
 }
 
-static uint8_t dac_hints(int pages)
-{
-    uint8_t count = 0;
-    hints[count++] = (FooterHint){FOOTER_KEY_MENU, STR_SETTINGS};
-    if (pages > 1) {
-        hints[count++] = (FooterHint){FOOTER_KEY_BACK, (uint16_t)back_action(pages)};
-    }
-    hints[count++] = (FooterHint){FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE};
-    return count;
-}
-
-static uint8_t paged_hints(void)
+static void paged_hints(void)
 {
     if (hinted_page != scene->page + 1) {
         hinted_page = scene->page + 1;
-        scene->hint_count = dac_hints(2);
+        dac_hints(2);
         AppUsbStatus probe = {.view = APP_USB_DAC, .scene = scene};
         const ListView *shown_menu = scene->menu;
         scene->menu = NULL;
         hint_pages = usb_screen_pages(app_theme(), probe);
         scene->menu = shown_menu;
     }
-    return dac_hints(hint_pages);
-}
-
-static uint8_t menu_hints(void)
-{
-    hints[0] = (FooterHint){menu.adjusting ? FOOTER_KEY_VOL : FOOTER_KEY_PLAY, STR_HINT_CHANGE};
-    hints[1] = menu.adjusting ? (FooterHint){FOOTER_KEY_PLAY, STR_DONE}
-                              : (FooterHint){FOOTER_KEY_BACK, STR_HINT_CLOSE};
-    return 2;
+    dac_hints(hint_pages);
 }
 
 static AppUsbStatus dac_status(void)
 {
     scene->menu = menu_open ? &menu.view : NULL;
     AppUsbStatus status = {.view = APP_USB_DAC, .scene = scene};
-    scene->hints = hints;
-    scene->hint_count = paged_hints();
+    paged_hints();
     if (menu_open) {
-        scene->hint_count = menu_hints();
+        usb_screen_use_hints(app_theme(), scene,
+                             DAC_HINTS + (menu.adjusting ? DAC_ADJUST_HINTS : DAC_MENU_HINTS), 2);
         status.detail = gain_refused ? i18n_text(STR_GAIN_NOT_CHANGED) : NULL;
     }
     return status;
