@@ -5,6 +5,7 @@
 
 #include "app/app.h"
 #include "gfx/canvas.h"
+#include "ui/footer_hints.h"
 #include "ui/list_view.h"
 #include "ui/theme.h"
 #include "usb_meter.h"
@@ -112,6 +113,8 @@ typedef struct UsbScene {
     bool busy;
     bool lit[USB_METER_DIRECTIONS];
     uint32_t rate;
+    const FooterHint *hints;
+    uint8_t hint_count;
 } UsbScene;
 
 typedef struct UsbScreenLayout {

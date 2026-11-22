@@ -10,6 +10,7 @@
 #include "fixture_library.h"
 #include "gfx/text.h"
 #include "player_storage.h"
+#include "screen_snapshot.h"
 #include "settings/settings.h"
 #include "spoken_library.h"
 #include "ui/footer_hints.h"
@@ -466,6 +467,7 @@ static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(v
             Canvas canvas = canvas_make(
                 pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
             discovery.screen.draw(&discovery, &canvas);
+            screen_snapshot_write(&canvas, "search-entry", size + orientation * TEXT_SIZE_COUNT);
             const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
                                         {FOOTER_KEY_PLAY, STR_HINT_ADD},
                                         {FOOTER_KEY_MENU, STR_HINT_ERASE},

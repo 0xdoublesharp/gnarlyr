@@ -33,8 +33,6 @@ typedef struct AppUsbStatus {
     const char *detail;
     const char *information;
     const struct UsbScene *scene;
-    const struct FooterHint *hints;
-    uint8_t hint_count;
 } AppUsbStatus;
 
 struct Canvas;

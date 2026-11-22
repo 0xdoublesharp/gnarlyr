@@ -43,7 +43,9 @@ static Screen *manage(AppScreens *screens, uint16_t track, SongManage manage)
     }
     TrackRemoval removal = {.tracks = {.store = context->store, .player = context->player},
                             .actions = &screens->browse.song_actions,
-                            .toast = context->toast};
+                            .toast = context->toast,
+                            .question = &screens->modules.views.delete_question,
+                            .theme = context->theme};
     return track_removal_manage(removal, track, manage);
 }
 

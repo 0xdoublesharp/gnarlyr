@@ -96,9 +96,33 @@ static int detail_lines(const Theme *theme, const char *detail, int width)
     return memo->lines;
 }
 
+typedef struct FooterMemo {
+    const Theme *theme;
+    uint32_t sum;
+    int height;
+} FooterMemo;
+
+static FooterMemo footer_memo;
+
 static FooterHints footer_of(AppUsbStatus status)
 {
-    return (FooterHints){status.hints, status.hint_count, FOOTER_ALIGN_END};
+    const UsbScene *scene = usb_screen_scene(status);
+    return (FooterHints){scene->hints, scene->hint_count, FOOTER_ALIGN_END};
+}
+
+static Rect footer_area(const Theme *theme, FooterHints hints)
+{
+    uint32_t sum = (uint32_t)theme->metrics.screen_width * MEMO_PRIME + hints.count;
+    for (int index = 0; index < hints.count; index++) {
+        sum = sum * MEMO_PRIME + hints.items[index].key;
+        sum = sum * MEMO_PRIME + hints.items[index].verb;
+    }
+    FooterMemo *memo = &footer_memo;
+    if (memo->theme != theme || memo->sum != sum) {
+        *memo = (FooterMemo){theme, sum, footer_hints_height(theme, hints)};
+    }
+    int height = memo->height;
+    return (Rect){0, theme->metrics.screen_height - height, theme->metrics.screen_width, height};
 }
 
 static Rect detail_area(const Theme *theme, const char *detail, Rect footer)
@@ -172,8 +196,7 @@ int usb_screen_header_height(const Theme *theme)
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
 {
     int pad = theme->metrics.padding;
-    Rect screen = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
-    Rect footer = footer_hints_area(theme, screen, footer_of(status));
+    Rect footer = footer_area(theme, footer_of(status));
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
         .detail = detail_area(theme, status.detail, footer),

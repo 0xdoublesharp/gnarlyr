@@ -281,11 +281,12 @@ static AppUsbStatus storage_status(void)
                                                     : card_present ? STR_POWER_INTERNAL_CARD
                                                                    : STR_POWER_INTERNAL),
                            .detail = storage_detail(),
-                           .scene = scene,
-                           .hints = hints};
+                           .scene = scene};
+    scene->hints = hints;
+    scene->hint_count = 0;
     if (scene->state != USB_SCENE_WAITING && scene->state != USB_SCENE_LEAVING) {
-        status.hint_count = storage_hints(2);
-        status.hint_count = storage_hints(usb_screen_pages(app_theme(), status));
+        scene->hint_count = storage_hints(2);
+        scene->hint_count = storage_hints(usb_screen_pages(app_theme(), status));
     }
     return status;
 }

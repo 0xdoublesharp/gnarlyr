@@ -77,12 +77,12 @@ static uint8_t page_hints(bool dac, uint8_t page, int pages)
     return count;
 }
 
-static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
+static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status, UsbScene *scene)
 {
-    const UsbScene *scene = usb_screen_scene(status);
+    status.scene = scene;
     if (scene->menu != NULL) {
-        status.hints = MENU_HINTS;
-        status.hint_count = 2;
+        scene->hints = MENU_HINTS;
+        scene->hint_count = 2;
         return status;
     }
     bool dac = status.view == APP_USB_DAC;
@@ -90,9 +90,9 @@ static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
     if (!dac && !storage) {
         return status;
     }
-    status.hints = paged_hints;
-    status.hint_count = page_hints(dac, scene->page, 2);
-    status.hint_count = page_hints(dac, scene->page, usb_screen_pages(theme, status));
+    scene->hints = paged_hints;
+    scene->hint_count = page_hints(dac, scene->page, 2);
+    scene->hint_count = page_hints(dac, scene->page, usb_screen_pages(theme, status));
     return status;
 }
 
@@ -333,9 +333,10 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
                         : charge_screen_usb_title(variant->status.view)));
     const char *detail = variant->scene.nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : status.detail;
     CHECK(detail == NULL || saw_start(detail));
-    for (int hint = 0; hint < status.hint_count; hint++) {
-        CHECK(saw(footer_hints_key_name((FooterKey)status.hints[hint].key)));
-        CHECK(saw_start(i18n_text((StringId)status.hints[hint].verb)));
+    const UsbScene *scene = usb_screen_scene(status);
+    for (int hint = 0; hint < scene->hint_count; hint++) {
+        CHECK(saw(footer_hints_key_name((FooterKey)scene->hints[hint].key)));
+        CHECK(saw_start(i18n_text((StringId)scene->hints[hint].verb)));
     }
     bool overview = variant->scene.page == USB_SCENE_OVERVIEW;
     bool storage = variant->status.view == APP_USB_STORAGE;
@@ -401,7 +402,7 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
                     if (list[index].scene.page >= usb_screen_pages(&theme, status)) {
                         continue;
                     }
-                    status = with_page_hint(&theme, status);
+                    status = with_page_hint(&theme, status, &list[index].scene);
                     layout_holds_together(&theme, status);
                     text_spy_reset();
                     usb_screen_draw(
@@ -743,8 +744,7 @@ static void a_copy_keeps_its_words_still_while_the_lights_and_rates_move(void)
         Theme theme = theme_for(APPEARANCE_NEON_NOIR, orientation, TEXT_SIZE_MEDIUM);
         UsbScene scene = storage_scene(USB_SCENE_WRITING);
         AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
-        status.scene = &scene;
-        status = with_page_hint(&theme, status);
+        status = with_page_hint(&theme, status, &scene);
         Canvas canvas = canvas_for(&theme);
         int words = 0;
         for (int frame = 0; frame < 3; frame++) {
@@ -1130,7 +1130,7 @@ static void the_hold_reminder_changes_only_the_hint_line(void)
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = medium(orientation);
         UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
-        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES));
+        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
         draw_twice(&theme, status, &scene, nudge);
         CHECK(changed(&theme));
         status.scene = &scene;
@@ -1460,7 +1460,7 @@ static void draw_storage_variants(const Theme *theme, Variant *list, int count, 
             (!details && list[index].scene.page != USB_SCENE_OVERVIEW)) {
             continue;
         }
-        status = with_page_hint(theme, status);
+        status = with_page_hint(theme, status, &list[index].scene);
         text_spy_reset();
         usb_screen_draw(&canvas, theme,
                         (HalBattery){.known = true, .percent = 64, .usb_power = true}, status);

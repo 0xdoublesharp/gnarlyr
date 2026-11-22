@@ -259,8 +259,8 @@ static uint8_t paged_hints(void)
 {
     if (hinted_page != scene->page + 1) {
         hinted_page = scene->page + 1;
-        AppUsbStatus probe = {
-            .view = APP_USB_DAC, .scene = scene, .hints = hints, .hint_count = dac_hints(2)};
+        scene->hint_count = dac_hints(2);
+        AppUsbStatus probe = {.view = APP_USB_DAC, .scene = scene};
         const ListView *shown_menu = scene->menu;
         scene->menu = NULL;
         hint_pages = usb_screen_pages(app_theme(), probe);
@@ -280,10 +280,11 @@ static uint8_t menu_hints(void)
 static AppUsbStatus dac_status(void)
 {
     scene->menu = menu_open ? &menu.view : NULL;
-    AppUsbStatus status = {.view = APP_USB_DAC, .scene = scene, .hints = hints};
-    status.hint_count = paged_hints();
+    AppUsbStatus status = {.view = APP_USB_DAC, .scene = scene};
+    scene->hints = hints;
+    scene->hint_count = paged_hints();
     if (menu_open) {
-        status.hint_count = menu_hints();
+        scene->hint_count = menu_hints();
         status.detail = gain_refused ? i18n_text(STR_GAIN_NOT_CHANGED) : NULL;
     }
     return status;

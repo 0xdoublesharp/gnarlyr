@@ -6,6 +6,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "playback/moments.h"
+#include "screen_snapshot.h"
 #include "screens/listening_work.h"
 #include "screens/moments_screen.h"
 
@@ -239,6 +240,45 @@ static void navigation_and_an_unowned_update_leave_the_list_stable(void)
     CHECK_EQUAL(1, moments.model.count(&moments));
 }
 
+static Color pixels[480 * 480];
+
+static bool painted(const Canvas *canvas, Rect area, Color color)
+{
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            if (canvas_pixel_at(canvas, x, y) == color) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void the_delete_question_fits_all_six_layouts(void)
+{
+    for (int variant = 0; variant < 2 * TEXT_SIZE_COUNT; variant++) {
+        reset();
+        default_theme_set_text_size(&theme, (TextSize)(variant % TEXT_SIZE_COUNT));
+        default_theme_set_orientation(&theme, (Orientation)(variant / TEXT_SIZE_COUNT));
+        CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+        open_screen();
+        choose(0, KEY_GESTURE_PRESS);
+        finish();
+        choose(1, KEY_GESTURE_LONG_PRESS);
+        int width = theme.metrics.screen_width;
+        int height = theme.metrics.screen_height;
+        Canvas canvas = canvas_make(pixels, (Rect){0, 0, width, height});
+        screen->draw(screen->context, &canvas);
+        int footer = theme_is_portrait(&theme) ? 48 : 24;
+        Rect rows = {0, height - footer - 2 * theme.metrics.row_height, width,
+                     2 * theme.metrics.row_height};
+        CHECK(painted(&canvas, rows, theme.colors.danger));
+        CHECK(painted(&canvas, (Rect){0, height - footer, width, footer},
+                      theme.colors.header_background));
+        screen_snapshot_write(&canvas, "moments-confirm", variant);
+    }
+}
+
 static void home_always_leaves_the_nested_confirmation(void)
 {
     reset();
@@ -253,6 +293,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_saved_moment_plays_its_exact_position_after_restart_and_rescan),
+        TEST_CASE(the_delete_question_fits_all_six_layouts),
         TEST_CASE(hold_delete_removes_only_the_chosen_moment_after_confirmation),
         TEST_CASE(saving_without_a_track_gives_feedback_and_creates_no_file),
         TEST_CASE(every_visible_moment_has_a_label_in_small_portrait),

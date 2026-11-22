@@ -8,7 +8,6 @@
 #include "playback/spoken_shelf.h"
 #include "player.h"
 #include "spoken_store.h"
-#include "ui/confirm_screen.h"
 #include "ui/list_view.h"
 #include "ui/menu_screen.h"
 #include "ui/screen.h"
@@ -82,12 +81,9 @@ typedef struct BrowsePoolConfig {
 typedef struct SongActions {
     MenuScreen menu;
     MenuItem items[SONG_ACTION_COUNT];
-    ConfirmScreen confirm;
-    BrowsePool *pool;
     uint16_t track;
     uint32_t now_ms;
     char title[BROWSE_LABEL_CAPACITY];
-    char file[BROWSE_LABEL_CAPACITY];
 } SongActions;
 
 struct BrowsePool {
@@ -107,6 +103,5 @@ void browse_pool_init(BrowsePool *pool, BrowsePoolConfig config);
 Screen *browse_pool_open(BrowsePool *pool, int level, BrowseQuery query);
 Screen *browse_pool_open_favorites(BrowsePool *pool, int level);
 Screen *browse_pool_open_shelf(BrowsePool *pool, int level, SpokenKind shelf);
-Screen *browse_pool_song_confirm(SongActions *actions);
 Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
                                  uint32_t now_ms);

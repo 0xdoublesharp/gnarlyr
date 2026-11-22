@@ -229,6 +229,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/library/sort_fold_table.c
     src/app/hidden_tracks.c
     src/app/track_removal.c
+    src/ui/confirm_screen.c
 )
 set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
     src/app/language_module.c)
@@ -302,6 +303,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/listening_store_view.c
     src/app/screens/listening_screen.c
     src/app/screens/moments_screen.c
+    src/ui/confirm_screen.c
     src/playback/moments.c
     src/app/screens/listening_work.c
     src/app/screens/recap_cards.c

@@ -450,32 +450,6 @@ static ScreenAction manage_song(void *context)
     return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
 }
 
-static ScreenAction choose_delete(void *context, int index)
-{
-    SongActions *actions = context;
-    if (index == CONFIRM_CANCEL) {
-        list_view_select(&actions->menu.list, actions->menu.config.item_count - 2, actions->now_ms);
-        return screen_action_replace(&actions->menu.screen);
-    }
-    BrowsePoolConfig *config = &actions->pool->config;
-    (void)config->manage(config->tools_context, actions->track, SONG_MANAGE_DELETE);
-    return screen_action_pop();
-}
-
-Screen *browse_pool_song_confirm(SongActions *actions)
-{
-    ConfirmConfig config = {.title = i18n_text(STR_DELETE_FILE_QUESTION),
-                            .subject = actions->file,
-                            .sections = {{NULL, i18n_text(STR_DELETE_FILE_NOTE)}},
-                            .choices = {i18n_text(STR_CANCEL), i18n_text(STR_DELETE_FILE)},
-                            .choice_count = 2,
-                            .first_danger = 1,
-                            .choose = choose_delete,
-                            .context = actions,
-                            .theme = actions->pool->config.theme};
-    return confirm_screen_init(&actions->confirm, config);
-}
-
 enum {
     ACTION_ALWAYS,
     ACTION_INFO,
@@ -514,7 +488,6 @@ CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, con
 {
     SongActions *actions = &pool->song_actions;
     actions->track = track;
-    actions->pool = pool;
     actions->now_ms = now_ms;
     StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
     string_builder_append(&title, name);
