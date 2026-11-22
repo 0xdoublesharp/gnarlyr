@@ -10,7 +10,6 @@
 #include "hal/power.h"
 #include "sd.h"
 #include "storage_reset.h"
-#include "usb_session.h"
 
 static FatVolume check_volume;
 
@@ -21,34 +20,13 @@ typedef struct FormatProgress {
     uint32_t started_ms;
 } FormatProgress;
 
-static bool usb_busy(void)
-{
-    UsbShared *usb = usb_session_shared();
-    return usb->reconnect.in_session || usb->reconnect.requested || usb->reconnect.forced ||
-           board_usb_listening();
-}
-
-HalCardInfo hal_card_info(void)
-{
-    BlockDevice device;
-    bool present = sd_present();
-    bool ready = present && sd_start(&device);
-    return (HalCardInfo){.present = present,
-                         .sectors = ready ? sd_sector_count() : 0,
-                         .generation = sd_generation(),
-                         .needs_format = ready && !fat_mount(&check_volume, device),
-                         .usb_busy = usb_busy(),
-                         .mounted = hal_file_volume() == HAL_VOLUME_CARD,
-                         .ejected = sd_ejected()};
-}
-
 static bool can_continue(void *context, uint32_t done, uint32_t total)
 {
     FormatProgress *report = context;
     board_stall_beat();
     board_display_service();
     HalBattery battery = hal_power_battery();
-    return sd_present() && sd_generation() == report->generation && !usb_busy() &&
+    return sd_present() && sd_generation() == report->generation && !card_usb_busy() &&
            (battery.usb_power || (battery.known && battery.percent > 30)) &&
            !deadline_elapsed(hal_clock_milliseconds(), report->started_ms, 120000) &&
            (report->progress == NULL || report->progress(report->context, done, total));

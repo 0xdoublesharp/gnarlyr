@@ -100,7 +100,7 @@ CALL_REGISTERS = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC
 BLX_REGISTER_MASK = 0xFF87
 BLX_REGISTER = 0x4780
 SLOT_MODULE_NAMES = {1: "views", 2: "settings", 3: "library", 4: "listening", 9: "equalizer",
-                     11: "playing", 16: "stage"}
+                     11: "playing", 16: "stage", 17: "format"}
 ELF_FUNCTION = 2
 LOADER_FRAMES = ("board_overlay", "hal_system_load_module", "load_module", "read_rest",
                  "body_intact", "already_loaded", "header_size", "image_crc_update", "clear")

@@ -1,6 +1,6 @@
 string(ASCII 35 hash)
-set(ECHO_SLOT_MODULES views settings library listening equalizer playing stage)
-set(ECHO_SLOT_MODULE_NUMBERS 1 2 3 4 9 11 16)
+set(ECHO_SLOT_MODULES views settings library listening equalizer playing stage format)
+set(ECHO_SLOT_MODULE_NUMBERS 1 2 3 4 9 11 16 17)
 
 function(echo_module_guard_resident_sources output)
     set(resident ${ECHO_SCREEN_MODULE_SHARED_SOURCES})

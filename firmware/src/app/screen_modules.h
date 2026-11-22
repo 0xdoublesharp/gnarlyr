@@ -18,6 +18,7 @@ typedef enum ScreenModule {
     SCREEN_MODULE_EQUALIZER = 9,
     SCREEN_MODULE_PLAYING = 11,
     SCREEN_MODULE_COUNT,
+    SCREEN_MODULE_FORMAT = 17,
     SCREEN_MODULE_STAGE = 16
 } ScreenModule;
 

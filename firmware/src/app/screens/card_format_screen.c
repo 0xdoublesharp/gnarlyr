@@ -179,15 +179,14 @@ static void draw(void *context, Canvas *canvas)
     }
 }
 
-Screen *card_format_screen_init(CardFormatScreen *screen, CardFormatConfig config)
+static void start(void *context, uint32_t now_ms)
 {
-    *screen = (CardFormatScreen){.config = config, .card = hal_card_info(), .phase = PHASE_WARNING};
-    screen->screen = (Screen){.title = i18n_text(STR_CARD_FORMAT),
-                              .context = screen,
-                              .keys = SCREEN_KEYS_ALL,
-                              .stays_on_wake = true,
-                              .handle_key = key,
-                              .draw = draw};
+    (void)now_ms;
+    CardFormatScreen *screen = context;
+    screen->card = hal_card_info();
+    screen->phase = PHASE_WARNING;
+    screen->erase = false;
+    screen->screen.title = i18n_text(STR_CARD_FORMAT);
     if (allowed(screen)) {
         char size[16];
         StringBuilder number = string_builder_make(size, sizeof size);
@@ -201,5 +200,26 @@ Screen *card_format_screen_init(CardFormatScreen *screen, CardFormatConfig confi
         StringBuilder text = string_builder_make(screen->message, sizeof screen->message);
         i18n_format(&text, STR_CARD_FORMAT_WARNING, arguments, 2);
     }
+}
+
+void card_format_screen_bind(CardFormatScreen *screen, CardFormatConfig config)
+{
+    screen->config = config;
+    screen->screen = (Screen){.title = i18n_text(screen->phase == PHASE_CONFIRM
+                                                     ? STR_CARD_FORMAT_CONFIRM
+                                                     : STR_CARD_FORMAT),
+                              .context = screen,
+                              .keys = SCREEN_KEYS_ALL,
+                              .stays_on_wake = true,
+                              .enter = start,
+                              .handle_key = key,
+                              .draw = draw};
+}
+
+Screen *card_format_screen_init(CardFormatScreen *screen, CardFormatConfig config)
+{
+    *screen = (CardFormatScreen){0};
+    card_format_screen_bind(screen, config);
+    start(screen, 0);
     return &screen->screen;
 }

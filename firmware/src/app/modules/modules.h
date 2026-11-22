@@ -36,6 +36,7 @@ extern const PlayingModuleEntry PLAYING_MODULE_ENTRY;
 extern const PlayingModuleEntry STAGE_MODULE_ENTRY;
 extern const ViewsModuleEntry VIEWS_MODULE_ENTRY;
 extern const ScreenModuleEntry LISTENING_MODULE_ENTRY;
+extern const ScreenModuleEntry FORMAT_MODULE_ENTRY;
 
 typedef struct SettingsModuleEntry {
     ScreenModuleEntry module;

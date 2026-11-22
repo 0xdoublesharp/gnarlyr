@@ -11,7 +11,6 @@
 #include "language.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
-#include "screens/card_format_screen.h"
 #include "screens/equalizer_browser.h"
 #include "screens/equalizer_screen.h"
 #include "screens/parametric_screen.h"
@@ -75,6 +74,7 @@ typedef struct SettingsContext {
     Screen *equalizer;
     Screen *graphic;
     Screen *parametric;
+    Screen *card_format;
     EqualizerPresets *presets;
     const LanguageList *languages;
     char message[SETTINGS_MESSAGE_CAPACITY];
@@ -131,7 +131,6 @@ struct SettingsScreens {
     LanguageList languages;
     const char *safe_volume_options[SETTINGS_SAFE_VOLUME_OPTIONS];
     PlugChooser usb;
-    CardFormatScreen card_format;
     bool card_needs_format;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
     MenuItem items[SETTINGS_ITEM_COUNT];

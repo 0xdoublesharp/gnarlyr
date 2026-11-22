@@ -867,13 +867,7 @@ static const char *format_status(const void *context)
 static ScreenAction open_format(void *context)
 {
     SettingsScreens *screens = context;
-    CardFormatConfig config = {.player = screens->context.player,
-                               .theme = screens->theme,
-                               .notice =
-                                   screens->context.format_prepare != NULL ? app_show_notice : NULL,
-                               .prepare = screens->context.format_prepare,
-                               .finished = screens->context.reload};
-    return screen_action_push(card_format_screen_init(&screens->card_format, config));
+    return screen_action_push(screens->context.card_format);
 }
 
 static bool card_mounted(const void *context)

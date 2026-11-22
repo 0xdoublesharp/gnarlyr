@@ -20,6 +20,7 @@
 #include "player.h"
 #include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
+#include "screens/card_format_screen.h"
 #include "screens/calendar_screen.h"
 #include "screens/cassette_flip_screen.h"
 #include "screens/clock_screen.h"
@@ -161,6 +162,7 @@ typedef struct AppModuleScreens {
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;
     LibraryModuleScreens library;
+    CardFormatScreen format;
 } AppModuleScreens;
 
 typedef struct AppScreens {

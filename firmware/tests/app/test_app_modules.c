@@ -33,6 +33,7 @@ enum {
     HOME_SETTINGS_ROW = 5,
     SETTINGS_SHUFFLE_ROW = 1,
     SETTINGS_BLUETOOTH_ROW = 3,
+    SETTINGS_FORMAT_ROWS_UP = 6,
     SCRIPT_STEP_MS = 8,
     SCRIPT_MS = 100
 };
@@ -752,6 +753,52 @@ static void settings_returns_from_about_to_its_own_module(void)
     CHECK_EQUAL(4, fake_hal_module_loads());
 }
 
+static void open_card_format(void)
+{
+    fake_hal_set_card(
+        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
+    open_settings();
+    for (int count = 0; count < SETTINGS_FORMAT_ROWS_UP; count++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+}
+
+static void card_format_opens_from_settings_in_its_own_module(void)
+{
+    start_app();
+    open_card_format();
+    CHECK(title_is("Format card"));
+    CHECK_EQUAL(SCREEN_MODULE_FORMAT, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    CHECK(title_is("Erase this card?"));
+    tap(KEY_BACK);
+    CHECK(title_is("Settings"));
+    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    CHECK(title_is("Format card"));
+    CHECK_EQUAL(SCREEN_MODULE_FORMAT, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(0, fake_hal_card_formats());
+}
+
+static void a_damaged_card_format_module_keeps_settings_and_erases_nothing(void)
+{
+    start_app();
+    fake_hal_break_module(SCREEN_MODULE_FORMAT, true);
+    open_card_format();
+    CHECK(title_is("Settings"));
+    CHECK(toast_is(MISSING));
+    CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Settings"));
+    CHECK_EQUAL(0, fake_hal_card_formats());
+    fake_hal_break_module(SCREEN_MODULE_FORMAT, false);
+    tap(KEY_PLAY);
+    CHECK(title_is("Format card"));
+}
+
 static void a_screen_of_another_module_takes_the_slot(void)
 {
     start_app();
@@ -1016,6 +1063,8 @@ int main(void)
         TEST_CASE(a_start_screen_in_a_module_that_cannot_load_starts_on_the_screen_before_it),
         TEST_CASE(settings_returns_from_about_to_its_own_module),
         TEST_CASE(a_screen_of_another_module_takes_the_slot),
+        TEST_CASE(card_format_opens_from_settings_in_its_own_module),
+        TEST_CASE(a_damaged_card_format_module_keeps_settings_and_erases_nothing),
         TEST_CASE(a_module_that_cannot_load_does_not_cost_the_screen_under_it_its_own),
         TEST_CASE(a_setting_changed_by_a_script_gives_the_slot_back_to_the_screen_on_top),
         TEST_CASE(an_about_value_is_read_through_its_module),
