@@ -22,18 +22,6 @@ typedef struct SongAction {
     const char *(*value)(const void *context);
 } SongAction;
 
-static const char *keep_file(const void *context)
-{
-    (void)context;
-    return i18n_text(STR_KEEP_FILE);
-}
-
-static const char *erase_from_storage(const void *context)
-{
-    (void)context;
-    return i18n_text(STR_ERASE_FROM_STORAGE);
-}
-
 static const SongAction SONG_ACTIONS[] = {
     {STR_PLAY_NEXT, browse_song_play_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN, ICON_NEXT, NULL},
     {STR_ADD_TO_UP_NEXT, browse_song_add_to_up_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN,
@@ -45,9 +33,9 @@ static const SongAction SONG_ACTIONS[] = {
     {STR_ADD_TO_TAPE, browse_song_add_to_tape, ACTION_MANAGE, true, LIST_ROW_PLAIN, ICON_MIXTAPE,
      NULL},
     {STR_HIDE_TRACK, browse_song_manage, ACTION_MANAGE, false, LIST_ROW_PLAIN, ICON_HIDE,
-     keep_file},
+     browse_song_keep_file},
     {STR_DELETE_FILE_ASK, browse_song_manage, ACTION_MANAGE, false, LIST_ROW_DANGER_DIVIDED,
-     ICON_DELETE, erase_from_storage},
+     ICON_DELETE, browse_song_erase_from_storage},
 };
 
 static bool action_offered(const BrowsePool *pool, uint8_t needs)
