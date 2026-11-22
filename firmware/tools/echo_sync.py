@@ -334,13 +334,40 @@ def same_file(first, second):
     return (first.st_dev, first.st_ino) == (second.st_dev, second.st_ino)
 
 
+def create_windows_cache(path, writable):
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    generic_read, generic_write = 0x80000000, 0x40000000
+    share_read_write = 3
+    create_new = 1
+    open_reparse_point = 0x00200000
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                       wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE)
+    create.restype = wintypes.HANDLE
+    close = kernel.CloseHandle
+    close.argtypes = (wintypes.HANDLE,)
+    close.restype = wintypes.BOOL
+    access = generic_read | (generic_write if writable else 0)
+    handle = create(str(path), access, share_read_write, None, create_new, open_reparse_point, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        mode = os.O_BINARY | (os.O_RDWR if writable else os.O_RDONLY)
+        return msvcrt.open_osfhandle(handle, mode)
+    except BaseException:
+        close(handle)
+        raise
+
+
 @contextlib.contextmanager
 def open_card_file(path, create=False, writable=True):
     path = path.absolute()
     parent = checked_cache_folder(path.parent)
     flags = (os.O_RDWR if writable else os.O_RDONLY) | getattr(os, "O_NOFOLLOW", 0)
-    if create:
-        flags |= os.O_CREAT
     directory = None
     descriptor = None
     try:
@@ -349,9 +376,19 @@ def open_card_file(path, create=False, writable=True):
                                 getattr(os, "O_NOFOLLOW", 0))
             if not same_file(parent, os.fstat(directory)):
                 raise SyncError("The cache folder changed. Nothing was written.")
-            descriptor = os.open(path.name, flags, 0o600, dir_fd=directory)
-        else:
-            descriptor = os.open(path, flags, 0o600)
+        leaf = path.name if directory is not None else path
+        try:
+            descriptor = os.open(leaf, flags, 0o600, dir_fd=directory)
+        except FileNotFoundError:
+            if not create:
+                raise
+            if sys.platform == "win32":
+                if path.is_symlink():
+                    raise SyncError("The cache path changed or is linked. Nothing was written.")
+                descriptor = create_windows_cache(path, writable)
+            else:
+                descriptor = os.open(leaf, flags | os.O_CREAT | os.O_EXCL, 0o600,
+                                     dir_fd=directory)
         current = os.fstat(descriptor)
         if (not stat.S_ISREG(current.st_mode) or current.st_nlink != 1 or
                 not same_file(current, path.lstat()) or

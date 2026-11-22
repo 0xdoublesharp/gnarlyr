@@ -114,14 +114,34 @@ class ToolCliBoundaryTest(unittest.TestCase):
         folder.mkdir()
         path = folder / "library.db"
         path.write_bytes(b"untouched")
-        original = os.fstat
-        def changed(descriptor):
-            info = original(descriptor)
-            return SimpleNamespace(st_dev=info.st_dev, st_ino=info.st_ino + 1)
-        with mock.patch.object(os, "fstat", side_effect=changed):
+        original_open, original_stat, original_close = os.open, os.fstat, os.close
+        directory = -1
+
+        def open_relative(name, flags, mode=0o600, *, dir_fd=None):
+            if name == folder:
+                return directory
+            self.assertEqual(directory, dir_fd)
+            return original_open(folder / name, flags, mode)
+
+        def file_identity(descriptor):
+            return folder.stat() if descriptor == directory else original_stat(descriptor)
+
+        def close(descriptor):
+            if descriptor != directory:
+                original_close(descriptor)
+
+        with (mock.patch.object(os, "open", side_effect=open_relative) as opened,
+              mock.patch.object(os, "supports_dir_fd", {opened}),
+              mock.patch.object(os, "fstat", side_effect=file_identity) as status,
+              mock.patch.object(os, "close", side_effect=close)):
+            with echo_sync.open_card_file(path) as file:
+                self.assertEqual(b"untouched", file.read())
+            status.side_effect = lambda _: SimpleNamespace(st_dev=0, st_ino=-1)
+            opened.reset_mock()
             with self.assertRaisesRegex(echo_sync.SyncError, "folder changed"):
                 with echo_sync.open_card_file(path):
                     self.fail("changed directory admitted")
+            self.assertEqual([folder], [call.args[0] for call in opened.call_args_list])
         self.assertEqual(b"untouched", path.read_bytes())
 
     def test_cached_library_size_and_every_section_bound_are_checked_before_parsing(self):

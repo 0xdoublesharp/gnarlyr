@@ -3,6 +3,7 @@ import sys
 import unicodedata
 import tempfile
 import unittest
+from unittest import mock
 from dataclasses import replace
 from pathlib import Path
 
@@ -763,8 +764,10 @@ class CombinedLibraryTest(unittest.TestCase):
         self.assertEqual([model.tracks[index].path for index in up.tracks], ["\"/Music/Song.flac"])
 
     def test_a_card_folder_named_like_the_marker_is_refused(self):
-        self.song(self.card, '"/Song.flac')
-        with self.assertRaises(ValueError):
+        marker = self.card / library_index.INTERNAL_MARKER
+        is_dir = Path.is_dir
+        with (mock.patch.object(Path, "is_dir", lambda path: path == marker or is_dir(path)),
+              self.assertRaisesRegex(ValueError, "marks internal storage")):
             library_index.scan(self.card, self.internal)
 
     def test_the_internal_folder_comes_before_a_card_folder_whose_key_is_also_empty(self):
