@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, statfs, writeFile } from "node:fs/promises";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const identity = JSON.parse(await readFile(join(root, "firmware/identity.json"), "utf8"));
@@ -30,7 +30,7 @@ if (config.licensed_artwork) {
 assert.equal(config.version, 1);
 assert(config.viewport.width >= 900 && config.viewport.width <= 1600);
 assert(config.viewport.height >= 700 && config.viewport.height <= 1200);
-const known = new Set(["library-dark", "library-light", "sync-preview", "player-library", "player-settings", "firmware-review", "languages", "themes", "mixtapes", "first-install", "setup-notice", "recovery"]);
+const known = new Set(["library-dark", "library-light", "app-language", "sync-preview", "player-library", "player-library-review", "player-settings", "firmware-review", "languages", "themes", "mixtapes", "first-install", "recovery"]);
 assert(config.screens.length && config.screens.every((name) => known.has(name)));
 assert.equal(new Set(config.screens).size, config.screens.length);
 assert(config.albums.length >= 2 && config.albums.length <= 12);
@@ -41,6 +41,11 @@ for (const album of config.albums) {
   assert(album.tracks.length > 0 && album.tracks.length <= 8);
 }
 assert.equal(spawnSync("mount", { encoding: "utf8" }).stdout.includes(" on /Volumes/Scratch "), true, "Mount Scratch before capturing");
+const checkSpace = async () => {
+  const disk = await statfs(scratch);
+  assert(disk.bavail * disk.bsize >= 1024 ** 3, "Capture needs its estimated 1 GiB of free working space");
+};
+await checkSpace();
 const temporary = join(scratch, "tmp/site-companion");
 await mkdir(temporary, { recursive: true });
 const work = await mkdtemp(join(temporary, "run-"));
@@ -56,6 +61,7 @@ try {
     await writeFile(join(work, "build.log"), (result.stdout ?? "") + (result.stderr ?? ""));
     assert.equal(result.status, 0, `Companion build failed; see ${join(work, "build.log")}`);
   }
+  await checkSpace();
   const require = createRequire(join(source, "package.json"));
   unregisterTypescript = require("tsx/esm/api").register({ tsconfig: false });
   const electron = require("electron");
@@ -70,6 +76,7 @@ try {
   const music = join(work, "Music"), target = join(work, "Sync preview"), profile = join(work, "profile");
   for (const path of [music, target, profile]) await mkdir(path);
   for (const album of config.albums) {
+    await checkSpace();
     const folder = join(music, album.artist, album.title);
     await mkdir(folder, { recursive: true });
     for (const [index, title] of album.tracks.entries()) {
@@ -85,7 +92,7 @@ try {
   const card = join(work, "GnarlySD");
   await mkdir(join(card, `${identity.data_directory}/lang`), { recursive: true });
   await writeFile(join(card, `${identity.data_directory}/lang/es.pack`), packBytes());
-  await writeFile(join(profile, "library.json"), JSON.stringify({ version: 1, selected: [], theme: "dark" }));
+  await writeFile(join(profile, "library.json"), JSON.stringify({ version: 1, selected: [], theme: "dark", appLanguage: "en" }));
   app = await _electron.launch({ executablePath: electron, args: [join(source, ".build/app")],
     env: { ...env, [`${identity.id}_TEST_MODE`]: "1", [`${identity.id}_USER_DATA_DIR`]: profile, [`${identity.id}_BACKUP_DIR`]: join(work, "backups") }, timeout: 30000 });
   const page = await app.firstWindow();
@@ -116,6 +123,13 @@ try {
   await page.locator(".album-card").nth(1).click();
   await page.getByText("2 albums selected", { exact: true }).waitFor();
   await shot("library-dark");
+  const language = page.locator(".app-language select");
+  assert.equal(await language.locator("option").count(), 14, "System preference and 13 bundled languages");
+  await language.selectOption("es");
+  await page.waitForFunction(() => document.documentElement.lang === "es" && !document.querySelector(".app-language select").disabled);
+  await shot("app-language");
+  await language.selectOption("en");
+  await page.waitForFunction(() => document.documentElement.lang === "en" && !document.querySelector(".app-language select").disabled);
   await page.getByRole("button", { name: "Switch to light mode" }).click();
   await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
   await shot("library-light");
@@ -130,10 +144,6 @@ try {
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   stock = await stockFixture();
   await app.evaluate(installStockCommandMocks, { tree: stock.tree, info: stock.info });
-  await page.getByRole("button", { name: "Find connected Echo", exact: true }).click();
-  await page.getByText("Echo detected · FiiO firmware", { exact: true }).waitFor();
-  await shot("setup-notice");
-  await page.getByRole("button", { name: "Dismiss setup prompt", exact: true }).click();
   await page.getByRole("button", { name: "Your Echo", exact: true }).click();
   await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
   await page.locator(".stock-install").evaluate((element) => element.scrollIntoView({ block: "center" }));
@@ -194,7 +204,13 @@ try {
   await pick(card);
   await page.getByRole("button", { name: "Choose music drive", exact: true }).click();
   await page.getByRole("button", { name: "Review preparation", exact: true }).waitFor();
+  await page.getByLabel("Preparation mode", { exact: true }).selectOption("full");
   await shot("player-library");
+  await page.getByRole("button", { name: "Review preparation", exact: true }).click();
+  await page.getByRole("dialog", { name: "Ready for your player.", exact: true }).waitFor();
+  await shot("player-library-review");
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Mixtapes", exact: true }).click();
   await pick(card);
   await page.getByRole("button", { name: "Choose music drive", exact: true }).first().click();
