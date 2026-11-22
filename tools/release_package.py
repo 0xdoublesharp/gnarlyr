@@ -17,6 +17,7 @@ import shutil
 import sys
 
 from echo_debug import IDENTITY
+from firmware_build import LABEL_PATTERN
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = IDENTITY["update_file"]
@@ -26,7 +27,7 @@ SUMS = "SHA256SUMS"
 STOCK_IMAGE = "ECHOECHO.img"
 MODEL = "SNOWSKY ECHO (full-size)"
 NOTES = ROOT / "firmware/docs/release-notes.md"
-TAG = re.compile(r"v(\d+\.\d+\.\d+)(?:-([0-9A-Za-z][0-9A-Za-z.]{0,7}))?")
+TAG = re.compile(rf"v(\d+\.\d+\.\d+)(?:-({LABEL_PATTERN}))?")
 FIELD = 8
 BUILD_FIELD = slice(0x30, 0x30 + FIELD)
 
