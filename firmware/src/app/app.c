@@ -1834,10 +1834,10 @@ static void start_app(bool power_on)
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
     headphone_store_load(&app.headphones);
-    start_playback(power_on);
     app.theme = BOARD_THEME;
     theme_runtime_close(&app.themes);
     app.themes = (ThemeRuntime){.file = {.handle = -1}};
+    start_playback(power_on);
     uint8_t selection;
     if (hal_internal_file_read(THEME_SELECTION_PATH, &selection, 1)) {
         const ViewsModuleEntry *themes = hal_system_load_module(SCREEN_MODULE_VIEWS);
