@@ -65,6 +65,8 @@ static const char *value_text(const HeadphoneEditor *editor, int field, int valu
     StringBuilder text = string_builder_make(buffer, sizeof editor->label);
     if (field == CROSSFEED) {
         string_builder_append(&text, i18n_text(CROSSFEEDS[value]));
+    } else if (field == TRIM && value == 0) {
+        i18n_format_text(&text, STR_EQ_GAIN, "0");
     } else if (field == TRIM) {
         i18n_format_counts(&text, STR_HEADPHONE_TRIM_VALUE, (uint32_t)value / 2,
                            (uint32_t)(value % 2) * 5);

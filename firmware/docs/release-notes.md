@@ -20,7 +20,7 @@ Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music playe
 - **Safe updates.** A new version starts on trial and the previous one is kept as a backup. If the new one fails to start properly, the player puts the backup back and says "Update rolled back".
 - **Card eject and hot-insert.** Settings → Eject card makes the microSD card safe to remove. Insert or remove a card while the player runs, and the library follows it.
 - **Fast library scans with progress.** The player shows what it is doing while it checks for changes, sorts and saves. You can browse and play as soon as the tracks are ready, and album covers fill in later.
-- **Recap.** See your listening time, plays, skips and top songs, albums and artists. Recap → Highlights shows a month, a year or all time as a short run of cards.
+- **Recap.** See your listening time, plays, skips and top songs, albums and artists. The Recap row in Recap shows a month, a year or all time as a short run of cards.
 - **Wireframe start-up and shutdown.** Turn them off in Settings → Power → Start and stop animation.
 - **Make it yours.** Choose from five themes or add `.gtheme` packs. Settings → Orientation offers portrait mode, and Settings → Home screen chooses and orders the items on Home.
 - **Formats.** FLAC, MP3, WAV, AIFF, AAC and Apple Lossless (`.m4a`, `.m4b` audiobooks with chapters), Ogg Vorbis, Opus, APE, WMA, and DSD (DSF/DFF, played as PCM). Also CUE sheets and M3U playlists, at up to 192 kHz.
@@ -71,7 +71,7 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - Holding Power and pressing Vol+ or Vol− skips tracks, also while the buttons are locked. Settings → Controls → Hold Menu chooses what holding Menu does.
 - On Now Playing and with the screen off, hold ▶ and press Vol+ or Vol− to skip, one track per press however long the keys are held. Hold Menu and tap Vol+ or Vol− to move 10 s. Hold Menu and hold a volume button to preview: the music keeps playing while the time and progress bar, marked Preview, glide across the whole song in about 10 seconds, about 3 seconds after the first 2 seconds, at most 1 minute per second and then 10 minutes per second; letting go of the volume button jumps once to the place shown, and a paused song stays paused. Pressing ▶ as you let go, or Power, cancels. Moves stop 1 second before the end. With the screen off, taps move 10 s and holds do nothing. Holding ▶ alone no longer opens seeking. ▶ and Menu holds there act when the key is let go, so a long hold can still become one of these. Checked with host tests and emulator scenarios only; not yet checked on a player.
 - Holding Play on a song offers Hide track and Delete file.
-- Recap → Highlights shows a month, a year or all time as a short run of cards.
+- The Recap row in Recap shows a month, a year or all time as a short run of cards.
 - Bluetooth has its own volume, separate from the wired one, starting at 50 of 60.
 - The charge screen estimates the charging rate and time to full and says whether the power comes from a computer or a charger.
 - "Checking for changes" shows its progress with a turning disc.

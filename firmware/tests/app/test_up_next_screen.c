@@ -219,7 +219,7 @@ static void moving_a_song_returns_to_its_new_row(void)
     player_add_to_up_next(&player, ARMY_OF_ME);
     open_up_next();
     Screen *actions = open_actions_on(2);
-    CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Play Next").type);
+    CHECK_EQUAL(SCREEN_ACTION_POP, choose_action(actions, "Play next").type);
     screen->enter(screen->context, 350);
     CHECK_EQUAL(1, up_next.list.selected);
     CHECK(row_is(1, "Army of Me", "Björk"));

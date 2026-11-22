@@ -23,9 +23,11 @@ static void decimal(char *text, int tenth_db)
 {
     StringBuilder builder = string_builder_make(text, NUMBER_CAPACITY);
     int magnitude = tenth_db < 0 ? -tenth_db : tenth_db;
-    if (tenth_db != 0) {
-        string_builder_append_char(&builder, tenth_db < 0 ? '-' : '+');
+    if (tenth_db == 0) {
+        string_builder_append_unsigned(&builder, 0);
+        return;
     }
+    string_builder_append_char(&builder, tenth_db < 0 ? '-' : '+');
     string_builder_append_unsigned(&builder, (uint32_t)(magnitude / 10));
     string_builder_append_char(&builder, '.');
     string_builder_append_unsigned(&builder, (uint32_t)(magnitude % 10));

@@ -65,7 +65,7 @@ The cost is one pass over the library's track records and paths, the runs writte
 - A computed list is kept (resident, 100 indices per list) until the listening log publishes again (a play, a boot or a charge counted), the track keys table changes or the favorites change. Opening it again then shows it at once; coming back to it from Now Playing or the song actions also keeps the selection.
 - Rows show the title and the artist, like Search results; in portrait the artist is on a second line.
 - Play plays the list from the selected song: the exact ordered track indices are copied into the stored queue the way Search does (`app/order_publish`, shared with Discovery), then Now Playing opens. Shuffle follows the Shuffle setting, as for every list. With a list of at most 100 songs the copy is a few small writes and runs at once. Play on the song already playing opens Now Playing without restarting it, as in the other lists. A failed copy keeps the previous queue and shows "Couldn't save queue".
-- Hold Play opens the song actions of the other lists: Play Next, Add to Up Next, Add to Favorite Playlist, Track info and My tags.
+- Hold Play opens the song actions of the other lists: Play next, Add to Up Next, Add to favorites, Track info and My tags.
 - Each list has its own empty state; a missing or unreadable track keys file shows "History unavailable".
 
 The listening, lyrics and smart list screens share one work area in the listening module (`screens/listening_work`); the screen on top claims it. The smart lists keep only the computed indices outside it, so after the module was evicted or another screen used the area, a list that was being computed starts again and a shown list refills its rows.
