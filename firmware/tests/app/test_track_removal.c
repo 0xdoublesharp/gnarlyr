@@ -393,13 +393,32 @@ static void the_delete_question_names_the_file_and_starts_on_cancel(void)
     ConfirmScreen *confirm = &question.confirm;
     CHECK(screen == &confirm->screen);
     CHECK(strcmp("Delete file?", screen->title) == 0);
-    CHECK(strcmp("01 - Help!.flac", confirm->config.subject) == 0);
+    CHECK(strcmp("Song", confirm->config.subject) == 0);
+    CHECK(strcmp("01 - Help!.flac", confirm->config.sections[0].text) == 0);
+    CHECK(strcmp(i18n_text(STR_DELETE_FILE_NOTE), confirm->config.sections[1].text) == 0);
     CHECK_EQUAL(2, confirm->config.choice_count);
     CHECK_EQUAL(0, confirm->list.selected);
     CHECK(strcmp("Cancel", confirm->config.choices[0]) == 0);
     CHECK(strcmp("Delete file", confirm->config.choices[1]) == 0);
     CHECK_EQUAL(1, confirm->config.first_danger);
     CHECK(!library_hidden(&store.library, HELP));
+}
+
+static void an_untitled_track_names_its_file_once(void)
+{
+    start();
+    browse_pool_init(&pool, (BrowsePoolConfig){.library = &store.library,
+                                               .theme = &theme,
+                                               .player = &player,
+                                               .toast = &toast,
+                                               .manage = no_screen});
+    CHECK(browse_pool_song_actions(&pool, HELP, "Help!", 0) != NULL);
+    Screen *screen = track_removal_manage(asking(), HELP, SONG_MANAGE_ASK);
+    ConfirmScreen *confirm = &question.confirm;
+    CHECK(screen == &confirm->screen);
+    CHECK(strcmp("01 - Help!.flac", confirm->config.subject) == 0);
+    CHECK(strcmp(i18n_text(STR_DELETE_FILE_NOTE), confirm->config.sections[0].text) == 0);
+    CHECK(confirm->config.sections[1].text == NULL);
 }
 
 static void cancelling_the_delete_returns_to_hide_track(void)
@@ -502,6 +521,8 @@ static void track_actions_and_the_delete_question_fit_all_six_layouts(void)
         CHECK(drawn("Back"));
         CHECK(drawn_within("permanently deletes"));
         CHECK(drawn_within("storage."));
+        CHECK(drawn("Song"));
+        CHECK(drawn_within("Help!.flac"));
         screen_snapshot_write(&canvas, "delete-confirm", variant);
     }
 }
@@ -568,6 +589,7 @@ int main(void)
         TEST_CASE(part_of_a_cue_file_is_not_deleted),
         TEST_CASE(deleting_after_twelve_removals_since_the_rescan_asks_for_a_rescan),
         TEST_CASE(the_delete_question_names_the_file_and_starts_on_cancel),
+        TEST_CASE(an_untitled_track_names_its_file_once),
         TEST_CASE(cancelling_the_delete_returns_to_hide_track),
         TEST_CASE(a_fresh_play_on_delete_file_deletes_it_and_leaves_the_actions),
         TEST_CASE(delete_file_is_the_last_action_in_the_danger_role_after_a_divider),

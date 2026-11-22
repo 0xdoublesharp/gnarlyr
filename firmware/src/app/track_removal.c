@@ -159,6 +159,44 @@ static ScreenAction answer_delete(void *context, int index)
     return screen_action_pop();
 }
 
+static bool names_only_the_file(const char *title, const char *file)
+{
+    size_t stem = 0;
+    size_t length = 0;
+    for (; file[length] != 0; length++) {
+        stem = file[length] == '.' ? length : stem;
+    }
+    stem = stem == 0 ? length : stem;
+    size_t title_length = 0;
+    while (title[title_length] != 0) {
+        title_length++;
+    }
+    if (title_length == 0 || title_length > stem) {
+        return title_length == 0;
+    }
+    const char *tail = file + stem - title_length;
+    for (size_t index = 0; index < title_length; index++) {
+        if (tail[index] != title[index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static ConfirmConfig delete_question(const TrackRemoval *removal, const char *file)
+{
+    const char *title = removal->actions != NULL ? removal->actions->title : "";
+    bool once = names_only_the_file(title, file);
+    return (ConfirmConfig){.title = i18n_text(STR_DELETE_FILE_QUESTION),
+                           .subject = once ? file : title,
+                           .sections = {{NULL, once ? i18n_text(STR_DELETE_FILE_NOTE) : file},
+                                        {NULL, once ? NULL : i18n_text(STR_DELETE_FILE_NOTE)}},
+                           .choices = {i18n_text(STR_CANCEL), i18n_text(STR_DELETE_FILE)},
+                           .choice_count = 2,
+                           .first_danger = 1,
+                           .theme = removal->theme};
+}
+
 static Screen *ask_delete(const TrackRemoval *removal, uint16_t track)
 {
     TrackQuestion *question = removal->question;
@@ -171,15 +209,9 @@ static Screen *ask_delete(const TrackRemoval *removal, uint16_t track)
     hidden_tracks_file_name(identity.path, question->file, sizeof question->file);
     question->removal = *removal;
     question->track = track;
-    ConfirmConfig config = {.title = i18n_text(STR_DELETE_FILE_QUESTION),
-                            .subject = question->file,
-                            .sections = {{NULL, i18n_text(STR_DELETE_FILE_NOTE)}},
-                            .choices = {i18n_text(STR_CANCEL), i18n_text(STR_DELETE_FILE)},
-                            .choice_count = 2,
-                            .first_danger = 1,
-                            .choose = answer_delete,
-                            .context = question,
-                            .theme = removal->theme};
+    ConfirmConfig config = delete_question(removal, question->file);
+    config.choose = answer_delete;
+    config.context = question;
     return confirm_screen_init(&question->confirm, config);
 }
 
