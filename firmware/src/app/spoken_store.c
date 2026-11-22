@@ -18,29 +18,17 @@ static bool track_path(const Library *library, uint16_t track, LibraryTrack *rec
            library_read_string(library, record->path, path, PLAYER_PATH_CAPACITY);
 }
 
-static bool read_bookmarks(uint8_t *bytes, uint32_t *length)
-{
-    HalFile file;
-    if (!hal_file_open(&file, SPOKEN_STORE_PATH)) {
-        return false;
-    }
-    *length = file.size < BOOKMARKS_FILE_CAPACITY ? file.size : BOOKMARKS_FILE_CAPACITY;
-    bool read = hal_file_read(file, 0, bytes, *length);
-    hal_file_close(&file);
-    return read;
-}
-
 void spoken_store_load(SpokenStore *store, const Library *library)
 {
-    uint8_t bytes[BOOKMARKS_FILE_CAPACITY];
-    uint32_t length = 0;
     store->library = library;
     store->follow = (SpokenFollow){.known = false, .active = false};
     store->last_state = PLAYER_IDLE;
     store->dirty = false;
     store->last_put_ms = 0;
     store->last_save_ms = 0;
-    if (!read_bookmarks(bytes, &length) || !bookmarks_decode(bytes, length, &store->bookmarks)) {
+    StoreLoad load = spoken_store_read(&store->bookmarks);
+    store->unread = load == STORE_UNSUPPORTED;
+    if (load != STORE_READY) {
         bookmarks_clear(&store->bookmarks);
     }
 }
@@ -49,7 +37,9 @@ static void save(SpokenStore *store, uint32_t now_ms)
 {
     uint8_t bytes[BOOKMARKS_FILE_CAPACITY];
     uint32_t length = bookmarks_encode(&store->bookmarks, bytes);
-    (void)hal_file_write(SPOKEN_STORE_PATH, bytes, length);
+    if (!store->unread) {
+        (void)hal_file_write(SPOKEN_STORE_PATH, bytes, length);
+    }
     store->dirty = false;
     store->last_save_ms = now_ms;
 }

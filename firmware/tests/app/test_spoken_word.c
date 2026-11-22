@@ -781,6 +781,19 @@ static void periodic_and_explicit_flushes_write_active_progress(void)
     CHECK(restored.bookmarks.count > 0);
 }
 
+static void an_unread_bookmark_store_never_rewrites_the_file(void)
+{
+    start();
+    store.unread = true;
+    play(SPOKEN_CHAPTER_ONE_PATH, true);
+    follow(0);
+    fake_hal_audio_set_position(MIDWAY_MS);
+    follow(SPOKEN_SAVE_INTERVAL_MS);
+    CHECK(!store.dirty);
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes(SPOKEN_STORE_PATH, &size) == NULL);
+}
+
 static void invalid_and_nonspoken_tracks_never_start_following(void)
 {
     start();
@@ -876,6 +889,7 @@ int main(void)
         TEST_CASE(adjusting_a_paused_book_to_zero_overrides_its_saved_bookmark),
         TEST_CASE(malformed_short_bookmark_files_start_empty),
         TEST_CASE(periodic_and_explicit_flushes_write_active_progress),
+        TEST_CASE(an_unread_bookmark_store_never_rewrites_the_file),
         TEST_CASE(invalid_and_nonspoken_tracks_never_start_following),
         TEST_CASE(a_saved_track_key_finds_its_chapter_after_the_number_changes),
         TEST_CASE(descriptions_handle_invalid_zero_and_finished_rows),

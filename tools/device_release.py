@@ -3,13 +3,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
 import echo_debug
+import firmware_build
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "firmware/tools"))
 import image_artifacts
@@ -85,13 +85,12 @@ class Release:
         return self.git("rev-parse", "HEAD")
 
     def resolve(self, build):
-        if not isinstance(build, str) or not re.fullmatch(r"[0-9a-f]{7,40}", build):
-            raise ValueError(f"Installed build is not a clean Git build: {build!r}")
-        return self.git("rev-parse", "--verify", f"{build}^{{commit}}")
+        return firmware_build.resolve(self.git, build, echo_debug.IDENTITY["version"])
 
-    def build(self, root):
+    def build(self, root, *, env=None):
         subprocess.run([str(self.python), str(root / "tools/firmware.py"), "build", "--preset", "device",
-                        "--target", "echo_device_image", "--jobs", "2"], cwd=root, env=self.env, check=True)
+                        "--target", "echo_device_image", "--jobs", "2"], cwd=root,
+                       env=self.env if env is None else env, check=True)
         return root / "firmware/build/device"
 
     def validate_candidate(self, candidate, sha):
@@ -157,17 +156,24 @@ class Release:
         self.validate_candidate(candidate, sha)
         return candidate
 
-    def installed_candidate(self, sha):
+    def installed_candidate(self, sha, build_label=None):
         candidate = self.scratch / "reports" / f"candidate-{sha}"
         if candidate.exists():
             self.validate_candidate(candidate, sha)
+            self.check_installed_label(candidate, build_label)
             return candidate
         self.scratch.joinpath("tmp").mkdir(parents=True, exist_ok=True)
         temporary = Path(tempfile.mkdtemp(prefix="installed-", dir=self.scratch / "tmp"))
         checkout = temporary / (temporary.name + "-source")
         try:
             self.git("worktree", "add", "--detach", str(checkout), sha)
-            return self.freeze(self.build(checkout), sha, historical=True)
+            env = self.env.copy()
+            env.pop("ECHO_BUILD_TAG", None)
+            if build_label is not None:
+                env["ECHO_BUILD_TAG"] = build_label
+            built = self.build(checkout, env=env)
+            self.check_installed_label(built, build_label)
+            return self.freeze(built, sha, historical=True)
         finally:
             if checkout.exists():
                 self.git("worktree", "remove", "--force", str(checkout))
@@ -178,6 +184,12 @@ class Release:
             if build_temporary.is_dir() and not build_temporary.is_symlink():
                 shutil.rmtree(build_temporary)
             shutil.rmtree(temporary)
+
+    def check_installed_label(self, directory, build_label):
+        if build_label is not None:
+            build = echo_debug.image_build((directory / echo_debug.UPDATE_FILE).read_bytes())
+            if build != build_label:
+                raise ValueError(f"Upgrade source image build {build!r} differs from the player's build {build_label!r}")
 
     def prove(self, old, new):
         result = subprocess.check_output([str(self.python), str(self.root / "firmware/tools/prove_upgrade.py"),
@@ -202,7 +214,8 @@ class Release:
         print(f"Installed {installed_build} ({installed_sha}); candidate {sha}", flush=True)
         self.scratch.joinpath("tmp").mkdir(parents=True, exist_ok=True)
         candidate = self.freeze(self.build(self.root), sha)
-        old = self.installed_candidate(installed_sha)
+        installed_label = None if firmware_build.COMMIT.fullmatch(installed_build) else installed_build
+        old = self.installed_candidate(installed_sha, installed_label)
         proof = self.proof(old, candidate)
         if not proof.get("ok"):
             raise ValueError("Upgrade proof failed")

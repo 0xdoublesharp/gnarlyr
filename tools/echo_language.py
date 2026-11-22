@@ -10,7 +10,8 @@ from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 
-BUILD = re.compile(r"[0-9a-fA-F]{7,40}")
+from firmware_build import resolve
+
 CODE = re.compile(r"[A-Za-z0-9-]{1,5}")
 PACK_LIMIT = 18432
 FILE_LIMIT = 65535
@@ -74,12 +75,11 @@ def constant(source, name):
 class Snapshot:
     def __init__(self, api, build):
         self.api = api
-        if not isinstance(build, str) or not BUILD.fullmatch(build):
-            code = "language_build_dirty" if isinstance(build, str) and "+" in build else "language_build_unknown"
-            raise api.DebugError(code, "language operations require an exact clean installed firmware build")
+        if isinstance(build, str) and "+" in build:
+            raise api.DebugError("language_build_dirty", "language operations require an exact clean installed firmware build")
         self.format = pack_tools(api.ROOT)
         try:
-            self.commit = git(api.ROOT, "rev-parse", "--verify", build + "^{commit}").strip()
+            self.commit = resolve(lambda *args: git(api.ROOT, *args), build, api.IDENTITY["version"])
             self.build = build
             i18n = self.show("firmware/src/core/include/core/i18n.h")
             self.pack_limit = constant(i18n, "I18N_PACK_CAPACITY")

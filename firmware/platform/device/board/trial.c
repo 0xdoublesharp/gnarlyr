@@ -12,6 +12,7 @@
 #include "device/slot_copy.h"
 #include "device/update_trial.h"
 #include "emmc.h"
+#include "favorites_store.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/input.h"
@@ -20,7 +21,9 @@
 #include "internal_volume.h"
 #include "mmc.h"
 #include "overlay.h"
+#include "player.h"
 #include "settings_store.h"
+#include "spoken_store.h"
 #include "trial_module.h"
 #include "usb.h"
 #include "usb_session.h"
@@ -154,6 +157,24 @@ CORE_SEAM void settings_store_read(SettingsStore *store)
     store->has_saved = false;
     store->has_saved_buttons = false;
     store->unread = true;
+}
+
+CORE_SEAM bool player_restore(Player *player, bool cold_start)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    return entry != NULL && entry->player_restore(player, cold_start);
+}
+
+CORE_SEAM StoreLoad favorites_store_read(Favorites *favorites)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    return entry != NULL ? entry->favorites_read(favorites) : STORE_UNSUPPORTED;
+}
+
+CORE_SEAM StoreLoad spoken_store_read(Bookmarks *bookmarks)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    return entry != NULL ? entry->spoken_read(bookmarks) : STORE_UNSUPPORTED;
 }
 
 bool hal_system_settle_user_state(bool requested)

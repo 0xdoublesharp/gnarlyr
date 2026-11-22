@@ -6,11 +6,14 @@
 #include "core/seam.h"
 #include "core/string_builder.h"
 #include "device/slot_copy.h"
+#include "favorites_store.h"
 #include "headphone_store.h"
 #include "internal_volume.h"
 #include "overlay.h"
+#include "player.h"
 #include "screen_modules.h"
 #include "settings_store.h"
+#include "spoken_store.h"
 #include "trial_module.h"
 #include "trial_record.h"
 #include "usb_session.h"
@@ -207,6 +210,12 @@ static void start_with_headphones(HeadphoneStore *store)
     headphone_store_load(store);
 }
 
-const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {
-    SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER), trial_boot_module_start,
-    trial_boot_module_session_end, settle, start_with_headphones, settings_store_read};
+const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER),
+                                                      trial_boot_module_start,
+                                                      trial_boot_module_session_end,
+                                                      settle,
+                                                      start_with_headphones,
+                                                      settings_store_read,
+                                                      player_restore,
+                                                      favorites_store_read,
+                                                      spoken_store_read};
