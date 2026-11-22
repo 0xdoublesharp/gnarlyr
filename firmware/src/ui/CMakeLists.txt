@@ -1,8 +1,10 @@
 add_library(echo_ui STATIC
     brand_mark.c
     choice_screen.c
+    confirm_screen.c
     cover_flow.c
     fade.c
+    footer_hints.c
     slide.c
     header.c
     icons.c

@@ -29,6 +29,11 @@ enum {
     LIST_VIEW_DETAIL_LINE_GAP = 2
 };
 
+enum {
+    LIST_ROW_DANGER = 1,
+    LIST_ROW_DIVIDED = 2
+};
+
 typedef struct ListModel {
     const void *context;
     int (*count)(const void *context);
@@ -41,6 +46,7 @@ typedef struct ListModel {
     bool detail_below;
     ListSections (*sections)(const void *context, int index);
     bool section_reverse;
+    uint8_t (*role)(const void *context, int index);
 } ListModel;
 
 typedef struct ListView {

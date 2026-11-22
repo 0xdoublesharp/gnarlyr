@@ -20,7 +20,7 @@ target_include_directories(echo_ui_fixtures PUBLIC gfx ui)
 target_link_libraries(echo_ui_fixtures PUBLIC echo_ui PRIVATE echo_options)
 
 foreach(ui_test theme_layout list_view list_navigation fast_scroll header menu_screen message_screen
-        choice_screen toast wire_motion)
+        choice_screen toast wire_motion list_roles)
     echo_add_unit_test(NAME test_${ui_test}
         SOURCES ui/test_${ui_test}.c
         LIBRARIES echo_ui_fixtures
@@ -31,3 +31,10 @@ echo_add_unit_test(NAME test_status_bar
     SOURCES ui/test_status_bar.c
     LIBRARIES echo_ui_fixtures echo_fonts
 )
+
+foreach(ui_test footer_hints confirm_screen)
+    echo_add_unit_test(NAME test_${ui_test}
+        SOURCES ui/test_${ui_test}.c
+        LIBRARIES echo_ui_fixtures echo_fonts
+    )
+endforeach()

@@ -18,6 +18,22 @@ STR_PLAYING = Playing
 STR_PAUSED = Paused
 STR_NOTHING_HERE = Nothing here
 
+# Footer hints: a key chip, then what the key does. STR_CHIP_* are the player's key names, one per
+# key, and nothing else; the verbs that follow a chip start with a capital letter.
+STR_CHIP_VOL = Vol
+STR_CHIP_PLAY = Play
+STR_CHIP_MENU = Menu
+STR_CHIP_BACK = Back
+STR_CHIP_HOLD_PLAY = Hold Play
+STR_CHIP_HOLD_MENU = Hold Menu
+STR_CHIP_HOLD_BACK = Hold Back
+STR_HINT_CHANGE = Change
+STR_HINT_CLOSE = Close
+STR_HINT_OPEN = Open
+STR_HINT_ALWAYS = Always do this
+STR_HINT_SHOW_LYRICS = Show lyrics
+STR_HINT_OPTIONS = Options
+
 # Home and Music menus. {0} in a title is the firmware's name.
 STR_MUSIC = Music
 STR_AUDIOBOOKS = Audiobooks

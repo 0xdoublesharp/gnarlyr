@@ -57,6 +57,11 @@ static IconId item_icon(const void *context, int index)
     return shown_item(context, index)->icon;
 }
 
+static uint8_t item_role(const void *context, int index)
+{
+    return shown_item(context, index)->role;
+}
+
 static bool has_icons(const MenuScreen *menu)
 {
     for (int index = 0; index < menu->config.item_count; index++) {
@@ -149,7 +154,8 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
                               .detail = item_value,
                               .opens = item_opens,
                               .icon = has_icons(menu) ? item_icon : NULL,
-                              .detail_below = config.detail_below};
+                              .detail_below = config.detail_below,
+                              .role = item_role};
     list_view_init(&menu->list, &menu->model, config.theme, 0);
     menu->screen = (Screen){
         .title = config.title,
