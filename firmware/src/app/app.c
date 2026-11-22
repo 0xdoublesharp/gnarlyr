@@ -1867,7 +1867,7 @@ int16_t app_clock_offset(void)
     return app.settings.settings.clock_offset_minutes;
 }
 
-CORE_COLD bool app_store_clock_offset(int16_t offset, bool from_storage)
+CORE_SEAM CORE_COLD bool app_store_clock_offset(int16_t offset, bool from_storage)
 {
     if (from_storage) {
         settings_store_load(&app.settings);
