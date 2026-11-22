@@ -41,10 +41,10 @@ static const char *choice_label(const void *context, int index)
     return confirm->config.choices[index];
 }
 
-static uint8_t choice_role(const void *context, int index)
+static ListRowRole choice_role(const void *context, int index)
 {
     const ConfirmScreen *confirm = context;
-    return index >= confirm->config.first_danger ? LIST_ROW_DANGER : 0;
+    return index >= confirm->config.first_danger ? LIST_ROW_DANGER : LIST_ROW_PLAIN;
 }
 
 static int lead_width(const Theme *theme, const char *label)

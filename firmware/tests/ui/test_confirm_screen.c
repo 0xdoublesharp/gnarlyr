@@ -70,7 +70,7 @@ static void the_safe_choice_is_first_and_focused(void)
     Theme theme = real_theme();
     open_confirm(&theme);
     CHECK_EQUAL(0, confirm.list.selected);
-    CHECK_EQUAL(0, confirm.model.role(confirm.model.context, 0));
+    CHECK_EQUAL(LIST_ROW_PLAIN, confirm.model.role(confirm.model.context, 0));
 }
 
 static void destructive_choices_take_the_danger_role(void)

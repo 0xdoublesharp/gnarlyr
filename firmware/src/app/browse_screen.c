@@ -488,18 +488,18 @@ typedef struct SongAction {
     ScreenAction (*select)(void *context);
     uint8_t needs;
     bool opens;
-    uint8_t role;
+    ListRowRole role;
 } SongAction;
 
 static const SongAction SONG_ACTIONS[] = {
-    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false, 0},
-    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false, 0},
-    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false, 0},
-    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true, 0},
-    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true, 0},
-    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true, 0},
-    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false, 0},
-    {STR_DELETE_FILE_ASK, manage_song, ACTION_MANAGE, false, LIST_ROW_DANGER | LIST_ROW_DIVIDED},
+    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN},
+    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN},
+    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false, LIST_ROW_PLAIN},
+    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true, LIST_ROW_PLAIN},
+    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true, LIST_ROW_PLAIN},
+    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true, LIST_ROW_PLAIN},
+    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false, LIST_ROW_PLAIN},
+    {STR_DELETE_FILE_ASK, manage_song, ACTION_MANAGE, false, LIST_ROW_DANGER_DIVIDED},
 };
 
 static bool action_offered(const BrowsePool *pool, uint8_t needs)

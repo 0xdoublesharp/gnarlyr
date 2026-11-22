@@ -57,7 +57,7 @@ static IconId item_icon(const void *context, int index)
     return shown_item(context, index)->icon;
 }
 
-static uint8_t item_role(const void *context, int index)
+static ListRowRole item_role(const void *context, int index)
 {
     return shown_item(context, index)->role;
 }

@@ -440,7 +440,7 @@ static void delete_file_is_the_last_action_in_the_danger_role_after_a_divider(vo
     MenuScreen *menu = &pool.song_actions.menu;
     const MenuItem *last = &menu->config.items[menu->config.item_count - 1];
     CHECK(strcmp("Delete file…", last->label) == 0);
-    CHECK_EQUAL(LIST_ROW_DANGER | LIST_ROW_DIVIDED, last->role);
+    CHECK_EQUAL(LIST_ROW_DANGER_DIVIDED, last->role);
     CHECK_EQUAL(0, menu->config.items[menu->config.item_count - 2].role);
 }
 

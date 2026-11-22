@@ -3,7 +3,7 @@
 #include "ui_test_canvas.h"
 #include "ui_test_theme.h"
 
-static uint8_t roles[2];
+static ListRowRole roles[2];
 
 static int two_rows(const void *context)
 {
@@ -18,7 +18,7 @@ static const char *letter(const void *context, int index)
     return "A";
 }
 
-static uint8_t role_of(const void *context, int index)
+static ListRowRole role_of(const void *context, int index)
 {
     (void)context;
     return roles[index];
@@ -26,7 +26,7 @@ static uint8_t role_of(const void *context, int index)
 
 static ListModel model = {.count = two_rows, .label = letter, .role = role_of};
 
-static Canvas draw_two(uint8_t first, uint8_t second, int selected)
+static Canvas draw_two(ListRowRole first, ListRowRole second, int selected)
 {
     roles[0] = first;
     roles[1] = second;
@@ -46,28 +46,28 @@ static Rect row_rect(int row)
 
 static void a_danger_row_draws_its_label_in_the_danger_colour(void)
 {
-    Canvas canvas = draw_two(0, LIST_ROW_DANGER, 0);
+    Canvas canvas = draw_two(LIST_ROW_PLAIN, LIST_ROW_DANGER, 0);
     CHECK(ui_test_area_has_color(&canvas, row_rect(1), TEST_THEME.colors.danger));
     CHECK(!ui_test_area_has_color(&canvas, row_rect(0), TEST_THEME.colors.danger));
 }
 
 static void a_focused_danger_row_marks_its_bar_in_the_danger_colour(void)
 {
-    Canvas canvas = draw_two(0, LIST_ROW_DANGER, 1);
+    Canvas canvas = draw_two(LIST_ROW_PLAIN, LIST_ROW_DANGER, 1);
     Rect bar = {0, row_rect(1).y + 1, 1, TEST_ROW_HEIGHT - 2};
     CHECK(ui_test_area_has_only(&canvas, bar, TEST_THEME.colors.danger));
 }
 
 static void a_divided_row_draws_a_divider_along_its_top(void)
 {
-    Canvas canvas = draw_two(0, LIST_ROW_DANGER | LIST_ROW_DIVIDED, 0);
+    Canvas canvas = draw_two(LIST_ROW_PLAIN, LIST_ROW_DANGER_DIVIDED, 0);
     Rect line = {0, row_rect(1).y, TEST_SCREEN_WIDTH - 4, 1};
     CHECK(ui_test_area_has_only(&canvas, line, TEST_THEME.colors.divider));
 }
 
 static void plain_rows_draw_no_divider(void)
 {
-    Canvas canvas = draw_two(0, 0, 0);
+    Canvas canvas = draw_two(LIST_ROW_PLAIN, LIST_ROW_PLAIN, 0);
     Rect line = {0, row_rect(1).y, TEST_SCREEN_WIDTH - 4, 1};
     CHECK(!ui_test_area_has_only(&canvas, line, TEST_THEME.colors.divider));
 }

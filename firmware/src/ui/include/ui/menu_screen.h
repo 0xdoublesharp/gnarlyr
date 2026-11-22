@@ -16,7 +16,7 @@ typedef struct MenuItem {
     bool (*shown)(const void *context);
     const void *shown_context;
     IconId icon;
-    uint8_t role;
+    ListRowRole role;
 } MenuItem;
 
 typedef struct MenuPanel {
