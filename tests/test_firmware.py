@@ -172,8 +172,11 @@ class FuzzCommandTests(unittest.TestCase):
 
     def test_cover_image_target_has_canonical_png_fixtures(self):
         self.assertEqual(fuzz_seeds.TARGETS["cover_image"], 1048576)
-        fixtures = {path.name for path in fuzz_seeds.FIXTURES["cover_image"]}
-        self.assertEqual(fixtures, {"home.png", "cover-flow.png", "home-280c6baaadf6.png"})
+        paths = fuzz_seeds.FIXTURES["cover_image"]
+        names = {path.name for path in paths}
+        self.assertTrue({"home.png", "cover-flow.png"} <= names)
+        self.assertEqual(len([name for name in names if re.fullmatch(r"home-[0-9a-f]{12}\.png", name)]), 1)
+        self.assertTrue(all(path.is_file() for path in paths))
         self.assertEqual(len(fuzz_seeds.COVER_JPEG_FIXTURES), 3)
 
     def test_ui_and_queue_targets_are_bounded_and_seeded(self):

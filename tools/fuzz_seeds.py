@@ -212,7 +212,7 @@ FIXTURES = {
     "cover_image": [
         ROOT / "site/assets/screens/home.png",
         ROOT / "site/assets/screens/cover-flow.png",
-        ROOT / "site/assets/social/home-280c6baaadf6.png",
+        *sorted((ROOT / "site/assets/social").glob("home-*.png")),
     ],
     "mp3_probe": [
         SOURCE / "tests/fixtures/tags/id3v24.mp3",
