@@ -254,6 +254,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/settings/headphone_file_save.c
     src/core/headphone_audio_switch.c
     src/app/language_list.c
+    src/app/language_picker.c
+    src/app/notice_band.c
     src/app/modules/settings_module.c
     src/app/settings_screens.c
     src/app/hidden_choice.c

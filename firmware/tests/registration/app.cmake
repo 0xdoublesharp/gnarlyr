@@ -10,6 +10,12 @@ echo_add_unit_test(NAME test_app_language
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
 
+echo_add_unit_test(NAME test_language_picker
+    SOURCES app/test_language_picker.c app/fake_hal.c support/test_glyph_face.c
+    LIBRARIES echo_app echo_library_fixtures echo_test_pack
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
+
 echo_add_unit_test(NAME test_app_modules
     SOURCES app/test_app_modules.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

@@ -1000,6 +1000,17 @@ static ScreenAction open_group(void *context)
     return screen_action_push(menu_screen_init(&screens->group_menu, config));
 }
 
+static ScreenAction open_language(void *context)
+{
+    SettingsScreens *screens = context;
+    language_list(&screens->languages);
+    LanguagePickerConfig config = {.languages = &screens->languages,
+                                   .choose = choose_language,
+                                   .context = &screens->context,
+                                   .theme = screens->theme};
+    return screen_action_push(language_picker_init(&screens->language, config));
+}
+
 static const char *text_size_value(const void *context)
 {
     const SettingsGroupEntry *entry = context;
@@ -1036,8 +1047,8 @@ static void bind_groups(SettingsScreens *screens, Screen *buttons)
                                             .icon = GROUP_ICONS[group]};
     }
     screens->groups[SETTINGS_GROUP_DISPLAY].value = text_size_value;
-    screens->groups[SETTINGS_GROUP_LANGUAGE].select = open_choice;
-    screens->groups[SETTINGS_GROUP_LANGUAGE].context = &screens->entries[SETTINGS_LANGUAGE_CHOICE];
+    screens->groups[SETTINGS_GROUP_LANGUAGE].select = open_language;
+    screens->groups[SETTINGS_GROUP_LANGUAGE].context = screens;
     screens->groups[SETTINGS_GROUP_LANGUAGE].value = describe_current_language;
     screens->groups[SETTINGS_GROUP_BUTTONS].select = menu_open_screen;
     screens->groups[SETTINGS_GROUP_BUTTONS].context = buttons;

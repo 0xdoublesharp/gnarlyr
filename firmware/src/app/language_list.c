@@ -1,6 +1,7 @@
 #include "language.h"
 
 #include "core/hash.h"
+#include "gfx/font_pack.h"
 #include "language_source.h"
 
 enum {
@@ -45,6 +46,23 @@ static void list_put(LanguageList *list, const I18nPackInfo *info)
         list->names[index][byte] = info->name[byte];
     }
     list->options[index] = list->names[index];
+    list->flags[index] = info->flags;
+}
+
+static bool extra_font_covers(const char *code)
+{
+    for (uint32_t index = 0; font_pack_extra_language(index) != NULL; index++) {
+        if (same_text(font_pack_extra_language(index), code)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool language_list_needs_fonts(const LanguageList *list, int index)
+{
+    return (list->flags[index] & I18N_NEEDS_EXTRA_FONT) != 0 &&
+           !extra_font_covers(list->codes[index]);
 }
 
 static void list_built_in(LanguageList *list)

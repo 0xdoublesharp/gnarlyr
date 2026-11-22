@@ -9,6 +9,7 @@
 #include "headphone_editor.h"
 #include "hidden_tracks.h"
 #include "language.h"
+#include "language_picker.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/equalizer_browser.h"
@@ -148,6 +149,7 @@ struct SettingsScreens {
         SetClockScreen clock;
         HiddenTracksChoice hidden;
         PlugChooser plug;
+        LanguagePicker language;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;

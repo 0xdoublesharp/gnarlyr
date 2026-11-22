@@ -78,6 +78,8 @@ add_library(echo_app STATIC
     home_art_backdrop.c
     language.c
     language_list.c
+    language_picker.c
+    notice_band.c
     language_module.c
     library_rescan.c
     music_check.c
