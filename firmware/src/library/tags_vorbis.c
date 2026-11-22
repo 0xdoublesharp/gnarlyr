@@ -375,11 +375,16 @@ static bool capture_at(const uint8_t *bytes)
     return bytes[0] == 'O' && bytes[1] == 'g' && bytes[2] == 'g' && bytes[3] == 'S';
 }
 
-static bool page_ending_file(const TagReader *reader, const uint8_t *chunk, uint32_t from,
-                             uint32_t length, OggPage *page)
+typedef struct OggTail {
+    uint8_t bytes[OGG_TAIL_CHUNK + OGG_CAPTURE_SIZE - 1];
+    uint32_t from;
+    uint32_t length;
+} OggTail;
+
+static bool page_ending_file(const TagReader *reader, const OggTail *tail, OggPage *page)
 {
-    for (uint32_t index = length - OGG_CAPTURE_SIZE + 1; index-- > 0;) {
-        if (capture_at(chunk + index) && read_page(reader, from + index, page) &&
+    for (uint32_t index = tail->length - OGG_CAPTURE_SIZE + 1; index-- > 0;) {
+        if (capture_at(tail->bytes + index) && read_page(reader, tail->from + index, page) &&
             page_end(page) == reader->size) {
             return true;
         }
@@ -389,20 +394,19 @@ static bool page_ending_file(const TagReader *reader, const uint8_t *chunk, uint
 
 static bool last_page(const TagReader *reader, OggPage *page)
 {
-    uint8_t chunk[OGG_TAIL_CHUNK + OGG_CAPTURE_SIZE - 1];
+    OggTail tail;
     uint32_t floor = reader->size > OGG_LARGEST_PAGE ? reader->size - OGG_LARGEST_PAGE : 0;
-    for (uint32_t start = reader->size; start > floor;) {
-        uint32_t from = start - floor > OGG_TAIL_CHUNK ? start - OGG_TAIL_CHUNK : floor;
+    for (uint32_t start = reader->size; start > floor; start = tail.from) {
         uint32_t overlap = reader->size - start < OGG_CAPTURE_SIZE - 1 ? reader->size - start
                                                                        : OGG_CAPTURE_SIZE - 1;
-        uint32_t length = start + overlap - from;
-        if (!tag_read(reader, from, chunk, length)) {
+        tail.from = start - floor > OGG_TAIL_CHUNK ? start - OGG_TAIL_CHUNK : floor;
+        tail.length = start + overlap - tail.from;
+        if (!tag_read(reader, tail.from, tail.bytes, tail.length)) {
             return false;
         }
-        if (length >= OGG_CAPTURE_SIZE && page_ending_file(reader, chunk, from, length, page)) {
+        if (tail.length >= OGG_CAPTURE_SIZE && page_ending_file(reader, &tail, page)) {
             return true;
         }
-        start = from;
     }
     return false;
 }

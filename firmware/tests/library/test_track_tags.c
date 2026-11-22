@@ -938,14 +938,20 @@ typedef struct OggBuild {
     uint8_t bytes[200000];
     uint32_t size;
     uint32_t sequence;
+    uint32_t last_body;
     uint8_t serial;
 } OggBuild;
 
-static void ogg_add_page(OggBuild *build, uint8_t flags, uint64_t granule, const uint8_t *body,
-                         uint32_t length, bool continues)
+typedef struct OggBody {
+    const uint8_t *bytes;
+    uint32_t length;
+    bool continues;
+} OggBody;
+
+static void ogg_add_page(OggBuild *build, uint8_t flags, uint64_t granule, OggBody body)
 {
     uint8_t *page = build->bytes + build->size;
-    uint32_t count = length / 255 + (continues ? 0 : 1);
+    uint32_t count = body.length / 255 + (body.continues ? 0 : 1);
     memset(page, 0, 27);
     memcpy(page, "OggS", 4);
     page[5] = flags;
@@ -956,10 +962,10 @@ static void ogg_add_page(OggBuild *build, uint8_t flags, uint64_t granule, const
     page[18] = (uint8_t)build->sequence++;
     page[26] = (uint8_t)count;
     for (uint32_t index = 0; index < count; index++) {
-        page[27 + index] = index + 1 < count || continues ? 255 : (uint8_t)(length % 255);
+        page[27 + index] = index + 1 < count || body.continues ? 255 : (uint8_t)(body.length % 255);
     }
-    memcpy(page + 27 + count, body, length);
-    build->size += 27 + count + length;
+    memcpy(page + 27 + count, body.bytes, body.length);
+    build->size += 27 + count + body.length;
 }
 
 static void ogg_add_packet(OggBuild *build, const uint8_t *packet, uint32_t length)
@@ -967,12 +973,12 @@ static void ogg_add_packet(OggBuild *build, const uint8_t *packet, uint32_t leng
     const uint32_t page_bytes = 255 * 16;
     uint8_t flags = 0;
     while (length >= page_bytes) {
-        ogg_add_page(build, flags, UINT64_MAX, packet, page_bytes, true);
+        ogg_add_page(build, flags, UINT64_MAX, (OggBody){packet, page_bytes, true});
         packet += page_bytes;
         length -= page_bytes;
         flags = 1;
     }
-    ogg_add_page(build, flags, 0, packet, length, false);
+    ogg_add_page(build, flags, 0, (OggBody){packet, length, false});
 }
 
 static void put_le32(uint8_t *bytes, uint32_t value)
@@ -988,11 +994,11 @@ static void add_opus_link(OggBuild *build, uint8_t serial, uint32_t art_bytes, i
     static const char TITLE_FIELD[] = "TITLE=Long";
     static const char PICTURE[] = "METADATA_BLOCK_PICTURE=";
     uint8_t head[19] = {'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', 1, 2, 0x38, 0x01, 0x80, 0xBB};
-    uint8_t audio[100];
+    static uint8_t audio[4096];
     uint32_t picture_length = (uint32_t)strlen(PICTURE) + art_bytes;
     build->serial = serial;
     build->sequence = 0;
-    ogg_add_page(build, 2, 0, head, sizeof head, false);
+    ogg_add_page(build, 2, 0, (OggBody){head, sizeof head, false});
     memcpy(tags, "OpusTags", 8);
     put_le32(tags + 8, 0);
     put_le32(tags + 12, 2);
@@ -1005,8 +1011,10 @@ static void add_opus_link(OggBuild *build, uint8_t serial, uint32_t art_bytes, i
     ogg_add_packet(build, tags, length + 4 + picture_length);
     memset(audio, 0x11, sizeof audio);
     for (int index = 1; index <= audio_pages; index++) {
-        uint8_t flags = index == audio_pages ? 4 : 0;
-        ogg_add_page(build, flags, 312 + (uint64_t)index * 4800, audio, sizeof audio, false);
+        bool last = index == audio_pages;
+        uint32_t body = last && build->last_body > 0 ? build->last_body : 100;
+        ogg_add_page(build, last ? 4 : 0, 312 + (uint64_t)index * 4800,
+                     (OggBody){audio, body, false});
     }
 }
 
@@ -1024,6 +1032,18 @@ static void an_opus_duration_comes_from_its_last_page_without_walking_the_art(vo
     static TrackTags tags;
     build.size = 0;
     add_opus_link(&build, 0x5A, 60000, 100);
+    CHECK(read_built_opus(&build, &tags) < 30);
+    CHECK_EQUAL(10000u, tags.duration_ms);
+}
+
+static void an_opus_last_page_starting_across_a_read_boundary_is_still_found(void)
+{
+    static OggBuild build;
+    static TrackTags tags;
+    build.size = 0;
+    build.last_body = 2015;
+    add_opus_link(&build, 0x5A, 60000, 100);
+    CHECK_EQUAL(0, memcmp(build.bytes + build.size - 4 * 512 - 2, "OggS", 4));
     CHECK(read_built_opus(&build, &tags) < 30);
     CHECK_EQUAL(10000u, tags.duration_ms);
 }
@@ -1822,6 +1842,7 @@ int main(void)
         TEST_CASE(every_tagged_format_reads_its_fields_duration_and_cover),
         TEST_CASE(an_mp3_with_only_id3v1_and_no_xing_header_still_reads),
         TEST_CASE(an_opus_duration_comes_from_its_last_page_without_walking_the_art),
+        TEST_CASE(an_opus_last_page_starting_across_a_read_boundary_is_still_found),
         TEST_CASE(a_chain_whose_last_page_has_another_serial_keeps_the_first_links_duration),
         TEST_CASE(an_untagged_flac_has_empty_fields_and_its_duration),
         TEST_CASE(formats_come_from_the_extension_in_any_case),
