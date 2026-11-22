@@ -21,6 +21,9 @@
 void board_profile_sample(uint32_t pc);
 void board_profile_wait(void);
 extern PcProfile board_pc_profile;
+extern bool board_profile_held;
+extern uint32_t board_debug_grf[DEBUG_REPORT_GRF_WORDS];
+extern PowerHistory board_debug_history;
 extern StartInfo board_start_info;
 extern BatteryDisplay board_power_display;
 extern DacDiagnostics board_dac_diagnostics;

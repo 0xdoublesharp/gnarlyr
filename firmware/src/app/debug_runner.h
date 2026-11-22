@@ -9,6 +9,7 @@
 #include "core/frame_stats.h"
 #include "debug_screenshot.h"
 #include "hal/input.h"
+#include "ui/screen.h"
 
 typedef enum DebugRequestKind {
     DEBUG_REQUEST_NONE,
@@ -56,9 +57,12 @@ typedef struct DebugAppHooks {
     bool *charging;
     bool *rescan_manual;
     bool *rescan_requested;
+    bool *render_urgent;
     void (*stop_charging)(uint32_t now_ms);
     void (*settle)(uint32_t now_ms);
-    void (*open)(uint32_t target, uint32_t now_ms);
+    bool (*apply)(ScreenAction action, uint32_t now_ms);
+    void (*open_start)(uint32_t start, uint32_t now_ms);
+    void (*changed)(void);
     void (*frame)(DebugScreenshot *shot);
 } DebugAppHooks;
 

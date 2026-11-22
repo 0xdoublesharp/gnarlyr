@@ -50,13 +50,13 @@ typedef struct PowerWatch {
 __attribute__((section(".noinit"))) static ScriptMark script_mark;
 static Reconnect reconnect;
 static DebugReportAudio audio;
-static PowerHistory history;
+PowerHistory board_debug_history;
 static PowerWatch watch;
 BoardBatteryReading board_debug_battery;
 static bool usb_powered;
 static bool usb_kept_on;
 static bool usb_supply_held_off;
-static uint32_t grf_start[DEBUG_REPORT_GRF_WORDS];
+uint32_t board_debug_grf[DEBUG_REPORT_GRF_WORDS];
 static DebugBatteryTrace trace;
 
 void board_debug_usb_powered(bool powered)
@@ -92,24 +92,14 @@ void board_debug_read_grf(uint32_t *words)
     }
 }
 
-const uint32_t *board_debug_grf_start(void)
-{
-    return grf_start;
-}
-
 void board_debug_battery_reading(uint16_t raw)
 {
     board_debug_battery = (BoardBatteryReading){.known = true, .raw = raw};
 }
 
-const PowerHistory *board_debug_power_history(void)
-{
-    return &history;
-}
-
 uint32_t hal_system_power_samples(void)
 {
-    return history.recorded;
+    return board_debug_history.recorded;
 }
 
 void hal_system_hold_usb_supply_off(bool held)
@@ -152,7 +142,7 @@ static void take_sample(uint32_t now_ms)
                           .millivolts = (uint16_t)battery_gauge_millivolts(&gauge),
                           .percent = shown.shown,
                           .flags = (uint8_t)(watch.levels | playing)};
-    power_history_record(&history, sample);
+    power_history_record(&board_debug_history, sample);
     trace_sample(now_ms, sample);
     watch.sampled = true;
     watch.sampled_ms = now_ms;
@@ -195,7 +185,7 @@ void board_debug_power_poll(void)
 
 void board_debug_boot(void)
 {
-    board_debug_read_grf(grf_start);
+    board_debug_read_grf(board_debug_grf);
     if (script_mark.magic == SCRIPT_MARK_MAGIC) {
         reconnect.interrupted_line = script_mark.line;
     }
