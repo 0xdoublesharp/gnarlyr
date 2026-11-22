@@ -114,6 +114,11 @@ def options():
     return font_recipe.Options(fonts_dir=NOTO)
 
 
+def cmap(path):
+    with font_recipe.TTFont(str(path)) as font:
+        return set(font["cmap"].getBestCmap())
+
+
 class RecipeFileTest(unittest.TestCase):
     def setUp(self):
         self.recipe = font_recipe.load_recipe()
@@ -135,6 +140,9 @@ class RecipeFileTest(unittest.TestCase):
         for base, chinese, japanese, face in zip(self.faces[:7], self.faces[7:14], self.faces[14:21],
                                                  self.recipe["faces"]):
             self.assertEqual(base["name"], face["name"])
+            self.assertEqual(base["size"], face["size"])
+            self.assertEqual("inter/Inter-SemiBold.ttf" if face["weight"] == "bold" else
+                             "inter/Inter-Regular.ttf", base["file"])
             for cjk in (chinese, japanese):
                 self.assertEqual(cjk["size"], face["size"])
                 self.assertLessEqual(cjk["max_bitmap"], face["max_bitmap"])
@@ -152,12 +160,20 @@ class RecipeFileTest(unittest.TestCase):
 
     def test_coverage_never_claims_a_character_the_subset_faces_cannot_all_draw(self):
         coverage = font_recipe.range_set(test_recipe()["coverage"])
-        cmaps = [set(font_recipe.TTFont(str(NOTO / f"{stem}-{weight}.otf"))["cmap"].getBestCmap())
-                 for stem in ("sc", "jp") for weight in ("Regular", "Bold")]
-        self.assertLessEqual(coverage, set.intersection(*cmaps))
         self.assertTrue(coverage)
-        jp_only = set(cmaps[2]) - set(cmaps[0])
-        self.assertFalse(coverage & jp_only)
+        for weight, inter_file in (("Regular", "Inter-Regular.ttf"), ("Bold", "Inter-SemiBold.ttf")):
+            sc, jp = (cmap(NOTO / f"{stem}-{weight}.otf") for stem in ("sc", "jp"))
+            inter = cmap(FONTS / "inter" / inter_file)
+            self.assertLessEqual(coverage, (sc | inter) & (jp | inter))
+            self.assertFalse(coverage & (jp - sc - inter))
+
+    def test_coverage_includes_characters_from_inter(self):
+        inter_text = {ord("έ"), ord("ả")}
+        self.assertEqual(set(), inter_text - font_recipe.range_set(self.recipe["coverage"]))
+        for stem in ("sc", "jp"):
+            for weight in ("Regular", "Bold"):
+                self.assertFalse(inter_text & cmap(NOTO / f"{stem}-{weight}.otf"))
+        self.assertLessEqual(inter_text, font_recipe.range_set(test_recipe()["coverage"]))
 
     def test_a_character_some_face_draws_too_large_is_left_out_of_coverage(self):
         recipe = test_recipe()
@@ -195,7 +211,8 @@ class RenderingTest(unittest.TestCase):
             for index, spec in enumerate(recipe["faces"]):
                 committed = glyph_pack.read_face((PACKS / f"{faces[offset + index]['name']}.bin").read_bytes())
                 source = recipe["sources"][style][spec["weight"]]
-                glyphs, dropped = font_recipe.render_face(NOTO / source["file"], spec, 0, sorted(committed))
+                glyphs, dropped = font_recipe.render_face(font_recipe.FontSource(NOTO / source["file"]),
+                                                          spec["size"], spec["max_bitmap"], sorted(committed))
                 self.assertFalse(dropped)
                 rendered = {glyph.codepoint: (glyph.width, glyph.height, glyph.left, glyph.top, glyph.advance,
                                               font_build.pack_nibbles(glyph.levels)) for glyph in glyphs}
@@ -314,10 +331,55 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(expected, result.characters)
 
     def test_identical_inputs_build_identical_bytes_whatever_their_order(self):
-        text = covered_text(40)
+        text = covered_text(40) + "έả"
         first, _ = self.build([text, "Héllo"], {"zh": [text[:5]], "fr": ["Retour"]})
         second, _ = self.build(["Héllo", text[::-1]], {"fr": ["Retour"], "zh": [text[:5]]})
         self.assertEqual(first, second)
+
+    def test_mixed_text_uses_inter_and_noto_at_each_base_face_size(self):
+        setup = test_setup()
+        setup.drawable -= {ord("…")}
+        data, result = font_recipe.build(setup, {}, ["έả…中"], "ja", options())
+        self.assertEqual([], result.unrenderable)
+        faces, _ = glyph_pack.read_extra_font(data)
+        base_faces = json.loads((FONTS / "glyph_pack.json").read_text(encoding="utf-8"))["faces"]
+        for index, (base, face) in enumerate(zip(base_faces[:7], faces, strict=True)):
+            with self.subTest(face=base["name"]):
+                inter = font_build.load_font(FONTS / base["file"], base["size"])
+                noto = font_build.load_font(FONTS / base_faces[14 + index]["file"], base["size"])
+                glyphs = [font_build.render_glyph(font, ord(character))
+                          for character, font in (("έ", inter), ("ả", inter), ("…", inter), ("中", noto))]
+                self.assertEqual(glyph_pack.read_face(glyph_pack.pack_glyphs(glyphs)), face)
+
+    def test_an_oversized_inter_glyph_uses_noto_only_in_the_affected_face(self):
+        codepoint = ord("…")
+        setup = test_setup()
+        setup.drawable -= {codepoint}
+        bases = font_recipe.base_sources()
+        source, _ = bases[-1]
+        bases[-1] = (source, 96)
+        spec = setup.recipe["faces"][-1]
+        oversized = font_build.render_glyph(font_build.load_font(source.path, 96), codepoint)
+        self.assertGreater(glyph_pack.bitmap_bytes(oversized), spec["max_bitmap"])
+
+        with mock.patch.object(font_recipe, "base_sources", return_value=bases):
+            data, result = font_recipe.build(setup, {}, [chr(codepoint)], "ja", options())
+
+        self.assertEqual([codepoint], result.characters)
+        self.assertEqual([], result.unrenderable)
+        faces, _ = glyph_pack.read_extra_font(data)
+        noto = setup.recipe["sources"]["jp"][spec["weight"]]["file"]
+        expected_sources = [*bases[:-1], (font_recipe.FontSource(NOTO / noto), spec["size"])]
+        for (source, size), face in zip(expected_sources, faces, strict=True):
+            glyph = font_build.render_glyph(font_build.load_font(source.path, size), codepoint)
+            self.assertEqual(glyph_pack.read_face(glyph_pack.pack_glyphs([glyph])), face)
+
+    def test_inter_only_text_builds_without_noto_files(self):
+        data, result = font_recipe.build(test_setup(), {}, ["έả"], "en", font_recipe.Options(FONTS))
+        faces, _ = glyph_pack.read_extra_font(data)
+        self.assertEqual([], result.unrenderable)
+        for face in faces:
+            self.assertEqual([ord("έ"), ord("ả")], sorted(face))
 
     def test_the_style_changes_the_glyphs(self):
         text = covered_text(40)

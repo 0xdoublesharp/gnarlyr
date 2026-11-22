@@ -59,13 +59,18 @@ class SyncFontsTest(unittest.TestCase):
         self.add_title()
         output = self.run_sync()
         self.assertIn("Fonts for the player...", output)
-        self.assertIn("9 characters", output)
+        expected = {ord(character) for character in covered_text(6) + covered_text(3, 20) + "\u0301"}
         faces, _ = font_recipe.glyph_pack.read_extra_font(self.font.read_bytes())
-        self.assertEqual(9, len(faces[0]))
+        self.assertIn(f"{len(expected)} characters", output)
+        for face in faces:
+            self.assertEqual(expected, set(face))
         self.assertFalse((self.card / echo_sync.DATA_FOLDER / "fonts").exists())
         self.assertIn("unchanged", self.run_sync())
 
     def test_a_latin_library_needs_no_file_and_a_dry_run_writes_none(self):
+        self.card = self.card.with_name("latin")
+        (self.card / echo_sync.DATA_FOLDER).mkdir(parents=True)
+        write_silent_flac(self.card / "Track.flac", 1)
         self.assertIn("none needed", self.run_sync())
         self.assertFalse(self.font.parent.exists())
         self.add_title()
