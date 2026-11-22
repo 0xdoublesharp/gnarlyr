@@ -183,5 +183,5 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     app_screens_build_menu(&own->diagnostics, STR_ABOUT, own->diagnostics_items,
                            DIAGNOSTICS_ITEM_COUNT, theme);
     about_layout_attach(&own->diagnostics);
-    about_layout_count_names(&screens->modules.settings.settings.missing_names);
+    about_layout_notice(screens->modules.settings.settings.missing_notice);
 }

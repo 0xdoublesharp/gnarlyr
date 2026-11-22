@@ -60,7 +60,8 @@ enum {
     SETTINGS_RESTORE_ITEM = 43,
     SETTINGS_ITEM_COUNT = 44,
     SETTINGS_MESSAGE_CAPACITY = 64,
-    SETTINGS_COUNTDOWN_CAPACITY = 16
+    SETTINGS_COUNTDOWN_CAPACITY = 16,
+    SETTINGS_NOTICE_CAPACITY = 128
 };
 
 typedef enum SettingsGroup {
@@ -158,6 +159,7 @@ struct SettingsScreens {
     PlugChooser usb;
     bool card_needs_format;
     uint32_t missing_names;
+    char missing_notice[SETTINGS_NOTICE_CAPACITY];
     Screen *about;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
     SettingsGroupEntry group_entries[SETTINGS_GROUP_COUNT];

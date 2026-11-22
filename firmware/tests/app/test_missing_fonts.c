@@ -166,6 +166,8 @@ static void choosing_about_in_settings_counts_the_names_for_its_notice(void)
     const MenuItem *row = &screens.groups[SETTINGS_GROUP_ABOUT];
     CHECK(row->select(row->context).target == &about);
     CHECK_EQUAL(2, screens.missing_names);
+    CHECK(strcmp("2 names need fonts. Connect to a computer to add them.",
+                 screens.missing_notice) == 0);
 }
 
 int main(void)

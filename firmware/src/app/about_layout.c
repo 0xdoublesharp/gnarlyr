@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "core/i18n.h"
 #include "gfx/font.h"
 #include "gfx/text.h"
 #include "ui/brand_mark.h"
@@ -17,12 +16,7 @@ enum {
     MARK_LINE_PARTS = 1
 };
 
-enum {
-    NOTICE_BYTES = 160,
-    NOTICE_LINES = 4
-};
-
-static const uint32_t *names_needing_fonts;
+static const char *notice;
 
 static bool row_wraps(const ListView *list, int index, int width)
 {
@@ -138,19 +132,13 @@ static Rect draw_band(Canvas *canvas, const Theme *theme)
 
 static Rect draw_notice(Canvas *canvas, const Theme *theme, Rect content)
 {
-    uint32_t names = names_needing_fonts != NULL ? *names_needing_fonts : 0;
-    if (names == 0) {
+    if (notice == NULL || notice[0] == '\0') {
         return content;
     }
-    char notice[NOTICE_BYTES];
-    StringBuilder text = string_builder_make(notice, sizeof notice);
-    i18n_format_counts(&text, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS, names,
-                       0);
     const Font *font = theme->fonts.small;
     int pad = theme->metrics.padding;
     Rect lines = {content.x + 2 * pad, 0, content.width - 3 * pad, 0};
-    int count = label_wrap_count(font, notice, lines.width);
-    lines.height = (count < NOTICE_LINES ? count : NOTICE_LINES) * font_line_height(font);
+    lines.height = label_wrap_count(font, notice, lines.width) * font_line_height(font);
     content.height -= lines.height + pad;
     lines.y = content.y + content.height + pad / 2;
     theme_background_draw(theme, canvas, THEME_ART_LIST,
@@ -191,9 +179,9 @@ static void draw(void *context, Canvas *canvas)
     draw_rows(menu, canvas, rows, width);
 }
 
-void about_layout_count_names(const uint32_t *names)
+void about_layout_notice(const char *text)
 {
-    names_needing_fonts = names;
+    notice = text;
 }
 
 void about_layout_attach(MenuScreen *menu)

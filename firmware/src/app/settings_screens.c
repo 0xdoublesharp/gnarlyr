@@ -1020,7 +1020,13 @@ static ScreenAction open_language(void *context)
 static ScreenAction open_about(void *context)
 {
     SettingsScreens *screens = context;
-    screens->missing_names = missing_fonts_names(screens->theme->fonts.body);
+    uint32_t names = missing_fonts_names(screens->theme->fonts.body);
+    StringBuilder notice = string_builder_make(screens->missing_notice, SETTINGS_NOTICE_CAPACITY);
+    if (names > 0) {
+        i18n_format_counts(&notice, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS,
+                           names, 0);
+    }
+    screens->missing_names = names;
     return screens->about != NULL ? screen_action_push(screens->about) : screen_action_none();
 }
 
