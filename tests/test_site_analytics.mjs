@@ -76,7 +76,7 @@ test('validation hosts, local files, health probes, and unknown pages do not col
 test('localized homepages collect only when explicitly listed as public routes', () => {
   const localized = ['es', 'de', 'ja', 'fr', 'pt'].flatMap((code) => [`/${code}/`, `/${code}/index.html`]);
   const document = {
-    title: 'Gnarlyr', referrer: '',
+    title: identity.name, referrer: '',
     currentScript: { dataset: { domain, websiteId, paths: [...paths, ...localized].join(',') } },
   };
   for (const pathname of localized) {

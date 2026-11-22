@@ -8,8 +8,11 @@ from pathlib import Path
 import re
 from urllib.parse import urlsplit, urlunsplit
 
+from echo_debug import IDENTITY
+
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
+SITE_ORIGIN = f"https://{IDENTITY['name'].lower()}.com"
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 SKIP = {"svg", "script", "style", "code", "pre"}
 BLOCKS = {"title", "h1", "h2", "h3", "p", "li", "dt", "dd", "figcaption", "a", "button", "label", "summary", "span", "strong"}
@@ -191,7 +194,7 @@ def translate(source, messages):
 
 def configuration(site):
     config = json.loads((site / "i18n/locales.json").read_text())
-    if config["version"] != 1 or config["origin"] != "https://gnarlyr.com":
+    if config["version"] != 1 or config["origin"] != SITE_ORIGIN:
         raise ValueError("Unsupported site locale configuration")
     codes = [locale["code"] for locale in config["locales"]]
     if len(set(codes)) != len(codes) or codes[0] != "en" or any(not re.fullmatch("[a-z]{2}", code) for code in codes):
@@ -267,7 +270,7 @@ def render(source, config, locale, page):
     if page == "index.html":
         metadata = next((node["attrs"]["content"] for node in Document(source).nodes
                          if node["tag"] == "meta" and node["attrs"].get("name") == "description"), "")
-        structured = json.dumps({"@context": "https://schema.org", "@type": "WebSite", "name": "Gnarlyr",
+        structured = json.dumps({"@context": "https://schema.org", "@type": "WebSite", "name": IDENTITY["name"],
                                  "url": url, "inLanguage": code, "description": metadata}, ensure_ascii=False).replace("<", "\\u003c")
         source = source.replace("</head>", '<script type="application/ld+json">' + structured + '</script>\n</head>', 1)
     source = source.replace("</header>", "</header>" + selector(config, locale, page), 1)
