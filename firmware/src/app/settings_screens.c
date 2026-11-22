@@ -1128,8 +1128,7 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     MenuConfig menu = {.title = i18n_text(STR_SETTINGS),
                        .items = screens->groups,
                        .item_count = SETTINGS_GROUP_COUNT,
-                       .theme = theme,
-                       .detail_below = true};
+                       .theme = theme};
     return menu_screen_init(&screens->menu, menu);
 }
 

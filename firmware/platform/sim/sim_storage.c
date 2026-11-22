@@ -217,6 +217,15 @@ bool hal_file_combined(void)
     return storage.internal_directory != NULL;
 }
 
+static void make_parents(char *resolved)
+{
+    for (char *slash = strchr(resolved + 1, '/'); slash != NULL; slash = strchr(slash + 1, '/')) {
+        *slash = '\0';
+        (void)mkdir(resolved, 0755);
+        *slash = '/';
+    }
+}
+
 HalReserveResult hal_file_reserve(const char *path, uint32_t size)
 {
     char resolved[PATH_CAPACITY];
@@ -227,6 +236,7 @@ HalReserveResult hal_file_reserve(const char *path, uint32_t size)
     if (stat(resolved, &existing) == 0) {
         return HAL_RESERVE_EXISTS;
     }
+    make_parents(resolved);
     FILE *handle = fopen(resolved, "wb");
     if (handle == NULL) {
         return HAL_RESERVE_FAILED;

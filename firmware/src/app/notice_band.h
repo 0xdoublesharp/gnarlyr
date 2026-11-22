@@ -4,7 +4,7 @@
 #include "ui/theme.h"
 
 enum {
-    NOTICE_BAND_LINES = 2
+    NOTICE_BAND_LINES = 4
 };
 
 int notice_band_height(const Theme *theme, const char *text, int width);
