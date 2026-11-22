@@ -54,12 +54,12 @@ static bool item_opens(const void *context, int index)
 
 static IconId item_icon(const void *context, int index)
 {
-    return shown_item(context, index)->icon;
+    return (IconId)shown_item(context, index)->icon;
 }
 
 static ListRowRole item_role(const void *context, int index)
 {
-    return shown_item(context, index)->role;
+    return (ListRowRole)shown_item(context, index)->role;
 }
 
 static bool has_icons(const MenuScreen *menu)

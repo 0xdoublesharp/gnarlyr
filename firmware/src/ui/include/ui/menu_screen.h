@@ -12,11 +12,11 @@ typedef struct MenuItem {
     ScreenAction (*select)(void *context);
     void *context;
     const char *(*value)(const void *context);
-    bool opens;
     bool (*shown)(const void *context);
     const void *shown_context;
-    IconId icon;
-    ListRowRole role;
+    bool opens;
+    uint8_t icon;
+    uint8_t role;
 } MenuItem;
 
 typedef struct MenuPanel {

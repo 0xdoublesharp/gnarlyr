@@ -61,8 +61,8 @@ Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *n
                                                  .select = action->select,
                                                  .context = pool,
                                                  .opens = action->opens,
-                                                 .role = action->role,
-                                                 .icon = action->icon,
+                                                 .role = (uint8_t)action->role,
+                                                 .icon = (uint8_t)action->icon,
                                                  .value = action->value};
         }
     }

@@ -1075,7 +1075,7 @@ static void bind_groups(SettingsScreens *screens, Screen *buttons)
                                             .select = open_group,
                                             .context = &screens->groups[group],
                                             .opens = true,
-                                            .icon = GROUP_ICONS[group]};
+                                            .icon = (uint8_t)GROUP_ICONS[group]};
     }
     screens->groups[SETTINGS_GROUP_DISPLAY].value = text_size_value;
     screens->groups[SETTINGS_GROUP_LANGUAGE].select = open_language;

@@ -46,7 +46,6 @@ struct ButtonSettings {
     ChoiceScreen choice;
     MenuItem items[BUTTON_ROW_COUNT];
     ButtonEntry entries[PLAYBACK_BUTTON_COUNT];
-    char value[BUTTON_VALUE_BYTES];
 };
 
 Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig config);

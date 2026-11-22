@@ -305,7 +305,7 @@ static void build_music(AppScreens *screens, AppScreensContext context)
         ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_QUEUE, ICON_GENRE};
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
-        screens->music_items[index].icon = icons[index];
+        screens->music_items[index].icon = (uint8_t)icons[index];
     }
     screens->music_items[MUSIC_ITEM_COUNT] = shelf_item(screens, context, SPOKEN_AUDIOBOOK);
     screens->music_items[MUSIC_ITEM_COUNT].icon = ICON_AUDIOBOOK;
@@ -364,7 +364,7 @@ static void home_catalog(AppScreens *screens, MenuItem *items)
     items[8].select = open_usb_modes;
     items[8].context = screens;
     for (int index = 0; index < HOME_ITEM_COUNT; index++) {
-        items[index].icon = APP_HOME_ITEMS[index].icon;
+        items[index].icon = (uint8_t)APP_HOME_ITEMS[index].icon;
     }
 }
 

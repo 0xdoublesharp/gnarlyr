@@ -92,9 +92,10 @@ static const char *value(const void *context)
     if (!customised(action)) {
         return i18n_text(DEFAULT_ACTIONS[entry->button]);
     }
-    StringBuilder text = string_builder_make(entry->owner->value, BUTTON_VALUE_BYTES);
+    static char shown[BUTTON_VALUE_BYTES];
+    StringBuilder text = string_builder_make(shown, sizeof shown);
     i18n_format_text(&text, STR_BUTTON_CUSTOM_VALUE, i18n_text(SHOWN_ACTIONS[action]));
-    return entry->owner->value;
+    return shown;
 }
 
 static void choose(void *context, int action)
@@ -166,7 +167,7 @@ static void bind_rows(ButtonSettings *buttons)
                                                      .context = &buttons->entries[index],
                                                      .value = value,
                                                      .opens = true,
-                                                     .icon = ICONS[index]};
+                                                     .icon = (uint8_t)ICONS[index]};
     }
     items[BUTTON_ROW_SKIP] = (MenuItem){
         .label = i18n_text(STR_BUTTON_HOLD_PLAY_VOL), .value = skip_value, .icon = ICON_PLAY};
