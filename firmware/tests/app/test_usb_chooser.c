@@ -6,6 +6,7 @@
 #include "fake_hal.h"
 #include "screen_snapshot.h"
 #include "settings_screens.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 
@@ -223,10 +224,23 @@ static void every_line_fits_its_three_rows(const PlugChooser *chooser)
         const char *line = i18n_text(plug_mode_line(mode, ON_A_CABLE));
         CHECK(label_wrap_count(theme.fonts.small, line, layout.line.width) <= LINE_ROWS);
     }
-    int hint = text_width(theme.fonts.small, i18n_text(STR_PLUG_ALWAYS_HINT));
+    static const FooterHint ALWAYS[] = {{FOOTER_KEY_HOLD_PLAY, STR_HINT_ALWAYS}};
+    FooterHints footer = {ALWAYS, 1, FOOTER_ALIGN_END};
+    int rows = plug_chooser_footer_rows(chooser);
+    int hint = text_width(theme.fonts.small, footer_hints_key_name(FOOTER_KEY_HOLD_PLAY)) +
+               text_width(theme.fonts.small, i18n_text(STR_HINT_ALWAYS)) + 2 * FOOTER_CHIP_PADDING +
+               FOOTER_CHIP_GAP;
+    bool inline_cue = theme_is_portrait(&theme) && rows > 1;
+    int band = theme_is_portrait(&theme) ? 48 : 24;
+    int cue = font_line_height(theme.fonts.small) + theme.metrics.padding / 2;
+    CHECK_EQUAL(rows == 0 ? 0 : inline_cue ? cue : band, layout.footer.height);
+    CHECK(!inline_cue || hint <= layout.count.width);
+    CHECK(rows == 0 ||
+          footer_hints_lines(&theme, footer, layout.footer.width - 2 * theme.metrics.padding) == 1);
     int count = text_width(theme.fonts.small, chooser->countdown);
-    CHECK((theme_is_portrait(&theme) ? (hint > count ? hint : count) : hint + count) <=
-          layout.footer.width);
+    CHECK(count <= layout.count.width || layout.count.height == 0);
+    CHECK(theme_is_portrait(&theme) ||
+          hint + count + 2 * theme.metrics.padding <= layout.footer.width - theme.metrics.padding);
     CHECK(layout.name.height == 0 ||
           label_wrap_count(theme.fonts.title, i18n_text(plug_mode_name(PLUG_MODE_COMPUTER)),
                            layout.name.width) <= 2);

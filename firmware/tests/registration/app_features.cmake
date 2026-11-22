@@ -12,7 +12,7 @@ echo_add_unit_test(NAME test_theme_pack
 
 foreach(feature_test cassette_ui moments_screen player_cassette mixtape_store mixtape_ui personal_tags discovery_screen discovery_preferences)
     echo_add_unit_test(NAME test_${feature_test}
-        SOURCES app/test_${feature_test}.c app/fake_hal.c
+        SOURCES app/test_${feature_test}.c app/fake_hal.c support/screen_snapshot.c
         LIBRARIES echo_app echo_library_fixtures
         PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
     )

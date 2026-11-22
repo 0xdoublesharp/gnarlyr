@@ -5,6 +5,7 @@
 #include "core/i18n.h"
 
 #include "core/string_builder.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -373,16 +374,14 @@ static void draw_name(const MixtapeUi *ui, Canvas *canvas)
     selected[2] = CHARACTERS[ui->character];
     area.y += area.height;
     label_draw(canvas, style, (Label){area, selected});
-    style.font = theme->fonts.small;
-    style.color = theme->colors.text_secondary;
-    area.y += area.height;
-    static const StringId hints[] = {STR_NAME_CHOOSE_HINT, STR_NAME_ADD_HINT, STR_NAME_ERASE_HINT,
-                                     STR_NAME_SAVE_HINT};
-    area.height = 20;
-    for (unsigned index = 0; index < sizeof hints / sizeof *hints; index++) {
-        label_draw(canvas, style, (Label){area, i18n_text(hints[index])});
-        area.y += area.height;
-    }
+    static const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
+                                       {FOOTER_KEY_PLAY, STR_HINT_ADD},
+                                       {FOOTER_KEY_MENU, STR_HINT_ERASE},
+                                       {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
+                                       {FOOTER_KEY_HOLD_PLAY, STR_HINT_SAVE}};
+    FooterHints footer = {hints, sizeof hints / sizeof *hints, FOOTER_ALIGN_START};
+    footer_hints_draw(canvas, theme, footer_hints_area(theme, theme_content_area(theme), footer),
+                      footer);
 }
 
 static void draw(void *context, Canvas *canvas)

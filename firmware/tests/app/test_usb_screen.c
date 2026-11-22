@@ -24,6 +24,7 @@
 #include "text_spy.h"
 #include "theme_runtime.h"
 #include "ui/brand_mark.h"
+#include "ui/footer_hints.h"
 #include "ui/label.h"
 #include "ui/wire_motion.h"
 #ifdef ECHO_TEST_GLYPHS
@@ -48,28 +49,56 @@ typedef struct Variant {
     const char *name;
 } Variant;
 
-static char paged_hint[96];
+static const FooterHint MENU_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
+                                        {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
+static const FooterHint STORAGE_PAGES[][4] = {
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD}, {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_MORE_STATS},
+     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
+     {FOOTER_KEY_MENU, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}}};
+static const FooterHint DAC_PAGES[][3] = {
+    {{FOOTER_KEY_MENU, STR_SETTINGS}, {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
+    {{FOOTER_KEY_MENU, STR_SETTINGS},
+     {FOOTER_KEY_BACK, STR_HINT_VIEW_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
+    {{FOOTER_KEY_MENU, STR_SETTINGS},
+     {FOOTER_KEY_BACK, STR_HINT_MORE_STATS},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
+    {{FOOTER_KEY_MENU, STR_SETTINGS},
+     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
+     {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}}};
+static const uint8_t STORAGE_COUNTS[] = {2, 3, 4, 4};
 
-static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status)
+static void use_page_hints(UsbScene *scene, bool dac, int pages)
 {
-    bool dac = status.view == APP_USB_DAC;
-    StringId frame = dac ? STR_USB_DAC_PAGE_HINT : STR_USB_DRIVES_HINT;
-    StringBuilder builder = string_builder_make(paged_hint, sizeof paged_hint);
-    i18n_format_text(&builder, frame,
-                     i18n_text(dac ? STR_USB_BACK_OVERVIEW : STR_USB_MENU_OVERVIEW));
-    AppUsbStatus probe = status;
-    probe.detail = paged_hint;
-    int pages = usb_screen_pages(theme, probe);
-    uint8_t page = usb_screen_scene(status)->page;
-    if (pages <= 1 || usb_screen_scene(status)->menu != NULL) {
+    int kind = usb_screen_page_kind(scene, pages);
+    scene->hints = dac ? DAC_PAGES[kind] : STORAGE_PAGES[kind];
+    scene->hint_count = dac ? (kind == USB_PAGE_ONLY ? 2 : 3) : STORAGE_COUNTS[kind];
+}
+
+static AppUsbStatus with_page_hint(const Theme *theme, AppUsbStatus status, UsbScene *scene)
+{
+    status.scene = scene;
+    if (scene->menu != NULL) {
+        scene->hints = MENU_HINTS;
+        scene->hint_count = 2;
         return status;
     }
-    StringId action = page + 1 >= pages ? (dac ? STR_USB_BACK_OVERVIEW : STR_USB_MENU_OVERVIEW)
-                      : page == 0       ? (dac ? STR_USB_BACK_DETAILS : STR_USB_MENU_DETAILS)
-                                        : (dac ? STR_USB_BACK_MORE : STR_USB_MENU_MORE);
-    builder = string_builder_make(paged_hint, sizeof paged_hint);
-    i18n_format_text(&builder, frame, i18n_text(action));
-    status.detail = paged_hint;
+    bool dac = status.view == APP_USB_DAC;
+    bool storage = status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
+    if (!dac && !storage) {
+        return status;
+    }
+    use_page_hints(scene, dac, 2);
+    use_page_hints(scene, dac, usb_screen_pages(theme, status));
     return status;
 }
 
@@ -252,12 +281,10 @@ static int variants(Variant *list)
                {USB_SCENE_DAC_PLAYING, "dac-playing"},
                {USB_SCENE_DAC_FAILED, "dac-failed"}};
     for (size_t index = 0; index < sizeof DAC / sizeof DAC[0]; index++) {
-        list[count++] = (Variant){{.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)},
-                                  dac_scene(DAC[index].state),
-                                  DAC[index].name};
+        list[count++] = (Variant){
+            {.view = APP_USB_DAC, .detail = NULL}, dac_scene(DAC[index].state), DAC[index].name};
     }
     list[count] = list[count - 2];
-    list[count].status.detail = i18n_text(STR_QUICK_SETTINGS_HINT);
     list[count].scene.menu = &menu.view;
     list[count++].name = "dac-menu";
     for (uint8_t page = 1; page <= DAC_DETAIL_PAGES; page++) {
@@ -310,7 +337,13 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
         variant->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(&variant->scene);
     CHECK(saw(connected ? i18n_text(STR_USB_STATE_CONNECTED)
                         : charge_screen_usb_title(variant->status.view)));
-    CHECK(saw_start(variant->scene.nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : status.detail));
+    const char *detail = variant->scene.nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : status.detail;
+    CHECK(detail == NULL || saw_start(detail));
+    const UsbScene *scene = usb_screen_scene(status);
+    for (int hint = 0; hint < scene->hint_count; hint++) {
+        CHECK(saw(footer_hints_key_name((FooterKey)scene->hints[hint].key)));
+        CHECK(saw_start(i18n_text((StringId)scene->hints[hint].verb)));
+    }
     bool overview = variant->scene.page == USB_SCENE_OVERVIEW;
     bool storage = variant->status.view == APP_USB_STORAGE;
     if (storage && variant->scene.state <= USB_SCENE_LEAVING && variant->scene.state > 0) {
@@ -375,7 +408,7 @@ static void every_usb_state_fits_every_theme_size_and_orientation(void)
                     if (list[index].scene.page >= usb_screen_pages(&theme, status)) {
                         continue;
                     }
-                    status = with_page_hint(&theme, status);
+                    status = with_page_hint(&theme, status, &list[index].scene);
                     layout_holds_together(&theme, status);
                     text_spy_reset();
                     usb_screen_draw(
@@ -539,7 +572,7 @@ static void the_level_meter_redraws_only_its_own_area(void)
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = medium(orientation);
         UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
-        AppUsbStatus status = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+        AppUsbStatus status = {.view = APP_USB_DAC, .detail = NULL};
         draw_twice(&theme, status, &scene, lower_levels);
         CHECK(changed(&theme));
         CHECK(changes_stay_inside(&theme, usb_screen_layout(&theme, status).meter));
@@ -717,8 +750,7 @@ static void a_copy_keeps_its_words_still_while_the_lights_and_rates_move(void)
         Theme theme = theme_for(APPEARANCE_NEON_NOIR, orientation, TEXT_SIZE_MEDIUM);
         UsbScene scene = storage_scene(USB_SCENE_WRITING);
         AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
-        status.scene = &scene;
-        status = with_page_hint(&theme, status);
+        status = with_page_hint(&theme, status, &scene);
         Canvas canvas = canvas_for(&theme);
         int words = 0;
         for (int frame = 0; frame < 3; frame++) {
@@ -1046,7 +1078,7 @@ static void the_dac_screen_marks_its_speed_and_waiting_shows_none(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = medium(orientation);
-        AppUsbStatus dac = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+        AppUsbStatus dac = {.view = APP_USB_DAC, .detail = NULL};
         int counts[2];
         for (int kind = 0; kind < 2; kind++) {
             UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
@@ -1104,7 +1136,7 @@ static void the_hold_reminder_changes_only_the_hint_line(void)
     for (int orientation = 0; orientation < 2; orientation++) {
         Theme theme = medium(orientation);
         UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
-        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES));
+        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
         draw_twice(&theme, status, &scene, nudge);
         CHECK(changed(&theme));
         status.scene = &scene;
@@ -1178,7 +1210,7 @@ static void portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_rig
 {
     Theme theme = medium(ORIENTATION_PORTRAIT);
     AppUsbStatus statuses[] = {storage_status(STR_USB_EJECT_DRIVES),
-                               {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)}};
+                               {.view = APP_USB_DAC, .detail = NULL}};
     UsbScene scenes[] = {storage_scene(USB_SCENE_WRITING), dac_scene(USB_SCENE_DAC_PLAYING)};
     for (int index = 0; index < 2; index++) {
         scenes[index].high_speed = true;
@@ -1273,7 +1305,7 @@ static void dac_overview_shows_format_output_and_host(void)
 {
     Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
     UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
-    AppUsbStatus status = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+    AppUsbStatus status = {.view = APP_USB_DAC, .detail = NULL};
     draw_text_of(&theme, status, &scene);
     CHECK(saw("44.1 kHz · 24-bit"));
     CHECK(saw("-12 dB"));
@@ -1289,7 +1321,7 @@ static void dac_details_show_what_the_session_measured(void)
 {
     Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
     UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
-    AppUsbStatus status = {.view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT)};
+    AppUsbStatus status = {.view = APP_USB_DAC, .detail = NULL};
     status.scene = &scene;
     CHECK_EQUAL(2, usb_screen_pages(&theme, status));
     scene.page = 1;
@@ -1318,8 +1350,7 @@ static void rendering_service_preserves_the_complete_dac_frame(void)
 {
     Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
     UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
-    AppUsbStatus status = {
-        .view = APP_USB_DAC, .detail = i18n_text(STR_USB_DAC_HINT), .scene = &scene};
+    AppUsbStatus status = {.view = APP_USB_DAC, .detail = NULL, .scene = &scene};
     Canvas canvas = canvas_for(&theme);
     usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
     memcpy(before, pixels, sizeof pixels);
@@ -1435,7 +1466,7 @@ static void draw_storage_variants(const Theme *theme, Variant *list, int count, 
             (!details && list[index].scene.page != USB_SCENE_OVERVIEW)) {
             continue;
         }
-        status = with_page_hint(theme, status);
+        status = with_page_hint(theme, status, &list[index].scene);
         text_spy_reset();
         usb_screen_draw(&canvas, theme,
                         (HalBattery){.known = true, .percent = 64, .usb_power = true}, status);

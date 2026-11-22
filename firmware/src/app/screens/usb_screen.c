@@ -3,6 +3,7 @@
 #include "core/i18n.h"
 #include "home_art.h"
 #include "ui/brand_mark.h"
+#include "ui/footer_hints.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/wire_figure.h"
@@ -95,13 +96,31 @@ static int detail_lines(const Theme *theme, const char *detail, int width)
     return memo->lines;
 }
 
-static Rect detail_area(const Theme *theme, const char *detail)
+static FooterHints footer_of(AppUsbStatus status)
+{
+    const UsbScene *scene = usb_screen_scene(status);
+    return (FooterHints){scene->hints, scene->hint_count, FOOTER_ALIGN_END};
+}
+
+int usb_screen_page_kind(const UsbScene *scene, int pages)
+{
+    if (pages <= 1) {
+        return USB_PAGE_ONLY;
+    }
+    if (scene->page == USB_SCENE_OVERVIEW) {
+        return USB_PAGE_OVERVIEW;
+    }
+    return scene->page + 1 >= pages ? USB_PAGE_LAST : USB_PAGE_MIDDLE;
+}
+
+static Rect detail_area(const Theme *theme, const char *detail, Rect footer)
 {
     int pad = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * pad;
     int lines = detail == NULL ? 0 : detail_lines(theme, detail, width);
     int height = lines * font_line_height(theme->fonts.small);
-    return (Rect){pad, theme->metrics.screen_height - pad - height, width, height};
+    int bottom = footer.height > 0 ? footer.y - pad / 2 : footer.y - pad;
+    return (Rect){pad, bottom - height, width, height};
 }
 
 static Rect meter_in(const Theme *theme, Rect region)
@@ -165,9 +184,11 @@ int usb_screen_header_height(const Theme *theme)
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
 {
     int pad = theme->metrics.padding;
+    int band = footer_hints_height(theme, footer_of(status));
+    Rect footer = {0, theme->metrics.screen_height - band, theme->metrics.screen_width, band};
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
-        .detail = detail_area(theme, status.detail)};
+        .detail = detail_area(theme, status.detail, footer)};
     return theme_is_portrait(theme) ? portrait_layout(theme, layout)
                                     : landscape_layout(theme, layout);
 }
@@ -663,6 +684,13 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
         label_draw_wrapped_serviced(
             painter->canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
             (Label){painter->layout.detail, detail_text(painter)}, painter->scene->service);
+    }
+    Rect detail = painter->layout.detail;
+    int top = detail.y + detail.height + theme->metrics.padding / 2;
+    Rect band = {0, top, theme->metrics.screen_width, theme->metrics.screen_height - top};
+    if (painter->scene->hint_count > 0 && usb_screen_touches(painter, band)) {
+        FooterHints hints = {painter->scene->hints, painter->scene->hint_count, FOOTER_ALIGN_END};
+        footer_hints_draw(painter->canvas, theme, band, hints);
     }
 }
 

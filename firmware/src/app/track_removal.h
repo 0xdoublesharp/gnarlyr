@@ -5,14 +5,26 @@
 
 #include "browse_screen.h"
 #include "hidden_tracks.h"
+#include "ui/confirm_screen.h"
 #include "ui/screen.h"
 #include "ui/toast.h"
+
+typedef struct TrackQuestion TrackQuestion;
 
 typedef struct TrackRemoval {
     HiddenTracks tracks;
     SongActions *actions;
     Toast *toast;
+    TrackQuestion *question;
+    const Theme *theme;
 } TrackRemoval;
+
+struct TrackQuestion {
+    ConfirmScreen confirm;
+    TrackRemoval removal;
+    uint16_t track;
+    char file[BROWSE_LABEL_CAPACITY];
+};
 
 Screen *track_removal_manage(TrackRemoval removal, uint16_t track, SongManage manage);
 HiddenResult track_removal_hide(HiddenTracks tracks, uint16_t track);

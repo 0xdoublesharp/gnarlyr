@@ -5,6 +5,7 @@
 
 #include "app/app.h"
 #include "gfx/canvas.h"
+#include "ui/footer_hints.h"
 #include "ui/list_view.h"
 #include "ui/theme.h"
 #include "usb_meter.h"
@@ -112,7 +113,16 @@ typedef struct UsbScene {
     bool busy;
     bool lit[USB_METER_DIRECTIONS];
     uint32_t rate;
+    const FooterHint *hints;
+    uint8_t hint_count;
 } UsbScene;
+
+enum {
+    USB_PAGE_ONLY,
+    USB_PAGE_OVERVIEW,
+    USB_PAGE_MIDDLE,
+    USB_PAGE_LAST
+};
 
 typedef struct UsbScreenLayout {
     Rect header;
@@ -129,6 +139,7 @@ Rect usb_screen_column(const UsbScreenLayout *layout);
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area);
 Rect usb_screen_meter_bar(const Theme *theme, const UsbScreenLayout *layout, int side);
 int usb_screen_pages(const Theme *theme, AppUsbStatus status);
+int usb_screen_page_kind(const UsbScene *scene, int pages);
 Rect usb_screen_graph(const Theme *theme, const UsbScreenLayout *layout);
 Rect usb_screen_content(const Theme *theme, const UsbScreenLayout *layout);
 Rect usb_screen_drive_lights(const Theme *theme, AppUsbStatus status, int lun);

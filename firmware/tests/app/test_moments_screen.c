@@ -6,6 +6,7 @@
 #include "fake_hal.h"
 #include "fixture_library.h"
 #include "playback/moments.h"
+#include "screen_snapshot.h"
 #include "screens/listening_work.h"
 #include "screens/moments_screen.h"
 
@@ -23,6 +24,13 @@ static ScreenAction choose(int row, KeyGesture gesture)
     list_view_select(&moments.list, row, 100);
     return screen->handle_key(screen->context, (KeyEvent){.key = KEY_PLAY, .gesture = gesture},
                               100);
+}
+
+static ScreenAction confirm_choice(int row)
+{
+    list_view_select(&moments.confirm.list, row, 100);
+    return screen->handle_key(screen->context,
+                              (KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS}, 100);
 }
 
 static ScreenAction press(Key key, KeyGesture gesture)
@@ -92,7 +100,7 @@ static void hold_delete_removes_only_the_chosen_moment_after_confirmation(void)
     finish();
     choose(1, KEY_GESTURE_LONG_PRESS);
     CHECK_EQUAL(2, moments.model.count(&moments));
-    choose(1, KEY_GESTURE_PRESS);
+    confirm_choice(1);
     finish();
     CHECK_EQUAL(1, moments.model.count(&moments));
     CHECK(strcmp(toast.text, i18n_text(STR_MOMENT_DELETED)) == 0);
@@ -188,9 +196,13 @@ static void confirmation_can_be_kept_or_cancelled_without_deleting(void)
     choose(0, KEY_GESTURE_PRESS);
     finish();
     choose(1, KEY_GESTURE_LONG_PRESS);
-    CHECK(strcmp(moments.model.label(&moments, 0), i18n_text(STR_MOMENT_KEEP)) == 0);
-    CHECK(strcmp(moments.model.label(&moments, 1), i18n_text(STR_DELETE)) == 0);
-    choose(0, KEY_GESTURE_PRESS);
+    CHECK(strcmp(moments.confirm.screen.title, i18n_text(STR_DELETE_MOMENT_QUESTION)) == 0);
+    CHECK(strcmp(moments.confirm.config.choices[0], i18n_text(STR_CANCEL)) == 0);
+    CHECK(strcmp(moments.confirm.config.choices[1], i18n_text(STR_DELETE_MOMENT)) == 0);
+    CHECK_EQUAL(1, moments.confirm.config.first_danger);
+    CHECK(moments.confirm.config.subject != NULL && moments.confirm.config.subject[0] != 0);
+    CHECK_EQUAL(0, moments.confirm.list.selected);
+    confirm_choice(0);
     CHECK_EQUAL(2, moments.model.count(&moments));
 
     choose(1, KEY_GESTURE_LONG_PRESS);
@@ -212,7 +224,7 @@ static void back_aborts_pending_save_and_delete_jobs(void)
     finish();
     CHECK_EQUAL(2, moments.model.count(&moments));
     choose(1, KEY_GESTURE_LONG_PRESS);
-    choose(1, KEY_GESTURE_PRESS);
+    confirm_choice(1);
     CHECK_EQUAL(SCREEN_ACTION_NONE, press(KEY_BACK, KEY_GESTURE_PRESS).type);
     finish();
     CHECK_EQUAL(2, moments.model.count(&moments));
@@ -226,6 +238,45 @@ static void navigation_and_an_unowned_update_leave_the_list_stable(void)
     listening_module_work.owner = NULL;
     screen->update(screen->context, 200);
     CHECK_EQUAL(1, moments.model.count(&moments));
+}
+
+static Color pixels[480 * 480];
+
+static bool painted(const Canvas *canvas, Rect area, Color color)
+{
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            if (canvas_pixel_at(canvas, x, y) == color) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void the_delete_question_fits_all_six_layouts(void)
+{
+    for (int variant = 0; variant < 2 * TEXT_SIZE_COUNT; variant++) {
+        reset();
+        default_theme_set_text_size(&theme, (TextSize)(variant % TEXT_SIZE_COUNT));
+        default_theme_set_orientation(&theme, (Orientation)(variant / TEXT_SIZE_COUNT));
+        CHECK(player_play_list(&player, browse_root_query(BROWSE_SINGLE_TRACK), 0, 0));
+        open_screen();
+        choose(0, KEY_GESTURE_PRESS);
+        finish();
+        choose(1, KEY_GESTURE_LONG_PRESS);
+        int width = theme.metrics.screen_width;
+        int height = theme.metrics.screen_height;
+        Canvas canvas = canvas_make(pixels, (Rect){0, 0, width, height});
+        screen->draw(screen->context, &canvas);
+        int footer = theme_is_portrait(&theme) ? 48 : 24;
+        Rect rows = {0, height - footer - 2 * theme.metrics.row_height, width,
+                     2 * theme.metrics.row_height};
+        CHECK(painted(&canvas, rows, theme.colors.danger));
+        CHECK(painted(&canvas, (Rect){0, height - footer, width, footer},
+                      theme.colors.header_background));
+        screen_snapshot_write(&canvas, "moments-confirm", variant);
+    }
 }
 
 static void home_always_leaves_the_nested_confirmation(void)
@@ -242,6 +293,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_saved_moment_plays_its_exact_position_after_restart_and_rescan),
+        TEST_CASE(the_delete_question_fits_all_six_layouts),
         TEST_CASE(hold_delete_removes_only_the_chosen_moment_after_confirmation),
         TEST_CASE(saving_without_a_track_gives_feedback_and_creates_no_file),
         TEST_CASE(every_visible_moment_has_a_label_in_small_portrait),

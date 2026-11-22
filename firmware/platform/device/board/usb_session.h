@@ -102,14 +102,9 @@ enum {
 
 uint32_t *usb_session_buffer(void);
 
-enum {
-    USB_SESSION_HINT_CAPACITY = 96
-};
-
 typedef struct UsbSessionScreen {
     UsbPort port;
     UsbScene scene;
-    char hint[USB_SESSION_HINT_CAPACITY];
 } UsbSessionScreen;
 
 extern UsbSessionScreen usb_session_screen;

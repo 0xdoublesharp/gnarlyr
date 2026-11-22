@@ -102,16 +102,13 @@ static bool working(const MomentsScreen *screen)
 
 static int row_count(const void *context)
 {
-    const MomentsScreen *screen = context;
-    return screen->mode == MODE_CONFIRM ? 2 : work->moments.count + 1;
+    (void)context;
+    return work->moments.count + 1;
 }
 
 static const char *row_label(const void *context, int index)
 {
-    const MomentsScreen *screen = context;
-    if (screen->mode == MODE_CONFIRM) {
-        return i18n_text(index == 0 ? STR_MOMENT_KEEP : STR_DELETE);
-    }
+    (void)context;
     if (index == 0) {
         return i18n_text(STR_SAVE_MOMENT);
     }
@@ -132,11 +129,25 @@ static void cache_rows(MomentsScreen *screen)
     }
 }
 
+static StringId notice_of(void)
+{
+    if (work->load != STORE_EMPTY && work->load != STORE_READY) {
+        return STR_MOMENTS_UNAVAILABLE;
+    }
+    return work->moments.count == 0 ? STR_MOMENTS_EMPTY : STRING_COUNT;
+}
+
+static int notice_height(const Theme *theme)
+{
+    return notice_of() == STRING_COUNT
+               ? 0
+               : 2 * font_line_height(theme->fonts.small) + theme->metrics.padding;
+}
+
 static void fit_rows(MomentsScreen *screen)
 {
     const Theme *theme = screen->config.theme;
-    int hint = 2 * font_line_height(theme->fonts.small) + theme->metrics.padding;
-    int height = theme_content_area(theme).height - hint;
+    int height = theme_content_area(theme).height - notice_height(theme);
     int rows = height / theme->metrics.row_height;
     list_view_fit_rows(&screen->list, rows < THEME_MAX_ROWS ? rows : THEME_MAX_ROWS);
 }
@@ -198,20 +209,41 @@ static void save(MomentsScreen *screen)
     }
 }
 
+static ScreenAction choose_delete(void *context, int index)
+{
+    MomentsScreen *screen = context;
+    if (index == CONFIRM_CANCEL) {
+        show_list(screen);
+    } else if (moments_delete(&work->job, &work->moments, work->moments.generation,
+                              (uint16_t)(screen->selected - 1))) {
+        screen->mode = MODE_DELETE;
+    } else {
+        message(screen, STR_MOMENT_FAILED);
+        show_list(screen);
+    }
+    return screen_action_none();
+}
+
+static void ask_delete(MomentsScreen *screen, uint32_t now_ms)
+{
+    int cached = screen->selected - work->first;
+    ConfirmConfig config = {.title = i18n_text(STR_DELETE_MOMENT_QUESTION),
+                            .subject = cached >= 0 && cached < THEME_MAX_ROWS ? work->labels[cached]
+                                                                              : NULL,
+                            .sections = {{NULL, i18n_text(STR_DELETE_MOMENT_NOTE)}},
+                            .choices = {i18n_text(STR_CANCEL), i18n_text(STR_DELETE_MOMENT)},
+                            .choice_count = 2,
+                            .first_danger = 1,
+                            .choose = choose_delete,
+                            .context = screen,
+                            .theme = screen->config.theme};
+    screen->mode = MODE_CONFIRM;
+    confirm_screen_init(&screen->confirm, config);
+    screen->confirm.screen.enter(&screen->confirm, now_ms);
+}
+
 static void select_row(MomentsScreen *screen)
 {
-    if (screen->mode == MODE_CONFIRM) {
-        if (screen->list.selected == 0) {
-            show_list(screen);
-        } else if (moments_delete(&work->job, &work->moments, work->moments.generation,
-                                  (uint16_t)(screen->selected - 1))) {
-            screen->mode = MODE_DELETE;
-        } else {
-            message(screen, STR_MOMENT_FAILED);
-            show_list(screen);
-        }
-        return;
-    }
     screen->selected = (uint16_t)screen->list.selected;
     if (screen->selected == 0) {
         save(screen);
@@ -238,6 +270,9 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     MomentsScreen *screen = context;
     screen->now_ms = now_ms;
+    if (screen->mode == MODE_CONFIRM) {
+        return screen->confirm.screen.handle_key(&screen->confirm, event, now_ms);
+    }
     Navigation navigation = navigation_from_key(event);
     if (navigation.intent == NAVIGATION_BACK || navigation.intent == NAVIGATION_HOME) {
         bool nested = screen->mode != MODE_LIST;
@@ -259,9 +294,7 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         } else if (navigation.intent == NAVIGATION_OPTIONS && screen->mode == MODE_LIST &&
                    screen->list.selected > 0) {
             screen->selected = (uint16_t)screen->list.selected;
-            screen->mode = MODE_CONFIRM;
-            list_view_init(&screen->list, &screen->model, screen->config.theme, now_ms);
-            fit_rows(screen);
+            ask_delete(screen, now_ms);
         }
     }
     return screen_action_none();
@@ -326,6 +359,10 @@ static void draw(void *context, Canvas *canvas)
 {
     MomentsScreen *screen = context;
     const Theme *theme = screen->config.theme;
+    if (screen->mode == MODE_CONFIRM) {
+        screen->confirm.screen.draw(&screen->confirm, canvas);
+        return;
+    }
     header_draw(canvas, theme, screen->screen.title);
     Rect content = theme_content_area(theme);
     if (working(screen)) {
@@ -337,19 +374,18 @@ static void draw(void *context, Canvas *canvas)
                                               .motion = screen->config.motion});
         return;
     }
-    int hint_height = 2 * font_line_height(theme->fonts.small) + theme->metrics.padding;
+    int hint_height = notice_height(theme);
     Rect rows = content;
     rows.height -= hint_height;
     list_view_draw(&screen->list, canvas, rows, screen->now_ms);
-    Rect hint = {content.x + theme->metrics.padding, rows.y + rows.height,
-                 content.width - 2 * theme->metrics.padding, hint_height};
-    StringId text = work->load != STORE_EMPTY && work->load != STORE_READY ? STR_MOMENTS_UNAVAILABLE
-                    : work->moments.count == 0                             ? STR_MOMENTS_EMPTY
-                                                                           : STR_MOMENTS_HINT;
-    if (screen->mode != MODE_CONFIRM) {
+    if (hint_height > 0) {
+        Rect hint = {content.x + theme->metrics.padding, rows.y + rows.height,
+                     content.width - 2 * theme->metrics.padding, hint_height};
+        canvas_fill_rect(canvas, (Rect){content.x, hint.y, content.width, hint_height},
+                         theme->colors.background);
         label_draw_wrapped(canvas,
                            (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-                           (Label){hint, i18n_text(text)});
+                           (Label){hint, i18n_text(notice_of())});
     }
 }
 

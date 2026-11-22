@@ -15,6 +15,7 @@
 #include "neon_art.h"
 #include "playback/spoken.h"
 #include "settings/settings.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/icons.h"
 #include "ui/label.h"
@@ -636,6 +637,17 @@ static void draw_format(const NowPlayingScreen *now_playing, Canvas *canvas)
                        text});
 }
 
+static const FooterHint LYRICS_HINT[] = {{FOOTER_KEY_HOLD_MENU, STR_HINT_SHOW_LYRICS}};
+static const FooterHints LYRICS_CUE = {LYRICS_HINT, 1, FOOTER_ALIGN_START};
+
+static bool lyrics_cued(const NowPlayingScreen *now_playing)
+{
+    return now_playing->config.lyrics != NULL &&
+           (now_playing->config.settings == NULL ||
+            settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
+                BUTTON_ACTION_DEFAULT);
+}
+
 static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
 {
     const Theme *theme = now_playing->config.theme;
@@ -670,17 +682,14 @@ static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
         static const StringId states[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP};
         StringBuilder repeat = string_builder_make(modes, sizeof modes);
         string_builder_append(&repeat, i18n_text(states[now_playing->status.ab_repeat]));
-    } else if (modes[0] == 0 && now_playing->config.lyrics != NULL &&
-               (now_playing->config.settings == NULL ||
-                settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
-                    BUTTON_ACTION_DEFAULT)) {
-        StringBuilder hint = string_builder_make(modes, sizeof modes);
-        string_builder_append(&hint, i18n_text(STR_LYRICS_HOLD_HINT));
     }
-    label_draw(canvas, style,
-               (Label){column_area(now_playing, layout(now_playing)->modes_top,
-                                   layout(now_playing)->small_line_height),
-                       modes});
+    Rect area = column_area(now_playing, layout(now_playing)->modes_top,
+                            layout(now_playing)->small_line_height);
+    if (modes[0] == 0 && lyrics_cued(now_playing)) {
+        footer_hints_draw_inline(canvas, theme, area, LYRICS_CUE);
+        return;
+    }
+    label_draw(canvas, style, (Label){area, modes});
 }
 
 static const uint8_t BADGE_ICONS[] = {

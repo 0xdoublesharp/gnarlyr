@@ -37,7 +37,6 @@ class EchoImageTest(EchoImageHarness):
         before = root()
         self.assertGreaterEqual(struct.unpack_from("<I", before, 44)[0], 2)
         rig.press("play", hold=1300)
-        rig.press("play")
         rig.press("next")
         rig.press("play")
         machine = rig.machine

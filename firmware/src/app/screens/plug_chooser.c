@@ -3,6 +3,7 @@
 #include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -16,6 +17,8 @@ enum {
 };
 
 static const char CHECK_MARK[] = "\xE2\x9C\x93";
+static const FooterHint ALWAYS_HINT[] = {{FOOTER_KEY_HOLD_PLAY, STR_HINT_ALWAYS}};
+static const FooterHints ALWAYS_FOOTER = {ALWAYS_HINT, 1, FOOTER_ALIGN_END};
 
 PlugMode plug_chooser_mode(const PlugChooser *chooser, int row)
 {
@@ -124,26 +127,39 @@ static void update(void *context, uint32_t now_ms)
     count_down(chooser, now_ms);
 }
 
-static int footer_height(const Theme *theme, int footer_rows)
+static bool inline_hint(const Theme *theme, int footer_rows)
 {
-    int rows = theme_is_portrait(theme) || footer_rows == 0 ? footer_rows : 1;
-    return rows * font_line_height(theme->fonts.small);
+    return theme_is_portrait(theme) && footer_rows > 1;
+}
+
+static int band_height(const Theme *theme, int footer_rows)
+{
+    if (inline_hint(theme, footer_rows)) {
+        return font_line_height(theme->fonts.small) + theme->metrics.padding / 2;
+    }
+    return footer_rows > 0 ? footer_hints_height(theme, ALWAYS_FOOTER) : 0;
+}
+
+static Rect band_area(const Theme *theme, Rect content, int footer_rows)
+{
+    int band = band_height(theme, footer_rows);
+    return (Rect){content.x, content.y + content.height - band, content.width, band};
 }
 
 static PlugChooserLayout landscape(const Theme *theme, Rect content, int footer_rows)
 {
     int pad = theme->metrics.padding;
-    int footer = footer_height(theme, footer_rows);
+    Rect band = band_area(theme, content, footer_rows);
     int text = LINE_ROWS * font_line_height(theme->fonts.small);
     int hero = content.width * HERO_THIRDS / THIRDS;
-    int body = content.height - footer - (footer > 0 ? pad / 2 : 0);
+    int body = band.y - content.y;
     Rect line = {content.x + pad, content.y + body - text - pad / 2, hero - 2 * pad, text};
     return (PlugChooserLayout){
         .art = {line.x, content.y + pad, line.width, line.y - content.y - pad - pad / 2},
         .name = {line.x, line.y, line.width, 0},
         .line = line,
-        .footer = {content.x + pad, content.y + content.height - footer - pad / 2,
-                   content.width - 2 * pad, footer},
+        .footer = band,
+        .count = {band.x + pad, band.y, band.width / 2 - pad, footer_rows > 1 ? band.height : 0},
         .list = {content.x + hero, content.y, content.width - hero, body},
     };
 }
@@ -152,19 +168,22 @@ static PlugChooserLayout portrait(const Theme *theme, Rect content, int footer_r
 {
     int pad = theme->metrics.padding;
     int width = content.width - 2 * pad;
-    int footer = footer_height(theme, footer_rows);
+    Rect band = band_area(theme, content, footer_rows);
+    int small = font_line_height(theme->fonts.small);
+    Rect count = {content.x + pad, band.y - (footer_rows > 1 ? small + pad / 2 : 0), width,
+                  footer_rows > 1 ? small : 0};
     int list = rows * theme->metrics.row_height;
-    Rect foot = {content.x + pad, content.y + content.height - footer - pad / 2, width, footer};
-    Rect list_area = {content.x, foot.y - (footer > 0 ? pad / 2 : 0) - list, content.width, list};
-    int text = LINE_ROWS * font_line_height(theme->fonts.small);
+    Rect list_area = {content.x, count.y - pad / 2 - list, content.width, list};
+    int text = LINE_ROWS * small;
     int name = NAME_ROWS * font_line_height(theme->fonts.title);
-    Rect line = {foot.x, list_area.y - pad / 2 - text, width, text};
-    Rect named = {foot.x, line.y - name, width, name};
+    Rect line = {count.x, list_area.y - pad / 2 - text, width, text};
+    Rect named = {count.x, line.y - name, width, name};
     return (PlugChooserLayout){
-        .art = {foot.x, content.y + pad, width, named.y - content.y - pad - pad / 2},
+        .art = {count.x, content.y + pad, width, named.y - content.y - pad - pad / 2},
         .name = named,
         .line = line,
-        .footer = foot,
+        .footer = band,
+        .count = count,
         .list = list_area,
     };
 }
@@ -178,26 +197,19 @@ PlugChooserLayout plug_chooser_layout(const Theme *theme, int footer_rows, int r
     return landscape(theme, content, footer_rows);
 }
 
-static void draw_footer(const PlugChooser *chooser, Canvas *canvas, Rect area)
+static void draw_footer(const PlugChooser *chooser, Canvas *canvas, PlugChooserLayout layout)
 {
     const Theme *theme = chooser->config.theme;
-    int small = font_line_height(theme->fonts.small);
-    bool stacked = theme_is_portrait(theme);
-    const char *hint = i18n_text(STR_PLUG_ALWAYS_HINT);
-    TextStyle hint_style = {theme->fonts.small, theme->colors.text_tertiary, false};
-    Rect row = {area.x, area.y, area.width, small};
+    if (inline_hint(theme, plug_chooser_footer_rows(chooser))) {
+        Rect line = {layout.count.x, layout.footer.y, layout.count.width, layout.count.height};
+        footer_hints_draw_inline(canvas, theme, line, ALWAYS_FOOTER);
+    } else {
+        footer_hints_draw(canvas, theme, layout.footer, ALWAYS_FOOTER);
+    }
     if (chooser->timed) {
-        Rect count = stacked ? row : (Rect){row.x, row.y, row.width / 2, small};
         label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.accent, false},
-                   (Label){count, chooser->countdown});
-        row.y += stacked ? small : 0;
+                   (Label){layout.count, chooser->countdown});
     }
-    if (plug_chooser_footer_rows(chooser) == 0) {
-        return;
-    }
-    int width = text_width(theme->fonts.small, hint);
-    Rect place = stacked ? row : (Rect){row.x + row.width - width, row.y, width, small};
-    label_draw(canvas, hint_style, (Label){place, hint});
 }
 
 static PlugChooserLayout chooser_layout(const PlugChooser *chooser)
@@ -222,7 +234,7 @@ static void draw(void *context, Canvas *canvas)
     }
     label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
                        (Label){layout.line, plug_chooser_line(chooser)});
-    draw_footer(chooser, canvas, layout.footer);
+    draw_footer(chooser, canvas, layout);
     list_view_draw(&chooser->list, canvas, layout.list, chooser->now_ms);
 }
 

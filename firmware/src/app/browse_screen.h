@@ -27,7 +27,6 @@ enum {
 typedef enum SongManage {
     SONG_MANAGE_HIDE,
     SONG_MANAGE_ASK,
-    SONG_MANAGE_KEEP,
     SONG_MANAGE_DELETE,
     SONG_MANAGE_TAPE,
     SONG_MANAGE_FAVORITE
@@ -83,7 +82,6 @@ typedef struct SongActions {
     MenuScreen menu;
     MenuItem items[SONG_ACTION_COUNT];
     uint16_t track;
-    bool confirming;
     uint32_t now_ms;
     char title[BROWSE_LABEL_CAPACITY];
 } SongActions;

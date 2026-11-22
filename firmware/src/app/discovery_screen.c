@@ -13,6 +13,7 @@
 #include "hal/storage.h"
 #include "library/sort_key.h"
 #include "library/spoken_path.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/message_screen.h"
@@ -1150,15 +1151,16 @@ static void draw_editor(const DiscoveryScreen *screen, Canvas *canvas, Rect area
     selected[2] = discovery_text_character(&screen->editor);
     area.y += area.height;
     draw_line(canvas, theme, area, selected, false);
-    area.y += area.height;
-    area.height = font_line_height(theme->fonts.small) + 2;
-    const StringId hints[] = {STR_NAME_CHOOSE_HINT, STR_NAME_ADD_HINT, STR_NAME_ERASE_HINT,
-                              screen->edit_kind == EDIT_QUERY ? STR_QUERY_SEARCH_HINT
-                                                              : STR_SAVE_HINT};
-    for (unsigned index = 0; index < sizeof hints / sizeof *hints; index++) {
-        draw_line(canvas, theme, area, i18n_text(hints[index]), true);
-        area.y += area.height;
-    }
+    const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
+                                {FOOTER_KEY_PLAY, STR_HINT_ADD},
+                                {FOOTER_KEY_MENU, STR_HINT_ERASE},
+                                {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
+                                {FOOTER_KEY_HOLD_PLAY, screen->edit_kind == EDIT_QUERY
+                                                           ? STR_HINT_SHOW_RESULTS
+                                                           : STR_HINT_SAVE}};
+    FooterHints footer = {hints, sizeof hints / sizeof *hints, FOOTER_ALIGN_START};
+    footer_hints_draw(canvas, theme, footer_hints_area(theme, theme_content_area(theme), footer),
+                      footer);
 }
 
 static const char *state_message(void)

@@ -3,6 +3,7 @@
 #include "default_theme.h"
 #include "screens/equalizer_plot.h"
 #include "screens/equalizer_screen.h"
+#include "ui/footer_hints.h"
 #include "ui/label.h"
 
 static Settings settings;
@@ -114,27 +115,34 @@ static void check_area(Rect area, const Theme *theme)
 
 static void curves_controls_and_hints_fit_all_six_native_layouts(void)
 {
-    static const StringId hints[] = {STR_EQ_BROWSE_HINT, STR_EQ_ADJUST_HINT, STR_EQ_SLOT_HINT,
-                                     STR_EQ_PRESET_HINT};
+    static const FooterHint BROWSE[] = {{FOOTER_KEY_PLAY, STR_HINT_ADJUST}};
+    static const FooterHint GAIN[] = {{FOOTER_KEY_VOL, STR_HINT_CHANGE},
+                                      {FOOTER_KEY_PLAY, STR_HINT_KEEP}};
+    static const FooterHint SLOT[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
+                                      {FOOTER_KEY_PLAY, STR_HINT_SAVE}};
+    const FooterHints hints[] = {{BROWSE, 1, FOOTER_ALIGN_END},
+                                 {GAIN, 2, FOOTER_ALIGN_END},
+                                 {SLOT, 2, FOOTER_ALIGN_END},
+                                 {NULL, 0, FOOTER_ALIGN_END}};
     for (int orientation = 0; orientation < 2; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             Theme theme = BOARD_THEME;
             default_theme_set_text_size(&theme, (TextSize)size);
             default_theme_set_orientation(&theme, (Orientation)orientation);
             for (int index = 0; index < 4; index++) {
-                const char *hint = i18n_text(hints[index]);
-                EqualizerPlotLayout layout = equalizer_plot_layout(&theme, hint, index == 3);
+                EqualizerPlotLayout layout =
+                    equalizer_plot_layout(&theme, hints[index], index == 3);
                 check_area(layout.primary, &theme);
                 check_area(layout.plot, &theme);
                 check_area(layout.preamp, &theme);
                 check_area(layout.reference, &theme);
-                check_area(layout.hint, &theme);
+                CHECK(index == 3 || layout.hint.height > 0);
+                CHECK(index != 3 || layout.hint.height == 0);
                 CHECK(layout.plot.height >= 2 * font_line_height(theme.fonts.small));
                 CHECK(layout.plot.y + layout.plot.height <= layout.reference.y);
                 CHECK(layout.hint.y >= layout.reference.y + layout.reference.height);
-                CHECK(layout.hint.height >=
-                      label_wrap_count(theme.fonts.small, hint, layout.hint.width) *
-                          font_line_height(theme.fonts.small));
+                CHECK_EQUAL(footer_hints_height(&theme, hints[index]), layout.hint.height);
+                CHECK(layout.hint.y + layout.hint.height <= theme.metrics.screen_height);
                 if (index == 3) {
                     check_area(layout.list, &theme);
                     CHECK(layout.list.height >= theme.metrics.row_height);

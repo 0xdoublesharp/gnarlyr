@@ -162,6 +162,18 @@ static void discovery_screen_memory_belongs_to_the_library_module(void)
                 screen_modules_of(&isolated, &isolated.modules.library.discovery.screen));
 }
 
+static void delete_and_clear_questions_belong_to_the_modules_that_draw_them(void)
+{
+    static AppScreens isolated;
+    CHECK_EQUAL(
+        SCREEN_MODULE_VIEWS,
+        screen_modules_of(&isolated, &isolated.modules.views.delete_question.confirm.screen));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING,
+                screen_modules_of(&isolated, &isolated.modules.listening.listening.screen));
+    CHECK_EQUAL(SCREEN_MODULE_LISTENING,
+                screen_modules_of(&isolated, &isolated.modules.listening.moments.screen));
+}
+
 static void search_is_the_first_music_entry_and_loads_the_library_module(void)
 {
     start_app();
@@ -1027,6 +1039,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(about_music_says_card_and_internal_for_a_combined_library),
+        TEST_CASE(delete_and_clear_questions_belong_to_the_modules_that_draw_them),
         TEST_CASE(a_moved_internal_music_generation_asks_for_a_music_check_at_start),
         TEST_CASE(an_unknown_internal_half_asks_for_one_music_check_at_start),
         TEST_CASE(a_matching_internal_music_generation_asks_for_nothing_at_start),

@@ -8,6 +8,7 @@
 #include "equalizer_browser.h"
 #include "hal/clock.h"
 #include "settings_actions.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -250,10 +251,14 @@ static ScreenAction select_row(void *context, int index)
     return screen_action_none();
 }
 
+static const FooterHint PANEL_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
+                                         {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
+static const FooterHints PANEL_FOOTER = {PANEL_HINTS, 2, FOOTER_ALIGN_END};
+
 static Rect rows_area(const Theme *theme)
 {
     Rect area = theme_content_area(theme);
-    area.height -= font_line_height(theme->fonts.small) + theme->metrics.padding;
+    area.height -= footer_hints_height(theme, PANEL_FOOTER);
     return area;
 }
 
@@ -295,14 +300,8 @@ static void draw(void *context, Canvas *canvas)
     header_draw(canvas, theme, panel->screen.title);
     Rect area = rows_area(theme);
     list_view_draw(&panel->list, canvas, area, panel->now_ms);
-    Rect hint = theme_content_area(theme);
-    hint.y += area.height;
-    hint.height -= area.height;
-    hint.x += theme->metrics.padding;
-    hint.width -= 2 * theme->metrics.padding;
-    canvas_fill_rect(canvas, hint, theme->colors.background);
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-               (Label){hint, i18n_text(STR_QUICK_SETTINGS_HINT)});
+    Rect content = theme_content_area(theme);
+    footer_hints_draw(canvas, theme, footer_hints_area(theme, content, PANEL_FOOTER), PANEL_FOOTER);
 }
 
 Screen *quick_settings_screen_init(QuickSettingsScreen *panel, QuickSettingsConfig config)

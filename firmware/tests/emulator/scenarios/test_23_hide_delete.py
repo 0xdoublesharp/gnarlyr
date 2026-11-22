@@ -49,6 +49,7 @@ class EchoImageTest(EchoImageHarness):
         song_action(DELETE_ROW)
         rig.press("play")
         self.assertTrue(card().exists("/B.wav"))
+        rig.press("back")
         song_action(DELETE_ROW)
         rig.press("next")
         rig.press("play")

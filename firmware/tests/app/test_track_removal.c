@@ -13,8 +13,10 @@
 #include "library_store.h"
 #include "music_check.h"
 #include "player.h"
+#include "screen_snapshot.h"
 #include "settings_screens.h"
 #include "spoken_library.h"
+#include "text_spy.h"
 #include "track_removal.h"
 
 enum {
@@ -361,6 +363,17 @@ static Screen *no_screen(void *context, uint16_t track, SongManage manage)
     return NULL;
 }
 
+static TrackQuestion question;
+
+static TrackRemoval asking(void)
+{
+    return (TrackRemoval){.tracks = tracks(),
+                          .actions = &pool.song_actions,
+                          .toast = &toast,
+                          .question = &question,
+                          .theme = &theme};
+}
+
 static Screen *song_actions(uint16_t track)
 {
     browse_pool_init(&pool, (BrowsePoolConfig){.library = &store.library,
@@ -375,17 +388,133 @@ static void the_delete_question_names_the_file_and_starts_on_cancel(void)
 {
     start();
     CHECK(song_actions(HELP) != NULL);
-    TrackRemoval removal = {.tracks = tracks(), .actions = &pool.song_actions, .toast = &toast};
+    TrackRemoval removal = asking();
     Screen *screen = track_removal_manage(removal, HELP, SONG_MANAGE_ASK);
-    CHECK(screen == &pool.song_actions.menu.screen);
-    CHECK(strcmp("01 - Help!.flac", pool.song_actions.menu.config.title) == 0);
-    CHECK_EQUAL(2, pool.song_actions.menu.config.item_count);
-    CHECK_EQUAL(0, pool.song_actions.menu.list.selected);
-    CHECK(strcmp("Cancel", pool.song_actions.items[0].label) == 0);
-    CHECK(strcmp("Delete file", pool.song_actions.items[1].label) == 0);
-    CHECK(pool.song_actions.confirming);
-    CHECK(track_removal_manage(removal, HELP, SONG_MANAGE_KEEP) == NULL);
+    ConfirmScreen *confirm = &question.confirm;
+    CHECK(screen == &confirm->screen);
+    CHECK(strcmp("Delete file?", screen->title) == 0);
+    CHECK(strcmp("01 - Help!.flac", confirm->config.subject) == 0);
+    CHECK_EQUAL(2, confirm->config.choice_count);
+    CHECK_EQUAL(0, confirm->list.selected);
+    CHECK(strcmp("Cancel", confirm->config.choices[0]) == 0);
+    CHECK(strcmp("Delete file", confirm->config.choices[1]) == 0);
+    CHECK_EQUAL(1, confirm->config.first_danger);
     CHECK(!library_hidden(&store.library, HELP));
+}
+
+static void cancelling_the_delete_returns_to_hide_track(void)
+{
+    start();
+    CHECK(song_actions(HELP) != NULL);
+    MenuScreen *menu = &pool.song_actions.menu;
+    menu->list.selected = menu->config.item_count - 1;
+    TrackRemoval removal = asking();
+    Screen *screen = track_removal_manage(removal, HELP, SONG_MANAGE_ASK);
+    KeyEvent back = {.key = KEY_BACK, .gesture = KEY_GESTURE_PRESS};
+    ScreenAction action = screen->handle_key(screen->context, back, 10);
+    CHECK_EQUAL(SCREEN_ACTION_REPLACE, action.type);
+    CHECK(action.target == &menu->screen);
+    CHECK(strcmp("Hide track", menu->config.items[menu->list.selected].label) == 0);
+    CHECK(!library_hidden(&store.library, HELP));
+}
+
+static Screen *remove_track(void *context, uint16_t track, SongManage manage)
+{
+    (void)context;
+    TrackRemoval removal = asking();
+    return track_removal_manage(removal, track, manage);
+}
+
+static void a_fresh_play_on_delete_file_deletes_it_and_leaves_the_actions(void)
+{
+    start();
+    fake_hal_add_file(HELLS_BELLS_PATH, NULL, 100);
+    browse_pool_init(&pool, (BrowsePoolConfig){.library = &store.library,
+                                               .theme = &theme,
+                                               .player = &player,
+                                               .toast = &toast,
+                                               .manage = remove_track});
+    (void)browse_pool_song_actions(&pool, HELLS_BELLS, "Song", 0);
+    Screen *screen = remove_track(NULL, HELLS_BELLS, SONG_MANAGE_ASK);
+    KeyEvent next = {.key = KEY_VOLUME_UP, .gesture = KEY_GESTURE_PRESS};
+    KeyEvent play = {.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS};
+    (void)screen->handle_key(screen->context, next, 10);
+    ScreenAction action = screen->handle_key(screen->context, play, 20);
+    CHECK_EQUAL(SCREEN_ACTION_POP, action.type);
+    CHECK(strcmp("File deleted", toast.text) == 0);
+    HalFile file;
+    CHECK(!hal_file_open(&file, HELLS_BELLS_PATH));
+}
+
+static Color pixels[480 * 480];
+
+static bool drawn(const char *text)
+{
+    for (int index = 0; index < text_spy_count(); index++) {
+        if (strcmp(text_spy_entry(index)->shown, text) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool drawn_within(const char *words)
+{
+    char shown[1024];
+    size_t used = 0;
+    for (int index = 0; index < text_spy_count() && used + 1 < sizeof shown; index++) {
+        int wrote =
+            snprintf(shown + used, sizeof shown - used, "%s ", text_spy_entry(index)->shown);
+        used += wrote > 0 ? (size_t)wrote : 0;
+    }
+    return strstr(shown, words) != NULL;
+}
+
+static Canvas full_canvas(void)
+{
+    return canvas_make(pixels,
+                       (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+}
+
+static void track_actions_and_the_delete_question_fit_all_six_layouts(void)
+{
+    for (int variant = 0; variant < 2 * TEXT_SIZE_COUNT; variant++) {
+        start();
+        default_theme_set_text_size(&theme, (TextSize)(variant % TEXT_SIZE_COUNT));
+        default_theme_set_orientation(&theme, (Orientation)(variant / TEXT_SIZE_COUNT));
+        Screen *actions = song_actions(HELP);
+        actions->enter(actions->context, 0);
+        MenuScreen *menu = &pool.song_actions.menu;
+        list_view_select(&menu->list, menu->config.item_count - 1, 0);
+        Canvas canvas = full_canvas();
+        text_spy_reset();
+        actions->draw(actions->context, &canvas);
+        CHECK(drawn("Delete file\xE2\x80\xA6"));
+        screen_snapshot_write(&canvas, "track-actions", variant);
+        TrackRemoval removal = asking();
+        Screen *confirm = track_removal_manage(removal, HELP, SONG_MANAGE_ASK);
+        confirm->enter(confirm->context, 0);
+        text_spy_reset();
+        confirm->draw(confirm->context, &canvas);
+        CHECK(drawn("Delete file?"));
+        CHECK(drawn("Cancel"));
+        CHECK(drawn("Delete file"));
+        CHECK(drawn("Back"));
+        CHECK(drawn_within("permanently deletes"));
+        CHECK(drawn_within("storage."));
+        screen_snapshot_write(&canvas, "delete-confirm", variant);
+    }
+}
+
+static void delete_file_is_the_last_action_in_the_danger_role_after_a_divider(void)
+{
+    start();
+    CHECK(song_actions(HELP) != NULL);
+    MenuScreen *menu = &pool.song_actions.menu;
+    const MenuItem *last = &menu->config.items[menu->config.item_count - 1];
+    CHECK(strcmp("Delete file…", last->label) == 0);
+    CHECK_EQUAL(LIST_ROW_DANGER_DIVIDED, last->role);
+    CHECK_EQUAL(0, menu->config.items[menu->config.item_count - 2].role);
 }
 
 static void the_hidden_list_names_each_file_and_play_shows_it_again(void)
@@ -439,6 +568,10 @@ int main(void)
         TEST_CASE(part_of_a_cue_file_is_not_deleted),
         TEST_CASE(deleting_after_twelve_removals_since_the_rescan_asks_for_a_rescan),
         TEST_CASE(the_delete_question_names_the_file_and_starts_on_cancel),
+        TEST_CASE(cancelling_the_delete_returns_to_hide_track),
+        TEST_CASE(a_fresh_play_on_delete_file_deletes_it_and_leaves_the_actions),
+        TEST_CASE(delete_file_is_the_last_action_in_the_danger_role_after_a_divider),
+        TEST_CASE(track_actions_and_the_delete_question_fit_all_six_layouts),
         TEST_CASE(the_hidden_list_names_each_file_and_play_shows_it_again),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

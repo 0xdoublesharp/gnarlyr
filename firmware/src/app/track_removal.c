@@ -146,25 +146,41 @@ static const StringId HIDE_TEXT[] = {STR_TRACK_HIDDEN, STR_HIDDEN_FULL, STR_HIDE
 static const StringId DELETE_TEXT[] = {STR_FILE_DELETED, STR_HIDDEN_FULL, STR_DELETE_PART_REFUSED,
                                        STR_DELETE_FILE_FAILED, STR_RESCAN_FIRST};
 
+static ScreenAction answer_delete(void *context, int index)
+{
+    TrackQuestion *question = context;
+    const TrackRemoval *removal = &question->removal;
+    if (index == CONFIRM_CANCEL) {
+        MenuScreen *menu = &removal->actions->menu;
+        list_view_select(&menu->list, menu->config.item_count - 2, hal_clock_milliseconds());
+        return screen_action_replace(&menu->screen);
+    }
+    tell(removal, DELETE_TEXT[track_removal_delete(removal->tracks, question->track)]);
+    return screen_action_pop();
+}
+
 static Screen *ask_delete(const TrackRemoval *removal, uint16_t track)
 {
-    SongActions *actions = removal->actions;
+    TrackQuestion *question = removal->question;
     MixIdentity identity;
     HiddenResult result = read_deletable(removal->tracks, track, &identity);
     if (result != HIDDEN_DONE) {
         tell(removal, DELETE_TEXT[result]);
         return NULL;
     }
-    MenuConfig config = actions->menu.config;
-    MenuItem choice = actions->items[config.item_count - 1];
-    actions->items[0] = choice;
-    actions->items[0].label = i18n_text(STR_CANCEL);
-    actions->items[1] = choice;
-    hidden_tracks_file_name(identity.path, actions->title, sizeof actions->title);
-    actions->confirming = true;
-    config.title = actions->title;
-    config.item_count = 2;
-    return menu_screen_init(&actions->menu, config);
+    hidden_tracks_file_name(identity.path, question->file, sizeof question->file);
+    question->removal = *removal;
+    question->track = track;
+    ConfirmConfig config = {.title = i18n_text(STR_DELETE_FILE_QUESTION),
+                            .subject = question->file,
+                            .sections = {{NULL, i18n_text(STR_DELETE_FILE_NOTE)}},
+                            .choices = {i18n_text(STR_CANCEL), i18n_text(STR_DELETE_FILE)},
+                            .choice_count = 2,
+                            .first_danger = 1,
+                            .choose = answer_delete,
+                            .context = question,
+                            .theme = removal->theme};
+    return confirm_screen_init(&question->confirm, config);
 }
 
 Screen *track_removal_manage(TrackRemoval removal, uint16_t track, SongManage manage)
@@ -178,7 +194,6 @@ Screen *track_removal_manage(TrackRemoval removal, uint16_t track, SongManage ma
     case SONG_MANAGE_DELETE:
         tell(&removal, DELETE_TEXT[track_removal_delete(removal.tracks, track)]);
         return NULL;
-    case SONG_MANAGE_KEEP:
     case SONG_MANAGE_TAPE:
     case SONG_MANAGE_FAVORITE:
         break;

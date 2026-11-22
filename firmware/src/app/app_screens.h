@@ -20,8 +20,8 @@
 #include "player.h"
 #include "screen_modules.h"
 #include "screens/bluetooth_screen.h"
-#include "screens/card_format_screen.h"
 #include "screens/calendar_screen.h"
+#include "screens/card_format_screen.h"
 #include "screens/cassette_flip_screen.h"
 #include "screens/clock_screen.h"
 #include "screens/cover_flow_screen.h"
@@ -37,6 +37,7 @@
 #include "settings_screens.h"
 #include "settings_store.h"
 #include "theme_picker.h"
+#include "track_removal.h"
 #include "ui/menu_screen.h"
 #include "ui/message_screen.h"
 #include "ui/toast.h"
@@ -132,6 +133,7 @@ typedef struct ViewsModuleScreens {
     MenuItem diagnostics_items[DIAGNOSTICS_ITEM_COUNT];
     LyricsScreen lyrics;
     ThemePicker themes;
+    TrackQuestion delete_question;
 #ifdef ECHO_DEBUG_LOOP
     MenuScreen stall_question;
     MenuItem stall_items[2];

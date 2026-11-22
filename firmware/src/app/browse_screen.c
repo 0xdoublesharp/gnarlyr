@@ -445,8 +445,8 @@ static ScreenAction manage_song(void *context)
     BrowsePool *pool = context;
     SongActions *actions = &pool->song_actions;
     int choice = actions->menu.list.selected + 2 - actions->menu.config.item_count;
-    SongManage manage = (SongManage)(choice + (actions->confirming ? SONG_MANAGE_KEEP : 0));
-    Screen *screen = pool->config.manage(pool->config.tools_context, actions->track, manage);
+    Screen *screen =
+        pool->config.manage(pool->config.tools_context, actions->track, (SongManage)choice);
     return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
 }
 
@@ -462,17 +462,18 @@ typedef struct SongAction {
     ScreenAction (*select)(void *context);
     uint8_t needs;
     bool opens;
+    ListRowRole role;
 } SongAction;
 
 static const SongAction SONG_ACTIONS[] = {
-    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false},
-    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false},
-    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true},
-    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true},
-    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true},
-    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false},
-    {STR_DELETE_FILE, manage_song, ACTION_MANAGE, false},
+    {STR_PLAY_NEXT, play_song_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN},
+    {STR_ADD_TO_UP_NEXT, add_song_to_up_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN},
+    {STR_ADD_TO_FAVORITE_PLAYLIST, add_song_to_favorites, ACTION_MANAGE, false, LIST_ROW_PLAIN},
+    {STR_TRACK_INFO, open_track_info, ACTION_INFO, true, LIST_ROW_PLAIN},
+    {STR_PERSONAL_TAGS, open_track_tags, ACTION_TAGS, true, LIST_ROW_PLAIN},
+    {STR_ADD_TO_TAPE, add_to_tape, ACTION_MANAGE, true, LIST_ROW_PLAIN},
+    {STR_HIDE_TRACK, manage_song, ACTION_MANAGE, false, LIST_ROW_PLAIN},
+    {STR_DELETE_FILE_ASK, manage_song, ACTION_MANAGE, false, LIST_ROW_DANGER_DIVIDED},
 };
 
 static bool action_offered(const BrowsePool *pool, uint8_t needs)
@@ -487,7 +488,6 @@ CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, con
 {
     SongActions *actions = &pool->song_actions;
     actions->track = track;
-    actions->confirming = false;
     actions->now_ms = now_ms;
     StringBuilder title = string_builder_make(actions->title, sizeof actions->title);
     string_builder_append(&title, name);
@@ -498,7 +498,8 @@ CORE_COLD Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, con
             actions->items[count++] = (MenuItem){.label = i18n_text(action->label),
                                                  .select = action->select,
                                                  .context = pool,
-                                                 .opens = action->opens};
+                                                 .opens = action->opens,
+                                                 .role = action->role};
         }
     }
     MenuConfig config = {.title = actions->title,

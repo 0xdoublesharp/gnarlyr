@@ -230,6 +230,17 @@ void list_view_restart_marquee(ListView *view, uint32_t now_ms)
     view->selection_changed_ms = now_ms;
 }
 
+static ListRowRole row_role(const ListView *view, int index)
+{
+    return view->model->role != NULL ? view->model->role(view->model->context, index)
+                                     : LIST_ROW_PLAIN;
+}
+
+static bool row_danger(ListRowRole role)
+{
+    return role == LIST_ROW_DANGER || role == LIST_ROW_DANGER_DIVIDED;
+}
+
 static TextStyle row_style(const ListView *view, bool selected, Color normal)
 {
     Color color = selected ? view->theme->colors.selection_text : normal;
@@ -337,6 +348,9 @@ static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t n
     }
     const char *text = view->model->label(view->model->context, row.index);
     TextStyle style = row_style(view, row.selected, view->theme->colors.text);
+    if (row_danger(row_role(view, row.index))) {
+        style.color = view->theme->colors.danger;
+    }
     Label label = {.area = row.text, .text = text};
     int width = text_width(style.font, text);
     MarqueeTiming timing = view->theme->marquee;
@@ -352,16 +366,21 @@ static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t n
 
 static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)
 {
+    const ThemeColors *colors = &view->theme->colors;
+    ListRowRole role = row_role(view, row.index);
     if (row.selected) {
-        const ThemeColors *colors = &view->theme->colors;
         int edge = max_of(1, view->theme->metrics.scrollbar_inset);
         int cap = max_of(edge, view->theme->metrics.padding / 2);
         canvas_fill_rect(canvas, row.area, colors->selection_background);
         canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, edge, row.area.height},
-                         colors->accent);
+                         row_danger(role) ? colors->danger : colors->accent);
         canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, cap, 1}, colors->accent);
         canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y + row.area.height - 1, cap, 1},
                          colors->accent_alt);
+    }
+    if (role == LIST_ROW_DANGER_DIVIDED) {
+        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, row.area.width, 1},
+                         colors->divider);
     }
     row = draw_icon(view, canvas, row);
     if (details_below(view) || row.area.height > list_view_row_height(view)) {

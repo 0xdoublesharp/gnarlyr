@@ -3,6 +3,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "equalizer_plot.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/navigation.h"
@@ -307,16 +308,22 @@ static void summary(const ParametricScreen *editor, StringBuilder *builder)
     }
 }
 
+FooterHints parametric_screen_hints(bool adjusting)
+{
+    static const FooterHint EDIT_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHANGE},
+                                            {FOOTER_KEY_PLAY, STR_HINT_KEEP},
+                                            {FOOTER_KEY_BACK, STR_CANCEL}};
+    static const FooterHint BROWSE_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_ADJUST}};
+    return (FooterHints){adjusting ? EDIT_HINTS : BROWSE_HINTS, (uint8_t)(adjusting ? 3 : 1),
+                         FOOTER_ALIGN_END};
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     ParametricScreen *editor = context;
     const Theme *theme = editor->config.theme;
-    StringId hint_id = editor->shaping_mode
-                           ? editor->adjusting ? STR_SHAPE_EDIT_HINT : STR_SHAPE_HINT
-                       : editor->adjusting ? STR_PEQ_EDIT_HINT
-                                           : STR_PEQ_BROWSE_HINT;
-    const char *hint = i18n_text(hint_id);
-    EqualizerPlotLayout layout = equalizer_plot_layout(theme, hint, true);
+    FooterHints hints = parametric_screen_hints(editor->adjusting);
+    EqualizerPlotLayout layout = equalizer_plot_layout(theme, hints, true);
     int small = font_line_height(theme->fonts.small);
     char text[128];
     StringBuilder builder = string_builder_make(text, sizeof text);
@@ -367,8 +374,7 @@ static void draw(void *context, Canvas *canvas)
     equalizer_plot_caption(canvas, theme, layout.preamp, editor->response);
     label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-                       (Label){layout.hint, hint});
+    footer_hints_draw(canvas, theme, layout.hint, hints);
 }
 
 static void enter(void *context, uint32_t now_ms)
