@@ -1,6 +1,7 @@
 """Builds extra.font, the glyphs the player's built-in fonts lack, on the computer.
 
-The recipe (assets/fonts/recipe.json) pins the Noto Sans CJK fonts, maps languages to a style and
+Each face prefers its base Inter font and uses Noto Sans CJK for characters Inter lacks.
+The recipe (assets/fonts/recipe.json) pins the Noto fonts, maps languages to a style and
 lists the characters every face can render. The input characters come from the language packs on
 the music volume, the library database and missing.txt; the output is one file on internal
 storage (docs/architecture.md, Languages).
@@ -17,6 +18,8 @@ import unicodedata
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
+from functools import cache, cached_property
+from operator import attrgetter
 from pathlib import Path
 
 from fontTools.ttLib import TTFont
@@ -389,8 +392,37 @@ def font_file(source, options):
     return path
 
 
-def render_face(path, spec, font_number, characters):
-    font = ImageFont.truetype(str(path), spec["size"], index=font_number)
+@dataclass(frozen=True)
+class FontSource:
+    path: Path
+    number: int = 0
+
+    @cached_property
+    def cmap(self):
+        with TTFont(str(self.path), fontNumber=self.number, lazy=True) as font:
+            return set(font["cmap"].getBestCmap())
+
+
+def base_sources():
+    config = json.loads((FONTS / "glyph_pack.json").read_text(encoding="utf-8"))
+    faces = config["faces"][:glyph_pack.EXTRA_FACES]
+    sources = {file: FontSource(FONTS / file) for file in {face["file"] for face in faces}}
+    return [(sources[face["file"]], face["size"]) for face in faces]
+
+
+def noto_sources(recipe, style, options):
+    @cache
+    def fallback(weight):
+        source = recipe["sources"][style][weight]
+        return FontSource(font_file(source, options), source["font_number"])
+
+    return fallback
+
+
+def render_face(source, size, max_bitmap, characters):
+    if not characters:
+        return [], set()
+    font = ImageFont.truetype(str(source.path), size, index=source.number)
     glyphs, dropped = [], set()
     for codepoint in characters:
         glyph = font_build.render_glyph(font, codepoint)
@@ -399,24 +431,40 @@ def render_face(path, spec, font_number, characters):
         except glyph_pack.PackError:
             dropped.add(codepoint)
             continue
-        if (glyph.width * glyph.height + 1) // 2 > spec["max_bitmap"]:
+        if glyph_pack.bitmap_bytes(glyph) > max_bitmap:
             dropped.add(codepoint)
-        glyphs.append(glyph)
+        else:
+            glyphs.append(glyph)
+    return glyphs, dropped
+
+
+def render_extra_face(spec, base, fallback, characters):
+    inter, size = base
+    preferred = characters & inter.cmap
+    glyphs, dropped = render_face(inter, size, spec["max_bitmap"], preferred)
+    remaining = characters - preferred
+    if remaining:
+        noto = fallback(spec["weight"])
+        supported = remaining & noto.cmap
+        extra, lost = render_face(noto, spec["size"], spec["max_bitmap"], supported)
+        glyphs.extend(extra)
+        dropped |= (remaining - supported) | lost
     return glyphs, dropped
 
 
 def render(setup, style, characters, options):
     """The seven face blobs for characters, and the characters some face had to drop."""
-    sources = setup.recipe["sources"][style]
-    paths = {weight: font_file(sources[weight], options) for weight in WEIGHTS}
+    fallback = noto_sources(setup.recipe, style, options)
+    characters = set(characters)
     rendered, dropped = [], set()
-    for spec in setup.recipe["faces"]:
-        glyphs, lost = render_face(paths[spec["weight"]], spec, sources[spec["weight"]]["font_number"],
-                                   characters)
+    for spec, base in zip(setup.recipe["faces"], base_sources(), strict=True):
+        glyphs, lost = render_extra_face(spec, base, fallback, characters)
         rendered.append(glyphs)
         dropped |= lost
-    faces = [glyph_pack.pack_glyphs([glyph for glyph in glyphs if glyph.codepoint not in dropped])
-             if set(characters) - dropped else None for glyphs in rendered]
+    kept = characters - dropped
+    faces = [glyph_pack.pack_glyphs(sorted((glyph for glyph in glyphs if glyph.codepoint in kept),
+                                          key=attrgetter("codepoint")))
+             if kept else None for glyphs in rendered]
     return faces, dropped
 
 
@@ -545,28 +593,19 @@ def rebuild(volumes, extras=None, options=None, setup=None):
     return finish(volumes, prepare(volumes, extras, options, setup), options.dry_run)
 
 
-def coverage_candidates(recipe, options):
-    sets = []
-    for style in STYLES:
-        for weight in WEIGHTS:
-            source = recipe["sources"][style][weight]
-            font = TTFont(str(font_file(source, options)), fontNumber=source["font_number"], lazy=True)
-            sets.append({codepoint for codepoint in font["cmap"].getBestCmap()
-                         if codepoint <= MAX_CODEPOINT and unicodedata.category(chr(codepoint)) not in NEVER_DRAWN})
-    return sorted(set.intersection(*sets))
-
-
 def compute_coverage(recipe, options):
-    """Ranges every face of every style draws within its bitmap limit: the cmap intersection
-    less any character some face drops."""
-    candidates = coverage_candidates(recipe, options)
-    dropped = set()
-    for style in STYLES:
-        sources = recipe["sources"][style]
-        for spec in recipe["faces"]:
-            source = sources[spec["weight"]]
-            dropped |= render_face(font_file(source, options), spec, source["font_number"], candidates)[1]
-    return ranges_of(set(candidates) - dropped)
+    """Ranges every face of every style draws within its bitmap limit."""
+    faces = list(zip(recipe["faces"], base_sources(), strict=True))
+    styles = [noto_sources(recipe, style, options) for style in STYLES]
+    candidates = set.intersection(*(inter.cmap | fallback(spec["weight"]).cmap
+                                    for fallback in styles for spec, (inter, _) in faces))
+    candidates = {codepoint for codepoint in candidates if 0 < codepoint <= MAX_CODEPOINT
+                  and unicodedata.category(chr(codepoint)) not in NEVER_DRAWN}
+    for fallback in styles:
+        for spec, base in faces:
+            _, dropped = render_extra_face(spec, base, fallback, candidates)
+            candidates -= dropped
+    return ranges_of(candidates)
 
 
 def read_texts(arguments):
