@@ -103,6 +103,7 @@ add_library(echo_app STATIC
     settings_actions.c
     screens/quick_settings_screen.c
     settings_store.c
+    settings_store_read.c
     audio_settings.c
     parametric_calls.c
     parametric_store.c

@@ -75,6 +75,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/app/headphone_parameters.c
     src/settings/headphone_file.c
     src/settings/headphone_profile.c
+    src/app/settings_store_read.c
+    src/settings/settings_decode.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_extension
     src/app/standby.c

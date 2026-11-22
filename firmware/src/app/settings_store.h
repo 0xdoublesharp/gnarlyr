@@ -19,9 +19,11 @@ typedef struct SettingsStore {
     uint8_t saved_buttons[SETTINGS_BUTTONS_FILE_SIZE];
     bool has_saved_buttons;
     bool values_failed;
+    bool unread;
 } SettingsStore;
 
 void settings_store_load(SettingsStore *store);
+void settings_store_read(SettingsStore *store);
 bool settings_store_save(SettingsStore *store);
 bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset);
 void settings_store_capture(SettingsStore *store, PlayerStatus playback);
