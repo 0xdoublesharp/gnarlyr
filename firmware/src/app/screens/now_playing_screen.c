@@ -824,7 +824,9 @@ static void draw(void *context, Canvas *canvas)
     }
     NowPlayingFrame frame = now_playing_frame(theme, styled(now_playing));
     if (styled(now_playing)) {
-        watch_position(now_playing, MARQUEE_BAND_TIME, content);
+        if (!staged(now_playing)) {
+            watch_position(now_playing, MARQUEE_BAND_TIME, content);
+        }
         now_playing->config.cassette_draw(now_playing, canvas);
     } else if (touches(canvas, stage_of(theme, frame.art))) {
         draw_cover(now_playing, canvas, artwork, frame.art);
