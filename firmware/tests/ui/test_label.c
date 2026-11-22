@@ -343,17 +343,28 @@ static void cjk_text_is_cut_for_the_ellipsis_between_characters(void)
     CHECK(fit.ellipsis);
 }
 
-static void a_marquee_draws_its_text_up_to_the_cut_edge_without_a_fade(void)
+enum {
+    FADE = 0x1234
+};
+
+static void a_fading_marquee_fades_its_cut_right_edge_but_keeps_the_first_letter(void)
 {
     Canvas canvas = blank_canvas();
     Label label = {.area = {0, 0, WIDTH, HEIGHT}, .text = "ABABAB"};
-    label_draw_scrolling(&canvas, INK_STYLE, label, (Marquee){.gap = 2});
+    label_draw_scrolling(&canvas, INK_STYLE, label,
+                         (Marquee){.gap = 2, .fade = FADE, .fades = true});
+    CHECK_EQUAL(FADE, canvas_pixel_at(&canvas, WIDTH - 1, 2));
     CHECK_EQUAL(INK, canvas_pixel_at(&canvas, 1, 0));
-    int inked_edge = 0;
-    for (int y = 0; y < HEIGHT; y++) {
-        inked_edge += canvas_pixel_at(&canvas, WIDTH - 1, y) == INK ? 1 : 0;
-    }
-    CHECK(inked_edge > 0);
+}
+
+static void a_scrolled_fading_marquee_fades_both_edges(void)
+{
+    Canvas canvas = blank_canvas();
+    Label label = {.area = {0, 0, WIDTH, HEIGHT}, .text = "ABABAB"};
+    label_draw_scrolling(&canvas, INK_STYLE, label,
+                         (Marquee){.offset = 1, .gap = 2, .fade = FADE, .fades = true});
+    CHECK_EQUAL(FADE, canvas_pixel_at(&canvas, 0, 2));
+    CHECK_EQUAL(FADE, canvas_pixel_at(&canvas, WIDTH - 1, 2));
 }
 
 int main(void)
@@ -391,7 +402,8 @@ int main(void)
         TEST_CASE(a_comma_mark_too_early_in_the_line_is_not_preferred),
         TEST_CASE(the_ellipsis_follows_the_last_whole_word_that_fits),
         TEST_CASE(cjk_text_is_cut_for_the_ellipsis_between_characters),
-        TEST_CASE(a_marquee_draws_its_text_up_to_the_cut_edge_without_a_fade),
+        TEST_CASE(a_fading_marquee_fades_its_cut_right_edge_but_keeps_the_first_letter),
+        TEST_CASE(a_scrolled_fading_marquee_fades_both_edges),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

@@ -430,7 +430,7 @@ static int text_mask(const Canvas *canvas, Rect row, Color ink, bool *mask)
     return count;
 }
 
-static void a_selected_label_too_long_starts_at_its_first_letter_and_runs_to_its_cut_edge(void)
+static void a_selected_label_too_long_starts_at_its_first_letter_and_fades_its_cut_edge(void)
 {
     ListView view = list_of(2);
     model.label = long_label;
@@ -441,8 +441,8 @@ static void a_selected_label_too_long_starts_at_its_first_letter_and_runs_to_its
     list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
     int inked = text_mask(&canvas, row, TEST_THEME.colors.selection_text, selected);
     int edge = TEST_SCREEN_WIDTH - TEST_THEME.metrics.padding - 1;
-    Rect cut = {edge - 3, row.y, 4, row.height};
-    CHECK(ui_test_area_has_color(&canvas, cut, TEST_THEME.colors.selection_text));
+    Rect cut = {edge, row.y, 1, row.height};
+    CHECK(ui_test_area_has_only(&canvas, cut, theme_selection_fill(&TEST_THEME)));
     list_view_select(&view, 1, 0);
     list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
     text_mask(&canvas, row, TEST_THEME.colors.text, plain);
@@ -638,7 +638,7 @@ int main(void)
         TEST_CASE(a_long_detail_cannot_paint_over_the_icon),
         TEST_CASE(a_row_taller_than_one_line_draws_its_detail_under_the_label),
         TEST_CASE(a_marquee_cannot_scroll_text_through_the_icon),
-        TEST_CASE(a_selected_label_too_long_starts_at_its_first_letter_and_runs_to_its_cut_edge),
+        TEST_CASE(a_selected_label_too_long_starts_at_its_first_letter_and_fades_its_cut_edge),
         TEST_CASE(fitting_taller_rows_keeps_the_selection_on_screen),
         TEST_CASE(fitting_shorter_rows_fills_the_screen_to_the_last_item),
         TEST_CASE(moving_within_the_page_keeps_the_top),

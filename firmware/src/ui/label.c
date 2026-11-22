@@ -5,6 +5,7 @@
 enum {
     ELLIPSIS_CODEPOINT = 0x2026,
     HYPHEN = '-',
+    FADE_STEPS = 15,
     CJK_MARKS = 0x30,
     FULL_WIDTH_FORMS = 0xFF,
     BRACKETS_FIRST = 0x3008,
@@ -266,6 +267,20 @@ void label_draw_paragraph(Canvas *canvas, TextStyle style, Label label)
     draw_wrapped(canvas, style, (WrappedLabel){label, false, NULL});
 }
 
+static void fade_edges(Canvas *canvas, Rect area, Marquee marquee)
+{
+    int right = area.x + area.width - 1;
+    for (int step = 0; step < FADE_STEPS && step < area.width / 2; step++) {
+        uint8_t alpha = (uint8_t)(FADE_STEPS - step);
+        for (int y = area.y; y < area.y + area.height; y++) {
+            canvas_blend_pixel(canvas, (Point){right - step, y}, marquee.fade, alpha);
+            if (marquee.offset > 0) {
+                canvas_blend_pixel(canvas, (Point){area.x + step, y}, marquee.fade, alpha);
+            }
+        }
+    }
+}
+
 void label_draw_scrolling(Canvas *canvas, TextStyle style, Label label, Marquee marquee)
 {
     Canvas clipped = canvas_clipped(canvas, label.area);
@@ -277,4 +292,7 @@ void label_draw_scrolling(Canvas *canvas, TextStyle style, Label label, Marquee 
     int repeat_start = start + text_width(style.font, label.text) + marquee.gap;
     text_draw(&clipped, style, (Point){start, baseline}, label.text);
     text_draw(&clipped, style, (Point){repeat_start, baseline}, label.text);
+    if (marquee.fades) {
+        fade_edges(&clipped, label.area, marquee);
+    }
 }
