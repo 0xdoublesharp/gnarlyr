@@ -4,7 +4,7 @@
 
 typedef struct MeterNowPlayingLayout {
     Rect stage;
-    Rect text[2];
+    Rect text;
 } MeterNowPlayingLayout;
 
 MeterNowPlayingLayout meter_now_playing_layout(const Theme *theme);

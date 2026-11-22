@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "board_layout.h"
 #include "core/key_tracker.h"
 #include "core/strings.h"
 #include "cover_cache.h"
@@ -49,7 +50,10 @@ enum {
     NOW_PLAYING_SCRUB_FAST_AFTER_MS = 1500,
     NOW_PLAYING_SEEK_COMMANDS = NOW_PLAYING_SEEK_BACK_HELD - NOW_PLAYING_SEEK_FORWARD + 1,
     NOW_PLAYING_VOLUME_FEEDBACK_MS = 2500,
-    NOW_PLAYING_BADGE_MS = 700
+    NOW_PLAYING_BADGE_MS = 700,
+    NOW_PLAYING_FORMAT_STREAM = 1,
+    NOW_PLAYING_FORMAT_BITRATE = 2,
+    NOW_PLAYING_FORMAT_ALL = 3
 };
 
 typedef enum NowPlayingFeedback {
@@ -126,7 +130,8 @@ bool now_playing_scrub_status(NowPlayingScreen *now_playing, PlayerStatus *statu
 void now_playing_scrub_commit(NowPlayingScreen *now_playing);
 const char *now_playing_codec_name(HalAudioCodec codec);
 void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacity);
-void now_playing_detail_text(const PlayerStatus *status, char *buffer, size_t capacity);
+void now_playing_format_text(const PlayerStatus *status, char *buffer, size_t capacity,
+                             unsigned parts);
 int now_playing_progress_width(uint32_t position_ms, uint32_t duration_ms, int width);
 NowPlayingFeedback now_playing_feedback_for(NowPlayingCommand command, PlayerState after);
 bool now_playing_feedback_visible(NowPlayingFeedback feedback, uint32_t started_ms,
@@ -136,3 +141,5 @@ Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig 
 void now_playing_screen_setup(NowPlayingScreen *now_playing, NowPlayingConfig config);
 void now_playing_screen_attach(NowPlayingScreen *now_playing);
 void now_playing_fallback_attach(NowPlayingScreen *now_playing);
+int now_playing_title_lift(const Theme *theme);
+NowPlayingFrame now_playing_frame(const Theme *theme, bool stage);

@@ -75,7 +75,7 @@ static void exercise_helpers(const uint8_t *data, size_t size)
                            .duration_ms = duration,
                            .format = format,
                            .place = {(uint16_t)first, (uint16_t)second}};
-    now_playing_detail_text(&status, text, sizeof text);
+    now_playing_format_text(&status, text, sizeof text, second & 3u);
 }
 
 static void draw(Screen *screen, const Theme *theme)

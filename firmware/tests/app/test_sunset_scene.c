@@ -59,36 +59,43 @@ static void the_sun_sits_on_the_horizon_inside_the_stage_at_every_size_and_orien
     }
 }
 
-static void the_labels_sit_inside_the_stage_clear_of_the_sun_and_each_other(void)
+static void the_meter_bed_holds_two_rows_of_segments_inside_the_stage(void)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             SunsetScene scene = scene_for(orientation, size);
+            CHECK(inside(scene.stage, scene.bed));
+            CHECK(scene.bed.y + scene.bed.height < scene.stage.y + scene.stage.height - 8);
             for (int side = 0; side < 2; side++) {
-                CHECK(inside(scene.stage, scene.channels[side]));
-                CHECK(inside(scene.stage, scene.peaks[side]));
-                CHECK(scene.channels[side].y + scene.channels[side].height <= scene.horizon - 2);
-                CHECK(clear_of_the_sun(&scene, scene.channels[side], 4));
-                CHECK(clear_of_the_sun(&scene, scene.peaks[side], 4));
-                CHECK(rect_is_empty(rect_intersection(scene.channels[side], scene.peaks[side])));
+                Rect row = sunset_scene_row(&scene, side);
+                CHECK(inside(scene.bed, row));
+                for (int segment = 0; segment < SUNSET_SEGMENTS; segment++) {
+                    Rect cell = sunset_scene_segment(&scene, side, segment);
+                    CHECK(inside(row, cell));
+                    CHECK(cell.width >= 4);
+                    if (segment > 0) {
+                        Rect before = sunset_scene_segment(&scene, side, segment - 1);
+                        CHECK_EQUAL(before.x + before.width + 2, cell.x);
+                    }
+                }
             }
-            CHECK(rect_is_empty(rect_intersection(scene.peaks[0], scene.peaks[1])));
+            CHECK(rect_is_empty(
+                rect_intersection(sunset_scene_row(&scene, 0), sunset_scene_row(&scene, 1))));
         }
     }
 }
 
-static void portrait_puts_the_labels_in_the_sky_and_grows_the_sun(void)
+static void the_ridge_rises_from_the_horizon_across_the_stage(void)
 {
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        SunsetScene landscape = scene_for(ORIENTATION_LANDSCAPE, size);
-        SunsetScene portrait = scene_for(ORIENTATION_PORTRAIT, size);
-        CHECK(portrait.radius > landscape.radius);
-        CHECK(portrait.radius * 2 >= portrait.stage.width * 3 / 4);
-        for (int side = 0; side < 2; side++) {
-            CHECK(portrait.peaks[side].y < portrait.stage.y + 12);
-            CHECK(portrait.channels[side].y < sunset_scene_top(&portrait) + portrait.radius / 2);
-            CHECK(landscape.channels[side].y + landscape.channels[side].height >
-                  landscape.horizon - 12);
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        SunsetScene scene = scene_for(orientation, TEXT_SIZE_MEDIUM);
+        CHECK_EQUAL(scene.stage.x, sunset_scene_ridge(&scene, 0).x);
+        CHECK_EQUAL(scene.stage.x + scene.stage.width - 1,
+                    sunset_scene_ridge(&scene, SUNSET_RIDGE_POINTS - 1).x);
+        for (int point = 0; point < SUNSET_RIDGE_POINTS; point++) {
+            Point at = sunset_scene_ridge(&scene, point);
+            CHECK(at.y < scene.horizon);
+            CHECK(at.y > sunset_scene_top(&scene));
         }
     }
 }
@@ -111,32 +118,13 @@ static void slats_open_wider_toward_the_horizon(void)
     CHECK(!sunset_scene_slat_gap(&scene, top));
 }
 
-static void the_meter_lights_rows_from_the_horizon_up(void)
+static void a_level_lights_segments_from_none_to_all(void)
 {
-    SunsetScene scene = scene_for(ORIENTATION_PORTRAIT, TEXT_SIZE_SMALL);
-    CHECK_EQUAL(scene.horizon, sunset_scene_lit_top(&scene, 0));
-    CHECK_EQUAL(sunset_scene_top(&scene), sunset_scene_lit_top(&scene, 255));
+    CHECK_EQUAL(0, sunset_scene_lit(0));
+    CHECK_EQUAL(SUNSET_SEGMENTS, sunset_scene_lit(255));
     for (int level = 1; level < 256; level++) {
-        CHECK(sunset_scene_lit_top(&scene, (uint8_t)level) <=
-              sunset_scene_lit_top(&scene, (uint8_t)(level - 1)));
+        CHECK(sunset_scene_lit((uint8_t)level) >= sunset_scene_lit((uint8_t)(level - 1)));
     }
-    Rect left = sunset_scene_half(&scene, 0);
-    Rect right = sunset_scene_half(&scene, 1);
-    CHECK_EQUAL(scene.sun.x, left.x + left.width + 1);
-    CHECK(right.x > scene.sun.x);
-    CHECK_EQUAL(sunset_scene_top(&scene), left.y);
-    CHECK_EQUAL(scene.horizon, left.y + left.height);
-}
-
-static void scale_marks_climb_from_minus_24_to_0_db(void)
-{
-    SunsetScene scene = scene_for(ORIENTATION_LANDSCAPE, TEXT_SIZE_LARGE);
-    for (int mark = 1; mark < SUNSET_MARKS; mark++) {
-        CHECK(sunset_scene_mark(&scene, mark) > sunset_scene_mark(&scene, mark - 1));
-    }
-    CHECK_EQUAL(sunset_scene_lit_top(&scene, audio_visual_db(32768)), sunset_scene_mark(&scene, 0));
-    CHECK_EQUAL(sunset_scene_lit_top(&scene, audio_visual_db(2048)),
-                sunset_scene_mark(&scene, SUNSET_MARKS - 1));
 }
 
 static void floor_lines_crowd_toward_the_horizon(void)
@@ -179,7 +167,7 @@ static void bars_share_the_width_and_rise_from_the_horizon(void)
     }
 }
 
-static void stars_stay_in_the_sky_clear_of_the_sun_and_labels(void)
+static void stars_stay_in_the_sky_clear_of_the_sun(void)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
@@ -190,10 +178,6 @@ static void stars_stay_in_the_sky_clear_of_the_sun_and_labels(void)
                 CHECK(inside(scene.stage, dot));
                 CHECK(point.y < scene.horizon - 8);
                 CHECK(clear_of_the_sun(&scene, dot, 3));
-                for (int side = 0; side < 2; side++) {
-                    CHECK(rect_is_empty(rect_intersection(dot, scene.channels[side])));
-                    CHECK(rect_is_empty(rect_intersection(dot, scene.peaks[side])));
-                }
             }
         }
     }
@@ -220,14 +204,13 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_sun_sits_on_the_horizon_inside_the_stage_at_every_size_and_orientation),
-        TEST_CASE(the_labels_sit_inside_the_stage_clear_of_the_sun_and_each_other),
-        TEST_CASE(portrait_puts_the_labels_in_the_sky_and_grows_the_sun),
+        TEST_CASE(the_meter_bed_holds_two_rows_of_segments_inside_the_stage),
+        TEST_CASE(the_ridge_rises_from_the_horizon_across_the_stage),
         TEST_CASE(slats_open_wider_toward_the_horizon),
-        TEST_CASE(the_meter_lights_rows_from_the_horizon_up),
-        TEST_CASE(scale_marks_climb_from_minus_24_to_0_db),
+        TEST_CASE(a_level_lights_segments_from_none_to_all),
         TEST_CASE(floor_lines_crowd_toward_the_horizon),
         TEST_CASE(bars_share_the_width_and_rise_from_the_horizon),
-        TEST_CASE(stars_stay_in_the_sky_clear_of_the_sun_and_labels),
+        TEST_CASE(stars_stay_in_the_sky_clear_of_the_sun),
         TEST_CASE(the_floor_pulse_jumps_up_and_falls_one_step_a_tick),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

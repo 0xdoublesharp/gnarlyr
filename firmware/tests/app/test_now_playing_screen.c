@@ -32,10 +32,10 @@ static bool stream_text_is(HalAudioFormat format, const char *expected)
     return strcmp(expected, buffer) == 0;
 }
 
-static bool detail_text_is(PlayerStatus status, const char *expected)
+static bool format_text_is(PlayerStatus status, unsigned parts, const char *expected)
 {
     char buffer[TEXT_CAPACITY];
-    now_playing_detail_text(&status, buffer, sizeof buffer);
+    now_playing_format_text(&status, buffer, sizeof buffer, parts);
     return strcmp(expected, buffer) == 0;
 }
 
@@ -386,17 +386,27 @@ static void an_unknown_stream_shows_nothing(void)
     CHECK(stream_text_is((HalAudioFormat){.codec = HAL_AUDIO_CODEC_UNKNOWN}, ""));
 }
 
-static void the_detail_line_shows_bitrate_and_place(void)
+static void the_format_line_shows_codec_depth_rate_and_bitrate(void)
 {
     PlayerStatus status = {.format = HI_RES_FLAC, .place = {3, 10}};
-    CHECK(detail_text_is(status, "2,304 kbps \xC2\xB7 3 of 10"));
+    CHECK(format_text_is(status, NOW_PLAYING_FORMAT_ALL,
+                         "FLAC \xC2\xB7 24-bit \xC2\xB7 96 kHz \xC2\xB7 2,304 kbps"));
 }
 
-static void the_detail_line_leaves_out_what_is_unknown(void)
+static void the_format_line_splits_into_stream_and_bitrate(void)
 {
-    CHECK(detail_text_is((PlayerStatus){.place = {3, 10}}, "3 of 10"));
-    CHECK(detail_text_is((PlayerStatus){.format = MP3}, "320 kbps"));
-    CHECK(detail_text_is((PlayerStatus){0}, ""));
+    PlayerStatus status = {.format = HI_RES_FLAC};
+    CHECK(
+        format_text_is(status, NOW_PLAYING_FORMAT_STREAM, "FLAC \xC2\xB7 24-bit \xC2\xB7 96 kHz"));
+    CHECK(format_text_is(status, NOW_PLAYING_FORMAT_BITRATE, "2,304 kbps"));
+}
+
+static void the_format_line_leaves_out_what_is_unknown(void)
+{
+    CHECK(format_text_is((PlayerStatus){.place = {3, 10}}, NOW_PLAYING_FORMAT_ALL, ""));
+    CHECK(format_text_is((PlayerStatus){.format = MP3}, NOW_PLAYING_FORMAT_ALL,
+                         "MP3 \xC2\xB7 44.1 kHz \xC2\xB7 320 kbps"));
+    CHECK(format_text_is((PlayerStatus){0}, NOW_PLAYING_FORMAT_ALL, ""));
 }
 
 static void menu_alone_opens_quick_settings_or_lyrics(void)
@@ -656,18 +666,18 @@ static DrawnRows rows_drawn_at(uint32_t position_ms, uint32_t now_ms)
                                                         playback_theme.metrics.screen_height});
     canvas_fill_rect(&canvas, canvas.bounds, playback_theme.colors.background);
     draw_passive_view(position_ms, now_ms);
-    const NowPlayingLayout *layout = board_now_playing_layout(&playback_theme);
-    int line = layout->small_line_height;
+    NowPlayingFrame frame = now_playing_frame(&playback_theme, false);
+    int line = frame.times.height;
     int padding = playback_theme.metrics.padding;
     uint32_t icon = 2166136261u;
-    for (int y = layout->times_top; y < layout->times_top + line; y++) {
+    for (int y = frame.times.y; y < frame.times.y + line; y++) {
         for (int x = padding; x < padding + 12; x++) {
             icon =
                 (icon ^ playback_pixels[y * playback_theme.metrics.screen_width + x]) * 16777619u;
         }
     }
-    return (DrawnRows){rows_hash(layout->progress_top - 3, layout->progress_height + 6),
-                       rows_hash(layout->times_top, line), icon};
+    return (DrawnRows){rows_hash(frame.progress.y - 3, frame.progress.height + 6),
+                       rows_hash(frame.times.y, line), icon};
 }
 
 static bool rows_equal(DrawnRows left, DrawnRows right)
@@ -769,8 +779,10 @@ static void artwork_has_a_larger_primary_surface_in_every_text_size_and_orientat
                 canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
                                                     playback_theme.metrics.screen_height});
             playback_view.screen.draw(&playback_view, &canvas);
-            int x = orientation == 0 ? 132 : 35;
-            int y = orientation == 0 ? 100 : 140;
+            Rect art = now_playing_frame(&playback_theme, false).art;
+            CHECK(art.width >= COVER_FULL_SIZE);
+            int x = art.x + art.width - 4;
+            int y = art.y + art.height / 2;
             CHECK_EQUAL(artwork, playback_pixels[y * playback_theme.metrics.screen_width + x]);
         }
     }
@@ -887,8 +899,9 @@ int main(void)
         TEST_CASE(lossless_streams_show_bit_depth_and_rate),
         TEST_CASE(lossy_streams_show_only_the_rate),
         TEST_CASE(an_unknown_stream_shows_nothing),
-        TEST_CASE(the_detail_line_shows_bitrate_and_place),
-        TEST_CASE(the_detail_line_leaves_out_what_is_unknown),
+        TEST_CASE(the_format_line_shows_codec_depth_rate_and_bitrate),
+        TEST_CASE(the_format_line_splits_into_stream_and_bitrate),
+        TEST_CASE(the_format_line_leaves_out_what_is_unknown),
         TEST_CASE(volume_keys_alone_only_change_the_volume),
         TEST_CASE(holding_play_and_tapping_volume_skips),
         TEST_CASE(holding_play_and_holding_volume_skips_once_without_repeating),

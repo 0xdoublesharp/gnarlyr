@@ -1,20 +1,12 @@
 #include "sunset_art.h"
 
 #include "core/i18n.h"
+#include "neon_art.h"
 #include "ui/label.h"
 
 enum {
-    SUNSET_CHROME_BANDS = 6,
-    SUNSET_RAY_START = 8,
-    SUNSET_TICK = 4
+    SUNSET_RAY_START = 8
 };
-
-typedef struct ChromeText {
-    const Font *font;
-    Rect area;
-    const char *text;
-    Color edge;
-} ChromeText;
 
 static int smaller(int first, int second)
 {
@@ -100,30 +92,11 @@ static Color sun_hot(const SunsetArt *art, int y)
     return color_between(art->crown, art->base, y - top, art->scene.horizon - top);
 }
 
-static Color half_ink(const SunsetArt *art, int side, int y, Color hot)
-{
-    const SunsetScene *scene = &art->scene;
-    if (sunset_art_peak_lit(art->meter, side, art->now_ms) &&
-        y < sunset_scene_top(scene) + SUNSET_FLASH_ROWS) {
-        return art->theme->colors.text;
-    }
-    bool lit = y >= sunset_scene_lit_top(scene, art->meter->shown[side]);
-    return lit ? hot : color_between(sky_at(art, y), hot, 1, 4);
-}
-
 typedef void (*SunsetRow)(const SunsetArt *art, Canvas *canvas, int y, int half);
 
 static void disc_row(const SunsetArt *art, Canvas *canvas, int y, int half)
 {
     canvas_fill_rect(canvas, (Rect){art->scene.sun.x - half, y, half * 2, 1}, sun_hot(art, y));
-}
-
-static void meter_row(const SunsetArt *art, Canvas *canvas, int y, int half)
-{
-    int x = art->scene.sun.x;
-    Color hot = sun_hot(art, y);
-    canvas_fill_rect(canvas, (Rect){x - half, y, half - 1, 1}, half_ink(art, 0, y, hot));
-    canvas_fill_rect(canvas, (Rect){x + 2, y, half - 1, 1}, half_ink(art, 1, y, hot));
 }
 
 static bool sun_rows(const SunsetArt *art, Canvas *canvas, SunsetRow row)
@@ -145,29 +118,9 @@ static bool sun_rows(const SunsetArt *art, Canvas *canvas, SunsetRow row)
     return true;
 }
 
-static void marks(const SunsetArt *art, Canvas *canvas)
-{
-    const ThemeColors *colors = &art->theme->colors;
-    const SunsetScene *scene = &art->scene;
-    Color tick = color_between(colors->backdrop_bottom, colors->text_secondary, 1, 2);
-    for (int mark = 0; mark < SUNSET_MARKS; mark++) {
-        int y = sunset_scene_mark(scene, mark);
-        int half = sunset_scene_half_width(scene, y);
-        canvas_fill_rect(canvas, (Rect){scene->sun.x - half - 6, y, SUNSET_TICK, 1}, tick);
-        canvas_fill_rect(canvas, (Rect){scene->sun.x + half + 3, y, SUNSET_TICK, 1}, tick);
-    }
-}
-
 static void sun(const SunsetArt *art, Canvas *canvas)
 {
     sun_rows(art, canvas, disc_row);
-}
-
-static void sun_meter(const SunsetArt *art, Canvas *canvas)
-{
-    if (sun_rows(art, canvas, meter_row)) {
-        marks(art, canvas);
-    }
 }
 
 static int floored(int value, int step)
@@ -200,6 +153,19 @@ static void horizon_lines(const SunsetArt *art, Canvas *canvas)
                      color_between(colors->accent, colors->text, 1, 2));
 }
 
+static void ridge(const SunsetArt *art, Canvas *canvas)
+{
+    const ThemeColors *colors = &art->theme->colors;
+    Color ink = color_between(colors->backdrop_bottom, colors->text_secondary, 2, 3);
+    NeonInk soft = {ink, color_between(sky_at(art, art->scene.horizon - 4), ink, 1, 3)};
+    for (int point = 1; point < SUNSET_RIDGE_POINTS; point++) {
+        if (point != SUNSET_RIDGE_BREAK) {
+            neon_art_line(canvas, sunset_scene_ridge(&art->scene, point - 1),
+                          sunset_scene_ridge(&art->scene, point), soft);
+        }
+    }
+}
+
 static void grid(const SunsetArt *art, Canvas *canvas)
 {
     const ThemeColors *colors = &art->theme->colors;
@@ -219,61 +185,45 @@ static void grid(const SunsetArt *art, Canvas *canvas)
         }
     }
     horizon_lines(art, canvas);
+    ridge(art, canvas);
 }
 
-static void flat_text(Canvas *canvas, const Font *font, Rect area, const char *text, Color color)
+static Color segment_ink(const SunsetArt *art, int side, int segment)
 {
-    label_draw(canvas, (TextStyle){font, color, false}, (Label){area, text});
-}
-
-static void chrome_text(Canvas *canvas, const ThemeColors *colors, ChromeText chrome)
-{
-    Rect area = chrome.area;
-    Color edge = chrome.edge;
-    Color ramp[SUNSET_CHROME_BANDS] = {colors->text,
-                                       color_between(colors->text, edge, 1, 3),
-                                       color_between(colors->text, edge, 2, 3),
-                                       color_between(colors->backdrop_bottom, edge, 1, 3),
-                                       edge,
-                                       color_between(edge, colors->text, 1, 2)};
-    Rect shadow = {area.x + 1, area.y + 1, area.width, area.height};
-    flat_text(canvas, chrome.font, shadow, chrome.text, colors->backdrop_bottom);
-    int top = area.y + area.height / 6;
-    int span = area.height * 2 / 3;
-    for (int band = 0; band < SUNSET_CHROME_BANDS; band++) {
-        int from = band == 0 ? area.y : top + span * band / SUNSET_CHROME_BANDS;
-        int to = band == SUNSET_CHROME_BANDS - 1 ? area.y + area.height + 1
-                                                 : top + span * (band + 1) / SUNSET_CHROME_BANDS;
-        Canvas strip = canvas_clipped(canvas, (Rect){area.x - 1, from, area.width + 2, to - from});
-        flat_text(&strip, chrome.font, area, chrome.text, ramp[band]);
+    const ThemeColors *colors = &art->theme->colors;
+    int lit = sunset_scene_lit(art->meter->shown[side]);
+    int hold = sunset_scene_lit(art->meter->caps[side]);
+    if (segment == SUNSET_SEGMENTS - 1 && sunset_art_peak_lit(art->meter, side, art->now_ms)) {
+        return colors->danger;
     }
+    if (segment < lit) {
+        return colors->accent;
+    }
+    return segment == hold - 1 ? colors->accent_alt : colors->divider;
 }
 
-static void labels(const SunsetArt *art, Canvas *canvas)
+static void meter_row(const SunsetArt *art, Canvas *canvas, int side)
 {
     const Theme *theme = art->theme;
-    const ThemeColors *colors = &theme->colors;
-    for (int side = 0; side < 2; side++) {
-        Rect channel = art->scene.channels[side];
-        Rect peak = art->scene.peaks[side];
-        if (touches(canvas,
-                    (Rect){channel.x - 1, channel.y, channel.width + 2, channel.height + 1})) {
-            const char *text = i18n_text(side == 0 ? STR_METER_LEFT : STR_METER_RIGHT);
-            chrome_text(canvas, colors,
-                        (ChromeText){theme->fonts.title, channel, text, colors->accent});
-        }
-        if (!touches(canvas, (Rect){peak.x - 1, peak.y, peak.width + 2, peak.height + 1})) {
-            continue;
-        }
-        const char *text = i18n_text(STR_METER_PEAK);
-        if (sunset_art_peak_lit(art->meter, side, art->now_ms)) {
-            chrome_text(canvas, colors,
-                        (ChromeText){theme->fonts.small, peak, text, colors->danger});
-        } else {
-            flat_text(canvas, theme->fonts.small, peak, text,
-                      color_between(colors->backdrop_bottom, colors->text, 1, 3));
-        }
+    Rect row = sunset_scene_row(&art->scene, side);
+    if (!touches(canvas, row)) {
+        return;
     }
+    canvas_fill_rect(canvas, row, theme->colors.background);
+    Rect label = {row.x + 4, row.y, row.width, row.height};
+    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
+               (Label){label, i18n_text(side == 0 ? STR_METER_LEFT : STR_METER_RIGHT)});
+    for (int segment = 0; segment < SUNSET_SEGMENTS; segment++) {
+        canvas_fill_rect(canvas, sunset_scene_segment(&art->scene, side, segment),
+                         segment_ink(art, side, segment));
+    }
+}
+
+static void bed(const SunsetArt *art, Canvas *canvas)
+{
+    canvas_fill_rect(canvas, art->scene.bed, art->theme->colors.background);
+    meter_row(art, canvas, 0);
+    meter_row(art, canvas, 1);
 }
 
 static void bar_body(const SunsetArt *art, Canvas *canvas, Rect column, int top)
@@ -331,7 +281,7 @@ static void bars(const SunsetArt *art, Canvas *canvas)
 void sunset_art_draw(const SunsetArt *art, Canvas *canvas)
 {
     static const SunsetLayer SPECTRUM[SUNSET_LAYERS] = {sky, sun, grid, bars};
-    static const SunsetLayer METER[SUNSET_LAYERS] = {sky, sun_meter, grid, labels};
+    static const SunsetLayer METER[SUNSET_LAYERS] = {sky, sun, grid, bed};
     const SunsetLayer *layers = art->sun_meter ? METER : SPECTRUM;
     Canvas stage = canvas_clipped(canvas, art->scene.stage);
     if (rect_is_empty(stage.clip)) {

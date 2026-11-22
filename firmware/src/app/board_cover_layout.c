@@ -5,111 +5,6 @@
 
 const BoardCoverLayout BOARD_COVER_LAYOUT = {
     .up_next_detail_max_width = 150,
-    .now_playing =
-        {
-            [TEXT_SIZE_SMALL] =
-                {
-                    .cover_size = 140,
-                    .cover_top = 42,
-                    .cover_gap = 20,
-                    .title_top = 43,
-                    .artist_top = 76,
-                    .album_top = 110,
-                    .text_line_height = 24,
-                    .format_top = 134,
-                    .detail_top = 154,
-                    .modes_top = 174,
-                    .small_line_height = 18,
-                    .progress_top = 196,
-                    .progress_height = 3,
-                    .times_top = 202,
-                },
-            [TEXT_SIZE_MEDIUM] =
-                {
-                    .cover_size = 140,
-                    .cover_top = 42,
-                    .cover_gap = 20,
-                    .title_top = 39,
-                    .artist_top = 72,
-                    .album_top = 110,
-                    .text_line_height = 28,
-                    .format_top = 134,
-                    .detail_top = 154,
-                    .modes_top = 174,
-                    .small_line_height = 18,
-                    .progress_top = 196,
-                    .progress_height = 3,
-                    .times_top = 202,
-                },
-            [TEXT_SIZE_LARGE] =
-                {
-                    .cover_size = 140,
-                    .cover_top = 42,
-                    .cover_gap = 20,
-                    .title_top = 35,
-                    .artist_top = 72,
-                    .album_top = 110,
-                    .text_line_height = 35,
-                    .format_top = 134,
-                    .detail_top = 154,
-                    .modes_top = 174,
-                    .small_line_height = 18,
-                    .progress_top = 196,
-                    .progress_height = 3,
-                    .times_top = 202,
-                },
-        },
-    .now_playing_portrait =
-        {
-            [TEXT_SIZE_SMALL] =
-                {
-                    .cover_size = 188,
-                    .cover_top = 46,
-                    .title_top = 260,
-                    .artist_top = 316,
-                    .album_top = 356,
-                    .text_line_height = 24,
-                    .format_top = 377,
-                    .detail_top = 399,
-                    .modes_top = 421,
-                    .small_line_height = 18,
-                    .progress_top = 450,
-                    .progress_height = 3,
-                    .times_top = 459,
-                },
-            [TEXT_SIZE_MEDIUM] =
-                {
-                    .cover_size = 188,
-                    .cover_top = 46,
-                    .title_top = 254,
-                    .artist_top = 316,
-                    .album_top = 356,
-                    .text_line_height = 28,
-                    .format_top = 377,
-                    .detail_top = 399,
-                    .modes_top = 421,
-                    .small_line_height = 18,
-                    .progress_top = 450,
-                    .progress_height = 3,
-                    .times_top = 459,
-                },
-            [TEXT_SIZE_LARGE] =
-                {
-                    .cover_size = 188,
-                    .cover_top = 46,
-                    .title_top = 242,
-                    .artist_top = 316,
-                    .album_top = 356,
-                    .text_line_height = 35,
-                    .format_top = 377,
-                    .detail_top = 399,
-                    .modes_top = 421,
-                    .small_line_height = 18,
-                    .progress_top = 450,
-                    .progress_height = 3,
-                    .times_top = 459,
-                },
-        },
     .cover_flow =
         {
             .center_x = 240,
@@ -160,10 +55,31 @@ const CoverFlowTextLayout *board_cover_flow_text_layout(const Theme *theme)
     return &table[board_text_size(theme)];
 }
 
-const NowPlayingLayout *board_now_playing_layout(const Theme *theme)
+NowPlayingFrame board_now_playing_frame(const Theme *theme, bool stage, int lift)
 {
-    const NowPlayingLayout *table = theme_is_portrait(theme)
-                                        ? BOARD_COVER_LAYOUT.now_playing_portrait
-                                        : BOARD_COVER_LAYOUT.now_playing;
-    return &table[board_text_size(theme)];
+    int padding = theme->metrics.padding;
+    int wide = theme->metrics.screen_width;
+    int high = theme->metrics.screen_height;
+    int width = wide - 2 * padding;
+    if (theme_is_portrait(theme)) {
+        bool large = board_text_size(theme) == TEXT_SIZE_LARGE && !stage;
+        int size = (large ? NOW_PLAYING_PORTRAIT_LARGE_ART : NOW_PLAYING_PORTRAIT_ART) - lift;
+        int top = theme->metrics.header_height + padding + lift;
+        Rect art =
+            stage ? (Rect){padding, top, width, size} : (Rect){(wide - size) / 2, top, size, size};
+        int column = top + size + NOW_PLAYING_COLUMN_GAP;
+        return (NowPlayingFrame){art,
+                                 {padding, column, width, high - 92 - column},
+                                 {padding, high - 78, width, 3},
+                                 {padding, high - 70, width, 20},
+                                 {padding, high - 44, width, 44}};
+    }
+    int column = padding + (stage ? NOW_PLAYING_STAGE_WIDTH : NOW_PLAYING_ART_COLUMN) + padding;
+    Rect art = stage ? (Rect){padding, 38, NOW_PLAYING_STAGE_WIDTH, 124}
+                     : (Rect){padding + 4, 42, COVER_FULL_SIZE, COVER_FULL_SIZE};
+    return (NowPlayingFrame){art,
+                             {column, 38, wide - padding - column, high - 96},
+                             {padding, high - 54, width, 3},
+                             {padding, high - 48, width, 20},
+                             {padding, high - 24, width, 24}};
 }
