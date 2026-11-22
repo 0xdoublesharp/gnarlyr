@@ -168,7 +168,7 @@
     {
       "name": "listening",
       "file": "listening.png",
-      "expected_title": "Listening",
+      "expected_title": "Recap",
       "keys": [
         "down",
         "down",
@@ -834,7 +834,7 @@
     {
       "name": "tape-length",
       "file": "tape-length.png",
-      "expected_title": "Tape length",
+      "expected_title": "Mixtape length",
       "keys": [
         "down",
         "play",
@@ -1470,7 +1470,7 @@
     {
       "name": "recap",
       "file": "recap.png",
-      "expected_title": "Highlights",
+      "expected_title": "Recap",
       "keys": [
         "down",
         "down",

@@ -312,10 +312,10 @@ static void views_have_titles(void)
     BrowseQuery artists = browse_root_query(BROWSE_ARTISTS);
     BrowseQuery albums = browse_root_query(BROWSE_ALBUMS);
     CHECK(title_is(library, artists, "Artists"));
-    CHECK(title_is(library, browse_root_query(BROWSE_ALBUM_ARTISTS), "Album Artists"));
+    CHECK(title_is(library, browse_root_query(BROWSE_ALBUM_ARTISTS), "Album artists"));
     CHECK(title_is(library, browse_root_query(BROWSE_GENRES), "Genres"));
     CHECK(title_is(library, albums, "Albums"));
-    CHECK(title_is(library, browse_root_query(BROWSE_ALL_SONGS), "All Songs"));
+    CHECK(title_is(library, browse_root_query(BROWSE_ALL_SONGS), "All songs"));
     CHECK(title_is(library, browse_root_query(BROWSE_FOLDER), "Folders"));
     CHECK(title_is(library, child_of(artists, item_at(library, artists, BJORK)), "Björk"));
     CHECK(title_is(library, child_of(albums, item_at(library, albums, HOMOGENIC)), "Homogenic"));

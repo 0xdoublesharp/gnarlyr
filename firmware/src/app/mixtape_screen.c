@@ -2,9 +2,10 @@
 
 #include <stddef.h>
 
+#include "cassette_art.h"
 #include "core/i18n.h"
-
 #include "core/string_builder.h"
+#include "home_art.h"
 #include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
@@ -62,6 +63,18 @@ static const char *row_label(const void *context, int index)
     return row >= 0 && row < MIXTAPE_VISIBLE_ROWS ? ui->labels[row] : "";
 }
 
+static bool row_opens(const void *context, int index)
+{
+    (void)index;
+    return ((const MixtapeUi *)context)->mode == MIXTAPE_LIST;
+}
+
+static void fit_list(MixtapeUi *ui)
+{
+    list_view_measure(&ui->list, theme_content_area(ui->config.theme).width);
+    list_view_fit(&ui->list);
+}
+
 static const char *row_detail(const void *context, int index)
 {
     const MixtapeUi *ui = context;
@@ -103,6 +116,7 @@ void mixtape_ui_refresh(MixtapeUi *ui)
                                                   : ui->name;
     list_view_select(&ui->list, ui->list.selected, ui->now_ms);
     refresh_labels(ui);
+    fit_list(ui);
 }
 
 static void enter_mode(MixtapeUi *ui, uint8_t mode)
@@ -117,6 +131,7 @@ static void enter_mode(MixtapeUi *ui, uint8_t mode)
     ui->rows_first = -1;
     list_view_init(&ui->list, &ui->model, ui->config.theme, ui->now_ms);
     refresh_labels(ui);
+    fit_list(ui);
 }
 
 static bool new_slot(MixtapeUi *ui)
@@ -384,6 +399,29 @@ static void draw_name(const MixtapeUi *ui, Canvas *canvas)
                       footer);
 }
 
+static void draw_art(const MixtapeUi *ui, Canvas *canvas)
+{
+    const Theme *theme = ui->config.theme;
+    Rect content = theme_content_area(theme);
+    int rows = ui->model.count(ui) - ui->list.top;
+    rows = rows < ui->list.visible_rows ? rows : ui->list.visible_rows;
+    int top = content.y + rows * list_view_row_height(&ui->list) + theme->metrics.padding;
+    int floor = top + CASSETTE_HEIGHT * 3 / 4;
+    if (ui->mode != MIXTAPE_LIST || content.width > content.height ||
+        floor + CASSETTE_HEIGHT > content.y + content.height) {
+        return;
+    }
+    Canvas ground =
+        canvas_clipped(canvas, (Rect){content.x, floor, content.width, CASSETTE_HEIGHT});
+    home_art_draw_backdrop(
+        &ground, (Rect){content.x, floor - CASSETTE_HEIGHT, content.width, 2 * CASSETTE_HEIGHT},
+        theme);
+    cassette_art_draw(canvas,
+                      (Rect){content.x + (content.width - CASSETTE_WIDTH) / 2, top, CASSETTE_WIDTH,
+                             CASSETTE_HEIGHT},
+                      theme, (CassetteTape){.position_ms = 1, .duration_ms = 2, .label = ""});
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     const MixtapeUi *ui = context;
@@ -404,6 +442,7 @@ static void draw(void *context, Canvas *canvas)
         draw_name(ui, canvas);
     } else {
         list_view_draw(&ui->list, canvas, theme_content_area(ui->config.theme), ui->now_ms);
+        draw_art(ui, canvas);
     }
 }
 
@@ -422,7 +461,9 @@ Screen *mixtape_ui_init(MixtapeUi *ui, MixtapeUiConfig config)
                             .count = row_count,
                             .label = row_label,
                             .detail = row_detail,
-                            .detail_max_width = 0};
+                            .opens = row_opens,
+                            .detail_max_width = 0,
+                            .wraps = true};
     list_view_init(&ui->list, &ui->model, config.theme, 0);
     mixtape_ui_refresh(ui);
     return &ui->screen;

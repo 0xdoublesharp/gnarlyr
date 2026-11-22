@@ -17,10 +17,13 @@ static Screen up_next;
 static Screen *screen;
 static WireMotion motion;
 
+static Theme screen_theme;
+static Color pixels[222 * 480];
+
 static void open_ui(void)
 {
     screen = mixtape_ui_api()->init(&ui, (MixtapeUiConfig){.player = &player,
-                                                           .theme = &BOARD_THEME,
+                                                           .theme = &screen_theme,
                                                            .toast = &toast,
                                                            .now_playing = &now_playing,
                                                            .up_next = &up_next,
@@ -30,6 +33,7 @@ static void open_ui(void)
 
 static void reset(void)
 {
+    screen_theme = BOARD_THEME;
     fake_hal_reset();
     fake_hal_set_reserve_result(HAL_RESERVE_CREATED);
     toast = (Toast){0};
@@ -477,6 +481,49 @@ static void invalid_slots_and_busy_stores_refuse_new_work(void)
     CHECK(!mixtape_ui_busy(&ui));
 }
 
+static void only_list_rows_show_a_chevron_and_long_labels_wrap(void)
+{
+    save_album();
+    open_ui();
+    CHECK(ui.model.wraps);
+    CHECK(ui.model.opens(&ui, 0));
+    CHECK(ui.model.opens(&ui, ui.model.count(&ui) - 1));
+    choose(2);
+    CHECK_EQUAL(MIXTAPE_ACTIONS, ui.mode);
+    CHECK(!ui.model.opens(&ui, 0));
+}
+
+static bool cassette_drawn(void)
+{
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, screen_theme.metrics.screen_width,
+                                               screen_theme.metrics.screen_height});
+    canvas_clear(&canvas, screen_theme.colors.background);
+    screen->draw(screen->context, &canvas);
+    Rect content = theme_content_area(&screen_theme);
+    int rows = ui.model.count(&ui) - ui.list.top;
+    rows = rows < ui.list.visible_rows ? rows : ui.list.visible_rows;
+    int top = content.y + rows * list_view_row_height(&ui.list) + screen_theme.metrics.padding;
+    int middle = content.x + content.width / 2;
+    return top < screen_theme.metrics.screen_height &&
+           canvas_pixel_at(&canvas, middle, top) == screen_theme.colors.text_tertiary;
+}
+
+static void a_short_list_shows_the_cassette_on_the_grid_only_in_portrait(void)
+{
+    reset();
+    default_theme_set_orientation(&screen_theme, ORIENTATION_PORTRAIT);
+    open_ui();
+    CHECK(cassette_drawn());
+    choose(1);
+    CHECK_EQUAL(MIXTAPE_NAME, ui.mode);
+    key(KEY_BACK, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(MIXTAPE_LIST, ui.mode);
+    CHECK(cassette_drawn());
+    default_theme_set_orientation(&screen_theme, ORIENTATION_LANDSCAPE);
+    open_ui();
+    CHECK(!cassette_drawn());
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -496,6 +543,8 @@ int main(void)
         TEST_CASE(cancelling_a_save_or_rename_returns_to_the_list),
         TEST_CASE(an_empty_mixtape_can_be_named_renamed_and_deleted_without_playback),
         TEST_CASE(editing_and_replacing_a_mixtape_preserves_duplicates_across_a_rescan),
+        TEST_CASE(only_list_rows_show_a_chevron_and_long_labels_wrap),
+        TEST_CASE(a_short_list_shows_the_cassette_on_the_grid_only_in_portrait),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

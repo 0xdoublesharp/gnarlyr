@@ -1,3 +1,5 @@
+#include <string.h>
+
 #include "check.h"
 #include "core/i18n.h"
 #include "default_theme.h"
@@ -154,6 +156,17 @@ static void curves_controls_and_hints_fit_all_six_native_layouts(void)
     }
 }
 
+static void zero_gain_reads_0_db_and_other_gains_keep_a_sign_and_tenths(void)
+{
+    char text[24];
+    equalizer_plot_gain(text, sizeof text, 0);
+    CHECK(strcmp("0 dB", text) == 0);
+    equalizer_plot_gain(text, sizeof text, -5);
+    CHECK(strcmp("-0.5 dB", text) == 0);
+    equalizer_plot_gain(text, sizeof text, 120);
+    CHECK(strcmp("+12.0 dB", text) == 0);
+}
+
 int main(void)
 {
     i18n_detach();
@@ -162,6 +175,7 @@ int main(void)
         TEST_CASE(browsing_bands_does_not_change_the_sound),
         TEST_CASE(adjustment_keeps_half_decibel_precision_and_play_confirms),
         TEST_CASE(back_cancels_the_current_band_adjustment),
+        TEST_CASE(zero_gain_reads_0_db_and_other_gains_keep_a_sign_and_tenths),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

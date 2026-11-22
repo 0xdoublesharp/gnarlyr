@@ -21,8 +21,8 @@ enum {
 static const IconInk INK = {MAIN, ACCENT};
 
 static const uint8_t MIRRORED[] = {
-    ICON_PODCAST, ICON_AUDIO, ICON_COVER_FLOW, ICON_ARTIST,      ICON_FAVORITE, ICON_JACK,
-    ICON_DISC,    ICON_HUB,   ICON_PAUSE,      ICON_ALBUM_SMALL, ICON_LOCK,     ICON_PLUG,
+    ICON_PODCAST, ICON_AUDIO, ICON_COVER_FLOW,  ICON_ARTIST, ICON_FAVORITE, ICON_JACK, ICON_DISC,
+    ICON_HUB,     ICON_PAUSE, ICON_ALBUM_SMALL, ICON_LOCK,   ICON_PLUG,     ICON_INFO, ICON_DELETE,
 };
 
 static const uint8_t FLIPPED[] = {
@@ -52,7 +52,8 @@ static const uint8_t ICON_NUMBERS[][2] = {
     {ICON_DIAGNOSTICS, 27}, {ICON_USB, 30},      {ICON_BLUETOOTH, 31}, {ICON_KEY_PLUS, 32},
     {ICON_KEY_MINUS, 33},   {ICON_KEY_PLAY, 34}, {ICON_KEY_MENU, 35},  {ICON_DISC, 36},
     {ICON_PREVIOUS, 43},    {ICON_PLAYING, 44},  {ICON_QUEUE, 45},     {ICON_BOLT, 49},
-    {ICON_SONG_SMALL, 52},  {ICON_PLUG, 53},
+    {ICON_SONG_SMALL, 52},  {ICON_PLUG, 53},     {ICON_LOGO, 55},      {ICON_INFO, 56},
+    {ICON_TAG, 57},         {ICON_HIDE, 58},     {ICON_DELETE, 59},
 };
 
 static const uint32_t SHAPES[ICON_COUNT] = {
@@ -77,7 +78,9 @@ static const uint32_t SHAPES[ICON_COUNT] = {
     [ICON_BOLT] = 0x85A70DD8,         [ICON_BLUETOOTH_SMALL] = 0xF4B5F2E3,
     [ICON_LOCK] = 0x0849F8C2,         [ICON_SONG_SMALL] = 0xCB86ADB1,
     [ICON_PLUG] = 0xA3B73949,         [ICON_CHEVRON] = 0xE36D61C2,
-    [ICON_LOGO] = 0xD1B9CC15,
+    [ICON_LOGO] = 0xD1B9CC15,         [ICON_INFO] = 0x726F6FDD,
+    [ICON_TAG] = 0xECF9A255,          [ICON_HIDE] = 0xB9F634DD,
+    [ICON_DELETE] = 0x678A4E1D,
 };
 
 static Color pixels[CANVAS_SIZE * CANVAS_SIZE];
@@ -333,6 +336,14 @@ static void a_narrow_icon_is_nine_columns_wide_for_fourteen_rows(void)
     CHECK_EQUAL(ICON_LARGE_GRID, icon_rows(ICON_SONG));
 }
 
+static void icons_added_after_the_logo_use_the_large_grid(void)
+{
+    for (int icon = ICON_LOGO + 1; icon < ICON_COUNT; icon++) {
+        CHECK_EQUAL(ICON_LARGE_GRID, icon_rows((IconId)icon));
+        CHECK_EQUAL(ICON_LARGE_GRID, icon_width((IconId)icon, ICON_LARGE_GRID));
+    }
+}
+
 static void an_icon_keeps_its_proportions_in_a_wider_or_taller_area(void)
 {
     int side = ICON_LARGE_GRID;
@@ -456,6 +467,7 @@ int main(void)
         TEST_CASE(symmetric_icons_stay_symmetric_at_whole_multiples_of_their_grid),
         TEST_CASE(every_icon_keeps_its_drawn_shape),
         TEST_CASE(a_narrow_icon_is_nine_columns_wide_for_fourteen_rows),
+        TEST_CASE(icons_added_after_the_logo_use_the_large_grid),
         TEST_CASE(an_icon_keeps_its_proportions_in_a_wider_or_taller_area),
         TEST_CASE(the_strokes_of_an_icon_share_one_width_at_an_odd_size),
         TEST_CASE(an_icon_scales_to_fill_a_larger_area),

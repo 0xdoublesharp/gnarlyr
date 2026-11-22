@@ -330,6 +330,10 @@ static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
     Color main =
         row.selected ? view->theme->colors.selection_text : view->theme->colors.text_secondary;
     Color accent = row.selected ? main : view->theme->colors.accent;
+    if (row_danger(row.role)) {
+        main = view->theme->colors.danger;
+        accent = main;
+    }
     Canvas clipped = canvas_clipped(canvas, row.area);
     IconId icon = model->icon(model->context, row.index);
     if (view->background != THEME_ART_HOME ||

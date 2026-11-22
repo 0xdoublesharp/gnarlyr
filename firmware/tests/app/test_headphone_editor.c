@@ -142,12 +142,23 @@ static void every_orientation_and_text_size_draws_the_editor_and_choice_bounds(v
     }
 }
 
+static void no_trim_reads_0_db_and_each_cut_shows_its_half_decibel(void)
+{
+    start(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    select_row(1);
+    select_row(2);
+    CHECK(strcmp("0 dB", editor.model.label(&editor, 0)) == 0);
+    CHECK(strcmp("-0.5 dB", editor.model.label(&editor, 1)) == 0);
+    CHECK(strcmp("-12.0 dB", editor.model.label(&editor, 24)) == 0);
+}
+
 int main(void)
 {
     const TestCase cases[] = {
         TEST_CASE(profiles_can_be_selected_and_edited_without_leaving_the_screen),
         TEST_CASE(back_cancels_an_edit_and_the_editor_reopens_the_saved_choice),
         TEST_CASE(new_profiles_start_with_the_default_crossfeed),
+        TEST_CASE(no_trim_reads_0_db_and_each_cut_shows_its_half_decibel),
         TEST_CASE(every_orientation_and_text_size_draws_the_editor_and_choice_bounds),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

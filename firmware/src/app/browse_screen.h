@@ -113,3 +113,5 @@ ScreenAction browse_song_add_to_tape(void *context);
 ScreenAction browse_song_open_info(void *context);
 ScreenAction browse_song_open_tags(void *context);
 ScreenAction browse_song_manage(void *context);
+const char *browse_song_keep_file(const void *context);
+const char *browse_song_erase_from_storage(const void *context);

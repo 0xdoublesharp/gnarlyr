@@ -11,7 +11,7 @@ Results show the query or scope, a track count, artist context and an indicator 
 | Results | Volume keys | Move through songs; hold to scroll |
 | Results | Play | Play from the selected result |
 | Results | Menu | Open view options |
-| Results | Hold Play | Open Track info, My tags, Play Next and Add to Up Next |
+| Results | Hold Play | Open Track info, My tags, Play next and Add to Up Next |
 | Text or number editor | Volume keys | Choose a character |
 | Editor | Play / Menu | Add a character / erase the last character |
 | Editor | Hold Play | Submit the search or save the value |

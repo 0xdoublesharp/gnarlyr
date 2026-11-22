@@ -18,18 +18,24 @@ typedef struct SongAction {
     uint8_t needs;
     bool opens;
     ListRowRole role;
+    IconId icon;
+    const char *(*value)(const void *context);
 } SongAction;
 
 static const SongAction SONG_ACTIONS[] = {
-    {STR_PLAY_NEXT, browse_song_play_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN},
-    {STR_ADD_TO_UP_NEXT, browse_song_add_to_up_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN},
+    {STR_PLAY_NEXT, browse_song_play_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN, ICON_NEXT, NULL},
+    {STR_ADD_TO_UP_NEXT, browse_song_add_to_up_next, ACTION_ALWAYS, false, LIST_ROW_PLAIN,
+     ICON_QUEUE, NULL},
     {STR_ADD_TO_FAVORITE_PLAYLIST, browse_song_add_to_favorites, ACTION_MANAGE, false,
-     LIST_ROW_PLAIN},
-    {STR_TRACK_INFO, browse_song_open_info, ACTION_INFO, true, LIST_ROW_PLAIN},
-    {STR_PERSONAL_TAGS, browse_song_open_tags, ACTION_TAGS, true, LIST_ROW_PLAIN},
-    {STR_ADD_TO_TAPE, browse_song_add_to_tape, ACTION_MANAGE, true, LIST_ROW_PLAIN},
-    {STR_HIDE_TRACK, browse_song_manage, ACTION_MANAGE, false, LIST_ROW_PLAIN},
-    {STR_DELETE_FILE_ASK, browse_song_manage, ACTION_MANAGE, false, LIST_ROW_DANGER_DIVIDED},
+     LIST_ROW_PLAIN, ICON_FAVORITE, NULL},
+    {STR_TRACK_INFO, browse_song_open_info, ACTION_INFO, true, LIST_ROW_PLAIN, ICON_INFO, NULL},
+    {STR_PERSONAL_TAGS, browse_song_open_tags, ACTION_TAGS, true, LIST_ROW_PLAIN, ICON_TAG, NULL},
+    {STR_ADD_TO_TAPE, browse_song_add_to_tape, ACTION_MANAGE, true, LIST_ROW_PLAIN, ICON_MIXTAPE,
+     NULL},
+    {STR_HIDE_TRACK, browse_song_manage, ACTION_MANAGE, false, LIST_ROW_PLAIN, ICON_HIDE,
+     browse_song_keep_file},
+    {STR_DELETE_FILE_ASK, browse_song_manage, ACTION_MANAGE, false, LIST_ROW_DANGER_DIVIDED,
+     ICON_DELETE, browse_song_erase_from_storage},
 };
 
 static bool action_offered(const BrowsePool *pool, uint8_t needs)
@@ -55,7 +61,9 @@ Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *n
                                                  .select = action->select,
                                                  .context = pool,
                                                  .opens = action->opens,
-                                                 .role = action->role};
+                                                 .role = action->role,
+                                                 .icon = action->icon,
+                                                 .value = action->value};
         }
     }
     MenuConfig config = {.title = actions->title,
