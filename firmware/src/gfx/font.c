@@ -12,7 +12,8 @@ enum {
     NIBBLE_MASK = 0x0F,
     BASE_FACES = 7,
     CHINESE_FACES = 7,
-    JAPANESE_FACES = 14
+    JAPANESE_FACES = 14,
+    EXTRA_FACES = FONT_PACK_IMAGE_FACES
 };
 
 static const Glyph *search(const Font *font, uint32_t codepoint)
@@ -34,6 +35,31 @@ static const Glyph *search(const Font *font, uint32_t codepoint)
     return NULL;
 }
 
+static const Glyph *language_face_glyph(uint32_t face, uint32_t codepoint)
+{
+    const char *language = i18n_code();
+    bool japanese =
+        language[0] == 'j' && language[1] == 'a' && (language[2] == '\0' || language[2] == '-');
+    const Glyph *glyph =
+        font_pack_find(face + (japanese ? JAPANESE_FACES : CHINESE_FACES), codepoint);
+    if (glyph == NULL) {
+        glyph = font_pack_find(face + (japanese ? CHINESE_FACES : JAPANESE_FACES), codepoint);
+    }
+    return glyph;
+}
+
+static const Glyph *pack_glyph(uint32_t face, uint32_t codepoint)
+{
+    const Glyph *glyph = font_pack_find(face, codepoint);
+    if (glyph == NULL && face < BASE_FACES) {
+        glyph = font_pack_find(face + EXTRA_FACES, codepoint);
+        if (glyph == NULL) {
+            glyph = language_face_glyph(face, codepoint);
+        }
+    }
+    return glyph;
+}
+
 const Glyph *font_find_glyph(const Font *font, uint32_t codepoint)
 {
     if (font->glyph_count != 0) {
@@ -44,18 +70,7 @@ const Glyph *font_find_glyph(const Font *font, uint32_t codepoint)
     }
     const Glyph *glyph = search(font, codepoint);
     if (glyph == NULL && font->pack_face != 0) {
-        uint32_t face = font->pack_face - 1u;
-        glyph = font_pack_find(face, codepoint);
-        if (glyph == NULL && face < BASE_FACES) {
-            const char *language = i18n_code();
-            bool japanese = language[0] == 'j' && language[1] == 'a' &&
-                            (language[2] == '\0' || language[2] == '-');
-            glyph = font_pack_find(face + (japanese ? JAPANESE_FACES : CHINESE_FACES), codepoint);
-            if (glyph == NULL) {
-                glyph =
-                    font_pack_find(face + (japanese ? CHINESE_FACES : JAPANESE_FACES), codepoint);
-            }
-        }
+        glyph = pack_glyph(font->pack_face - 1u, codepoint);
     }
     return glyph != NULL ? glyph : search(font, FONT_FALLBACK_CODEPOINT);
 }

@@ -30,9 +30,9 @@ const TextSpyEntry *text_spy_entry(int index)
     return &entries[index];
 }
 
-static void record(TextSpan span)
+static void record(TextSpan span, const void *font)
 {
-    TextSpyEntry entry = {0};
+    TextSpyEntry entry = {.font = font};
     size_t shown = span.byte_count < TEXT_SPY_TEXT - 1 ? span.byte_count : TEXT_SPY_TEXT - 1;
     memcpy(entry.shown, span.start, shown);
     snprintf(entry.rest, sizeof entry.rest, "%s", span.start);
@@ -48,12 +48,12 @@ static void record(TextSpan span)
 
 int text_draw(Canvas *canvas, TextStyle style, Point pen, const char *text)
 {
-    record((TextSpan){text, strlen(text)});
+    record((TextSpan){text, strlen(text)}, style.font);
     return text_spy_real_draw(canvas, style, pen, text);
 }
 
 int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
 {
-    record(span);
+    record(span, style.font);
     return text_spy_real_draw_span(canvas, style, pen, span);
 }

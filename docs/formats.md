@@ -106,7 +106,8 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | `bluetooth.bin` | `BT`, 1 | 234 bytes: version at 2, enabled at 3 (0–1), count at 4 (0–6), six 38-byte devices from 5, output at 233 (0–1) |
 | `time.bin` | `DSTM`, 1 | |
 | `trial.bin` | `DSUT`, 1 | |
-| font packs | 1 | `tools/glyph_pack.py` |
+| glyph faces | `EGLF`, 1 | `tools/glyph_pack.py`; [architecture.md](../firmware/docs/architecture.md), Glyph packs |
+| `extra.font` | `EGXF`, 1 | `tools/glyph_pack.py` `pack_extra_font`; on internal storage in `fonts/` |
 | discovery preferences | 1 | |
 | debug screenshots | 1 | `tools/echo_debug.py` |
 | `scan.bin` | `DSS2` | the card and internal music fingerprints, firmware tag, internal state and generation in a 52-byte record |

@@ -3,9 +3,15 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
+#include "core/hash.h"
 #include "core/i18n.h"
+#include "core/utf8.h"
 #include "default_theme.h"
+#include "extra_font.h"
 #include "fake_hal.h"
+#include "fonts/fonts.h"
+#include "gfx/font_pack.h"
 #include "hal/display.h"
 #include "screen_modules.h"
 #include "screen_snapshot.h"
@@ -13,6 +19,8 @@
 #include "screens/usb_dac_menu.h"
 #include "screens/usb_scene.h"
 #include "screens/usb_screen_parts.h"
+#include "test_glyph_face.h"
+#include "test_pack.h"
 #include "text_spy.h"
 #include "theme_runtime.h"
 #include "ui/brand_mark.h"
@@ -1322,11 +1330,248 @@ static void rendering_service_preserves_the_complete_dac_frame(void)
     CHECK_EQUAL(0, memcmp(before, pixels, sizeof pixels));
 }
 
+#ifdef ECHO_TEST_GLYPHS
+enum {
+    HANGUL_FIRST = 0xAC00,
+    FIRST_CJK = 0x2E80,
+    HANGUL_GLYPHS = 9216,
+    HANGUL_SPREAD = HANGUL_GLYPHS / 3,
+    EXTRA_FONT_CAPACITY = 1000000,
+    HELD_REGION_BYTES = 64 * 368
+};
+
+typedef struct ExtraFile {
+    uint8_t bytes[EXTRA_FONT_CAPACITY];
+    uint32_t size;
+    uint32_t reads;
+} ExtraFile;
+
+static ExtraFile extra_file;
+
+static bool read_extra_file(void *context, uint32_t face, uint32_t offset, void *buffer,
+                            uint32_t length)
+{
+    (void)context;
+    (void)face;
+    extra_file.reads++;
+    if (offset > extra_file.size || length > extra_file.size - offset) {
+        return false;
+    }
+    memcpy(buffer, extra_file.bytes + offset, length);
+    return true;
+}
+
+static size_t put_hangul(char *text, uint32_t codepoint)
+{
+    text[0] = (char)(0xE0 | codepoint >> 12);
+    text[1] = (char)(0x80 | (codepoint >> 6 & 0x3F));
+    text[2] = (char)(0x80 | (codepoint & 0x3F));
+    return 3;
+}
+
+static void hangul_text(const char *english, char *text, size_t capacity)
+{
+    uint32_t hash = hash_update(HASH_START, english, strlen(english));
+    size_t length = 0;
+    for (uint32_t third = 0; third < 3; third++) {
+        uint32_t pick = hash_update(hash, &third, sizeof third) % HANGUL_SPREAD;
+        length += put_hangul(text + length, HANGUL_FIRST + third * HANGUL_SPREAD + pick);
+    }
+    for (const char *cursor = english; *cursor != '\0' && length + 4 < capacity; cursor++) {
+        if (cursor[0] == '{' && cursor[1] != '\0' && cursor[2] == '}') {
+            memcpy(text + length, cursor, 3);
+            length += 3;
+        } else if (*cursor == '\n') {
+            text[length++] = '\n';
+        }
+    }
+    text[length] = '\0';
+}
+
+static void attach_hangul_extra_font(void)
+{
+    static const char *const languages[] = {"ko"};
+    TestExtraFont font = {.languages = languages, .language_count = 1};
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        font.faces[face] = (TestGlyphFace){HANGUL_GLYPHS, HANGUL_FIRST, 1, 0, 0};
+    }
+    extra_file.size = test_extra_font_build(extra_file.bytes, EXTRA_FONT_CAPACITY, &font);
+    CHECK(font_pack_attach_extra((FontPackReader){read_extra_file, NULL}, extra_file.size));
+}
+
+static bool held(const void *font, uint32_t codepoint)
+{
+    const Font *drawn = font;
+    return drawn->pack_face != 0 &&
+           font_pack_find(drawn->pack_face - 1u + FONT_PACK_IMAGE_FACES, codepoint) != NULL;
+}
+
+static int unheld_glyphs_drawn(void)
+{
+    int unheld = 0;
+    for (int index = 0; index < text_spy_count(); index++) {
+        const TextSpyEntry *entry = text_spy_entry(index);
+        const char *cursor = entry->shown;
+        for (uint32_t codepoint = utf8_next(&cursor); codepoint != 0;
+             codepoint = utf8_next(&cursor)) {
+            if (codepoint >= FIRST_CJK && !held(entry->font, codepoint)) {
+                printf("  not held: U+%04X in \"%s\" (face %u)\n", (unsigned)codepoint,
+                       entry->shown, (unsigned)((const Font *)entry->font)->pack_face);
+                unheld++;
+            }
+        }
+    }
+    return unheld;
+}
+
+static void draw_storage_variants(const Theme *theme, Variant *list, int count, bool details)
+{
+    Canvas canvas = canvas_for(theme);
+    for (int index = 0; index < count; index++) {
+        AppUsbStatus status = list[index].status;
+        status.scene = &list[index].scene;
+        if (status.view == APP_USB_DAC ||
+            list[index].scene.page >= usb_screen_pages(theme, status) ||
+            (!details && list[index].scene.page != USB_SCENE_OVERVIEW)) {
+            continue;
+        }
+        status = with_page_hint(theme, status);
+        text_spy_reset();
+        usb_screen_draw(&canvas, theme,
+                        (HalBattery){.known = true, .percent = 64, .usb_power = true}, status);
+        CHECK_EQUAL(0, unheld_glyphs_drawn());
+    }
+}
+
+static void storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    uint32_t size = test_pack_build(pack, (TestPackLanguage){"ko", "Hangul", hangul_text});
+    CHECK(i18n_attach(pack, size));
+    sim_glyphs_attach();
+    attach_hangul_extra_font();
+    Variant list[VARIANTS];
+    int count = variants(list);
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int text_size = 0; text_size < TEXT_SIZE_COUNT; text_size++) {
+            Theme theme = theme_for(0, orientation, text_size);
+            extra_font_hold_for_usb(&theme);
+            uint32_t reads = extra_file.reads;
+            draw_storage_variants(&theme, list, count, true);
+            CHECK_EQUAL(reads, extra_file.reads);
+            font_pack_hold(FONT_PACK_HOLD_NONE);
+        }
+    }
+    font_pack_detach_extra();
+    i18n_detach();
+}
+
+static uint32_t load_face(const char *name, uint8_t *out, uint32_t capacity)
+{
+    char path[512];
+    snprintf(path, sizeof path, "%s/%s.bin", ECHO_GLYPH_PACK_DIRECTORY, name);
+    FILE *file = fopen(path, "rb");
+    uint32_t size = file != NULL ? (uint32_t)fread(out, 1, capacity, file) : 0;
+    if (file != NULL) {
+        fclose(file);
+    }
+    return size;
+}
+
+static void attach_chinese_extra_font(void)
+{
+    static const char *const names[FONT_PACK_EXTRA_FACES] = {
+        "inter_regular_16_latin1_sc", "inter_regular_22_sc",  "inter_semibold_22_sc",
+        "inter_regular_18_sc",        "inter_semibold_18_sc", "inter_regular_26_sc",
+        "inter_semibold_26_sc"};
+    memset(extra_file.bytes, 0, sizeof extra_file.bytes);
+    uint32_t at = FONT_PACK_SECTOR_BYTES;
+    for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
+        uint32_t size = load_face(names[face], extra_file.bytes + at, EXTRA_FONT_CAPACITY - at);
+        CHECK(size > 0);
+        bytes_put_le32(extra_file.bytes + FONT_PACK_EXTRA_TABLE + 8 * face, at);
+        bytes_put_le32(extra_file.bytes + FONT_PACK_EXTRA_TABLE + 8 * face + 4, size);
+        at += (size + FONT_PACK_SECTOR_BYTES - 1) / FONT_PACK_SECTOR_BYTES * FONT_PACK_SECTOR_BYTES;
+    }
+    memcpy(extra_file.bytes, "EGXF\x01\x07", 6);
+    bytes_put_le32(extra_file.bytes + 8, at);
+    test_extra_font_seal(extra_file.bytes);
+    extra_file.size = at;
+    CHECK(font_pack_attach_extra((FontPackReader){read_extra_file, NULL}, extra_file.size));
+}
+
+static const uint16_t HAN[] = {
+    0x4E00, 0x4E0A, 0x4E0D, 0x4E22, 0x4E2A, 0x4E3B, 0x4E4B, 0x4EAE, 0x4EC5, 0x4EE5, 0x4EFB, 0x4F1A,
+    0x4F4E, 0x4F55, 0x4F5C, 0x4F9B, 0x500D, 0x50A8, 0x5145, 0x5149, 0x5171, 0x5176, 0x5185, 0x5199,
+    0x51FA, 0x5206, 0x522B, 0x5236, 0x524D, 0x52A8, 0x5305, 0x5361, 0x5386, 0x53D6, 0x53EF, 0x540C,
+    0x540E, 0x542F, 0x548C, 0x56DE, 0x56FE, 0x5747, 0x58A8, 0x58F0, 0x590D, 0x591C, 0x5939, 0x5B54,
+    0x5B89, 0x5B9A, 0x5BB9, 0x5BFC, 0x5C0F, 0x5C4F, 0x5DF2, 0x5E55, 0x5E76, 0x5E94, 0x5F00, 0x5F39,
+    0x5F55, 0x5FC3, 0x6001, 0x606F, 0x610F, 0x6216, 0x6253, 0x627E, 0x62E9, 0x6309, 0x6389, 0x63A5,
+    0x63D2, 0x64AD, 0x6536, 0x653E, 0x6574, 0x65AD, 0x65C1, 0x65E5, 0x662F, 0x6682, 0x66F2, 0x6700,
+    0x672A, 0x673A, 0x6790, 0x6807, 0x683C, 0x6A21, 0x6A59, 0x6B62, 0x6B64, 0x6BEB, 0x6C60, 0x6CD5,
+    0x6D4B, 0x6D77, 0x6DFB, 0x6E90, 0x70B9, 0x7136, 0x7259, 0x7279, 0x72EC, 0x73AF, 0x7528, 0x7535,
+    0x7559, 0x76CA, 0x76EE, 0x7761, 0x77F3, 0x79D2, 0x79FB, 0x7AE0, 0x7B49, 0x7C73, 0x7C89, 0x7D2B,
+    0x7EA7, 0x7EBF, 0x7EE7, 0x7EFF, 0x7F6E, 0x8033, 0x81EA, 0x827A, 0x843D, 0x85CF, 0x8861, 0x88C5,
+    0x89C8, 0x8A00, 0x8BA4, 0x8BCD, 0x8BE5, 0x8BFB, 0x8D1D, 0x8DB3, 0x8DF3, 0x8F91, 0x8FB9, 0x8FD1,
+    0x8FDE, 0x9012, 0x90E8, 0x91CA, 0x949F, 0x9501, 0x957F, 0x95ED, 0x964D, 0x968F, 0x9752, 0x9762,
+    0x9879, 0x9884, 0x989C, 0x9996};
+
+static void han_text(const char *english, char *text, size_t capacity)
+{
+    size_t length = 0;
+    const char *cursor = english;
+    while (*cursor != '\0' && length + 7 < capacity) {
+        size_t letters = 0;
+        while ((cursor[letters] | 0x20) >= 'a' && (cursor[letters] | 0x20) <= 'z') {
+            letters++;
+        }
+        if (letters == 0) {
+            text[length++] = *cursor++;
+            continue;
+        }
+        uint32_t hash = hash_update(HASH_START, cursor, letters);
+        size_t count = sizeof HAN / sizeof HAN[0];
+        length += put_hangul(text + length, HAN[hash % count]);
+        length += put_hangul(text + length, HAN[(hash >> 12) % count]);
+        cursor += letters;
+    }
+    text[length] = '\0';
+}
+
+static void a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_held_glyphs(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    uint32_t size = test_pack_build(pack, (TestPackLanguage){"zh-CN", "Chinese", han_text});
+    CHECK(i18n_attach(pack, size));
+    sim_glyphs_attach();
+    attach_chinese_extra_font();
+    Theme theme = theme_for(0, 0, TEXT_SIZE_COUNT - 1);
+    CHECK(theme.fonts.title == &FONT_INTER_SEMIBOLD_26);
+    extra_font_hold_for_usb(&theme);
+    uint32_t held_bytes = font_pack_held_bytes();
+    printf("  Chinese USB text held at the largest size: %u of %u bytes\n", (unsigned)held_bytes,
+           (unsigned)HELD_REGION_BYTES);
+    CHECK(held_bytes > 0 && held_bytes <= HELD_REGION_BYTES);
+    uint32_t reads = extra_file.reads;
+    Variant list[VARIANTS];
+    int count = variants(list);
+    draw_storage_variants(&theme, list, count, false);
+    CHECK_EQUAL(reads, extra_file.reads);
+    font_pack_hold(FONT_PACK_HOLD_NONE);
+    font_pack_detach_extra();
+    i18n_detach();
+}
+#endif
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(rendering_service_preserves_the_complete_dac_frame),
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
+#ifdef ECHO_TEST_GLYPHS
+        TEST_CASE(storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared),
+        TEST_CASE(a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_held_glyphs),
+#endif
         TEST_CASE(the_usb_header_leads_the_whole_name_with_the_mark_in_all_six_layouts),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),

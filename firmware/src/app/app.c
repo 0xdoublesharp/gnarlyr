@@ -28,8 +28,10 @@
 #include "default_theme.h"
 #include "draw_profile.h"
 #include "extension_entry.h"
+#include "extra_font.h"
 #include "favorites_store.h"
 #include "frame_overlay.h"
+#include "gfx/font_pack.h"
 #include "gfx/frame_diff.h"
 #include "gfx/strip_renderer.h"
 #include "gfx/text.h"
@@ -207,6 +209,7 @@ typedef struct AppState {
     uint8_t lowered_volume;
     PlayerOutput lowered_output;
     AppScreens screens;
+    HalFile extra_font;
 } AppState;
 
 static AppState app;
@@ -1797,6 +1800,7 @@ CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
 
 static void start_app(bool power_on)
 {
+    extra_font_open(&app.extra_font);
 #ifdef ECHO_USB_OVERLAY_RENDERER
     app.usb_renderer = NULL;
 #else
@@ -1890,7 +1894,17 @@ CORE_SEAM void app_start_after_storage(void)
 
 void app_reset_for_test(void)
 {
+    font_pack_detach_extra();
     app = (AppState){0};
+}
+
+void app_hold_usb_glyphs(bool hold)
+{
+    if (hold) {
+        extra_font_hold_for_usb(board_theme());
+    } else if (!hal_system_restart_pending()) {
+        font_pack_hold(FONT_PACK_HOLD_NONE);
+    }
 }
 
 static void show_rescan_count(bool first, StringId pattern, uint32_t count)
@@ -2003,6 +2017,7 @@ CORE_COLD static void run_rescan(void)
 
 void app_leave_storage(void)
 {
+    extra_font_close(&app.extra_font);
     flush_listening();
     listening_store_detach(&app.listening);
     app.listening_loaded = false;

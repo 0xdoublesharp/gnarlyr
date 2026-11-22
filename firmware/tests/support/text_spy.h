@@ -8,6 +8,7 @@ enum {
 typedef struct TextSpyEntry {
     char shown[TEXT_SPY_TEXT];
     char rest[TEXT_SPY_TEXT];
+    const void *font;
 } TextSpyEntry;
 
 void text_spy_reset(void);

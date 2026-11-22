@@ -6,6 +6,7 @@
 #include "device/fat.h"
 #include "device/storage_mount.h"
 #include "emmc.h"
+#include "gfx/font_pack.h"
 #include "hal/storage.h"
 #include "internal_volume.h"
 #include "sd.h"
@@ -13,7 +14,7 @@
 #include "storage_reset.h"
 
 enum {
-    OPEN_FILE_CAPACITY = 8,
+    OPEN_FILE_CAPACITY = 9,
     OPEN_DIR_CAPACITY = HAL_OPEN_DIRS
 };
 
@@ -225,6 +226,7 @@ CORE_COLD HalReserveResult hal_internal_file_reserve(const char *path, uint32_t 
 
 CORE_COLD void storage_reset(void)
 {
+    font_pack_detach_extra();
     mount_tried = false;
     internal_volume_reset();
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {

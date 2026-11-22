@@ -12,7 +12,7 @@ endif()
 echo_add_unit_test(NAME test_font SOURCES gfx/test_font.c gfx/tiny_font.c LIBRARIES echo_gfx)
 echo_add_unit_test(NAME test_text SOURCES gfx/test_text.c gfx/tiny_font.c LIBRARIES echo_gfx)
 echo_add_unit_test(NAME test_font_pack
-    SOURCES gfx/test_font_pack.c gfx/tiny_font.c support/test_pack.c
+    SOURCES gfx/test_font_pack.c gfx/tiny_font.c support/test_pack.c support/test_glyph_face.c
     LIBRARIES echo_gfx
 )
 echo_add_unit_test(NAME test_fonts SOURCES fonts/test_fonts.c LIBRARIES echo_fonts)

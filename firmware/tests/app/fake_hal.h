@@ -15,6 +15,7 @@
 void fake_hal_reset(void);
 void fake_hal_set_version(const char *version);
 void fake_hal_add_file(const char *path, const uint8_t *bytes, uint32_t size);
+int fake_hal_open_files(void);
 void fake_hal_replace_music_volume(void);
 void fake_hal_add_eq_file(const char *name, const char *text);
 void fake_hal_add_language_pack(int copy, const uint8_t *bytes, uint32_t size);

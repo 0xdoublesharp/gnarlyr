@@ -138,6 +138,7 @@ typedef struct FakeHal {
     int next_headset;
     FakeFile files[FILE_CAPACITY];
     int file_count;
+    int open_files;
     bool fail_music_writes;
     const char *fail_file_writes;
     const char *damaged_writes;
@@ -658,6 +659,7 @@ bool hal_file_open(HalFile *file, const char *path)
     for (int index = 0; index < fake.file_count; index++) {
         if (strcmp(fake.files[index].path, path) == 0) {
             *file = (HalFile){.handle = index, .size = fake.files[index].size};
+            fake.open_files++;
             return true;
         }
     }
@@ -687,7 +689,15 @@ bool hal_file_read(HalFile file, uint32_t offset, void *buffer, uint32_t length)
 
 void hal_file_close(HalFile *file)
 {
+    if (file->handle >= 0) {
+        fake.open_files--;
+    }
     file->handle = -1;
+}
+
+int fake_hal_open_files(void)
+{
+    return fake.open_files;
 }
 
 static void copy_path(char *target, const char *source)
