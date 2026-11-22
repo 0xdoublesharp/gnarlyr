@@ -6,6 +6,7 @@
 #include "listening_store.h"
 #include "playback/listening_stats.h"
 #include "settings/settings.h"
+#include "ui/confirm_screen.h"
 #include "ui/list_view.h"
 #include "ui/screen.h"
 #include "ui/toast.h"
@@ -36,6 +37,7 @@ typedef struct ListeningScreen {
     Screen *moments;
     ListModel model;
     ListView list;
+    ConfirmScreen confirm;
     uint32_t now_ms;
     uint8_t mode;
     uint8_t selected;

@@ -12,6 +12,7 @@
 #include "hal/clock.h"
 #include "hal/storage.h"
 #include "playback/listening_stats.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/message_screen.h"
@@ -22,7 +23,6 @@ enum {
     MODE_TOP,
     MODE_TOTALS,
     MODE_EXPORT,
-    MODE_OPTIONS,
     MODE_CONFIRM,
     MODE_PERIODS,
     MODE_RECAP,
@@ -36,6 +36,8 @@ enum {
     EXPORT_FAILED,
     EXPORT_STEPS = 16,
     EXPORT_BUDGET_MS = 12,
+    CLEAR_EXPORT = 1,
+    CLEAR_NOW = 2,
     PERCENT = 100,
     DETAIL_BYTES = 160
 };
@@ -59,8 +61,8 @@ static StringId title_id(const ListeningScreen *screen)
                : screen->group == LISTENING_BY_ALBUM ? STR_TOP_ALBUMS
                                                      : STR_TOP_SONGS;
     }
-    if (screen->mode == MODE_OPTIONS || screen->mode == MODE_CONFIRM) {
-        return screen->mode == MODE_CONFIRM ? STR_CLEAR_HISTORY : STR_VIEW_OPTIONS;
+    if (screen->mode == MODE_CONFIRM) {
+        return STR_CLEAR_HISTORY_QUESTION;
     }
     if (screen->mode == MODE_PERIODS || screen->mode == MODE_RECAP) {
         return screen->mode == MODE_RECAP ? recap_cards_title(screen) : STR_RECAP;
@@ -81,9 +83,6 @@ void listening_screen_format_time(char *text, size_t capacity, uint64_t millis)
 static int row_count(const void *context)
 {
     const ListeningScreen *screen = context;
-    if (screen->mode == MODE_OPTIONS || screen->mode == MODE_CONFIRM) {
-        return screen->mode == MODE_OPTIONS ? 1 : 3;
-    }
     if (screen->mode == MODE_PERIODS || screen->mode == MODE_RECAP) {
         return screen->mode == MODE_PERIODS ? LISTENING_PERIOD_COUNT : 0;
     }
@@ -93,13 +92,6 @@ static int row_count(const void *context)
 static const char *row_label(const void *context, int index)
 {
     const ListeningScreen *screen = context;
-    if (screen->mode == MODE_OPTIONS) {
-        return i18n_text(STR_CLEAR_HISTORY);
-    }
-    if (screen->mode == MODE_CONFIRM) {
-        static const StringId CHOICES[] = {STR_EXPORT_FIRST, STR_CLEAR, STR_CARD_FORMAT_CANCEL};
-        return i18n_text(CHOICES[index]);
-    }
     if (screen->mode == MODE_PERIODS) {
         return i18n_text(PERIODS[index]);
     }
@@ -138,6 +130,25 @@ static void begin_job(ListeningScreen *screen)
     }
 }
 
+static ScreenAction choose_clear(void *context, int index);
+
+static void ask_clear(ListeningScreen *screen)
+{
+    ConfirmConfig config = {
+        .title = i18n_text(STR_CLEAR_HISTORY_QUESTION),
+        .sections = {{i18n_text(STR_HISTORY_CLEARS), i18n_text(STR_HISTORY_CLEARS_TEXT)},
+                     {i18n_text(STR_HISTORY_KEEPS), i18n_text(STR_HISTORY_KEEPS_TEXT)}},
+        .choices = {i18n_text(STR_CANCEL), i18n_text(STR_EXPORT_AND_CLEAR),
+                    i18n_text(STR_CLEAR_NOW)},
+        .choice_count = 3,
+        .first_danger = CLEAR_EXPORT,
+        .choose = choose_clear,
+        .context = screen,
+        .theme = screen->theme};
+    confirm_screen_init(&screen->confirm, config);
+    screen->confirm.screen.enter(&screen->confirm, screen->now_ms);
+}
+
 static void show_mode(ListeningScreen *screen, uint8_t mode)
 {
     screen->mode = mode;
@@ -148,7 +159,7 @@ static void show_mode(ListeningScreen *screen, uint8_t mode)
     begin_job(screen);
     list_view_init(&screen->list, &screen->model, screen->theme, screen->now_ms);
     if (mode == MODE_CONFIRM) {
-        list_view_select(&screen->list, 2, screen->now_ms);
+        ask_clear(screen);
     } else if (mode == MODE_MENU || mode == MODE_PERIODS) {
         list_view_select(&screen->list, mode == MODE_MENU ? screen->selected : screen->period,
                          screen->now_ms);
@@ -221,18 +232,20 @@ static void clear_history(ListeningScreen *screen)
     }
 }
 
-static void confirm_clear(ListeningScreen *screen)
+static ScreenAction choose_clear(void *context, int index)
 {
-    if (screen->list.selected == 2) {
+    ListeningScreen *screen = context;
+    if (index == CONFIRM_CANCEL) {
         show_mode(screen, MODE_MENU);
     } else if (clear_allowed(screen)) {
-        if (screen->list.selected == 0) {
+        if (index == CLEAR_EXPORT) {
             show_mode(screen, MODE_EXPORT);
             screen->clearing_export = true;
         } else {
             clear_history(screen);
         }
     }
+    return screen_action_none();
 }
 
 static ScreenAction go_back(ListeningScreen *screen)
@@ -240,10 +253,7 @@ static ScreenAction go_back(ListeningScreen *screen)
     if (screen->mode == MODE_MENU) {
         return screen_action_pop();
     }
-    uint8_t previous = screen->mode == MODE_CONFIRM ? MODE_OPTIONS
-                       : screen->mode == MODE_RECAP ? MODE_PERIODS
-                                                    : MODE_MENU;
-    show_mode(screen, previous);
+    show_mode(screen, screen->mode == MODE_RECAP ? MODE_PERIODS : MODE_MENU);
     return screen_action_none();
 }
 
@@ -265,11 +275,7 @@ static void move(ListeningScreen *screen, int step, uint32_t now_ms)
 
 static ScreenAction select_row(ListeningScreen *screen)
 {
-    if (screen->mode == MODE_OPTIONS) {
-        show_mode(screen, MODE_CONFIRM);
-    } else if (screen->mode == MODE_CONFIRM) {
-        confirm_clear(screen);
-    } else if (screen->mode == MODE_PERIODS) {
+    if (screen->mode == MODE_PERIODS) {
         open_period(screen);
     } else if (screen->mode == MODE_RECAP) {
         show_card(screen, 1);
@@ -287,6 +293,9 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     ListeningScreen *screen = context;
     screen->now_ms = now_ms;
+    if (screen->mode == MODE_CONFIRM) {
+        return screen->confirm.screen.handle_key(&screen->confirm, event, now_ms);
+    }
     Navigation navigation = navigation_from_key(event);
     if (navigation.intent == NAVIGATION_HOME || navigation.intent == NAVIGATION_BACK) {
         cancel_export(screen);
@@ -299,7 +308,7 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     }
     if (navigation.intent == NAVIGATION_OPTIONS) {
         if (clear_allowed(screen)) {
-            show_mode(screen, MODE_OPTIONS);
+            show_mode(screen, MODE_CONFIRM);
         }
     } else if (navigation.intent == NAVIGATION_NEXT || navigation.intent == NAVIGATION_PREVIOUS) {
         move(screen, navigation.intent == NAVIGATION_NEXT ? 1 : -1, now_ms);
@@ -504,67 +513,16 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
     }
 }
 
-static void history_detail(char *text, size_t capacity)
-{
-    static const StringId RESETS[] = {STR_LISTENING_TOTALS, STR_TOP_SONGS,   STR_TOP_ALBUMS,
-                                      STR_TOP_ARTISTS,      STR_SMART_LISTS, STR_MOST_PLAYED,
-                                      STR_RECENTLY_PLAYED,  STR_EXPORT_PLAYS};
-    char resets[384];
-    char keeps[128];
-    StringBuilder builder = string_builder_make(resets, sizeof resets);
-    for (size_t index = 0; index < sizeof RESETS / sizeof RESETS[0]; index++) {
-        if (index != 0) {
-            string_builder_append_char(&builder, index == 4 || index == 7 ? '\n' : '/');
-        }
-        string_builder_append(&builder, i18n_text(RESETS[index]));
-    }
-    builder = string_builder_make(keeps, sizeof keeps);
-    string_builder_append(&builder, i18n_text(STR_MOMENTS));
-    string_builder_append_char(&builder, '/');
-    string_builder_append(&builder, i18n_text(STR_FAVORITES));
-    const char *arguments[] = {resets, keeps};
-    builder = string_builder_make(text, capacity);
-    i18n_format(&builder, STR_HISTORY_RESET, arguments, 2);
-}
-
-static void draw_confirmation(ListeningScreen *screen, Canvas *canvas, Rect area)
-{
-    const Theme *theme = screen->theme;
-    int padding = theme->metrics.padding;
-    char text[640];
-    history_detail(text, sizeof text);
-    Theme choices = *theme;
-    choices.fonts.body = theme->fonts.small;
-    Rect rows = area;
-    Rect detail = {area.x + padding, area.y + padding, area.width - 2 * padding,
-                   area.height - 2 * padding};
-    if (theme_is_portrait(theme)) {
-        rows.height = 3 * theme->metrics.row_height;
-        rows.y = area.y + area.height - rows.height;
-        detail.height = rows.y - detail.y - padding;
-    } else {
-        rows.width = area.width * 9 / 20;
-        rows.x = area.x + area.width - rows.width;
-        detail.width = rows.x - detail.x - padding;
-    }
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-                       (Label){detail, text});
-    screen->list.theme = &choices;
-    list_view_fit_rows(&screen->list, rows.height / choices.metrics.row_height);
-    list_view_draw(&screen->list, canvas, rows, screen->now_ms);
-    screen->list.theme = theme;
-}
+static const FooterHint OPTIONS_HINTS[] = {{FOOTER_KEY_HOLD_PLAY, STR_CLEAR_HISTORY}};
+static const FooterHints OPTIONS_FOOTER = {OPTIONS_HINTS, 1, FOOTER_ALIGN_START};
 
 static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
 {
     const Theme *theme = screen->theme;
     bool portrait = theme_is_portrait(theme);
-    int hint = font_line_height(theme->fonts.small);
-    label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-               (Label){{content.x + theme->metrics.padding, content.y + content.height - hint,
-                        content.width - 2 * theme->metrics.padding, hint},
-                       i18n_text(STR_LISTENING_OPTIONS_HINT)});
-    content.height -= hint;
+    Rect footer = footer_hints_area(theme, content, OPTIONS_FOOTER);
+    footer_hints_draw(canvas, theme, footer, OPTIONS_FOOTER);
+    content.height -= footer.height;
     Rect rows = content;
     rows.height = portrait ? theme->metrics.row_height * (MENU_ROWS + (screen->moments != NULL))
                            : content.height;
@@ -670,11 +628,13 @@ static void draw(void *context, Canvas *canvas)
     ListeningScreen *screen = context;
     const Theme *theme = screen->theme;
     Rect content = theme_content_area(theme);
+    if (screen->mode == MODE_CONFIRM) {
+        screen->confirm.screen.draw(&screen->confirm, canvas);
+        return;
+    }
     canvas_fill_rect(canvas, content, theme->colors.background);
     header_draw(canvas, theme, screen->screen.title);
-    if (screen->mode == MODE_CONFIRM) {
-        draw_confirmation(screen, canvas, content);
-    } else if (screen->mode == MODE_OPTIONS || screen->mode == MODE_PERIODS) {
+    if (screen->mode == MODE_PERIODS) {
         list_view_draw(&screen->list, canvas, content, screen->now_ms);
     } else if (screen->mode == MODE_RECAP) {
         recap_cards_draw(screen, canvas, content);

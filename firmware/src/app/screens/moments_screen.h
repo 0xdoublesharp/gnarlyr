@@ -1,6 +1,7 @@
 #pragma once
 
 #include "player.h"
+#include "ui/confirm_screen.h"
 #include "ui/list_view.h"
 #include "ui/screen.h"
 #include "ui/toast.h"
@@ -19,6 +20,7 @@ typedef struct MomentsScreen {
     MomentsScreenConfig config;
     ListModel model;
     ListView list;
+    ConfirmScreen confirm;
     uint32_t now_ms;
     uint16_t selected;
     uint8_t mode;

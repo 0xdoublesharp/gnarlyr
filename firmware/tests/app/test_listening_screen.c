@@ -79,6 +79,18 @@ static bool saw_whole(const char *text)
     return false;
 }
 
+static bool saw_start(const char *text)
+{
+    for (int index = 0; index < text_spy_count(); index++) {
+        const char *shown = text_spy_entry(index)->shown;
+        size_t length = strlen(shown);
+        if (length > 0 && strncmp(shown, text, length) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static Canvas draw(void)
 {
     Canvas canvas =
@@ -609,14 +621,19 @@ static void export_states_render_whole_at_every_size_and_orientation(void)
 static void open_clear(void)
 {
     key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
-    choose(0);
+}
+
+static void confirm_choice(int row)
+{
+    list_view_select(&screen.confirm.list, row, clock_ms);
+    key(KEY_PLAY, KEY_GESTURE_PRESS);
 }
 
 static void clearing_without_export_empties_totals_and_rankings(void)
 {
     start(true);
     open_clear();
-    choose(1);
+    confirm_choice(2);
     CHECK_EQUAL(0, listening_store_totals(&store).plays);
     CHECK_EQUAL(0, listening_store_totals(&store).listened_ms);
     CHECK_EQUAL(0, store.log.session.plays);
@@ -640,7 +657,7 @@ static void export_first_keeps_a_complete_export_then_clears(void)
 {
     start(true);
     open_clear();
-    choose(0);
+    confirm_choice(1);
     for (int step = 0; step < 2000 && store.log.root.kept != 0; step++) {
         tick();
     }
@@ -653,12 +670,12 @@ static void failed_or_cancelled_export_first_preserves_history(void)
     start(true);
     fake_hal_fail_file_writes(LISTENING_EXPORT_PATH);
     open_clear();
-    choose(0);
+    confirm_choice(1);
     finish_export();
     CHECK_EQUAL(2, store.log.root.kept);
     start(true);
     open_clear();
-    choose(0);
+    confirm_choice(1);
     key(KEY_BACK, KEY_GESTURE_PRESS);
     tick();
     CHECK_EQUAL(2, store.log.root.kept);
@@ -681,7 +698,7 @@ static void an_interrupted_clear_recovers_old_or_empty_history(void)
         open_clear();
         disk.cut_write = disk.writes + 1;
         disk.cut_bytes = cut;
-        choose(1);
+        confirm_choice(2);
         disk.cut_write = 0;
         ListeningLog recovered;
         CHECK_EQUAL(STORE_READY, listening_log_open(&recovered, listening_disk_config(&disk)));
@@ -703,7 +720,7 @@ static void clearing_discards_an_active_play_and_a_pending_retry(void)
     store.pending = store.active;
     store.retry_ms = UINT32_MAX / 2;
     open_clear();
-    choose(1);
+    confirm_choice(2);
     CHECK(!store.following);
     CHECK(!store.waiting);
     CHECK_EQUAL(0, listening_store_totals(&store).listened_ms);
@@ -723,7 +740,7 @@ static void moments_favorites_and_an_existing_export_are_untouched(void)
     fake_hal_add_file(FAVORITES_STORE_PATH, SAVED, sizeof SAVED);
     fake_hal_add_file(LISTENING_EXPORT_PATH, SAVED, sizeof SAVED);
     open_clear();
-    choose(1);
+    confirm_choice(2);
     const char *paths[] = {MOMENTS_PATH, FAVORITES_STORE_PATH, LISTENING_EXPORT_PATH};
     for (size_t index = 0; index < sizeof paths / sizeof paths[0]; index++) {
         uint32_t size = 0;
@@ -741,7 +758,7 @@ static void a_pending_scan_refuses_clear_and_export_first(void)
         start(true);
         open_clear();
         scanning = true;
-        choose(choice);
+        confirm_choice(choice + 1);
         tick();
         CHECK_EQUAL(2, store.log.root.kept);
         CHECK(!export_file_exists());
@@ -755,11 +772,11 @@ static void a_clear_with_unreadable_readback_can_be_retried_safely(void)
     start(true);
     disk.blind_from_write = disk.writes + 1;
     open_clear();
-    choose(1);
+    confirm_choice(2);
     CHECK(store.log.needs_reload);
     CHECK(strcmp(toast.text, i18n_text(STR_HISTORY_UNAVAILABLE)) == 0);
     disk.blind_from_write = 0;
-    choose(1);
+    confirm_choice(2);
     CHECK_EQUAL(0, store.log.root.kept);
     CHECK(!store.log.needs_reload);
     add_play(4, true);
@@ -774,45 +791,48 @@ static void confirmation_renders_whole_at_every_size_and_orientation(void)
         default_theme_set_orientation(&theme, (Orientation)(variant / TEXT_SIZE_COUNT));
         open_clear();
         Canvas canvas = draw();
-        CHECK(saw_whole(i18n_text(STR_CLEAR_HISTORY)));
-        CHECK(saw_whole(i18n_text(STR_EXPORT_FIRST)));
-        CHECK(saw_whole(i18n_text(STR_CLEAR)));
-        CHECK(saw_whole(i18n_text(STR_CARD_FORMAT_CANCEL)));
-        CHECK(!saw("\xE2\x80\xA6"));
+        CHECK(saw_whole(i18n_text(STR_CLEAR_HISTORY_QUESTION)));
+        CHECK(saw_whole(i18n_text(STR_HISTORY_CLEARS)));
+        CHECK(saw_whole(i18n_text(STR_HISTORY_KEEPS)));
         char shown[1024];
         StringBuilder builder = string_builder_make(shown, sizeof shown);
         for (int index = 0; index < text_spy_count(); index++) {
             string_builder_append(&builder, text_spy_entry(index)->shown);
             string_builder_append_char(&builder, ' ');
         }
-        static const StringId DETAILS[] = {
-            STR_LISTENING_TOTALS, STR_TOP_SONGS,   STR_TOP_ALBUMS,
-            STR_TOP_ARTISTS,      STR_MOST_PLAYED, STR_RECENTLY_PLAYED,
-            STR_EXPORT_PLAYS,     STR_MOMENTS,     STR_FAVORITES};
-        for (size_t index = 0; index < sizeof DETAILS / sizeof DETAILS[0]; index++) {
-            CHECK(strstr(shown, i18n_text(DETAILS[index])) != NULL);
-        }
+        CHECK(strstr(shown, "export history.") != NULL);
+        CHECK(strstr(shown, "music files.") != NULL);
         screen_snapshot_write(&canvas, "clear-listening-confirm", variant);
+        static const StringId CHOICES[] = {STR_CANCEL, STR_EXPORT_AND_CLEAR, STR_CLEAR_NOW};
+        for (int choice = 0; choice < 3; choice++) {
+            list_view_select(&screen.confirm.list, choice, clock_ms);
+            draw();
+            CHECK(saw(i18n_text(CHOICES[choice])) || saw_start(i18n_text(CHOICES[choice])));
+        }
     }
 }
 
-static void holding_play_opens_history_options_without_clearing(void)
+static void holding_play_asks_to_clear_history_with_cancel_focused(void)
 {
     start(true);
     key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
-    CHECK_EQUAL(1, screen.model.count(&screen));
+    CHECK(strcmp(screen.screen.title, i18n_text(STR_CLEAR_HISTORY_QUESTION)) == 0);
+    CHECK_EQUAL(0, screen.confirm.list.selected);
     CHECK_EQUAL(2, store.log.root.counters.totals.plays);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
-    CHECK_EQUAL(3, screen.model.count(&screen));
-    CHECK_EQUAL(2, screen.list.selected);
-    key(KEY_PLAY, KEY_GESTURE_PRESS);
     CHECK_EQUAL(2, store.log.root.counters.totals.plays);
+    CHECK(strcmp(screen.screen.title, i18n_text(STR_LISTENING)) == 0);
+    key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
+    CHECK_EQUAL(2, store.log.root.counters.totals.plays);
+    CHECK(strcmp(screen.screen.title, i18n_text(STR_LISTENING)) == 0);
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(holding_play_opens_history_options_without_clearing),
+        TEST_CASE(holding_play_asks_to_clear_history_with_cancel_focused),
         TEST_CASE(moments_favorites_and_an_existing_export_are_untouched),
         TEST_CASE(a_pending_scan_refuses_clear_and_export_first),
         TEST_CASE(a_clear_with_unreadable_readback_can_be_retried_safely),
