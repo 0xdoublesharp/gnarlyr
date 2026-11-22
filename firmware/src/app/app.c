@@ -2861,10 +2861,10 @@ const char *app_toast_text(void)
 
 const char *app_diagnostics_value(int index)
 {
-    if (screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS) == NULL) {
+    if (screen_modules_use(&app.screens, APP_ABOUT_MODULE) == NULL) {
         return NULL;
     }
-    const MenuItem *item = &app.screens.modules.views.diagnostics_items[index];
+    const MenuItem *item = &app_screens_about(&app.screens)->diagnostics_items[index];
     return item->value != NULL ? item->value(item->context) : NULL;
 }
 

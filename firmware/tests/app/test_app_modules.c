@@ -829,7 +829,7 @@ static void settings_returns_from_about_to_its_own_module(void)
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
     tap(KEY_PLAY);
     CHECK(title_is("About"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(APP_ABOUT_MODULE, (int)fake_hal_loaded_module());
     tap(KEY_BACK);
     move_down(SETTINGS_SHUFFLE_ROW);
     tap(KEY_PLAY);
@@ -941,9 +941,9 @@ static void an_about_value_is_read_through_its_module(void)
     start_app();
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK(app_diagnostics_value(1) != NULL);
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(APP_ABOUT_MODULE, (int)fake_hal_loaded_module());
     fake_hal_evict_module();
-    fake_hal_break_module(SCREEN_MODULE_VIEWS, true);
+    fake_hal_break_module(APP_ABOUT_MODULE, true);
     CHECK(app_diagnostics_value(1) == NULL);
 }
 
@@ -997,7 +997,7 @@ static void after_a_music_check_the_screen_on_top_gets_its_module_back(void)
     app_request_rescan_if_music_changed();
     step();
     CHECK(title_is("About"));
-    CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
+    CHECK_EQUAL(APP_ABOUT_MODULE, (int)fake_hal_loaded_module());
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
 }
 
@@ -1100,7 +1100,7 @@ static void about_omits_the_old_usb_controls_and_raw_dac_rows(void)
     AppScreens screens = {0};
     AppOptions options = {0};
     diagnostics_menu_build(&screens, &options, &BOARD_THEME);
-    const MenuConfig *menu = &screens.modules.views.diagnostics.config;
+    const MenuConfig *menu = &app_screens_about(&screens)->diagnostics.config;
     CHECK_EQUAL(15, menu->item_count);
     for (int index = 0; index < menu->item_count; index++) {
         const char *label = menu->items[index].label;

@@ -205,17 +205,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     platform/device/logic/fat_utf8.c
     src/app/favorite_playlist_add.c
     src/app/modules/views_module.c
-    platform/device/board/headset_reading.c
-    platform/device/board/jack_pins.c
-    platform/device/logic/headset_dips_view.c
-    platform/device/logic/headset_monitor_reading.c
     src/app/screens/charge_rate.c
     src/app/screens/charge_art.c
     src/app/screens/lyrics_screen.c
     src/library/lyrics.c
-    src/app/diagnostics_rows.c
-    src/app/diagnostics_values.c
-    src/app/about_layout.c
     src/app/mixtape_store.c
     src/app/order_adopt.c
     src/app/mixtape_ui.c
@@ -329,10 +322,19 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/app/cover_cache_half.c
     src/app/song_actions.c
 )
+set(ECHO_SCREEN_MODULE_ABOUT_SOURCES
+    src/app/diagnostics_rows.c
+    src/app/diagnostics_values.c
+    src/app/about_layout.c
+    platform/device/board/headset_reading.c
+    platform/device/board/jack_pins.c
+    platform/device/logic/headset_dips_view.c
+    platform/device/logic/headset_monitor_reading.c
+)
 if(ECHO_RELEASE)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
 else()
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/diagnostics_menu.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/screens/key_test_screen.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c

@@ -172,31 +172,31 @@ class EchoImageTest(EchoImageHarness):
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 
-    def test_a_usb_session_restores_about_from_views_then_back_restores_settings(self):
+    def test_a_usb_session_restores_about_from_format_then_back_restores_settings(self):
         from echo_emulator.modules import ModuleWatch
         session, machine = self.started_session()
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")
-        views_number, views = self.module(machine, "views")
+        about_number, about = self.module(machine, "format")
         machine.note("usb_session_storage_changed")
         machine.note("usb_storage_session")
         self.open_settings(machine)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_NEXT)
-        self.assertTrue(views.loaded(machine))
+        self.assertTrue(about.loaded(machine))
         self.assertFalse(settings.loaded(machine))
         machine.vbus = True
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.reached["usb_storage_session"], 1)
-        self.assertFalse(views.loaded(machine))
+        self.assertFalse(about.loaded(machine))
         machine.run(until_ms=machine.milliseconds() + 600)
-        self.assertTrue(views.loaded(machine))
+        self.assertTrue(about.loaded(machine))
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(settings_number, True), (views_number, True), (views_number, True)])
+                         [(settings_number, True), (about_number, True), (about_number, True)])
         self.press(machine, KEY_BACK)
         self.assertTrue(settings.loaded(machine))
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(settings_number, True), (views_number, True), (views_number, True),
+                         [(settings_number, True), (about_number, True), (about_number, True),
                           (settings_number, True)])
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
@@ -365,23 +365,24 @@ class EchoImageTest(EchoImageHarness):
         print("\n[module load, track playing] " + watch.describe(first[0]))
         print("[module reuse] %d calls, longest %d us" % (len(reuses), max(reuses)))
 
-    def test_about_uses_the_second_views_copy_when_the_first_is_damaged(self):
+    def test_about_uses_the_second_format_copy_when_the_first_is_damaged(self):
         session, machine = self.started_session()
-        session.change_module("slot_1", 1, 600, lambda byte: byte ^ 0xFF)
+        number, about = self.module(machine, "format")
+        session.change_module("slot_1", number, 600, lambda byte: byte ^ 0xFF)
         self.open_settings(machine)
         self.press(machine, image_tests.KEY_PLAY)
-        _, views = self.module(machine, "views")
-        self.assertTrue(views.loaded(machine))
-        self.assertTrue(session.module_reads("slot_2", 1))
+        self.assertTrue(about.loaded(machine))
+        self.assertTrue(session.module_reads("slot_2", number))
         self.press(machine, image_tests.KEY_BACK)
         _, settings = self.module(machine, "settings")
         self.assertTrue(settings.loaded(machine))
         self.assert_healthy(session)
 
-    def test_missing_views_keeps_about_shut_and_settings_usable(self):
+    def test_missing_format_keeps_about_shut_and_settings_usable(self):
         session, machine = self.started_session()
+        number, _ = self.module(machine, "format")
         for slot in ("slot_1", "slot_2"):
-            session.change_module(slot, 1, 600, lambda byte: byte ^ 0xFF)
+            session.change_module(slot, number, 600, lambda byte: byte ^ 0xFF)
         toasts = self.collect_toasts(machine)
         self.open_settings(machine)
         self.press(machine, image_tests.KEY_PLAY)
