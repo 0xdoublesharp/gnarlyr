@@ -40,14 +40,15 @@ static void open_settings(TextSize size, Orientation orientation)
                                .bluetooth = &bluetooth,
                                .theme = &theme};
     Screen *screen = settings_screens_init(&screens, context, &theme);
-    screens.items[SETTINGS_ABOUT_ITEM].label = i18n_text(STR_ABOUT);
     screen->enter(screen->context, 0);
 }
 
 static const MenuItem *item_named(const char *name)
 {
-    for (int index = 0; index < screens.menu.config.item_count; index++) {
-        const MenuItem *item = &screens.menu.config.items[index];
+    const MenuItem *group = &screens.groups[SETTINGS_GROUP_LIBRARY];
+    CHECK(group->select(group->context).target == &screens.group_menu.screen);
+    for (int index = 0; index < screens.group_menu.config.item_count; index++) {
+        const MenuItem *item = &screens.group_menu.config.items[index];
         if (item->label != NULL && strcmp(item->label, name) == 0) {
             return item;
         }
@@ -55,7 +56,7 @@ static const MenuItem *item_named(const char *name)
     return NULL;
 }
 
-static void settings_offers_card_formatting_beside_the_other_card_actions(void)
+static void library_settings_offer_card_formatting_beside_the_other_card_actions(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
@@ -251,7 +252,7 @@ int main(int argc, char **argv)
     static const TestCase cases[] = {
         TEST_CASE(eject_pauses_playback_and_releases_audio_before_unmount),
         TEST_CASE(mounted_card_offers_eject_and_ejected_card_offers_mount),
-        TEST_CASE(settings_offers_card_formatting_beside_the_other_card_actions),
+        TEST_CASE(library_settings_offer_card_formatting_beside_the_other_card_actions),
         TEST_CASE(confirming_twice_with_cancel_selected_does_not_erase),
         TEST_CASE(formatting_requires_the_second_confirmation_and_an_explicit_erase_choice),
         TEST_CASE(back_from_either_confirmation_does_not_erase),

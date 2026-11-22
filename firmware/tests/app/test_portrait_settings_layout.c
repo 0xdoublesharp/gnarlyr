@@ -142,12 +142,12 @@ static void settings_values_use_the_same_whole_label_layout_in_large_portrait(vo
                                .toast = &toast,
                                .bluetooth = &bluetooth,
                                .theme = &theme};
-    Screen *screen = settings_screens_init(&screens, context, &theme);
-    screens.items[SETTINGS_ABOUT_ITEM].label = i18n_text(STR_ABOUT);
+    settings_screens_init(&screens, context, &theme);
+    const MenuItem *display = &screens.groups[SETTINGS_GROUP_DISPLAY];
+    Screen *screen = display->select(display->context).target;
+    CHECK(screen == &screens.group_menu.screen);
     screen->enter(screen->context, 0);
-    MenuScreen *menu = &screens.menu;
-    CHECK(strcmp(menu->model.label(menu, menu->model.count(menu) - 1), i18n_text(STR_CONTROLS)) ==
-          0);
+    MenuScreen *menu = &screens.group_menu;
     bool has_status_bar = false;
     for (int row = 0; row < menu->model.count(menu); row++) {
         const char *label = menu->model.label(menu, row);
@@ -202,8 +202,8 @@ static void status_bar_choices_fit_every_size_and_orientation_and_save_independe
                                        .bluetooth = &bluetooth,
                                        .theme = &theme};
             settings_screens_init(&screens, context, &theme);
-            CHECK(strcmp(screens.items[SETTINGS_CONTROLS_ITEM].label, i18n_text(STR_CONTROLS)) ==
-                  0);
+            CHECK(strcmp(screens.groups[SETTINGS_GROUP_BUTTONS].label,
+                         i18n_text(STR_SETTINGS_BUTTONS)) == 0);
             for (int row = 0; row < SETTINGS_STATUS_COUNT; row++) {
                 const MenuItem *item = &screens.status_items[row];
                 CHECK(text_width(theme.fonts.body, item->label) <=
@@ -347,9 +347,102 @@ static void debug_choices_handle_dynamic_options_and_reject_unknown_text(void)
     CHECK_EQUAL(status_items, store.settings.status_items);
 }
 
+static SettingsScreens grouped;
+
+static void open_grouped(void)
+{
+    static Player player;
+    static Library library;
+    static PowerPolicy power;
+    static Toast toast;
+    static BluetoothLink link;
+    static BluetoothScreen bluetooth;
+    open_controls(TEXT_SIZE_MEDIUM, ORIENTATION_LANDSCAPE);
+    player_init(&player, &library);
+    bluetooth_screen_init(&bluetooth, &link, &theme);
+    SettingsContext context = {.store = &store,
+                               .player = &player,
+                               .power = &power,
+                               .toast = &toast,
+                               .bluetooth = &bluetooth,
+                               .theme = &theme};
+    Screen *screen = settings_screens_init(&grouped, context, &theme);
+    screen->enter(screen->context, 0);
+}
+
+static void settings_open_on_nine_groups_with_language_fourth_and_about_last(void)
+{
+    static const StringId order[SETTINGS_GROUP_COUNT] = {
+        STR_SETTINGS_SOUND,         STR_SETTINGS_PLAYBACK,      STR_SETTINGS_DISPLAY_TEXT,
+        STR_LANGUAGE,               STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
+        STR_SETTINGS_BUTTONS,       STR_SETTINGS_LIBRARY,       STR_ABOUT};
+    open_grouped();
+    MenuScreen *menu = &grouped.menu;
+    CHECK_EQUAL(SETTINGS_GROUP_COUNT, menu->model.count(menu));
+    for (int row = 0; row < SETTINGS_GROUP_COUNT; row++) {
+        CHECK(strcmp(i18n_text(order[row]), menu->model.label(menu, row)) == 0);
+        CHECK(menu->model.icon(menu, row) != ICON_NONE);
+    }
+    CHECK(grouped.languages.count <= 1);
+    CHECK_EQUAL(ICON_GLOBE, menu->model.icon(menu, SETTINGS_GROUP_LANGUAGE));
+    CHECK(strcmp(i18n_text(STR_LANGUAGE_NAME), menu->model.detail(menu, SETTINGS_GROUP_LANGUAGE)) ==
+          0);
+    CHECK(strcmp(i18n_text((StringId)(STR_SIZE_SMALL + store.settings.text_size)),
+                 menu->model.detail(menu, SETTINGS_GROUP_DISPLAY)) == 0);
+    CHECK(menu->model.detail(menu, SETTINGS_GROUP_SOUND) == NULL);
+}
+
+static int times_offered(const char *label)
+{
+    int times = 0;
+    for (int group = 0; group < SETTINGS_GROUP_COUNT; group++) {
+        const MenuItem *row = &grouped.groups[group];
+        ScreenAction opened = row->select != NULL ? row->select(row->context) : screen_action_none();
+        if (opened.target != &grouped.group_menu.screen) {
+            times += strcmp(label, row->label) == 0 ? 1 : 0;
+            continue;
+        }
+        for (int index = 0; index < grouped.group_menu.config.item_count; index++) {
+            times += strcmp(label, grouped.group_menu.config.items[index].label) == 0 ? 1 : 0;
+        }
+    }
+    return times;
+}
+
+static void every_former_settings_row_is_in_exactly_one_group(void)
+{
+    static const StringId rows[] = {
+        STR_SHUFFLE,          STR_REPEAT,          STR_BLUETOOTH,         STR_SLEEP_TIMER,
+        STR_AUTO_OFF,         STR_SCREEN_TIMEOUT,  STR_CLOCK_FORMAT,      STR_SET_CLOCK,
+        STR_BRIGHTNESS,       STR_COLOR,           STR_TEXT_SIZE,         STR_ORIENTATION,
+        STR_LANGUAGE,         STR_GAIN,            STR_DAC_FILTER,        STR_OUTPUT,
+        STR_EQUALIZER,        STR_CUSTOM_EQ,       STR_REPLAY_GAIN,       STR_PREVENT_CLIPPING,
+        STR_START_SCREEN,     STR_RESCAN_LIBRARY,  STR_HIDDEN_TRACKS,     STR_USB_MODE,
+        STR_THEME,            STR_STATUS_BAR,      STR_PLAYBACK_SPEED,    STR_REWIND_ON_RESUME,
+        STR_SAFE_START_VOLUME, STR_TRANSITIONS,    STR_TRANSITION_LENGTH, STR_USB_ANSWER,
+        STR_POWER_ON,         STR_SKIP_SILENCE,    STR_SPEECH_BOOST,      STR_CROSSFEED,
+        STR_HEADPHONES,       STR_CARD_EJECT,      STR_CARD_MOUNT,        STR_CARD_FORMAT,
+        STR_HOME_SCREEN,      STR_PEQ,             STR_STANDBY_POWER,     STR_NOW_PLAYING_STYLE,
+        STR_BACKUPS,          STR_SETTINGS_BUTTONS, STR_ABOUT};
+    open_grouped();
+    for (size_t index = 0; index < sizeof rows / sizeof rows[0]; index++) {
+        CHECK_EQUAL(1, times_offered(i18n_text(rows[index])));
+    }
+    int listed = 0;
+    for (int group = 0; group < SETTINGS_GROUP_COUNT; group++) {
+        const MenuItem *row = &grouped.groups[group];
+        ScreenAction opened = row->select != NULL ? row->select(row->context) : screen_action_none();
+        listed += opened.target == &grouped.group_menu.screen ? grouped.group_menu.config.item_count
+                                                              : 1;
+    }
+    CHECK_EQUAL((int)(sizeof rows / sizeof rows[0]), listed);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(settings_open_on_nine_groups_with_language_fourth_and_about_last),
+        TEST_CASE(every_former_settings_row_is_in_exactly_one_group),
         TEST_CASE(status_bar_choices_fit_every_size_and_orientation_and_save_independently),
         TEST_CASE(value_rows_get_a_separate_line_in_large_portrait),
         TEST_CASE(every_control_label_and_value_is_shown_whole_in_portrait),

@@ -31,10 +31,8 @@ static void bind_home_editor(AppScreens *screens)
                                .changed = home_changed,
                                .context = screens};
     Screen *editor = home_editor_init(&own->home_editor, config);
-    own->settings.items[SETTINGS_HOME_ITEM] = (MenuItem){.label = i18n_text(STR_HOME_SCREEN),
-                                                         .select = menu_open_screen,
-                                                         .context = editor,
-                                                         .opens = true};
+    own->settings.items[SETTINGS_HOME_ITEM].select = menu_open_screen;
+    own->settings.items[SETTINGS_HOME_ITEM].context = editor;
 }
 
 static void bind(AppScreens *screens)
@@ -61,8 +59,9 @@ static void bind(AppScreens *screens)
     };
     bluetooth_screen_init(&own->bluetooth, context->bluetooth, context->theme);
     settings_screens_init(&own->settings, settings, context->theme);
-    own->settings.items[SETTINGS_ABOUT_ITEM] =
-        app_screens_open_item(STR_ABOUT, &screens->modules.views.diagnostics.screen);
+    MenuItem *about = &own->settings.groups[SETTINGS_GROUP_ABOUT];
+    about->select = menu_open_screen;
+    about->context = &screens->modules.views.diagnostics.screen;
     for (int at = 0; at < SETTINGS_ITEM_COUNT; at++) {
         if (own->settings.items[at].label == i18n_text(STR_THEME)) {
             own->settings.items[at] =
@@ -75,12 +74,7 @@ static void bind(AppScreens *screens)
 static Screen *language_row(AppScreens *screens)
 {
     SettingsScreens *settings = &screens->modules.settings.settings;
-    int row = 0;
-    for (int index = 0; index < SETTINGS_LANGUAGE_ITEM; index++) {
-        const MenuItem *item = &settings->items[index];
-        row += item->shown == NULL || item->shown(item->shown_context) ? 1 : 0;
-    }
-    list_view_select(&settings->menu.list, row, 0);
+    list_view_select(&settings->menu.list, SETTINGS_GROUP_LANGUAGE, 0);
     return &settings->menu.screen;
 }
 

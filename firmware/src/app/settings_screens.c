@@ -249,17 +249,17 @@ static const char *describe_language(const void *context, int current)
     return i18n_text(STR_LANGUAGE_NAME);
 }
 
+static const char *describe_current_language(const void *context)
+{
+    (void)context;
+    return i18n_text(STR_LANGUAGE_NAME);
+}
+
 static void extend_language(SettingsScreens *screens, ChoiceConfig *config)
 {
     config->options = screens->languages.options;
     config->option_ids = NULL;
     config->option_count = screens->languages.count;
-}
-
-static bool language_shown(const void *context)
-{
-    const LanguageList *languages = context;
-    return languages->count > 1;
 }
 
 static int current_gain(const void *context)
@@ -947,7 +947,7 @@ static void bind_status_bar(SettingsScreens *screens)
                          .theme = screens->theme,
                          .detail_below = true};
     menu_screen_init(&screens->status_menu, config);
-    screens->items[SETTINGS_STATUS_CHOICE + 6] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
+    screens->items[SETTINGS_STATUS_BAR_ITEM] = (MenuItem){.label = i18n_text(STR_STATUS_BAR),
                                                             .select = open_status_bar,
                                                             .context = screens,
                                                             .opens = true};
@@ -960,9 +960,92 @@ static ScreenAction open_status_bar(void *context)
     return screen_action_push(&screens->status_menu.screen);
 }
 
-Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
+enum {
+    ROW_SPECIAL = -1,
+    LIST_GROUPS = SETTINGS_GROUP_LIBRARY + 1
+};
+
+static const int8_t ROW_CHOICES[SETTINGS_ITEM_COUNT] = {
+    13, 11, 14, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, 30, 15, 16, 12,
+    0, 1, 21, 24, 25, 22, 28, 29, 23, 2,
+    8, 9, 19, 7, 6, 4, ROW_SPECIAL, SETTINGS_NOW_PLAYING_CHOICE, ROW_SPECIAL, 17, 5, ROW_SPECIAL,
+    3, ROW_SPECIAL, 27,
+    26, 18, ROW_SPECIAL,
+    ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL};
+
+static const uint8_t GROUP_FIRST[LIST_GROUPS + 1] = {
+    SETTINGS_SOUND_FIRST,       SETTINGS_PLAYBACK_FIRST, SETTINGS_DISPLAY_FIRST,
+    SETTINGS_POWER_FIRST,       SETTINGS_POWER_FIRST,    SETTINGS_CONNECTIONS_FIRST,
+    SETTINGS_LIBRARY_FIRST,     SETTINGS_LIBRARY_FIRST,  SETTINGS_ITEM_COUNT};
+
+static const StringId GROUP_TITLES[SETTINGS_GROUP_COUNT] = {
+    STR_SETTINGS_SOUND,         STR_SETTINGS_PLAYBACK,   STR_SETTINGS_DISPLAY_TEXT,
+    STR_LANGUAGE,               STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
+    STR_SETTINGS_BUTTONS,       STR_SETTINGS_LIBRARY,    STR_ABOUT};
+
+static const IconId GROUP_ICONS[SETTINGS_GROUP_COUNT] = {
+    ICON_AUDIO, ICON_NOW_PLAYING, ICON_COMPUTER, ICON_GLOBE, ICON_POWER,
+    ICON_USB,   ICON_CONTROLS,    ICON_ALBUM,    ICON_LOGO};
+
+static ScreenAction open_group(void *context)
 {
-    screens->context = context;
+    SettingsGroupEntry *entry = context;
+    SettingsScreens *screens = entry->owner;
+    int first = GROUP_FIRST[entry->group];
+    MenuConfig config = {.title = i18n_text(GROUP_TITLES[entry->group]),
+                         .items = screens->items + first,
+                         .item_count = GROUP_FIRST[entry->group + 1] - first,
+                         .theme = screens->theme,
+                         .detail_below = true};
+    return screen_action_push(menu_screen_init(&screens->group_menu, config));
+}
+
+static const char *text_size_value(const void *context)
+{
+    const SettingsGroupEntry *entry = context;
+    return choice_value(&entry->owner->entries[SETTINGS_TEXT_SIZE_CHOICE]);
+}
+
+static void bind_choice_rows(SettingsScreens *screens)
+{
+    for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
+        screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
+    }
+    for (int item = 0; item < SETTINGS_ITEM_COUNT; item++) {
+        int choice = ROW_CHOICES[item];
+        if (choice != ROW_SPECIAL) {
+            screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[choice].title),
+                                              .select = open_choice,
+                                              .context = &screens->entries[choice],
+                                              .value = choice_value,
+                                              .opens = true};
+        }
+    }
+    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;
+    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown_context = &screens->context;
+}
+
+static void bind_groups(SettingsScreens *screens, Screen *buttons)
+{
+    for (int group = 0; group < SETTINGS_GROUP_COUNT; group++) {
+        screens->group_entries[group] = (SettingsGroupEntry){screens, (SettingsGroup)group};
+        screens->groups[group] = (MenuItem){.label = i18n_text(GROUP_TITLES[group]),
+                                            .select = open_group,
+                                            .context = &screens->group_entries[group],
+                                            .opens = true,
+                                            .icon = GROUP_ICONS[group]};
+    }
+    screens->groups[SETTINGS_GROUP_DISPLAY].value = text_size_value;
+    screens->groups[SETTINGS_GROUP_LANGUAGE].select = open_choice;
+    screens->groups[SETTINGS_GROUP_LANGUAGE].context = &screens->entries[SETTINGS_LANGUAGE_CHOICE];
+    screens->groups[SETTINGS_GROUP_LANGUAGE].value = describe_current_language;
+    screens->groups[SETTINGS_GROUP_BUTTONS].select = menu_open_screen;
+    screens->groups[SETTINGS_GROUP_BUTTONS].context = buttons;
+    screens->groups[SETTINGS_GROUP_ABOUT].select = NULL;
+}
+
+static void bind_card_rows(SettingsScreens *screens)
+{
     screens->items[SETTINGS_EJECT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_EJECT),
                                                      .select = change_card,
                                                      .context = screens,
@@ -977,6 +1060,40 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                                       .value = format_status,
                                                       .context = screens,
                                                       .opens = true};
+    screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
+                                                      .select = request_rescan,
+                                                      .context = &screens->context};
+    screens->items[SETTINGS_HIDDEN_ITEM] = hidden_choice_item(screens);
+    screens->items[SETTINGS_RESTORE_ITEM] = settings_backup_item(screens);
+}
+
+static MenuItem opening(StringId label, ScreenAction (*select)(void *), void *context)
+{
+    return (MenuItem){.label = i18n_text(label), .select = select, .context = context, .opens = true};
+}
+
+static void bind_special_rows(SettingsScreens *screens)
+{
+    SettingsContext *context = &screens->context;
+    bind_card_rows(screens);
+    bind_headphones(screens);
+    screens->items[SETTINGS_DATE_TIME_ITEM] = opening(STR_SET_CLOCK, open_clock, screens);
+    screens->items[SETTINGS_DATE_TIME_ITEM].value = clock_summary;
+    screens->items[SETTINGS_BLUETOOTH_ITEM] =
+        opening(STR_BLUETOOTH, bluetooth_screen_open, context->bluetooth);
+    screens->items[SETTINGS_BLUETOOTH_ITEM].value = bluetooth_screen_summary;
+    screens->items[SETTINGS_CUSTOM_EQ_ITEM] =
+        opening(STR_CUSTOM_EQ, menu_open_screen, context->graphic);
+    screens->items[SETTINGS_PARAMETRIC_ITEM] =
+        opening(STR_PEQ, menu_open_screen, context->parametric);
+    screens->items[SETTINGS_POWER_ITEM] = opening(STR_STANDBY_POWER, open_power, screens);
+    screens->items[SETTINGS_HOME_ITEM] = opening(STR_HOME_SCREEN, NULL, NULL);
+    bind_status_bar(screens);
+}
+
+Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
+{
+    screens->context = context;
     screens->context.languages = &screens->languages;
     screens->theme = theme;
     screens->choice_preview = STRING_COUNT;
@@ -988,69 +1105,12 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                     .changed = buttons_changed,
                                     .context = &screens->context};
     Screen *controls = button_settings_init(&screens->buttons, buttons);
-    bind_headphones(screens);
-    screens->items[SETTINGS_CONTROLS_ITEM] = (MenuItem){.label = i18n_text(STR_CONTROLS),
-                                                        .select = menu_open_screen,
-                                                        .context = controls,
-                                                        .opens = true};
-    screens->items[SETTINGS_DATE_TIME_ITEM] = (MenuItem){.label = i18n_text(STR_SET_CLOCK),
-                                                         .select = open_clock,
-                                                         .context = screens,
-                                                         .value = clock_summary,
-                                                         .opens = true};
-    screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
-                                                      .select = request_rescan,
-                                                      .context = &screens->context};
-    screens->items[SETTINGS_HIDDEN_ITEM] = hidden_choice_item(screens);
-    screens->items[SETTINGS_RESTORE_ITEM] = settings_backup_item(screens);
-    screens->items[SETTINGS_BLUETOOTH_ITEM] = (MenuItem){.label = i18n_text(STR_BLUETOOTH),
-                                                         .select = bluetooth_screen_open,
-                                                         .context = context.bluetooth,
-                                                         .value = bluetooth_screen_summary,
-                                                         .opens = true};
-    screens->items[SETTINGS_CUSTOM_EQ_ITEM] = (MenuItem){.label = i18n_text(STR_CUSTOM_EQ),
-                                                         .select = menu_open_screen,
-                                                         .context = context.graphic,
-                                                         .opens = true};
-    screens->items[SETTINGS_PARAMETRIC_ITEM] = (MenuItem){.label = i18n_text(STR_PEQ),
-                                                          .select = menu_open_screen,
-                                                          .context = context.parametric,
-                                                          .opens = true};
-    for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
-        screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
-        if (index >= SETTINGS_MAIN_CHOICE_COUNT) {
-            continue;
-        }
-        int item = index + 1;
-        item = item < SETTINGS_BLUETOOTH_ITEM ? item : item + 1;
-        item = item < SETTINGS_DATE_TIME_ITEM ? item : item + 1;
-        item = item < SETTINGS_CUSTOM_EQ_ITEM ? item : item + 1;
-        item = item < SETTINGS_RESCAN_ITEM ? item : item + 1;
-        item = item < SETTINGS_HIDDEN_ITEM ? item : item + 1;
-        screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[index].title),
-                                          .select = open_choice,
-                                          .context = &screens->entries[index],
-                                          .value = choice_value,
-                                          .opens = true};
-    }
-    screens->items[SETTINGS_POWER_ITEM] = (MenuItem){.label = i18n_text(STR_STANDBY_POWER),
-                                                     .select = open_power,
-                                                     .context = screens,
-                                                     .opens = true};
-    bind_status_bar(screens);
-    screens->items[SETTINGS_NOW_PLAYING_ITEM] =
-        (MenuItem){.label = i18n_text(STR_NOW_PLAYING_STYLE),
-                   .select = open_choice,
-                   .context = &screens->entries[SETTINGS_NOW_PLAYING_CHOICE],
-                   .value = choice_value,
-                   .opens = true};
-    screens->items[SETTINGS_LANGUAGE_ITEM].shown = language_shown;
-    screens->items[SETTINGS_LANGUAGE_ITEM].shown_context = &screens->languages;
-    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;
-    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown_context = &screens->context;
+    bind_choice_rows(screens);
+    bind_special_rows(screens);
+    bind_groups(screens, controls);
     MenuConfig menu = {.title = i18n_text(STR_SETTINGS),
-                       .items = screens->items,
-                       .item_count = SETTINGS_ITEM_COUNT,
+                       .items = screens->groups,
+                       .item_count = SETTINGS_GROUP_COUNT,
                        .theme = theme,
                        .detail_below = true};
     return menu_screen_init(&screens->menu, menu);

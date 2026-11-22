@@ -65,10 +65,9 @@ enum {
 #define LAST(op) ((op) | ICON_LAST_BIT)
 #define UNDRAWN(icon) (1u << ((icon) - FIRST_UNDRAWN))
 #define UNDRAWN_ICONS                                                                              \
-    (UNDRAWN(ICON_SHUFFLE) | UNDRAWN(ICON_DISPLAY) | UNDRAWN(ICON_THEME) | UNDRAWN(ICON_POWER) |   \
-     UNDRAWN(ICON_SLEEP) | UNDRAWN(ICON_CONTROLS) | UNDRAWN(ICON_START) | UNDRAWN(ICON_RESCAN) |   \
-     UNDRAWN(ICON_BLUETOOTH) | UNDRAWN(ICON_KEY_PLUS) | UNDRAWN(ICON_KEY_MINUS) |                  \
-     UNDRAWN(ICON_KEY_PLAY) | UNDRAWN(ICON_KEY_MENU))
+    (UNDRAWN(ICON_SHUFFLE) | UNDRAWN(ICON_DISPLAY) | UNDRAWN(ICON_THEME) | UNDRAWN(ICON_SLEEP) |   \
+     UNDRAWN(ICON_START) | UNDRAWN(ICON_RESCAN) | UNDRAWN(ICON_BLUETOOTH) |                        \
+     UNDRAWN(ICON_KEY_PLUS) | UNDRAWN(ICON_KEY_MINUS) | UNDRAWN(ICON_KEY_PLAY))
 
 _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
                "UNDRAWN_ICONS holds one bit per icon");
@@ -115,6 +114,9 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
     LINE(2, 9, 2, 5), LINE(2, 5, 4, 3), LINE(4, 3, 16, 3), ACCENT(LINE(13, 0, 16, 3)),             \
         ACCENT(LINE(16, 3, 13, 6)), LINE(16, 9, 16, 13), LINE(16, 13, 14, 15),                     \
         LINE(14, 15, 2, 15), ACCENT(LINE(5, 12, 2, 15)), LAST(ACCENT(LINE(2, 15, 5, 18)))
+#define POWER_GLYPH OPEN_RING(1, 2, 17, 3), LAST(ACCENT(LINE(9, 0, 9, 9)))
+#define CONTROLS_GLYPH                                                                             \
+    BOX(0, 4, 19, 15), ACCENT(DISC(3, 7, 5)), LINE(11, 8, 16, 8), LAST(LINE(11, 11, 16, 11))
 #define TIMEOUT_GLYPH RING(1, 1, 18), ACCENT(LINE(9, 4, 9, 9)), LAST(ACCENT(LINE(10, 10, 12, 12)))
 #define DIAGNOSTICS_GLYPH                                                                          \
     BOX(1, 1, 18, 14), ACCENT(LINE(4, 10, 7, 5)), ACCENT(LINE(7, 5, 11, 10)),                      \
@@ -163,7 +165,11 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
         LAST(BLOCK(0, 15, 19, 17))
 #define PLUG_GLYPH                                                                                 \
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
+#define KEY_MENU_GLYPH LINE(1, 4, 18, 4), ACCENT(LINE(1, 9, 18, 9)), LAST(LINE(1, 14, 18, 14))
 #define CHEVRON_GLYPH THICK(0, 0, 5, 6), LAST(THICK(5, 7, 0, 13))
+#define GLOBE_GLYPH                                                                                \
+    RING(1, 1, 18), ACCENT(LINE(10, 2, 10, 17)), ACCENT(LINE(2, 10, 17, 10)), LINE(4, 5, 15, 5),   \
+        LAST(LINE(4, 14, 15, 14))
 
 static const uint32_t GLYPHS[] = {
     MUSIC_GLYPH,
@@ -183,11 +189,14 @@ static const uint32_t GLYPHS[] = {
     PLAYLIST_GLYPH,
     FAVORITE_GLYPH,
     REPEAT_GLYPH,
+    POWER_GLYPH,
     TIMEOUT_GLYPH,
+    CONTROLS_GLYPH,
     DIAGNOSTICS_GLYPH,
     GAIN_GLYPH,
     JACK_GLYPH,
     USB_GLYPH,
+    KEY_MENU_GLYPH,
     DISC_GLYPH,
     HUB_GLYPH,
     SEARCH_GLYPH,
@@ -207,6 +216,7 @@ static const uint32_t GLYPHS[] = {
     SONG_SMALL_GLYPH,
     PLUG_GLYPH,
     CHEVRON_GLYPH,
+    GLOBE_GLYPH,
 };
 
 typedef struct Pen {
@@ -446,7 +456,7 @@ static const uint32_t *glyph(IconId icon)
 {
     const uint32_t *word = GLYPHS;
     for (int index = ICON_NONE + 1; index < (int)icon; index++) {
-        while (drawn(index) && (*word++ & ICON_LAST_BIT) == 0) {
+        while (drawn(index) && index != ICON_LOGO && (*word++ & ICON_LAST_BIT) == 0) {
         }
     }
     return word;
@@ -454,7 +464,7 @@ static const uint32_t *glyph(IconId icon)
 
 int icon_rows(IconId icon)
 {
-    return (int)icon >= FIRST_SMALL ? ICON_SMALL_GRID : ICON_LARGE_GRID;
+    return (int)icon >= FIRST_SMALL && icon <= ICON_LOGO ? ICON_SMALL_GRID : ICON_LARGE_GRID;
 }
 
 int icon_width(IconId icon, int height)
