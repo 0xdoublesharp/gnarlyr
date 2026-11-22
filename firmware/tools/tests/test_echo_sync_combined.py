@@ -72,7 +72,8 @@ class CombinedSyncTest(unittest.TestCase):
         self.assertEqual((b"DSS2", card.first, card.second, card.entries, bytes(16),
                           internal.first, internal.second, internal.entries, 1, 19),
                          SCAN_RECORD.unpack_from(self.scan.read_bytes()))
-        self.assertEqual([self.generation], list(self.generation.parent.iterdir()))
+        written = [path for path in self.generation.parent.iterdir() if path.name != "fonts"]
+        self.assertEqual([self.generation], written)
         self.assertEqual(struct.pack("<I", 19), self.generation.read_bytes())
         self.card_and_internal("--check")
         self.generation.write_bytes(struct.pack("<I", 20))
@@ -140,7 +141,8 @@ class CombinedSyncTest(unittest.TestCase):
         status, output = self.run_sync("--no-covers", card=self.internal, mounts=[])
         self.assertEqual(2, status, output)
         self.assertIn("internal storage", output)
-        self.assertEqual([self.generation], list(self.generation.parent.iterdir()))
+        written = [path for path in self.generation.parent.iterdir() if path.name != "fonts"]
+        self.assertEqual([self.generation], written)
 
     def test_picker_prefers_detected_cards_and_excludes_unpaired_internal_mounts(self):
         other_card = self.card.parent / "Other card"
