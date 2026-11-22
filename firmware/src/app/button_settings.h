@@ -20,7 +20,8 @@ enum {
     BUTTON_ROW_EVERY_SCREEN,
     BUTTON_ROW_LONG,
     BUTTON_ROW_RESET,
-    BUTTON_ROW_COUNT
+    BUTTON_ROW_COUNT,
+    BUTTON_VALUE_BYTES = 64
 };
 
 typedef struct ButtonSettings ButtonSettings;
@@ -45,6 +46,7 @@ struct ButtonSettings {
     ChoiceScreen choice;
     MenuItem items[BUTTON_ROW_COUNT];
     ButtonEntry entries[PLAYBACK_BUTTON_COUNT];
+    char value[BUTTON_VALUE_BYTES];
 };
 
 Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig config);

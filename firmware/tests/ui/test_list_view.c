@@ -587,39 +587,6 @@ static void a_value_that_does_not_fit_beside_its_label_drops_under_it(void)
     CHECK(ui_test_area_has_color(&canvas, under, TEST_THEME.colors.text_secondary));
 }
 
-static const char *note_at_one(const void *context, int index)
-{
-    (void)context;
-    return index == 1 ? "AB" : NULL;
-}
-
-static const char *long_note_at_one(const void *context, int index)
-{
-    (void)context;
-    return index == 1 ? "ABABABABABABABABABABABABABAB" : NULL;
-}
-
-static void a_note_is_drawn_in_the_accent_colour_after_the_value_and_counts_in_the_fit(void)
-{
-    ListView view = wrapping_list();
-    items.detail_at_one = "B";
-    model.note = note_at_one;
-    list_view_measure(&view, TEST_SCREEN_WIDTH);
-    CHECK_EQUAL(LIST_LINES_ONE, view.lines);
-    Canvas canvas = ui_test_canvas();
-    list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 100);
-    Rect right_of_row_one = {TEST_SCREEN_WIDTH / 2, row_rect(1).y, TEST_SCREEN_WIDTH / 2,
-                             TEST_ROW_HEIGHT};
-    CHECK(ui_test_area_has_color(&canvas, right_of_row_one, TEST_THEME.colors.accent));
-    CHECK(ui_test_area_has_color(&canvas, right_of_row_one, TEST_THEME.colors.text_secondary));
-    model.note = long_note_at_one;
-    list_view_measure(&view, TEST_SCREEN_WIDTH);
-    CHECK_EQUAL(LIST_LINES_VALUE_UNDER, view.lines);
-    model.note = NULL;
-    list_view_measure(&view, TEST_SCREEN_WIDTH);
-    CHECK_EQUAL(LIST_LINES_ONE, view.lines);
-}
-
 static void a_list_that_does_not_wrap_never_grows_its_rows(void)
 {
     ListView view = list_of(3);
@@ -634,7 +601,6 @@ int main(void)
         TEST_CASE(a_list_of_rows_that_fit_keeps_single_line_rows),
         TEST_CASE(one_label_too_long_turns_every_row_into_a_two_line_row),
         TEST_CASE(a_value_that_does_not_fit_beside_its_label_drops_under_it),
-        TEST_CASE(a_note_is_drawn_in_the_accent_colour_after_the_value_and_counts_in_the_fit),
         TEST_CASE(a_list_that_does_not_wrap_never_grows_its_rows),
         TEST_CASE(a_section_label_is_never_focused),
         TEST_CASE(focusing_the_first_row_under_a_label_scrolls_the_label_into_view),

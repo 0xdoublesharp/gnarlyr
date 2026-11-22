@@ -54,7 +54,6 @@ typedef struct ListModel {
     bool section_reverse;
     ListRowRole (*role)(const void *context, int index);
     bool wraps;
-    const char *(*note)(const void *context, int index);
 } ListModel;
 
 typedef struct ListView {

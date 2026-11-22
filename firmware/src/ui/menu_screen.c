@@ -57,12 +57,6 @@ static IconId item_icon(const void *context, int index)
     return shown_item(context, index)->icon;
 }
 
-static const char *item_note(const void *context, int index)
-{
-    const MenuScreen *menu = context;
-    return menu->config.note(shown_item(menu, index));
-}
-
 static ListRowRole item_role(const void *context, int index)
 {
     return shown_item(context, index)->role;
@@ -178,8 +172,7 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
                               .icon = has_icons(menu) ? item_icon : NULL,
                               .detail_below = config.detail_below,
                               .role = item_role,
-                              .wraps = true,
-                              .note = config.note != NULL ? item_note : NULL};
+                              .wraps = true};
     list_view_init(&menu->list, &menu->model, config.theme, 0);
     menu->screen = (Screen){
         .title = config.title,

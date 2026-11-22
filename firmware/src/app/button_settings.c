@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/i18n.h"
+#include "core/string_builder.h"
 
 static const StringId ACTIONS[BUTTON_ACTION_COUNT] = {
     STR_BUTTON_DEFAULT,
@@ -88,13 +89,12 @@ static const char *value(const void *context)
 {
     const ButtonEntry *entry = context;
     int action = current(context);
-    return i18n_text(customised(action) ? ACTIONS[action] : DEFAULT_ACTIONS[entry->button]);
-}
-
-static const char *custom_note(const MenuItem *item)
-{
-    bool custom = item->value == value && customised(current(item->context));
-    return custom ? i18n_text(STR_BUTTON_CUSTOM) : NULL;
+    if (!customised(action)) {
+        return i18n_text(DEFAULT_ACTIONS[entry->button]);
+    }
+    StringBuilder text = string_builder_make(entry->owner->value, BUTTON_VALUE_BYTES);
+    i18n_format_text(&text, STR_BUTTON_CUSTOM_VALUE, i18n_text(ACTIONS[action]));
+    return entry->owner->value;
 }
 
 static void choose(void *context, int action)
@@ -191,8 +191,7 @@ Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig confi
                        .items = buttons->items,
                        .item_count = BUTTON_ROW_COUNT,
                        .theme = config.theme,
-                       .detail_below = true,
-                       .note = custom_note};
+                       .detail_below = true};
     Screen *screen = menu_screen_init(&buttons->menu, menu);
     list_view_select(&buttons->menu.list, BUTTON_ROW_FIRST, 0);
     return screen;

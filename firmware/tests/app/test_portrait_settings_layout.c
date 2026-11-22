@@ -62,7 +62,7 @@ static void open_controls(TextSize size, Orientation orientation)
     theme.colors.selection_background = 0x001F;
     store.settings = settings_defaults();
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
-        store.settings.button_actions[index] = BUTTON_ACTION_PREVIOUS;
+        store.settings.button_actions[index] = BUTTON_ACTION_HOME;
     }
     button_settings_init(&buttons,
                          (ButtonSettingsConfig){.settings = &store.settings, .theme = &theme});
@@ -274,11 +274,8 @@ static void buttons_name_the_effective_action_and_mark_only_changed_ones_custom(
     for (int button = 0; button < PLAYBACK_BUTTON_COUNT; button++) {
         int row = BUTTON_ROW_FIRST + button;
         bool custom = button == PLAYBACK_VOLUME_UP_HOLD;
-        StringId shown = custom ? STR_BUTTON_NEXT : defaults[button];
-        CHECK(strcmp(i18n_text(shown), menu->model.detail(menu, row)) == 0);
-        const char *note = menu->model.note(menu, row);
-        CHECK(custom ? note != NULL && strcmp(i18n_text(STR_BUTTON_CUSTOM), note) == 0
-                     : note == NULL);
+        const char *shown = custom ? "Next track \xC2\xB7 Custom" : i18n_text(defaults[button]);
+        CHECK(strcmp(shown, menu->model.detail(menu, row)) == 0);
         CHECK(menu->model.icon(menu, row) != ICON_NONE);
     }
     CHECK(strcmp(i18n_text(STR_BUTTON_SKIP_TRACK), menu->model.detail(menu, BUTTON_ROW_SKIP)) == 0);
@@ -286,7 +283,6 @@ static void buttons_name_the_effective_action_and_mark_only_changed_ones_custom(
     CHECK(!menu->model.opens(menu, BUTTON_ROW_SKIP));
     CHECK_EQUAL(LIST_ROW_SECTION, menu->model.role(menu, BUTTON_ROW_EVERY_SCREEN));
     CHECK(strcmp(i18n_text(STR_LONG_CURRENT), menu->model.detail(menu, BUTTON_ROW_LONG)) == 0);
-    CHECK(menu->model.note(menu, BUTTON_ROW_LONG) == NULL);
 }
 
 static void the_chord_rows_only_explain_and_sections_are_skipped(void)
