@@ -144,12 +144,12 @@ static void hold_text(const Font *font, const uint16_t *ids, uint32_t count)
 void extra_font_hold_for_usb(const Theme *theme)
 {
     font_pack_hold(FONT_PACK_HOLD_PIN);
-    hold_text(theme->fonts.header, USB_TITLE_TEXT,
-              sizeof USB_TITLE_TEXT / sizeof USB_TITLE_TEXT[0]);
     hold_codepoints(theme->fonts.title, USB_FIGURES);
     hold_codepoints(theme->fonts.small, USB_FIGURES);
     uint32_t states = sizeof USB_STATE_TEXT / sizeof USB_STATE_TEXT[0];
     hold_text(theme->fonts.title, USB_STATE_TEXT, states);
+    hold_text(theme->fonts.header, USB_TITLE_TEXT,
+              sizeof USB_TITLE_TEXT / sizeof USB_TITLE_TEXT[0]);
     hold_text(theme->fonts.small, USB_STATE_TEXT, states);
     hold_text(theme->fonts.small, USB_SMALL_TEXT, sizeof USB_SMALL_TEXT / sizeof USB_SMALL_TEXT[0]);
     font_pack_hold(FONT_PACK_HOLD_FREEZE);
