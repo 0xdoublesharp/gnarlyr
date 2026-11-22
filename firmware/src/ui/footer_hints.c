@@ -50,7 +50,7 @@ static int max_of(int first, int second)
 
 const char *footer_hints_key_name(FooterKey key)
 {
-    return i18n_text((StringId)(STR_CHIP_VOL + key));
+    return i18n_text((StringId)((int)STR_CHIP_VOL + (int)key));
 }
 
 static void measure(const Theme *theme, FooterHints hints, bool stacked, FooterPlan *plan)
