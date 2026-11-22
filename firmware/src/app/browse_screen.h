@@ -76,6 +76,7 @@ typedef struct BrowsePoolConfig {
     Screen *(*artist)(void *context, BrowseScreen *browse, BrowseQuery albums);
     void *tools_context;
     Screen *(*manage)(void *context, uint16_t track, SongManage manage);
+    Screen *(*song_actions)(BrowsePool *pool, uint16_t track, const char *name, uint32_t now_ms);
 } BrowsePoolConfig;
 
 typedef struct SongActions {
@@ -105,3 +106,10 @@ Screen *browse_pool_open_favorites(BrowsePool *pool, int level);
 Screen *browse_pool_open_shelf(BrowsePool *pool, int level, SpokenKind shelf);
 Screen *browse_pool_song_actions(BrowsePool *pool, uint16_t track, const char *name,
                                  uint32_t now_ms);
+ScreenAction browse_song_play_next(void *context);
+ScreenAction browse_song_add_to_up_next(void *context);
+ScreenAction browse_song_add_to_favorites(void *context);
+ScreenAction browse_song_add_to_tape(void *context);
+ScreenAction browse_song_open_info(void *context);
+ScreenAction browse_song_open_tags(void *context);
+ScreenAction browse_song_manage(void *context);
