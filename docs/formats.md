@@ -108,6 +108,8 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | `trial.bin` | `DSUT`, 1 | |
 | glyph faces | `EGLF`, 1 | `tools/glyph_pack.py`; [architecture.md](../firmware/docs/architecture.md), Glyph packs |
 | `extra.font` | `EGXF`, 1 | `tools/glyph_pack.py` `pack_extra_font`; on internal storage in `fonts/` |
+| `fonts/missing.txt` | none | written by the player's library scan: the characters it can't draw, UTF-8 in code-point order, then zero bytes to 16,384 bytes; absent while every character draws |
+| `fonts/missing.count` | none | u32 little-endian: how many library strings without `/` use one of those characters |
 | discovery preferences | 1 | |
 | debug screenshots | 1 | `tools/echo_debug.py` |
 | `scan.bin` | `DSS2` | the card and internal music fingerprints, firmware tag, internal state and generation in a 52-byte record |
