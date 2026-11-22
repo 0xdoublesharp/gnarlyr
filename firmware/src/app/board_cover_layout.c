@@ -4,7 +4,6 @@
 #include "gfx/text.h"
 
 const BoardCoverLayout BOARD_COVER_LAYOUT = {
-    .up_next_detail_max_width = 150,
     .cover_flow =
         {
             .center_x = 240,

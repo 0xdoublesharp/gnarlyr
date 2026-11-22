@@ -39,7 +39,6 @@ typedef struct BoardLayout {
 } BoardLayout;
 
 typedef struct BoardCoverLayout {
-    int up_next_detail_max_width;
     CoverFlowLayout cover_flow;
     CoverFlowTextLayout cover_flow_text[TEXT_SIZE_COUNT];
     CoverStackLayout cover_stack;

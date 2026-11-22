@@ -106,6 +106,7 @@ STR_TIME_LEFT = {0} left
 # Cover Flow.
 STR_RANDOM_ALBUM = Random album
 STR_RANDOM_ALBUM_HINT = Play any album
+STR_HOME = Home
 
 # Now Playing and Up Next. {0} of {1} is the place in the queue; {0}-bit is the sample size.
 # The STR_SKIPPED_* toasts say what holding Play and tapping Vol+ or Vol- did: another song, the same song from its start, or nothing at the end of the queue. In STR_JUMPED_FORWARD and STR_JUMPED_BACK, {0} is how many seconds an audiobook or podcast jumped. STR_SCRUB_PREVIEW marks the time shown while Menu and a volume button are held; the other STR_SCRUB_* toasts say why that gesture did nothing.
@@ -130,6 +131,7 @@ STR_RATE_UNSUPPORTED = {0} isn't supported
 STR_TYPE_UNSUPPORTED = File type not supported
 STR_M4A_UNSUPPORTED = Only AAC-LC and ALAC M4A play
 STR_TRACK_UNREADABLE = Couldn't read track
+STR_UP_NEXT_BADGE = Next
 
 # Settings rows.
 STR_SHUFFLE = Shuffle

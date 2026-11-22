@@ -133,11 +133,6 @@ static void the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list(void)
     CHECK(BOARD_LAYOUT.home_art_width <= HAL_DISPLAY_WIDTH / 2);
 }
 
-static void up_next_details_leave_room_for_the_label(void)
-{
-    CHECK(BOARD_COVER_LAYOUT.up_next_detail_max_width <= HAL_DISPLAY_WIDTH / 2);
-}
-
 static void a_strip_buffer_stays_small_and_strips_cover_the_screen(void)
 {
     CHECK(HAL_DISPLAY_WIDTH * BOARD_STRIP_HEIGHT <= MAX_STRIP_PIXELS);
@@ -441,7 +436,6 @@ int main(void)
         TEST_CASE(cover_flow_text_sits_below_the_cover_and_on_screen),
         TEST_CASE(cover_flow_text_lines_fit_the_theme_fonts),
         TEST_CASE(the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list),
-        TEST_CASE(up_next_details_leave_room_for_the_label),
         TEST_CASE(a_strip_buffer_stays_small_and_strips_cover_the_screen),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
