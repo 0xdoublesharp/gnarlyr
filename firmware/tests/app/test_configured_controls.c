@@ -9,6 +9,7 @@
 #include "fixture_library.h"
 #include "library_store.h"
 #include "settings/settings.h"
+#include "settings_screens.h"
 #include "settings_store.h"
 
 enum {
@@ -194,9 +195,11 @@ static void reset_buttons_restores_the_live_controls_and_saved_defaults(void)
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
-    tap(KEY_VOLUME_DOWN);
+    for (int group = 0; group < SETTINGS_GROUP_BUTTONS; group++) {
+        tap(KEY_VOLUME_UP);
+    }
     tap(KEY_PLAY);
-    CHECK(strcmp(app_screen_title(), "Controls") == 0);
+    CHECK(strcmp(app_screen_title(), "Buttons") == 0);
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     SettingsStore restored;

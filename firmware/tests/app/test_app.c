@@ -63,8 +63,13 @@ enum {
     START_MS = 1000,
     KEY_HOLD_MS = 30,
     FULL_FRAME_PIXELS = HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT,
-    SETTINGS_ABOUT_INDEX = 0,
-    SETTINGS_SHUFFLE_INDEX = 1,
+    SETTINGS_ABOUT_INDEX = 8,
+    SETTINGS_GROUP_ROWS = 16,
+    SETTINGS_CLOCK_FORMAT_INDEX = 2 * SETTINGS_GROUP_ROWS + 10,
+    SETTINGS_DATE_TIME_INDEX = 2 * SETTINGS_GROUP_ROWS + 11,
+    SETTINGS_POWER_ON_INDEX = 4 * SETTINGS_GROUP_ROWS + 2,
+    SETTINGS_LIBRARY_GROUP = 7,
+    SETTINGS_SHUFFLE_INDEX = 16,
     DIAGNOSTICS_FRAME_TIME_INDEX = 0,
     DIAGNOSTICS_FIRMWARE_INDEX = 1,
     MUSIC_ARTISTS_INDEX = 2,
@@ -73,26 +78,26 @@ enum {
     BJORK_POSITION = 3,
     HOME_SETTINGS_INDEX = 5,
     HOME_NOW_PLAYING_INDEX = 0,
-    SETTINGS_REPEAT_INDEX = 2,
-    SETTINGS_SLEEP_INDEX = 4,
-    SETTINGS_TIMEOUT_INDEX = 6,
-    SETTINGS_BRIGHTNESS_INDEX = 9,
-    SETTINGS_COLOR_INDEX = 10,
-    SETTINGS_TEXT_SIZE_INDEX = 11,
-    SETTINGS_ORIENTATION_INDEX = 12,
-    SETTINGS_GAIN_INDEX = 13,
-    SETTINGS_DAC_FILTER_INDEX = 14,
-    SETTINGS_EQUALIZER_INDEX = 16,
-    SETTINGS_CUSTOM_EQ_INDEX = 17,
-    SETTINGS_REPLAY_GAIN_INDEX = 18,
-    SETTINGS_CLIPPING_INDEX = 19,
-    SETTINGS_START_INDEX = 20,
-    SETTINGS_RESCAN_INDEX = 21,
-    SETTINGS_USB_MODE_INDEX = 22,
-    SETTINGS_THEME_INDEX = 23,
-    SETTINGS_STATUS_BAR_INDEX = 24,
+    SETTINGS_REPEAT_INDEX = 17,
+    SETTINGS_SLEEP_INDEX = 24,
+    SETTINGS_TIMEOUT_INDEX = 37,
+    SETTINGS_BRIGHTNESS_INDEX = 36,
+    SETTINGS_COLOR_INDEX = 35,
+    SETTINGS_TEXT_SIZE_INDEX = 32,
+    SETTINGS_ORIENTATION_INDEX = 33,
+    SETTINGS_GAIN_INDEX = 1,
+    SETTINGS_DAC_FILTER_INDEX = 9,
+    SETTINGS_EQUALIZER_INDEX = 2,
+    SETTINGS_CUSTOM_EQ_INDEX = 3,
+    SETTINGS_REPLAY_GAIN_INDEX = 7,
+    SETTINGS_CLIPPING_INDEX = 8,
+    SETTINGS_START_INDEX = 41,
+    SETTINGS_RESCAN_INDEX = 112,
+    SETTINGS_USB_MODE_INDEX = 81,
+    SETTINGS_THEME_INDEX = 34,
+    SETTINGS_STATUS_BAR_INDEX = 38,
     STATUS_BAR_BATTERY_PERCENT_INDEX = 3,
-    SETTINGS_USB_ANSWER_INDEX = 29,
+    SETTINGS_USB_ANSWER_INDEX = 80,
     GAIN_RISE_STEPS = 6,
     USB_PROMPT_MS = 15000,
     CHARGE_LIT_MS = 5000,
@@ -718,7 +723,7 @@ static void a_battery_change_on_a_marquee_step_redraws_the_whole_screen(void)
 static void open_portrait_setting(int index)
 {
     choose_orientation(ORIENTATION_PORTRAIT);
-    move_down(SETTINGS_ORIENTATION_INDEX - index);
+    portrait_down(index % SETTINGS_GROUP_ROWS - SETTINGS_ORIENTATION_INDEX % SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
 }
@@ -1290,7 +1295,9 @@ static void open_setting(int index)
 {
     move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
-    move_down(index);
+    move_down(index / SETTINGS_GROUP_ROWS);
+    tap(KEY_PLAY);
+    move_down(index % SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
 }
 
@@ -1301,7 +1308,7 @@ static void settings_choose_shuffle_and_repeat(void)
     CHECK(title_is("Shuffle"));
     move_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Playback"));
     CHECK_EQUAL(SHUFFLE_SONGS, app_player_status().shuffle);
     move_down(SETTINGS_REPEAT_INDEX - SETTINGS_SHUFFLE_INDEX);
     tap(KEY_PLAY);
@@ -1517,7 +1524,7 @@ static void the_dac_filter_applies_on_play_saves_and_returns_after_a_restart(voi
     move_down(DAC_FILTER_NON_OVERSAMPLING);
     CHECK_EQUAL(HAL_AUDIO_FILTER_FAST_LOW_LATENCY, fake_hal_audio_filter());
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Sound"));
     CHECK_EQUAL(HAL_AUDIO_FILTER_NON_OVERSAMPLING, fake_hal_audio_filter());
     Settings settings;
     CHECK(saved_settings(&settings));
@@ -1606,7 +1613,7 @@ static void gain_waits_for_play_and_output_previews_without_restarting_music(voi
     CHECK_EQUAL(GAIN_LOW, store.settings.gain);
     tap(KEY_BACK);
     CHECK_EQUAL(HAL_AUDIO_GAIN_LOW, fake_hal_audio_gain());
-    move_down(SETTINGS_EQUALIZER_INDEX - 1 - SETTINGS_GAIN_INDEX);
+    move_up(SETTINGS_GAIN_INDEX % SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
     CHECK(title_is("Output"));
     tap(KEY_VOLUME_UP);
@@ -1646,7 +1653,7 @@ static void an_equalizer_preset_reaches_the_audio_and_survives_a_restart(void)
     CHECK(title_is("Equalizer"));
     move_down(EQUALIZER_POP);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Sound"));
     HalAudioEqualizer pop = fake_hal_audio_equalizer();
     CHECK_EQUAL(3, pop.band_count);
     CHECK_EQUAL(100, pop.band_hz[0]);
@@ -1671,7 +1678,7 @@ static void browsing_equalizer_presets_previews_audio_but_saves_only_on_play(voi
     settings_store_load(&store);
     CHECK_EQUAL(EQUALIZER_OFF, store.settings.equalizer);
     tap(KEY_BACK);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Sound"));
     CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
     tap(KEY_PLAY);
     move_down(EQUALIZER_POP);
@@ -1781,7 +1788,7 @@ static void custom_eq_adjusts_a_band_with_the_volume_keys(void)
     CHECK_EQUAL(2, settings.equalizer_gains[5]);
     CHECK_EQUAL(0, settings.equalizer_gains[1]);
     tap(KEY_BACK);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Sound"));
 }
 
 static void custom_eq_stops_at_ten_decibels(void)
@@ -1909,7 +1916,7 @@ static void a_chosen_slot_opens_its_editor_and_saves_back_into_it(void)
     CHECK(!equalizer_slots_used(&slots, 0));
     CHECK_EQUAL(4, slots.gains[1][5]);
     tap(KEY_BACK);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Sound"));
 }
 
 static void the_equalizer_row_names_the_matching_slot(void)
@@ -1987,7 +1994,7 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
     CHECK(title_is("Accent color"));
     move_down(ACCENT_RED);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     Settings settings;
     CHECK(saved_settings(&settings));
     CHECK_EQUAL(ACCENT_RED, settings.accent);
@@ -2023,7 +2030,7 @@ static void accent_color_previews_and_back_restores_the_saved_selection(void)
 {
     open_theme_with_a_saved_graphite_palette();
     tap(KEY_BACK);
-    move_up(SETTINGS_THEME_INDEX - SETTINGS_COLOR_INDEX);
+    move_down(SETTINGS_COLOR_INDEX - SETTINGS_THEME_INDEX);
     tap(KEY_PLAY);
     tap(KEY_VOLUME_UP);
     wait_ms(SLIDE_DURATION_MS);
@@ -2106,13 +2113,17 @@ static void back_from_a_theme_preview_restores_the_saved_palette(void)
     tap(KEY_VOLUME_UP);
     check_theme_header(APPEARANCE_NEON_NOIR);
     tap(KEY_BACK);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     check_theme_header(APPEARANCE_GRAPHITE);
     tap(KEY_PLAY);
     CHECK(title_is("Theme"));
     check_theme_header(APPEARANCE_GRAPHITE);
     tap(KEY_BACK);
-    move_up(SETTINGS_THEME_INDEX - SETTINGS_CUSTOM_EQ_INDEX);
+    tap(KEY_BACK);
+    move_up(SETTINGS_THEME_INDEX / SETTINGS_GROUP_ROWS -
+            SETTINGS_CUSTOM_EQ_INDEX / SETTINGS_GROUP_ROWS);
+    tap(KEY_PLAY);
+    move_down(SETTINGS_CUSTOM_EQ_INDEX % SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
     CHECK(title_is("Custom EQ"));
     check_theme_header(APPEARANCE_GRAPHITE);
@@ -2136,7 +2147,7 @@ static void choosing_a_preview_saves_it_and_keeps_it_after_restart(void)
     open_theme_with_a_saved_graphite_palette();
     move_down(APPEARANCE_SUNSET);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     check_saved_theme_selection(APPEARANCE_SUNSET);
     check_theme_header(APPEARANCE_SUNSET);
     restart_app();
@@ -2179,7 +2190,7 @@ static void choose_text_size(TextSize size)
     move_down((int)size - (int)TEXT_SIZE_MEDIUM);
     move_up((int)TEXT_SIZE_MEDIUM - (int)size);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     wait_ms(SLIDE_DURATION_MS);
     step();
 }
@@ -2189,8 +2200,8 @@ static void large_text_resizes_the_open_list_at_once_and_is_saved(void)
     start_app_with_library();
     choose_text_size(TEXT_SIZE_LARGE);
     int header = expected_theme()->metrics.header_height;
-    CHECK(selected_at(header + 4 * 38 + 2));
-    CHECK(!selected_at(header + 4 * 38 - 2));
+    CHECK(selected_at(header + 38 - 2));
+    CHECK(!selected_at(header + 2 * 38 + 2));
     Settings settings;
     CHECK(saved_settings(&settings));
     CHECK_EQUAL(TEXT_SIZE_LARGE, settings.text_size);
@@ -2201,9 +2212,8 @@ static void small_text_resizes_the_open_list_at_once(void)
     start_app_with_library();
     choose_text_size(TEXT_SIZE_SMALL);
     int header = expected_theme()->metrics.header_height;
-    CHECK(selected_at(header + 5 * 24 + 2));
-    CHECK(!selected_at(header + 5 * 24 + 26));
-    CHECK(!selected_at(header + 5 * 24 - 2));
+    CHECK(selected_at(header + 24 - 2));
+    CHECK(!selected_at(header + 24 + 2));
 }
 
 static void the_text_size_survives_a_restart(void)
@@ -2223,6 +2233,7 @@ static void the_home_menu_fits_its_rows_to_the_new_size_when_shown_again(void)
     start_app_with_library();
     choose_text_size(TEXT_SIZE_LARGE);
     tap(KEY_BACK);
+    tap(KEY_BACK);
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is(FIRMWARE_SHORT_NAME));
@@ -2241,7 +2252,7 @@ static void choose_orientation(Orientation orientation)
     CHECK(title_is("Orientation"));
     move_down((int)orientation);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     wait_ms(SLIDE_DURATION_MS);
     step();
 }
@@ -2350,7 +2361,7 @@ static void in_portrait_the_volume_down_key_moves_down_the_list(void)
     choose_orientation(ORIENTATION_PORTRAIT);
     portrait_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Gain"));
+    CHECK(title_is("Theme"));
 }
 
 static void in_the_flipped_portrait_the_rocker_keeps_its_landscape_direction(void)
@@ -2373,7 +2384,7 @@ static void a_key_held_across_the_turn_keeps_the_direction_it_started_with(void)
     now_ms += 10;
     step();
     tap(KEY_PLAY);
-    CHECK(title_is("Gain"));
+    CHECK(title_is("Theme"));
 }
 
 static void home_puts_the_album_art_under_the_menu_in_portrait(void)
@@ -3759,7 +3770,7 @@ static void a_chord_tap_never_reaches_a_list_woken_mid_chord(void)
     CHECK(title_is("Settings"));
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is("About"));
+    CHECK(title_is("Sound"));
 }
 
 static void a_chord_hold_stops_seeking_once_power_wakes_a_list(void)
@@ -3780,7 +3791,7 @@ static void a_chord_hold_stops_seeking_once_power_wakes_a_list(void)
     CHECK(title_is("Settings"));
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is("About"));
+    CHECK(title_is("Sound"));
 }
 
 static void a_menu_hold_begun_in_the_dark_does_nothing_once_power_wakes_the_screen(void)
@@ -4716,7 +4727,9 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     hold_back();
     move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
     tap(KEY_PLAY);
-    move_up(6);
+    move_down(SETTINGS_LIBRARY_GROUP);
+    tap(KEY_PLAY);
+    move_up(1);
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
     tap(KEY_PLAY);
@@ -5853,7 +5866,7 @@ static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_res
     store.settings.speech_boost = true;
     CHECK(settings_store_save(&store));
     restart_app();
-    open_setting(SETTINGS_USB_ANSWER_INDEX + 1);
+    open_setting(SETTINGS_POWER_ON_INDEX);
     CHECK(title_is("Power on"));
     move_down(1);
     tap(KEY_PLAY);
@@ -5865,7 +5878,7 @@ static void the_power_on_choice_preserves_its_neighbouring_bits_and_survives_res
     restart_app();
     CHECK(saved_settings(&settings));
     CHECK_EQUAL(0x10, settings.power_on_flags);
-    open_setting(SETTINGS_USB_ANSWER_INDEX + 1);
+    open_setting(SETTINGS_POWER_ON_INDEX);
     move_down(1);
     tap(KEY_PLAY);
     CHECK(saved_settings(&settings));
@@ -6470,6 +6483,7 @@ static void shuffled_folder_play_starts_from_a_random_song(void)
     open_setting(SETTINGS_SHUFFLE_INDEX);
     move_down(1);
     tap(KEY_PLAY);
+    tap(KEY_BACK);
     tap(KEY_BACK);
     wait_ms(SLIDE_DURATION_MS);
     move_up(HOME_SETTINGS_INDEX);
@@ -7106,7 +7120,8 @@ static void every_about_row_is_drawn_whole_in_portrait_at_large_text(void)
     wait_ms(1000);
     fake_hal_set_combined(true);
     choose_orientation(ORIENTATION_PORTRAIT);
-    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_BACK);
+    portrait_down(SETTINGS_ABOUT_INDEX - SETTINGS_ORIENTATION_INDEX / SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     CHECK(title_is("About"));
@@ -7129,7 +7144,8 @@ static void all_about_rows_stay_on_screen_in_small_portrait_at_the_last_row(void
     restart_app();
     wait_ms(1000);
     choose_orientation(ORIENTATION_PORTRAIT);
-    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_BACK);
+    portrait_down(SETTINGS_ABOUT_INDEX - SETTINGS_ORIENTATION_INDEX / SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     CHECK(title_is("About"));
@@ -7144,7 +7160,8 @@ static void in_portrait_the_key_test_names_the_physical_key(void)
 {
     start_app_with_library();
     choose_orientation(ORIENTATION_PORTRAIT);
-    move_down(SETTINGS_ORIENTATION_INDEX - SETTINGS_ABOUT_INDEX);
+    tap(KEY_BACK);
+    portrait_down(SETTINGS_ABOUT_INDEX - SETTINGS_ORIENTATION_INDEX / SETTINGS_GROUP_ROWS);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     portrait_down(DIAGNOSTICS_KEYS_INDEX);
@@ -8516,7 +8533,7 @@ static void check_status_clock(const char *text)
 static void date_and_time_opens_next_to_clock_format(void)
 {
     start_app_with_library();
-    open_setting(8);
+    open_setting(SETTINGS_DATE_TIME_INDEX);
     CHECK(title_is("Date & time"));
 }
 
@@ -8525,29 +8542,29 @@ static void saving_date_and_time_refreshes_the_status_bar_without_restarting(voi
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY, .millivolts = 4000});
     fake_hal_set_rtc_answer((HalRtcRead){.status = HAL_RTC_OK});
-    open_setting(8);
+    open_setting(SETTINGS_DATE_TIME_INDEX);
     for (int field = 0; field < 4; field++) {
         tap(KEY_MENU);
     }
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     wait_ms(2000);
     settle();
     check_status_clock("00:01");
     CHECK_EQUAL(1767225660u, fake_hal_rtc_written());
 }
 
-static void the_clock_format_choice_is_saved_and_controls_stays_last(void)
+static void the_clock_format_choice_is_saved_and_about_stays_last(void)
 {
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
     fake_hal_set_wall(1794390060u, 0);
-    open_setting(7);
+    open_setting(SETTINGS_CLOCK_FORMAT_INDEX);
     CHECK(title_is("Clock format"));
     move_up(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Display & text"));
     Settings chosen;
     CHECK(saved_settings(&chosen));
     CHECK(!chosen.clock_24h);
@@ -8559,11 +8576,11 @@ static void the_clock_format_choice_is_saved_and_controls_stays_last(void)
     restart_app();
     CHECK(saved_settings(&chosen));
     CHECK(!chosen.clock_24h);
-    open_setting(0);
-    tap(KEY_BACK);
+    move_down(HOME_SETTINGS_INDEX);
+    tap(KEY_PLAY);
     move_up(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Controls"));
+    CHECK(title_is("About"));
 }
 
 static void a_calendar_month_title_keeps_its_room_before_the_status_clock(void)
@@ -8611,7 +8628,7 @@ static void normalization_choices_apply_and_survive_restart(void)
     CHECK(title_is("ReplayGain"));
     move_down(2);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Sound"));
     Settings chosen;
     CHECK(saved_settings(&chosen));
     CHECK_EQUAL(REPLAY_GAIN_ALBUM, chosen.replay_gain_mode);
@@ -9054,7 +9071,7 @@ int main(void)
         TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
         TEST_CASE(date_and_time_opens_next_to_clock_format),
         TEST_CASE(saving_date_and_time_refreshes_the_status_bar_without_restarting),
-        TEST_CASE(the_clock_format_choice_is_saved_and_controls_stays_last),
+        TEST_CASE(the_clock_format_choice_is_saved_and_about_stays_last),
         TEST_CASE(a_calendar_month_title_keeps_its_room_before_the_status_clock),
         TEST_CASE(brightness_is_applied_and_saved),
         TEST_CASE(brightness_previews_without_saving_and_back_restores_it),

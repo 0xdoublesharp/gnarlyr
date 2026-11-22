@@ -436,7 +436,7 @@ static void a_resume_after_power_off_starts_twenty_seconds_back(void)
     CHECK_EQUAL(42000 - RESUME_REWIND_COLD_MUSIC_MS, fake_hal_audio_play_start());
 }
 
-static void open_settings_row(int from_bottom, const char *title)
+static void open_playback_row(int row, const char *title)
 {
     boot_with(settings_defaults(), false);
     start_playing();
@@ -444,8 +444,11 @@ static void open_settings_row(int from_bottom, const char *title)
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), "Settings") == 0);
-    for (int row = 0; row < from_bottom + 1; row++) {
-        tap(KEY_VOLUME_DOWN);
+    tap(KEY_VOLUME_UP);
+    tap(KEY_PLAY);
+    CHECK(strcmp(app_screen_title(), "Playback") == 0);
+    for (int step = 0; step < row; step++) {
+        tap(KEY_VOLUME_UP);
     }
     tap(KEY_PLAY);
     CHECK(strcmp(app_screen_title(), title) == 0);
@@ -460,10 +463,10 @@ static Settings saved_settings(void)
 
 static void the_rewind_row_turns_rewinding_off(void)
 {
-    open_settings_row(14, "Rewind on resume");
+    open_playback_row(4, "Rewind on resume");
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
-    CHECK(strcmp(app_screen_title(), "Settings") == 0);
+    CHECK(strcmp(app_screen_title(), "Playback") == 0);
     CHECK(!saved_settings().rewind_on_resume);
     tap(KEY_POWER);
     fake_hal_audio_set_position(42000);
@@ -477,7 +480,7 @@ static void the_rewind_row_turns_rewinding_off(void)
 
 static void the_safe_volume_row_turns_the_cap_off(void)
 {
-    open_settings_row(13, "Safe start volume");
+    open_playback_row(7, "Safe start volume");
     for (int option = 0; option < 3; option++) {
         tap(KEY_VOLUME_DOWN);
     }
@@ -489,7 +492,7 @@ static void the_safe_volume_row_turns_the_cap_off(void)
 
 static void the_safe_volume_row_picks_a_level(void)
 {
-    open_settings_row(13, "Safe start volume");
+    open_playback_row(7, "Safe start volume");
     tap(KEY_VOLUME_UP);
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
@@ -500,12 +503,12 @@ static void the_safe_volume_row_picks_a_level(void)
 
 static void the_speed_row_saves_and_applies_a_faster_speed(void)
 {
-    open_settings_row(15, "Playback speed");
+    open_playback_row(2, "Playback speed");
     for (int option = 0; option < 2; option++) {
         tap(KEY_VOLUME_UP);
     }
     tap(KEY_PLAY);
-    CHECK(strcmp(app_screen_title(), "Settings") == 0);
+    CHECK(strcmp(app_screen_title(), "Playback") == 0);
     CHECK_EQUAL(4, saved_settings().playback_speed);
     CHECK_EQUAL(150, fake_hal_audio_speed());
     CHECK_EQUAL(150, app_player_status().speed);

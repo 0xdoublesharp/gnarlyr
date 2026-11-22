@@ -401,7 +401,10 @@ static void open_editor_row(int row)
     taps(KEY_VOLUME_UP, HOME_SETTINGS_ROW);
     tap(KEY_PLAY);
     CHECK(title_is(STR_SETTINGS));
-    taps(KEY_VOLUME_DOWN, 5);
+    taps(KEY_VOLUME_UP, SETTINGS_GROUP_DISPLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is(STR_SETTINGS_DISPLAY_TEXT));
+    taps(KEY_VOLUME_UP, SETTINGS_HOME_ITEM - SETTINGS_DISPLAY_FIRST);
     tap(KEY_PLAY);
     CHECK(title_is(STR_HOME_SCREEN));
     if (row == EDITOR_RESET_ROW) {
@@ -466,6 +469,7 @@ static void holding_play_picks_an_item_up_and_volume_moves_it(void)
     CHECK(memcmp(EXPECTED, saved.home_order, sizeof EXPECTED) == 0);
     tap(KEY_BACK);
     tap(KEY_BACK);
+    tap(KEY_BACK);
     CHECK_EQUAL(1, app_screen_depth());
     tap(KEY_PLAY);
     CHECK(title_is(STR_SETTINGS));
@@ -493,7 +497,7 @@ static void back_cancels_a_move_and_keeps_the_saved_order(void)
     tap(KEY_BACK);
     CHECK(title_is(STR_HOME_SCREEN));
     CHECK(toast_is("Move cancelled"));
-    CHECK_EQUAL(3, app_screen_depth());
+    CHECK_EQUAL(4, app_screen_depth());
     tap(KEY_PLAY);
     CHECK(title_is(STR_USB_MODE));
 }
