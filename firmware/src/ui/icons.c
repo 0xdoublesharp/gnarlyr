@@ -32,7 +32,7 @@ enum {
     FIRST_NARROW = ICON_BOLT,
     FIRST_UNDRAWN = ICON_SHUFFLE,
     UNDRAWN_SPAN = 32,
-    LAST_NARROW = ICON_PLUG,
+    LAST_NARROW = ICON_CHEVRON,
     KIND_SHIFT = 29,
     A_SHIFT = 22,
     B_SHIFT = 17,
@@ -68,9 +68,10 @@ enum {
     (UNDRAWN(ICON_SHUFFLE) | UNDRAWN(ICON_DISPLAY) | UNDRAWN(ICON_THEME) | UNDRAWN(ICON_POWER) |   \
      UNDRAWN(ICON_SLEEP) | UNDRAWN(ICON_CONTROLS) | UNDRAWN(ICON_START) | UNDRAWN(ICON_RESCAN) |   \
      UNDRAWN(ICON_BLUETOOTH) | UNDRAWN(ICON_KEY_PLUS) | UNDRAWN(ICON_KEY_MINUS) |                  \
-     UNDRAWN(ICON_KEY_PLAY) | UNDRAWN(ICON_KEY_MENU) | UNDRAWN(ICON_SEEK))
+     UNDRAWN(ICON_KEY_PLAY) | UNDRAWN(ICON_KEY_MENU))
 
-_Static_assert(ICON_SEEK - FIRST_UNDRAWN < UNDRAWN_SPAN, "UNDRAWN_ICONS holds one bit per icon");
+_Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
+               "UNDRAWN_ICONS holds one bit per icon");
 
 #define MUSIC_GLYPH                                                                                \
     ACCENT(DISC(1, 13, 6)), ACCENT(DISC(11, 11, 6)), LINE(5, 3, 5, 15), LINE(15, 1, 15, 13),       \
@@ -147,6 +148,8 @@ _Static_assert(ICON_SEEK - FIRST_UNDRAWN < UNDRAWN_SPAN, "UNDRAWN_ICONS holds on
 #define SHUFFLE_SMALL_GLYPH                                                                        \
     THIN(0, 3, 3, 3), THIN(3, 3, 9, 9), TRIANGLE(10, 8, 13, 12, POINT_RIGHT), THIN(0, 10, 3, 10),  \
         THIN(3, 10, 9, 4), LAST(TRIANGLE(10, 1, 13, 5, POINT_RIGHT))
+#define PLAYING_GLYPH                                                                              \
+    FILL(0, 7, 1, 12), FILL(4, 3, 5, 12), FILL(8, 5, 9, 12), LAST(FILL(12, 9, 13, 12))
 #define BOLT_GLYPH THICK(5, 0, 0, 7), FILL(0, 6, 7, 7), FILL(0, 8, 4, 9), LAST(THICK(6, 6, 1, 12))
 #define BLUETOOTH_SMALL_GLYPH                                                                      \
     THIN(4, 0, 4, 13), THIN(4, 0, 8, 4), THIN(8, 4, 1, 11), THIN(4, 13, 8, 9),                     \
@@ -160,18 +163,50 @@ _Static_assert(ICON_SEEK - FIRST_UNDRAWN < UNDRAWN_SPAN, "UNDRAWN_ICONS holds on
         LAST(BLOCK(0, 15, 19, 17))
 #define PLUG_GLYPH                                                                                 \
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
+#define CHEVRON_GLYPH THICK(0, 0, 5, 6), LAST(THICK(5, 7, 0, 13))
 
 static const uint32_t GLYPHS[] = {
-    MUSIC_GLYPH,       AUDIOBOOK_GLYPH,     PODCAST_GLYPH,     NOW_PLAYING_GLYPH,
-    MIXTAPE_GLYPH,     AUDIO_GLYPH,         SETTINGS_GLYPH,    COVER_FLOW_GLYPH,
-    ARTIST_GLYPH,      ALBUM_ARTIST_GLYPH,  ALBUM_GLYPH,       GENRE_GLYPH,
-    FOLDER_GLYPH,      SONG_GLYPH,          PLAYLIST_GLYPH,    FAVORITE_GLYPH,
-    REPEAT_GLYPH,      TIMEOUT_GLYPH,       DIAGNOSTICS_GLYPH, GAIN_GLYPH,
-    JACK_GLYPH,        USB_GLYPH,           DISC_GLYPH,        HUB_GLYPH,
-    SEARCH_GLYPH,      COMPUTER_GLYPH,      PLAY_GLYPH,        PAUSE_GLYPH,
-    NEXT_GLYPH,        PREVIOUS_GLYPH,      QUEUE_GLYPH,       SPEAKER_GLYPH,
-    ALBUM_SMALL_GLYPH, SHUFFLE_SMALL_GLYPH, BOLT_GLYPH,        BLUETOOTH_SMALL_GLYPH,
-    LOCK_GLYPH,        SONG_SMALL_GLYPH,    PLUG_GLYPH,
+    MUSIC_GLYPH,
+    AUDIOBOOK_GLYPH,
+    PODCAST_GLYPH,
+    NOW_PLAYING_GLYPH,
+    MIXTAPE_GLYPH,
+    AUDIO_GLYPH,
+    SETTINGS_GLYPH,
+    COVER_FLOW_GLYPH,
+    ARTIST_GLYPH,
+    ALBUM_ARTIST_GLYPH,
+    ALBUM_GLYPH,
+    GENRE_GLYPH,
+    FOLDER_GLYPH,
+    SONG_GLYPH,
+    PLAYLIST_GLYPH,
+    FAVORITE_GLYPH,
+    REPEAT_GLYPH,
+    TIMEOUT_GLYPH,
+    DIAGNOSTICS_GLYPH,
+    GAIN_GLYPH,
+    JACK_GLYPH,
+    USB_GLYPH,
+    DISC_GLYPH,
+    HUB_GLYPH,
+    SEARCH_GLYPH,
+    COMPUTER_GLYPH,
+    PLAY_GLYPH,
+    PAUSE_GLYPH,
+    NEXT_GLYPH,
+    PREVIOUS_GLYPH,
+    PLAYING_GLYPH,
+    QUEUE_GLYPH,
+    SPEAKER_GLYPH,
+    ALBUM_SMALL_GLYPH,
+    SHUFFLE_SMALL_GLYPH,
+    BOLT_GLYPH,
+    BLUETOOTH_SMALL_GLYPH,
+    LOCK_GLYPH,
+    SONG_SMALL_GLYPH,
+    PLUG_GLYPH,
+    CHEVRON_GLYPH,
 };
 
 typedef struct Pen {

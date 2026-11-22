@@ -193,7 +193,7 @@ static void draw(void *context, Canvas *canvas)
     centered(canvas, theme, row, i18n_text(FIELDS[editor->field]));
     row.y += row_height;
     value_text(editor);
-    canvas_fill_rect(canvas, row, theme->colors.selection_background);
+    canvas_fill_rect(canvas, row, theme_selection_fill(theme));
     centered(canvas, theme, row, editor->text);
     footer_hints_draw(canvas, theme, hint, SET_CLOCK_FOOTER);
 }

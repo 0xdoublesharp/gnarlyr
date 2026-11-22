@@ -6,7 +6,8 @@
 
 enum {
     GLYPH_NIBBLE = 0x0F,
-    GLYPH_NIBBLE_BITS = 4
+    GLYPH_NIBBLE_BITS = 4,
+    HALF_MASK = 0x7BEF
 };
 
 typedef struct GlyphRun {
@@ -49,6 +50,28 @@ static void draw_glyph(Canvas *canvas, TextStyle style, const Glyph *glyph, Poin
         draw_glyph_row(row, bitmap, index, run);
         row += stride;
         index += glyph->width;
+    }
+}
+
+static Color half(Color color)
+{
+    return (Color)((color >> 1) & HALF_MASK);
+}
+
+static void draw_missing_box(Canvas *canvas, Color color, const Glyph *glyph, Rect cell)
+{
+    Rect box = {cell.x + 1, cell.y - glyph->top, cell.width - 2, glyph->height};
+    if (box.width < 2) {
+        return;
+    }
+    Color ink = half(color) + half(canvas_pixel_at(canvas, box.x + 1, box.y + 1));
+    for (int side = 0; side < 4; side++) {
+        Rect edge = box;
+        edge.x += side == 1 ? box.width - 1 : 0;
+        edge.y += side == 3 ? box.height - 1 : 0;
+        edge.width = side == 1 || side == 0 ? 1 : box.width;
+        edge.height = side < 2 ? box.height : 1;
+        canvas_fill_rect(canvas, edge, ink);
     }
 }
 
@@ -103,7 +126,11 @@ int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
             continue;
         }
         int cell = text_cell_width(style, codepoint, glyph->advance);
-        draw_glyph(canvas, style, glyph, (Point){pen.x + (cell - glyph->advance) / 2, pen.y});
+        if (glyph->codepoint != codepoint) {
+            draw_missing_box(canvas, style.color, glyph, (Rect){pen.x, pen.y, cell, 0});
+        } else {
+            draw_glyph(canvas, style, glyph, (Point){pen.x + (cell - glyph->advance) / 2, pen.y});
+        }
         pen.x += cell;
     }
     return pen.x;

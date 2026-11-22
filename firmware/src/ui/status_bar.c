@@ -65,12 +65,6 @@ static Rect inset(Rect area, int amount)
                   area.height - 2 * amount};
 }
 
-Rect status_bar_playback_area(const Theme *theme)
-{
-    int size = theme->metrics.status_icon_size;
-    return (Rect){theme->metrics.padding, icon_top(theme), size, size};
-}
-
 Rect status_bar_battery_body(const Theme *theme)
 {
     int height = theme->status_bar_compact ? 18 : theme->metrics.status_icon_size + 2 * FRAME;
@@ -196,7 +190,7 @@ static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarStat
         body.x += body.width - 14;
         body.width = 12;
     }
-    if (state->usb_power) {
+    if (state->usb_power && !state->hides_charging) {
         draw_bolt(canvas, theme, body, look);
     }
 }
@@ -221,7 +215,7 @@ static int slot_width(const Theme *theme, const StatusBarState *state, int slot)
     case LOGO_SLOT:
         return state->logo ? icon : 0;
     case PLAYBACK_SLOT:
-        return state->playback != STATUS_PLAYBACK_NONE ? icon : 0;
+        return state->playback == STATUS_PLAYBACK_PLAYING ? icon : 0;
     case BLUETOOTH_SLOT:
         return state->bluetooth != STATUS_BLUETOOTH_OFF ? narrow : 0;
     case LOCK_SLOT:
@@ -240,7 +234,7 @@ int status_bar_left_end(const Theme *theme, StatusBarState state)
 {
     int end = theme->metrics.padding;
     for (int slot = LOGO_SLOT; slot < STATUS_BAR_SLOTS; slot++) {
-        int width = slot_width(theme, &state, slot);
+        int width = slot == PLAYBACK_SLOT ? 0 : slot_width(theme, &state, slot);
         end += width > 0 ? width + (end > theme->metrics.padding ? theme->metrics.padding : 0) : 0;
     }
     return end;
@@ -317,17 +311,18 @@ static bool fit_room(const StatusFit *fit)
 
 static bool trailing_slot(int slot)
 {
-    return slot == CLOCK_SLOT || slot == PERCENT_SLOT || slot == POSITION_SLOT;
+    return slot == CLOCK_SLOT || slot == PERCENT_SLOT || slot == POSITION_SLOT ||
+           slot == PLAYBACK_SLOT;
 }
 
 static bool fit_add(StatusFit *fit, int slot, int width, bool forced)
 {
     StatusFit next = *fit;
     int pad = fit->theme->metrics.padding;
-    if (slot > LOGO_SLOT) {
-        next.icons += width + pad;
-    } else if (trailing_slot(slot)) {
+    if (trailing_slot(slot)) {
         next.trailing += width + (pad >> 1);
+    } else if (slot > LOGO_SLOT) {
+        next.icons += width + pad;
     } else {
         next.leading += width + (pad >> 1);
     }
@@ -353,7 +348,7 @@ static int place_left(const StatusFit *fit, StatusBarLayout *layout)
     const Theme *theme = fit->theme;
     int pad = theme->metrics.padding;
     int left = fit->start;
-    for (int slot = LOGO_SLOT + 1; slot < STATUS_BAR_SLOTS; slot++) {
+    for (int slot = PLAYBACK_SLOT + 1; slot < STATUS_BAR_SLOTS; slot++) {
         if ((layout->items & (1u << slot)) != 0) {
             place_slot(theme, layout, slot, left);
             left += layout->areas[slot].width + pad;
@@ -372,7 +367,7 @@ static int place_left(const StatusFit *fit, StatusBarLayout *layout)
 
 static void place(const StatusFit *fit, StatusBarLayout *layout)
 {
-    static const uint8_t TRAILING[] = {PERCENT_SLOT, CLOCK_SLOT, POSITION_SLOT};
+    static const uint8_t TRAILING[] = {PERCENT_SLOT, PLAYBACK_SLOT, CLOCK_SLOT, POSITION_SLOT};
     const Theme *theme = fit->theme;
     int pad = theme->metrics.padding;
     if ((layout->items & (1u << LOGO_SLOT)) != 0) {
@@ -380,7 +375,7 @@ static void place(const StatusFit *fit, StatusBarLayout *layout)
     }
     place_left(fit, layout);
     int right = fit->end;
-    for (int index = 0; index < 3; index++) {
+    for (int index = 0; index < (int)sizeof TRAILING; index++) {
         int slot = TRAILING[index];
         if ((layout->items & (1u << slot)) != 0) {
             right -= (pad >> 1) + layout->areas[slot].width;
@@ -466,11 +461,10 @@ static void draw_status_icon(Canvas *canvas, const Theme *theme, const StatusBar
     if (slot == BLUETOOTH_SLOT && state->bluetooth != STATUS_BLUETOOTH_CONNECTED) {
         color = theme->colors.text_tertiary;
     }
-    IconId icon = slot == LOGO_SLOT                            ? ICON_LOGO
-                  : slot == BLUETOOTH_SLOT                     ? ICON_BLUETOOTH_SMALL
-                  : slot == LOCK_SLOT                          ? ICON_LOCK
-                  : state->playback == STATUS_PLAYBACK_PLAYING ? ICON_PLAY
-                                                               : ICON_PAUSE;
+    IconId icon = slot == LOGO_SLOT        ? ICON_LOGO
+                  : slot == BLUETOOTH_SLOT ? ICON_BLUETOOTH_SMALL
+                  : slot == LOCK_SLOT      ? ICON_LOCK
+                                           : ICON_PLAYING;
     draw_icon(canvas, theme, (StatusIcon){icon, area, color});
 }
 

@@ -51,6 +51,8 @@ static void enter(void *context, uint32_t now_ms)
 {
     ChoiceScreen *choice = context;
     choice->now_ms = now_ms;
+    list_view_measure(&choice->list, theme_content_area(choice->config.theme).width);
+    list_view_fit(&choice->list);
     list_view_select(&choice->list, choice->config.current(choice->config.context), now_ms);
 }
 
@@ -72,8 +74,11 @@ Screen *choice_screen_init(ChoiceScreen *choice, ChoiceConfig config)
 {
     choice->config = config;
     choice->now_ms = 0;
-    choice->model = (ListModel){
-        .context = choice, .count = option_count, .label = option_label, .detail = option_mark};
+    choice->model = (ListModel){.context = choice,
+                                .count = option_count,
+                                .label = option_label,
+                                .detail = option_mark,
+                                .wraps = true};
     list_view_init(&choice->list, &choice->model, config.theme, 0);
     choice->screen = (Screen){
         .title = config.title,

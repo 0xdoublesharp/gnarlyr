@@ -72,15 +72,15 @@ static void value_rows_get_a_separate_line_in_large_portrait(void)
     CHECK(buttons.menu.list.visible_rows < theme_visible_rows(&theme));
 }
 
-static void compare_text(const Canvas *actual, Rect area, const Font *font, const char *text)
+static void compare_text(const Canvas *actual, Rect area, TextStyle style, const char *text)
 {
+    const Font *font = style.font;
     int width = text_width(font, text);
     CHECK(width <= area.width);
     Canvas reference =
         canvas_make(expected, (Rect){0, area.y, HAL_DISPLAY_SHORT_SIDE, area.height});
     canvas_clear(&reference, theme.colors.selection_background);
-    label_draw(&reference, (TextStyle){.font = font, .color = theme.colors.selection_text},
-               (Label){area, text});
+    label_draw(&reference, style, (Label){area, text});
     for (int y = area.y; y < area.y + area.height; y++) {
         for (int x = area.x; x < area.x + width; x++) {
             CHECK_EQUAL(canvas_pixel_at(&reference, x, y), canvas_pixel_at(actual, x, y));
@@ -108,12 +108,16 @@ static void every_control_label_and_value_is_shown_whole_in_portrait(void)
             }
             const char *label = menu->model.label(menu, index);
             const char *detail = menu->model.detail(menu, index);
-            compare_text(&canvas, (Rect){inset, y, width, theme.metrics.row_height},
-                         theme.fonts.body, label);
-            compare_text(&canvas,
-                         (Rect){inset, y + theme.metrics.row_height + 2, width - 24,
-                                font_line_height(theme.fonts.small)},
-                         theme.fonts.small, detail);
+            compare_text(
+                &canvas, (Rect){inset, y, width, theme.metrics.row_height},
+                (TextStyle){.font = theme.fonts.title, .color = theme.colors.selection_text},
+                label);
+            compare_text(
+                &canvas,
+                (Rect){inset, y + theme.metrics.row_height + 2, width - 24,
+                       font_line_height(theme.fonts.small)},
+                (TextStyle){.font = theme.fonts.small, .color = theme.colors.text_secondary},
+                detail);
             CHECK(index >= menu->list.top);
             CHECK(index < menu->list.top + menu->list.visible_rows);
         }
@@ -167,12 +171,14 @@ static void settings_values_use_the_same_whole_label_layout_in_large_portrait(vo
     int width = theme.metrics.screen_width - 2 * inset - theme.metrics.scrollbar_width -
                 theme.metrics.scrollbar_inset;
     CHECK_EQUAL(theme_content_area(&theme).height / height, menu->list.visible_rows);
-    compare_text(&canvas, (Rect){inset, y, width, theme.metrics.row_height}, theme.fonts.body,
+    compare_text(&canvas, (Rect){inset, y, width, theme.metrics.row_height},
+                 (TextStyle){.font = theme.fonts.title, .color = theme.colors.selection_text},
                  i18n_text(STR_SCREEN_TIMEOUT));
     compare_text(&canvas,
                  (Rect){inset, y + theme.metrics.row_height + 2, width - 24,
                         font_line_height(theme.fonts.small)},
-                 theme.fonts.small, menu->model.detail(menu, index));
+                 (TextStyle){.font = theme.fonts.small, .color = theme.colors.text_secondary},
+                 menu->model.detail(menu, index));
 }
 
 static void status_bar_choices_fit_every_size_and_orientation_and_save_independently(void)

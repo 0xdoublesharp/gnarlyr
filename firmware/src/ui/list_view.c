@@ -13,10 +13,12 @@ enum {
     PERCENT = 100,
     ICON_BOX = 20,
     ICON_MIN_GAP = 4,
-    DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP
+    DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP,
+    FOCUS_BAR = 3,
+    CHEVRON_WIDTH = 8,
+    CHEVRON_LARGE_WIDTH = 10,
+    LARGE_TEXT = 2
 };
-
-const char LIST_VIEW_CHEVRON[] = "\xE2\x80\xBA";
 static const char SECTION_LABELS[][2] = {"#", "A", "B", "C", "D", "E", "F", "G", "H", "I",
                                          "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
                                          "T", "U", "V", "W", "X", "Y", "Z", "#"};
@@ -26,6 +28,7 @@ typedef struct Row {
     Rect area;
     Rect text;
     bool selected;
+    ListRowRole role;
 } Row;
 
 static int item_count(const ListView *view)
@@ -48,10 +51,61 @@ static bool details_below(const ListView *view)
     return view->model->detail_below && theme_is_portrait(view->theme);
 }
 
+static ListRowRole role_of(const ListView *view, int index)
+{
+    return view->model->role != NULL ? view->model->role(view->model->context, index)
+                                     : LIST_ROW_PLAIN;
+}
+
 int list_view_row_height(const ListView *view)
 {
-    return view->theme->metrics.row_height +
-           (details_below(view) ? font_line_height(view->theme->fonts.small) + DETAIL_LINE_GAP : 0);
+    const Theme *theme = view->theme;
+    if (view->lines == LIST_LINES_WRAPPED) {
+        return 2 * (font_line_height(theme->fonts.title) + DETAIL_LINE_GAP);
+    }
+    return theme->metrics.row_height + (details_below(view) || view->lines != LIST_LINES_ONE
+                                            ? font_line_height(theme->fonts.small) + DETAIL_LINE_GAP
+                                            : 0);
+}
+
+static int icon_room(const ListView *view)
+{
+    return view->model->icon != NULL
+               ? ICON_BOX + max_of(ICON_MIN_GAP, view->theme->metrics.padding - ICON_MIN_GAP)
+               : 0;
+}
+
+static int lines_needed(const ListView *view, int index, int room)
+{
+    const ListModel *model = view->model;
+    const Theme *theme = view->theme;
+    const char *label = model->label(model->context, index);
+    int width = label != NULL ? text_width(theme->fonts.title, label) : 0;
+    if (model->opens != NULL && model->opens(model->context, index)) {
+        width += list_view_chevron_width(theme) + theme->metrics.detail_gap;
+    }
+    const char *detail = model->detail != NULL ? model->detail(model->context, index) : NULL;
+    if (detail == NULL) {
+        return width > room ? LIST_LINES_WRAPPED : LIST_LINES_ONE;
+    }
+    width += theme->metrics.detail_gap + text_width(theme->fonts.body, detail);
+    return width > room ? LIST_LINES_VALUE_UNDER : LIST_LINES_ONE;
+}
+
+void list_view_measure(ListView *view, int width)
+{
+    const ThemeMetrics *metrics = &view->theme->metrics;
+    int count = item_count(view);
+    int room = width - 2 * metrics->padding - icon_room(view);
+    if (count > view->visible_rows) {
+        room -= metrics->scrollbar_width + metrics->scrollbar_inset;
+    }
+    view->lines = LIST_LINES_ONE;
+    for (int index = 0; view->model->wraps && !details_below(view) && index < count; index++) {
+        if (role_of(view, index) != LIST_ROW_SECTION) {
+            view->lines = (uint8_t)max_of(view->lines, lines_needed(view, index, room));
+        }
+    }
 }
 
 int list_view_rows_in(const ListView *view, int height)
@@ -61,8 +115,12 @@ int list_view_rows_in(const ListView *view, int height)
 
 static void keep_selection_visible(ListView *view)
 {
-    if (view->selected < view->top) {
-        view->top = view->selected;
+    int first = view->selected;
+    if (first > 0 && role_of(view, first - 1) == LIST_ROW_SECTION) {
+        first--;
+    }
+    if (first < view->top) {
+        view->top = first;
     } else if (view->selected >= view->top + view->visible_rows) {
         view->top = view->selected - view->visible_rows + 1;
     }
@@ -79,6 +137,17 @@ static int wrapped_target(int target, int count, bool wrap)
     return target;
 }
 
+static int focusable(const ListView *view, int target, int direction, bool wrap)
+{
+    int count = item_count(view);
+    for (int step = 0; step < 2 * count && role_of(view, target) == LIST_ROW_SECTION; step++) {
+        int next = wrapped_target(target + direction, count, wrap);
+        direction = next == target ? -direction : direction;
+        target = next;
+    }
+    return target;
+}
+
 void list_view_init(ListView *view, const ListModel *model, const Theme *theme, uint32_t now_ms)
 {
     *view = (ListView){
@@ -88,6 +157,7 @@ void list_view_init(ListView *view, const ListModel *model, const Theme *theme, 
         .selection_changed_ms = now_ms,
     };
     view->visible_rows = list_view_rows_in(view, theme_content_area(theme).height);
+    view->selected = focusable(view, 0, 1, false);
 }
 
 void list_view_move(ListView *view, int delta, bool wrap, uint32_t now_ms)
@@ -96,7 +166,8 @@ void list_view_move(ListView *view, int delta, bool wrap, uint32_t now_ms)
     if (count == 0) {
         return;
     }
-    int target = wrapped_target(view->selected + delta, count, wrap);
+    int target = focusable(view, wrapped_target(view->selected + delta, count, wrap),
+                           delta < 0 ? -1 : 1, wrap);
     if (target == view->selected) {
         return;
     }
@@ -205,7 +276,7 @@ void list_view_select(ListView *view, int index, uint32_t now_ms)
         return;
     }
     int target = index < 0 ? 0 : index >= count ? count - 1 : index;
-    view->selected = target;
+    view->selected = focusable(view, target, 1, false);
     view->selection_changed_ms = now_ms;
     keep_selection_visible(view);
 }
@@ -230,12 +301,6 @@ void list_view_restart_marquee(ListView *view, uint32_t now_ms)
     view->selection_changed_ms = now_ms;
 }
 
-static ListRowRole row_role(const ListView *view, int index)
-{
-    return view->model->role != NULL ? view->model->role(view->model->context, index)
-                                     : LIST_ROW_PLAIN;
-}
-
 static bool row_danger(ListRowRole role)
 {
     return role == LIST_ROW_DANGER || role == LIST_ROW_DANGER_DIVIDED;
@@ -244,7 +309,13 @@ static bool row_danger(ListRowRole role)
 static TextStyle row_style(const ListView *view, bool selected, Color normal)
 {
     Color color = selected ? view->theme->colors.selection_text : normal;
-    return (TextStyle){.font = view->theme->fonts.body, .color = color};
+    return (TextStyle){.font = selected ? view->theme->fonts.title : view->theme->fonts.body,
+                       .color = color};
+}
+
+int list_view_chevron_width(const Theme *theme)
+{
+    return theme->metrics.text_size == LARGE_TEXT ? CHEVRON_LARGE_WIDTH : CHEVRON_WIDTH;
 }
 
 static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
@@ -256,7 +327,8 @@ static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
     int size = min_of(ICON_BOX, min_of(row.text.width, row.text.height));
     int gap = max_of(ICON_MIN_GAP, view->theme->metrics.padding - ICON_MIN_GAP);
     Rect box = {row.text.x, row.text.y + (row.text.height - size) / 2, size, size};
-    Color main = row.selected ? view->theme->colors.selection_text : view->theme->colors.text;
+    Color main =
+        row.selected ? view->theme->colors.selection_text : view->theme->colors.text_secondary;
     Color accent = row.selected ? main : view->theme->colors.accent;
     Canvas clipped = canvas_clipped(canvas, row.area);
     IconId icon = model->icon(model->context, row.index);
@@ -276,11 +348,10 @@ static Row draw_chevron(const ListView *view, Canvas *canvas, Row row)
     if (model->opens == NULL || !model->opens(model->context, row.index)) {
         return row;
     }
-    Color color = row.selected ? view->theme->colors.selection_text : view->theme->colors.chevron;
-    TextStyle style = {.font = view->theme->fonts.title, .color = color};
-    int width = text_width(style.font, LIST_VIEW_CHEVRON);
-    Rect area = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
-    label_draw(canvas, style, (Label){.area = area, .text = LIST_VIEW_CHEVRON});
+    int width = list_view_chevron_width(view->theme);
+    Rect box = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
+    Color color = view->theme->colors.chevron;
+    icon_draw(canvas, ICON_CHEVRON, box, (IconInk){color, color});
     row.text.width -= width + view->theme->metrics.detail_gap;
     if (model->icon != NULL) {
         row.text.width = max_of(0, row.text.width);
@@ -295,7 +366,12 @@ static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
     if (detail == NULL) {
         return row;
     }
-    TextStyle style = row_style(view, row.selected, view->theme->colors.text_secondary);
+    TextStyle style = {.font = view->theme->fonts.body,
+                       .color = view->theme->colors.text_secondary};
+    if (row.role == LIST_ROW_NEEDS) {
+        style =
+            (TextStyle){.font = view->theme->fonts.small, .color = view->theme->colors.accent_alt};
+    }
     bool narrow = theme_is_portrait(view->theme);
     if (narrow) {
         style.font = view->theme->fonts.small;
@@ -306,7 +382,7 @@ static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
     }
     if (narrow) {
         int label_width =
-            text_width(view->theme->fonts.body, model->label(model->context, row.index));
+            text_width(view->theme->fonts.title, model->label(model->context, row.index));
         int room = row.text.width - label_width - view->theme->metrics.detail_gap;
         int smallest = row.text.width * NARROW_DETAIL_SHARE / PERCENT;
         width = min_of(width, max_of(room, smallest));
@@ -324,21 +400,37 @@ static void draw_detail_below(const ListView *view, Canvas *canvas, Row row)
 {
     const ListModel *model = view->model;
     const Theme *theme = view->theme;
-    TextStyle style = {.font = theme->fonts.small,
-                       .color = row.selected ? theme->colors.selection_text
-                                             : theme->colors.text_secondary};
-    Rect area = {row.text.x, row.area.y + theme->metrics.row_height + DETAIL_LINE_GAP,
-                 row.text.width, font_line_height(style.font)};
-    if (model->opens != NULL && model->opens(model->context, row.index)) {
-        int width = text_width(style.font, LIST_VIEW_CHEVRON);
-        Rect arrow = {area.x + area.width - width, area.y, width, area.height};
-        label_draw(canvas, style, (Label){arrow, LIST_VIEW_CHEVRON});
-        area.width = max_of(0, area.width - width - theme->metrics.detail_gap);
-    }
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    row.text.y = row.area.y + theme->metrics.row_height + DETAIL_LINE_GAP;
+    row.text.height = font_line_height(style.font);
+    row = draw_chevron(view, canvas, row);
     const char *detail = model->detail != NULL ? model->detail(model->context, row.index) : NULL;
     if (detail != NULL) {
-        label_draw(canvas, style, (Label){area, detail});
+        label_draw(canvas, style, (Label){row.text, detail});
     }
+}
+
+static TextStyle label_style(const ListView *view, Row row)
+{
+    const ThemeColors *colors = &view->theme->colors;
+    TextStyle style = row_style(view, row.selected, colors->text);
+    if (row.role == LIST_ROW_NEEDS) {
+        style.color = row.selected ? colors->text_secondary : colors->text_tertiary;
+    }
+    if (row_danger(row.role)) {
+        style.color = colors->danger;
+    }
+    return style;
+}
+
+static void draw_wrapped_label(const ListView *view, Canvas *canvas, Row row)
+{
+    TextStyle style = label_style(view, row);
+    int line = font_line_height(style.font);
+    Rect area = {row.text.x, row.area.y + (row.area.height - 2 * line) / 2, row.text.width,
+                 2 * line};
+    label_draw_paragraph(canvas, style,
+                         (Label){area, view->model->label(view->model->context, row.index)});
 }
 
 static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)
@@ -347,43 +439,61 @@ static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t n
         return;
     }
     const char *text = view->model->label(view->model->context, row.index);
-    TextStyle style = row_style(view, row.selected, view->theme->colors.text);
-    if (row_danger(row_role(view, row.index))) {
-        style.color = view->theme->colors.danger;
-    }
+    TextStyle style = label_style(view, row);
     Label label = {.area = row.text, .text = text};
     int width = text_width(style.font, text);
     MarqueeTiming timing = view->theme->marquee;
     int offset = row.selected ? marquee_offset_in(timing, width, row.text,
                                                   now_ms - view->selection_changed_ms)
                               : 0;
-    if (offset == 0) {
+    if (!row.selected || width <= row.text.width) {
         label_draw(canvas, style, label);
         return;
     }
-    label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
+    label_draw_scrolling(canvas, style, label,
+                         (Marquee){.offset = offset,
+                                   .gap = timing.gap_px,
+                                   .fade = theme_selection_fill(view->theme),
+                                   .fades = true});
+}
+
+static void draw_section_label(const ListView *view, Canvas *canvas, Row row)
+{
+    const Theme *theme = view->theme;
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.accent};
+    int height = font_line_height(style.font);
+    Rect area = {row.text.x, row.area.y + row.area.height - height - DETAIL_LINE_GAP,
+                 row.text.width, height};
+    label_draw(canvas, style, (Label){area, view->model->label(view->model->context, row.index)});
 }
 
 static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)
 {
-    const ThemeColors *colors = &view->theme->colors;
-    ListRowRole role = row_role(view, row.index);
-    if (row.selected) {
-        int edge = max_of(1, view->theme->metrics.scrollbar_inset);
-        int cap = max_of(edge, view->theme->metrics.padding / 2);
-        canvas_fill_rect(canvas, row.area, colors->selection_background);
-        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, edge, row.area.height},
-                         row_danger(role) ? colors->danger : colors->accent);
-        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, cap, 1}, colors->accent);
-        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y + row.area.height - 1, cap, 1},
-                         colors->accent_alt);
+    if (row.role == LIST_ROW_SECTION) {
+        draw_section_label(view, canvas, row);
+        return;
     }
-    if (role == LIST_ROW_DANGER_DIVIDED) {
+    const ThemeColors *colors = &view->theme->colors;
+    if (row.selected) {
+        canvas_fill_rect(canvas, row.area, theme_selection_fill(view->theme));
+        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, FOCUS_BAR, row.area.height},
+                         row_danger(row.role) ? colors->danger : colors->accent);
+    }
+    if (row.role == LIST_ROW_DANGER_DIVIDED) {
         canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, row.area.width, 1},
                          colors->divider);
     }
+    int lines = view->lines == LIST_LINES_ONE
+                    ? LIST_LINES_ONE
+                    : lines_needed(view, row.index, row.text.width - icon_room(view));
+    if (view->lines != LIST_LINES_ONE && lines == LIST_LINES_ONE) {
+        row.text.y = row.area.y + (row.area.height - row.text.height) / 2;
+    }
     row = draw_icon(view, canvas, row);
-    if (details_below(view) || row.area.height > list_view_row_height(view)) {
+    if (lines == LIST_LINES_WRAPPED) {
+        draw_wrapped_label(view, canvas, draw_chevron(view, canvas, row));
+    } else if (lines == LIST_LINES_VALUE_UNDER || details_below(view) ||
+               row.area.height > list_view_row_height(view)) {
         draw_detail_below(view, canvas, row);
         draw_label(view, canvas, row, now_ms);
     } else {
@@ -411,7 +521,11 @@ static Row row_at(const ListView *view, int index, Rect area)
     const ThemeMetrics *metrics = &view->theme->metrics;
     Rect text = {area.x + metrics->padding, area.y, area.width - 2 * metrics->padding,
                  metrics->row_height};
-    return (Row){.index = index, .area = area, .text = text, .selected = index == view->selected};
+    return (Row){.index = index,
+                 .area = area,
+                 .text = text,
+                 .selected = index == view->selected,
+                 .role = role_of(view, index)};
 }
 
 void list_view_draw_row(const ListView *view, Canvas *canvas, int index, Rect area, uint32_t now_ms)

@@ -3,15 +3,60 @@
 #include "core/utf8.h"
 
 enum {
-    ELLIPSIS_CODEPOINT = 0x2026
+    ELLIPSIS_CODEPOINT = 0x2026,
+    HYPHEN = '-',
+    FADE_STEPS = 15,
+    CJK_MARKS = 0x30,
+    FULL_WIDTH_FORMS = 0xFF,
+    BRACKETS_FIRST = 0x3008,
+    BRACKETS_LAST = 0x301B,
+    MARKS_NO_START = 28
 };
 
 static const char ELLIPSIS_TEXT[] = "\xE2\x80\xA6";
+
+static const uint8_t NO_START[] = {0x01, 0x02, 0x05, 0x41, 0x43, 0x45, 0x47, 0x49, 0x63, 0x83,
+                                   0x85, 0x87, 0x8E, 0x9D, 0x9E, 0xA1, 0xA3, 0xA5, 0xA7, 0xA9,
+                                   0xC3, 0xE3, 0xE5, 0xE7, 0xEE, 0xFB, 0xFC, 0xFD, 0x01, 0x09,
+                                   0x0C, 0x0E, 0x1A, 0x1B, 0x1F, 0x3D, 0x5D};
 
 static int advance_of(const Font *font, uint32_t codepoint)
 {
     const Glyph *glyph = font_find_glyph(font, codepoint);
     return glyph != NULL ? glyph->advance : 0;
+}
+
+static bool is_wide(uint32_t codepoint)
+{
+    return (codepoint >= 0x2E80 && codepoint <= 0xD7AF) ||
+           (codepoint >= 0xF900 && codepoint <= 0xFFEF);
+}
+
+static bool is_bracket(uint32_t codepoint, uint32_t closing)
+{
+    return codepoint >= BRACKETS_FIRST && codepoint <= BRACKETS_LAST && (codepoint & 1u) == closing;
+}
+
+static bool starts_no_line(uint32_t codepoint)
+{
+    uint32_t page = codepoint >> 8;
+    int first = page == CJK_MARKS ? 0 : MARKS_NO_START;
+    int end = page == FULL_WIDTH_FORMS ? (int)sizeof NO_START : MARKS_NO_START;
+    for (int index = first; index < end; index++) {
+        if (NO_START[index] == (codepoint & 0xFFu)) {
+            return true;
+        }
+    }
+    return is_bracket(codepoint, 1);
+}
+
+static bool label_breaks_between(uint32_t previous, uint32_t next)
+{
+    if (previous == HYPHEN) {
+        return next >= 'A';
+    }
+    return (is_wide(previous) || is_wide(next)) && !starts_no_line(next) &&
+           !is_bracket(previous, 0) && previous != 0xFF08;
 }
 
 static LabelFit fit_until(const Font *font, const char *text, const char *end, int max_width)
@@ -20,18 +65,27 @@ static LabelFit fit_until(const Font *font, const char *text, const char *end, i
     int used = 0;
     const char *cursor = text;
     const char *cut = text;
+    const char *word = NULL;
+    uint32_t previous = 0;
     while (cursor != end) {
+        const char *before = cursor;
         uint32_t codepoint = utf8_next(&cursor);
         if (codepoint == 0) {
             break;
+        }
+        if (before != text && used + ellipsis_width <= max_width &&
+            (previous == ' ' || label_breaks_between(previous, codepoint))) {
+            word = before;
         }
         used += advance_of(font, codepoint);
         if (used + ellipsis_width <= max_width) {
             cut = cursor;
         }
         if (used > max_width) {
+            cut = word != NULL ? word : cut;
             return (LabelFit){.byte_count = (size_t)(cut - text), .ellipsis = true};
         }
+        previous = codepoint;
     }
     return (LabelFit){.byte_count = (size_t)(cursor - text), .ellipsis = false};
 }
@@ -70,25 +124,36 @@ void label_draw(Canvas *canvas, TextStyle style, Label label)
     }
 }
 
+static bool prefers_break_after(uint32_t codepoint)
+{
+    return codepoint == 0x3001 || codepoint == 0x3002 || codepoint == 0xFF0C;
+}
+
 size_t label_wrap_line(const Font *font, const char *text, int max_width)
 {
     int used = 0;
     const char *cursor = text;
     const char *fitting = NULL;
+    const char *preferred = NULL;
+    uint32_t previous = 0;
     for (;;) {
         const char *before = cursor;
         uint32_t codepoint = utf8_next(&cursor);
-        if (codepoint == ' ' || codepoint == '\n' || codepoint == 0) {
+        bool ends = codepoint == ' ' || codepoint == '\n' || codepoint == 0;
+        if (ends || (before != text && label_breaks_between(previous, codepoint))) {
             if (used <= max_width || fitting == NULL) {
                 fitting = before;
+                preferred =
+                    prefers_break_after(previous) && used * 2 >= max_width ? before : preferred;
             }
-            if (codepoint != ' ' || used > max_width) {
+            if ((ends && codepoint != ' ') || used > max_width) {
                 break;
             }
         }
         used += advance_of(font, codepoint);
+        previous = codepoint;
     }
-    return (size_t)(fitting - text);
+    return (size_t)((preferred != NULL && used > max_width ? preferred : fitting) - text);
 }
 
 static const char *next_line(const Font *font, const char *text, int max_width)
@@ -202,6 +267,20 @@ void label_draw_paragraph(Canvas *canvas, TextStyle style, Label label)
     draw_wrapped(canvas, style, (WrappedLabel){label, false, NULL});
 }
 
+static void fade_edges(Canvas *canvas, Rect area, Marquee marquee)
+{
+    int right = area.x + area.width - 1;
+    for (int step = 0; step < FADE_STEPS && step < area.width / 2; step++) {
+        uint8_t alpha = (uint8_t)(FADE_STEPS - step);
+        for (int y = area.y; y < area.y + area.height; y++) {
+            canvas_blend_pixel(canvas, (Point){right - step, y}, marquee.fade, alpha);
+            if (marquee.offset > 0) {
+                canvas_blend_pixel(canvas, (Point){area.x + step, y}, marquee.fade, alpha);
+            }
+        }
+    }
+}
+
 void label_draw_scrolling(Canvas *canvas, TextStyle style, Label label, Marquee marquee)
 {
     Canvas clipped = canvas_clipped(canvas, label.area);
@@ -213,4 +292,7 @@ void label_draw_scrolling(Canvas *canvas, TextStyle style, Label label, Marquee 
     int repeat_start = start + text_width(style.font, label.text) + marquee.gap;
     text_draw(&clipped, style, (Point){start, baseline}, label.text);
     text_draw(&clipped, style, (Point){repeat_start, baseline}, label.text);
+    if (marquee.fades) {
+        fade_edges(&clipped, label.area, marquee);
+    }
 }

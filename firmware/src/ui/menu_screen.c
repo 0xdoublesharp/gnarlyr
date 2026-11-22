@@ -84,6 +84,21 @@ static bool panel_below(const MenuScreen *menu)
     return panel->width > 0 && panel->draw != NULL && theme_is_portrait(menu->config.theme);
 }
 
+static void measure_list(MenuScreen *menu)
+{
+    const MenuPanel *panel = &menu->config.panel;
+    int width = theme_content_area(menu->config.theme).width;
+    bool beside = panel->width > 0 && panel->draw != NULL && !panel_below(menu);
+    list_view_measure(&menu->list, beside ? width - panel->width : width);
+}
+
+static ScreenAction select_and_measure(void *context, int index)
+{
+    ScreenAction action = select_item(context, index);
+    measure_list(context);
+    return action;
+}
+
 static void fit_list(MenuScreen *menu)
 {
     const Theme *theme = menu->config.theme;
@@ -100,7 +115,7 @@ static void fit_list(MenuScreen *menu)
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     MenuScreen *menu = context;
-    ListSelection selection = {.select = select_item, .hold = NULL, .context = menu};
+    ListSelection selection = {.select = select_and_measure, .hold = NULL, .context = menu};
     return list_navigation_handle(&menu->list, event, now_ms, selection);
 }
 
@@ -108,6 +123,7 @@ static void enter(void *context, uint32_t now_ms)
 {
     MenuScreen *menu = context;
     menu->now_ms = now_ms;
+    measure_list(menu);
     fit_list(menu);
     list_view_restart_marquee(&menu->list, now_ms);
 }
@@ -155,7 +171,8 @@ Screen *menu_screen_init(MenuScreen *menu, MenuConfig config)
                               .opens = item_opens,
                               .icon = has_icons(menu) ? item_icon : NULL,
                               .detail_below = config.detail_below,
-                              .role = item_role};
+                              .role = item_role,
+                              .wraps = true};
     list_view_init(&menu->list, &menu->model, config.theme, 0);
     menu->screen = (Screen){
         .title = config.title,

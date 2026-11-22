@@ -62,11 +62,11 @@ static void the_baseline_centres_the_line_in_its_area(void)
 static void a_label_never_paints_outside_its_area(void)
 {
     Canvas canvas = blank_canvas();
-    label_draw(&canvas, INK_STYLE, (Label){.area = {2, 0, 4, 4}, .text = "AB"});
+    label_draw(&canvas, INK_STYLE, (Label){.area = {2, 0, 6, 4}, .text = "AB"});
     int inked_inside = 0;
     for (int y = 0; y < HEIGHT; y++) {
         for (int x = 0; x < WIDTH; x++) {
-            bool inside = x >= 2 && x < 6;
+            bool inside = x >= 2 && x < 8;
             Color pixel = canvas_pixel_at(&canvas, x, y);
             CHECK(inside || pixel == BACKGROUND);
             inked_inside += inside && pixel != BACKGROUND ? 1 : 0;
@@ -287,6 +287,86 @@ static void a_wrapped_text_never_paints_outside_its_area(void)
     CHECK_EQUAL(2, inked_lines(&canvas));
 }
 
+#define NICHI "\xE6\x97\xA5"
+#define HON "\xE6\x9C\xAC"
+#define GO "\xE8\xAA\x9E"
+#define TOUTEN "\xE3\x80\x81"
+#define OPEN_QUOTE "\xE3\x80\x8C"
+
+static void a_line_may_end_after_a_hyphen_inside_a_word(void)
+{
+    CHECK_EQUAL(3, label_wrap_line(&TINY_FONT, "AB-AB", 10));
+}
+
+static void a_hyphen_before_a_digit_keeps_the_word_whole(void)
+{
+    CHECK_EQUAL(4, label_wrap_line(&TINY_FONT, "AB-1", 10));
+}
+
+static void cjk_text_breaks_between_any_two_characters(void)
+{
+    CHECK_EQUAL(6, label_wrap_line(&TINY_FONT, NICHI HON GO, 5));
+    CHECK_EQUAL(2, label_wrap_count(&TINY_FONT, NICHI HON GO, 5));
+}
+
+static void a_closing_mark_never_starts_a_line(void)
+{
+    CHECK_EQUAL(3, label_wrap_line(&TINY_FONT, NICHI HON TOUTEN GO, 5));
+}
+
+static void an_opening_bracket_never_ends_a_line(void)
+{
+    CHECK_EQUAL(6, label_wrap_line(&TINY_FONT, NICHI NICHI OPEN_QUOTE HON, 7));
+}
+
+static void a_line_prefers_to_end_after_a_comma_mark(void)
+{
+    CHECK_EQUAL(6, label_wrap_line(&TINY_FONT, NICHI TOUTEN HON GO GO, 8));
+}
+
+static void a_comma_mark_too_early_in_the_line_is_not_preferred(void)
+{
+    CHECK_EQUAL(12, label_wrap_line(&TINY_FONT, NICHI TOUTEN HON GO GO, 9));
+}
+
+static void the_ellipsis_follows_the_last_whole_word_that_fits(void)
+{
+    LabelFit fit = label_fit(&TINY_FONT, "AB AB", 15);
+    CHECK_EQUAL(3, fit.byte_count);
+    CHECK(fit.ellipsis);
+}
+
+static void cjk_text_is_cut_for_the_ellipsis_between_characters(void)
+{
+    LabelFit fit = label_fit(&TINY_FONT, NICHI HON GO GO, 7);
+    CHECK_EQUAL(6, fit.byte_count);
+    CHECK(fit.ellipsis);
+}
+
+enum {
+    FADE = 0x1234
+};
+
+static void a_fading_marquee_fades_its_cut_right_edge_but_keeps_the_first_letter(void)
+{
+    Canvas canvas = blank_canvas();
+    Label label = {.area = {0, 0, WIDTH, HEIGHT}, .text = "ABABAB"};
+    label_draw_scrolling(&canvas, INK_STYLE, label,
+                         (Marquee){.gap = 2, .fade = FADE, .fades = true});
+    CHECK_EQUAL(FADE, canvas_pixel_at(&canvas, WIDTH - 1, 2));
+    CHECK_EQUAL(INK, canvas_pixel_at(&canvas, 1, 0));
+}
+
+static void a_scrolled_fading_marquee_fades_both_edges(void)
+{
+    Canvas canvas = blank_canvas();
+    Label label = {.area = {0, 0, WIDTH, HEIGHT}, .text = "ABABAB"};
+    label_draw_scrolling(&canvas, INK_STYLE, label,
+                         (Marquee){.offset = 1, .gap = 2, .fade = FADE, .fades = true});
+    CHECK_EQUAL(FADE, canvas_pixel_at(&canvas, 0, 2));
+    CHECK_EQUAL(FADE, canvas_pixel_at(&canvas, WIDTH - 1, 2));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -313,6 +393,17 @@ int main(void)
         TEST_CASE(lines_that_do_not_fit_the_area_end_in_an_ellipsis_on_the_last_line),
         TEST_CASE(an_area_lower_than_a_line_still_shows_one_line),
         TEST_CASE(a_wrapped_text_never_paints_outside_its_area),
+        TEST_CASE(a_line_may_end_after_a_hyphen_inside_a_word),
+        TEST_CASE(a_hyphen_before_a_digit_keeps_the_word_whole),
+        TEST_CASE(cjk_text_breaks_between_any_two_characters),
+        TEST_CASE(a_closing_mark_never_starts_a_line),
+        TEST_CASE(an_opening_bracket_never_ends_a_line),
+        TEST_CASE(a_line_prefers_to_end_after_a_comma_mark),
+        TEST_CASE(a_comma_mark_too_early_in_the_line_is_not_preferred),
+        TEST_CASE(the_ellipsis_follows_the_last_whole_word_that_fits),
+        TEST_CASE(cjk_text_is_cut_for_the_ellipsis_between_characters),
+        TEST_CASE(a_fading_marquee_fades_its_cut_right_edge_but_keeps_the_first_letter),
+        TEST_CASE(a_scrolled_fading_marquee_fades_both_edges),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

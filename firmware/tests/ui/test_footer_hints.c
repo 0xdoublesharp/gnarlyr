@@ -196,7 +196,8 @@ static void hints_follow_their_given_order(void)
     Rect area = {0, TALL - LINE, WIDE, LINE};
     footer_hints_draw(&canvas, &theme, area, hints_of(TWO, 2, FOOTER_ALIGN_START));
     int first = hint_width(&theme, &TWO[0]);
-    Rect after_first = {PADDING + first + 1, area.y + 1, 2 * FOOTER_HINT_GAP, LINE - 1};
+    int gap = 2 * FOOTER_HINT_GAP + text_width(theme.fonts.small, "\xC2\xB7");
+    Rect after_first = {PADDING + first + gap, area.y + 1, 1, LINE - 1};
     Color verb =
         color_blend(theme.colors.header_background, theme.colors.header_text, FOOTER_VERB_ALPHA);
     CHECK(ui_test_area_has_color(&canvas, after_first, verb));

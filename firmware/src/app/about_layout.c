@@ -25,9 +25,9 @@ static bool row_wraps(const ListView *list, int index, int width)
         return false;
     }
     if (model->opens(model->context, index)) {
-        width -= text_width(theme->fonts.title, LIST_VIEW_CHEVRON) + theme->metrics.detail_gap;
+        width -= list_view_chevron_width(theme) + theme->metrics.detail_gap;
     }
-    return text_width(theme->fonts.body, model->label(model->context, index)) +
+    return text_width(theme->fonts.title, model->label(model->context, index)) +
                theme->metrics.detail_gap + text_width(theme->fonts.small, detail) >
            width;
 }
