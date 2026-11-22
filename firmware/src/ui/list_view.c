@@ -11,8 +11,8 @@ enum {
     MIN_THUMB_HEIGHT = 6,
     NARROW_DETAIL_SHARE = 40,
     PERCENT = 100,
-    ICON_BOX = 20,
-    ICON_MIN_GAP = 4,
+    ICON_BOX = LIST_VIEW_ICON_BOX,
+    ICON_MIN_GAP = LIST_VIEW_ICON_MIN_GAP,
     DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP,
     FOCUS_BAR = 3,
     CHEVRON_WIDTH = 8,
@@ -106,23 +106,6 @@ void list_view_measure(ListView *view, int width)
             view->lines = (uint8_t)max_of(view->lines, lines_needed(view, index, room));
         }
     }
-}
-
-int list_view_row_height_at(const ListView *view, int index, int width)
-{
-    if (view->lines == LIST_LINES_ONE) {
-        return list_view_row_height(view);
-    }
-    int room = width - 2 * view->theme->metrics.padding - icon_room(view);
-    int lines = lines_needed(view, index, room);
-    if (lines == LIST_LINES_WRAPPED) {
-        const Font *font = view->theme->fonts.title;
-        int wrapped = label_wrap_count(font, view->model->label(view->model->context, index), room);
-        wrapped = max_of(2, min_of(LIST_VIEW_MAX_WRAPPED_LINES, wrapped));
-        return wrapped * (font_line_height(font) + DETAIL_LINE_GAP);
-    }
-    int below = font_line_height(view->theme->fonts.small) + DETAIL_LINE_GAP;
-    return view->theme->metrics.row_height + (lines == LIST_LINES_VALUE_UNDER ? below : 0);
 }
 
 int list_view_rows_in(const ListView *view, int height)

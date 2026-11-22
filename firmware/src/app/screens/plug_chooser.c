@@ -109,13 +109,32 @@ static int mark_width(const PlugChooser *chooser)
     return text_width(theme->fonts.body, CHECK_MARK) + theme->metrics.padding;
 }
 
+static int row_height(const PlugChooser *chooser, int row, int width)
+{
+    const Theme *theme = chooser->config.theme;
+    int pad = theme->metrics.padding;
+    int gap = pad - LIST_VIEW_ICON_MIN_GAP;
+    int room = width - 2 * pad - LIST_VIEW_ICON_BOX -
+               (gap > LIST_VIEW_ICON_MIN_GAP ? gap : LIST_VIEW_ICON_MIN_GAP);
+    const Font *font = theme->fonts.title;
+    const char *label = row_label(chooser, row);
+    if (text_width(font, label) <= room) {
+        return theme->metrics.row_height;
+    }
+    int lines = label_wrap_count(font, label, room);
+    lines = lines < 2                             ? 2
+            : lines > LIST_VIEW_MAX_WRAPPED_LINES ? LIST_VIEW_MAX_WRAPPED_LINES
+                                                  : lines;
+    return lines * (font_line_height(font) + LIST_VIEW_DETAIL_LINE_GAP);
+}
+
 static int rows_total(PlugChooser *chooser, int width)
 {
     chooser->row_width = width;
     list_view_measure(&chooser->list, width);
     int total = 0;
     for (int row = 0; row < chooser->choices.count; row++) {
-        int height = list_view_row_height_at(&chooser->list, row, width);
+        int height = row_height(chooser, row, width);
         chooser->heights[row] = (uint8_t)height;
         total += height;
     }
@@ -323,8 +342,7 @@ static void draw_drain(const PlugChooser *chooser, Canvas *canvas)
         return;
     }
     const Theme *theme = chooser->config.theme;
-    Rect header = theme_header_area(theme);
-    Rect rule = {header.x, header.y + header.height - 1, header.width, 1};
+    Rect rule = {0, theme->metrics.header_height - 1, theme->metrics.screen_width, 1};
     canvas_fill_rect(canvas, rule, theme->colors.divider);
     rule.width = rule.width * (int)chooser->seconds * MILLISECONDS_PER_SECOND / PLUG_PROMPT_MS;
     canvas_fill_rect(canvas, rule, theme->colors.accent);

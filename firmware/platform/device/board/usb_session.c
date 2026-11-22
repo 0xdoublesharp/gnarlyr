@@ -237,23 +237,18 @@ static void watch_speed(uint32_t now)
     }
 }
 
-static const FooterHint STORAGE_HINTS[] = {
-    {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},      {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT},
-    {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},      {FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
-    {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}, {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
-    {FOOTER_KEY_MENU, STR_HINT_MORE_STATS},      {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
-    {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}, {FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
-    {FOOTER_KEY_MENU, STR_HINT_OVERVIEW},        {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
-    {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}};
-static const uint8_t STORAGE_FIRST[] = {0, 2, 5, 9};
-static const uint8_t STORAGE_COUNT[] = {2, 3, 4, 4};
+static const FooterHint STORAGE_HINTS[] = {{FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
+                                           {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT},
+                                           {FOOTER_KEY_MENU, STR_HINT_MORE_STATS},
+                                           {FOOTER_KEY_BACK, STR_HINT_RETURN}};
+static const uint8_t STORAGE_FIRST[] = {1, 0, 2, 3};
+static const uint8_t STORAGE_COUNT[] = {1, 2, 2, 1};
 
 static void storage_hints(int pages)
 {
     int kind = usb_screen_page_kind(scene, pages);
-    int skip = card_present ? 0 : 1;
-    scene->hints = STORAGE_HINTS + STORAGE_FIRST[kind] + skip;
-    scene->hint_count = (uint8_t)(STORAGE_COUNT[kind] - skip);
+    scene->hints = STORAGE_HINTS + STORAGE_FIRST[kind];
+    scene->hint_count = STORAGE_COUNT[kind];
 }
 
 static const char *storage_detail(void)

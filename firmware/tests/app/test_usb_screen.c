@@ -51,19 +51,11 @@ typedef struct Variant {
 
 static const FooterHint MENU_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
                                         {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
-static const FooterHint STORAGE_PAGES[][4] = {
-    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD}, {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
-    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
-     {FOOTER_KEY_MENU, STR_HINT_VIEW_STATS},
-     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
-    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
-     {FOOTER_KEY_MENU, STR_HINT_MORE_STATS},
-     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
-     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
-    {{FOOTER_KEY_PLAY, STR_HINT_EJECT_CARD},
-     {FOOTER_KEY_MENU, STR_HINT_OVERVIEW},
-     {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
-     {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}}};
+static const FooterHint STORAGE_PAGES[][2] = {
+    {{FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_MENU, STR_HINT_VIEW_STATS}, {FOOTER_KEY_HOLD_BACK, STR_HINT_DISCONNECT}},
+    {{FOOTER_KEY_MENU, STR_HINT_MORE_STATS}, {FOOTER_KEY_BACK, STR_HINT_RETURN}},
+    {{FOOTER_KEY_BACK, STR_HINT_RETURN}}};
 static const FooterHint DAC_PAGES[][3] = {
     {{FOOTER_KEY_MENU, STR_SETTINGS}, {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}},
     {{FOOTER_KEY_MENU, STR_SETTINGS},
@@ -75,7 +67,7 @@ static const FooterHint DAC_PAGES[][3] = {
     {{FOOTER_KEY_MENU, STR_SETTINGS},
      {FOOTER_KEY_BACK, STR_HINT_OVERVIEW},
      {FOOTER_KEY_HOLD_BACK, STR_HINT_LEAVE}}};
-static const uint8_t STORAGE_COUNTS[] = {2, 3, 4, 4};
+static const uint8_t STORAGE_COUNTS[] = {1, 2, 2, 1};
 
 static void use_page_hints(UsbScene *scene, bool dac, int pages)
 {
@@ -333,10 +325,11 @@ static void layout_holds_together(const Theme *theme, AppUsbStatus status)
 
 static void check_texts(const Variant *variant, AppUsbStatus status)
 {
-    bool connected =
-        variant->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(&variant->scene);
-    CHECK(saw(connected ? i18n_text(STR_USB_STATE_CONNECTED)
-                        : charge_screen_usb_title(variant->status.view)));
+    AppUsbView view = variant->status.view;
+    bool titled = view == APP_USB_STORAGE || view == APP_USB_CONNECTING;
+    CHECK(saw(titled                ? i18n_text(STR_USB_STORAGE)
+              : view == APP_USB_DAC ? i18n_text(STR_PLUG_DAC_SHORT)
+                                    : charge_screen_usb_title(view)));
     const char *detail = variant->scene.nudge ? i18n_text(STR_USB_HOLD_BACK_HINT) : status.detail;
     CHECK(detail == NULL || saw_start(detail));
     const UsbScene *scene = usb_screen_scene(status);
@@ -359,7 +352,7 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
     }
 }
 
-static void the_usb_header_leads_the_whole_name_with_the_mark_in_all_six_layouts(void)
+static void the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts(void)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
@@ -378,7 +371,7 @@ static void the_usb_header_leads_the_whole_name_with_the_mark_in_all_six_layouts
             int middle = mark.width / 2;
             CHECK_EQUAL(brand_mark_sun_row(middle, mark.width),
                         canvas_pixel_at(&canvas, mark.x + middle, mark.y + middle));
-            CHECK(saw(FIRMWARE_SHORT_NAME));
+            CHECK(saw(i18n_text(STR_USB_STORAGE)));
         }
     }
 }
@@ -1084,13 +1077,13 @@ static void the_dac_screen_marks_its_speed_and_waiting_shows_none(void)
             UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
             scene.high_speed = kind == 0;
             speed_shot(&theme, dac, &scene, orientation * 10 + kind + 5);
-            CHECK(saw(charge_screen_usb_title(APP_USB_DAC)));
+            CHECK(saw(i18n_text(STR_PLUG_DAC_SHORT)));
             counts[kind] = header_ink(&theme, theme.colors.header_text);
         }
         CHECK(counts[0] > counts[1]);
         UsbScene waiting = storage_scene(USB_SCENE_WAITING);
         speed_shot(&theme, storage_status(STR_USB_KEEP_HOLDING), &waiting, orientation * 10 + 9);
-        CHECK(saw(charge_screen_usb_title(APP_USB_STORAGE)));
+        CHECK(saw(i18n_text(STR_USB_STORAGE)));
     }
 }
 
@@ -1206,7 +1199,7 @@ static int rightmost_ink(const Theme *theme, Rect area, Color color)
     return right;
 }
 
-static void portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_right_margin(void)
+static void portrait_line_two_puts_the_status_left_and_the_level_at_the_right_margin(void)
 {
     Theme theme = medium(ORIENTATION_PORTRAIT);
     AppUsbStatus statuses[] = {storage_status(STR_USB_EJECT_DRIVES),
@@ -1220,7 +1213,7 @@ static void portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_rig
         int line = font_line_height(theme.fonts.header);
         Rect second = {header.x, header.y + line, header.width, header.height - line - 1};
         int right = rightmost_ink(&theme, second, theme.colors.header_text);
-        CHECK(right >= header.x + header.width - 3);
+        CHECK(right >= header.x + header.width - 6);
         CHECK(right < header.x + header.width);
     }
 }
@@ -1603,7 +1596,7 @@ int main(void)
         TEST_CASE(storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared),
         TEST_CASE(a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_held_glyphs),
 #endif
-        TEST_CASE(the_usb_header_leads_the_whole_name_with_the_mark_in_all_six_layouts),
+        TEST_CASE(the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),
         TEST_CASE(a_pack_closed_while_bands_draw_repaints_the_whole_screen_at_once),
@@ -1618,7 +1611,7 @@ int main(void)
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
         TEST_CASE(drive_rows_keep_their_places_and_show_a_long_free_size_whole),
-        TEST_CASE(portrait_line_two_puts_the_status_left_and_the_speed_icon_at_the_right_margin),
+        TEST_CASE(portrait_line_two_puts_the_status_left_and_the_level_at_the_right_margin),
         TEST_CASE(the_rate_keeps_its_decimal_point_in_one_place),
         TEST_CASE(the_hold_reminder_changes_only_the_hint_line),
         TEST_CASE(no_backdrop_grid_shows_around_the_terrain),
