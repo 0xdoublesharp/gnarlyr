@@ -834,7 +834,7 @@ CORE_SEAM bool usb_storage_session(UsbShared *state)
     bool finished =
         end == USB_SESSION_EJECTED || end == USB_SESSION_UNPLUGGED || end == USB_SESSION_STOPPED;
     if (finished) {
-        time_file_take(end == USB_SESSION_EJECTED, &shared->clock_chip_pending);
+        time_file_take(end == USB_SESSION_EJECTED, shared);
     }
     if (finished) {
         update_after_usb(shared);

@@ -87,6 +87,15 @@ static void plug_in_again(void)
     usb_plug_retry(&usb_plug);
 }
 
+static void store_synced_clock_offset(void)
+{
+    UsbShared *shared = usb_session_shared();
+    if (shared->clock_offset_pending) {
+        shared->clock_offset_pending = false;
+        (void)app_store_clock_offset(shared->clock_offset, true);
+    }
+}
+
 static void run_usb_session(void)
 {
     board_stall_pause(true);
@@ -95,6 +104,7 @@ static void run_usb_session(void)
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
+    store_synced_clock_offset();
     board_trial_snapshot(1);
     if (usb != NULL && board_trial_session_ended() && usb_vbus_present() &&
         !board_debug_script_active()) {

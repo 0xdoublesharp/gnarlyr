@@ -1,7 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "app/app.h"
 #include "app/debug_loop.h"
 #include "board.h"
 #include "core/seam.h"
@@ -17,7 +16,7 @@ static bool clock_chip_set(uint32_t utc_s)
     return code != NULL && code->rtc_set(utc_s).status == HAL_RTC_OK;
 }
 
-static bool apply_file(bool apply)
+static bool apply_file(bool apply, UsbShared *shared)
 {
     EmmcInfo info;
     FatVolume *volume = emmc_start(&info) ? internal_volume_remount() : NULL;
@@ -33,19 +32,20 @@ static bool apply_file(bool apply)
     if (!read || !time_file_parse(bytes, &time)) {
         return false;
     }
-    (void)app_store_clock_offset(time.offset_minutes, true);
+    shared->clock_offset = time.offset_minutes;
+    shared->clock_offset_pending = true;
     board_wall_time_set(time);
     return true;
 }
 
-CORE_SEAM void time_file_take(bool apply, bool *chip_pending)
+CORE_SEAM void time_file_take(bool apply, UsbShared *shared)
 {
-    if (!apply_file(apply) && !*chip_pending) {
+    if (!apply_file(apply, shared) && !shared->clock_chip_pending) {
         return;
     }
     HalWallTime now = hal_clock_wall();
-    *chip_pending = now.source != HAL_WALL_UNKNOWN && !clock_chip_set(now.utc_s);
-    if (*chip_pending) {
+    shared->clock_chip_pending = now.source != HAL_WALL_UNKNOWN && !clock_chip_set(now.utc_s);
+    if (shared->clock_chip_pending) {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_CLOCK_CHIP);
     }
 }

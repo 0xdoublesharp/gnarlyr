@@ -262,7 +262,6 @@ set(ECHO_OVERLAY_IMPORTS
     LIBRARY_STORE_PATH
     MUSIC_CHECK_PATH
     RESCAN_TIMES_PATH
-    app_store_clock_offset
     hal_clock_wall
     hal_system_extension_code
     app_dac_settings
