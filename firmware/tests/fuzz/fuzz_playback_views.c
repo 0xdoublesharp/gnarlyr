@@ -94,7 +94,11 @@ static void check_up_next(UpNextScreen *up_next)
         int row = up_next->list.selected;
         fuzz_require(row >= 0 && row < count);
         fuzz_require(up_next->model.label(up_next->model.context, row) != NULL);
-        up_next->model.detail(up_next->model.context, row);
+        fuzz_require(up_next_screen_artist(up_next, row) != NULL);
+        (void)up_next_screen_badge(up_next, row);
+        if (up_next->model.detail != NULL) {
+            up_next->model.detail(up_next->model.context, row);
+        }
     }
 }
 

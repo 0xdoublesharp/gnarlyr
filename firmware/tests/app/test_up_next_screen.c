@@ -118,6 +118,21 @@ static void a_lone_song_offers_to_add_tracks_from_music(void)
     CHECK(action.target == &music);
 }
 
+static void nothing_playing_shows_no_rows_and_draws(void)
+{
+    fake_hal_reset();
+    player_init(&player, fixture_library_open(&fixture));
+    open_up_next();
+    CHECK_EQUAL(0, row_count());
+    CHECK_EQUAL(0, up_next.model.count(up_next.model.context));
+    CHECK(up_next.model.detail == NULL);
+    CHECK(strcmp("", up_next_screen_artist(&up_next, 0)) == 0);
+    static Color pixels[480 * 480];
+    Canvas canvas = canvas_make(
+        pixels, (Rect){0, 0, BOARD_THEME.metrics.screen_width, BOARD_THEME.metrics.screen_height});
+    screen->draw(screen->context, &canvas);
+}
+
 static void a_paused_song_says_so(void)
 {
     play_album_from(0);
@@ -451,6 +466,7 @@ int main(void)
         TEST_CASE(playback_during_an_action_menu_rejects_the_stale_selection),
         TEST_CASE(playback_refreshes_rows_without_scrolling),
         TEST_CASE(backing_out_of_actions_preserves_the_selected_row),
+        TEST_CASE(nothing_playing_shows_no_rows_and_draws),
         TEST_CASE(a_paused_song_says_so),
         TEST_CASE(the_rows_show_the_artist_and_mark_the_next_song),
         TEST_CASE(a_lone_song_offers_to_add_tracks_from_music),
