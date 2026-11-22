@@ -454,11 +454,7 @@ static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t n
         label_draw(canvas, style, label);
         return;
     }
-    label_draw_scrolling(canvas, style, label,
-                         (Marquee){.offset = offset,
-                                   .gap = timing.gap_px,
-                                   .fade = theme_selection_fill(view->theme),
-                                   .fades = true});
+    label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 
 static void draw_section_label(const ListView *view, Canvas *canvas, Row row)

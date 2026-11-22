@@ -209,10 +209,10 @@ Apply these steps in order, to each element:
 
 1. **Fit.** The focused width is measured in semibold.
 2. **Wrap.** Wrap whole words at spaces and after hyphens, and the row grows. Japanese and other CJK text breaks between characters with kinsoku rules, preferring a break after 、.
-3. **Scroll.** A focused row that is still too long scrolls from its first letter, with fades at the cut edges.
+3. **Scroll.** A focused row that is still too long scrolls from its first letter. Its edges are cut cleanly, with no fade.
 4. **Ellipsis.** An idle row is cut with an ellipsis at a word or character boundary.
 
-Decision labels (prompt choices, dialog rows) and safety text never reach step 3 or 4. They wrap, at Large too: there is no fade inside a word such as "betreiben". Values never wrap or scroll; they drop under their label at 16 px.
+Decision labels (prompt choices, dialog rows) and safety text never reach step 3 or 4. They wrap, at Large too, so a word such as "betreiben" is never cut. Values never wrap or scroll; they drop under their label at 16 px.
 
 ## Portrait
 
@@ -225,7 +225,7 @@ Decision labels (prompt choices, dialog rows) and safety text never reach step 3
 ## Large text
 
 - **Sizes.** Rows are 38 px, labels and values 26 px, row icons 22 px and chevrons 10 × 16 px. Secondary text stays 16 px, and the header is unchanged.
-- **Decision labels.** They wrap as whole words and never fade.
+- **Decision labels.** They wrap as whole words and never scroll.
 - **Hidden prompt choices.** When not every choice fits, the column under the art shows the place ("3 of 4") with a chevron toward each hidden side. The explanation and the hold hint stay visible.
 - **Continuation cue.** A list that continues below shows a cue ("1–5 of 7", then the next row's name) on a solid surface, with the chevron turned down.
 - **Focus bar.** It starts inside the content area.

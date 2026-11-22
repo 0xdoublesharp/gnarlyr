@@ -18,8 +18,6 @@ typedef struct Label {
 typedef struct Marquee {
     int offset;
     int gap;
-    Color fade;
-    bool fades;
 } Marquee;
 
 LabelFit label_fit(const Font *font, const char *text, int max_width);
