@@ -14,9 +14,6 @@ enum {
     CUE_HEIGHT = 48,
     CUE_LINE = 20,
     CUE_INSET = 4,
-    CUE_MARK_WIDTH = 13,
-    CUE_MARK_HEIGHT = 7,
-    CUE_MARK_TOP = 6,
     CUE_TEXT_CAPACITY = 32
 };
 
@@ -155,12 +152,6 @@ static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
     label_draw(canvas, style, (Label){row, text});
     row.y += CUE_LINE;
     style.color = theme->colors.accent;
-    for (int step = 0; step < CUE_MARK_HEIGHT; step++) {
-        canvas_fill_rect(
-            canvas, (Rect){row.x + step, row.y + CUE_MARK_TOP + step, CUE_MARK_WIDTH - 2 * step, 1},
-            style.color);
-    }
-    row.x += CUE_MARK_WIDTH + CUE_INSET;
     label_draw(canvas, style, (Label){row, model->label(model->context, last)});
 }
 
