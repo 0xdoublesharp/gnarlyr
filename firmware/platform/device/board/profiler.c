@@ -6,18 +6,13 @@
 #include "hal/system.h"
 
 PcProfile board_pc_profile;
-static bool held;
+bool board_profile_held;
 
 void board_profile_sample(uint32_t pc)
 {
-    if (!held) {
+    if (!board_profile_held) {
         pc_profile_sample(&board_pc_profile, pc);
     }
-}
-
-void board_profile_hold(bool hold)
-{
-    held = hold;
 }
 
 CORE_SEAM void board_profile_wait(void)

@@ -31,6 +31,21 @@ DacDiagnostics dac_path_diagnostics(void)
     return result;
 }
 
+const uint32_t *board_debug_grf_start(void)
+{
+    return board_debug_grf;
+}
+
+const PowerHistory *board_debug_power_history(void)
+{
+    return &board_debug_history;
+}
+
+void board_profile_hold(bool hold)
+{
+    board_profile_held = hold;
+}
+
 BoardBatteryReading board_debug_battery_raw(void)
 {
     return board_debug_battery;

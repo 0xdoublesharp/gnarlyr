@@ -408,18 +408,18 @@ if(NOT ECHO_RELEASE)
         board_dac_diagnostics
         dac_path_is_up
         board_debug_battery
-        board_debug_grf_start
+        board_debug_grf
         board_debug_read_grf
         board_debug_interrupted_line
         board_debug_loop
         board_debug_usb_forced
-        board_debug_power_history
+        board_debug_history
         board_debug_usb_is_powered
         board_debug_usb_kept_on
         board_power_charge_pin
         board_power_display
         board_pc_profile
-        board_profile_hold
+        board_profile_held
         board_profile_wait
         board_restart
         debug_loop_event

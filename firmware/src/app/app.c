@@ -1691,10 +1691,10 @@ static void start_hardware(uint32_t now_ms)
     set_display(true);
 }
 
-static void open_start_screen(StartScreen start, uint32_t now_ms)
+static void open_start_screen(uint32_t start, uint32_t now_ms)
 {
     Screen *path[START_PATH_CAPACITY];
-    int count = app_screens_start_path(&app.screens, start, path);
+    int count = app_screens_start_path(&app.screens, (StartScreen)start, path);
     for (int index = 0; index < count; index++) {
         apply_action(screen_action_push(path[index]), now_ms);
     }
@@ -2277,15 +2277,6 @@ bool app_preparing(void)
     return app.prepare_pending;
 }
 
-static void open_debug_screen(uint32_t target, uint32_t now_ms)
-{
-    static const StartScreen SCREENS[] = {START_MAIN_MENU, START_COVER_FLOW, START_NOW_PLAYING};
-    apply_action(screen_action_pop_to_root(), now_ms);
-    open_start_screen(SCREENS[target % 3], now_ms);
-    screen_changed();
-    app.render_urgent = true;
-}
-
 static void frame_debug_screenshot(DebugScreenshot *shot)
 {
     top_owned(app.now_ms);
@@ -2301,9 +2292,12 @@ static const DebugAppHooks DEBUG_APP_HOOKS = {.power = &app.power,
                                               .charging = &app.charging,
                                               .rescan_manual = &app.rescan_manual,
                                               .rescan_requested = &app.rescan_requested,
+                                              .render_urgent = &app.render_urgent,
                                               .stop_charging = stop_charging,
                                               .settle = settle_screens,
-                                              .open = open_debug_screen,
+                                              .apply = apply_action,
+                                              .open_start = open_start_screen,
+                                              .changed = screen_changed,
                                               .frame = frame_debug_screenshot};
 
 static void combo_screenshot(void)

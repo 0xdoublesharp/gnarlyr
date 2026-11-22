@@ -55,6 +55,15 @@ static bool choose(const DebugAppHooks *app, const DebugRequest *request, uint32
     return chosen && !app->settings->values_failed;
 }
 
+static void open_screen(const DebugAppHooks *app, uint32_t target, uint32_t now_ms)
+{
+    static const StartScreen SCREENS[] = {START_MAIN_MENU, START_COVER_FLOW, START_NOW_PLAYING};
+    app->apply(screen_action_pop_to_root(), now_ms);
+    app->open_start(SCREENS[target % 3], now_ms);
+    app->changed();
+    *app->render_urgent = true;
+}
+
 static bool screenshot(const DebugAppHooks *app, const DebugRequest *request)
 {
     DebugScreenshot shot = {.name = request->argument, .slot = request->slot};
@@ -80,7 +89,7 @@ static bool serve(const DebugAppHooks *app, const DebugRequest *request, uint32_
         *app->rescan_requested |= request->slot != 0;
         break;
     default:
-        app->open(request->slot, now_ms);
+        open_screen(app, request->slot, now_ms);
         break;
     }
     return true;
