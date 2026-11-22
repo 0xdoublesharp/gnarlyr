@@ -5,6 +5,7 @@ import os
 import re
 import stat
 import subprocess
+import sys
 from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -41,6 +42,14 @@ def pack_tools(root):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@lru_cache(maxsize=1)
+def recipe_tools(root):
+    tools = str(root / "firmware/tools")
+    if tools not in sys.path:
+        sys.path.append(tools)
+    return importlib.import_module("font_recipe")
 
 
 def git(root, *arguments):
@@ -522,6 +531,37 @@ class Manager:
             self.error("language_not_selected", "the returned settings do not confirm the requested language")
         return {"run": result, "selected": actual}
 
+    def prepare_fonts(self, context, language=None, pending=None):
+        snapshot = context["snapshot"]
+        try:
+            recipe = json.loads(snapshot.show("firmware/assets/fonts/recipe.json"))
+        except ValueError:
+            return {"ok": False, "error": "fonts_unsupported", "message": "the installed build reads no extra fonts"}
+        try:
+            tools = recipe_tools(self.api.ROOT)
+        except ImportError as error:
+            return {"ok": False, "error": "fonts_unavailable",
+                    "message": f"{error}; install firmware/tools/requirements.txt to build fonts"}
+        volumes = tools.Volumes(context["internal"], context["music"])
+        try:
+            setup = tools.Setup(tools.check_recipe(recipe), tools.base_drawable(
+                json.loads(snapshot.show("firmware/assets/fonts/fonts.json")),
+                json.loads(snapshot.show("firmware/assets/fonts/glyph_pack.json"))))
+            prepared = tools.prepare(volumes, tools.Extras(language, pending or {}), setup=setup)
+        except (tools.RecipeError, tools.lang_pack.PackError, tools.glyph_pack.PackError, OSError, ValueError) as error:
+            return {"ok": False, "error": "fonts_failed", "message": str(error)}
+        return {"ok": True, "tools": tools, "volumes": volumes, "prepared": prepared}
+
+    def install_fonts(self, fonts):
+        if not fonts["ok"]:
+            return fonts
+        tools = fonts["tools"]
+        try:
+            report = tools.finish(fonts["volumes"], fonts["prepared"])
+        except (tools.RecipeError, OSError) as error:
+            return {"ok": False, "error": "fonts_failed", "message": str(error)}
+        return {"ok": True, **report.as_dict()}
+
     def install(self, path, select=False, music_volume=None, timeout=420.0):
         if type(select) is not bool:
             self.error("usage", "select must be a boolean")
@@ -542,15 +582,22 @@ class Manager:
         choices = {item["code"]: item for item in existing}
         choices[code] = info
         self.selection_text(context, code if select else None, choices)
+        fonts = self.prepare_fonts(context, code if select else None, {code: data})
         self.recheck(context)
         published = publish(context["music"], self.api.DATA_DIRECTORY, code, data, context["snapshot"])
+        fonts = self.install_fonts(fonts)
         refreshed = self.refresh(context, code if select else None, timeout)
         return {"ok": True, **context["snapshot"].metadata(), **published, **refreshed,
-                "music_volume": str(context["music"]), "pack": {key: value for key, value in info.items() if key != "texts"}}
+                "music_volume": str(context["music"]), "fonts": fonts,
+                "pack": {key: value for key, value in info.items() if key != "texts"}}
 
     def select(self, code, music_volume=None, timeout=420.0):
         self.code(code)
         self.timeout(timeout)
         context = self.context(music_volume)
-        return {"ok": True, **context["snapshot"].metadata(),
-                "music_volume": str(context["music"]), **self.refresh(context, code, timeout)}
+        self.selection_text(context, code)
+        fonts = self.prepare_fonts(context, code)
+        self.recheck(context)
+        fonts = self.install_fonts(fonts)
+        return {"ok": True, **context["snapshot"].metadata(), "music_volume": str(context["music"]),
+                **self.refresh(context, code, timeout), "fonts": fonts}

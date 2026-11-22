@@ -288,6 +288,10 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
         COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
             -p test_battery.py
     )
+    add_test(NAME font_recipe_tests
+        COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
+            -p "test_*font*.py"
+    )
     add_test(NAME tools_unit_tests
         COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
     )
@@ -319,7 +323,7 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             --check
     )
     if(APPLE AND EXISTS /opt/local/lib/libfribidi.0.dylib)
-        set_tests_properties(fonts_up_to_date glyph_packs_up_to_date PROPERTIES
+        set_tests_properties(fonts_up_to_date glyph_packs_up_to_date font_recipe_tests PROPERTIES
             ENVIRONMENT DYLD_FALLBACK_LIBRARY_PATH=/opt/local/lib)
     endif()
     add_test(NAME cover_fixture_up_to_date

@@ -6,6 +6,8 @@
 
 Visible media symlinks are refused before scanning. The data directory and cache paths must be ordinary, unredirected paths. Cache writes refuse symlinks, hardlinks, changed file identities and changed parent folders. Hosts with directory-relative opens anchor each cache open to the checked directory descriptor; other hosts recheck the opened file and parent identity before writing. A native FAT card has no symlinks, but these checks also protect granted local folders and test fixtures.
 
+With internal storage connected, echo-sync also replaces `fonts/extra.font` there through a temporary file in the same folder, flushed and renamed, refusing a linked data or fonts folder (`docs/architecture.md`, Languages, Extra fonts); the cache checks above do not apply to it.
+
 Cover paths from an existing library must resolve inside their music drive. A leading `"/` routes the path to the verified internal mount. A library with internal music requires both drives for cover updates. Cached libraries must have the v2 header, the expected ten section layouts and bounded section ranges. Corrupt, unsupported or oversized cached libraries trigger a fresh scan; cached-library reads are limited to 128 MiB. This limit affects reuse of an existing cache, not source music file size.
 
 ## Publication and recovery

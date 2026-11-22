@@ -15,8 +15,10 @@ sys.path.insert(0, str(TOOLS))
 
 import cover_export
 import echo_sync
+import font_recipe
 from test_cover_export import image_bytes
 from test_echo_sync import EXFAT, FIXED_UTC, MEBIBYTE, SCAN_RECORD
+from test_font_recipe import NOTO, test_setup
 
 
 class CombinedSyncTest(unittest.TestCase):
@@ -35,6 +37,11 @@ class CombinedSyncTest(unittest.TestCase):
         self.library = self.cache / "library.db"
         self.scan = self.cache / "scan.bin"
         self.covers = self.cache / "covers.bin"
+        for patcher in (mock.patch.object(font_recipe, "default_setup", side_effect=test_setup),
+                        mock.patch.object(font_recipe, "cache_directory", return_value=NOTO),
+                        mock.patch.object(font_recipe, "open_url", side_effect=AssertionError("no downloads"))):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def run_sync(self, *options, card=None, mounts=None):
         output = io.StringIO()

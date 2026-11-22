@@ -141,6 +141,7 @@ class SyncOptions:
     covers: bool = True
     fingerprint: bool = True
     dry_run: bool = False
+    fonts: bool = True
     verbose: bool = False
 
 
@@ -714,7 +715,7 @@ def ensure_data_folder(folder, options, assume_yes):
 
 
 def require_dependencies():
-    packages = {"mutagen": "mutagen", "PIL": "Pillow"}
+    packages = {"mutagen": "mutagen", "PIL": "Pillow", "fontTools": "fonttools"}
     missing = [package for module, package in packages.items()
                if importlib.util.find_spec(module) is None]
     if missing:
@@ -959,6 +960,7 @@ def sync(drives, options):
         write_or_report(library_path, library_data, LIBRARY_FILE, options)
     if covers_data is not None:
         write_or_report(folder / COVERS_FILE.name, covers_data, COVERS_FILE, options)
+    update_fonts(drives, library_data, options)
     if before is None:
         return False
     verified = verified_snapshot(drives, before)
@@ -966,6 +968,26 @@ def sync(drives, options):
         return False
     publish_fingerprint(scan_path, scan_record(verified, version), fallback, options)
     return True
+
+
+def update_fonts(drives, library, options):
+    if not options.fonts:
+        return
+    step("Fonts for the player...")
+    if drives.internal is None:
+        print("skipped: connect the player over USB to update them")
+        return
+    import font_recipe
+    volumes = font_recipe.Volumes(drives.internal.root, drives.card.root)
+    try:
+        report = font_recipe.rebuild(volumes, font_recipe.Extras(library=library),
+                                     font_recipe.Options(dry_run=options.dry_run))
+    except (font_recipe.RecipeError, font_recipe.glyph_pack.PackError, OSError) as error:
+        print(f"not updated: {error}")
+        return
+    print(report.summary())
+    for note in report.skipped:
+        print(f"  skipped {note}")
 
 
 def print_next_steps(options, recorded, drives, seconds):
@@ -1034,13 +1056,15 @@ def describe(fingerprint):
 def options_from(arguments):
     return SyncOptions(library=not arguments.covers_only, covers=not arguments.no_covers,
                        fingerprint=not arguments.no_fingerprint, dry_run=arguments.dry_run,
-                       verbose=arguments.verbose)
+                       verbose=arguments.verbose,
+                       fonts=not (arguments.no_fonts or arguments.covers_only))
 
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser(
         description=f"Build the {IDENTITY.name} library and album covers on the card, "
-                    "including internal music when both drives are available.")
+                    "including internal music when both drives are available, and the "
+                    "player's extra fonts on its internal storage.")
     parser.add_argument("card", nargs="?",
                         help="the card's drive or mount point, for example E:\\ or "
                              "/Volumes/CARD; without it, the tool asks")
@@ -1053,11 +1077,13 @@ def parse_arguments(argv):
                        help="rebuild covers.bin from the card's library.db, or from the music")
     parser.add_argument("--no-fingerprint", action="store_true",
                         help="skip computing fingerprints and ask the player to check at start-up")
+    parser.add_argument("--no-fonts", action="store_true",
+                        help="leave the player's extra fonts as they are")
     parser.add_argument("--check", action="store_true",
                         help="compare fingerprints for the available drives and check the card's "
                              "library format header without writing files")
     parser.add_argument("--dry-run", action="store_true",
-                        help="do everything except writing to the card")
+                        help="do everything except writing to the drives")
     parser.add_argument("--yes", action="store_true",
                         help=f"create the card's {DATA_FOLDER} folder without asking")
     parser.add_argument("--verbose", action="store_true", help="list the albums without art")

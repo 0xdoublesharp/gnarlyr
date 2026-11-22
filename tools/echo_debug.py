@@ -12,7 +12,8 @@ that sets the player's clock. First-install preparation identifies a stock full-
 copies a contiguous image under its stock update filename, verifies it and ejects both drives.
 It never formats or opens a raw
 device. Language commands separately permit validated packs
-inside the active music volume's language folder, bound to the installed clean build.
+inside the active music volume's language folder, and the extra font file in the internal
+drive's fonts folder, bound to the installed clean build.
 Other commands only eject the card, because every drive must be ejected to end a USB session.
 `--volume PATH` names the internal drive's folder directly: for tests, and for a volume
 extracted from an emulator run. Ordinary debug commands then skip ejection and waiting.
