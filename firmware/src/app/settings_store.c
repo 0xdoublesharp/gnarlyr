@@ -71,9 +71,9 @@ static bool save_buttons(SettingsStore *store)
 static bool write_values(SettingsStore *store, const Settings *settings)
 {
     uint8_t bytes[SETTINGS_FILE_SIZE];
-    bool kept = store->unread || (!store->has_saved &&
-                                  hal_internal_file_read(SETTINGS_STORE_PATH, bytes, 5) &&
-                                  settings_file_newer(bytes, 5));
+    bool kept = store->unread ||
+                (!store->has_saved && hal_internal_file_read(SETTINGS_STORE_PATH, bytes, 5) &&
+                 settings_file_newer(bytes, 5));
     settings_encode(settings, bytes);
     if (kept || ((!store->has_saved || !same_bytes(bytes, store->saved, sizeof bytes)) &&
                  !hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes))) {

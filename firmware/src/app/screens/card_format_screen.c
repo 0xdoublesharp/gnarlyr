@@ -205,15 +205,15 @@ static void start(void *context, uint32_t now_ms)
 void card_format_screen_bind(CardFormatScreen *screen, CardFormatConfig config)
 {
     screen->config = config;
-    screen->screen = (Screen){.title = i18n_text(screen->phase == PHASE_CONFIRM
-                                                     ? STR_CARD_FORMAT_CONFIRM
-                                                     : STR_CARD_FORMAT),
-                              .context = screen,
-                              .keys = SCREEN_KEYS_ALL,
-                              .stays_on_wake = true,
-                              .enter = start,
-                              .handle_key = key,
-                              .draw = draw};
+    screen->screen =
+        (Screen){.title = i18n_text(screen->phase == PHASE_CONFIRM ? STR_CARD_FORMAT_CONFIRM
+                                                                   : STR_CARD_FORMAT),
+                 .context = screen,
+                 .keys = SCREEN_KEYS_ALL,
+                 .stays_on_wake = true,
+                 .enter = start,
+                 .handle_key = key,
+                 .draw = draw};
 }
 
 Screen *card_format_screen_init(CardFormatScreen *screen, CardFormatConfig config)
