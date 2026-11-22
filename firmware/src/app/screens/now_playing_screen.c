@@ -9,6 +9,7 @@
 #include "core/format.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
+#include "fonts/fonts.h"
 #include "gfx/image.h"
 #include "hal/power.h"
 #include "home_art.h"
@@ -26,7 +27,10 @@ enum {
     MS_PER_SECOND = 1000,
     ART_SPINE = 3,
     ART_SHADOW = 5,
+    LINE_GAP = 3,
     TRANSPORT_ICON = 12,
+    TRANSPORT_GAP = 6,
+    TRANSPORT_RULE = 8,
     TIME_CAPACITY = 16,
     BADGE_SIZE = 40,
     BADGE_ICON_SIZE = 18,
@@ -38,11 +42,6 @@ enum {
 enum {
     SKIP_TOAST_CAPACITY = 32
 };
-
-static const NowPlayingLayout *layout(const NowPlayingScreen *now_playing)
-{
-    return board_now_playing_layout(now_playing->config.theme);
-}
 
 static const char SEPARATOR[] = " \xC2\xB7 ";
 
@@ -92,23 +91,34 @@ void now_playing_stream_text(HalAudioFormat format, char *buffer, size_t capacit
     string_builder_append(&builder, rate);
 }
 
-void now_playing_detail_text(const PlayerStatus *status, char *buffer, size_t capacity)
+static void join(StringBuilder *builder, const char *part)
 {
-    StringBuilder builder = string_builder_make(buffer, capacity);
-    bool has_bitrate =
-        status->format.codec != HAL_AUDIO_CODEC_UNKNOWN && status->format.bitrate_kbps > 0;
-    if (has_bitrate) {
-        char bitrate[BITRATE_CAPACITY];
-        format_bitrate(status->format.bitrate_kbps, bitrate, sizeof bitrate);
-        string_builder_append(&builder, bitrate);
-    }
-    if (status->place.total == 0) {
+    if (part[0] == '\0') {
         return;
     }
-    if (has_bitrate) {
-        string_builder_append(&builder, SEPARATOR);
+    if (builder->length > 0) {
+        string_builder_append(builder, SEPARATOR);
     }
-    i18n_format_counts(&builder, STR_PLACE, status->place.number, status->place.total);
+    string_builder_append(builder, part);
+}
+
+void now_playing_format_text(const PlayerStatus *status, char *buffer, size_t capacity,
+                             unsigned parts)
+{
+    HalAudioFormat format = status->format;
+    StringBuilder builder = string_builder_make(buffer, capacity);
+    char part[BITRATE_CAPACITY + RATE_CAPACITY];
+    if ((parts & NOW_PLAYING_FORMAT_STREAM) != 0) {
+        join(&builder, now_playing_codec_name(format.codec));
+        now_playing_stream_text(format, part, sizeof part);
+        join(&builder, part);
+    }
+    part[0] = '\0';
+    if ((parts & NOW_PLAYING_FORMAT_BITRATE) != 0 && format.codec != HAL_AUDIO_CODEC_UNKNOWN &&
+        format.bitrate_kbps > 0) {
+        format_bitrate(format.bitrate_kbps, part, sizeof part);
+    }
+    join(&builder, part);
 }
 
 int now_playing_progress_width(uint32_t position_ms, uint32_t duration_ms, int width)
@@ -391,27 +401,37 @@ static bool current_cover(const NowPlayingScreen *now_playing, Image *image)
            cover_cache_full(covers, now_playing->album_index, image) == COVER_LOADED;
 }
 
-static int cover_left(const NowPlayingScreen *now_playing)
+static NowPlayingStyle style_of(const NowPlayingScreen *now_playing)
 {
-    const Theme *theme = now_playing->config.theme;
-    return theme_is_portrait(theme)
-               ? (theme->metrics.screen_width - layout(now_playing)->cover_size) / 2
-               : theme->metrics.padding;
+    return now_playing->config.settings != NULL
+               ? settings_now_playing_style(now_playing->config.settings)
+               : NOW_PLAYING_COVER;
 }
 
-static int text_left(const NowPlayingScreen *now_playing)
+static bool styled(const NowPlayingScreen *now_playing)
 {
-    int padding = now_playing->config.theme->metrics.padding;
-    return !theme_is_portrait(now_playing->config.theme)
-               ? padding + layout(now_playing)->cover_size + layout(now_playing)->cover_gap
-               : padding;
+    return style_of(now_playing) != NOW_PLAYING_COVER && now_playing->config.cassette_draw != NULL;
 }
 
-static Rect column_area(const NowPlayingScreen *now_playing, int top, int height)
+static bool staged(const NowPlayingScreen *now_playing)
 {
-    const Theme *theme = now_playing->config.theme;
-    int left = text_left(now_playing);
-    return (Rect){left, top, theme->metrics.screen_width - left - theme->metrics.padding, height};
+    return styled(now_playing) && style_of(now_playing) >= NOW_PLAYING_VU;
+}
+
+int now_playing_title_lift(const Theme *theme)
+{
+    const char *title = i18n_text(STR_NOW_PLAYING);
+    const Font *font = theme->fonts.header;
+    int width = theme->metrics.screen_width - 2 * theme->metrics.padding;
+    if (!theme_is_portrait(theme) || text_width(font, title) <= header_title_bounds(theme).width) {
+        return 0;
+    }
+    return label_wrap_count(font, title, width) * font_line_height(font);
+}
+
+NowPlayingFrame now_playing_frame(const Theme *theme, bool stage)
+{
+    return board_now_playing_frame(theme, stage, now_playing_title_lift(theme));
 }
 
 static bool previewing(const NowPlayingScreen *now_playing)
@@ -437,49 +457,62 @@ static uint32_t shown_position(const NowPlayingScreen *now_playing)
                : status->position_ms;
 }
 
-static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas, bool artwork)
+static Rect stage_of(const Theme *theme, Rect art)
+{
+    int width = theme_is_portrait(theme) ? theme->metrics.screen_width
+                                         : art.x + art.width + theme->metrics.padding - ART_SPINE;
+    return (Rect){0, art.y - theme->metrics.padding, width,
+                  art.height + theme->metrics.padding + ART_SHADOW + 2};
+}
+
+static bool touches(const Canvas *canvas, Rect area)
+{
+    return !rect_is_empty(rect_intersection(canvas->clip, area));
+}
+
+static void draw_stage(const NowPlayingScreen *now_playing, Canvas *canvas, bool artwork, Rect art)
+{
+    const Theme *theme = now_playing->config.theme;
+    if (!artwork) {
+        home_art_draw_backdrop(canvas, stage_of(theme, art), theme);
+    }
+    neon_art_frame(canvas, (Rect){art.x - 4, art.y - 4, art.width + 8, art.height + 8},
+                   neon_art_ink(theme, theme->colors.accent));
+}
+
+static void draw_cover(const NowPlayingScreen *now_playing, Canvas *canvas, bool artwork, Rect art)
 {
     Image cover;
     const Theme *theme = now_playing->config.theme;
-    int left = cover_left(now_playing);
-    int top = layout(now_playing)->cover_top;
-    int size = layout(now_playing)->cover_size;
     if (theme->horizon) {
-        Rect stage = {0, theme->metrics.header_height,
-                      theme_is_portrait(theme) ? theme->metrics.screen_width
-                                               : left + size + theme->metrics.padding,
-                      top + size + 10 - theme->metrics.header_height};
-        if (!artwork) {
-            home_art_draw_backdrop(canvas, stage, theme);
-        }
-        neon_art_frame(canvas, (Rect){left - 4, top - 4, size + 8, size + 8},
-                       neon_art_ink(theme, theme->colors.accent));
+        draw_stage(now_playing, canvas, artwork, art);
     }
-    canvas_fill_rect(canvas, (Rect){left + ART_SHADOW, top + ART_SHADOW, size, size},
+    canvas_fill_rect(canvas, (Rect){art.x + ART_SHADOW, art.y + ART_SHADOW, art.width, art.height},
                      theme->colors.backdrop_bottom);
-    canvas_fill_rect(canvas, (Rect){left - ART_SPINE, top, ART_SPINE, size},
+    canvas_fill_rect(canvas, (Rect){art.x - ART_SPINE, art.y, ART_SPINE, art.height},
                      theme->colors.accent_alt);
     if (current_cover(now_playing, &cover)) {
-        image_draw_quad(canvas, cover,
-                        (Quad){left, size, top, size, top + ART_SPINE, size - ART_SPINE});
+        image_draw_quad(
+            canvas, cover,
+            (Quad){art.x, art.width, art.y, art.height, art.y + ART_SPINE, art.height - ART_SPINE});
         return;
     }
-    canvas_fill_rect(canvas, (Rect){left, top, size, size}, theme->colors.backdrop_top);
-    Rect tape = {left + (size - CASSETTE_WIDTH) / 2, top + (size - CASSETTE_HEIGHT) / 2,
-                 CASSETTE_WIDTH, CASSETTE_HEIGHT};
+    canvas_fill_rect(canvas, art, theme->colors.backdrop_top);
+    Rect tape = {art.x + (art.width - CASSETTE_WIDTH) / 2,
+                 art.y + (art.height - CASSETTE_HEIGHT) / 2, CASSETTE_WIDTH, CASSETTE_HEIGHT};
     watch_position(now_playing, MARQUEE_BAND_TAPE, tape);
     cassette_art_draw(canvas, tape, theme,
                       (CassetteTape){shown_position(now_playing), now_playing->status.duration_ms,
                                      FIRMWARE_SHORT_NAME});
 }
 
-static Rect line_area(const Theme *theme, int top, int height)
-{
-    int padding = theme->metrics.padding;
-    return (Rect){padding, top, theme->metrics.screen_width - 2 * padding, height};
-}
+typedef struct ColumnFlow {
+    const NowPlayingScreen *screen;
+    Canvas *canvas;
+    Rect area;
+} ColumnFlow;
 
-static void draw_text_line(const NowPlayingScreen *now_playing, Canvas *canvas, Label label,
+static void draw_scrolling(const NowPlayingScreen *now_playing, Canvas *canvas, Label label,
                            TextStyle style)
 {
     int width = text_width(style.font, label.text);
@@ -493,44 +526,92 @@ static void draw_text_line(const NowPlayingScreen *now_playing, Canvas *canvas, 
     label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 
-static void draw_title(const NowPlayingScreen *now_playing, Canvas *canvas, TextStyle style)
+static void flow_skip(ColumnFlow *flow, int height)
 {
-    Label title = {column_area(now_playing, layout(now_playing)->title_top,
-                               layout(now_playing)->text_line_height),
-                   now_playing->title};
-    if (theme_is_portrait(now_playing->config.theme) &&
-        label_wrap_count(style.font, title.text, title.area.width) <= 2) {
-        title.area.height *= 2;
-        label_draw_paragraph(canvas, style, title);
+    flow->area.y += height + LINE_GAP;
+    flow->area.height -= height + LINE_GAP;
+}
+
+static void flow_text(ColumnFlow *flow, TextStyle style, const char *text, int lines)
+{
+    int line = font_line_height(style.font);
+    if (text[0] == '\0') {
         return;
     }
-    draw_text_line(now_playing, canvas, title, style);
+    bool still = staged(flow->screen);
+    int count = lines > 1 ? label_wrap_count(style.font, text, flow->area.width) : 1;
+    int shown = count < lines ? count : lines;
+    bool wrap = count > 1 && (count <= lines || still);
+    Label label = {{flow->area.x, flow->area.y, flow->area.width, wrap ? line * shown : line},
+                   text};
+    if (label.area.height > flow->area.height) {
+        flow->area.height = -1;
+        return;
+    }
+    if (wrap) {
+        label_draw_paragraph(flow->canvas, style, label);
+    } else if (still) {
+        label_draw(flow->canvas, style, label);
+    } else {
+        draw_scrolling(flow->screen, flow->canvas, label, style);
+    }
+    flow_skip(flow, label.area.height);
 }
 
-static void draw_track_text(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void draw_names(ColumnFlow *flow)
 {
+    const NowPlayingScreen *now_playing = flow->screen;
     const Theme *theme = now_playing->config.theme;
-    TextStyle title = {.font = theme->fonts.title, .color = theme->colors.text};
-    TextStyle artist = {.font = theme->fonts.body, .color = theme->colors.accent};
-    TextStyle album = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
-    draw_title(now_playing, canvas, title);
-    draw_text_line(now_playing, canvas,
-                   (Label){column_area(now_playing, layout(now_playing)->artist_top,
-                                       layout(now_playing)->text_line_height),
-                           now_playing->artist},
-                   artist);
-    draw_text_line(now_playing, canvas,
-                   (Label){column_area(now_playing, layout(now_playing)->album_top,
-                                       layout(now_playing)->small_line_height),
-                           now_playing->album},
-                   album);
+    bool portrait = theme_is_portrait(theme);
+    bool large = board_text_size(theme) == TEXT_SIZE_LARGE && !portrait;
+    const Font *album = large ? &FONT_INTER_REGULAR_22 : theme->fonts.small;
+    flow_text(flow, (TextStyle){theme->fonts.title, theme->colors.text, false}, now_playing->title,
+              portrait ? 2 : 1);
+    int artist = font_line_height(theme->fonts.body);
+    int reserve = flow->area.y + 2 * (artist + LINE_GAP);
+    flow_text(flow, (TextStyle){theme->fonts.body, theme->colors.accent, false},
+              now_playing->artist, 2);
+    int spare = reserve - flow->area.y;
+    if (staged(now_playing) && !portrait && spare > 0 &&
+        flow->area.height - spare >= font_line_height(album)) {
+        flow_skip(flow, spare - LINE_GAP);
+    }
+    flow_text(flow, (TextStyle){album, theme->colors.text_secondary, false}, now_playing->album, 1);
 }
 
-static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void draw_format(ColumnFlow *flow)
+{
+    const NowPlayingScreen *now_playing = flow->screen;
+    const Theme *theme = now_playing->config.theme;
+    TextStyle style = {theme->fonts.small, theme->colors.text_secondary, false};
+    char text[STATUS_CAPACITY];
+    now_playing_format_text(&now_playing->status, text, sizeof text, NOW_PLAYING_FORMAT_ALL);
+    if (text_width(style.font, text) <= flow->area.width) {
+        flow_text(flow, style, text, 1);
+        return;
+    }
+    now_playing_format_text(&now_playing->status, text, sizeof text, NOW_PLAYING_FORMAT_STREAM);
+    flow_text(flow, style, text, 1);
+    now_playing_format_text(&now_playing->status, text, sizeof text, NOW_PLAYING_FORMAT_BITRATE);
+    flow_text(flow, style, text, 1);
+}
+
+static void draw_column(const NowPlayingScreen *now_playing, Canvas *canvas, Rect column)
+{
+    bool cassette = styled(now_playing) && !staged(now_playing);
+    if (cassette && !theme_is_portrait(now_playing->config.theme)) {
+        return;
+    }
+    ColumnFlow flow = {now_playing, canvas, column};
+    if (!cassette) {
+        draw_names(&flow);
+    }
+    draw_format(&flow);
+}
+
+static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas, Rect bar)
 {
     const Theme *theme = now_playing->config.theme;
-    Rect bar =
-        line_area(theme, layout(now_playing)->progress_top, layout(now_playing)->progress_height);
     bool preview = previewing(now_playing);
     bool volume = !preview && showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME);
     int filled = volume ? now_playing_volume_width(now_playing->status.volume, bar.width)
@@ -538,21 +619,20 @@ static void draw_progress(const NowPlayingScreen *now_playing, Canvas *canvas)
                                                      now_playing->status.duration_ms, bar.width);
     Color fill = volume ? theme->colors.accent_alt : theme->colors.accent;
     watch_position(now_playing, MARQUEE_BAND_TIME,
-                   (Rect){bar.x, bar.y - 1, bar.width, bar.height + 2});
+                   (Rect){bar.x, bar.y - 3, bar.width, bar.height + 6});
     canvas_fill_rect(canvas, bar, theme->colors.divider);
     canvas_fill_rect(canvas, (Rect){bar.x, bar.y, filled, bar.height}, fill);
-    int reach = preview ? 3 : 1;
-    int cursor = filled > reach ? filled - reach - 1 : 0;
-    canvas_fill_rect(canvas,
-                     (Rect){bar.x + cursor, bar.y - reach, reach + 1, bar.height + 2 * reach},
+    int reach = preview ? 3 : 2;
+    int cursor = filled > 1 ? filled - 2 : 0;
+    canvas_fill_rect(canvas, (Rect){bar.x + cursor, bar.y - reach, 2, bar.height + 2 * reach},
                      theme->colors.text);
 }
 
-static void draw_right_aligned(Canvas *canvas, TextStyle style, Rect area, const char *text)
+static void draw_aligned(Canvas *canvas, TextStyle style, Rect area, const char *text, int share)
 {
     int width = text_width(style.font, text);
-    Rect right = {area.x + area.width - width, area.y, width, area.height};
-    label_draw(canvas, style, (Label){.area = right, .text = text});
+    Rect place = {area.x + (area.width - width) * share / 2, area.y, width, area.height};
+    label_draw(canvas, style, (Label){.area = place, .text = text});
 }
 
 static uint32_t whole_seconds_left(uint32_t position_ms, uint32_t duration_ms)
@@ -562,12 +642,23 @@ static uint32_t whole_seconds_left(uint32_t position_ms, uint32_t duration_ms)
     return duration_s > position_s ? (duration_s - position_s) * MS_PER_SECOND : 0;
 }
 
-static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void draw_place(const NowPlayingScreen *now_playing, Canvas *canvas, TextStyle style,
+                       Rect area)
+{
+    char place[TIME_CAPACITY * 2];
+    StringBuilder builder = string_builder_make(place, sizeof place);
+    if (now_playing->status.place.total > 0) {
+        i18n_format_counts(&builder, STR_PLACE, now_playing->status.place.number,
+                           now_playing->status.place.total);
+    }
+    draw_aligned(canvas, style, area, place, 1);
+}
+
+static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas, Rect area)
 {
     const Theme *theme = now_playing->config.theme;
     uint32_t position_ms = shown_position(now_playing);
-    uint32_t duration_ms = now_playing->status.duration_ms;
-    uint32_t remaining_ms = whole_seconds_left(position_ms, duration_ms);
+    uint32_t remaining_ms = whole_seconds_left(position_ms, now_playing->status.duration_ms);
     char elapsed[TIME_CAPACITY];
     char remaining[TIME_CAPACITY] = "-";
     format_duration(position_ms, elapsed, sizeof elapsed);
@@ -583,19 +674,18 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas)
         StringBuilder level = string_builder_make(remaining, sizeof remaining);
         string_builder_append_unsigned(&level, now_playing->status.volume);
     }
-    Rect area =
-        line_area(theme, layout(now_playing)->times_top, layout(now_playing)->small_line_height);
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     watch_position(now_playing, MARQUEE_BAND_TIME, area);
+    draw_place(now_playing, canvas, style, area);
     Rect icon = {area.x, area.y + (area.height - TRANSPORT_ICON) / 2, TRANSPORT_ICON,
                  TRANSPORT_ICON};
     IconId state = now_playing->status.state == PLAYER_PAUSED ? ICON_PAUSE : ICON_PLAY;
     icon_draw(canvas, state, icon, (IconInk){theme->colors.accent, theme->colors.accent});
-    area.x += TRANSPORT_ICON + theme->metrics.detail_gap;
-    area.width -= TRANSPORT_ICON + theme->metrics.detail_gap;
-    label_draw(canvas, style, (Label){.area = area, .text = left});
+    Rect text = {area.x + TRANSPORT_ICON + TRANSPORT_GAP, area.y,
+                 area.width - TRANSPORT_ICON - TRANSPORT_GAP, area.height};
+    label_draw(canvas, style, (Label){.area = text, .text = left});
     style.color = preview ? theme->colors.accent : style.color;
-    draw_right_aligned(canvas, style, area, right);
+    draw_aligned(canvas, style, area, right, 2);
 }
 
 static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
@@ -604,37 +694,44 @@ static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t
     const Settings *settings = now_playing->config.settings;
     StringBuilder builder = string_builder_make(buffer, capacity);
     if (status->repeat != REPEAT_OFF) {
-        string_builder_append(
-            &builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
+        join(&builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
     }
     if (settings != NULL && settings->playback_speed != SETTINGS_SPEED_NORMAL &&
         settings->playback_speed < SETTINGS_SPEED_COUNT) {
-        if (buffer[0] != '\0') {
-            string_builder_append(&builder, SEPARATOR);
-        }
-        string_builder_append(&builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
+        join(&builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
     }
 }
 
-static void draw_format(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void tape_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
 {
-    const Theme *theme = now_playing->config.theme;
-    HalAudioFormat format = now_playing->status.format;
-    const char *codec = now_playing_codec_name(format.codec);
-    char text[STATUS_CAPACITY];
-    StringBuilder builder = string_builder_make(text, sizeof text);
-    string_builder_append(&builder, codec);
-    char stream[STATUS_CAPACITY];
-    now_playing_stream_text(format, stream, sizeof stream);
-    if (codec[0] != '\0' && stream[0] != '\0') {
-        string_builder_append(&builder, SEPARATOR);
+    const CassetteState *tape = &now_playing->config.player->cassette;
+    StringBuilder side = string_builder_make(buffer, capacity);
+    if (tape->flip) {
+        string_builder_append(
+            &side, i18n_text(tape->side == 0 ? STR_SIDE_A_FINISHED : STR_SIDE_B_FINISHED));
+        return;
     }
-    string_builder_append(&builder, stream);
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
-    label_draw(canvas, style,
-               (Label){column_area(now_playing, layout(now_playing)->format_top,
-                                   layout(now_playing)->small_line_height),
-                       text});
+    char entry[16];
+    StringBuilder number = string_builder_make(entry, sizeof entry);
+    uint32_t first = tape->side == 0 ? 0 : tape->split;
+    string_builder_append_unsigned(&number, now_playing->status.place.number - first);
+    i18n_format_text(&side, tape->side == 0 ? STR_TAPE_SIDE_A : STR_TAPE_SIDE_B, entry);
+}
+
+static void status_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
+{
+    modes_text(now_playing, buffer, capacity);
+    if (now_playing->config.player != NULL && now_playing->config.player->cassette.active) {
+        tape_text(now_playing, buffer, capacity);
+    }
+    if (now_playing->status.ab_repeat != 0 ||
+        (now_playing->repeat_feedback_ms != 0 &&
+         !deadline_elapsed(now_playing->now_ms, now_playing->repeat_feedback_ms,
+                           NOW_PLAYING_BADGE_MS))) {
+        static const StringId states[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP};
+        StringBuilder repeat = string_builder_make(buffer, capacity);
+        string_builder_append(&repeat, i18n_text(states[now_playing->status.ab_repeat]));
+    }
 }
 
 static const FooterHint LYRICS_HINT[] = {{FOOTER_KEY_HOLD_MENU, STR_HINT_SHOW_LYRICS}};
@@ -648,48 +745,17 @@ static bool lyrics_cued(const NowPlayingScreen *now_playing)
                 BUTTON_ACTION_DEFAULT);
 }
 
-static void draw_details(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void draw_cue(const NowPlayingScreen *now_playing, Canvas *canvas, Rect area)
 {
     const Theme *theme = now_playing->config.theme;
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_tertiary};
-    char detail[STATUS_CAPACITY];
-    now_playing_detail_text(&now_playing->status, detail, sizeof detail);
-    label_draw(canvas, style,
-               (Label){column_area(now_playing, layout(now_playing)->detail_top,
-                                   layout(now_playing)->small_line_height),
-                       detail});
     char modes[STATUS_CAPACITY];
-    modes_text(now_playing, modes, sizeof modes);
-    const CassetteState *tape =
-        now_playing->config.player != NULL ? &now_playing->config.player->cassette : NULL;
-    if (tape != NULL && tape->active) {
-        StringBuilder side = string_builder_make(modes, sizeof modes);
-        if (tape->flip) {
-            string_builder_append(
-                &side, i18n_text(tape->side == 0 ? STR_SIDE_A_FINISHED : STR_SIDE_B_FINISHED));
-        } else {
-            char entry[16];
-            StringBuilder number = string_builder_make(entry, sizeof entry);
-            uint32_t first = tape->side == 0 ? 0 : tape->split;
-            string_builder_append_unsigned(&number, now_playing->status.place.number - first);
-            i18n_format_text(&side, tape->side == 0 ? STR_TAPE_SIDE_A : STR_TAPE_SIDE_B, entry);
-        }
-    }
-    if (now_playing->status.ab_repeat != 0 ||
-        (now_playing->repeat_feedback_ms != 0 &&
-         !deadline_elapsed(now_playing->now_ms, now_playing->repeat_feedback_ms,
-                           NOW_PLAYING_BADGE_MS))) {
-        static const StringId states[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP};
-        StringBuilder repeat = string_builder_make(modes, sizeof modes);
-        string_builder_append(&repeat, i18n_text(states[now_playing->status.ab_repeat]));
-    }
-    Rect area = column_area(now_playing, layout(now_playing)->modes_top,
-                            layout(now_playing)->small_line_height);
-    if (modes[0] == 0 && lyrics_cued(now_playing)) {
+    status_text(now_playing, modes, sizeof modes);
+    if (modes[0] == '\0' && lyrics_cued(now_playing)) {
         footer_hints_draw_inline(canvas, theme, area, LYRICS_CUE);
         return;
     }
-    label_draw(canvas, style, (Label){area, modes});
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
+    draw_aligned(canvas, style, area, modes, theme_is_portrait(theme) ? 1 : 0);
 }
 
 static const uint8_t BADGE_ICONS[] = {
@@ -699,33 +765,46 @@ static const uint8_t BADGE_ICONS[] = {
     [NOW_PLAYING_FEEDBACK_PLAY] = ICON_PLAY,
 };
 
-static void draw_badge_icon(Canvas *canvas, NowPlayingFeedback feedback, Rect area, Color color)
+static Rect centred(Rect art, int size)
 {
-    icon_draw(canvas, (IconId)BADGE_ICONS[feedback], area, (IconInk){color, color});
+    return (Rect){art.x + (art.width - size) / 2, art.y + (art.height - size) / 2, size, size};
 }
 
-static Rect badge_square(const NowPlayingScreen *now_playing, int size)
-{
-    const NowPlayingLayout *cover = layout(now_playing);
-    int inset = (cover->cover_size - size) / 2;
-    return (Rect){cover_left(now_playing) + inset, cover->cover_top + inset, size, size};
-}
-
-static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas)
+static void draw_badge(const NowPlayingScreen *now_playing, Canvas *canvas, Rect art)
 {
     NowPlayingFeedback feedback = now_playing->feedback;
     if (feedback == NOW_PLAYING_FEEDBACK_VOLUME || !showing(now_playing, feedback)) {
         return;
     }
     const Theme *theme = now_playing->config.theme;
-    canvas_fill_rect(canvas, badge_square(now_playing, BADGE_SIZE), theme->colors.background);
-    draw_badge_icon(canvas, feedback, badge_square(now_playing, BADGE_ICON_SIZE),
-                    theme->colors.text);
+    Color ink = theme->colors.text;
+    canvas_fill_rect(canvas, centred(art, BADGE_SIZE), theme->colors.background);
+    icon_draw(canvas, (IconId)BADGE_ICONS[feedback], centred(art, BADGE_ICON_SIZE),
+              (IconInk){ink, ink});
 }
 
-static void draw_nothing_playing(const Theme *theme, Canvas *canvas)
+static void draw_title(const Theme *theme, Canvas *canvas, int lift)
 {
-    message_draw(canvas, theme, theme_content_area(theme), i18n_text(STR_NOTHING_PLAYING));
+    int padding = theme->metrics.padding;
+    Rect area = {padding, theme->metrics.header_height + padding / 2,
+                 theme->metrics.screen_width - 2 * padding, lift};
+    label_draw_paragraph(canvas, (TextStyle){theme->fonts.header, theme->colors.text, false},
+                         (Label){area, i18n_text(STR_NOW_PLAYING)});
+}
+
+static void draw_transport(const NowPlayingScreen *now_playing, Canvas *canvas,
+                           NowPlayingFrame frame)
+{
+    const Theme *theme = now_playing->config.theme;
+    if (theme_is_portrait(theme)) {
+        canvas_fill_rect(
+            canvas,
+            (Rect){frame.progress.x, frame.progress.y - TRANSPORT_RULE, frame.progress.width, 1},
+            theme->colors.divider);
+    }
+    draw_progress(now_playing, canvas, frame.progress);
+    draw_times(now_playing, canvas, frame.times);
+    draw_cue(now_playing, canvas, frame.cue);
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -737,28 +816,29 @@ static void draw(void *context, Canvas *canvas)
     if (!artwork) {
         canvas_fill_rect(canvas, content, theme->colors.background);
     }
-    header_draw(canvas, theme, NULL);
+    int lift = now_playing_title_lift(theme);
+    header_draw(canvas, theme, lift > 0 ? NULL : i18n_text(STR_NOW_PLAYING));
     if (!now_playing->status.has_track) {
-        draw_nothing_playing(theme, canvas);
+        message_draw(canvas, theme, content, i18n_text(STR_NOTHING_PLAYING));
         return;
     }
-    bool cassette = now_playing->config.settings != NULL &&
-                    settings_now_playing_style(now_playing->config.settings) != NOW_PLAYING_COVER &&
-                    now_playing->config.cassette_draw != NULL;
-    if (cassette) {
-        watch_position(now_playing, MARQUEE_BAND_TIME, content);
+    NowPlayingFrame frame = now_playing_frame(theme, styled(now_playing));
+    if (styled(now_playing)) {
+        if (!staged(now_playing)) {
+            watch_position(now_playing, MARQUEE_BAND_TIME, content);
+        }
         now_playing->config.cassette_draw(now_playing, canvas);
-    } else {
-        draw_cover(now_playing, canvas, artwork);
-        draw_track_text(now_playing, canvas);
+    } else if (touches(canvas, stage_of(theme, frame.art))) {
+        draw_cover(now_playing, canvas, artwork, frame.art);
     }
-    draw_badge(now_playing, canvas);
-    draw_progress(now_playing, canvas);
-    if (!cassette || theme_is_portrait(theme)) {
-        draw_format(now_playing, canvas);
-        draw_details(now_playing, canvas);
+    if (lift > 0) {
+        draw_title(theme, canvas, lift);
     }
-    draw_times(now_playing, canvas);
+    if (touches(canvas, frame.column)) {
+        draw_column(now_playing, canvas, frame.column);
+    }
+    draw_badge(now_playing, canvas, frame.art);
+    draw_transport(now_playing, canvas, frame);
 }
 
 void now_playing_screen_attach(NowPlayingScreen *now_playing)
@@ -767,6 +847,7 @@ void now_playing_screen_attach(NowPlayingScreen *now_playing)
     now_playing->screen.handle_key = handle_key;
     now_playing->screen.update = update;
     now_playing->screen.draw = draw;
+    now_playing->screen.untitled_header = false;
 }
 
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config)

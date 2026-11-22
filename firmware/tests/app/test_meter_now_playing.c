@@ -84,21 +84,17 @@ static void art_and_text_fit_every_theme_orientation_and_size(void)
                 for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
                     Canvas canvas = start(orientation, size, appearance, (NowPlayingStyle)style);
                     MeterNowPlayingLayout layout = meter_now_playing_layout(&theme);
-                    CHECK(layout.stage.y >= theme.metrics.header_height);
-                    if (orientation != 0) {
-                        CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding,
-                                    layout.stage.y);
-                    }
-                    CHECK(layout.stage.y + layout.stage.height < (orientation == 0 ? 196 : 377));
-                    for (int line = 0; line < 2; line++) {
-                        CHECK(layout.text[line].height >=
-                              font_line_height(line == 0 ? theme.fonts.title : theme.fonts.body));
-                        CHECK(layout.text[line].y + layout.text[line].height <=
-                              (orientation == 0 ? 196 : 377));
-                        CHECK(layout.text[line].x + layout.text[line].width <=
-                              theme.metrics.screen_width - theme.metrics.padding);
-                        CHECK(rect_is_empty(rect_intersection(layout.text[line], layout.stage)));
-                    }
+                    int bottom = now_playing_frame(&theme, true).progress.y;
+                    CHECK(layout.stage.y >=
+                          theme.metrics.header_height + theme.metrics.padding / 2);
+                    CHECK(layout.stage.y + layout.stage.height < bottom);
+                    CHECK(layout.text.height >= font_line_height(theme.fonts.title) +
+                                                    font_line_height(theme.fonts.body) +
+                                                    font_line_height(theme.fonts.small));
+                    CHECK(layout.text.y + layout.text.height < bottom);
+                    CHECK(layout.text.x + layout.text.width <=
+                          theme.metrics.screen_width - theme.metrics.padding);
+                    CHECK(rect_is_empty(rect_intersection(layout.text, layout.stage)));
                     draw_fresh(&canvas);
                 }
             }
@@ -164,54 +160,68 @@ static void partial_redraws_match_a_full_redraw_in_every_theme_and_orientation(v
     }
 }
 
-static void the_sun_halves_light_from_the_horizon_with_each_channel(void)
+static Color segment_pixel(Canvas *canvas, int side, int segment)
+{
+    SunsetScene sun = scene();
+    Rect cell = sunset_scene_segment(&sun, side, segment);
+    return canvas_pixel_at(canvas, cell.x + cell.width / 2, cell.y + cell.height / 2);
+}
+
+static int lit_segments(Canvas *canvas, int side)
+{
+    int lit = 0;
+    for (int segment = 0; segment < SUNSET_SEGMENTS; segment++) {
+        lit += segment_pixel(canvas, side, segment) == theme.colors.accent ? 1 : 0;
+    }
+    return lit;
+}
+
+static void each_channel_lights_its_own_row_of_segments(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
         Canvas canvas = start(orientation, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
         screen.now_ms = 1000;
         animate_frames(8);
         draw_fresh(&canvas);
-        SunsetScene sun = scene();
-        int left_top = sunset_scene_lit_top(&sun, playing_work_styles()->meter.shown[0]);
-        int right_top = sunset_scene_lit_top(&sun, playing_work_styles()->meter.shown[1]);
-        CHECK(left_top < right_top - 2);
-        int both = solid_row(&sun, sun.horizon - 1);
-        int only_left = solid_row(&sun, right_top - 1);
-        CHECK(only_left > left_top);
-        CHECK_EQUAL(canvas_pixel_at(&canvas, sun.sun.x - 3, both),
-                    canvas_pixel_at(&canvas, sun.sun.x + 4, both));
-        CHECK(canvas_pixel_at(&canvas, sun.sun.x - 3, only_left) !=
-              canvas_pixel_at(&canvas, sun.sun.x + 4, only_left));
-        Color lit = canvas_pixel_at(&canvas, sun.sun.x - 3, both);
+        int left = lit_segments(&canvas, 0);
+        int right = lit_segments(&canvas, 1);
+        CHECK(left > right);
+        CHECK(right > 0);
+        CHECK_EQUAL(theme.colors.accent, segment_pixel(&canvas, 0, 0));
+        CHECK_EQUAL(theme.colors.divider, segment_pixel(&canvas, 1, SUNSET_SEGMENTS - 2));
         screen.status.state = PLAYER_PAUSED;
         animate_frames(100);
         draw_fresh(&canvas);
-        CHECK(lit != canvas_pixel_at(&canvas, sun.sun.x - 3, both));
+        CHECK(lit_segments(&canvas, 0) < left);
     }
 }
 
-static Color peak_pixel(Canvas *canvas, int side)
+static void a_falling_level_leaves_a_hold_segment_in_the_second_colour(void)
 {
-    SunsetScene sun = scene();
-    int y = sunset_scene_top(&sun) + 2;
-    draw_fresh(canvas);
-    return canvas_pixel_at(canvas, side == 0 ? sun.sun.x - 2 : sun.sun.x + 3, y);
+    Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
+    screen.now_ms = 1000;
+    animate_frames(8);
+    memset(samples, 0, sizeof samples);
+    animate_frames(2);
+    draw_fresh(&canvas);
+    const MeterState *meter = &playing_work_styles()->meter;
+    int hold = sunset_scene_lit(meter->caps[0]);
+    CHECK(hold > sunset_scene_lit(meter->shown[0]));
+    CHECK_EQUAL(theme.colors.accent_alt, segment_pixel(&canvas, 0, hold - 1));
 }
 
 static bool peak_label_lit(Canvas *canvas, int side)
 {
-    Rect label = scene().peaks[side];
-    for (int y = label.y; y < label.y + label.height; y++) {
-        for (int x = label.x; x < label.x + label.width; x++) {
-            if (canvas_pixel_at(canvas, x, y) == theme.colors.text) {
-                return true;
-            }
-        }
-    }
-    return false;
+    return segment_pixel(canvas, side, SUNSET_SEGMENTS - 1) == theme.colors.danger;
 }
 
-static void a_peak_flashes_its_sun_crown_white_and_lights_peak_for_half_a_second(void)
+static bool peak_drawn(Canvas *canvas, int side)
+{
+    draw_fresh(canvas);
+    return peak_label_lit(canvas, side);
+}
+
+static void a_peak_lights_the_last_segment_for_half_a_second(void)
 {
     Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
     for (int frame = 0; frame < 512; frame++) {
@@ -220,19 +230,16 @@ static void a_peak_flashes_its_sun_crown_white_and_lights_peak_for_half_a_second
     FrameDiff diff = {0};
     screen.now_ms = 1000;
     meter_now_playing_animate(&screen, &diff, true);
-    CHECK_EQUAL(theme.colors.text, peak_pixel(&canvas, 0));
-    CHECK(peak_label_lit(&canvas, 0));
-    CHECK(theme.colors.text != peak_pixel(&canvas, 1));
-    CHECK(!peak_label_lit(&canvas, 1));
+    CHECK(peak_drawn(&canvas, 0));
+    CHECK(!peak_drawn(&canvas, 1));
     memset(samples, 0, sizeof samples);
     screen.status.state = PLAYER_PAUSED;
     screen.now_ms = 1400;
     meter_now_playing_animate(&screen, &diff, true);
-    CHECK_EQUAL(theme.colors.text, peak_pixel(&canvas, 0));
+    CHECK(peak_drawn(&canvas, 0));
     screen.now_ms = 1560;
     meter_now_playing_animate(&screen, &diff, true);
-    CHECK(theme.colors.text != peak_pixel(&canvas, 0));
-    CHECK(!peak_label_lit(&canvas, 0));
+    CHECK(!peak_drawn(&canvas, 0));
 }
 
 static void a_peak_that_lights_and_goes_out_is_restored_by_partial_redraws(void)
@@ -275,7 +282,7 @@ static Canvas lit_peak_on_panel(int style)
     return canvas;
 }
 
-static void a_new_track_in_silence_repaints_the_crown_and_peak_it_inherited(void)
+static void a_new_track_in_silence_repaints_the_peak_it_inherited(void)
 {
     Canvas canvas = lit_peak_on_panel(NOW_PLAYING_VU);
     CHECK_EQUAL(0, partial_mismatches(&canvas));
@@ -362,26 +369,11 @@ static void a_visible_toast_keeps_its_pixels_through_a_meter_reset_at_every_layo
     }
 }
 
-static void an_unlit_crown_stays_dark_after_long_uptime(void)
+static void an_unlit_peak_stays_dark_after_long_uptime(void)
 {
     Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_VU);
     screen.now_ms = UINT32_C(0x90000000);
-    CHECK(theme.colors.text != peak_pixel(&canvas, 0));
-    CHECK(!peak_label_lit(&canvas, 0));
-}
-
-static void scale_marks_sit_beside_each_half_of_the_sun(void)
-{
-    Canvas canvas = start(1, TEXT_SIZE_SMALL, APPEARANCE_SUNSET, NOW_PLAYING_VU);
-    draw_fresh(&canvas);
-    SunsetScene sun = scene();
-    Color tick = color_between(theme.colors.backdrop_bottom, theme.colors.text_secondary, 1, 2);
-    for (int mark = 0; mark < SUNSET_MARKS; mark++) {
-        int y = sunset_scene_mark(&sun, mark);
-        int half = sunset_scene_half_width(&sun, y);
-        CHECK_EQUAL(tick, canvas_pixel_at(&canvas, sun.sun.x - half - 4, y));
-        CHECK_EQUAL(tick, canvas_pixel_at(&canvas, sun.sun.x + half + 4, y));
-    }
+    CHECK(!peak_drawn(&canvas, 0));
 }
 
 static void spectrum_bars_have_white_tops_and_striped_reflections(void)
@@ -530,15 +522,15 @@ int main(void)
         TEST_CASE(cover_flow_and_the_styles_take_turns_with_the_playing_work_area),
         TEST_CASE(art_and_text_fit_every_theme_orientation_and_size),
         TEST_CASE(partial_redraws_match_a_full_redraw_in_every_theme_and_orientation),
-        TEST_CASE(the_sun_halves_light_from_the_horizon_with_each_channel),
-        TEST_CASE(a_peak_flashes_its_sun_crown_white_and_lights_peak_for_half_a_second),
-        TEST_CASE(an_unlit_crown_stays_dark_after_long_uptime),
+        TEST_CASE(each_channel_lights_its_own_row_of_segments),
+        TEST_CASE(a_falling_level_leaves_a_hold_segment_in_the_second_colour),
+        TEST_CASE(a_peak_lights_the_last_segment_for_half_a_second),
+        TEST_CASE(an_unlit_peak_stays_dark_after_long_uptime),
         TEST_CASE(a_peak_that_lights_and_goes_out_is_restored_by_partial_redraws),
-        TEST_CASE(a_new_track_in_silence_repaints_the_crown_and_peak_it_inherited),
+        TEST_CASE(a_new_track_in_silence_repaints_the_peak_it_inherited),
         TEST_CASE(changing_the_style_in_place_repaints_the_stage),
         TEST_CASE(changing_the_theme_in_place_repaints_the_stage),
         TEST_CASE(a_visible_toast_keeps_its_pixels_through_a_meter_reset_at_every_layout),
-        TEST_CASE(scale_marks_sit_beside_each_half_of_the_sun),
         TEST_CASE(spectrum_bars_have_white_tops_and_striped_reflections),
         TEST_CASE(the_floor_lines_brighten_with_the_bass),
         TEST_CASE(the_floor_pulse_falls_one_step_every_other_tick),

@@ -50,13 +50,14 @@ static void open_up_next(void)
 
 static int row_count(void)
 {
-    return up_next.model.count(up_next.model.context);
+    return up_next.count;
 }
 
 static bool row_is(int index, const char *label, const char *detail)
 {
     const char *shown_label = up_next.model.label(up_next.model.context, index);
-    const char *shown_detail = up_next.model.detail(up_next.model.context, index);
+    const char *shown_detail =
+        index == 0 ? up_next_screen_badge(&up_next, index) : up_next_screen_artist(&up_next, index);
     return strcmp(label, shown_label) == 0 && shown_detail != NULL &&
            strcmp(detail, shown_detail) == 0;
 }
@@ -88,6 +89,33 @@ static void the_playing_song_comes_first_then_the_list(void)
     CHECK_EQUAL(2, row_count());
     CHECK(row_is(0, "Hells Bells", "Playing"));
     CHECK(row_is(1, "Shoot to Thrill", "AC/DC"));
+}
+
+static void the_rows_show_the_artist_and_mark_the_next_song(void)
+{
+    play_album_from(0);
+    player_add_to_up_next(&player, HELP);
+    open_up_next();
+    CHECK(strcmp("AC/DC", up_next_screen_artist(&up_next, 0)) == 0);
+    CHECK(strcmp("Next", up_next_screen_badge(&up_next, 1)) == 0);
+    CHECK(up_next_screen_badge(&up_next, 2) == NULL);
+}
+
+static Screen music;
+
+static void a_lone_song_offers_to_add_tracks_from_music(void)
+{
+    play_album_from(1);
+    open_up_next();
+    up_next.config.music = &music;
+    CHECK_EQUAL(1, row_count());
+    CHECK_EQUAL(2, up_next.model.count(up_next.model.context));
+    CHECK(strcmp("Add tracks from Music", up_next.model.label(up_next.model.context, 1)) == 0);
+    CHECK(up_next.model.opens(up_next.model.context, 1));
+    CHECK(up_next_screen_badge(&up_next, 1) == NULL);
+    ScreenAction action = choose_row(1);
+    CHECK_EQUAL(SCREEN_ACTION_PUSH, action.type);
+    CHECK(action.target == &music);
 }
 
 static void a_paused_song_says_so(void)
@@ -424,6 +452,8 @@ int main(void)
         TEST_CASE(playback_refreshes_rows_without_scrolling),
         TEST_CASE(backing_out_of_actions_preserves_the_selected_row),
         TEST_CASE(a_paused_song_says_so),
+        TEST_CASE(the_rows_show_the_artist_and_mark_the_next_song),
+        TEST_CASE(a_lone_song_offers_to_add_tracks_from_music),
         TEST_CASE(added_songs_come_before_the_list),
         TEST_CASE(the_last_song_has_nothing_after_it),
         TEST_CASE(repeat_all_shows_the_list_wrapping_round),

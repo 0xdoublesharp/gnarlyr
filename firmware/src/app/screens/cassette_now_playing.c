@@ -24,8 +24,8 @@ CassetteNowPlayingLayout cassette_now_playing_layout(const Theme *theme)
 {
     bool portrait = theme_is_portrait(theme);
     int padding = theme->metrics.padding;
-    Rect body = {padding, portrait ? 42 : 34, theme->metrics.screen_width - padding * 2,
-                 portrait ? 286 : 156};
+    Rect body = portrait ? now_playing_frame(theme, true).art
+                         : (Rect){padding, 34, theme->metrics.screen_width - padding * 2, 130};
     int left = body.x + 18;
     int width = body.width - 36;
     int top = body.y + 6;
@@ -33,19 +33,26 @@ CassetteNowPlayingLayout cassette_now_playing_layout(const Theme *theme)
     int artist = font_line_height(theme->fonts.body);
     int small = font_line_height(theme->fonts.small);
     int reel_size = portrait ? 48 : 38;
-    int reel_y = body.y + (portrait ? body.height * 4 / 7 : 100);
+    int reel_y = portrait ? body.y + body.height * 4 / 7 : body.y + body.height - 46;
     int gap = portrait ? 28 : 100;
     int center = body.x + body.width / 2;
     Rect first = {center - gap / 2 - reel_size, reel_y, reel_size, reel_size};
     Rect second = {center + gap / 2, reel_y, reel_size, reel_size};
-    return (CassetteNowPlayingLayout){.body = body,
-                                      .label = {{left, top, width, title},
-                                                {left, top + title, width, artist},
-                                                {left, top + title + artist, width, small}},
-                                      .reels = {first, second},
-                                      .window = {first.x - 6, first.y - 2,
-                                                 second.x + second.width - first.x + 12,
-                                                 reel_size + 4}};
+    CassetteNowPlayingLayout layout = {.body = body,
+                                       .label = {{left, top, width, title},
+                                                 {left, top + title, width, artist},
+                                                 {left, top + title + artist, width, small}},
+                                       .reels = {first, second},
+                                       .window = {first.x - 6, first.y - 2,
+                                                  second.x + second.width - first.x + 12,
+                                                  reel_size + 4}};
+    for (int line = 0; line < 3; line++) {
+        Rect *label = &layout.label[line];
+        if (label->y + label->height > layout.window.y - 2) {
+            *label = (Rect){0};
+        }
+    }
+    return layout;
 }
 
 int cassette_now_playing_radius(uint32_t position_ms, uint32_t duration_ms, int maximum)
@@ -134,7 +141,9 @@ static void draw_reels(const NowPlayingScreen *screen, Canvas *canvas)
 
 static void label_line(Canvas *canvas, Label label, TextStyle style)
 {
-    label_draw(canvas, style, label);
+    if (!rect_is_empty(label.area)) {
+        label_draw(canvas, style, label);
+    }
 }
 
 static void draw_shell(Canvas *canvas, CassetteNowPlayingLayout layout, const Theme *theme)

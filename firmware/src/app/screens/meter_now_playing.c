@@ -30,19 +30,8 @@ typedef struct MeterTick {
 
 MeterNowPlayingLayout meter_now_playing_layout(const Theme *theme)
 {
-    bool portrait = theme_is_portrait(theme);
-    int padding = theme->metrics.padding;
-    int width = theme->metrics.screen_width - padding * 2;
-    int title = font_line_height(theme->fonts.title);
-    int artist = font_line_height(theme->fonts.body);
-    if (portrait) {
-        return (MeterNowPlayingLayout){
-            .stage = {padding, 42, width, 246},
-            .text = {{padding, 302, width, title}, {padding, 308 + title, width, artist}}};
-    }
-    return (MeterNowPlayingLayout){.stage = {padding, 38, 278, 150},
-                                   .text = {{padding + 294, 48, width - 294, title},
-                                            {padding + 294, 56 + title, width - 294, artist}}};
+    NowPlayingFrame frame = now_playing_frame(theme, true);
+    return (MeterNowPlayingLayout){.stage = frame.art, .text = frame.column};
 }
 
 static MeterState *meter(void)
@@ -68,15 +57,9 @@ static SunsetArt art_of(const NowPlayingScreen *screen)
 
 void meter_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
 {
-    const Theme *theme = screen->config.theme;
-    MeterNowPlayingLayout layout = meter_now_playing_layout(theme);
     playing_work_styles();
     SunsetArt art = art_of(screen);
     sunset_art_draw(&art, canvas);
-    label_draw(canvas, (TextStyle){theme->fonts.title, theme->colors.text, false},
-               (Label){layout.text[0], screen->title});
-    label_draw(canvas, (TextStyle){theme->fonts.body, theme->colors.text_secondary, false},
-               (Label){layout.text[1], screen->artist});
 }
 
 static void draw_motion(void *context, Canvas *canvas)
@@ -129,22 +112,51 @@ static Rect rows_between(int x, int width, int first, int second)
     return (Rect){x, top, width, bottom - top};
 }
 
-static void render_sun(SunsetArt *art, const MeterTick *before)
+static MeterTick tick_of(const MeterState *state)
 {
-    const SunsetScene *scene = &art->scene;
+    MeterTick tick = {.pulse = state->pulse};
     for (int side = 0; side < 2; side++) {
-        Rect half = sunset_scene_half(scene, side);
-        int was = sunset_scene_lit_top(scene, before->shown[side]);
-        int now = sunset_scene_lit_top(scene, art->meter->shown[side]);
-        if (was != now) {
-            render(art, rows_between(half.x, half.width, was, now));
-        }
-        if (before->lit[side] != sunset_art_peak_lit(art->meter, side, art->now_ms)) {
-            Rect peak = scene->peaks[side];
-            render(art, (Rect){half.x, half.y, half.width, SUNSET_FLASH_ROWS});
-            render(art, (Rect){peak.x - 1, peak.y, peak.width + 3, peak.height + 2});
-        }
+        tick.shown[side] = state->shown[side];
+        tick.lit[side] = sunset_art_peak_lit(state, side, state->updated_ms);
     }
+    for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
+        tick.bars[band] = state->bars[band];
+        tick.caps[band] = state->caps[band];
+    }
+    return tick;
+}
+
+static int segment_mark(const MeterTick *tick, int side)
+{
+    int lit = sunset_scene_lit(tick->shown[side]);
+    int hold = sunset_scene_lit(tick->caps[side]);
+    return lit * SUNSET_SEGMENTS * 2 + hold * 2 + (tick->lit[side] ? 1 : 0);
+}
+
+static void render_row(SunsetArt *art, const MeterTick *before, const MeterTick *now, int side)
+{
+    int was = segment_mark(before, side);
+    int is = segment_mark(now, side);
+    if (was == is) {
+        return;
+    }
+    int low = SUNSET_SEGMENTS;
+    int high = 0;
+    int marks[] = {sunset_scene_lit(before->shown[side]), sunset_scene_lit(now->shown[side]),
+                   sunset_scene_lit(before->caps[side]) - 1, sunset_scene_lit(now->caps[side]) - 1};
+    for (int index = 0; index < 4; index++) {
+        int mark = marks[index] < 0 ? 0 : marks[index];
+        low = mark < low ? mark : low;
+        high = mark > high ? mark : high;
+    }
+    if (before->lit[side] != now->lit[side]) {
+        high = SUNSET_SEGMENTS - 1;
+    }
+    high = high < SUNSET_SEGMENTS ? high : SUNSET_SEGMENTS - 1;
+    low = low > 0 ? low - 1 : 0;
+    Rect first = sunset_scene_segment(&art->scene, side, low);
+    Rect last = sunset_scene_segment(&art->scene, side, high);
+    render(art, (Rect){first.x, first.y, last.x + last.width - first.x, first.height});
 }
 
 static void render_caps(SunsetArt *art, Rect column, uint8_t was, uint8_t now)
@@ -197,26 +209,17 @@ static void render_changes(SunsetArt *art, const MeterTick *before)
         render_floor(art);
     }
     if (art->sun_meter) {
-        render_sun(art, before);
+        MeterTick now = tick_of(art->meter);
+        for (int side = 0; side < 2; side++) {
+            now.lit[side] = sunset_art_peak_lit(art->meter, side, art->now_ms);
+        }
+        render_row(art, before, &now, 0);
+        render_row(art, before, &now, 1);
         return;
     }
     for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
         render_band(art, before, band);
     }
-}
-
-static MeterTick tick_of(const MeterState *state)
-{
-    MeterTick tick = {.pulse = state->pulse};
-    for (int side = 0; side < 2; side++) {
-        tick.shown[side] = state->shown[side];
-        tick.lit[side] = sunset_art_peak_lit(state, side, state->updated_ms);
-    }
-    for (int band = 0; band < AUDIO_VISUAL_BANDS; band++) {
-        tick.bars[band] = state->bars[band];
-        tick.caps[band] = state->caps[band];
-    }
-    return tick;
 }
 
 static uint8_t falling(uint8_t value, unsigned fall)
@@ -248,6 +251,12 @@ static void update_needles(MeterState *state, const AudioVisualLevels *levels, u
         state->shown[channel] = audio_visual_db((uint32_t)state->needles[channel].position / 256);
         if (levels->peak[channel] >= METER_PEAK_LEVEL) {
             state->peak_until[channel] = now + METER_PEAK_HOLD_MS;
+        }
+        if (state->shown[channel] >= state->caps[channel]) {
+            state->caps[channel] = state->shown[channel];
+            state->cap_until[channel] = now + METER_CAP_HOLD_MS;
+        } else if (deadline_reached(now, state->cap_until[channel])) {
+            state->caps[channel] = falling(state->caps[channel], elapsed / 12);
         }
     }
 }

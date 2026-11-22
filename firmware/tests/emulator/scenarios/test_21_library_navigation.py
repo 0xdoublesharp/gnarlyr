@@ -46,7 +46,7 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=library_volume(count, IDENTITY.version + "-" + self.build_tag()),
                   module_elfs=self.module_elfs, prepare=prepare)
-        home = IDENTITY.short_name.encode()
+        home = english("STR_HOME").encode()
         self.assertEqual("condition met", rig.machine.run(
             until=lambda: home in titles, until_ms=rig.machine.milliseconds() + 60000))
         rig.settle()

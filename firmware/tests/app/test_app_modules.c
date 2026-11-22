@@ -40,7 +40,7 @@ enum {
     SCRIPT_MS = 100
 };
 
-static const char HOME[] = FIRMWARE_SHORT_NAME;
+static const char HOME[] = "Home";
 static const char MISSING[] = "Screen missing: reinstall update";
 static const char RESTART[] = "Restart to finish the update";
 

@@ -1,12 +1,20 @@
 #include "home_art.h"
 
 #include "core/deadline.h"
+#include "core/i18n.h"
+#include "core/string_builder.h"
 #include "gfx/image.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 
 enum {
-    COVER_MARGIN_TOP = 8
+    COVER_MARGIN_TOP = 8,
+    CAPTION_ROOM = 62,
+    SMALLEST_COVER = 64,
+    CUE_HEIGHT = 48,
+    CUE_LINE = 20,
+    CUE_INSET = 4,
+    CUE_TEXT_CAPACITY = 32
 };
 
 static void update_metadata(HomeArt *art)
@@ -81,9 +89,7 @@ static void cycle(HomeArt *art, uint32_t count, uint32_t now_ms)
     if (!art->cycling) {
         art->cycling = true;
         art->album = (uint16_t)(count - 1);
-        show_next_with_a_cover(art, count);
-        art->next_change_ms = now_ms + HOME_ART_CYCLE_MS;
-        return;
+        art->next_change_ms = now_ms;
     }
     if (deadline_reached(now_ms, art->next_change_ms)) {
         show_next_with_a_cover(art, count);
@@ -113,27 +119,41 @@ void home_art_update(void *context, uint32_t now_ms)
 static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
 {
     const Theme *theme = art->theme;
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text};
-    Rect caption = {area.x, area.y, area.width, 2 * font_line_height(style.font)};
-    canvas_fill_rect(canvas, caption, theme->colors.backdrop_bottom);
-    label_draw(canvas, style,
-               (Label){label_centered_area(style.font, area, art->title), art->title});
-    area.y += font_line_height(style.font);
-    style.color = theme->colors.text_secondary;
-    label_draw(canvas, style,
-               (Label){label_centered_area(style.font, area, art->artist), art->artist});
-    PlayerStatus status = player_status(art->player);
-    if (status.has_track && status.duration_ms != 0) {
-        Rect progress = {area.x + 4, area.y + 24, area.width - 8, 2};
-        canvas_fill_rect(canvas, progress, theme->colors.divider);
-        uint32_t position =
-            status.position_ms < status.duration_ms ? status.position_ms : status.duration_ms;
-        if (status.state == PLAYER_PLAYING && position < status.duration_ms) {
-            position = position / 1000 * 1000;
-        }
-        progress.width = (int)((uint64_t)progress.width * position / status.duration_ms);
-        canvas_fill_rect(canvas, progress, theme->colors.accent);
+    const char *lines[2] = {art->title, art->artist};
+    Color inks[2] = {theme->colors.text, theme->colors.text_secondary};
+    for (int line = 0; line < 2; line++, area.y += CUE_LINE) {
+        TextStyle style = {theme->fonts.small, inks[line], false};
+        label_draw(canvas, style,
+                   (Label){label_centered_area(style.font, area, lines[line]), lines[line]});
     }
+}
+
+static int hidden_below(const HomeArt *art)
+{
+    const ListView *list = art->list;
+    if (list == NULL) {
+        return 0;
+    }
+    return list->model->count(list->model->context) - list->top - list->visible_rows;
+}
+
+static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
+{
+    const Theme *theme = art->theme;
+    const ListView *list = art->list;
+    const ListModel *model = list->model;
+    int last = list->top + list->visible_rows;
+    char text[CUE_TEXT_CAPACITY];
+    StringBuilder line = string_builder_make(text, sizeof text);
+    i18n_format_counts(&line, STR_HOME_ROWS_PLACE, (uint32_t)last,
+                       (uint32_t)model->count(model->context));
+    canvas_fill_rect(canvas, area, theme->colors.background);
+    TextStyle style = {theme->fonts.small, theme->colors.text_secondary, false};
+    Rect row = {area.x + theme->metrics.padding, area.y + CUE_INSET, area.width, CUE_LINE};
+    label_draw(canvas, style, (Label){row, text});
+    row.y += CUE_LINE;
+    style.color = theme->colors.accent;
+    label_draw(canvas, style, (Label){row, model->label(model->context, last)});
 }
 
 void home_art_draw(void *context, Canvas *canvas, Rect area)
@@ -143,22 +163,32 @@ void home_art_draw(void *context, Canvas *canvas, Rect area)
     bool below = theme_is_portrait(theme);
     Rect divider =
         below ? (Rect){area.x, area.y, area.width, 1} : (Rect){area.x, area.y, 1, area.height};
-    home_art_draw_backdrop(canvas, area, theme);
+    int cue = hidden_below(art) > 0 ? CUE_HEIGHT : 0;
+    area.height -= cue;
+    int size = area.height - CAPTION_ROOM;
+    bool captions = size >= SMALLEST_COVER;
+    size = captions && size < COVER_FULL_SIZE ? size : COVER_FULL_SIZE;
+    int left = area.x + (area.width - size) / 2;
+    int top = area.y + (below && !captions ? (area.height - size) / 2 : COVER_MARGIN_TOP);
+    Rect sky = area;
+    int floor = 2 * (top + size + CAPTION_ROOM - COVER_MARGIN_TOP - area.y);
+    if (below && captions && floor > sky.height) {
+        sky.height = floor;
+    }
+    home_art_draw_backdrop(canvas, sky, theme);
     canvas_fill_rect(canvas, divider, theme->colors.divider);
-    bool captions = area.height >= COVER_FULL_SIZE + 70;
-    int left = area.x + (area.width - COVER_FULL_SIZE) / 2;
-    int top =
-        area.y + (below && !captions ? (area.height - COVER_FULL_SIZE) / 2 : COVER_MARGIN_TOP);
     Image cover;
     if (art->has_album && cover_cache_full(art->covers, art->album, &cover) == COVER_LOADED) {
-        Quad quad = {left, COVER_FULL_SIZE, top, COVER_FULL_SIZE, top, COVER_FULL_SIZE};
-        image_draw_quad(canvas, cover, quad);
+        image_draw_quad(canvas, cover, (Quad){left, size, top, size, top, size});
     } else {
-        icon_draw(canvas, ICON_MIXTAPE, (Rect){left + 16, top + 16, 80, 80},
+        icon_draw(canvas, ICON_MIXTAPE,
+                  (Rect){left + size / 7, top + size / 7, size * 5 / 7, size * 5 / 7},
                   (IconInk){theme->colors.text_secondary, theme->colors.accent});
     }
     if (captions) {
-        draw_caption(art, canvas,
-                     (Rect){area.x + 10, top + COVER_FULL_SIZE + 6, area.width - 20, 18});
+        draw_caption(art, canvas, (Rect){area.x + 10, top + size + 6, area.width - 20, 18});
+    }
+    if (cue > 0) {
+        draw_cue(art, canvas, (Rect){area.x, area.y + area.height, area.width, cue});
     }
 }

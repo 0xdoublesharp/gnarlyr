@@ -1,21 +1,27 @@
 #include "sunset_scene.h"
 
-#include "core/i18n.h"
-#include "gfx/text.h"
-
 enum {
     SUNSET_ARC_STEPS = 32,
     SUNSET_SLAT_PITCH = 9,
     SUNSET_INSET = 6,
     SUNSET_MARK_ROOM = 12,
     SUNSET_STAR_TOP = 3,
-    SUNSET_STAR_GAP = 4
+    SUNSET_STAR_GAP = 4,
+    SUNSET_BED_INSET = 8,
+    SUNSET_BED_LIFT = 20,
+    SUNSET_BED_PAD = 4,
+    SUNSET_ROW_HEIGHT = 18,
+    SUNSET_LABEL_WIDTH = 16,
+    SUNSET_SEGMENT_GAP = 2,
+    SUNSET_SEGMENT_HEIGHT = 8
 };
 
 static const uint8_t ARC[SUNSET_ARC_STEPS + 1] = {
     255, 255, 255, 254, 253, 252, 250, 249, 247, 245, 242, 239, 236, 233, 229, 225, 221,
     216, 211, 205, 199, 192, 185, 177, 169, 159, 149, 137, 123, 108, 89,  63,  0};
-static const uint8_t MARK_SHIFTS[SUNSET_MARKS] = {0, 1, 2, 4};
+static const uint8_t RIDGE[SUNSET_RIDGE_POINTS][2] = {
+    {0, 2},   {23, 8},  {34, 6},   {52, 13},  {73, 6},   {91, 8},  {110, 2}, {144, 2},
+    {162, 7}, {175, 6}, {193, 13}, {207, 10}, {226, 17}, {245, 9}, {255, 8}};
 static const uint8_t STARS[SUNSET_STARS][2] = {{8, 40},   {31, 200},  {52, 90},   {77, 10},
                                                {98, 160}, {121, 60},  {139, 230}, {162, 120},
                                                {184, 20}, {203, 180}, {226, 70},  {247, 140}};
@@ -23,38 +29,6 @@ static const uint8_t STARS[SUNSET_STARS][2] = {{8, 40},   {31, 200},  {52, 90}, 
 static int smaller(int first, int second)
 {
     return first < second ? first : second;
-}
-
-static int larger(int first, int second)
-{
-    return first > second ? first : second;
-}
-
-static Rect text_box(const Font *font, int x, int y, StringId text)
-{
-    return (Rect){x, y, text_width(font, i18n_text(text)), font_line_height(font)};
-}
-
-static Rect aligned(Rect box, const SunsetScene *scene, int side)
-{
-    box.x = side == 0 ? scene->stage.x + SUNSET_INSET
-                      : scene->stage.x + scene->stage.width - SUNSET_INSET - box.width;
-    return box;
-}
-
-static void place_labels(SunsetScene *scene, const Theme *theme, bool portrait)
-{
-    const Font *small = theme->fonts.small;
-    const Font *title = theme->fonts.title;
-    int peak_y = portrait ? scene->stage.y + SUNSET_INSET
-                          : scene->horizon - font_line_height(title) - font_line_height(small) - 6;
-    for (int side = 0; side < 2; side++) {
-        Rect peak = aligned(text_box(small, 0, peak_y, STR_METER_PEAK), scene, side);
-        Rect channel = text_box(title, 0, peak.y + peak.height + 2,
-                                side == 0 ? STR_METER_LEFT : STR_METER_RIGHT);
-        scene->peaks[side] = peak;
-        scene->channels[side] = aligned(channel, scene, side);
-    }
 }
 
 SunsetScene sunset_scene_of(const Theme *theme, Rect stage)
@@ -68,7 +42,9 @@ SunsetScene sunset_scene_of(const Theme *theme, Rect stage)
     scene.sun = (Point){stage.x + stage.width / 2, scene.horizon - scene.radius * 3 / 10};
     scene.bars = (Rect){stage.x + SUNSET_INSET, stage.y + SUNSET_INSET,
                         stage.width - SUNSET_INSET * 2, above - SUNSET_INSET};
-    place_labels(&scene, theme, portrait);
+    int bed = 2 * SUNSET_ROW_HEIGHT + SUNSET_BED_PAD;
+    scene.bed = (Rect){stage.x + SUNSET_BED_INSET, stage.y + stage.height - SUNSET_BED_LIFT - bed,
+                       stage.width - 2 * SUNSET_BED_INSET, bed};
     return scene;
 }
 
@@ -97,21 +73,33 @@ bool sunset_scene_slat_gap(const SunsetScene *scene, int y)
     return rise % SUNSET_SLAT_PITCH < gap;
 }
 
-int sunset_scene_lit_top(const SunsetScene *scene, uint8_t level)
+Rect sunset_scene_row(const SunsetScene *scene, int side)
 {
-    return scene->horizon - level * (scene->horizon - sunset_scene_top(scene)) / 255;
+    Rect bed = scene->bed;
+    return (Rect){bed.x, bed.y + SUNSET_BED_PAD / 2 + side * SUNSET_ROW_HEIGHT, bed.width,
+                  SUNSET_ROW_HEIGHT};
 }
 
-Rect sunset_scene_half(const SunsetScene *scene, int side)
+Rect sunset_scene_segment(const SunsetScene *scene, int side, int segment)
 {
-    int top = sunset_scene_top(scene);
-    int x = side == 0 ? scene->sun.x - scene->radius : scene->sun.x + 2;
-    return (Rect){x, top, scene->radius - 1, scene->horizon - top};
+    Rect row = sunset_scene_row(scene, side);
+    int left = row.x + SUNSET_BED_PAD + SUNSET_LABEL_WIDTH + SUNSET_BED_PAD;
+    int room = row.x + row.width - SUNSET_BED_PAD - left + SUNSET_SEGMENT_GAP;
+    int pitch = room / SUNSET_SEGMENTS;
+    return (Rect){left + segment * pitch, row.y + (row.height - SUNSET_SEGMENT_HEIGHT) / 2,
+                  pitch - SUNSET_SEGMENT_GAP, SUNSET_SEGMENT_HEIGHT};
 }
 
-int sunset_scene_mark(const SunsetScene *scene, int mark)
+int sunset_scene_lit(uint8_t level)
 {
-    return sunset_scene_lit_top(scene, audio_visual_db(UINT32_C(32768) >> MARK_SHIFTS[mark]));
+    return (level * SUNSET_SEGMENTS + 127) / 255;
+}
+
+Point sunset_scene_ridge(const SunsetScene *scene, int point)
+{
+    Rect stage = scene->stage;
+    int rise = (scene->horizon - stage.y) * RIDGE[point][1] / 59;
+    return (Point){stage.x + RIDGE[point][0] * (stage.width - 1) / 255, scene->horizon - 1 - rise};
 }
 
 Rect sunset_scene_floor(const SunsetScene *scene)
@@ -151,11 +139,6 @@ static Rect star_band(const SunsetScene *scene)
     int left = scene->stage.x + SUNSET_INSET;
     int right = scene->stage.x + scene->stage.width - SUNSET_INSET;
     int top = scene->stage.y + SUNSET_STAR_TOP;
-    if (scene->peaks[0].y < sunset_scene_top(scene)) {
-        int labels = larger(scene->peaks[0].width, scene->channels[0].width);
-        left += labels + SUNSET_INSET;
-        right -= larger(scene->peaks[1].width, scene->channels[1].width) + SUNSET_INSET;
-    }
     return (Rect){left, top, right - left, sunset_scene_top(scene) - SUNSET_STAR_GAP - top};
 }
 

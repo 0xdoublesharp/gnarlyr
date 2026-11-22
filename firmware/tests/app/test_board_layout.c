@@ -3,15 +3,19 @@
 #include "about_layout.h"
 #include "board_layout.h"
 #include "check.h"
+#include "core/i18n.h"
 #include "default_theme.h"
 #include "gfx/text.h"
 #include "hal/display.h"
 #include "library/covers.h"
 #include "ui/header.h"
+#include "ui/list_view.h"
 
 enum {
     MIN_VISIBLE_ROWS = 6,
     MIN_TEXT_COLUMN = 160,
+    HOME_ICON_ROOM = 28,
+    GERMAN_NOW_PLAYING_LARGE = 262,
     MAX_STRIP_PIXELS = 12000,
     HORIZON_SHARE = 9,
     HORIZON_PARTS = 16,
@@ -90,53 +94,6 @@ static void the_title_fits_the_header_at_every_size(void)
     }
 }
 
-static void now_playing_text_lines_follow_each_other_without_overlap(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = theme_of_size(size);
-        const NowPlayingLayout *layout = board_now_playing_layout(&theme);
-        CHECK(line_height(theme.fonts.title) <= layout->text_line_height);
-        CHECK(line_height(theme.fonts.body) <= layout->text_line_height);
-        CHECK(layout->title_top >= theme.metrics.header_height);
-        CHECK(layout->title_top + layout->text_line_height <= layout->artist_top);
-        CHECK(layout->artist_top + layout->text_line_height <= layout->album_top);
-        CHECK(layout->album_top + layout->small_line_height <= layout->format_top);
-        CHECK(layout->format_top + layout->small_line_height <= layout->detail_top);
-        CHECK(layout->detail_top + layout->small_line_height <= layout->modes_top);
-        CHECK(layout->modes_top + layout->small_line_height <= layout->progress_top);
-    }
-}
-
-static void now_playing_keeps_the_progress_bar_and_times_on_screen(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = theme_of_size(size);
-        const NowPlayingLayout *layout = board_now_playing_layout(&theme);
-        CHECK(layout->progress_top + layout->progress_height <= layout->times_top);
-        CHECK(layout->times_top + layout->small_line_height <= HAL_DISPLAY_HEIGHT);
-    }
-}
-
-static void now_playing_cover_sits_above_the_progress_bar(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = theme_of_size(size);
-        const NowPlayingLayout *layout = board_now_playing_layout(&theme);
-        CHECK(layout->cover_top >= theme.metrics.header_height);
-        CHECK(layout->cover_top + layout->cover_size <= layout->progress_top);
-    }
-}
-
-static void now_playing_leaves_a_text_column_beside_the_cover(void)
-{
-    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        Theme theme = theme_of_size(size);
-        int left = theme.metrics.padding + board_now_playing_layout(&theme)->cover_size +
-                   board_now_playing_layout(&theme)->cover_gap;
-        CHECK(HAL_DISPLAY_WIDTH - left - theme.metrics.padding >= MIN_TEXT_COLUMN);
-    }
-}
-
 static void the_centre_cover_is_centred_on_screen(void)
 {
     const CoverFlowLayout *layout = &BOARD_COVER_LAYOUT.cover_flow;
@@ -180,9 +137,13 @@ static void the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list(void)
     CHECK(BOARD_LAYOUT.home_art_width <= HAL_DISPLAY_WIDTH / 2);
 }
 
-static void up_next_details_leave_room_for_the_label(void)
+static void a_long_home_label_fits_one_row_beside_the_art_at_large(void)
 {
-    CHECK(BOARD_COVER_LAYOUT.up_next_detail_max_width <= HAL_DISPLAY_WIDTH / 2);
+    Theme theme = theme_of_size(TEXT_SIZE_LARGE);
+    int room = HAL_DISPLAY_WIDTH - BOARD_LAYOUT.home_art_width - 2 * theme.metrics.padding -
+               HOME_ICON_ROOM - theme.metrics.scrollbar_width - theme.metrics.scrollbar_inset -
+               list_view_chevron_width(&theme) - theme.metrics.detail_gap;
+    CHECK(room >= GERMAN_NOW_PLAYING_LARGE);
 }
 
 static void a_strip_buffer_stays_small_and_strips_cover_the_screen(void)
@@ -254,32 +215,75 @@ static void the_portrait_title_fits_its_row_at_every_size(void)
     }
 }
 
-static void portrait_now_playing_lines_follow_each_other_on_screen(void)
+static void check_frame(const Theme *theme, NowPlayingFrame frame, bool stage)
+{
+    int height = theme->metrics.screen_height;
+    int frame_width = stage ? 0 : PORTRAIT_COVER_FRAME;
+    CHECK(frame.art.y >= theme->metrics.header_height);
+    CHECK(frame.column.y >= theme->metrics.header_height);
+    CHECK(frame.art.y + frame.art.height + frame_width <= frame.progress.y - 3);
+    CHECK(frame.column.y + frame.column.height <= frame.progress.y - 3);
+    CHECK(frame.progress.y + frame.progress.height + 2 <= frame.times.y);
+    CHECK(frame.times.y + line_height(theme->fonts.small) <= frame.cue.y);
+    CHECK(frame.cue.y + frame.cue.height <= height);
+    CHECK(frame.column.x + frame.column.width <=
+          theme->metrics.screen_width - theme->metrics.padding);
+}
+
+static void now_playing_keeps_art_text_transport_and_cue_apart(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme themes[] = {theme_of_size(size), portrait_theme_of_size(size)};
+        for (int index = 0; index < 2; index++) {
+            for (int stage = 0; stage < 2; stage++) {
+                check_frame(&themes[index], board_now_playing_frame(&themes[index], stage, 0),
+                            stage);
+            }
+        }
+    }
+}
+
+static void now_playing_leaves_a_text_column_beside_the_art(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_of_size(size);
+        for (int stage = 0; stage < 2; stage++) {
+            NowPlayingFrame frame = board_now_playing_frame(&theme, stage, 0);
+            CHECK(frame.column.x >= frame.art.x + frame.art.width + theme.metrics.padding);
+            CHECK(frame.column.width >= MIN_TEXT_COLUMN);
+            CHECK(frame.column.height >= line_height(theme.fonts.title) +
+                                             line_height(theme.fonts.body) +
+                                             line_height(theme.fonts.small));
+        }
+    }
+}
+
+static void now_playing_puts_the_text_under_the_art_in_portrait(void)
 {
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         Theme theme = portrait_theme_of_size(size);
-        const NowPlayingLayout *layout = board_now_playing_layout(&theme);
-        CHECK(layout->cover_top >= theme.metrics.header_height);
-        CHECK(layout->cover_top + layout->cover_size <= layout->title_top);
-        CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding,
-                    layout->cover_top - PORTRAIT_COVER_FRAME);
-        CHECK(layout->cover_top + layout->cover_size + PORTRAIT_COVER_FRAME <=
-              theme.metrics.screen_height);
-        int margin = (theme.metrics.screen_width - layout->cover_size) / 2 - PORTRAIT_COVER_FRAME;
-        CHECK(margin >= theme.metrics.padding && margin <= theme.metrics.padding + 1);
-        CHECK((theme.metrics.screen_width + layout->cover_size) / 2 + PORTRAIT_COVER_SHADOW <=
+        NowPlayingFrame frame = board_now_playing_frame(&theme, false, 0);
+        CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding, frame.art.y);
+        CHECK(frame.art.y + frame.art.height < frame.column.y);
+        int margin = (theme.metrics.screen_width - frame.art.width) / 2 - PORTRAIT_COVER_FRAME;
+        CHECK(margin >= theme.metrics.padding);
+        CHECK(frame.art.x + frame.art.width + PORTRAIT_COVER_SHADOW <=
               theme.metrics.screen_width - theme.metrics.padding);
-        CHECK(line_height(theme.fonts.title) <= layout->text_line_height);
-        CHECK(line_height(theme.fonts.body) <= layout->text_line_height);
-        CHECK(layout->title_top + 2 * layout->text_line_height <= layout->artist_top);
-        CHECK(layout->artist_top + layout->text_line_height <= layout->album_top);
-        CHECK(layout->album_top + layout->small_line_height <= layout->format_top);
-        CHECK(layout->format_top + layout->small_line_height <= layout->detail_top);
-        CHECK(layout->detail_top + layout->small_line_height <= layout->modes_top);
-        CHECK(layout->modes_top + layout->small_line_height <= layout->progress_top);
-        CHECK(layout->progress_top + layout->progress_height <= layout->times_top);
-        CHECK(layout->times_top + layout->small_line_height <= HAL_DISPLAY_LONG_SIDE);
+        CHECK(frame.column.height >= 2 * line_height(theme.fonts.title) +
+                                         line_height(theme.fonts.body) +
+                                         2 * line_height(theme.fonts.small));
     }
+}
+
+static void a_title_in_the_portrait_body_lowers_and_shrinks_the_art(void)
+{
+    Theme theme = portrait_theme_of_size(TEXT_SIZE_MEDIUM);
+    NowPlayingFrame plain = board_now_playing_frame(&theme, false, 0);
+    NowPlayingFrame lifted = board_now_playing_frame(&theme, false, 27);
+    CHECK_EQUAL(plain.art.y + 27, lifted.art.y);
+    CHECK_EQUAL(plain.art.height - 27, lifted.art.height);
+    CHECK_EQUAL(plain.column.y, lifted.column.y);
+    check_frame(&theme, lifted, false);
 }
 
 static void the_portrait_cover_stack_stays_on_screen_above_the_text(void)
@@ -328,7 +332,7 @@ static void the_home_title_fits_the_header_at_every_size_and_orientation(void)
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
             Theme theme = theme_turned(size, (Orientation)orientation);
-            CHECK(text_width(theme.fonts.header, FIRMWARE_SHORT_NAME) <=
+            CHECK(text_width(theme.fonts.header, i18n_text(STR_HOME)) <=
                   header_title_bounds(&theme).width);
         }
     }
@@ -427,7 +431,6 @@ int main(void)
         TEST_CASE(both_portraits_share_one_theme),
         TEST_CASE(a_portrait_list_shows_thirteen_rows_at_most),
         TEST_CASE(the_portrait_title_fits_its_row_at_every_size),
-        TEST_CASE(portrait_now_playing_lines_follow_each_other_on_screen),
         TEST_CASE(the_portrait_cover_stack_stays_on_screen_above_the_text),
         TEST_CASE(the_portrait_home_art_holds_a_cover_under_a_short_list),
         TEST_CASE(a_portrait_strip_buffer_holds_whole_rows),
@@ -437,16 +440,16 @@ int main(void)
         TEST_CASE(larger_sizes_use_larger_fonts),
         TEST_CASE(list_text_fits_its_row_at_every_size),
         TEST_CASE(the_title_fits_the_header_at_every_size),
-        TEST_CASE(now_playing_text_lines_follow_each_other_without_overlap),
-        TEST_CASE(now_playing_keeps_the_progress_bar_and_times_on_screen),
-        TEST_CASE(now_playing_cover_sits_above_the_progress_bar),
-        TEST_CASE(now_playing_leaves_a_text_column_beside_the_cover),
+        TEST_CASE(now_playing_keeps_art_text_transport_and_cue_apart),
+        TEST_CASE(now_playing_leaves_a_text_column_beside_the_art),
+        TEST_CASE(now_playing_puts_the_text_under_the_art_in_portrait),
+        TEST_CASE(a_title_in_the_portrait_body_lowers_and_shrinks_the_art),
         TEST_CASE(the_centre_cover_is_centred_on_screen),
         TEST_CASE(visible_side_covers_stay_on_screen),
         TEST_CASE(cover_flow_text_sits_below_the_cover_and_on_screen),
         TEST_CASE(cover_flow_text_lines_fit_the_theme_fonts),
         TEST_CASE(the_home_art_panel_holds_a_cover_and_leaves_room_for_the_list),
-        TEST_CASE(up_next_details_leave_room_for_the_label),
+        TEST_CASE(a_long_home_label_fits_one_row_beside_the_art_at_large),
         TEST_CASE(a_strip_buffer_stays_small_and_strips_cover_the_screen),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

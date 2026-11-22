@@ -30,7 +30,8 @@ static void bind(AppScreens *screens)
                             .theme = context->theme,
                             .player = context->player,
                             .toast = context->toast,
-                            .now_playing = &screens->now_playing.screen};
+                            .now_playing = &screens->now_playing.screen,
+                            .music = &screens->music.screen};
     CoverFlowConfig cover_flow = {
         .library = &context->store->library,
         .theme = context->theme,

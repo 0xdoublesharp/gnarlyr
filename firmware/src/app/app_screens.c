@@ -406,7 +406,7 @@ int app_screens_home_position(const AppScreens *screens, const void *context)
 static void build_home(AppScreens *screens, AppScreensContext context)
 {
     home_art_init(&screens->home_art, context.covers, context.store, context.player, context.theme);
-    MenuConfig home = {.title = FIRMWARE_SHORT_NAME,
+    MenuConfig home = {.title = i18n_text(STR_HOME),
                        .items = screens->home_items,
                        .item_count = app_screens_arrange_home_items(screens),
                        .theme = context.theme,
@@ -414,7 +414,7 @@ static void build_home(AppScreens *screens, AppScreensContext context)
                                  .min_height = BOARD_LAYOUT.home_art_min_height,
                                  .context = &screens->home_art}};
     menu_screen_init(&screens->home, home);
-    screens->home.screen.untitled_header = true;
+    screens->home_art.list = &screens->home.list;
     screen_modules_prepare_home(screens);
     screens->home.list.background = THEME_ART_HOME;
 }

@@ -24,6 +24,7 @@ typedef struct UpNextConfig {
     Player *player;
     Toast *toast;
     Screen *now_playing;
+    Screen *music;
 } UpNextConfig;
 
 typedef struct UpNextScreen UpNextScreen;
@@ -59,3 +60,5 @@ struct UpNextScreen {
 };
 
 Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config);
+const char *up_next_screen_badge(const UpNextScreen *up_next, int index);
+const char *up_next_screen_artist(const UpNextScreen *up_next, int index);

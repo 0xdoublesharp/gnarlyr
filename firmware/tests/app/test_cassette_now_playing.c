@@ -32,10 +32,11 @@ static void labels_and_reels_fit_all_sizes_and_orientations(void)
             CassetteNowPlayingLayout layout = cassette_now_playing_layout(&theme);
             CHECK(layout.body.width > 160);
             CHECK(layout.body.y >= theme.metrics.header_height);
-            if (orientation != 0) {
-                CHECK_EQUAL(theme.metrics.header_height + theme.metrics.padding, layout.body.y);
-            }
+            CHECK(layout.body.y + layout.body.height < now_playing_frame(&theme, true).progress.y);
             for (int line = 0; line < 3; line++) {
+                if (line == 2 && rect_is_empty(layout.label[line])) {
+                    continue;
+                }
                 CHECK(layout.label[line].width > 100);
                 CHECK(layout.label[line].y >= layout.body.y);
                 CHECK(layout.label[line].y + layout.label[line].height <= layout.reels[0].y);
@@ -106,6 +107,7 @@ static void long_labels_truncate_at_a_complete_character_with_an_ellipsis(void)
             text_spy_reset();
             cassette_now_playing_draw(&screen, &canvas);
             int truncated = 0;
+            int shown = rect_is_empty(cassette_now_playing_layout(&theme).label[2]) ? 2 : 3;
             for (int index = 0; index < text_spy_count(); index++) {
                 const TextSpyEntry *entry = text_spy_entry(index);
                 if (strcmp(entry->rest, screen.title) == 0 ||
@@ -116,7 +118,7 @@ static void long_labels_truncate_at_a_complete_character_with_an_ellipsis(void)
                     truncated++;
                 }
             }
-            CHECK_EQUAL(3, truncated);
+            CHECK_EQUAL(shown, truncated);
         }
     }
 }

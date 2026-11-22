@@ -367,7 +367,7 @@ static void the_home_menu_is_the_root(void)
 {
     start_app();
     step();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -384,7 +384,7 @@ static void back_returns_to_the_previous_screen(void)
     start_app();
     tap(KEY_PLAY);
     tap(KEY_BACK);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
@@ -408,7 +408,7 @@ static void repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu(void)
         move_up(row);
     }
     tap(KEY_BACK);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void a_storage_session_mid_slide_ends_the_slide_before_the_restart_draws(void)
@@ -431,7 +431,7 @@ static void a_storage_session_mid_slide_ends_the_slide_before_the_restart_draws(
     for (int pass = 0; pass < 8; pass++) {
         wait_ms(20);
     }
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
@@ -455,7 +455,7 @@ static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
     tap(KEY_BACK);
     CHECK(title_is("Recap"));
     tap(KEY_BACK);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void a_long_back_returns_home_from_deep_screens(void)
@@ -691,7 +691,7 @@ static void a_screen_the_gate_leaves_is_replaced_by_a_whole_frame(void)
     int first = first_written_row_after(100);
     fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
     fake_hal_break_module(SCREEN_MODULE_STAGE, false);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK(first >= 0);
     CHECK(first < header);
 }
@@ -1023,7 +1023,7 @@ static void queue_actions_and_menu_shortcuts_reuse_now_playing_before_home(void)
     tap(KEY_PLAY);
     hold(KEY_PLAY);
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(1, app_screen_depth());
     CHECK_EQUAL(plays, fake_hal_audio_play_count());
 }
@@ -1038,7 +1038,7 @@ static void holding_back_from_mixtape_name_reaches_home(void)
     tap(KEY_PLAY);
     CHECK(title_is("Mixtape name"));
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -1054,7 +1054,7 @@ static void holding_back_from_a_busy_mixtape_save_reaches_home(void)
     CHECK(title_is("Mixtape name"));
     hold(KEY_PLAY);
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -1268,7 +1268,7 @@ static void home_art_keeps_the_playing_album(void)
         wait_ms(HOME_ART_CYCLE_MS);
     }
     step();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(RED_COVER, home_art_probe());
 }
 
@@ -1277,7 +1277,7 @@ static void the_home_menu_shows_now_playing_first_once_a_track_is_loaded(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     move_down(HOME_NOW_PLAYING_INDEX);
     tap(KEY_PLAY);
     CHECK(title_is("Now Playing"));
@@ -1561,7 +1561,7 @@ static void a_brightness_preview_is_restored_when_settings_cannot_come_back(void
     fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
     step();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(settings_defaults().brightness, fake_hal_display_brightness());
     fake_hal_break_module(SCREEN_MODULE_SETTINGS, false);
 }
@@ -1574,7 +1574,7 @@ static void a_brightness_preview_is_restored_through_settings_after_an_overlay(v
     CHECK_EQUAL(settings_defaults().brightness + 1, fake_hal_display_brightness());
     fake_hal_load_usb_overlay();
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(settings_defaults().brightness, fake_hal_display_brightness());
 }
 
@@ -1753,7 +1753,7 @@ static void home_and_shutdown_discard_uncommitted_equalizer_previews(void)
     move_down(EQUALIZER_POP);
     CHECK_EQUAL(3, fake_hal_audio_equalizer().band_count);
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
     restart_app();
     wait_ms(SPLASH_MS);
@@ -1826,7 +1826,7 @@ static void custom_eq_back_discards_the_audible_draft_without_saving_it(void)
     tap(KEY_VOLUME_UP);
     CHECK_EQUAL(1, fake_hal_audio_equalizer().band_count);
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(0, fake_hal_audio_equalizer().band_count);
     restart_app();
     settings_store_load(&store);
@@ -2000,7 +2000,7 @@ static void the_color_setting_recolors_the_selection_and_is_saved(void)
     CHECK_EQUAL(ACCENT_RED, settings.accent);
     restart_app();
     wait_ms(1000);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK(selection_is_red());
 }
 
@@ -2161,7 +2161,7 @@ static void leaving_or_stopping_during_a_preview_keeps_the_saved_palette(void)
     tap(KEY_VOLUME_UP);
     check_theme_header(APPEARANCE_NEON_NOIR);
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     check_theme_header(APPEARANCE_GRAPHITE);
     restart_app();
     wait_ms(SPLASH_MS);
@@ -2222,7 +2222,7 @@ static void the_text_size_survives_a_restart(void)
     choose_text_size(TEXT_SIZE_LARGE);
     restart_app();
     wait_ms(1000);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     int header = expected_theme()->metrics.header_height;
     CHECK(selected_at(header + 36));
     CHECK(!selected_at(header + 40));
@@ -2236,7 +2236,7 @@ static void the_home_menu_fits_its_rows_to_the_new_size_when_shown_again(void)
     tap(KEY_BACK);
     wait_ms(SLIDE_DURATION_MS);
     step();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     int header = expected_theme()->metrics.header_height;
     int height = expected_theme()->metrics.row_height;
     int rows = theme_content_area(expected_theme()).height / height;
@@ -2415,10 +2415,9 @@ static void now_playing_centres_the_cover_under_the_status_row_in_portrait(void)
     wait_ms(SLIDE_DURATION_MS);
     step();
     CHECK(title_is("Now Playing"));
-    const NowPlayingLayout *layout = &BOARD_COVER_LAYOUT.now_playing_portrait[TEXT_SIZE_MEDIUM];
-    CHECK_EQUAL(0xF800, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2,
-                                       layout->cover_top + COVER_FULL_SIZE / 2));
-    CHECK(fake_hal_pixel(2, layout->cover_top + COVER_FULL_SIZE / 2) != RED_COVER);
+    Rect art = now_playing_frame(app_theme(), false).art;
+    CHECK_EQUAL(0xF800, fake_hal_pixel(HAL_DISPLAY_SHORT_SIDE / 2, art.y + art.height / 2));
+    CHECK(fake_hal_pixel(2, art.y + art.height / 2) != RED_COVER);
 }
 
 static void cover_flow_stacks_the_albums_in_portrait(void)
@@ -3237,7 +3236,7 @@ static void the_menu_chord_does_not_seek_in_lists(void)
     play_on_now_playing();
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     uint16_t track = app_player_status().track;
     int seeks = fake_hal_audio_seek_count();
     press_key(KEY_MENU);
@@ -3350,7 +3349,7 @@ static void play_and_volume_together_do_not_skip_in_lists(void)
     play_on_now_playing();
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     uint16_t track = app_player_status().track;
     press_key(KEY_PLAY);
     tap(KEY_VOLUME_UP);
@@ -3831,11 +3830,11 @@ static void a_toast_over_the_meter_stage_is_sent_whole_and_cleared_whole(void)
     Toast locked = {.visible = true};
     strcpy(locked.text, "Buttons locked");
     Rect area = toast_area(&locked, app_theme());
-    CHECK(area.y + 2 < stage.y + stage.height && area.x + 2 < stage.x + stage.width);
+    bool over = !rect_is_empty(rect_intersection(area, stage));
     long before = fake_hal_pixels_written();
     hold_play_and_power();
     CHECK(toast_is("Buttons locked"));
-    CHECK(fake_hal_pixels_written() - before >= (long)stage.width * stage.height);
+    CHECK(!over || fake_hal_pixels_written() - before >= (long)stage.width * stage.height);
     CHECK_EQUAL(app_theme()->colors.header_background, fake_hal_pixel(area.x + 2, area.y + 2));
     for (int pass = 0; pass < 40; pass++) {
         wait_ms(50);
@@ -4121,7 +4120,7 @@ static void going_back_slides_the_screen_out_to_the_right(void)
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_BACK);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(expected_theme()->colors.scrollbar_thumb, scrollbar_probe());
     wait_ms(SLIDE_DURATION_MS);
     CHECK(scrollbar_probe() != expected_theme()->colors.scrollbar_thumb);
@@ -4583,7 +4582,7 @@ static void the_splash_ignores_keys_until_it_ends(void)
     app_show_splash();
     step();
     tap(KEY_PLAY);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     wait_ms(WIRE_BOOT_OPEN_MS);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
@@ -4620,7 +4619,7 @@ static void the_plain_splash_runs_its_own_length(void)
     wait_ms(SPLASH_MS / 2);
     CHECK(!wire_horizon_shown());
     tap(KEY_PLAY);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     wait_ms(SPLASH_MS);
     tap(KEY_PLAY);
     CHECK(title_is("Music"));
@@ -4738,7 +4737,7 @@ static void formatting_a_paused_card_clears_the_library_and_saved_playback_state
     CHECK_EQUAL(1, fake_hal_card_formats());
     CHECK(!app_player_status().has_track);
     CHECK_EQUAL(PLAYER_IDLE, app_player_status().state);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK(toast_is("Card formatted"));
     app_start();
     CHECK(!app_player_status().has_track);
@@ -6300,7 +6299,7 @@ static void check_now_playing_shows(const StyleSwitches *switches)
     CHECK_EQUAL(style >= NOW_PLAYING_VU ? SCREEN_MODULE_STAGE : SCREEN_MODULE_PLAYING,
                 (int)fake_hal_loaded_module());
     CHECK_EQUAL(style == NOW_PLAYING_CASSETTE, text_shown("C60"));
-    CHECK_EQUAL(style == NOW_PLAYING_VU, text_shown("PEAK"));
+    CHECK_EQUAL(style == NOW_PLAYING_VU, text_shown("R"));
     CHECK(text_shown("Hells Bells"));
     PlayerStatus status = app_player_status();
     CHECK_EQUAL(switches->state, status.state);
@@ -6513,6 +6512,48 @@ static void the_home_now_playing_row_keeps_up_next_reachable(void)
     CHECK(title_is("Up Next"));
 }
 
+static void open_up_next_from_now_playing(bool first)
+{
+    tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    if (first) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    CHECK(title_is("Up Next"));
+}
+
+static void a_lone_track_in_up_next_returns_to_music_to_add_tracks(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    CHECK(title_is("Now Playing"));
+    open_up_next_from_now_playing(true);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    open_up_next_from_now_playing(false);
+    text_spy_reset();
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(text_shown("Add tracks from Music"));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Music"));
+    CHECK_EQUAL(2, app_screen_depth());
+    tap(KEY_PLAY);
+    CHECK(title_is("Albums"));
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_BACK);
+    CHECK(!title_is("Now Playing"));
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Home"));
+}
+
 static void holding_play_on_a_folder_without_songs_shows_a_toast(void)
 {
     static FixtureLibrary emptied;
@@ -6614,7 +6655,7 @@ static void the_start_screen_setting_opens_albums(void)
     tap(KEY_BACK);
     CHECK(title_is("Music"));
     tap(KEY_BACK);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void the_start_screen_setting_opens_now_playing(void)
@@ -6783,7 +6824,7 @@ static void now_playing_leaves_the_play_state_to_its_time_row(void)
     CHECK((app_status_items() & STATUS_BAR_PLAYBACK) == 0);
     CHECK((app_status_items() & STATUS_BAR_LOGO) != 0);
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK(area_has_color(app_status_item_area(STATUS_BAR_PLAYBACK), icon));
     fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     fake_hal_evict_module();
@@ -6822,7 +6863,7 @@ static void portrait_now_playing_keeps_no_play_icon_from_the_list_it_slid_over(v
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
     step();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     Rect play = app_status_item_area(STATUS_BAR_PLAYBACK);
     CHECK(play.y + play.height <= theme->metrics.header_height);
     CHECK(area_has_color(play, icon));
@@ -6840,7 +6881,7 @@ static void every_portrait_screen_has_one_header_line_led_by_the_logo(void)
     hold_back();
     wait_ms(SLIDE_DURATION_MS);
     step();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     const Theme *theme = expected_theme();
     Rect logo = app_status_item_area(STATUS_BAR_LOGO);
     Color ink = brand_mark_sun_row(0, logo.height);
@@ -6911,7 +6952,7 @@ static void a_notice_is_drawn_at_once_over_the_current_screen(void)
     app_show_notice("USB", "Connected to a computer");
     CHECK_EQUAL(presents + 1, fake_hal_present_count());
     CHECK(fake_hal_pixels_written() > pixels);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void a_notice_turns_the_display_on(void)
@@ -6947,8 +6988,8 @@ static void diagnostics_shows_the_firmware_version_from_the_hal(void)
 
 static uint16_t cover_probe(void)
 {
-    return fake_hal_pixel(expected_theme()->metrics.padding + 56,
-                          BOARD_COVER_LAYOUT.now_playing[TEXT_SIZE_MEDIUM].cover_top + 78);
+    Rect art = now_playing_frame(expected_theme(), false).art;
+    return fake_hal_pixel(art.x + art.width / 2, art.y + art.height * 2 / 3);
 }
 
 static void now_playing_shows_the_album_cover(void)
@@ -7398,7 +7439,7 @@ static void a_screen_change_is_logged_with_its_depth_and_title(void)
     CHECK_EQUAL(0, memcmp(last_event()->text, "Music\0", 7));
     tap(KEY_BACK);
     CHECK_EQUAL(1, last_event()->value);
-    CHECK_EQUAL(0, strncmp(last_event()->text, FIRMWARE_SHORT_NAME, DEBUG_LOG_TEXT_BYTES));
+    CHECK_EQUAL(0, memcmp(last_event()->text, "Home\0", 5));
 }
 
 static void starting_and_pausing_a_track_is_logged_with_its_number(void)
@@ -7582,7 +7623,7 @@ static void a_key_list_runs_in_order_with_long_presses(void)
 {
     start_app();
     run_script("build any\nplay,play\nback:long\n", 4 * SCRIPT_KEY_MS + KEY_SCRIPT_LONG_MS);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(1, app_screen_depth());
 }
 
@@ -7599,7 +7640,7 @@ static void a_script_without_a_build_line_is_refused_and_still_reconnects(void)
     start_app();
     const DebugScriptRun *run = run_script("play\n", SCRIPT_KEY_MS);
     CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_NO_BUILD, run->state);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
     run_script_for(DEBUG_SCRIPT_END_MS);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
@@ -7612,7 +7653,7 @@ static void a_script_whose_code_cannot_load_is_aborted_and_still_reconnects(void
     fake_hal_break_module(EXTENSION_MODULE_NUMBER, true);
     const DebugScriptRun *run = run_script("build any\nplay\n", SCRIPT_KEY_MS);
     CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, run->state);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[1]);
     CHECK_EQUAL(0, fake_hal_usb_reconnect_count());
     run_script_for(DEBUG_SCRIPT_END_MS);
@@ -7626,7 +7667,7 @@ static void a_script_for_another_build_is_refused(void)
     fake_hal_set_version("1.0.0-abc1234");
     CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD,
                 run_script("build 7777777\nplay\n", SCRIPT_KEY_MS)->state);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(DEBUG_SCRIPT_REFUSED_BUILD,
                 run_script("build 1.0.0\nplay\n", SCRIPT_KEY_MS)->state);
     fake_hal_set_version("1.0.0");
@@ -7682,7 +7723,7 @@ static void wait_holds_the_script_for_its_time(void)
     start_app();
     load_script("build any\nwait 500\nplay\n");
     run_script_for(400);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     run_script_for(100 + SCRIPT_KEY_MS);
     CHECK(title_is("Music"));
 }
@@ -7963,7 +8004,7 @@ static void screen_off_darkens_the_screen_at_once_and_screen_on_lights_it(void)
     CHECK(fake_hal_display_on());
     CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[1]);
     CHECK_EQUAL(DEBUG_LINE_OK, debug_runner_script()->status[3]);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void a_dark_screen_from_a_script_wakes_on_a_key_as_after_the_timeout(void)
@@ -8348,7 +8389,7 @@ static void reconnect_ends_the_script_and_asks_for_usb_at_once(void)
     CHECK_EQUAL(DEBUG_SCRIPT_FINISHED, run->state);
     CHECK_EQUAL(DEBUG_LINE_OK, run->status[1]);
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[2]);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
     run_script_for(2 * DEBUG_SCRIPT_END_MS);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
@@ -8378,7 +8419,7 @@ static void a_script_past_its_time_limit_is_stopped_and_reconnects(void)
     CHECK_EQUAL(DEBUG_SCRIPT_TIMED_OUT, run->state);
     CHECK_EQUAL(1, fake_hal_usb_reconnect_count());
     CHECK_EQUAL(DEBUG_LINE_NOT_RUN, run->status[6]);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static void an_aborted_script_lets_go_of_the_key_it_holds(void)
@@ -8399,7 +8440,7 @@ static void an_aborted_script_lets_go_of_the_key_it_holds(void)
     uint32_t before = debug_loop_log()->recorded;
     run_script_for(2000);
     CHECK_EQUAL(DEBUG_SCRIPT_ABORTED, debug_runner_script()->state);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     CHECK_EQUAL(pixels, fake_hal_pixels_written());
     CHECK_EQUAL(0, events_of(DEBUG_EVENT_SCREEN, before));
     tap(KEY_PLAY);
@@ -8450,7 +8491,7 @@ static void menu_opens_now_playing_from_anywhere_while_playing(void)
     start_app_with_library();
     play_first_album_track();
     hold_back();
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
     tap(KEY_MENU);
     CHECK(title_is("Now Playing"));
     int depth = app_screen_depth();
@@ -8463,7 +8504,7 @@ static void menu_does_nothing_while_nothing_plays(void)
 {
     start_app_with_library();
     tap(KEY_MENU);
-    CHECK(title_is(FIRMWARE_SHORT_NAME));
+    CHECK(title_is("Home"));
 }
 
 static Rect left_of_battery(void)
@@ -8957,7 +8998,7 @@ static void portrait_home_headers_in_every_play_and_power_state(void)
             for (int state = 0; state < 3; state++) {
                 start_portrait_home(compact != 0, usb != 0);
                 put_home_in_play_state(state);
-                CHECK(title_is(FIRMWARE_SHORT_NAME));
+                CHECK(title_is("Home"));
                 capture_panel("home-header", compact * 100 + usb * 10 + state);
             }
         }
@@ -9329,6 +9370,7 @@ int main(void)
         TEST_CASE(holding_play_on_a_folder_plays_everything_under_it_in_order),
         TEST_CASE(shuffled_folder_play_starts_from_a_random_song),
         TEST_CASE(the_home_now_playing_row_keeps_up_next_reachable),
+        TEST_CASE(a_lone_track_in_up_next_returns_to_music_to_add_tracks),
         TEST_CASE(holding_play_on_a_folder_without_songs_shows_a_toast),
         TEST_CASE(holding_play_on_a_song_in_folders_still_opens_play_next),
         TEST_CASE(holding_play_on_an_album_adds_it_to_favorites),
