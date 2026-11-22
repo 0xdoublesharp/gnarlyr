@@ -9,6 +9,8 @@ from unittest import mock
 from urllib.parse import unquote, urlsplit
 import xml.etree.ElementTree as ET
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+
 SPEC = importlib.util.spec_from_file_location("publish_site", Path(__file__).parents[1] / "tools/publish_site.py")
 publisher = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(publisher)
@@ -23,8 +25,8 @@ class LocalizedPublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="site-locales-test-", dir=SCRATCH) as folder:
             site = Path(folder)
             page = ('<!doctype html><html lang="en"><head><title data-i18n="home.title">Music</title>'
-                    '<link rel="canonical" href="https://gnarlyr.com/">'
-                    '<meta property="og:url" content="https://gnarlyr.com/">'
+                    f'<link rel="canonical" href="{locales.SITE_ORIGIN}/">'
+                    f'<meta property="og:url" content="{locales.SITE_ORIGIN}/">'
                     '<meta property="og:locale" content="en_US">'
                     '<link rel="stylesheet" href="styles.css"></head><body>'
                     '<header><nav><a href="docs.html" data-i18n="home.docs">Docs</a></nav></header>'
@@ -33,7 +35,7 @@ class LocalizedPublicationTests(unittest.TestCase):
                 (site / name).write_text(page if name.endswith(".html") else "asset")
             (site / "i18n").mkdir()
             (site / "i18n/locales.json").write_text(json.dumps({
-                "version": 1, "origin": "https://gnarlyr.com", "pages": ["index.html"],
+                "version": 1, "origin": locales.SITE_ORIGIN, "pages": ["index.html"],
                 "locales": [
                     {"code": "en", "name": "English", "og_locale": "en_US", "language_label": "Site language", "home_label": "home", "guide_note": ""},
                     {"code": "es", "name": "Español", "og_locale": "es_ES", "language_label": "Idioma", "home_label": "inicio", "guide_note": "Guías en inglés."},
@@ -48,7 +50,7 @@ class LocalizedPublicationTests(unittest.TestCase):
             self.assertIn("es/index.html", files)
             html = files["es/index.html"].decode()
             self.assertIn('<html lang="es">', html)
-            self.assertIn('rel="canonical" href="https://gnarlyr.com/es/"', html)
+            self.assertIn(f'rel="canonical" href="{locales.SITE_ORIGIN}/es/"', html)
             self.assertIn("Tu música.", html)
             self.assertIn('href="/docs.html"', html)
             version = hashlib.sha256(files["styles.css"]).hexdigest()[:12]
@@ -65,7 +67,7 @@ class CatalogueSafetyTests(unittest.TestCase):
             spec.loader.exec_module(social)
         source = (publisher.SITE / "index.html").read_text()
         card = next(card for card in json.loads((tool.parent / "site_social.json").read_text())["cards"] if card["page"] == "index.html")
-        refreshed = social.update_page(source, social.metadata_tags(source, card, "https://gnarlyr.com/assets/social/example.png"))
+        refreshed = social.update_page(source, social.metadata_tags(source, card, f"{locales.SITE_ORIGIN}/assets/social/example.png"))
         self.assertEqual(locales.catalogue(refreshed), locales.catalogue(source))
 
     def test_annotations_keep_inline_context_and_stable_ids(self):
@@ -141,8 +143,8 @@ class PublishedLanguageTests(unittest.TestCase):
         urls = [node.text for node in root.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
         self.assertEqual(len(urls), 14)
         self.assertEqual(len(set(urls)), len(urls))
-        self.assertIn("https://gnarlyr.com/ja/", urls)
-        self.assertNotIn("https://gnarlyr.com/index.html", urls)
+        self.assertIn(f"{self.config['origin']}/ja/", urls)
+        self.assertNotIn(f"{self.config['origin']}/index.html", urls)
         self.assertFalse(any(url.endswith("/docs.html") and "/es/" in url for url in urls))
 
     def test_generated_navigation_assets_and_fragments_resolve(self):
