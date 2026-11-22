@@ -13,10 +13,15 @@ enum {
     PERCENT = 100,
     ICON_BOX = 20,
     ICON_MIN_GAP = 4,
-    DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP
+    DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP,
+    FOCUS_BAR = 3,
+    CHEVRON_WIDTH = 8,
+    CHEVRON_LARGE_WIDTH = 10,
+    CHEVRON_HEIGHT_EIGHTHS = 13,
+    LARGE_TEXT = 2,
+    SUBPIXELS = 16,
+    FULL_ALPHA = 15
 };
-
-const char LIST_VIEW_CHEVRON[] = "\xE2\x80\xBA";
 static const char SECTION_LABELS[][2] = {"#", "A", "B", "C", "D", "E", "F", "G", "H", "I",
                                          "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S",
                                          "T", "U", "V", "W", "X", "Y", "Z", "#"};
@@ -233,7 +238,31 @@ void list_view_restart_marquee(ListView *view, uint32_t now_ms)
 static TextStyle row_style(const ListView *view, bool selected, Color normal)
 {
     Color color = selected ? view->theme->colors.selection_text : normal;
-    return (TextStyle){.font = view->theme->fonts.body, .color = color};
+    return (TextStyle){.font = selected ? view->theme->fonts.title : view->theme->fonts.body,
+                       .color = color};
+}
+
+int list_view_chevron_width(const Theme *theme)
+{
+    return theme->metrics.text_size == LARGE_TEXT ? CHEVRON_LARGE_WIDTH : CHEVRON_WIDTH;
+}
+
+void list_view_chevron_draw(Canvas *canvas, Rect box, Color color)
+{
+    int lean = box.width * SUBPIXELS * 3 / 5;
+    int stroke = box.width * SUBPIXELS * 2 / 5;
+    for (int y = 0; y < box.height; y++) {
+        int away = 2 * y + 1 - box.height;
+        int left = lean * (box.height - (away < 0 ? -away : away)) / box.height;
+        for (int x = 0; x < box.width; x++) {
+            int from = max_of(x * SUBPIXELS, left);
+            int to = min_of(x * SUBPIXELS + SUBPIXELS, left + stroke);
+            if (to > from) {
+                canvas_blend_pixel(canvas, (Point){box.x + x, box.y + y}, color,
+                                   (uint8_t)((to - from) * FULL_ALPHA / SUBPIXELS));
+            }
+        }
+    }
 }
 
 static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
@@ -245,7 +274,8 @@ static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
     int size = min_of(ICON_BOX, min_of(row.text.width, row.text.height));
     int gap = max_of(ICON_MIN_GAP, view->theme->metrics.padding - ICON_MIN_GAP);
     Rect box = {row.text.x, row.text.y + (row.text.height - size) / 2, size, size};
-    Color main = row.selected ? view->theme->colors.selection_text : view->theme->colors.text;
+    Color main =
+        row.selected ? view->theme->colors.selection_text : view->theme->colors.text_secondary;
     Color accent = row.selected ? main : view->theme->colors.accent;
     Canvas clipped = canvas_clipped(canvas, row.area);
     IconId icon = model->icon(model->context, row.index);
@@ -265,11 +295,12 @@ static Row draw_chevron(const ListView *view, Canvas *canvas, Row row)
     if (model->opens == NULL || !model->opens(model->context, row.index)) {
         return row;
     }
-    Color color = row.selected ? view->theme->colors.selection_text : view->theme->colors.chevron;
-    TextStyle style = {.font = view->theme->fonts.title, .color = color};
-    int width = text_width(style.font, LIST_VIEW_CHEVRON);
-    Rect area = {row.text.x + row.text.width - width, row.text.y, width, row.text.height};
-    label_draw(canvas, style, (Label){.area = area, .text = LIST_VIEW_CHEVRON});
+    int width = list_view_chevron_width(view->theme);
+    int height = width * CHEVRON_HEIGHT_EIGHTHS / 8;
+    Rect box = {row.text.x + row.text.width - width, row.text.y + (row.text.height - height) / 2,
+                width, height};
+    Canvas clipped = canvas_clipped(canvas, row.area);
+    list_view_chevron_draw(&clipped, box, view->theme->colors.chevron);
     row.text.width -= width + view->theme->metrics.detail_gap;
     if (model->icon != NULL) {
         row.text.width = max_of(0, row.text.width);
@@ -284,7 +315,8 @@ static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
     if (detail == NULL) {
         return row;
     }
-    TextStyle style = row_style(view, row.selected, view->theme->colors.text_secondary);
+    TextStyle style = {.font = view->theme->fonts.body,
+                       .color = view->theme->colors.text_secondary};
     bool narrow = theme_is_portrait(view->theme);
     if (narrow) {
         style.font = view->theme->fonts.small;
@@ -295,7 +327,7 @@ static Row draw_detail(const ListView *view, Canvas *canvas, Row row)
     }
     if (narrow) {
         int label_width =
-            text_width(view->theme->fonts.body, model->label(model->context, row.index));
+            text_width(view->theme->fonts.title, model->label(model->context, row.index));
         int room = row.text.width - label_width - view->theme->metrics.detail_gap;
         int smallest = row.text.width * NARROW_DETAIL_SHARE / PERCENT;
         width = min_of(width, max_of(room, smallest));
@@ -313,17 +345,9 @@ static void draw_detail_below(const ListView *view, Canvas *canvas, Row row)
 {
     const ListModel *model = view->model;
     const Theme *theme = view->theme;
-    TextStyle style = {.font = theme->fonts.small,
-                       .color = row.selected ? theme->colors.selection_text
-                                             : theme->colors.text_secondary};
+    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     Rect area = {row.text.x, row.area.y + theme->metrics.row_height + DETAIL_LINE_GAP,
                  row.text.width, font_line_height(style.font)};
-    if (model->opens != NULL && model->opens(model->context, row.index)) {
-        int width = text_width(style.font, LIST_VIEW_CHEVRON);
-        Rect arrow = {area.x + area.width - width, area.y, width, area.height};
-        label_draw(canvas, style, (Label){arrow, LIST_VIEW_CHEVRON});
-        area.width = max_of(0, area.width - width - theme->metrics.detail_gap);
-    }
     const char *detail = model->detail != NULL ? model->detail(model->context, row.index) : NULL;
     if (detail != NULL) {
         label_draw(canvas, style, (Label){area, detail});
@@ -343,28 +367,27 @@ static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t n
     int offset = row.selected ? marquee_offset_in(timing, width, row.text,
                                                   now_ms - view->selection_changed_ms)
                               : 0;
-    if (offset == 0) {
+    if (!row.selected || width <= row.text.width) {
         label_draw(canvas, style, label);
         return;
     }
-    label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
+    label_draw_scrolling(canvas, style, label,
+                         (Marquee){.offset = offset,
+                                   .gap = timing.gap_px,
+                                   .fade = theme_selection_fill(view->theme),
+                                   .fades = true});
 }
 
 static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)
 {
     if (row.selected) {
-        const ThemeColors *colors = &view->theme->colors;
-        int edge = max_of(1, view->theme->metrics.scrollbar_inset);
-        int cap = max_of(edge, view->theme->metrics.padding / 2);
-        canvas_fill_rect(canvas, row.area, colors->selection_background);
-        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, edge, row.area.height},
-                         colors->accent);
-        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, cap, 1}, colors->accent);
-        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y + row.area.height - 1, cap, 1},
-                         colors->accent_alt);
+        canvas_fill_rect(canvas, row.area, theme_selection_fill(view->theme));
+        canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, FOCUS_BAR, row.area.height},
+                         view->theme->colors.accent);
     }
     row = draw_icon(view, canvas, row);
     if (details_below(view) || row.area.height > list_view_row_height(view)) {
+        row = draw_chevron(view, canvas, row);
         draw_detail_below(view, canvas, row);
         draw_label(view, canvas, row, now_ms);
     } else {

@@ -190,7 +190,7 @@ static void draw(void *context, Canvas *canvas)
     centered(canvas, theme, row, i18n_text(FIELDS[editor->field]));
     row.y += row_height;
     value_text(editor);
-    canvas_fill_rect(canvas, row, theme->colors.selection_background);
+    canvas_fill_rect(canvas, row, theme_selection_fill(theme));
     centered(canvas, theme, row, editor->text);
     label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text, false},
                        (Label){hint, i18n_text(STR_SET_CLOCK_HINT)});

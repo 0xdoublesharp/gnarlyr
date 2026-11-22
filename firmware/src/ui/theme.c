@@ -20,6 +20,11 @@ int theme_visible_rows(const Theme *theme)
     return rows < THEME_MAX_ROWS ? rows : THEME_MAX_ROWS;
 }
 
+Color theme_selection_fill(const Theme *theme)
+{
+    return color_between(theme->colors.selection_background, theme->colors.selection_top, 1, 10);
+}
+
 bool theme_is_portrait(const Theme *theme)
 {
     return theme->metrics.screen_height > theme->metrics.screen_width;

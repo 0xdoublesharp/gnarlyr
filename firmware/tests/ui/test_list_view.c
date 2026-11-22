@@ -209,23 +209,23 @@ static void the_selected_row_is_highlighted(void)
     CHECK(ui_test_area_has_only(&canvas, row_rect(2), TEST_THEME.colors.background));
 }
 
-static void a_flat_focus_surface_has_two_accent_bracket_ends(void)
+static void the_focus_is_a_lifted_fill_with_a_three_pixel_accent_bar(void)
 {
     Theme theme = TEST_THEME;
     theme.colors.selection_top = 0xFFFF;
-    theme.colors.selection_shine = 0x07E0;
     theme.colors.accent = 0x07FF;
-    theme.colors.accent_alt = 0xF81F;
+    theme.metrics.padding = 4;
     ListView view = list_of(10);
     view.theme = &theme;
     move_times(&view, 1, 1);
     Canvas canvas = ui_test_canvas();
     list_view_draw(&view, &canvas, theme_content_area(&theme), 100);
     Rect row = row_rect(1);
-    CHECK_EQUAL(theme.colors.accent, canvas_pixel_at(&canvas, 0, row.y));
-    CHECK_EQUAL(theme.colors.accent_alt, canvas_pixel_at(&canvas, 0, row.y + row.height - 1));
+    CHECK(ui_test_area_has_only(&canvas, (Rect){0, row.y, 3, row.height}, theme.colors.accent));
+    Color lifted = color_between(theme.colors.selection_background, 0xFFFF, 1, 10);
+    CHECK_EQUAL(lifted, theme_selection_fill(&theme));
     Rect flat = {TEST_SCREEN_WIDTH / 2, row.y, 1, row.height};
-    CHECK(ui_test_area_has_only(&canvas, flat, theme.colors.selection_background));
+    CHECK(ui_test_area_has_only(&canvas, flat, lifted));
 }
 
 static void the_scrollbar_thumb_sits_inset_without_a_track(void)
@@ -359,7 +359,7 @@ static void selected_icons_use_only_the_selected_text_ink(void)
     model.icon = fake_icon;
     Canvas canvas = ui_test_canvas();
     list_view_draw(&view, &canvas, theme_content_area(&theme), 0);
-    Rect icon = {theme.metrics.padding, row_rect(0).y, TEST_ROW_HEIGHT, TEST_ROW_HEIGHT};
+    Rect icon = {3, row_rect(0).y, TEST_ROW_HEIGHT, TEST_ROW_HEIGHT};
     CHECK(ui_test_area_has_color(&canvas, icon, theme.colors.selection_text));
     CHECK(!ui_test_area_has_color(&canvas, icon, theme.colors.accent));
 }
@@ -429,7 +429,7 @@ static int text_mask(const Canvas *canvas, Rect row, Color ink, bool *mask)
     return count;
 }
 
-static void a_selected_label_at_rest_is_cut_with_an_ellipsis_like_the_others(void)
+static void a_selected_label_too_long_starts_at_its_first_letter_and_fades_its_cut_edge(void)
 {
     ListView view = list_of(2);
     model.label = long_label;
@@ -439,25 +439,52 @@ static void a_selected_label_at_rest_is_cut_with_an_ellipsis_like_the_others(voi
     bool plain[TEST_SCREEN_WIDTH * TEST_ROW_HEIGHT];
     list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
     int inked = text_mask(&canvas, row, TEST_THEME.colors.selection_text, selected);
+    int edge = TEST_SCREEN_WIDTH - TEST_THEME.metrics.padding - 1;
+    Rect cut = {edge, row.y, 1, row.height};
+    CHECK(ui_test_area_has_only(&canvas, cut, theme_selection_fill(&TEST_THEME)));
     list_view_select(&view, 1, 0);
     list_view_draw(&view, &canvas, theme_content_area(&TEST_THEME), 0);
     text_mask(&canvas, row, TEST_THEME.colors.text, plain);
     CHECK(inked > 0);
-    for (int at = 0; at < TEST_SCREEN_WIDTH * TEST_ROW_HEIGHT; at++) {
-        CHECK_EQUAL(plain[at], selected[at]);
+    for (int y = 0; y < TEST_ROW_HEIGHT; y++) {
+        for (int x = 0; x < TEST_SCREEN_WIDTH / 4; x++) {
+            CHECK_EQUAL(plain[y * TEST_SCREEN_WIDTH + x], selected[y * TEST_SCREEN_WIDTH + x]);
+        }
     }
+}
+
+static void the_chevron_is_eight_wide_and_ten_wide_at_large_text(void)
+{
+    Theme theme = TEST_THEME;
+    CHECK_EQUAL(8, list_view_chevron_width(&theme));
+    theme.metrics.text_size = 2;
+    CHECK_EQUAL(10, list_view_chevron_width(&theme));
+}
+
+static void the_chevron_points_right_from_its_middle_row(void)
+{
+    Canvas canvas = ui_test_canvas();
+    canvas_clear(&canvas, 0);
+    list_view_chevron_draw(&canvas, (Rect){0, 0, 8, 13}, 0xFFFF);
+    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 6, 6));
+    CHECK_EQUAL(0, canvas_pixel_at(&canvas, 1, 6));
+    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 1, 0));
+    CHECK_EQUAL(0, canvas_pixel_at(&canvas, 6, 0));
+    CHECK_EQUAL(0xFFFF, canvas_pixel_at(&canvas, 1, 12));
 }
 
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_chevron_is_eight_wide_and_ten_wide_at_large_text),
+        TEST_CASE(the_chevron_points_right_from_its_middle_row),
         TEST_CASE(a_new_list_selects_the_first_item),
         TEST_CASE(optional_row_icons_use_the_themes_accent_ink),
         TEST_CASE(selected_icons_use_only_the_selected_text_ink),
         TEST_CASE(a_long_detail_cannot_paint_over_the_icon),
         TEST_CASE(a_row_taller_than_one_line_draws_its_detail_under_the_label),
         TEST_CASE(a_marquee_cannot_scroll_text_through_the_icon),
-        TEST_CASE(a_selected_label_at_rest_is_cut_with_an_ellipsis_like_the_others),
+        TEST_CASE(a_selected_label_too_long_starts_at_its_first_letter_and_fades_its_cut_edge),
         TEST_CASE(fitting_taller_rows_keeps_the_selection_on_screen),
         TEST_CASE(fitting_shorter_rows_fills_the_screen_to_the_last_item),
         TEST_CASE(moving_within_the_page_keeps_the_top),
@@ -473,7 +500,7 @@ int main(void)
         TEST_CASE(selecting_past_the_end_picks_the_last_item),
         TEST_CASE(the_selected_row_is_highlighted),
         TEST_CASE(the_scrollbar_appears_only_when_items_overflow),
-        TEST_CASE(a_flat_focus_surface_has_two_accent_bracket_ends),
+        TEST_CASE(the_focus_is_a_lifted_fill_with_a_three_pixel_accent_bar),
         TEST_CASE(the_scrollbar_thumb_sits_inset_without_a_track),
         TEST_CASE(a_row_that_opens_something_shows_a_chevron),
         TEST_CASE(a_detail_is_drawn_in_the_secondary_color_at_the_right),

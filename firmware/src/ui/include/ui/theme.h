@@ -93,5 +93,6 @@ Rect theme_header_area(const Theme *theme);
 Rect theme_content_area(const Theme *theme);
 int theme_visible_rows(const Theme *theme);
 bool theme_is_portrait(const Theme *theme);
+Color theme_selection_fill(const Theme *theme);
 bool theme_art_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);
 void theme_background_draw(const Theme *theme, Canvas *canvas, int slot, Rect area);
