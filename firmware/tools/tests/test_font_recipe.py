@@ -351,6 +351,29 @@ class BuildTest(unittest.TestCase):
                           for character, font in (("έ", inter), ("ả", inter), ("…", inter), ("中", noto))]
                 self.assertEqual(glyph_pack.read_face(glyph_pack.pack_glyphs(glyphs)), face)
 
+    def test_an_oversized_inter_glyph_uses_noto_only_in_the_affected_face(self):
+        codepoint = ord("…")
+        setup = test_setup()
+        setup.drawable -= {codepoint}
+        bases = font_recipe.base_sources()
+        source, _ = bases[-1]
+        bases[-1] = (source, 96)
+        spec = setup.recipe["faces"][-1]
+        oversized = font_build.render_glyph(font_build.load_font(source.path, 96), codepoint)
+        self.assertGreater(glyph_pack.bitmap_bytes(oversized), spec["max_bitmap"])
+
+        with mock.patch.object(font_recipe, "base_sources", return_value=bases):
+            data, result = font_recipe.build(setup, {}, [chr(codepoint)], "ja", options())
+
+        self.assertEqual([codepoint], result.characters)
+        self.assertEqual([], result.unrenderable)
+        faces, _ = glyph_pack.read_extra_font(data)
+        noto = setup.recipe["sources"]["jp"][spec["weight"]]["file"]
+        expected_sources = [*bases[:-1], (font_recipe.FontSource(NOTO / noto), spec["size"])]
+        for (source, size), face in zip(expected_sources, faces, strict=True):
+            glyph = font_build.render_glyph(font_build.load_font(source.path, size), codepoint)
+            self.assertEqual(glyph_pack.read_face(glyph_pack.pack_glyphs([glyph])), face)
+
     def test_inter_only_text_builds_without_noto_files(self):
         data, result = font_recipe.build(test_setup(), {}, ["έả"], "en", font_recipe.Options(FONTS))
         faces, _ = glyph_pack.read_extra_font(data)

@@ -1,6 +1,6 @@
 """Builds extra.font, the glyphs the player's built-in fonts lack, on the computer.
 
-Each face prefers its base Inter font and uses Noto Sans CJK for characters Inter lacks.
+Each face prefers its base Inter font and tries Noto Sans CJK when Inter cannot draw a glyph within the limit.
 The recipe (assets/fonts/recipe.json) pins the Noto fonts, maps languages to a style and
 lists the characters every face can render. The input characters come from the language packs on
 the music volume, the library database and missing.txt; the output is one file on internal
@@ -442,14 +442,13 @@ def render_extra_face(spec, base, fallback, characters):
     inter, size = base
     preferred = characters & inter.cmap
     glyphs, dropped = render_face(inter, size, spec["max_bitmap"], preferred)
-    remaining = characters - preferred
-    if remaining:
-        noto = fallback(spec["weight"])
-        supported = remaining & noto.cmap
-        extra, lost = render_face(noto, spec["size"], spec["max_bitmap"], supported)
-        glyphs.extend(extra)
-        dropped |= (remaining - supported) | lost
-    return glyphs, dropped
+    remaining = (characters - preferred) | dropped
+    if not remaining:
+        return glyphs, dropped
+    noto = fallback(spec["weight"])
+    supported = remaining & noto.cmap
+    extra, lost = render_face(noto, spec["size"], spec["max_bitmap"], supported)
+    return glyphs + extra, (remaining - supported) | lost
 
 
 def render(setup, style, characters, options):
