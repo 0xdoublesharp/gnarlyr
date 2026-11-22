@@ -25,9 +25,6 @@ static void bind(AppScreens *screens)
                                              .motion = context->motion});
     lyrics_screen_init(&own->lyrics, (LyricsScreenConfig){context->player, &context->store->library,
                                                           context->theme});
-#ifdef ECHO_DEBUG_LOOP
-    key_test_screen_init(&own->key_test, context->theme);
-#endif
 }
 
 static Screen *manage(AppScreens *screens, uint16_t track, SongManage manage)

@@ -37,7 +37,7 @@ ScreenModule screen_modules_of(const AppScreens *screens, const Screen *screen)
         screen == &screens->now_playing.screen) {
         return screen_modules_playing(screens);
     }
-    if (screen == &screens->modules.format.screen) {
+    if (at - offsetof(AppScreens, modules.format) < sizeof(FormatModuleScreens)) {
         return SCREEN_MODULE_FORMAT;
     }
     for (int module = SCREEN_MODULE_NONE + 1; module < SCREEN_MODULE_COUNT; module++) {

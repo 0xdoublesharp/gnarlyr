@@ -322,7 +322,7 @@ if(ECHO_RELEASE)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c)
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu.c)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/screens/key_test_screen.c)
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/screens/key_test_screen.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
         src/app/debug_steps.c

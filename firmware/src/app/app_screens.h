@@ -135,9 +135,15 @@ typedef struct ViewsModuleScreens {
 #ifdef ECHO_DEBUG_LOOP
     MenuScreen stall_question;
     MenuItem stall_items[2];
-    KeyTestScreen key_test;
 #endif
 } ViewsModuleScreens;
+
+typedef struct FormatModuleScreens {
+    CardFormatScreen card;
+#ifdef ECHO_DEBUG_LOOP
+    KeyTestScreen key_test;
+#endif
+} FormatModuleScreens;
 
 typedef struct SettingsModuleScreens {
     SettingsScreens settings;
@@ -162,7 +168,7 @@ typedef struct AppModuleScreens {
     SettingsModuleScreens settings;
     ProfileModuleScreens listening;
     LibraryModuleScreens library;
-    CardFormatScreen format;
+    FormatModuleScreens format;
 } AppModuleScreens;
 
 typedef struct AppScreens {
