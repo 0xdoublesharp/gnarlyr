@@ -24,6 +24,13 @@ static ListRowRole role_of(const void *context, int index)
     return roles[index];
 }
 
+static IconId trash(const void *context, int index)
+{
+    (void)context;
+    (void)index;
+    return ICON_DELETE;
+}
+
 static ListModel model = {.count = two_rows, .label = letter, .role = role_of};
 
 static Canvas draw_two(ListRowRole first, ListRowRole second, int selected)
@@ -72,6 +79,19 @@ static void plain_rows_draw_no_divider(void)
     CHECK(!ui_test_area_has_only(&canvas, line, TEST_THEME.colors.divider));
 }
 
+static void a_danger_row_draws_its_icon_in_the_danger_colour(void)
+{
+    model.icon = trash;
+    Canvas canvas = draw_two(LIST_ROW_PLAIN, LIST_ROW_DANGER_DIVIDED, 1);
+    model.icon = NULL;
+    int x = TEST_THEME.metrics.padding;
+    Rect plain = {x, row_rect(0).y, ICON_LARGE_GRID, TEST_ROW_HEIGHT};
+    Rect danger = {x, row_rect(1).y + 1, ICON_LARGE_GRID, TEST_ROW_HEIGHT - 1};
+    CHECK(ui_test_area_has_color(&canvas, danger, TEST_THEME.colors.danger));
+    CHECK(!ui_test_area_has_color(&canvas, danger, TEST_THEME.colors.text_secondary));
+    CHECK(ui_test_area_has_color(&canvas, plain, TEST_THEME.colors.text_secondary));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -79,6 +99,7 @@ int main(void)
         TEST_CASE(a_focused_danger_row_marks_its_bar_in_the_danger_colour),
         TEST_CASE(a_divided_row_draws_a_divider_along_its_top),
         TEST_CASE(plain_rows_draw_no_divider),
+        TEST_CASE(a_danger_row_draws_its_icon_in_the_danger_colour),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

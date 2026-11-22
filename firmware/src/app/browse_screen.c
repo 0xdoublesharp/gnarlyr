@@ -449,6 +449,18 @@ ScreenAction browse_song_manage(void *context)
     return screen != NULL ? screen_action_replace(screen) : screen_action_pop();
 }
 
+const char *browse_song_keep_file(const void *context)
+{
+    (void)context;
+    return i18n_text(STR_KEEP_FILE);
+}
+
+const char *browse_song_erase_from_storage(const void *context)
+{
+    (void)context;
+    return i18n_text(STR_ERASE_FROM_STORAGE);
+}
+
 static ScreenAction open_song_actions(BrowseScreen *browse, int index, uint16_t track)
 {
     BrowsePool *pool = browse->pool;

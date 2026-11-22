@@ -59,6 +59,10 @@ typedef enum IconId {
     ICON_PLUG,
     ICON_CHEVRON,
     ICON_LOGO,
+    ICON_INFO,
+    ICON_TAG,
+    ICON_HIDE,
+    ICON_DELETE,
     ICON_GLOBE,
     ICON_COUNT
 } IconId;

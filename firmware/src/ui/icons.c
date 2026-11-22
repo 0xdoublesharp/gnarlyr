@@ -33,6 +33,7 @@ enum {
     FIRST_UNDRAWN = ICON_SHUFFLE,
     UNDRAWN_SPAN = 32,
     LAST_NARROW = ICON_CHEVRON,
+    LAST_SMALL = ICON_LOGO,
     KIND_SHIFT = 29,
     A_SHIFT = 22,
     B_SHIFT = 17,
@@ -170,6 +171,16 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
 #define GLOBE_GLYPH                                                                                \
     RING(1, 1, 18), ACCENT(LINE(10, 2, 10, 17)), ACCENT(LINE(2, 10, 17, 10)), LINE(4, 5, 15, 5),   \
         LAST(LINE(4, 14, 15, 14))
+#define INFO_GLYPH RING(1, 1, 18), ACCENT(FILL(9, 4, 10, 5)), LAST(ACCENT(FILL(9, 8, 10, 14)))
+#define TAG_GLYPH                                                                                  \
+    LINE(1, 4, 12, 4), LINE(12, 4, 18, 10), LINE(18, 10, 12, 16), LINE(12, 16, 1, 16),             \
+        LINE(1, 4, 1, 16), LAST(ACCENT(DISC(4, 8, 4)))
+#define HIDE_GLYPH                                                                                 \
+    LINE(0, 10, 9, 5), LINE(9, 5, 18, 10), LINE(18, 10, 9, 15), LINE(9, 15, 0, 10),                \
+        ACCENT(DISC(7, 8, 4)), LAST(LINE(3, 17, 15, 2))
+#define DELETE_GLYPH                                                                               \
+    LINE(1, 4, 17, 4), FILL(7, 1, 12, 2), BOX(4, 6, 15, 18), ACCENT(LINE(7, 9, 7, 15)),            \
+        LAST(ACCENT(LINE(11, 9, 11, 15)))
 
 static const uint32_t GLYPHS[] = {
     MUSIC_GLYPH,       AUDIOBOOK_GLYPH,     PODCAST_GLYPH,  NOW_PLAYING_GLYPH,
@@ -183,6 +194,7 @@ static const uint32_t GLYPHS[] = {
     PREVIOUS_GLYPH,    PLAYING_GLYPH,       QUEUE_GLYPH,    SPEAKER_GLYPH,
     ALBUM_SMALL_GLYPH, SHUFFLE_SMALL_GLYPH, BOLT_GLYPH,     BLUETOOTH_SMALL_GLYPH,
     LOCK_GLYPH,        SONG_SMALL_GLYPH,    PLUG_GLYPH,     CHEVRON_GLYPH,
+    INFO_GLYPH,        TAG_GLYPH,           HIDE_GLYPH,     DELETE_GLYPH,
     GLOBE_GLYPH,
 };
 
@@ -423,7 +435,7 @@ static const uint32_t *glyph(IconId icon)
 {
     const uint32_t *word = GLYPHS;
     for (int index = ICON_NONE + 1; index < (int)icon; index++) {
-        while (drawn(index) && index != ICON_LOGO && (*word++ & ICON_LAST_BIT) == 0) {
+        while (index != ICON_LOGO && drawn(index) && (*word++ & ICON_LAST_BIT) == 0) {
         }
     }
     return word;
@@ -431,7 +443,7 @@ static const uint32_t *glyph(IconId icon)
 
 int icon_rows(IconId icon)
 {
-    return (int)icon >= FIRST_SMALL && icon <= ICON_LOGO ? ICON_SMALL_GRID : ICON_LARGE_GRID;
+    return (int)icon >= FIRST_SMALL && (int)icon <= LAST_SMALL ? ICON_SMALL_GRID : ICON_LARGE_GRID;
 }
 
 int icon_width(IconId icon, int height)

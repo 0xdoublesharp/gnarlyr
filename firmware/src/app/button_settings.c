@@ -23,11 +23,28 @@ static const StringId BUTTONS[PLAYBACK_BUTTON_COUNT] = {
     STR_BUTTON_MENU_TAP,         STR_BUTTON_MENU_HOLD,
 };
 
+static const StringId SHOWN_ACTIONS[BUTTON_ACTION_COUNT] = {
+    STR_BUTTON_DEFAULT,
+    STR_OFF,
+    STR_BUTTON_PLAY_OR_PAUSE,
+    STR_UP_NEXT,
+    STR_AB_LOOP,
+    STR_BUTTON_NEXT,
+    STR_BUTTON_PREVIOUS,
+    STR_BUTTON_RAISE_VOLUME,
+    STR_BUTTON_LOWER_VOLUME,
+    STR_BUTTON_HOME,
+};
+static const StringId LABELS[PLAYBACK_BUTTON_COUNT] = {
+    STR_BUTTON_VOL_UP_TAP,    STR_BUTTON_VOL_UP_HOLD, STR_BUTTON_VOL_DOWN_TAP,
+    STR_BUTTON_VOL_DOWN_HOLD, STR_BUTTON_PLAY_TAP,    STR_BUTTON_PLAY_HOLD,
+    STR_BUTTON_MENU_TAP,      STR_BUTTON_MENU_HOLD,
+};
 static const StringId DEFAULT_ACTIONS[PLAYBACK_BUTTON_COUNT] = {
-    STR_BUTTON_VOLUME_UP,   STR_BUTTON_KEEP_RAISING,
-    STR_BUTTON_VOLUME_DOWN, STR_BUTTON_KEEP_LOWERING,
-    STR_BUTTON_PLAY_PAUSE,  STR_BUTTON_NO_ACTION,
-    STR_QUICK_SETTINGS,     STR_LYRICS,
+    STR_BUTTON_RAISE_VOLUME,  STR_BUTTON_KEEP_RAISING,
+    STR_BUTTON_LOWER_VOLUME,  STR_BUTTON_KEEP_LOWERING,
+    STR_BUTTON_PLAY_OR_PAUSE, STR_BUTTON_NO_ACTION,
+    STR_QUICK_SETTINGS,       STR_LYRICS,
 };
 static const IconId ICONS[PLAYBACK_BUTTON_COUNT] = {
     ICON_SPEAKER, ICON_SPEAKER, ICON_SPEAKER,  ICON_SPEAKER,
@@ -36,6 +53,9 @@ static const IconId ICONS[PLAYBACK_BUTTON_COUNT] = {
 
 static const StringId LONG_ACTIONS[] = {STR_LONG_CURRENT, STR_QUICK_SETTINGS, STR_UP_NEXT,
                                         STR_ADD_TO_TAPE,  STR_SHUFFLE,        STR_SLEEP_TIMER};
+static const StringId SHOWN_LONG_ACTIONS[] = {
+    STR_BUTTON_SCREEN_ACTION, STR_QUICK_SETTINGS, STR_UP_NEXT,
+    STR_ADD_TO_TAPE,          STR_SHUFFLE,        STR_SLEEP_TIMER};
 
 static int long_current(const void *context)
 {
@@ -58,14 +78,14 @@ static void long_choose(void *context, int action)
 static const char *long_value(const void *context)
 {
     int action = long_current(context);
-    return i18n_text(LONG_ACTIONS[action < 6 ? action : 0]);
+    return i18n_text(SHOWN_LONG_ACTIONS[action < 6 ? action : 0]);
 }
 
 static ScreenAction long_open(void *context)
 {
     ButtonSettings *buttons = context;
-    ChoiceConfig choice = {.title = i18n_text(STR_MENU_LONG_ACTION),
-                           .option_ids = LONG_ACTIONS,
+    ChoiceConfig choice = {.title = i18n_text(STR_BUTTON_MENU_HOLD_EVERYWHERE),
+                           .option_ids = SHOWN_LONG_ACTIONS,
                            .option_count = 6,
                            .current = long_current,
                            .choose = long_choose,
@@ -93,7 +113,7 @@ static const char *value(const void *context)
         return i18n_text(DEFAULT_ACTIONS[entry->button]);
     }
     StringBuilder text = string_builder_make(entry->owner->value, BUTTON_VALUE_BYTES);
-    i18n_format_text(&text, STR_BUTTON_CUSTOM_VALUE, i18n_text(ACTIONS[action]));
+    i18n_format_text(&text, STR_BUTTON_CUSTOM_VALUE, i18n_text(SHOWN_ACTIONS[action]));
     return entry->owner->value;
 }
 
@@ -114,8 +134,8 @@ static ScreenAction open(void *context)
 {
     ButtonEntry *entry = context;
     ButtonSettings *buttons = entry->owner;
-    ChoiceConfig choice = {.title = i18n_text(BUTTONS[entry->button]),
-                           .option_ids = ACTIONS,
+    ChoiceConfig choice = {.title = i18n_text(LABELS[entry->button]),
+                           .option_ids = SHOWN_ACTIONS,
                            .option_count = BUTTON_ACTION_COUNT,
                            .current = current,
                            .choose = choose,
@@ -161,7 +181,7 @@ static void bind_rows(ButtonSettings *buttons)
     items[0] = section(STR_NOW_PLAYING);
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
         buttons->entries[index] = (ButtonEntry){.owner = buttons, .button = (PlaybackButton)index};
-        items[BUTTON_ROW_FIRST + index] = (MenuItem){.label = i18n_text(BUTTONS[index]),
+        items[BUTTON_ROW_FIRST + index] = (MenuItem){.label = i18n_text(LABELS[index]),
                                                      .select = open,
                                                      .context = &buttons->entries[index],
                                                      .value = value,
@@ -173,7 +193,7 @@ static void bind_rows(ButtonSettings *buttons)
     items[BUTTON_ROW_SEEK] = (MenuItem){
         .label = i18n_text(STR_BUTTON_HOLD_MENU_VOL), .value = seek_value, .icon = ICON_KEY_MENU};
     items[BUTTON_ROW_EVERY_SCREEN] = section(STR_BUTTONS_EVERY_SCREEN);
-    items[BUTTON_ROW_LONG] = (MenuItem){.label = i18n_text(STR_MENU_LONG_ACTION),
+    items[BUTTON_ROW_LONG] = (MenuItem){.label = i18n_text(STR_BUTTON_MENU_HOLD_EVERYWHERE),
                                         .select = long_open,
                                         .context = buttons,
                                         .value = long_value,

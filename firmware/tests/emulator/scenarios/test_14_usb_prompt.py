@@ -239,8 +239,10 @@ class EchoImageTest(EchoImageHarness):
         machine.stub_symbol("hal_audio_set_gain", refuse)
         from unicorn.arm_const import UC_ARM_REG_R1
         details = []
-        machine.hook_symbol("app_show_usb_status", lambda: details.append(
-            machine.read_cstring(machine.reg(UC_ARM_REG_R1)).decode("utf-8", "replace")))
+        def shown():
+            detail = machine.reg(UC_ARM_REG_R1)
+            details.append(machine.read_cstring(detail).decode("utf-8", "replace") if detail else "")
+        machine.hook_symbol("app_show_usb_status", shown)
         for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY,):
             self.press(machine, key)
         self.assertEqual(english("STR_GAIN_NOT_CHANGED"), details[-1])

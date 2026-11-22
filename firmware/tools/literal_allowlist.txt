@@ -170,7 +170,7 @@ src/app/screens/now_playing_screen.c: "FLAC"
 src/app/screens/now_playing_screen.c: "MP3"
 src/app/screens/now_playing_screen.c: "WAV"
 src/core/format.c: " kHz"
-src/core/format.c: " kbps"
+src/core/format_bitrate.c: " kbps"
 
 # The developer build's extra Bluetooth lines (module state, link counters, message log).
 src/app/screens/bluetooth_screen.c: " frames"

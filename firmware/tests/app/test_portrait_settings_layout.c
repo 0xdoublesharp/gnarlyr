@@ -261,10 +261,10 @@ static void default_button_values_fit_beside_their_labels_in_landscape(void)
 static void buttons_name_the_effective_action_and_mark_only_changed_ones_custom(void)
 {
     static const StringId defaults[PLAYBACK_BUTTON_COUNT] = {
-        STR_BUTTON_VOLUME_UP,   STR_BUTTON_KEEP_RAISING,
-        STR_BUTTON_VOLUME_DOWN, STR_BUTTON_KEEP_LOWERING,
-        STR_BUTTON_PLAY_PAUSE,  STR_BUTTON_NO_ACTION,
-        STR_QUICK_SETTINGS,     STR_LYRICS};
+        STR_BUTTON_RAISE_VOLUME,  STR_BUTTON_KEEP_RAISING,
+        STR_BUTTON_LOWER_VOLUME,  STR_BUTTON_KEEP_LOWERING,
+        STR_BUTTON_PLAY_OR_PAUSE, STR_BUTTON_NO_ACTION,
+        STR_QUICK_SETTINGS,       STR_LYRICS};
     open_default_buttons(TEXT_SIZE_MEDIUM);
     store.settings.button_actions[PLAYBACK_VOLUME_UP_HOLD] = BUTTON_ACTION_NEXT;
     MenuScreen *menu = &buttons.menu;
@@ -282,7 +282,8 @@ static void buttons_name_the_effective_action_and_mark_only_changed_ones_custom(
     CHECK(strcmp(i18n_text(STR_BUTTON_SEEK), menu->model.detail(menu, BUTTON_ROW_SEEK)) == 0);
     CHECK(!menu->model.opens(menu, BUTTON_ROW_SKIP));
     CHECK_EQUAL(LIST_ROW_SECTION, menu->model.role(menu, BUTTON_ROW_EVERY_SCREEN));
-    CHECK(strcmp(i18n_text(STR_LONG_CURRENT), menu->model.detail(menu, BUTTON_ROW_LONG)) == 0);
+    CHECK(strcmp(i18n_text(STR_BUTTON_SCREEN_ACTION), menu->model.detail(menu, BUTTON_ROW_LONG)) ==
+          0);
 }
 
 static void the_chord_rows_only_explain_and_sections_are_skipped(void)
@@ -329,7 +330,7 @@ static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(voi
 
     store.settings.button_actions[PLAYBACK_VOLUME_UP_TAP] = UINT8_MAX;
     const MenuItem *volume_up = &buttons.items[BUTTON_ROW_FIRST + PLAYBACK_VOLUME_UP_TAP];
-    CHECK(strcmp(volume_up->value(volume_up->context), i18n_text(STR_BUTTON_VOLUME_UP)) == 0);
+    CHECK(strcmp(volume_up->value(volume_up->context), i18n_text(STR_BUTTON_RAISE_VOLUME)) == 0);
     ScreenAction action = volume_up->select(volume_up->context);
     CHECK(action.target == &buttons.choice.screen);
     CHECK_EQUAL(UINT8_MAX, buttons.choice.config.current(buttons.choice.config.context));
@@ -342,7 +343,7 @@ static void control_menu_recovers_invalid_values_and_bounds_choice_callbacks(voi
 
     store.settings.long_press_action = UINT8_MAX;
     const MenuItem *long_row = &buttons.items[BUTTON_ROW_LONG];
-    CHECK(strcmp(long_row->value(long_row->context), i18n_text(STR_LONG_CURRENT)) == 0);
+    CHECK(strcmp(long_row->value(long_row->context), i18n_text(STR_BUTTON_SCREEN_ACTION)) == 0);
     action = long_row->select(long_row->context);
     CHECK(action.target == &buttons.choice.screen);
     buttons.choice.config.choose(buttons.choice.config.context, -1);
