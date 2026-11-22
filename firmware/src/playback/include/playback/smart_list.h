@@ -80,6 +80,7 @@ typedef struct SmartList {
     uint16_t used;
     uint16_t matched;
     uint16_t count;
+    uint16_t damaged;
     uint8_t stage;
     uint8_t percent;
     bool more;

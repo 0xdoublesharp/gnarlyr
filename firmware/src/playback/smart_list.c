@@ -97,8 +97,19 @@ static void visit(void *context, const ListeningRecord *record)
     tally->last = record->sequence;
 }
 
+static StoreResult restart(SmartList *job)
+{
+    uint8_t percent = job->percent;
+    (void)smart_list_begin(job, job->config);
+    job->percent = percent;
+    return STORE_WORKING;
+}
+
 static StoreResult step_tally(SmartList *job)
 {
+    if (job->config.log->root.next != job->newest) {
+        return restart(job);
+    }
     StoreResult result = listening_cursor_step(&job->cursor, (ListeningVisitor){visit, job});
     uint32_t base = key_percent(job->low);
     uint32_t kept = job->cursor.kept;
@@ -107,6 +118,10 @@ static StoreResult step_tally(SmartList *job)
     if (result != STORE_DONE) {
         return result;
     }
+    if (job->low != 0 && job->cursor.damaged != job->damaged) {
+        return restart(job);
+    }
+    job->damaged = job->cursor.damaged;
     job->high = job->more ? job->config.scratch.tallies[job->used - 1].key : UINT32_MAX;
     job->matched = 0;
     job->stage = STAGE_JOIN;

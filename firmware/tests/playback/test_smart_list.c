@@ -10,7 +10,10 @@ enum {
     SONGS = 400,
     TALLIES = 512,
     LENGTH_MS = 200000,
-    UNLISTED = 9000
+    UNLISTED = 9000,
+    RING_KEYS = 700,
+    RING_PLAYS = LISTENING_LOG_CAPACITY + 37,
+    LATE_SONG = 123
 };
 
 static KeysDisk keys_disk;
@@ -18,7 +21,7 @@ static ListeningDisk log_disk;
 static TrackKeys keys;
 static ListeningLog log_book;
 static SmartList job;
-static SmartTally tallies[TALLIES];
+static SmartTally tallies[RING_KEYS];
 static TrackKey entries[SONGS + 2];
 static uint16_t arrivals[SONGS];
 static SmartFavoriteTrack favorite_tracks[8];
@@ -317,6 +320,92 @@ static void progress_rises_to_one_hundred(void)
     CHECK(previous > 50);
 }
 
+static uint32_t ring_song(uint32_t play)
+{
+    return play * 3 % RING_KEYS;
+}
+
+static void fill_ring(void)
+{
+    for (uint32_t play = 0; play < RING_PLAYS; play++) {
+        play_key(key_of(ring_song(play)), play % 3 == 0 ? 1000 : LENGTH_MS);
+    }
+}
+
+static void keep_list(uint16_t *tracks, uint16_t *count)
+{
+    *count = job.count;
+    for (uint16_t position = 0; position < job.count; position++) {
+        tracks[position] = smart_list_track(&job, position);
+    }
+}
+
+static void run_across_a_change(SmartListKind kind, void (*change)(void), uint16_t *tracks,
+                                uint16_t *count)
+{
+    SmartListConfig config = {
+        .kind = kind, .log = &log_book, .keys = &keys, .scratch = {tallies, TALLIES}};
+    CHECK(smart_list_begin(&job, config));
+    StoreResult result = STORE_WORKING;
+    for (int step = 0; step < 100000 && result == STORE_WORKING && job.low == 0; step++) {
+        result = smart_list_step(&job);
+    }
+    CHECK_EQUAL(STORE_WORKING, result);
+    change();
+    for (int step = 0; step < 100000 && result == STORE_WORKING; step++) {
+        result = smart_list_step(&job);
+    }
+    CHECK_EQUAL(STORE_DONE, result);
+    keep_list(tracks, count);
+}
+
+static void expect_one_pass_ranking(SmartListKind kind, void (*change)(void))
+{
+    static uint16_t changed[SMART_LIST_CAPACITY];
+    uint16_t count = 0;
+    start(SONGS);
+    fill_ring();
+    run_across_a_change(kind, change, changed, &count);
+    CHECK_EQUAL(STORE_DONE, run_with(kind, RING_KEYS));
+    CHECK_EQUAL(job.count, count);
+    for (uint16_t position = 0; position < count && position < job.count; position++) {
+        CHECK_EQUAL(smart_list_track(&job, position), changed[position]);
+    }
+}
+
+static void play_late_song(void)
+{
+    listen(LATE_SONG);
+}
+
+static void damage_the_newest_counted_play(void)
+{
+    uint32_t play = RING_PLAYS - 1;
+    while (ring_song(play) >= SONGS || key_of(ring_song(play)) >= job.low) {
+        play--;
+    }
+    uint32_t sequence = log_book.root.next - RING_PLAYS + play;
+    log_disk.bytes[LISTENING_RING_OFFSET +
+                   sequence % LISTENING_LOG_CAPACITY * LISTENING_RECORD_BYTES] ^= 0xFF;
+}
+
+static void a_play_between_passes_restarts_the_ranking_on_a_full_history(void)
+{
+    for (int kind = SMART_LIST_RECENTLY_PLAYED; kind < SMART_LIST_KIND_COUNT; kind++) {
+        expect_one_pass_ranking((SmartListKind)kind, play_late_song);
+    }
+    CHECK_EQUAL(LISTENING_LOG_CAPACITY, log_book.root.kept);
+    CHECK_EQUAL(STORE_DONE, run_with(SMART_LIST_RECENTLY_PLAYED, RING_KEYS));
+    CHECK_EQUAL(LATE_SONG, smart_list_track(&job, 0));
+}
+
+static void a_record_damaged_between_passes_restarts_the_ranking(void)
+{
+    for (int kind = SMART_LIST_RECENTLY_PLAYED; kind < SMART_LIST_KIND_COUNT; kind++) {
+        expect_one_pass_ranking((SmartListKind)kind, damage_the_newest_counted_play);
+    }
+}
+
 static void a_failed_read_fails_the_list(void)
 {
     start(10);
@@ -357,6 +446,8 @@ int main(void)
         TEST_CASE(a_song_listed_twice_in_the_library_appears_once_with_its_first_index),
         TEST_CASE(small_tally_tables_give_the_same_lists),
         TEST_CASE(progress_rises_to_one_hundred),
+        TEST_CASE(a_play_between_passes_restarts_the_ranking_on_a_full_history),
+        TEST_CASE(a_record_damaged_between_passes_restarts_the_ranking),
         TEST_CASE(a_failed_read_fails_the_list),
         TEST_CASE(a_list_needs_a_table_and_history_lists_need_a_tally),
     };
