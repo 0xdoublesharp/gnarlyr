@@ -47,14 +47,14 @@ class ThemeToolTests(unittest.TestCase):
             "playlist", "favorite", "shuffle", "repeat", "display", "theme", "power", "sleep",
             "timeout", "controls", "start", "rescan", "diagnostics", "gain", "jack", "usb",
             "bluetooth", "key_plus", "key_minus", "key_play", "key_menu", "disc", "hub", "search",
-            "computer", "play", "pause", "next", "previous", "seek", "queue", "speaker",
+            "computer", "play", "pause", "next", "previous", "playing", "queue", "speaker",
             "album_small", "shuffle_small", "bolt", "bluetooth_small", "lock", "song_small",
             "plug",
 )
         for number, name in enumerate(names, start=1):
             self.assertEqual(256 + number, theme_pack.SLOTS["icon_" + name])
         self.assertEqual((20, 20), theme_pack.icon_box(theme_pack.SLOTS["icon_shuffle"]))
-        self.assertEqual((14, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_seek"]))
+        self.assertEqual((14, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_playing"]))
         for name in ("bolt", "bluetooth_small", "lock", "song_small", "plug"):
             self.assertEqual((9, 14), theme_pack.icon_box(theme_pack.SLOTS["icon_" + name]))
 

@@ -62,6 +62,7 @@ typedef struct StatusBarState {
     bool segmented;
     int title_width;
     bool logo;
+    bool hides_charging;
 } StatusBarState;
 
 typedef struct StatusBarLayout {
@@ -83,7 +84,6 @@ typedef struct StatusBatteryLook {
     IconId sign;
 } StatusBatteryLook;
 
-Rect status_bar_playback_area(const Theme *theme);
 Rect status_bar_battery_body(const Theme *theme);
 Rect status_bar_battery_area(const Theme *theme);
 int status_bar_battery_fill_width(uint8_t percent, int inner_width);

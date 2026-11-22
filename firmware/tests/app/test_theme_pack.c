@@ -155,7 +155,7 @@ static void icon_slots_keep_their_numbers_whether_or_not_the_icon_is_drawn(void)
     static const ThemeFixtureArt icons[] = {
         {THEME_ART_ICON + ICON_SHUFFLE, 0, 255, 20, 20, ART_CODEC_INDEXED, 0},
         {THEME_ART_ICON + ICON_KEY_MENU, 0, 255, 20, 20, ART_CODEC_INDEXED, 0},
-        {THEME_ART_ICON + ICON_SEEK, 0, 255, 14, 14, ART_CODEC_INDEXED, 0},
+        {THEME_ART_ICON + ICON_PLAYING, 0, 255, 14, 14, ART_CODEC_INDEXED, 0},
         {THEME_ART_ICON + ICON_PLUG, 0, 255, 9, 14, ART_CODEC_INDEXED, 0},
     };
     CHECK_EQUAL(256, THEME_ART_ICON);

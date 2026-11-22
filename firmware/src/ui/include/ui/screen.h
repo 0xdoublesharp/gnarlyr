@@ -37,6 +37,7 @@ struct Screen {
     bool stays_on_wake;
     bool fast_list;
     bool untitled_header;
+    bool hides_charging;
     uint16_t header_title_width;
     void (*enter)(void *context, uint32_t now_ms);
     ScreenAction (*handle_key)(void *context, KeyEvent event, uint32_t now_ms);

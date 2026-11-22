@@ -47,7 +47,7 @@ typedef enum IconId {
     ICON_PAUSE,
     ICON_NEXT,
     ICON_PREVIOUS,
-    ICON_SEEK,
+    ICON_PLAYING,
     ICON_QUEUE,
     ICON_SPEAKER,
     ICON_ALBUM_SMALL,

@@ -50,27 +50,43 @@ static void an_idle_player_without_a_battery_reading_draws_nothing(void)
     CHECK(ui_test_area_has_only(&canvas, header, theme.colors.header_background));
 }
 
-static void a_playing_player_shows_the_play_icon_at_the_left(void)
+static void a_playing_player_shows_four_bars_just_left_of_the_battery(void)
 {
     Theme theme = status_theme();
-    Canvas canvas = draw_status(&theme, (StatusBarState){.playback = STATUS_PLAYBACK_PLAYING});
-    Rect icon = status_bar_playback_area(&theme);
-    Rect middle = {icon.x + 2, icon.y, 3, icon.height};
-    CHECK(icon.x + icon.width <= TEST_HEADER_INSET);
-    CHECK(ui_test_area_has_color(&canvas, middle, theme.colors.header_text));
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    state.playback = STATUS_PLAYBACK_PLAYING;
+    Canvas canvas = draw_status(&theme, state);
+    Rect icon = status_bar_item_area(&theme, &state, STATUS_BAR_PLAYBACK);
+    Rect body = status_bar_battery_body(&theme);
+    CHECK(icon.width > 0);
+    CHECK(icon.x + icon.width <= body.x);
+    CHECK(icon.x > body.x - icon.width - theme.metrics.padding);
+    CHECK(ui_test_area_has_color(&canvas, icon, theme.colors.header_text));
 }
 
-static void a_paused_player_shows_two_bars(void)
+static void a_paused_or_idle_player_shows_no_playback_icon(void)
 {
     Theme theme = status_theme();
-    Canvas canvas = draw_status(&theme, (StatusBarState){.playback = STATUS_PLAYBACK_PAUSED});
-    Rect icon = status_bar_playback_area(&theme);
-    Rect first = {icon.x, icon.y, 1, icon.height};
-    Rect gap = {icon.x + 2, icon.y, 2, icon.height};
-    Rect last = {icon.x + icon.width - 1, icon.y, 1, icon.height};
-    CHECK(ui_test_area_has_only(&canvas, first, theme.colors.header_text));
-    CHECK(!ui_test_area_has_color(&canvas, gap, theme.colors.header_text));
-    CHECK(ui_test_area_has_only(&canvas, last, theme.colors.header_text));
+    StatusBarState state = battery_at(HALF_BATTERY, false);
+    state.playback = STATUS_PLAYBACK_PAUSED;
+    CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PLAYBACK) == 0);
+    state.playback = STATUS_PLAYBACK_NONE;
+    CHECK((status_bar_items(&theme, &state) & STATUS_BAR_PLAYBACK) == 0);
+}
+
+static void a_screen_can_hide_the_charging_bolt(void)
+{
+    Theme theme = status_theme();
+    StatusBarState state = battery_at(HALF_BATTERY, true);
+    state.charging = true;
+    Rect outer = status_bar_battery_body(&theme);
+    Rect body = {outer.x + 2, outer.y + 2, outer.width - 4, outer.height - 4};
+    Color bolt = status_bar_battery_look(&theme, state).bolt;
+    Canvas shown = draw_status(&theme, state);
+    CHECK(ui_test_area_has_color(&shown, body, bolt));
+    state.hides_charging = true;
+    Canvas hidden = draw_status(&theme, state);
+    CHECK(!ui_test_area_has_color(&hidden, body, bolt));
 }
 
 static Theme panel_theme(void)
@@ -163,18 +179,16 @@ static void the_icons_centre_on_the_battery_line_in_both_orientations(void)
     }
 }
 
-static void hiding_playback_moves_bluetooth_and_lock_left(void)
+static void playing_bars_leave_bluetooth_and_lock_at_the_left(void)
 {
     Theme theme = panel_theme();
     theme.metrics.screen_width = PANEL_WIDTH * 2;
     StatusBarState state = {
-        .playback = STATUS_PLAYBACK_PAUSED, .bluetooth = STATUS_BLUETOOTH_ON, .locked = true};
+        .playback = STATUS_PLAYBACK_PLAYING, .bluetooth = STATUS_BLUETOOTH_ON, .locked = true};
     Rect bluetooth = status_bar_item_area(&theme, &state, STATUS_BAR_BLUETOOTH);
     Rect lock = status_bar_item_area(&theme, &state, STATUS_BAR_LOCK);
-    state.playback = STATUS_PLAYBACK_NONE;
-    CHECK_EQUAL(PANEL_PADDING, status_bar_item_area(&theme, &state, STATUS_BAR_BLUETOOTH).x);
-    CHECK_EQUAL(lock.x - (bluetooth.x - PANEL_PADDING),
-                status_bar_item_area(&theme, &state, STATUS_BAR_LOCK).x);
+    CHECK_EQUAL(PANEL_PADDING, bluetooth.x);
+    CHECK(status_bar_item_area(&theme, &state, STATUS_BAR_PLAYBACK).x > lock.x + lock.width);
     state.bluetooth = STATUS_BLUETOOTH_OFF;
     CHECK_EQUAL(PANEL_PADDING, status_bar_item_area(&theme, &state, STATUS_BAR_LOCK).x);
     CHECK_EQUAL(PANEL_PADDING + lock.width, status_bar_left_end(&theme, state));
@@ -581,11 +595,12 @@ int main(void)
         TEST_CASE(a_segmented_battery_has_gaps_between_five_green_bars),
         TEST_CASE(a_locked_player_shows_a_padlock),
         TEST_CASE(an_idle_player_without_a_battery_reading_draws_nothing),
-        TEST_CASE(a_playing_player_shows_the_play_icon_at_the_left),
-        TEST_CASE(a_paused_player_shows_two_bars),
+        TEST_CASE(a_playing_player_shows_four_bars_just_left_of_the_battery),
+        TEST_CASE(a_paused_or_idle_player_shows_no_playback_icon),
+        TEST_CASE(a_screen_can_hide_the_charging_bolt),
         TEST_CASE(the_battery_ends_at_the_right_padding_and_fits_the_narrowest_status_band),
         TEST_CASE(the_icons_centre_on_the_battery_line_in_both_orientations),
-        TEST_CASE(hiding_playback_moves_bluetooth_and_lock_left),
+        TEST_CASE(playing_bars_leave_bluetooth_and_lock_at_the_left),
         TEST_CASE(the_battery_body_frames_the_icon_size_and_is_thirteen_eighths_as_wide),
         TEST_CASE(a_full_battery_keeps_a_two_pixel_outline_and_a_one_pixel_gap_before_the_fill),
         TEST_CASE(the_fill_follows_the_charge),
