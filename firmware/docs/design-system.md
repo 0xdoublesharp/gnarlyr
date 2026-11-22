@@ -6,11 +6,13 @@ This is the adopted design for Gnarlyr's screens. New and changed screens follow
 
 - Adopted on 2026-11-21.
 - Deferred to beta.2 are the search letter strip, live preview, and results (L09/L09b), the EQ caption rewrite (L13), and the Recap empty-state art (L14).
+- Also deferred: the file and history-device drawings beside the Delete file? and Clear history? confirms (L07b, L10). The confirm screen is built into the views and listening modules, and views has about 500 bytes left on the `device` image. Mixtapes in portrait (P04) shows today's cassette art on the grid instead of a new wire cassette, without the help line under it.
 - The sheets are HTML mockups rendered at the panel's real size (480 × 222 landscape, 222 × 480 portrait) in English, German and Japanese. They reuse some of today's firmware, such as the battery and the ported drawings, but the design as a set is not implemented yet. Where today's firmware behaves differently, [architecture.md](architecture.md) and [user-guide.md](user-guide.md) describe what it does now, and this document describes the target.
 - Pending firmware work the design depends on:
   - **Plug-in countdown pause.** On the plug-in prompt, the first Vol press stops the countdown and the header says "Auto-charge paused". Today any button starts the 15 s count again ([user-guide.md](user-guide.md), When you plug in).
   - **Native-name glyphs in language packs.** Until a pack can draw a language's own name, Language shows a drawable name in the UI language, such as "Korean (ko)".
   - **Two-line rows, option A first.** A list decides once, on entry and from a width test, whether its rows are two-line, so all its rows stay the same height. True per-row heights (option B) are not the first step.
+  - **Three-line rows.** Wrapped rows stop at two lines, so a portrait label that needs three (P04 in German) is cut with an ellipsis. A row whose value drops under its label keeps the label on one line.
   - **Button cells marked ³** in the [button table](#button-behaviour-by-context) are proposed and not confirmed in the firmware.
   - **Names.** The design says Settings → Buttons, and the firmware says Settings → Controls. The design's "Screen action" value for Menu hold everywhere is "Default" in the firmware (`STR_BUTTON_DEFAULT`).
   - **New strings.** Strings the mockups introduce, such as "Auto-charge paused" and "needs fonts", are not in `assets/lang` yet.
