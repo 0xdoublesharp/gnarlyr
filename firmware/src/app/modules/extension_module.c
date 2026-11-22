@@ -23,6 +23,7 @@ const ExtensionModuleEntry EXTENSION_MODULE_ENTRY = {
     .motion_tick = wire_motion_tick,
     .motion_fit = wire_motion_fit,
     .motion_draw = wire_motion_draw,
+    .figure_draw = wire_figure_draw,
     .file_remove = hal_file_remove,
     .theme_draw = theme_art_module_draw,
     .clock_set = hal_clock_set_wall,

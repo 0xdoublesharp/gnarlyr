@@ -95,6 +95,35 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(all(draws))
         self.assert_healthy(session)
 
+    def usb_figure_session(self):
+        from unicorn import UC_HOOK_CODE
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.note("usb_session_storage_changed")
+        overlay = next(code for code in machine.overlays if code.name == "echo_usb_overlay")
+        self.assertNotIn("WIRE_MODEL_CASSETTE", overlay.symbols)
+        address = overlay.symbols["wire_figure_draw"]
+        calls = []
+        machine.uc.hook_add(UC_HOOK_CODE, lambda uc, at, size, user: calls.append(at),
+                            begin=address, end=address)
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        executed = machine.count_window_code(make_image.EXTENSION_MODULE_BASE,
+                                             make_image.EXTENSION_MODULE_CAPACITY)
+        self.assertEqual(session.run_through_update_check(), "reached usb_session_storage_changed")
+        self.assertTrue(calls)
+        return session, executed
+
+    def test_usb_draws_its_cassette_with_the_extension_figure_code(self):
+        session, executed = self.usb_figure_session()
+        self.assertGreater(executed[0], 0)
+        self.assert_healthy(session)
+
+    def test_usb_runs_without_its_cassette_when_both_extension_copies_are_damaged(self):
+        self.damaged_extension_slots = ("slot_1", "slot_2")
+        session, executed = self.usb_figure_session()
+        self.assertEqual(executed[0], 0)
+        self.assert_healthy(session)
+
     def test_a_damaged_extension_module_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
         session = self.session()
         number = make_image.EXTENSION_MODULE_NUMBER
