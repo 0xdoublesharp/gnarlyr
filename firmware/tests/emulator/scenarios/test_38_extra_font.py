@@ -17,6 +17,8 @@ import glyph_pack
 
 HANGUL = 0xAC00
 HANGUL_GLYPHS = 64
+MP3_FRAME = bytes.fromhex("fffb9064") + bytes(413)
+MISSING_FILE_BYTES = 16384
 IMAGE_FACES = 21
 SLOT_BYTES = 368
 HOLD_NONE = 0
@@ -166,6 +168,34 @@ class EchoImageTest(EchoImageHarness):
         lookups = self.hangul_lookups(machine)
         self.assertFalse(any(present for (face, _), present in lookups.items()
                              if face == IMAGE_FACES + 2))
+        self.assert_healthy(session)
+
+    def song_volume(self, font):
+        from echo_emulator.fat_volume import Fat32Volume
+        volume = Fat32Volume()
+        folder = IDENTITY.data_directory
+        volume.add_directory(folder)
+        volume.add_directory("fonts", directory=folder)
+        if font is not None:
+            volume.add_file("extra.font", font, directory=folder + "/fonts")
+        volume.add_file(chr(HANGUL) + chr(HANGUL + 1) + " Song.mp3", MP3_FRAME * 40, None,
+                        long_name=True)
+        return volume
+
+    def test_a_scan_records_the_characters_the_fonts_cannot_draw(self):
+        session, _ = self.started_session(volume=self.song_volume(None))
+        reader = session.fat()
+        text = reader.read("/" + IDENTITY.data_directory + "/fonts/missing.txt")
+        count = reader.read("/" + IDENTITY.data_directory + "/fonts/missing.count")
+        self.assertIsNotNone(text)
+        self.assertEqual(MISSING_FILE_BYTES, len(text))
+        self.assertEqual((chr(HANGUL) + chr(HANGUL + 1)).encode("utf-8"), text.rstrip(b"\0"))
+        self.assertGreaterEqual(struct.unpack_from("<I", count)[0], 1)
+        self.assert_healthy(session)
+
+    def test_a_scan_records_nothing_the_extra_font_draws(self):
+        session, _ = self.started_session(volume=self.song_volume(hangul_font()))
+        self.assertIsNone(session.fat().read("/" + IDENTITY.data_directory + "/fonts/missing.txt"))
         self.assert_healthy(session)
 
     def test_with_a_card_as_the_music_volume_the_extra_font_comes_from_internal_storage(self):

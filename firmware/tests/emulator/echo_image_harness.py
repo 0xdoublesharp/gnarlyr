@@ -164,7 +164,12 @@ PLAYBACK_MENU_HOLD = 7
 BUTTON_ACTION_AB_REPEAT = 4
 SETTINGS_REPEAT_FIELD = 12
 REPEAT_ALL = 2
-SETTINGS_REPEAT_ROW = 2
+SETTINGS_SOUND_GROUP = 0
+SETTINGS_PLAYBACK_GROUP = 1
+SOUND_EQUALIZER_ROW = 2
+SOUND_HEADPHONES_ROW = 5
+PLAYBACK_REPEAT_ROW = 1
+PLAYBACK_SAFE_START_ROW = 7
 HOME_MIXTAPES_BEFORE_SETTINGS = 4
 STEP_GAP_WITH_A_MODULE_MS = 250
 STEPS_AFTER_NOTICE = 20
@@ -583,7 +588,7 @@ class EchoImageHarness(unittest.TestCase):
 
     def switch_profiler_on(self, machine):
         self.open_settings(machine)
-        for key in [KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
+        for key in [KEY_PREVIOUS, KEY_PLAY] + [KEY_NEXT] * ABOUT_PROFILER_ROW + [KEY_PLAY]:
             self.press(machine, key)
 
     def index_of(self, log, sequence, start=0):
