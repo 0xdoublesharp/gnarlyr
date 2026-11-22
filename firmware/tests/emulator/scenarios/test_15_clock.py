@@ -14,6 +14,8 @@ from echo_image_harness import (
     struct,
 )
 
+EQUALIZER_CUSTOM = 7
+
 
 class EchoImageTest(EchoImageHarness):
     def test_script_and_deferred_startup_rtc_reads_restore_the_bus(self):
@@ -303,11 +305,83 @@ class EchoImageTest(EchoImageHarness):
         host_settings = settings_file(0, 4096, b13=7)
         sector = session.file_sectors(SETTINGS_PATH).start
         machine.hook_symbol("time_file_take", lambda: session.disk.write(sector, host_settings))
+        stored = self.offset_stores(machine)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
+        self.assertEqual(machine.run(until=lambda: bool(stored), until_ms=machine.milliseconds() + 5000),
+                         "condition met")
         saved = session.fat().read(SETTINGS_PATH)
         self.assertEqual(struct.unpack_from("<h", saved, 49)[0], -480)
         self.assertEqual(saved[13], 7)
         self.assert_healthy(session)
+
+    def offset_stores(self, machine):
+        from unicorn.arm_const import UC_ARM_REG_LR
+        stored, returns = [], set()
+
+        def entered():
+            back = machine.reg(UC_ARM_REG_LR) & ~1
+            if back not in returns:
+                returns.add(back)
+                machine.add_address_hook(back, lambda: stored.append(machine.milliseconds()))
+
+        machine.hook_symbol("app_store_clock_offset", entered)
+        return stored
+
+    def custom_eq_time_sync(self, host_writes):
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_R0
+        volume = self.debug_volume()
+        volume.add_file("settings.bin", settings_file(0, 4096, b18=EQUALIZER_CUSTOM),
+                        directory=IDENTITY.data_directory)
+        volume.add_file("time.bin", self.time_file(NOVEMBER_2026, -480), directory=IDENTITY.data_directory)
+        session, machine = self.ejecting_session(volume, before_start=lambda machine: machine.stub_symbol(
+            "board_wall_time_forget_file", lambda machine: 0))
+        if host_writes:
+            machine.stub_symbol("usb_session_storage_changed", lambda machine: 1)
+        _, equalizer = self.module(machine, "equalizer")
+        state = {"phase": "before", "returns": set()}
+        loads = {"before": [], "inside": [], "after": []}
+        wall = []
+
+        def left():
+            state["phase"] = "after"
+
+        def entered():
+            state["phase"] = "inside"
+            back = machine.reg(UC_ARM_REG_LR) & ~1
+            if back not in state["returns"]:
+                state["returns"].add(back)
+                machine.add_address_hook(back, left)
+
+        def loading():
+            loads[state["phase"]].append(machine.reg(UC_ARM_REG_R0))
+
+        machine.hook_symbol("usb_storage_session", entered)
+        machine.hook_symbol("hal_system_load_module", loading)
+        machine.hook_symbol("board_wall_time_set", lambda: wall.append(machine.reg(UC_ARM_REG_R0)))
+        stored = self.offset_stores(machine)
+        ended = self.run_usb_sessions(session, 1)
+        if ended == "condition met":
+            ended = machine.run(until=lambda: bool(stored), until_ms=machine.milliseconds() + 5000)
+        saved = session.fat().read(SETTINGS_PATH)
+        print("\n[custom EQ time sync] %s; loads during the overlay %s, after it %s; faults %s; "
+              "saved equalizer %s, offset %s" % (
+                  ended, loads["inside"], loads["after"], machine.faults, saved[18],
+                  struct.unpack_from("<h", saved, 49)[0]))
+        self.assertEqual(loads["inside"], [])
+        self.assertEqual(ended, "condition met")
+        self.assertEqual(state["phase"], "after")
+        self.assertIn(equalizer.number, loads["after"])
+        self.assertEqual(saved[18], EQUALIZER_CUSTOM)
+        self.assertEqual(struct.unpack_from("<h", saved, 49)[0], -480)
+        self.assertTrue(any(NOVEMBER_2026 <= utc <= NOVEMBER_2026 + 5 for utc in wall), wall)
+        self.assertFalse(session.fat().exists(TIME_PATH))
+        self.assert_healthy(session)
+
+    def test_a_time_sync_with_custom_eq_loads_no_module_while_the_usb_code_runs(self):
+        self.custom_eq_time_sync(host_writes=False)
+
+    def test_a_time_sync_with_custom_eq_and_host_writes_loads_no_module_while_the_usb_code_runs(self):
+        self.custom_eq_time_sync(host_writes=True)
 
     def test_a_damaged_time_file_is_removed_without_setting_the_clock(self):
         damaged = bytearray(self.time_file(NOVEMBER_2026, 60))
