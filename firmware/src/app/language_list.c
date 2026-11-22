@@ -46,7 +46,7 @@ static void list_put(LanguageList *list, const I18nPackInfo *info)
         list->names[index][byte] = info->name[byte];
     }
     list->options[index] = list->names[index];
-    list->flags[index] = info->flags;
+    list->needs_extra[index] = (info->flags & I18N_NEEDS_EXTRA_FONT) != 0;
 }
 
 static bool extra_font_covers(const char *code)
@@ -61,8 +61,7 @@ static bool extra_font_covers(const char *code)
 
 bool language_list_needs_fonts(const LanguageList *list, int index)
 {
-    return (list->flags[index] & I18N_NEEDS_EXTRA_FONT) != 0 &&
-           !extra_font_covers(list->codes[index]);
+    return list->needs_extra[index] && !extra_font_covers(list->codes[index]);
 }
 
 static void list_built_in(LanguageList *list)

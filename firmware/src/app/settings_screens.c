@@ -993,14 +993,30 @@ static const IconId GROUP_ICONS[SETTINGS_GROUP_COUNT] = {
     ICON_AUDIO, ICON_NOW_PLAYING, ICON_COMPUTER, ICON_GLOBE, ICON_POWER,
     ICON_USB,   ICON_CONTROLS,    ICON_ALBUM,    ICON_LOGO};
 
+static int group_of(const MenuItem *row)
+{
+    int group = 0;
+    while (group + 1 < SETTINGS_GROUP_COUNT && GROUP_ICONS[group] != row->icon) {
+        group++;
+    }
+    return group;
+}
+
+static SettingsScreens *group_owner(MenuItem *row)
+{
+    return (SettingsScreens *)(void *)((char *)(row - group_of(row)) -
+                                       offsetof(SettingsScreens, groups));
+}
+
 static ScreenAction open_group(void *context)
 {
-    SettingsGroupEntry *entry = context;
-    SettingsScreens *screens = entry->owner;
-    int first = GROUP_FIRST[entry->group];
-    MenuConfig config = {.title = i18n_text(GROUP_TITLES[entry->group]),
+    MenuItem *row = context;
+    SettingsScreens *screens = group_owner(row);
+    int group = group_of(row);
+    int first = GROUP_FIRST[group];
+    MenuConfig config = {.title = i18n_text(GROUP_TITLES[group]),
                          .items = screens->items + first,
-                         .item_count = GROUP_FIRST[entry->group + 1] - first,
+                         .item_count = GROUP_FIRST[group + 1] - first,
                          .theme = screens->theme,
                          .detail_below = true};
     return screen_action_push(menu_screen_init(&screens->group_menu, config));
@@ -1020,20 +1036,17 @@ static ScreenAction open_language(void *context)
 static ScreenAction open_about(void *context)
 {
     SettingsScreens *screens = context;
-    uint32_t names = missing_fonts_names(screens->theme->fonts.body);
-    StringBuilder notice = string_builder_make(screens->missing_notice, SETTINGS_NOTICE_CAPACITY);
-    if (names > 0) {
-        i18n_format_counts(&notice, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS,
-                           names, 0);
-    }
-    screens->missing_names = names;
+    screens->missing_names = missing_fonts_names(screens->theme->fonts.body);
     return screens->about != NULL ? screen_action_push(screens->about) : screen_action_none();
 }
 
 static const char *text_size_value(const void *context)
 {
-    const SettingsGroupEntry *entry = context;
-    return choice_value(&entry->owner->entries[SETTINGS_TEXT_SIZE_CHOICE]);
+    const MenuItem *row = context;
+    const SettingsScreens *screens =
+        (const SettingsScreens *)(const void *)((const char *)(row - group_of(row)) -
+                                                offsetof(SettingsScreens, groups));
+    return choice_value(&screens->entries[SETTINGS_TEXT_SIZE_CHOICE]);
 }
 
 static void bind_choice_rows(SettingsScreens *screens)
@@ -1058,10 +1071,9 @@ static void bind_choice_rows(SettingsScreens *screens)
 static void bind_groups(SettingsScreens *screens, Screen *buttons)
 {
     for (int group = 0; group < SETTINGS_GROUP_COUNT; group++) {
-        screens->group_entries[group] = (SettingsGroupEntry){screens, (SettingsGroup)group};
         screens->groups[group] = (MenuItem){.label = i18n_text(GROUP_TITLES[group]),
                                             .select = open_group,
-                                            .context = &screens->group_entries[group],
+                                            .context = &screens->groups[group],
                                             .opens = true,
                                             .icon = GROUP_ICONS[group]};
     }

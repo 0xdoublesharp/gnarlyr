@@ -12,7 +12,7 @@ typedef struct LanguageList {
     char codes[LANGUAGE_CAPACITY][I18N_CODE_BYTES];
     char names[LANGUAGE_CAPACITY][I18N_NAME_BYTES];
     const char *options[LANGUAGE_CAPACITY];
-    uint16_t flags[LANGUAGE_CAPACITY];
+    bool needs_extra[LANGUAGE_CAPACITY];
     int count;
 } LanguageList;
 

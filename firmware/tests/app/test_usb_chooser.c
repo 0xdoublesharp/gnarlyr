@@ -252,7 +252,8 @@ static const PlugChooser *chooser_at(int place)
 
 static void every_line_fits_its_rows(const PlugChooser *chooser)
 {
-    const PlugChooserLayout *layout = &chooser->layout;
+    PlugChooserLayout computed = plug_chooser_layout(chooser);
+    const PlugChooserLayout *layout = &computed;
     int rows = theme_is_portrait(&theme) ? 3 : 2;
     for (int row = 0; row < chooser->choices.count; row++) {
         PlugMode mode = plug_chooser_mode(chooser, row);
@@ -350,7 +351,8 @@ static void a_low_battery_shows_why_usb_power_charges_first(void)
 
 static void the_layout_stays_on_the_screen(const PlugChooser *chooser)
 {
-    const PlugChooserLayout *layout = &chooser->layout;
+    PlugChooserLayout computed = plug_chooser_layout(chooser);
+    const PlugChooserLayout *layout = &computed;
     Rect screen = {0, 0, theme.metrics.screen_width, theme.metrics.screen_height};
     CHECK(layout->art.height >= theme.metrics.row_height);
     CHECK(layout->art.width >= theme.metrics.row_height);
@@ -408,8 +410,8 @@ static void medium_landscape_shows_all_four_choices_and_the_explanation(void)
         open_at(place);
         const PlugChooser *chooser = chooser_at(place);
         CHECK_EQUAL(chooser->choices.count, plug_chooser_shown_rows(chooser));
-        CHECK_EQUAL(0, chooser->layout.cue.height);
-        CHECK(2 * font_line_height(theme.fonts.small) <= chooser->layout.line.height);
+        CHECK_EQUAL(0, chooser->cue_area.height);
+        CHECK(2 * font_line_height(theme.fonts.small) <= plug_chooser_layout(chooser).line.height);
     }
 }
 
@@ -419,11 +421,11 @@ static void the_portrait_prompt_moves_its_title_into_the_body(void)
     use_theme(0, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
     Screen *screen = open_at(PLUG_PLACE_PROMPT);
     CHECK(screen->untitled_header);
-    CHECK(screens.usb.layout.title.height > 0);
+    CHECK(plug_chooser_layout(&screens.usb).title.height > 0);
     use_theme(0, ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
     screen = open_at(PLUG_PLACE_PROMPT);
     CHECK(!screen->untitled_header);
-    CHECK_EQUAL(0, screens.usb.layout.title.height);
+    CHECK_EQUAL(0, plug_chooser_layout(&screens.usb).title.height);
     use_theme(0, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
     screen = open_at(PLUG_PLACE_SWITCH);
     CHECK(!screen->untitled_header);

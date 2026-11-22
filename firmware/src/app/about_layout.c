@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "core/i18n.h"
+#include "core/string_builder.h"
 #include "gfx/font.h"
 #include "gfx/text.h"
 #include "ui/brand_mark.h"
@@ -12,11 +14,12 @@
 #include "ui/theme.h"
 
 enum {
+    ABOUT_NOTICE_BYTES = 128,
     MARK_LINE_SHARE = 1,
     MARK_LINE_PARTS = 1
 };
 
-static const char *notice;
+static const uint32_t *notice_names;
 
 static bool row_wraps(const ListView *list, int index, int width)
 {
@@ -132,9 +135,14 @@ static Rect draw_band(Canvas *canvas, const Theme *theme)
 
 static Rect draw_notice(Canvas *canvas, const Theme *theme, Rect content)
 {
-    if (notice == NULL || notice[0] == '\0') {
+    uint32_t names = notice_names != NULL ? *notice_names : 0;
+    if (names == 0) {
         return content;
     }
+    char notice[ABOUT_NOTICE_BYTES];
+    StringBuilder text = string_builder_make(notice, sizeof notice);
+    i18n_format_counts(&text, names == 1 ? STR_NAMES_NEED_FONTS_ONE : STR_NAMES_NEED_FONTS, names,
+                       0);
     const Font *font = theme->fonts.small;
     int pad = theme->metrics.padding;
     Rect lines = {content.x + 2 * pad, 0, content.width - 3 * pad, 0};
@@ -179,9 +187,9 @@ static void draw(void *context, Canvas *canvas)
     draw_rows(menu, canvas, rows, width);
 }
 
-void about_layout_notice(const char *text)
+void about_layout_notice(const uint32_t *names)
 {
-    notice = text;
+    notice_names = names;
 }
 
 void about_layout_attach(MenuScreen *menu)

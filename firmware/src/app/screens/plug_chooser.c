@@ -70,7 +70,7 @@ static IconId row_icon(const void *context, int index)
 
 int plug_chooser_shown_rows(const PlugChooser *chooser)
 {
-    int room = chooser->layout.list.height;
+    int room = chooser->list_area.height;
     int row = chooser->list.top;
     while (row < chooser->choices.count && chooser->heights[row] <= room) {
         room -= chooser->heights[row];
@@ -199,16 +199,9 @@ static void lay_out_wide(PlugChooser *chooser, Rect body)
     Rect pane = {body.x + column + 1, body.y, body.width - column - 1, body.height};
     int room = pane.height - WIDE_LINE_ROWS * small_line(theme);
     int region = fit_rows(chooser, pane.width, (RowRoom){room, room});
-    PlugChooserLayout *layout = &chooser->layout;
-    layout->column = body.x + column;
-    layout->list = (Rect){pane.x, pane.y, pane.width, region};
-    layout->line =
-        (Rect){pane.x + pad, pane.y + region, pane.width - 2 * pad, pane.height - region};
+    chooser->list_area = (Rect){pane.x, pane.y, pane.width, region};
     int cue = scrolls(chooser, region) ? small_line(theme) : 0;
-    int bottom = body.y + body.height - pad;
-    layout->cue = (Rect){body.x, bottom - cue, column, cue};
-    int art_bottom = cue > 0 ? layout->cue.y - pad / 2 : bottom;
-    layout->art = (Rect){body.x + pad, body.y + pad, column - 2 * pad, art_bottom - body.y - pad};
+    chooser->cue_area = (Rect){body.x, body.y + body.height - pad - cue, column, cue};
 }
 
 static int balanced_width(const Font *font, const char *text, int width)
@@ -241,9 +234,8 @@ static void lay_out_tall(PlugChooser *chooser, Rect body)
     const Theme *theme = chooser->config.theme;
     int pad = theme->metrics.padding;
     int width = body.width - 2 * pad;
-    PlugChooserLayout *layout = &chooser->layout;
-    layout->title = title_area(chooser, body);
-    int top = layout->title.y + layout->title.height + pad / 2;
+    Rect title = title_area(chooser, body);
+    int top = title.y + title.height + pad / 2;
     int line = TALL_LINE_ROWS * small_line(theme) + pad;
     int art = ART_HALF_ROWS * theme->metrics.row_height / 2;
     int room = body.y + body.height - top - art - pad / 2 - line;
@@ -251,20 +243,64 @@ static void lay_out_tall(PlugChooser *chooser, Rect body)
     int region = fit_rows(chooser, body.width, (RowRoom){room, room - cue});
     cue = scrolls(chooser, region) ? cue : 0;
     art = body.y + body.height - top - pad / 2 - region - cue - line;
-    layout->art = (Rect){body.x + pad, top, width, art};
-    layout->list = (Rect){body.x, top + art + pad / 2, body.width, region};
-    layout->cue = (Rect){body.x + pad, layout->list.y + region, width, cue};
-    layout->line = (Rect){body.x + pad, layout->cue.y + cue, width, line};
+    chooser->list_area = (Rect){body.x, top + art + pad / 2, body.width, region};
+    chooser->cue_area = (Rect){body.x + pad, chooser->list_area.y + region, width, cue};
+}
+
+static Rect body_area(const PlugChooser *chooser, int *band)
+{
+    const Theme *theme = chooser->config.theme;
+    Rect content = theme_content_area(theme);
+    *band = plug_chooser_has_footer(chooser) ? footer_hints_height(theme, ALWAYS_FOOTER) : 0;
+    return (Rect){content.x, content.y, content.width, content.height - *band};
+}
+
+static void derive_tall(const PlugChooser *chooser, Rect body, PlugChooserLayout *layout)
+{
+    const Theme *theme = chooser->config.theme;
+    int pad = theme->metrics.padding;
+    int width = body.width - 2 * pad;
+    layout->title = title_area(chooser, body);
+    int top = layout->title.y + layout->title.height + pad / 2;
+    layout->art = (Rect){body.x + pad, top, width, layout->list.y - pad / 2 - top};
+    layout->line = (Rect){body.x + pad, layout->cue.y + layout->cue.height, width,
+                          TALL_LINE_ROWS * small_line(theme) + pad};
+}
+
+static void derive_wide(const PlugChooser *chooser, Rect body, PlugChooserLayout *layout)
+{
+    int pad = chooser->config.theme->metrics.padding;
+    int column = body.width / COLUMN_SHARE;
+    Rect list = layout->list;
+    layout->title = title_area(chooser, body);
+    layout->column = body.x + column;
+    layout->line = (Rect){list.x + pad, list.y + list.height, list.width - 2 * pad,
+                          body.y + body.height - list.y - list.height};
+    int bottom = body.y + body.height - pad;
+    int art_bottom = layout->cue.height > 0 ? layout->cue.y - pad / 2 : bottom;
+    layout->art = (Rect){body.x + pad, body.y + pad, column - 2 * pad, art_bottom - body.y - pad};
+}
+
+PlugChooserLayout plug_chooser_layout(const PlugChooser *chooser)
+{
+    int band = 0;
+    Rect body = body_area(chooser, &band);
+    PlugChooserLayout layout = {.list = chooser->list_area,
+                                .cue = chooser->cue_area,
+                                .footer = {body.x, body.y + body.height, body.width, band}};
+    if (theme_is_portrait(chooser->config.theme)) {
+        derive_tall(chooser, body, &layout);
+    } else {
+        derive_wide(chooser, body, &layout);
+    }
+    return layout;
 }
 
 static void lay_out(PlugChooser *chooser)
 {
     const Theme *theme = chooser->config.theme;
-    Rect content = theme_content_area(theme);
-    int band = plug_chooser_has_footer(chooser) ? footer_hints_height(theme, ALWAYS_FOOTER) : 0;
-    Rect body = {content.x, content.y, content.width, content.height - band};
-    chooser->layout =
-        (PlugChooserLayout){.footer = {content.x, body.y + body.height, content.width, band}};
+    int band = 0;
+    Rect body = body_area(chooser, &band);
     list_view_fit_rows(&chooser->list, chooser->choices.count);
     if (theme_is_portrait(theme)) {
         lay_out_tall(chooser, body);
@@ -383,7 +419,7 @@ static void draw_mark(const PlugChooser *chooser, Canvas *canvas, Rect row, int 
 
 static void draw_rows(const PlugChooser *chooser, Canvas *canvas)
 {
-    Rect area = chooser->layout.list;
+    Rect area = chooser->list_area;
     theme_background_draw(chooser->config.theme, canvas, THEME_ART_LIST, area);
     int shown = plug_chooser_shown_rows(chooser);
     Rect row = {area.x, area.y, chooser->row_width, 0};
@@ -420,7 +456,7 @@ typedef struct CuePlan {
 static CuePlan cue_plan(const PlugChooser *chooser, const char *text, int shown)
 {
     const Theme *theme = chooser->config.theme;
-    Rect cue = chooser->layout.cue;
+    Rect cue = chooser->cue_area;
     int tall = list_view_chevron_width(theme);
     CuePlan plan = {.up = chooser->list.top > 0,
                     .down = chooser->list.top + shown < chooser->choices.count,
@@ -436,7 +472,7 @@ static CuePlan cue_plan(const PlugChooser *chooser, const char *text, int shown)
 static void draw_cue(const PlugChooser *chooser, Canvas *canvas)
 {
     const Theme *theme = chooser->config.theme;
-    Rect cue = chooser->layout.cue;
+    Rect cue = chooser->cue_area;
     int shown = plug_chooser_shown_rows(chooser);
     if (cue.height == 0 || shown >= chooser->choices.count) {
         return;
@@ -464,7 +500,7 @@ static void draw_cue(const PlugChooser *chooser, Canvas *canvas)
 static void draw_line(const PlugChooser *chooser, Canvas *canvas)
 {
     const Theme *theme = chooser->config.theme;
-    Rect line = chooser->layout.line;
+    Rect line = plug_chooser_layout(chooser).line;
     int pad = theme->metrics.padding;
     canvas_fill_rect(canvas, (Rect){line.x - pad, line.y, line.width + 2 * pad, 1},
                      theme->colors.divider);
@@ -482,7 +518,8 @@ static void draw_line(const PlugChooser *chooser, Canvas *canvas)
 static void draw_body(const PlugChooser *chooser, Canvas *canvas)
 {
     const Theme *theme = chooser->config.theme;
-    const PlugChooserLayout *layout = &chooser->layout;
+    PlugChooserLayout shown = plug_chooser_layout(chooser);
+    const PlugChooserLayout *layout = &shown;
     if (layout->title.height > 0) {
         label_draw_wrapped(canvas, (TextStyle){theme->fonts.header, theme->colors.text, false},
                            (Label){layout->title, chooser->config.title});
@@ -519,7 +556,7 @@ static void draw(void *context, Canvas *canvas)
     draw_cue(chooser, canvas);
     draw_line(chooser, canvas);
     if (plug_chooser_has_footer(chooser)) {
-        footer_hints_draw(canvas, theme, chooser->layout.footer, ALWAYS_FOOTER);
+        footer_hints_draw(canvas, theme, plug_chooser_layout(chooser).footer, ALWAYS_FOOTER);
     }
 }
 

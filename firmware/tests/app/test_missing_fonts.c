@@ -1,5 +1,6 @@
 #include <string.h>
 
+#include "about_layout.h"
 #include "check.h"
 #include "core/bytes.h"
 #include "core/drive_path.h"
@@ -11,6 +12,7 @@
 #include "missing_fonts.h"
 #include "settings_screens.h"
 #include "test_glyph_face.h"
+#include "text_spy.h"
 
 enum {
     LIBRARY_BYTES = 1024,
@@ -166,8 +168,43 @@ static void choosing_about_in_settings_counts_the_names_for_its_notice(void)
     const MenuItem *row = &screens.groups[SETTINGS_GROUP_ABOUT];
     CHECK(row->select(row->context).target == &about);
     CHECK_EQUAL(2, screens.missing_names);
-    CHECK(strcmp("2 names need fonts. Connect to a computer to add them.",
-                 screens.missing_notice) == 0);
+}
+
+static bool about_says(const char *words)
+{
+    char shown[TEXT_SPY_TEXT * 4] = "";
+    size_t used = 0;
+    for (int index = 0; index < text_spy_count() && used + TEXT_SPY_TEXT < sizeof shown; index++) {
+        size_t length = strlen(text_spy_entry(index)->shown);
+        memcpy(shown + used, text_spy_entry(index)->shown, length);
+        used += length;
+        shown[used++] = ' ';
+    }
+    shown[used] = 0;
+    return strstr(shown, words) != NULL;
+}
+
+static void about_draws_the_count_as_its_notice(void)
+{
+    static Color pixels[480 * 480];
+    static MenuScreen menu;
+    static MenuItem items[] = {{.label = "Firmware"}};
+    start();
+    menu_screen_init(
+        &menu, (MenuConfig){.title = "About", .items = items, .item_count = 1, .theme = &theme});
+    about_layout_attach(&menu);
+    uint32_t names = 2;
+    about_layout_notice(&names);
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    text_spy_reset();
+    menu.screen.draw(&menu, &canvas);
+    CHECK(about_says("2 names need fonts."));
+    names = 0;
+    text_spy_reset();
+    menu.screen.draw(&menu, &canvas);
+    CHECK(!about_says("need fonts"));
+    about_layout_notice(NULL);
 }
 
 int main(void)
@@ -178,6 +215,7 @@ int main(void)
         TEST_CASE(the_notice_goes_away_once_extra_fonts_draw_the_characters),
         TEST_CASE(too_little_memory_or_a_damaged_library_records_nothing),
         TEST_CASE(choosing_about_in_settings_counts_the_names_for_its_notice),
+        TEST_CASE(about_draws_the_count_as_its_notice),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

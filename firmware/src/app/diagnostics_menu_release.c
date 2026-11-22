@@ -28,5 +28,5 @@ void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Them
     items[6] = value_item(STR_ABOUT_CPU_CLOCK, diagnostics_row_cpu_clock);
     app_screens_build_menu(&about->diagnostics, STR_ABOUT, items, RELEASE_DIAGNOSTICS_COUNT, theme);
     about_layout_attach(&about->diagnostics);
-    about_layout_notice(screens->modules.settings.settings.missing_notice);
+    about_layout_notice(&screens->modules.settings.settings.missing_names);
 }

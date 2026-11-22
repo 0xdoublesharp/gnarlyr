@@ -38,7 +38,8 @@ typedef struct PlugChooser {
     PlugChoices choices;
     ListModel model;
     ListView list;
-    PlugChooserLayout layout;
+    Rect list_area;
+    Rect cue_area;
     uint32_t now_ms;
     uint32_t until_ms;
     uint32_t seconds;
@@ -53,6 +54,7 @@ typedef struct PlugChooser {
 
 Screen *plug_chooser_init(PlugChooser *chooser, PlugChooserConfig config);
 PlugMode plug_chooser_mode(const PlugChooser *chooser, int row);
+PlugChooserLayout plug_chooser_layout(const PlugChooser *chooser);
 const char *plug_chooser_line(const PlugChooser *chooser);
 bool plug_chooser_has_footer(const PlugChooser *chooser);
 int plug_chooser_shown_rows(const PlugChooser *chooser);
