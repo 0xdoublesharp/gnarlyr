@@ -399,48 +399,27 @@ static void draw_name(const MixtapeUi *ui, Canvas *canvas)
                       footer);
 }
 
-static Rect art_band(const MixtapeUi *ui)
+static void draw_art(const MixtapeUi *ui, Canvas *canvas)
 {
     const Theme *theme = ui->config.theme;
     Rect content = theme_content_area(theme);
-    int shown = ui->model.count(ui) - ui->list.top;
-    shown = shown < ui->list.visible_rows ? shown : ui->list.visible_rows;
-    int top = content.y + shown * list_view_row_height(&ui->list) + theme->metrics.padding;
-    int bottom = content.y + content.height;
-    bool room = ui->mode == MIXTAPE_LIST && content.height > content.width &&
-                bottom - top >= CASSETTE_HEIGHT + 2 * theme->metrics.padding;
-    return room ? (Rect){content.x, top, content.width, bottom - top} : (Rect){0, 0, 0, 0};
-}
-
-static void draw_hint(const MixtapeUi *ui, Canvas *canvas, Rect area)
-{
-    const Theme *theme = ui->config.theme;
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
-    const char *hint = i18n_text(STR_NEW_CASSETTE_HINT);
-    int lines = label_wrap_count(style.font, hint, area.width);
-    if (ui->list.selected == ui->model.count(ui) - 1 &&
-        lines * font_line_height(style.font) <= area.height) {
-        label_draw_paragraph(canvas, style, (Label){area, hint});
+    int rows = ui->model.count(ui) - ui->list.top;
+    rows = rows < ui->list.visible_rows ? rows : ui->list.visible_rows;
+    int top = content.y + rows * list_view_row_height(&ui->list) + theme->metrics.padding;
+    int floor = top + CASSETTE_HEIGHT * 3 / 4;
+    if (ui->mode != MIXTAPE_LIST || content.width > content.height ||
+        floor + CASSETTE_HEIGHT > content.y + content.height) {
+        return;
     }
-}
-
-static void draw_art(const MixtapeUi *ui, Canvas *canvas, Rect band)
-{
-    const Theme *theme = ui->config.theme;
-    int pad = theme->metrics.padding;
-    canvas_fill_rect(canvas, (Rect){band.x, band.y, band.width, 1}, theme->colors.divider);
-    int horizon = band.y + pad + CASSETTE_HEIGHT * 3 / 4;
-    int depth = CASSETTE_HEIGHT / 2;
-    int bottom = band.y + band.height;
-    depth = depth < bottom - horizon ? depth : bottom - horizon;
-    Canvas floor = canvas_clipped(canvas, (Rect){band.x, horizon, band.width, depth});
-    home_art_draw_backdrop(&floor, (Rect){band.x, horizon - depth, band.width, 2 * depth}, theme);
-    Rect cassette = {band.x + (band.width - CASSETTE_WIDTH) / 2, band.y + pad, CASSETTE_WIDTH,
-                     CASSETTE_HEIGHT};
-    cassette_art_draw(canvas, cassette, theme,
-                      (CassetteTape){.position_ms = 1, .duration_ms = 2, .label = ""});
-    int top = horizon + depth + pad / 2;
-    draw_hint(ui, canvas, (Rect){band.x + pad, top, band.width - 2 * pad, bottom - top});
+    Canvas ground =
+        canvas_clipped(canvas, (Rect){content.x, floor, content.width, CASSETTE_HEIGHT});
+    home_art_draw_backdrop(
+        &ground, (Rect){content.x, floor - CASSETTE_HEIGHT, content.width, 2 * CASSETTE_HEIGHT},
+        theme);
+    cassette_art_draw(canvas,
+                      (Rect){content.x + (content.width - CASSETTE_WIDTH) / 2, top, CASSETTE_WIDTH,
+                             CASSETTE_HEIGHT},
+                      theme, (CassetteTape){.position_ms = 1, .duration_ms = 2, .label = ""});
 }
 
 static void draw(void *context, Canvas *canvas)
@@ -463,10 +442,7 @@ static void draw(void *context, Canvas *canvas)
         draw_name(ui, canvas);
     } else {
         list_view_draw(&ui->list, canvas, theme_content_area(ui->config.theme), ui->now_ms);
-        Rect band = art_band(ui);
-        if (!rect_is_empty(band)) {
-            draw_art(ui, canvas, band);
-        }
+        draw_art(ui, canvas);
     }
 }
 

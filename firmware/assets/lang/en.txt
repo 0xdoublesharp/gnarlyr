@@ -783,7 +783,6 @@ STR_TAPE_30 = 30 min per side
 STR_TAPE_45 = 45 min per side
 STR_TAPE_LENGTH = Mixtape length
 STR_TAPE_NEEDS_SIDES = Fill both sides first
-STR_NEW_CASSETTE_HINT = Choose a length, then add tracks to each side.
 STR_CARD_FORMAT = Format card
 STR_CARD_FORMAT_WARNING = Card: {0} GB ({1})\nErases everything.
 STR_CARD_FORMAT_NEXT = Play: continue\nBack: cancel
