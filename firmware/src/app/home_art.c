@@ -17,8 +17,7 @@ enum {
     CUE_MARK_WIDTH = 13,
     CUE_MARK_HEIGHT = 7,
     CUE_MARK_TOP = 6,
-    CUE_MARK_STROKE = 3,
-    NUMBER_CAPACITY = 8
+    CUE_TEXT_CAPACITY = 32
 };
 
 static void update_metadata(HomeArt *art)
@@ -93,9 +92,7 @@ static void cycle(HomeArt *art, uint32_t count, uint32_t now_ms)
     if (!art->cycling) {
         art->cycling = true;
         art->album = (uint16_t)(count - 1);
-        show_next_with_a_cover(art, count);
-        art->next_change_ms = now_ms + HOME_ART_CYCLE_MS;
-        return;
+        art->next_change_ms = now_ms;
     }
     if (deadline_reached(now_ms, art->next_change_ms)) {
         show_next_with_a_cover(art, count);
@@ -125,21 +122,19 @@ void home_art_update(void *context, uint32_t now_ms)
 static void draw_caption(const HomeArt *art, Canvas *canvas, Rect area)
 {
     const Theme *theme = art->theme;
-    TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text};
-    Rect caption = {area.x, area.y, area.width, 2 * font_line_height(style.font)};
-    canvas_fill_rect(canvas, caption, theme->colors.backdrop_bottom);
-    label_draw(canvas, style,
-               (Label){label_centered_area(style.font, area, art->title), art->title});
-    area.y += font_line_height(style.font);
-    style.color = theme->colors.text_secondary;
-    label_draw(canvas, style,
-               (Label){label_centered_area(style.font, area, art->artist), art->artist});
+    const char *lines[2] = {art->title, art->artist};
+    Color inks[2] = {theme->colors.text, theme->colors.text_secondary};
+    for (int line = 0; line < 2; line++, area.y += CUE_LINE) {
+        TextStyle style = {theme->fonts.small, inks[line], false};
+        label_draw(canvas, style,
+                   (Label){label_centered_area(style.font, area, lines[line]), lines[line]});
+    }
 }
 
 static int hidden_below(const HomeArt *art)
 {
     const ListView *list = art->list;
-    if (list == NULL || list->model == NULL) {
+    if (list == NULL) {
         return 0;
     }
     return list->model->count(list->model->context) - list->top - list->visible_rows;
@@ -151,19 +146,9 @@ static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
     const ListView *list = art->list;
     const ListModel *model = list->model;
     int last = list->top + list->visible_rows;
-    uint32_t range[3] = {(uint32_t)list->top + 1, (uint32_t)last,
-                         (uint32_t)model->count(model->context)};
-    char numbers[3 * NUMBER_CAPACITY];
-    const char *values[3];
-    StringBuilder number = string_builder_make(numbers, sizeof numbers);
-    for (int index = 0; index < 3; index++) {
-        values[index] = numbers + number.length;
-        string_builder_append_unsigned(&number, range[index]);
-        string_builder_append_char(&number, '\0');
-    }
-    char text[3 * NUMBER_CAPACITY + 16];
+    char text[CUE_TEXT_CAPACITY];
     StringBuilder line = string_builder_make(text, sizeof text);
-    i18n_format(&line, STR_RANGE_OF, values, 3);
+    i18n_format_counts(&line, STR_PLACE, (uint32_t)last, (uint32_t)model->count(model->context));
     canvas_fill_rect(canvas, area, theme->colors.header_background);
     TextStyle style = {theme->fonts.small, theme->colors.text_secondary, false};
     Rect row = {area.x + theme->metrics.padding, area.y + CUE_INSET, area.width, CUE_LINE};
@@ -171,10 +156,9 @@ static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
     row.y += CUE_LINE;
     style.color = theme->colors.accent;
     for (int step = 0; step < CUE_MARK_HEIGHT; step++) {
-        Rect stroke = {row.x + step, row.y + CUE_MARK_TOP + step, CUE_MARK_STROKE, 1};
-        canvas_fill_rect(canvas, stroke, style.color);
-        stroke.x = row.x + CUE_MARK_WIDTH - CUE_MARK_STROKE - step;
-        canvas_fill_rect(canvas, stroke, style.color);
+        canvas_fill_rect(
+            canvas, (Rect){row.x + step, row.y + CUE_MARK_TOP + step, CUE_MARK_WIDTH - 2 * step, 1},
+            style.color);
     }
     row.x += CUE_MARK_WIDTH + CUE_INSET;
     label_draw(canvas, style, (Label){row, model->label(model->context, last)});
