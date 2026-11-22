@@ -13,6 +13,8 @@ CODE_BYTES = 8
 NAME_BYTES = 28
 HEADER = struct.Struct(f"<4sHHIII{CODE_BYTES}s{NAME_BYTES}s")
 SEGMENT_INDEX = struct.Struct("<HH")
+NEEDS_EXTRA_FONT = 1
+KNOWN_FLAGS = NEEDS_EXTRA_FONT
 SEGMENT = struct.Struct("<HHIII")
 CHECKSUM_OFFSET = 16
 CHECKSUM_END = CHECKSUM_OFFSET + 4
@@ -276,13 +278,30 @@ def drawable_from_config(fonts, packs):
     return drawable if drawable is not None else set()
 
 
-def check_glyphs(code, texts, drawable):
+def coverage_from_recipe(recipe):
+    return frozenset(range_characters(recipe.get("coverage", []))) if recipe else frozenset()
+
+
+def coverage_characters(fonts_directory=FONTS):
+    """The characters extra.font can add: the font recipe's coverage, or none without a recipe."""
+    path = Path(fonts_directory) / "recipe.json"
+    if not path.exists():
+        return frozenset()
+    return coverage_from_recipe(json.loads(path.read_text(encoding="utf-8")))
+
+
+def check_glyphs(code, texts, drawable, coverage=frozenset()):
+    """Whether the texts need extra.font; fails on a character neither the image nor the recipe draws."""
+    needs = False
     for name, text in texts:
-        missing = sorted({character for character in text
-                          if ord(character) not in drawable and character != "\n"})
+        undrawn = {character for character in text
+                   if ord(character) not in drawable and character != "\n"}
+        missing = sorted(character for character in undrawn if ord(character) not in coverage)
         if missing:
             shown = " ".join(f"{character} U+{ord(character):04X}" for character in missing)
             raise PackError(f"{code}: {name} uses characters a text size cannot draw: {shown}")
+        needs |= bool(undrawn)
+    return needs
 
 
 def padded(text, size, what):
@@ -350,12 +369,12 @@ def memory_need(resident_end, module_sizes):
     return aligned(resident_end) + max(module_sizes, default=0)
 
 
-def build_pack(code, catalogue, translations, segments=None):
+def build_pack(code, catalogue, translations, segments=None, needs_extra=False):
     segments = segments if segments is not None else resident_segments(catalogue)
     texts = pack_texts(code, catalogue, translations)
     blocks = [text_block([texts[name] for name in names]) for _, names in segments]
     offset = index_size(len(segments))
-    table = bytearray(SEGMENT_INDEX.pack(len(segments), 0))
+    table = bytearray(SEGMENT_INDEX.pack(len(segments), NEEDS_EXTRA_FONT if needs_extra else 0))
     for (module, names), block in zip(segments, blocks):
         table += SEGMENT.pack(module, len(names), offset, len(block), fnv(block))
         offset += len(block)
@@ -387,8 +406,8 @@ def metadata_text(data, what):
 def segment_total(pack):
     if len(pack) < HEADER.size + SEGMENT_INDEX.size:
         raise PackError("shorter than a pack index")
-    total, reserved = SEGMENT_INDEX.unpack_from(pack, HEADER.size)
-    if total == 0 or reserved or len(pack) < index_size(total):
+    total, flags = SEGMENT_INDEX.unpack_from(pack, HEADER.size)
+    if total == 0 or flags & ~KNOWN_FLAGS or len(pack) < index_size(total):
         raise PackError("its segment index is damaged")
     return total
 
@@ -429,8 +448,10 @@ def pack_info(pack):
     check_native_name(native_name)
     memory = memory_need(segments[0]["offset"] + segments[0]["size"],
                          [segment["size"] for segment in segments[1:]])
+    flags = SEGMENT_INDEX.unpack_from(pack, HEADER.size)[1]
     return {"code": language, "name": native_name, "version": version, "count": count,
-            "size": size, "memory": memory, "catalogue_hash": catalogue, "segments": segments}
+            "size": size, "memory": memory, "catalogue_hash": catalogue, "segments": segments,
+            "needs_extra_font": bool(flags & NEEDS_EXTRA_FONT)}
 
 
 def pack_code(pack):
@@ -470,7 +491,7 @@ def pack_strings(pack, info, catalogue, segments):
     return texts
 
 
-def validate_pack(data, catalogue, drawable, segments=None, limit=PACK_LIMIT):
+def validate_pack(data, catalogue, drawable, segments=None, limit=PACK_LIMIT, coverage=frozenset()):
     """Check a whole pack against a firmware's catalogue, segments, format and memory."""
     pack = bytes(data)
     info = pack_info(pack)
@@ -483,7 +504,8 @@ def validate_pack(data, catalogue, drawable, segments=None, limit=PACK_LIMIT):
     if texts.get(NAME_ID) != info["name"]:
         raise PackError("the header language name does not match its catalogue text")
     check_placeholders(info["code"], catalogue, texts)
-    check_glyphs(info["code"], texts.items(), drawable)
+    if check_glyphs(info["code"], texts.items(), drawable, coverage) != info["needs_extra_font"]:
+        raise PackError("its extra-font flag does not match its characters")
     return {**info, "texts": texts}
 
 
@@ -538,8 +560,9 @@ def language_pack(code, directory=LANGUAGES, fonts_directory=FONTS, layout=None)
         translations = read_translations(Path(directory) / f"{code}.txt", catalogue)
     check_placeholders(code, catalogue, translations)
     texts = [(name, translations.get(name) or english) for name, english in catalogue]
-    check_glyphs(code, texts, drawable_characters(fonts_directory))
-    return build_pack(code, catalogue, translations, segments)
+    needs = check_glyphs(code, texts, drawable_characters(fonts_directory),
+                         coverage_characters(fonts_directory))
+    return build_pack(code, catalogue, translations, segments, needs)
 
 
 def c_literal(text):
@@ -609,7 +632,8 @@ def write_pack(arguments):
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_bytes(pack)
     info = pack_info(pack)
-    print(f"{arguments.pack}: {info['memory']:,} of {PACK_LIMIT:,} memory bytes, {len(pack):,} file bytes")
+    extra = ", needs extra.font" if info["needs_extra_font"] else ""
+    print(f"{arguments.pack}: {info['memory']:,} of {PACK_LIMIT:,} memory bytes, {len(pack):,} file bytes{extra}")
     return 0
 
 

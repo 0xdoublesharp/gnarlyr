@@ -29,14 +29,27 @@ enum {
     MUSIC_ARTISTS_ROW = 2,
     BJORK_ROW = 3,
     MUSIC_ALL_SONGS_ROW = 7,
-    SETTINGS_ROWS = 32,
-    SETTINGS_BLUETOOTH_ROW = 3,
-    SETTINGS_SLEEP_ROW = 4,
-    SETTINGS_OUTPUT_ROW = 16,
-    SETTINGS_EQUALIZER_ROW = 17,
-    SETTINGS_CUSTOM_EQ_ROW = 18,
-    SETTINGS_RESCAN_ROW = 22,
-    SETTINGS_USB_MODE_ROW = 23,
+    GROUP_SOUND = 0,
+    GROUP_PLAYBACK = 1,
+    GROUP_DISPLAY = 2,
+    GROUP_LANGUAGE = 3,
+    GROUP_POWER = 4,
+    GROUP_CONNECTIONS = 5,
+    GROUP_BUTTONS = 6,
+    GROUP_LIBRARY = 7,
+    GROUP_ABOUT = 8,
+    SETTINGS_GROUPS = 9,
+    SOUND_OUTPUT_ROW = 0,
+    SOUND_EQUALIZER_ROW = 2,
+    SOUND_CUSTOM_EQ_ROW = 3,
+    SOUND_PARAMETRIC_ROW = 4,
+    SOUND_HEADPHONES_ROW = 5,
+    PLAYBACK_SLEEP_ROW = 8,
+    DISPLAY_HOME_ROW = 8,
+    POWER_STANDBY_ROW = 1,
+    CONNECTIONS_BLUETOOTH_ROW = 2,
+    LIBRARY_RESCAN_ROW = 0,
+    LIBRARY_FORMAT_ROWS_UP = 1,
     ABOUT_ROWS = 14,
     HOME_EDITOR_PODCASTS_ROW = 6,
     EQUALIZER_SAVE_ROW = 10,
@@ -308,6 +321,20 @@ static void open_settings_row(int row)
     down(row);
 }
 
+static void open_setting(int group, int row)
+{
+    open_settings_row(group);
+    tap(KEY_PLAY);
+    down(row);
+}
+
+static void up(int times)
+{
+    for (int count = 0; count < times; count++) {
+        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    }
+}
+
 static void walk_music(void)
 {
     static const StringId TITLES[MUSIC_ENTRIES] = {
@@ -400,57 +427,87 @@ static void walk_now_playing(void)
     show_titled("Up Next", STR_UP_NEXT);
 }
 
+static const StringId GROUP_TITLES[SETTINGS_GROUPS] = {
+    STR_SETTINGS_SOUND,   STR_SETTINGS_PLAYBACK,      STR_SETTINGS_DISPLAY_TEXT,
+    STR_LANGUAGE,         STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
+    STR_SETTINGS_BUTTONS, STR_SETTINGS_LIBRARY,       STR_ABOUT};
+static const uint8_t GROUP_ROWS[SETTINGS_GROUPS] = {10, 9, 12, 0, 3, 3, 0, 3, 0};
+
 static void walk_settings_rows(void)
 {
     open_settings_row(0);
     show_titled("Settings", STR_SETTINGS);
-    for (int row = 1; row < SETTINGS_ROWS; row++) {
+    for (int group = 1; group < SETTINGS_GROUPS; group++) {
         down(1);
-        show_titled("a Settings row", STR_SETTINGS);
+        show_titled("a Settings group", STR_SETTINGS);
     }
+    for (int group = 0; group < SETTINGS_GROUPS; group++) {
+        if (GROUP_ROWS[group] == 0) {
+            continue;
+        }
+        open_setting(group, 0);
+        show_titled("a Settings group's list", GROUP_TITLES[group]);
+        for (int row = 1; row < GROUP_ROWS[group]; row++) {
+            down(1);
+            show_titled("a row in a Settings group", GROUP_TITLES[group]);
+        }
+    }
+}
+
+typedef struct SettingPlace {
+    uint8_t group;
+    uint8_t row;
+    StringId title;
+} SettingPlace;
+
+static void open_place(SettingPlace place)
+{
+    if (GROUP_ROWS[place.group] == 0) {
+        open_settings_row(place.group);
+    } else {
+        open_setting(place.group, place.row);
+    }
+    tap(KEY_PLAY);
 }
 
 static void walk_settings_choices(void)
 {
-    static const StringId TITLES[SETTINGS_ROWS] = {STR_ABOUT,
-                                                   STR_SHUFFLE,
-                                                   STR_REPEAT,
-                                                   STR_BLUETOOTH,
-                                                   STR_SLEEP_TIMER,
-                                                   STR_AUTO_OFF,
-                                                   STR_SCREEN_TIMEOUT,
-                                                   STR_CLOCK_FORMAT,
-                                                   STR_SET_CLOCK,
-                                                   STR_BRIGHTNESS,
-                                                   STR_COLOR,
-                                                   STR_TEXT_SIZE,
-                                                   STR_ORIENTATION,
-                                                   STR_LANGUAGE,
-                                                   STR_GAIN,
-                                                   STR_DAC_FILTER,
-                                                   STR_OUTPUT,
-                                                   STR_EQUALIZER,
-                                                   STR_CUSTOM_EQ,
-                                                   STR_REPLAY_GAIN,
-                                                   STR_PREVENT_CLIPPING,
-                                                   STR_START_SCREEN,
-                                                   STR_SETTINGS,
-                                                   STR_USB_MODE,
-                                                   STR_THEME,
-                                                   STR_STATUS_BAR,
-                                                   STR_PLAYBACK_SPEED,
-                                                   STR_REWIND_ON_RESUME,
-                                                   STR_SAFE_START_VOLUME,
-                                                   STR_TRANSITIONS,
-                                                   STR_USB_ANSWER,
-                                                   STR_POWER_ON};
-    for (int row = 1; row < SETTINGS_ROWS; row++) {
-        if (row == SETTINGS_RESCAN_ROW) {
-            continue;
-        }
-        open_settings_row(row);
-        tap(KEY_PLAY);
-        show_titled("a screen opened from Settings", TITLES[row]);
+    static const SettingPlace PLACES[] = {
+        {GROUP_SOUND, 0, STR_OUTPUT},
+        {GROUP_SOUND, 1, STR_GAIN},
+        {GROUP_SOUND, 2, STR_EQUALIZER},
+        {GROUP_SOUND, 3, STR_CUSTOM_EQ},
+        {GROUP_SOUND, 7, STR_REPLAY_GAIN},
+        {GROUP_SOUND, 8, STR_PREVENT_CLIPPING},
+        {GROUP_SOUND, 9, STR_DAC_FILTER},
+        {GROUP_PLAYBACK, 0, STR_SHUFFLE},
+        {GROUP_PLAYBACK, 1, STR_REPEAT},
+        {GROUP_PLAYBACK, 2, STR_PLAYBACK_SPEED},
+        {GROUP_PLAYBACK, 3, STR_TRANSITIONS},
+        {GROUP_PLAYBACK, 4, STR_REWIND_ON_RESUME},
+        {GROUP_PLAYBACK, 7, STR_SAFE_START_VOLUME},
+        {GROUP_PLAYBACK, 8, STR_SLEEP_TIMER},
+        {GROUP_DISPLAY, 0, STR_TEXT_SIZE},
+        {GROUP_DISPLAY, 1, STR_ORIENTATION},
+        {GROUP_DISPLAY, 2, STR_THEME},
+        {GROUP_DISPLAY, 3, STR_COLOR},
+        {GROUP_DISPLAY, 4, STR_BRIGHTNESS},
+        {GROUP_DISPLAY, 5, STR_SCREEN_TIMEOUT},
+        {GROUP_DISPLAY, 6, STR_STATUS_BAR},
+        {GROUP_DISPLAY, 9, STR_START_SCREEN},
+        {GROUP_DISPLAY, 10, STR_CLOCK_FORMAT},
+        {GROUP_DISPLAY, 11, STR_SET_CLOCK},
+        {GROUP_LANGUAGE, 0, STR_LANGUAGE},
+        {GROUP_POWER, 0, STR_AUTO_OFF},
+        {GROUP_POWER, 2, STR_POWER_ON},
+        {GROUP_CONNECTIONS, 0, STR_USB_ANSWER},
+        {GROUP_CONNECTIONS, 1, STR_USB_MODE},
+        {GROUP_CONNECTIONS, 2, STR_BLUETOOTH},
+        {GROUP_BUTTONS, 0, STR_SETTINGS_BUTTONS},
+    };
+    for (size_t index = 0; index < sizeof PLACES / sizeof PLACES[0]; index++) {
+        open_place(PLACES[index]);
+        show_titled("a screen opened from Settings", PLACES[index].title);
         for (int option = 0; option < 4; option++) {
             down(1);
             show("its other options");
@@ -458,9 +515,9 @@ static void walk_settings_choices(void)
     }
 }
 
-static void choose_option(int row, int option)
+static void choose_option(int group, int row, int option)
 {
-    open_settings_row(row);
+    open_setting(group, row);
     tap(KEY_PLAY);
     down(option);
     frames(SETTLE_FRAMES);
@@ -470,15 +527,15 @@ static void choose_option(int row, int option)
 
 static void walk_settings_toasts(void)
 {
-    choose_option(SETTINGS_SLEEP_ROW, 1);
+    choose_option(GROUP_PLAYBACK, PLAYBACK_SLEEP_ROW, 1);
     show_toast("the sleep timer toast", STRING_COUNT);
-    choose_option(SETTINGS_SLEEP_ROW, 0);
+    choose_option(GROUP_PLAYBACK, PLAYBACK_SLEEP_ROW, 0);
     show_toast("the sleep timer off toast", STR_SLEEP_OFF);
-    choose_option(SETTINGS_OUTPUT_ROW, 0);
+    choose_option(GROUP_SOUND, SOUND_OUTPUT_ROW, 0);
     show_toast("the output toast", STR_OUTPUT_FOLLOWS);
-    choose_option(SETTINGS_OUTPUT_ROW, 1);
+    choose_option(GROUP_SOUND, SOUND_OUTPUT_ROW, 1);
     show_toast("the 3.5 mm output toast", STR_OUTPUT_USING_35);
-    open_settings_row(SETTINGS_RESCAN_ROW);
+    open_setting(GROUP_LIBRARY, LIBRARY_RESCAN_ROW);
     text_spy_reset();
     tap(KEY_PLAY);
     frames(2);
@@ -487,7 +544,7 @@ static void walk_settings_toasts(void)
 
 static void walk_equalizer(void)
 {
-    open_settings_row(SETTINGS_CUSTOM_EQ_ROW);
+    open_setting(GROUP_SOUND, SOUND_CUSTOM_EQ_ROW);
     tap(KEY_PLAY);
     show_titled("Custom EQ", STR_CUSTOM_EQ);
     tap(KEY_PLAY);
@@ -510,11 +567,7 @@ static void walk_equalizer(void)
 
 static void walk_parametric(void)
 {
-    open_settings_row(0);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    open_setting(GROUP_SOUND, SOUND_PARAMETRIC_ROW);
     tap(KEY_PLAY);
     show_titled("Parametric EQ", STR_PEQ);
     tap(KEY_PLAY);
@@ -532,7 +585,7 @@ static void walk_parametric(void)
 
 static void walk_sound_shaping(void)
 {
-    open_settings_row(SETTINGS_EQUALIZER_ROW);
+    open_setting(GROUP_SOUND, SOUND_EQUALIZER_ROW);
     tap(KEY_PLAY);
     tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
@@ -570,7 +623,7 @@ static void find_devices(void)
 
 static void walk_bluetooth(void)
 {
-    open_settings_row(SETTINGS_BLUETOOTH_ROW);
+    open_setting(GROUP_CONNECTIONS, CONNECTIONS_BLUETOOTH_ROW);
     tap(KEY_PLAY);
     show_titled("Bluetooth off", STR_BLUETOOTH);
     tap(KEY_PLAY);
@@ -592,13 +645,11 @@ static void walk_bluetooth(void)
 
 static void walk_card_format(void)
 {
-    open_settings_row(0);
+    open_setting(GROUP_LIBRARY, 0);
     fake_hal_set_card(
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    for (int row = 0; row < 6; row++) {
-        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    }
+    up(LIBRARY_FORMAT_ROWS_UP);
     tap(KEY_PLAY);
     show_titled("the card format warning", STR_CARD_FORMAT);
     tap(KEY_PLAY);
@@ -610,12 +661,7 @@ static void walk_card_format(void)
 
 static void open_home_editor(void)
 {
-    open_settings_row(0);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    open_setting(GROUP_DISPLAY, DISPLAY_HOME_ROW);
     tap(KEY_PLAY);
 }
 
@@ -656,7 +702,7 @@ static void walk_home_editor(void)
 
 static void walk_about(void)
 {
-    open_settings_row(0);
+    open_settings_row(GROUP_ABOUT);
     tap(KEY_PLAY);
     engineering_values = true;
     show_titled("About", STR_ABOUT);
@@ -754,10 +800,7 @@ static void walk_headphones(void)
 {
     static const StringId FIELDS[] = {STR_HEADPHONE_NAME, STR_HEADPHONE_TRIM, STR_HEADPHONE_BALANCE,
                                       STR_HEADPHONE_CEILING, STR_CROSSFEED};
-    open_settings_row(0);
-    for (int row = 0; row < 7; row++) {
-        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    }
+    open_setting(GROUP_SOUND, SOUND_HEADPHONES_ROW);
     tap(KEY_PLAY);
     show_titled("Headphones", STR_HEADPHONES);
     tap(KEY_PLAY);
@@ -780,14 +823,12 @@ static void walk_headphones(void)
 
 static void walk_listening_effects(void)
 {
-    static const StringId TITLES[] = {STR_CROSSFEED, STR_SPEECH_BOOST, STR_SKIP_SILENCE};
+    static const SettingPlace EFFECTS[] = {{GROUP_SOUND, 6, STR_CROSSFEED},
+                                           {GROUP_PLAYBACK, 6, STR_SPEECH_BOOST},
+                                           {GROUP_PLAYBACK, 5, STR_SKIP_SILENCE}};
     for (int row = 0; row < 3; row++) {
-        open_settings_row(0);
-        for (int step = 0; step < 8 + row; step++) {
-            tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-        }
-        tap(KEY_PLAY);
-        show_titled("a listening effect", TITLES[row]);
+        open_place(EFFECTS[row]);
+        show_titled("a listening effect", EFFECTS[row].title);
         down(1);
         show("another listening effect option");
         back(1);
@@ -796,10 +837,7 @@ static void walk_listening_effects(void)
 
 static void walk_standby_settings(void)
 {
-    open_settings_row(0);
-    for (int row = 0; row < 3; row++) {
-        tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    }
+    open_setting(GROUP_POWER, POWER_STANDBY_ROW);
     tap(KEY_PLAY);
     show_titled("Power settings", STR_STANDBY_POWER);
     tap(KEY_PLAY);

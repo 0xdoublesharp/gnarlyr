@@ -116,6 +116,22 @@ static void a_pack_names_its_language_and_code(void)
     CHECK(strcmp("", i18n_code()) == 0);
 }
 
+static void a_pack_reports_whether_it_needs_the_extra_font(void)
+{
+    build_bracketed();
+    I18nPackInfo info;
+    CHECK(i18n_pack_info(pack, I18N_INDEX_BYTES, &info));
+    CHECK_EQUAL(0, info.flags & I18N_NEEDS_EXTRA_FONT);
+    pack[TEST_PACK_FLAGS_FIELD] = I18N_NEEDS_EXTRA_FONT;
+    test_pack_seal(pack, pack_size);
+    CHECK(i18n_pack_info(pack, I18N_INDEX_BYTES, &info));
+    CHECK_EQUAL(I18N_NEEDS_EXTRA_FONT, info.flags & I18N_NEEDS_EXTRA_FONT);
+    CHECK(i18n_attach(pack, pack_size));
+    i18n_detach();
+    pack[TEST_PACK_FLAGS_FIELD] = 0;
+    CHECK(!i18n_pack_info(pack, I18N_INDEX_BYTES, &info));
+}
+
 static void a_header_shorter_than_the_index_is_refused(void)
 {
     build_bracketed();
@@ -352,6 +368,7 @@ int main(void)
         TEST_CASE(the_last_string_of_every_segment_is_reachable),
         TEST_CASE(a_version_two_pack_is_refused),
         TEST_CASE(a_pack_names_its_language_and_code),
+        TEST_CASE(a_pack_reports_whether_it_needs_the_extra_font),
         TEST_CASE(a_header_shorter_than_the_index_is_refused),
         TEST_CASE(another_magic_version_count_or_segment_count_is_refused),
         TEST_CASE(a_pack_built_for_another_catalogue_or_segmentation_is_refused),

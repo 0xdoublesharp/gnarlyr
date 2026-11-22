@@ -31,9 +31,11 @@ enum {
     COVER_FLOW_DEPTH = 3,
     ALBUM_DEPTH = 4,
     HOME_SETTINGS_ROW = 5,
-    SETTINGS_SHUFFLE_ROW = 1,
-    SETTINGS_BLUETOOTH_ROW = 3,
-    SETTINGS_FORMAT_ROWS_UP = 6,
+    SETTINGS_PLAYBACK_ROW = 1,
+    SETTINGS_CONNECTIONS_ROW = 5,
+    CONNECTIONS_BLUETOOTH_ROW = 2,
+    SETTINGS_LIBRARY_ROWS_UP = 2,
+    LIBRARY_FORMAT_ROWS_UP = 1,
     SCRIPT_STEP_MS = 8,
     SCRIPT_MS = 100
 };
@@ -827,15 +829,20 @@ static void settings_returns_from_about_to_its_own_module(void)
     open_settings();
     CHECK(title_is("Settings"));
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(title_is("About"));
     CHECK_EQUAL(SCREEN_MODULE_VIEWS, (int)fake_hal_loaded_module());
     tap(KEY_BACK);
-    move_down(SETTINGS_SHUFFLE_ROW);
+    move_down(1 + SETTINGS_PLAYBACK_ROW);
+    tap(KEY_PLAY);
     tap(KEY_PLAY);
     CHECK(title_is("Shuffle"));
     tap(KEY_BACK);
-    move_down(SETTINGS_BLUETOOTH_ROW - SETTINGS_SHUFFLE_ROW);
+    tap(KEY_BACK);
+    move_down(SETTINGS_CONNECTIONS_ROW - SETTINGS_PLAYBACK_ROW);
+    tap(KEY_PLAY);
+    move_down(CONNECTIONS_BLUETOOTH_ROW);
     tap(KEY_PLAY);
     CHECK(title_is("Bluetooth"));
     CHECK_EQUAL(4, fake_hal_module_loads());
@@ -847,7 +854,11 @@ static void open_card_format(void)
         (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
     fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
     open_settings();
-    for (int count = 0; count < SETTINGS_FORMAT_ROWS_UP; count++) {
+    for (int count = 0; count < SETTINGS_LIBRARY_ROWS_UP; count++) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    for (int count = 0; count < LIBRARY_FORMAT_ROWS_UP; count++) {
         tap(KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -862,7 +873,7 @@ static void card_format_opens_from_settings_in_its_own_module(void)
     tap(KEY_PLAY);
     CHECK(title_is("Erase this card?"));
     tap(KEY_BACK);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Library"));
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
     tap(KEY_PLAY);
     CHECK(title_is("Format card"));
@@ -875,12 +886,12 @@ static void a_damaged_card_format_module_keeps_settings_and_erases_nothing(void)
     start_app();
     fake_hal_break_module(SCREEN_MODULE_FORMAT, true);
     open_card_format();
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Library"));
     CHECK(toast_is(MISSING));
     CHECK_EQUAL(SCREEN_MODULE_SETTINGS, (int)fake_hal_loaded_module());
     tap(KEY_PLAY);
     tap(KEY_PLAY);
-    CHECK(title_is("Settings"));
+    CHECK(title_is("Library"));
     CHECK_EQUAL(0, fake_hal_card_formats());
     fake_hal_break_module(SCREEN_MODULE_FORMAT, false);
     tap(KEY_PLAY);
@@ -992,6 +1003,7 @@ static void after_a_music_check_the_screen_on_top_gets_its_module_back(void)
 {
     start_on_a_fresh_card();
     open_settings();
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(title_is("About"));
     app_request_rescan_if_music_changed();

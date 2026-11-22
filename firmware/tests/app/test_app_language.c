@@ -17,8 +17,9 @@ enum {
     START_MS = 1000,
     KEY_HOLD_MS = 50,
     HOME_SETTINGS_INDEX = 5,
-    SETTINGS_ORIENTATION_INDEX = 12,
-    SETTINGS_LANGUAGE_INDEX = 13,
+    SETTINGS_PLAYBACK_INDEX = 1,
+    SETTINGS_LANGUAGE_INDEX = 3,
+    PLAYBACK_SLEEP_INDEX = 8,
     SETTINGS_DEPTH = 2,
     MUSIC_ALL_SONGS_INDEX = 7
 };
@@ -139,29 +140,28 @@ static void the_app_loads_the_images_pack_at_start(void)
     CHECK(title_is("Music"));
 }
 
-static void with_one_language_settings_has_no_language_row(void)
+static void with_one_language_or_none_settings_still_has_the_language_row_fourth(void)
 {
-    start_with(1, false);
-    open_setting(SETTINGS_LANGUAGE_INDEX);
-    CHECK(title_is("Gain"));
-    start_with(0, false);
-    open_setting(SETTINGS_LANGUAGE_INDEX);
-    CHECK(title_is("Gain"));
+    for (int built_in = 0; built_in <= 1; built_in++) {
+        start_with(built_in, false);
+        open_setting(SETTINGS_LANGUAGE_INDEX);
+        CHECK(title_is("Language"));
+        tap(KEY_BACK);
+        move_down(1);
+        tap(KEY_PLAY);
+        CHECK(title_is("Power & battery"));
+    }
 }
 
-static void with_two_languages_settings_has_a_language_row_after_orientation(void)
+static void with_two_languages_the_language_row_lists_both(void)
 {
     start_with(2, false);
-    open_setting(SETTINGS_ORIENTATION_INDEX);
-    CHECK(title_is("Orientation"));
-    tap(KEY_BACK);
-    move_down(1);
-    tap(KEY_PLAY);
+    open_setting(SETTINGS_LANGUAGE_INDEX);
     CHECK(title_is("Language"));
-    tap(KEY_BACK);
     move_down(1);
     tap(KEY_PLAY);
-    CHECK(title_is("Gain"));
+    step();
+    CHECK(strcmp("up", i18n_code()) == 0);
 }
 
 static void choosing_a_language_changes_the_screens_at_once(void)
@@ -284,11 +284,14 @@ static void changing_the_language_keeps_the_music_playing(void)
 static void a_toast_from_before_the_change_is_dropped(void)
 {
     start_with(2, false);
-    open_setting(SETTINGS_LANGUAGE_INDEX - 9);
+    open_setting(SETTINGS_PLAYBACK_INDEX);
+    move_down(PLAYBACK_SLEEP_INDEX);
+    tap(KEY_PLAY);
     move_down(1);
     tap(KEY_PLAY);
     CHECK(app_toast_text() != NULL);
-    move_down(9);
+    tap(KEY_BACK);
+    move_down(SETTINGS_LANGUAGE_INDEX - SETTINGS_PLAYBACK_INDEX);
     tap(KEY_PLAY);
     move_down(1);
     tap(KEY_PLAY);
@@ -302,8 +305,8 @@ int main(void)
     build_packs();
     static const TestCase cases[] = {
         TEST_CASE(the_app_loads_the_images_pack_at_start),
-        TEST_CASE(with_one_language_settings_has_no_language_row),
-        TEST_CASE(with_two_languages_settings_has_a_language_row_after_orientation),
+        TEST_CASE(with_one_language_or_none_settings_still_has_the_language_row_fourth),
+        TEST_CASE(with_two_languages_the_language_row_lists_both),
         TEST_CASE(choosing_a_language_changes_the_screens_at_once),
         TEST_CASE(the_chosen_language_is_saved_and_loaded_at_the_next_start),
         TEST_CASE(choosing_the_loaded_language_again_keeps_it),

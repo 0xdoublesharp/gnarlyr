@@ -94,12 +94,20 @@ class Snapshot:
             self.drawable = self.format.drawable_from_config(
                 json.loads(self.show("firmware/assets/fonts/fonts.json")),
                 json.loads(self.show("firmware/assets/fonts/glyph_pack.json")))
+            self.coverage = self.recipe_coverage()
             identity = api.parse_identity(self.show("firmware/identity.json"))
             if identity["data_directory"] != api.DATA_DIRECTORY or identity["name"] != api.IDENTITY["name"]:
                 raise ValueError("the installed firmware identity differs from this tool")
             self.check_settings_layout()
         except (ValueError, KeyError, OSError, self.format.PackError) as error:
             raise api.DebugError("language_build_unknown", str(error)) from error
+
+    def recipe_coverage(self):
+        try:
+            recipe = json.loads(self.show("firmware/assets/fonts/recipe.json"))
+        except ValueError:
+            return frozenset()
+        return self.format.coverage_from_recipe(recipe)
 
     def settings_fields(self, source):
         try:
@@ -173,7 +181,7 @@ class Snapshot:
     def validate(self, data):
         try:
             return self.format.validate_pack(data, self.catalogue, self.drawable, self.segments,
-                                             self.pack_limit)
+                                             self.pack_limit, self.coverage)
         except self.format.PackError as error:
             raise self.api.DebugError("language_pack_invalid", str(error)) from error
 

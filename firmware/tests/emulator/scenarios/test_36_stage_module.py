@@ -6,6 +6,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from echo_image_harness import (
+    PLAYBACK_SAFE_START_ROW,
+    SETTINGS_PLAYBACK_GROUP,
+    SOUND_EQUALIZER_ROW,
     DAC_PROMPT_KEYS,
     EchoImageHarness,
     IDENTITY,
@@ -29,7 +32,6 @@ COVER, CASSETTE, VU, SPECTRUM = 0, 1, 2, 3
 QUICK_SETTINGS_STYLE_ROW_FROM_END = 3
 QUICK_SETTINGS_EQUALIZER_ROW = 2
 QUICK_SETTINGS_HEADPHONES_ROW = 3
-SETTINGS_EQUALIZER_ROW = 16
 SETTINGS_EQUALIZER_FIELD = 18
 SETTINGS_LONG_PRESS_FIELD = 59
 LONG_PRESS_SHUFFLE = 4
@@ -39,7 +41,6 @@ EQUALIZER_SLOTS_FILE = "eq_slots.bin"
 EQUALIZER_GAIN_MAX = 20
 HAL_USB_ANSWER_DAC = 3
 SETTLE_AFTER_STORAGE_CHANGE_MS = 4000
-SETTINGS_SAFE_START_ROW = 27
 SETTINGS_EXTENSION = 38
 PARAMETRIC_FILE = "parametric.bin"
 PARAMETRIC_RECORD = 84
@@ -497,7 +498,8 @@ class EchoImageTest(EchoImageHarness):
         machine = rig.machine
         rig.session.run_to_home_screen()
         self.open_settings(machine)
-        rig.press_many("next", SETTINGS_EQUALIZER_ROW)
+        rig.press("play")
+        rig.press_many("next", SOUND_EQUALIZER_ROW)
         rig.press("play")
         _, equalizer = self.module(machine, "equalizer")
         self.assertTrue(equalizer.loaded(machine))
@@ -612,7 +614,9 @@ class EchoImageTest(EchoImageHarness):
                                                                      HAL_USB_ANSWER_DAC))
         machine, session = rig.machine, rig.session
         self.open_settings(machine)
-        rig.press_many("next", SETTINGS_SAFE_START_ROW)
+        rig.press_many("next", SETTINGS_PLAYBACK_GROUP)
+        rig.press("play")
+        rig.press_many("next", PLAYBACK_SAFE_START_ROW)
         rig.press("play")
         _, settings = self.module(machine, "settings")
         self.assertTrue(settings.loaded(machine))
@@ -660,7 +664,8 @@ class EchoImageTest(EchoImageHarness):
         machine, session = rig.machine, rig.session
         self.assertEqual({1, 3}, self.parametric_slots(session))
         self.open_settings(machine)
-        rig.press_many("next", SETTINGS_EQUALIZER_ROW)
+        rig.press("play")
+        rig.press_many("next", SOUND_EQUALIZER_ROW)
         rig.press("play")
         rig.press("previous")
         rig.press("play")

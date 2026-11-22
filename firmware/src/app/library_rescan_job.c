@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "app/app.h"
 #include "app/debug_loop.h"
 #include "core/bytes.h"
 #include "core/drive_path.h"
@@ -13,8 +14,10 @@
 #include "hal/system.h"
 #include "hidden_scan.h"
 #include "library_store.h"
+#include "missing_fonts.h"
 #include "music_check.h"
 #include "scan_guard.h"
+#include "ui/theme.h"
 
 enum {
     TIME_LIST,
@@ -312,6 +315,7 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
     run_passes(&job, &outcome);
     if (outcome.result == SCAN_OK) {
         hidden_scan_forget_runtime();
+        missing_fonts_record(memory, size, app_theme()->fonts.body);
     }
     end_guard();
     hal_file_close(&rescan_files.scratch);

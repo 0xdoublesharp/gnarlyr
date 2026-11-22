@@ -19,7 +19,7 @@ HEADPHONES = "/" + IDENTITY.data_directory + "/headphones.bin"
 ENTRY_BYTES = 32
 LONG_NAME = 0x0F
 DELETED = 0xE5
-PROFILE_KEYS = ((KEY_PREVIOUS,) * 7 + (KEY_PLAY, KEY_NEXT, KEY_PLAY) + (KEY_NEXT,) * 2 + (KEY_PLAY,)
+PROFILE_KEYS = ((KEY_PLAY,) + (KEY_NEXT,) * 5 + (KEY_PLAY, KEY_NEXT, KEY_PLAY) + (KEY_NEXT,) * 2 + (KEY_PLAY,)
                 + (KEY_NEXT,) * 12 + (KEY_PLAY,) + (KEY_PREVIOUS,) * 2 + (KEY_PLAY,))
 
 
@@ -71,7 +71,8 @@ class EchoImageTest(EchoImageHarness):
         rig.press_many("back", 3)
         rig.press("previous")
         rig.press("play")
-        rig.press_many("previous", 7)
+        rig.press("play")
+        rig.press_many("next", 5)
         rig.press("play")
         rig.press("next")
         rig.press("play")

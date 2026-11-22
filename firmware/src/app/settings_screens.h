@@ -9,6 +9,7 @@
 #include "headphone_editor.h"
 #include "hidden_tracks.h"
 #include "language.h"
+#include "language_picker.h"
 #include "player.h"
 #include "screens/bluetooth_screen.h"
 #include "screens/equalizer_browser.h"
@@ -34,29 +35,47 @@ enum {
     SETTINGS_POWER_CHOICES = 3,
     SETTINGS_NOW_PLAYING_CHOICE = SETTINGS_CHOICE_COUNT - 1,
     SETTINGS_LANGUAGE_CHOICE = 10,
+    SETTINGS_TEXT_SIZE_CHOICE = 8,
     SETTINGS_USB_MODE_CHOICE = 18,
-    SETTINGS_ABOUT_ITEM = 0,
-    SETTINGS_BLUETOOTH_ITEM = 3,
-    SETTINGS_DATE_TIME_ITEM = 8,
-    SETTINGS_LANGUAGE_ITEM = 13,
-    SETTINGS_CUSTOM_EQ_ITEM = 18,
-    SETTINGS_RESCAN_ITEM = 22,
-    SETTINGS_HIDDEN_ITEM = 23,
-    SETTINGS_TRANSITION_LENGTH_ITEM = 31,
-    SETTINGS_HEADPHONES_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 6,
-    SETTINGS_FORMAT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 9,
-    SETTINGS_HOME_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 10,
-    SETTINGS_PARAMETRIC_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 11,
-    SETTINGS_POWER_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 12,
-    SETTINGS_NOW_PLAYING_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 13,
-    SETTINGS_RESTORE_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 14,
-    SETTINGS_CONTROLS_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 15,
-    SETTINGS_EJECT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 7,
-    SETTINGS_MOUNT_ITEM = SETTINGS_MAIN_CHOICE_COUNT + 8,
-    SETTINGS_ITEM_COUNT = SETTINGS_MAIN_CHOICE_COUNT + 16,
+    SETTINGS_SOUND_FIRST = 0,
+    SETTINGS_CUSTOM_EQ_ITEM = 3,
+    SETTINGS_PARAMETRIC_ITEM = 4,
+    SETTINGS_HEADPHONES_ITEM = 5,
+    SETTINGS_PLAYBACK_FIRST = 10,
+    SETTINGS_TRANSITION_LENGTH_ITEM = 14,
+    SETTINGS_DISPLAY_FIRST = 20,
+    SETTINGS_STATUS_BAR_ITEM = 26,
+    SETTINGS_HOME_ITEM = 28,
+    SETTINGS_DATE_TIME_ITEM = 31,
+    SETTINGS_POWER_FIRST = 32,
+    SETTINGS_POWER_ITEM = 33,
+    SETTINGS_CONNECTIONS_FIRST = 35,
+    SETTINGS_BLUETOOTH_ITEM = 37,
+    SETTINGS_LIBRARY_FIRST = 38,
+    SETTINGS_RESCAN_ITEM = 38,
+    SETTINGS_HIDDEN_ITEM = 39,
+    SETTINGS_EJECT_ITEM = 40,
+    SETTINGS_MOUNT_ITEM = 41,
+    SETTINGS_FORMAT_ITEM = 42,
+    SETTINGS_RESTORE_ITEM = 43,
+    SETTINGS_ITEM_COUNT = 44,
     SETTINGS_MESSAGE_CAPACITY = 64,
-    SETTINGS_COUNTDOWN_CAPACITY = 16
+    SETTINGS_COUNTDOWN_CAPACITY = 16,
+    SETTINGS_NOTICE_CAPACITY = 128
 };
+
+typedef enum SettingsGroup {
+    SETTINGS_GROUP_SOUND,
+    SETTINGS_GROUP_PLAYBACK,
+    SETTINGS_GROUP_DISPLAY,
+    SETTINGS_GROUP_LANGUAGE,
+    SETTINGS_GROUP_POWER,
+    SETTINGS_GROUP_CONNECTIONS,
+    SETTINGS_GROUP_BUTTONS,
+    SETTINGS_GROUP_LIBRARY,
+    SETTINGS_GROUP_ABOUT,
+    SETTINGS_GROUP_COUNT
+} SettingsGroup;
 
 typedef struct SettingsContext {
     SettingsStore *store;
@@ -102,6 +121,11 @@ typedef struct SettingsEntry {
     SettingsScreens *owner;
 } SettingsEntry;
 
+typedef struct SettingsGroupEntry {
+    SettingsScreens *owner;
+    SettingsGroup group;
+} SettingsGroupEntry;
+
 struct SettingsScreens {
     SettingsContext context;
     const Theme *theme;
@@ -109,6 +133,7 @@ struct SettingsScreens {
     SettingsPreview preview;
     const Settings *(*preview_settings)(SettingsScreens *screens, bool active);
     MenuScreen menu;
+    MenuScreen group_menu;
     union {
         MenuScreen status_menu;
         MenuScreen power_menu;
@@ -125,6 +150,7 @@ struct SettingsScreens {
         SetClockScreen clock;
         HiddenTracksChoice hidden;
         PlugChooser plug;
+        LanguagePicker language;
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
@@ -132,7 +158,12 @@ struct SettingsScreens {
     const char *safe_volume_options[SETTINGS_SAFE_VOLUME_OPTIONS];
     PlugChooser usb;
     bool card_needs_format;
+    uint32_t missing_names;
+    char missing_notice[SETTINGS_NOTICE_CAPACITY];
+    Screen *about;
     SettingsEntry entries[SETTINGS_CHOICE_COUNT];
+    SettingsGroupEntry group_entries[SETTINGS_GROUP_COUNT];
+    MenuItem groups[SETTINGS_GROUP_COUNT];
     MenuItem items[SETTINGS_ITEM_COUNT];
 };
 

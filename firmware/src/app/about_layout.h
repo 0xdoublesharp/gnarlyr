@@ -10,3 +10,4 @@ typedef struct AboutBand {
 
 AboutBand about_layout_band(const Theme *theme, const char *name);
 void about_layout_attach(MenuScreen *menu);
+void about_layout_notice(const char *text);

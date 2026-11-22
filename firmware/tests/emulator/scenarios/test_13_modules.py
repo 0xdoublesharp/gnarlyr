@@ -20,7 +20,8 @@ from echo_image_harness import (
     REPEAT_ALL,
     SETTINGS_PATH,
     SETTINGS_REPEAT_FIELD,
-    SETTINGS_REPEAT_ROW,
+    PLAYBACK_REPEAT_ROW,
+    SETTINGS_PLAYBACK_GROUP,
     STEP_GAP_WITH_A_MODULE_MS,
     WIDTH,
     english,
@@ -153,8 +154,9 @@ class EchoImageTest(EchoImageHarness):
         machine.note("usb_session_storage_changed")
         machine.note("usb_storage_session")
         self.open_settings(machine)
-        for _ in range(SETTINGS_REPEAT_ROW):
-            self.press(machine, KEY_NEXT)
+        for key in ((KEY_NEXT,) * SETTINGS_PLAYBACK_GROUP + (KEY_PLAY,) +
+                    (KEY_NEXT,) * PLAYBACK_REPEAT_ROW):
+            self.press(machine, key)
         for key in (KEY_PLAY, KEY_NEXT):
             self.press(machine, key)
         self.assertTrue(settings.loaded(machine))
@@ -181,6 +183,7 @@ class EchoImageTest(EchoImageHarness):
         machine.note("usb_session_storage_changed")
         machine.note("usb_storage_session")
         self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PREVIOUS)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_NEXT)
         self.assertTrue(views.loaded(machine))
@@ -241,12 +244,14 @@ class EchoImageTest(EchoImageHarness):
         rig.press("previous")
         opened = rig.press("play")
         self.assertTrue(settings.loaded(machine))
-        rig.press_many("next", SETTINGS_REPEAT_ROW)
+        rig.press_many("next", SETTINGS_PLAYBACK_GROUP)
+        rig.press("play")
+        rig.press_many("next", PLAYBACK_REPEAT_ROW)
         rig.press("play")
         rig.press_many("next", REPEAT_ALL)
         rig.press("play")
         self.assertEqual(session.fat().read(SETTINGS_PATH)[SETTINGS_REPEAT_FIELD], REPEAT_ALL)
-        rig.press("back")
+        rig.press_many("back", 2)
         rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS)
         rig.press("play")
         rig.run_for(400)
@@ -369,6 +374,7 @@ class EchoImageTest(EchoImageHarness):
         session, machine = self.started_session()
         session.change_module("slot_1", 1, 600, lambda byte: byte ^ 0xFF)
         self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PREVIOUS)
         self.press(machine, image_tests.KEY_PLAY)
         _, views = self.module(machine, "views")
         self.assertTrue(views.loaded(machine))
@@ -384,6 +390,7 @@ class EchoImageTest(EchoImageHarness):
             session.change_module(slot, 1, 600, lambda byte: byte ^ 0xFF)
         toasts = self.collect_toasts(machine)
         self.open_settings(machine)
+        self.press(machine, image_tests.KEY_PREVIOUS)
         self.press(machine, image_tests.KEY_PLAY)
         self.assertEqual(toasts, [image_tests.english("STR_SCREEN_MISSING")])
         self.press(machine, image_tests.KEY_NEXT)

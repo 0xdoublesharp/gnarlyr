@@ -63,6 +63,7 @@ typedef enum IconId {
     ICON_TAG,
     ICON_HIDE,
     ICON_DELETE,
+    ICON_GLOBE,
     ICON_COUNT
 } IconId;
 

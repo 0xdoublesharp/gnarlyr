@@ -66,10 +66,9 @@ enum {
 #define LAST(op) ((op) | ICON_LAST_BIT)
 #define UNDRAWN(icon) (1u << ((icon) - FIRST_UNDRAWN))
 #define UNDRAWN_ICONS                                                                              \
-    (UNDRAWN(ICON_SHUFFLE) | UNDRAWN(ICON_DISPLAY) | UNDRAWN(ICON_THEME) | UNDRAWN(ICON_POWER) |   \
-     UNDRAWN(ICON_SLEEP) | UNDRAWN(ICON_CONTROLS) | UNDRAWN(ICON_START) | UNDRAWN(ICON_RESCAN) |   \
-     UNDRAWN(ICON_BLUETOOTH) | UNDRAWN(ICON_KEY_PLUS) | UNDRAWN(ICON_KEY_MINUS) |                  \
-     UNDRAWN(ICON_KEY_PLAY) | UNDRAWN(ICON_KEY_MENU))
+    (UNDRAWN(ICON_SHUFFLE) | UNDRAWN(ICON_DISPLAY) | UNDRAWN(ICON_THEME) | UNDRAWN(ICON_SLEEP) |   \
+     UNDRAWN(ICON_START) | UNDRAWN(ICON_RESCAN) | UNDRAWN(ICON_BLUETOOTH) |                        \
+     UNDRAWN(ICON_KEY_PLUS) | UNDRAWN(ICON_KEY_MINUS) | UNDRAWN(ICON_KEY_PLAY))
 
 _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
                "UNDRAWN_ICONS holds one bit per icon");
@@ -116,6 +115,9 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
     LINE(2, 9, 2, 5), LINE(2, 5, 4, 3), LINE(4, 3, 16, 3), ACCENT(LINE(13, 0, 16, 3)),             \
         ACCENT(LINE(16, 3, 13, 6)), LINE(16, 9, 16, 13), LINE(16, 13, 14, 15),                     \
         LINE(14, 15, 2, 15), ACCENT(LINE(5, 12, 2, 15)), LAST(ACCENT(LINE(2, 15, 5, 18)))
+#define POWER_GLYPH OPEN_RING(1, 2, 17, 3), LAST(ACCENT(LINE(9, 0, 9, 9)))
+#define CONTROLS_GLYPH                                                                             \
+    BOX(0, 4, 19, 15), ACCENT(DISC(3, 7, 5)), LINE(11, 8, 16, 8), LAST(LINE(11, 11, 16, 11))
 #define TIMEOUT_GLYPH RING(1, 1, 18), ACCENT(LINE(9, 4, 9, 9)), LAST(ACCENT(LINE(10, 10, 12, 12)))
 #define DIAGNOSTICS_GLYPH                                                                          \
     BOX(1, 1, 18, 14), ACCENT(LINE(4, 10, 7, 5)), ACCENT(LINE(7, 5, 11, 10)),                      \
@@ -164,7 +166,11 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
         LAST(BLOCK(0, 15, 19, 17))
 #define PLUG_GLYPH                                                                                 \
     FILL(2, 0, 2, 3), FILL(6, 0, 6, 3), ACCENT(BLOCK(0, 4, 8, 9)), LAST(FILL(4, 10, 4, 13))
+#define KEY_MENU_GLYPH LINE(1, 4, 18, 4), ACCENT(LINE(1, 9, 18, 9)), LAST(LINE(1, 14, 18, 14))
 #define CHEVRON_GLYPH THICK(0, 0, 5, 6), LAST(THICK(5, 7, 0, 13))
+#define GLOBE_GLYPH                                                                                \
+    RING(1, 1, 18), ACCENT(LINE(10, 2, 10, 17)), ACCENT(LINE(2, 10, 17, 10)), LINE(4, 5, 15, 5),   \
+        LAST(LINE(4, 14, 15, 14))
 #define INFO_GLYPH RING(1, 1, 18), ACCENT(FILL(9, 4, 10, 5)), LAST(ACCENT(FILL(9, 8, 10, 14)))
 #define TAG_GLYPH                                                                                  \
     LINE(1, 4, 12, 4), LINE(12, 4, 18, 10), LINE(18, 10, 12, 16), LINE(12, 16, 1, 16),             \
@@ -177,51 +183,19 @@ _Static_assert(ICON_KEY_MENU - FIRST_UNDRAWN < UNDRAWN_SPAN,
         LAST(ACCENT(LINE(11, 9, 11, 15)))
 
 static const uint32_t GLYPHS[] = {
-    MUSIC_GLYPH,
-    AUDIOBOOK_GLYPH,
-    PODCAST_GLYPH,
-    NOW_PLAYING_GLYPH,
-    MIXTAPE_GLYPH,
-    AUDIO_GLYPH,
-    SETTINGS_GLYPH,
-    COVER_FLOW_GLYPH,
-    ARTIST_GLYPH,
-    ALBUM_ARTIST_GLYPH,
-    ALBUM_GLYPH,
-    GENRE_GLYPH,
-    FOLDER_GLYPH,
-    SONG_GLYPH,
-    PLAYLIST_GLYPH,
-    FAVORITE_GLYPH,
-    REPEAT_GLYPH,
-    TIMEOUT_GLYPH,
-    DIAGNOSTICS_GLYPH,
-    GAIN_GLYPH,
-    JACK_GLYPH,
-    USB_GLYPH,
-    DISC_GLYPH,
-    HUB_GLYPH,
-    SEARCH_GLYPH,
-    COMPUTER_GLYPH,
-    PLAY_GLYPH,
-    PAUSE_GLYPH,
-    NEXT_GLYPH,
-    PREVIOUS_GLYPH,
-    PLAYING_GLYPH,
-    QUEUE_GLYPH,
-    SPEAKER_GLYPH,
-    ALBUM_SMALL_GLYPH,
-    SHUFFLE_SMALL_GLYPH,
-    BOLT_GLYPH,
-    BLUETOOTH_SMALL_GLYPH,
-    LOCK_GLYPH,
-    SONG_SMALL_GLYPH,
-    PLUG_GLYPH,
-    CHEVRON_GLYPH,
-    INFO_GLYPH,
-    TAG_GLYPH,
-    HIDE_GLYPH,
-    DELETE_GLYPH,
+    MUSIC_GLYPH,       AUDIOBOOK_GLYPH,     PODCAST_GLYPH,  NOW_PLAYING_GLYPH,
+    MIXTAPE_GLYPH,     AUDIO_GLYPH,         SETTINGS_GLYPH, COVER_FLOW_GLYPH,
+    ARTIST_GLYPH,      ALBUM_ARTIST_GLYPH,  ALBUM_GLYPH,    GENRE_GLYPH,
+    FOLDER_GLYPH,      SONG_GLYPH,          PLAYLIST_GLYPH, FAVORITE_GLYPH,
+    REPEAT_GLYPH,      POWER_GLYPH,         TIMEOUT_GLYPH,  CONTROLS_GLYPH,
+    DIAGNOSTICS_GLYPH, GAIN_GLYPH,          JACK_GLYPH,     USB_GLYPH,
+    KEY_MENU_GLYPH,    DISC_GLYPH,          HUB_GLYPH,      SEARCH_GLYPH,
+    COMPUTER_GLYPH,    PLAY_GLYPH,          PAUSE_GLYPH,    NEXT_GLYPH,
+    PREVIOUS_GLYPH,    PLAYING_GLYPH,       QUEUE_GLYPH,    SPEAKER_GLYPH,
+    ALBUM_SMALL_GLYPH, SHUFFLE_SMALL_GLYPH, BOLT_GLYPH,     BLUETOOTH_SMALL_GLYPH,
+    LOCK_GLYPH,        SONG_SMALL_GLYPH,    PLUG_GLYPH,     CHEVRON_GLYPH,
+    INFO_GLYPH,        TAG_GLYPH,           HIDE_GLYPH,     DELETE_GLYPH,
+    GLOBE_GLYPH,
 };
 
 typedef struct Pen {

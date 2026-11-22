@@ -280,6 +280,35 @@ class GlyphCoverageTest(unittest.TestCase):
     def test_text_in_the_drawable_set_passes(self):
         lang_pack.check_glyphs("fr", [("STR_HELLO", "Déjà vu… ★")], DRAWABLE | {0x2026, 0x2605})
 
+    def test_characters_only_the_recipe_covers_mark_the_pack_as_needing_extra_fonts(self):
+        coverage = frozenset({0xD55C, 0xAD6D})
+        self.assertFalse(lang_pack.check_glyphs("fr", [("STR_HELLO", "Déjà")], DRAWABLE, coverage))
+        self.assertTrue(lang_pack.check_glyphs("ko", [("STR_HELLO", "한국")], DRAWABLE, coverage))
+        with self.assertRaises(lang_pack.PackError):
+            lang_pack.check_glyphs("ko", [("STR_HELLO", "한국어")], DRAWABLE, coverage)
+
+    def test_the_recipe_coverage_accepts_korean_and_a_missing_recipe_accepts_nothing_more(self):
+        coverage = lang_pack.coverage_characters()
+        self.assertTrue({0xD55C, 0xAD6D, 0xC5B4, 0x65E5} <= coverage)
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(frozenset(), lang_pack.coverage_characters(directory))
+
+    def test_a_pack_carries_and_validates_its_extra_font_flag(self):
+        coverage = frozenset({0xD55C, 0xAD6D, 0xC5B4})
+        translations = {"STR_LANGUAGE_NAME": "한국어", "STR_HELLO": "Hello"}
+        flagged = lang_pack.build_pack("ko", CATALOGUE, translations, needs_extra=True)
+        info = lang_pack.validate_pack(flagged, CATALOGUE, DRAWABLE, coverage=coverage)
+        self.assertTrue(info["needs_extra_font"])
+        self.assertEqual(lang_pack.NEEDS_EXTRA_FONT,
+                         struct.unpack_from("<H", flagged, lang_pack.HEADER.size + 2)[0])
+        plain = lang_pack.build_pack("ko", CATALOGUE, translations)
+        with self.assertRaises(lang_pack.PackError):
+            lang_pack.validate_pack(plain, CATALOGUE, DRAWABLE, coverage=coverage)
+        with self.assertRaises(lang_pack.PackError):
+            lang_pack.validate_pack(flagged, CATALOGUE, DRAWABLE)
+        english = lang_pack.build_pack("en", CATALOGUE, {})
+        self.assertFalse(lang_pack.validate_pack(english, CATALOGUE, DRAWABLE, coverage=coverage)["needs_extra_font"])
+
 
 class PseudoTest(unittest.TestCase):
     def test_long_words_keep_expansion_with_one_accented_vowel_per_word(self):
@@ -540,7 +569,7 @@ class FullPackValidationTest(unittest.TestCase):
             self.assertEqual({"code": code, "name": translations.get("STR_LANGUAGE_NAME", "English"),
                               "version": 1, "count": len(CATALOGUE), "size": len(pack),
                               "memory": lang_pack.aligned(len(pack)), "segments": [segment],
-                              "catalogue_hash": lang_pack.layout_hash(
+                              "needs_extra_font": False, "catalogue_hash": lang_pack.layout_hash(
                                   lang_pack.resident_segments(CATALOGUE)),
                               "texts": {name: translations.get(name, english)
                                         for name, english in CATALOGUE}}, self.validate(pack))
@@ -574,9 +603,10 @@ class FullPackValidationTest(unittest.TestCase):
             changed = bytearray(pack)
             lang_pack.SEGMENT.pack_into(changed, row, *values, checksum)
             cases.append(changed)
-        reserved = bytearray(pack)
-        struct.pack_into("<H", reserved, lang_pack.HEADER.size + 2, 1)
-        cases.append(reserved)
+        for flags in (lang_pack.NEEDS_EXTRA_FONT, 2):
+            flagged = bytearray(pack)
+            struct.pack_into("<H", flagged, lang_pack.HEADER.size + 2, flags)
+            cases.append(flagged)
         for changed in cases:
             with self.assertRaises(lang_pack.PackError):
                 lang_pack.validate_pack(rechecked(changed), CATALOGUE, DRAWABLE, SEGMENTED)

@@ -207,8 +207,11 @@
     }
     const segments = view.getUint16(headerBytes, true);
     const start = indexEnd(segments);
-    if (size !== bytes.length || size > info.file_limit || bytes.length < start || view.getUint16(headerBytes + 2, true) !== 0) {
+    if (size !== bytes.length || size > info.file_limit || bytes.length < start || view.getUint16(headerBytes + 2, true) > 1) {
       fail("This language pack has an invalid size or is incomplete.");
+    }
+    if (view.getUint16(headerBytes + 2, true) === 1) {
+      fail("This pack needs the player's extra fonts, which this page cannot check. Use the language tools.");
     }
     if (view.getUint32(16, true) !== checksum(bytes, start)) fail("This language pack's checksum does not match. Copy or build it again.");
     if (count !== info.entries.length || view.getUint32(12, true) !== info.catalogue_hash || segments !== info.segments.length) {
@@ -244,7 +247,7 @@
     if (texts[info.name_id] !== name) fail("The pack's native name does not match its language-name text.");
     checkTexts(texts, info);
     return {code, name, version: info.version, count, size, memory, catalogue_hash: info.catalogue_hash,
-      segments: rows, texts};
+      segments: rows, needs_extra_font: false, texts};
   }
 
   function templateText(value) {

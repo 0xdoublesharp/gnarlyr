@@ -79,6 +79,9 @@ add_library(echo_app STATIC
     home_art_backdrop.c
     language.c
     language_list.c
+    language_picker.c
+    missing_fonts.c
+    notice_band.c
     language_module.c
     library_rescan.c
     music_check.c
@@ -159,6 +162,7 @@ if(ECHO_BUILD_DEVICE)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
     target_sources(echo_app PRIVATE modules/linked_modules.c library_rescan_job.c hidden_scan.c scan_guard.c
+        missing_fonts_record.c
         debug_frames.c debug_runner_begin.c
         screens/usb_dac_menu.c screens/usb_meter.c screens/usb_screen.c
         screens/usb_screen_dac.c screens/usb_screen_stats.c screens/usb_screen_traffic.c screens/usb_screen_terrain.c)

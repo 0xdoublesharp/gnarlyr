@@ -18,6 +18,7 @@ enum {
     CODE_FIELD = 20,
     NAME_FIELD = 28,
     SEGMENTS_FIELD = 56,
+    FLAGS_FIELD = 58,
     ROWS_FIELD = 60,
     ROW_COUNT = 2,
     ROW_OFFSET = 4,
@@ -76,6 +77,7 @@ bool i18n_pack_info(const uint8_t *index, size_t length, I18nPackInfo *info)
     }
     info->size = hash_load(index + SIZE_FIELD);
     info->resident = resident.offset + resident.size;
+    info->flags = (uint16_t)bytes_le16(index + FLAGS_FIELD);
     for (int at = 0; at < I18N_CODE_BYTES; at++) {
         info->code[at] = (char)index[CODE_FIELD + at];
     }

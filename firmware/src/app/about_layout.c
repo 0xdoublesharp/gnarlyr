@@ -16,6 +16,8 @@ enum {
     MARK_LINE_PARTS = 1
 };
 
+static const char *notice;
+
 static bool row_wraps(const ListView *list, int index, int width)
 {
     const ListModel *model = list->model;
@@ -128,13 +130,33 @@ static Rect draw_band(Canvas *canvas, const Theme *theme)
                   content.height - about.band.height};
 }
 
+static Rect draw_notice(Canvas *canvas, const Theme *theme, Rect content)
+{
+    if (notice == NULL || notice[0] == '\0') {
+        return content;
+    }
+    const Font *font = theme->fonts.small;
+    int pad = theme->metrics.padding;
+    Rect lines = {content.x + 2 * pad, 0, content.width - 3 * pad, 0};
+    lines.height = label_wrap_count(font, notice, lines.width) * font_line_height(font);
+    content.height -= lines.height + pad;
+    lines.y = content.y + content.height + pad / 2;
+    theme_background_draw(theme, canvas, THEME_ART_LIST,
+                          (Rect){content.x, lines.y - pad / 2, content.width, lines.height + pad});
+    canvas_fill_rect(canvas, (Rect){content.x + pad, lines.y + pad / 2, pad / 2, pad / 2},
+                     theme->colors.accent_alt);
+    label_draw_paragraph(canvas, (TextStyle){.font = font, .color = theme->colors.text_secondary},
+                         (Label){lines, notice});
+    return content;
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     MenuScreen *menu = context;
     ListView *list = &menu->list;
     const Theme *theme = menu->config.theme;
     header_draw(canvas, theme, menu->config.title);
-    Rect content = draw_band(canvas, theme);
+    Rect content = draw_notice(canvas, theme, draw_band(canvas, theme));
     int count = menu->config.item_count;
     int width = text_width_of(menu, content);
     if (!theme_is_portrait(theme) || !any_wraps(list, count, width)) {
@@ -155,6 +177,11 @@ static void draw(void *context, Canvas *canvas)
         list_view_draw_scrollbar(list, canvas, content, last);
     }
     draw_rows(menu, canvas, rows, width);
+}
+
+void about_layout_notice(const char *text)
+{
+    notice = text;
 }
 
 void about_layout_attach(MenuScreen *menu)

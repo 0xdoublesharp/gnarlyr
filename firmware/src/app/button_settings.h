@@ -13,7 +13,15 @@ typedef struct ButtonSettingsConfig {
 } ButtonSettingsConfig;
 
 enum {
-    BUTTON_LONG_ACTION_COUNT = 6
+    BUTTON_LONG_ACTION_COUNT = 6,
+    BUTTON_ROW_FIRST = 1,
+    BUTTON_ROW_SKIP = BUTTON_ROW_FIRST + PLAYBACK_BUTTON_COUNT,
+    BUTTON_ROW_SEEK,
+    BUTTON_ROW_EVERY_SCREEN,
+    BUTTON_ROW_LONG,
+    BUTTON_ROW_RESET,
+    BUTTON_ROW_COUNT,
+    BUTTON_VALUE_BYTES = 64
 };
 
 typedef struct ButtonSettings ButtonSettings;
@@ -36,8 +44,9 @@ struct ButtonSettings {
     ButtonSettingsConfig config;
     MenuScreen menu;
     ChoiceScreen choice;
-    MenuItem items[PLAYBACK_BUTTON_COUNT + 2];
+    MenuItem items[BUTTON_ROW_COUNT];
     ButtonEntry entries[PLAYBACK_BUTTON_COUNT];
+    char value[BUTTON_VALUE_BYTES];
 };
 
 Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig config);

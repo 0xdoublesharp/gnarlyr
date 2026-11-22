@@ -67,10 +67,10 @@ A file is refused when it is shorter than 78 bytes, has another magic or version
 | 20–27 | language code, 1–5 of letters, digits or `-`, zero-padded |
 | 28–55 | native name, UTF-8, at most 27 bytes, zero-padded |
 | 56–57 | segment count; must equal the firmware's |
-| 58–59 | zero |
+| 58–59 | flags: bit 0 is set when some text uses a character only `extra.font` draws (one in the font recipe's coverage but not in the image's fonts); other bits are zero |
 | 60… | one 16-byte row per segment: module (u16, the first is 0, the resident text), string count (u16), offset (u32), size (u32), FNV-1a of the segment (u32) |
 
-Segments follow the index in order and end at the end of the file. A segment is a table of u16 offsets, one per string, followed by its NUL-terminated UTF-8 strings. The resident segment, aligned to 4 bytes, plus the largest module segment must fit 18,432 bytes. Every placeholder `{n}` of the English text must be kept. The image stores its built-in packs behind a `DSLT` table: a u32 count, then a u32 offset and a u32 length per pack. Design notes: [language-packs.md](language-packs.md) and [architecture.md](../firmware/docs/architecture.md#languages).
+Segments follow the index in order and end at the end of the file. A segment is a table of u16 offsets, one per string, followed by its NUL-terminated UTF-8 strings. The resident segment, aligned to 4 bytes, plus the largest module segment must fit 18,432 bytes. Every placeholder `{n}` of the English text must be kept. Every character must be drawn by the image's fonts or lie in the coverage of `firmware/assets/fonts/recipe.json`, and the flag must match the text. The image stores its built-in packs behind a `DSLT` table: a u32 count, then a u32 offset and a u32 length per pack. Design notes: [language-packs.md](language-packs.md) and [architecture.md](../firmware/docs/architecture.md#languages).
 
 ## Theme packs: `.gnarlyr/themes/*.gtheme`
 
@@ -108,6 +108,8 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | `trial.bin` | `DSUT`, 1 | |
 | glyph faces | `EGLF`, 1 | `tools/glyph_pack.py`; [architecture.md](../firmware/docs/architecture.md), Glyph packs |
 | `extra.font` | `EGXF`, 1 | `tools/glyph_pack.py` `pack_extra_font`; on internal storage in `fonts/` |
+| `fonts/missing.txt` | none | written by the player's library scan: the characters it can't draw, UTF-8 in code-point order, then zero bytes to 16,384 bytes; absent while every character draws |
+| `fonts/missing.count` | none | u32 little-endian: how many library strings without `/` use one of those characters |
 | discovery preferences | 1 | |
 | debug screenshots | 1 | `tools/echo_debug.py` |
 | `scan.bin` | `DSS2` | the card and internal music fingerprints, firmware tag, internal state and generation in a 52-byte record |
