@@ -279,6 +279,7 @@ set(ECHO_OVERLAY_IMPORTS
     canvas_fill_gradient
     canvas_clipped
     font_find_glyph
+    hal_file_reserve
     footer_hints_height
     footer_hints_draw
     label_draw
@@ -497,6 +498,8 @@ if(CMAKE_CROSSCOMPILING)
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
         ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
         ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
+        ${PROJECT_SOURCE_DIR}/src/app/missing_fonts.c
+        ${PROJECT_SOURCE_DIR}/src/app/missing_fonts_record.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
 endif()
@@ -524,6 +527,8 @@ add_executable(echo_rescan_overlay
     ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
     ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
     ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c
+    ${PROJECT_SOURCE_DIR}/src/app/missing_fonts.c
+    ${PROJECT_SOURCE_DIR}/src/app/missing_fonts_record.c
     board/storage_list.c
     logic/fat_list.c
     logic/exfat_list.c

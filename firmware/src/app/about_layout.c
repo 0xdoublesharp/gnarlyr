@@ -4,6 +4,8 @@
 #include <stddef.h>
 
 #include "gfx/font.h"
+#include "missing_fonts.h"
+#include "notice_band.h"
 #include "gfx/text.h"
 #include "ui/brand_mark.h"
 #include "ui/header.h"
@@ -15,6 +17,9 @@ enum {
     MARK_LINE_SHARE = 1,
     MARK_LINE_PARTS = 1
 };
+
+static char notice_text[MISSING_FONTS_NOTICE_BYTES];
+static const char *notice;
 
 static bool row_wraps(const ListView *list, int index, int width)
 {
@@ -128,13 +133,25 @@ static Rect draw_band(Canvas *canvas, const Theme *theme)
                   content.height - about.band.height};
 }
 
+static Rect draw_notice(Canvas *canvas, const Theme *theme, Rect content)
+{
+    if (notice == NULL) {
+        return content;
+    }
+    int height = notice_band_height(theme, notice, content.width);
+    content.height -= height;
+    notice_band_draw(canvas, theme,
+                     (Rect){content.x, content.y + content.height, content.width, height}, notice);
+    return content;
+}
+
 static void draw(void *context, Canvas *canvas)
 {
     MenuScreen *menu = context;
     ListView *list = &menu->list;
     const Theme *theme = menu->config.theme;
     header_draw(canvas, theme, menu->config.title);
-    Rect content = draw_band(canvas, theme);
+    Rect content = draw_notice(canvas, theme, draw_band(canvas, theme));
     int count = menu->config.item_count;
     int width = text_width_of(menu, content);
     if (!theme_is_portrait(theme) || !any_wraps(list, count, width)) {
@@ -155,6 +172,11 @@ static void draw(void *context, Canvas *canvas)
         list_view_draw_scrollbar(list, canvas, content, last);
     }
     draw_rows(menu, canvas, rows, width);
+}
+
+void about_layout_check_fonts(const Theme *theme)
+{
+    notice = missing_fonts_notice(notice_text, sizeof notice_text, theme->fonts.body);
 }
 
 void about_layout_attach(MenuScreen *menu)
