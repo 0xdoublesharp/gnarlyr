@@ -1332,6 +1332,16 @@ static void dac_details_show_what_the_session_measured(void)
     scene.dac.seconds = 3725;
     draw_text_of(&theme, status, &scene);
     CHECK(saw("1:02:05"));
+    scene.dac.host_volume = 0;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("0 dB"));
+    CHECK(!saw("+0.0 dB"));
+    scene.dac.host_volume = 2;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("0 dB"));
+    scene.dac.host_volume = -2;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("0 dB"));
 }
 
 static void count_service(void)

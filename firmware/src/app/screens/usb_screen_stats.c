@@ -354,8 +354,12 @@ static void fill_host(const UsbPainter *painter, uint8_t lun, char *text)
     uint32_t size = (uint32_t)(tenths < 0 ? -tenths : tenths);
     char number[USB_SCREEN_NUMBER_CAPACITY];
     StringBuilder builder = string_builder_make(number, sizeof number);
-    string_builder_append_char(&builder, tenths < 0 ? '-' : '+');
-    usb_screen_append_tenths(&builder, size);
+    if (tenths == 0) {
+        string_builder_append_char(&builder, '0');
+    } else {
+        string_builder_append_char(&builder, tenths < 0 ? '-' : '+');
+        usb_screen_append_tenths(&builder, size);
+    }
     usb_screen_format_one(text, STR_EQ_GAIN, number);
 }
 
