@@ -250,6 +250,8 @@
         "entry": "settings_codec",
         "sources": [
           "src/settings/settings.c",
+          "src/settings/settings_decode.c",
+          "src/core/record.c",
           "src/core/format_chain.c"
         ],
         "stubs": [
