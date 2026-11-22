@@ -26,7 +26,10 @@ typedef struct ListSections {
 } ListSections;
 
 enum {
-    LIST_VIEW_DETAIL_LINE_GAP = 2
+    LIST_VIEW_DETAIL_LINE_GAP = 2,
+    LIST_LINES_ONE = 0,
+    LIST_LINES_VALUE_UNDER = 1,
+    LIST_LINES_WRAPPED = 2
 };
 
 typedef enum ListRowRole {
@@ -48,6 +51,7 @@ typedef struct ListModel {
     ListSections (*sections)(const void *context, int index);
     bool section_reverse;
     ListRowRole (*role)(const void *context, int index);
+    bool wraps;
 } ListModel;
 
 typedef struct ListView {
@@ -60,6 +64,7 @@ typedef struct ListView {
     uint32_t scroll_started_ms;
     uint32_t section_shown_until_ms;
     uint8_t background;
+    uint8_t lines;
 } ListView;
 
 void list_view_init(ListView *view, const ListModel *model, const Theme *theme, uint32_t now_ms);
@@ -75,6 +80,7 @@ void list_view_select(ListView *view, int index, uint32_t now_ms);
 void list_view_draw(const ListView *view, Canvas *canvas, Rect area, uint32_t now_ms);
 
 int list_view_row_height(const ListView *view);
+void list_view_measure(ListView *view, int width);
 int list_view_chevron_width(const Theme *theme);
 void list_view_chevron_draw(Canvas *canvas, Rect box, Color color);
 

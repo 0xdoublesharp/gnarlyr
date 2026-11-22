@@ -51,24 +51,68 @@ static int max_of(int first, int second)
 
 static bool details_below(const ListView *view)
 {
-    return view->model->detail_below && theme_is_portrait(view->theme);
-}
-
-int list_view_row_height(const ListView *view)
-{
-    return view->theme->metrics.row_height +
-           (details_below(view) ? font_line_height(view->theme->fonts.small) + DETAIL_LINE_GAP : 0);
-}
-
-int list_view_rows_in(const ListView *view, int height)
-{
-    return min_of(THEME_MAX_ROWS, max_of(0, height) / list_view_row_height(view));
+    return view->model->detail_below && !view->model->wraps && theme_is_portrait(view->theme);
 }
 
 static ListRowRole role_of(const ListView *view, int index)
 {
     return view->model->role != NULL ? view->model->role(view->model->context, index)
                                      : LIST_ROW_PLAIN;
+}
+
+int list_view_row_height(const ListView *view)
+{
+    const Theme *theme = view->theme;
+    if (view->lines == LIST_LINES_WRAPPED) {
+        return 2 * (font_line_height(theme->fonts.title) + DETAIL_LINE_GAP);
+    }
+    return theme->metrics.row_height + (details_below(view) || view->lines != LIST_LINES_ONE
+                                            ? font_line_height(theme->fonts.small) + DETAIL_LINE_GAP
+                                            : 0);
+}
+
+static int icon_room(const ListView *view)
+{
+    return view->model->icon != NULL
+               ? ICON_BOX + max_of(ICON_MIN_GAP, view->theme->metrics.padding - ICON_MIN_GAP)
+               : 0;
+}
+
+static int lines_needed(const ListView *view, int index, int room)
+{
+    const ListModel *model = view->model;
+    const Theme *theme = view->theme;
+    int width = text_width(theme->fonts.title, model->label(model->context, index));
+    if (model->opens != NULL && model->opens(model->context, index)) {
+        width += list_view_chevron_width(theme) + theme->metrics.detail_gap;
+    }
+    const char *detail = model->detail != NULL ? model->detail(model->context, index) : NULL;
+    if (detail == NULL) {
+        return width > room ? LIST_LINES_WRAPPED : LIST_LINES_ONE;
+    }
+    width += theme->metrics.detail_gap + text_width(theme->fonts.body, detail);
+    return width > room ? LIST_LINES_VALUE_UNDER : LIST_LINES_ONE;
+}
+
+void list_view_measure(ListView *view, int width)
+{
+    const ThemeMetrics *metrics = &view->theme->metrics;
+    int count = item_count(view);
+    int room = width - 2 * metrics->padding - icon_room(view);
+    if (count * metrics->row_height > theme_content_area(view->theme).height) {
+        room -= metrics->scrollbar_width + metrics->scrollbar_inset;
+    }
+    view->lines = LIST_LINES_ONE;
+    for (int index = 0; view->model->wraps && index < count; index++) {
+        if (role_of(view, index) != LIST_ROW_SECTION) {
+            view->lines = (uint8_t)max_of(view->lines, lines_needed(view, index, room));
+        }
+    }
+}
+
+int list_view_rows_in(const ListView *view, int height)
+{
+    return min_of(THEME_MAX_ROWS, max_of(0, height) / list_view_row_height(view));
 }
 
 static void keep_selection_visible(ListView *view)
@@ -382,17 +426,33 @@ static void draw_detail_below(const ListView *view, Canvas *canvas, Row row)
     }
 }
 
+static TextStyle label_style(const ListView *view, Row row)
+{
+    const ThemeColors *colors = &view->theme->colors;
+    TextStyle style = row_style(view, row.selected, colors->text);
+    if (row.role == LIST_ROW_NEEDS) {
+        style.color = row.selected ? colors->text_secondary : colors->text_tertiary;
+    }
+    return style;
+}
+
+static void draw_wrapped_label(const ListView *view, Canvas *canvas, Row row)
+{
+    TextStyle style = label_style(view, row);
+    int line = font_line_height(style.font);
+    Rect area = {row.text.x, row.area.y + (row.area.height - 2 * line) / 2, row.text.width,
+                 2 * line};
+    label_draw_paragraph(canvas, style,
+                         (Label){area, view->model->label(view->model->context, row.index)});
+}
+
 static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)
 {
     if (row.text.width <= 0) {
         return;
     }
     const char *text = view->model->label(view->model->context, row.index);
-    const ThemeColors *colors = &view->theme->colors;
-    TextStyle style = row_style(view, row.selected, colors->text);
-    if (row.role == LIST_ROW_NEEDS) {
-        style.color = row.selected ? colors->text_secondary : colors->text_tertiary;
-    }
+    TextStyle style = label_style(view, row);
     Label label = {.area = row.text, .text = text};
     int width = text_width(style.font, text);
     MarqueeTiming timing = view->theme->marquee;
@@ -431,8 +491,17 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
         canvas_fill_rect(canvas, (Rect){row.area.x, row.area.y, FOCUS_BAR, row.area.height},
                          view->theme->colors.accent);
     }
+    int lines = view->lines == LIST_LINES_ONE
+                    ? LIST_LINES_ONE
+                    : lines_needed(view, row.index, row.text.width - icon_room(view));
+    if (view->lines != LIST_LINES_ONE && lines == LIST_LINES_ONE) {
+        row.text.y = row.area.y + (row.area.height - row.text.height) / 2;
+    }
     row = draw_icon(view, canvas, row);
-    if (details_below(view) || row.area.height > list_view_row_height(view)) {
+    if (lines == LIST_LINES_WRAPPED) {
+        draw_wrapped_label(view, canvas, draw_chevron(view, canvas, row));
+    } else if (lines == LIST_LINES_VALUE_UNDER || details_below(view) ||
+               row.area.height > list_view_row_height(view)) {
         row = draw_chevron(view, canvas, row);
         draw_detail_below(view, canvas, row);
         draw_label(view, canvas, row, now_ms);

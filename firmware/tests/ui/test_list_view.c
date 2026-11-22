@@ -542,9 +542,78 @@ static void a_row_that_needs_something_is_dim_and_brightens_a_step_when_focused(
     CHECK(!ui_test_area_has_color(&canvas, row, TEST_THEME.colors.selection_text));
 }
 
+static const char *one_long_label(const void *context, int index)
+{
+    (void)context;
+    return index == 1 ? "ABAB ABAB ABAB ABAB" : "A";
+}
+
+static ListView wrapping_list(void)
+{
+    ListView view = list_of(3);
+    model.wraps = true;
+    return view;
+}
+
+static void a_list_of_rows_that_fit_keeps_single_line_rows(void)
+{
+    ListView view = wrapping_list();
+    list_view_measure(&view, TEST_SCREEN_WIDTH);
+    CHECK_EQUAL(LIST_LINES_ONE, view.lines);
+    CHECK_EQUAL(TEST_ROW_HEIGHT, list_view_row_height(&view));
+}
+
+static void one_label_too_long_turns_every_row_into_a_two_line_row(void)
+{
+    ListView view = wrapping_list();
+    model.label = one_long_label;
+    list_view_measure(&view, TEST_SCREEN_WIDTH);
+    CHECK_EQUAL(LIST_LINES_WRAPPED, view.lines);
+    int line = font_line_height(TEST_THEME.fonts.title);
+    CHECK_EQUAL(2 * (line + LIST_VIEW_DETAIL_LINE_GAP), list_view_row_height(&view));
+    Canvas canvas = ui_test_canvas();
+    int top = theme_content_area(&TEST_THEME).y;
+    list_view_draw_row(&view, &canvas, 1,
+                       (Rect){0, top, TEST_SCREEN_WIDTH, list_view_row_height(&view)}, 0);
+    int first = top + (list_view_row_height(&view) - 2 * line) / 2;
+    Rect upper = {0, first, TEST_SCREEN_WIDTH, line};
+    Rect lower = {0, first + line, TEST_SCREEN_WIDTH, line};
+    CHECK(ui_test_area_has_color(&canvas, upper, TEST_THEME.colors.text));
+    CHECK(ui_test_area_has_color(&canvas, lower, TEST_THEME.colors.text));
+}
+
+static void a_value_that_does_not_fit_beside_its_label_drops_under_it(void)
+{
+    ListView view = wrapping_list();
+    items.detail_at_one = "ABABABABABAB";
+    list_view_measure(&view, TEST_SCREEN_WIDTH);
+    CHECK_EQUAL(LIST_LINES_VALUE_UNDER, view.lines);
+    int height = list_view_row_height(&view);
+    CHECK_EQUAL(TEST_ROW_HEIGHT + font_line_height(TEST_THEME.fonts.small) +
+                    LIST_VIEW_DETAIL_LINE_GAP,
+                height);
+    Canvas canvas = ui_test_canvas();
+    int top = theme_content_area(&TEST_THEME).y;
+    list_view_draw_row(&view, &canvas, 1, (Rect){0, top, TEST_SCREEN_WIDTH, height}, 0);
+    Rect under = {0, top + TEST_ROW_HEIGHT, TEST_SCREEN_WIDTH, height - TEST_ROW_HEIGHT};
+    CHECK(ui_test_area_has_color(&canvas, under, TEST_THEME.colors.text_secondary));
+}
+
+static void a_list_that_does_not_wrap_never_grows_its_rows(void)
+{
+    ListView view = list_of(3);
+    model.label = one_long_label;
+    list_view_measure(&view, TEST_SCREEN_WIDTH);
+    CHECK_EQUAL(LIST_LINES_ONE, view.lines);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(a_list_of_rows_that_fit_keeps_single_line_rows),
+        TEST_CASE(one_label_too_long_turns_every_row_into_a_two_line_row),
+        TEST_CASE(a_value_that_does_not_fit_beside_its_label_drops_under_it),
+        TEST_CASE(a_list_that_does_not_wrap_never_grows_its_rows),
         TEST_CASE(a_section_label_is_never_focused),
         TEST_CASE(focusing_the_first_row_under_a_label_scrolls_the_label_into_view),
         TEST_CASE(a_section_label_is_drawn_in_the_accent_colour_without_focus),
