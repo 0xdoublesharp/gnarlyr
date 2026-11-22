@@ -4,7 +4,7 @@ Start each feature branch from the latest integration head agreed with the integ
 
 ## Feature to player loop
 
-1. Branch from the latest integration head and agree on files before editing. Keep Controls as the last Settings row.
+1. Branch from the latest integration head and agree on files before editing. Keep the Settings top level to its nine groups in order, Language fourth and About last; a new setting goes into the group it belongs to.
 2. Regenerate source and assets only through `python3 tools/firmware.py regen --jobs 2`. This uses the build environment, including Homebrew LLVM's `clang-format` and Python 3.14. It runs the string headers, browser language catalogue, fonts, glyph packs, Unicode folds, resampler and replay-gain table generators. Fixture builders retain their separate fixture-specific commands.
 3. Run focused checks with `python3 tools/firmware.py test --jobs 2 --regex EXPRESSION`. Check generated freshness with `python3 tools/firmware.py regen --check --jobs 2`; this reads the committed outputs without rewriting them and fails on any stale generator.
 4. Run `python3 tools/firmware.py sizes --jobs 2` and paste its table into the feature report. New Settings rows and modules must report their module bytes. The table builds both image presets, reports resident code, static RAM, overlays, all modules, core-1 banks and state, workspace and language slots, and fails on a slot overflow or a resident reserve below 4 KiB for release or 1 KiB for device. `sizes --existing --jobs 2` reads existing builds; rebuild after source changes before using that result for a candidate.
