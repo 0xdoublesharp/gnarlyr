@@ -73,6 +73,9 @@ STR_PLAYLISTS = Playlists
 STR_FAVORITES = Favorites
 STR_NO_LIBRARY = No library
 STR_NO_LIBRARY_HINT = Copy music over USB
+# STR_HOME_ROWS_PLACE: under the Home art when rows continue below; {0} is the last row shown, {1} how many rows Home has.
+STR_HOME = Home
+STR_HOME_ROWS_PLACE = {0} of {1}
 
 # Browse lists.
 STR_NO_SONGS_IN_FOLDER = No songs here
@@ -106,7 +109,6 @@ STR_TIME_LEFT = {0} left
 # Cover Flow.
 STR_RANDOM_ALBUM = Random album
 STR_RANDOM_ALBUM_HINT = Play any album
-STR_HOME = Home
 
 # Now Playing and Up Next. {0} of {1} is the place in the queue; {0}-bit is the sample size.
 # The STR_SKIPPED_* toasts say what holding Play and tapping Vol+ or Vol- did: another song, the same song from its start, or nothing at the end of the queue. In STR_JUMPED_FORWARD and STR_JUMPED_BACK, {0} is how many seconds an audiobook or podcast jumped. STR_SCRUB_PREVIEW marks the time shown while Menu and a volume button are held; the other STR_SCRUB_* toasts say why that gesture did nothing.
@@ -891,7 +893,6 @@ STR_NOW_PLAYING_VU = VU meters
 STR_NOW_PLAYING_SPECTRUM = Spectrum
 STR_METER_LEFT = L
 STR_METER_RIGHT = R
-STR_METER_PEAK = PEAK
 STR_SET_CLOCK = Date & time
 STR_SET_CLOCK_MONTH = Month
 STR_SET_CLOCK_DAY = Day

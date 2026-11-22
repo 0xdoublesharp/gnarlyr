@@ -6498,6 +6498,48 @@ static void the_home_now_playing_row_keeps_up_next_reachable(void)
     CHECK(title_is("Up Next"));
 }
 
+static void open_up_next_from_now_playing(bool first)
+{
+    tap(KEY_MENU);
+    CHECK(title_is("Quick Settings"));
+    if (first) {
+        tap(KEY_VOLUME_DOWN);
+    }
+    tap(KEY_PLAY);
+    CHECK(title_is("Up Next"));
+}
+
+static void a_lone_track_in_up_next_returns_to_music_to_add_tracks(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    CHECK(title_is("Now Playing"));
+    open_up_next_from_now_playing(true);
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    open_up_next_from_now_playing(false);
+    text_spy_reset();
+    wait_ms(SLIDE_DURATION_MS);
+    step();
+    CHECK(text_shown("Add tracks from Music"));
+    move_down(1);
+    tap(KEY_PLAY);
+    CHECK(title_is("Music"));
+    CHECK_EQUAL(2, app_screen_depth());
+    tap(KEY_PLAY);
+    CHECK(title_is("Albums"));
+    tap(KEY_PLAY);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    tap(KEY_BACK);
+    CHECK(!title_is("Now Playing"));
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    tap(KEY_BACK);
+    CHECK(title_is("Home"));
+}
+
 static void holding_play_on_a_folder_without_songs_shows_a_toast(void)
 {
     static FixtureLibrary emptied;
@@ -9311,6 +9353,7 @@ int main(void)
         TEST_CASE(holding_play_on_a_folder_plays_everything_under_it_in_order),
         TEST_CASE(shuffled_folder_play_starts_from_a_random_song),
         TEST_CASE(the_home_now_playing_row_keeps_up_next_reachable),
+        TEST_CASE(a_lone_track_in_up_next_returns_to_music_to_add_tracks),
         TEST_CASE(holding_play_on_a_folder_without_songs_shows_a_toast),
         TEST_CASE(holding_play_on_a_song_in_folders_still_opens_play_next),
         TEST_CASE(holding_play_on_an_album_adds_it_to_favorites),

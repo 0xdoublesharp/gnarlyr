@@ -145,8 +145,9 @@ static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
     int last = list->top + list->visible_rows;
     char text[CUE_TEXT_CAPACITY];
     StringBuilder line = string_builder_make(text, sizeof text);
-    i18n_format_counts(&line, STR_PLACE, (uint32_t)last, (uint32_t)model->count(model->context));
-    canvas_fill_rect(canvas, area, theme->colors.header_background);
+    i18n_format_counts(&line, STR_HOME_ROWS_PLACE, (uint32_t)last,
+                       (uint32_t)model->count(model->context));
+    canvas_fill_rect(canvas, area, theme->colors.background);
     TextStyle style = {theme->fonts.small, theme->colors.text_secondary, false};
     Rect row = {area.x + theme->metrics.padding, area.y + CUE_INSET, area.width, CUE_LINE};
     label_draw(canvas, style, (Label){row, text});
