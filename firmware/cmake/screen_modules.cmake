@@ -338,8 +338,10 @@ else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/screens/key_test_screen.c)
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_effects
         src/app/modules/debug_module.c
+        src/app/debug_requests.c
         src/app/debug_steps.c
         src/app/settings_choose.c
+        src/core/debug_span.c
         src/app/debug_screenshot.c
         platform/device/board/debug_battery_trace.c
         platform/device/board/debug_poke.c
