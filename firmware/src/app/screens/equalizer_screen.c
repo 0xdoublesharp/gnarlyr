@@ -3,6 +3,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "equalizer_plot.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -200,11 +201,16 @@ static void draw(void *context, Canvas *canvas)
 {
     const EqualizerScreen *equalizer = context;
     const Theme *theme = equalizer->config.theme;
-    StringId hint_id = !equalizer->adjusting                  ? STR_EQ_BROWSE_HINT
-                       : equalizer->list.selected == SAVE_ROW ? STR_EQ_SLOT_HINT
-                                                              : STR_EQ_ADJUST_HINT;
-    const char *hint = i18n_text(hint_id);
-    EqualizerPlotLayout layout = equalizer_plot_layout(theme, hint, false);
+    static const FooterHint GAIN_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHANGE},
+                                            {FOOTER_KEY_PLAY, STR_HINT_KEEP}};
+    static const FooterHint SLOT_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
+                                            {FOOTER_KEY_PLAY, STR_HINT_SAVE}};
+    static const FooterHint BROWSE_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_ADJUST}};
+    FooterHints hints = {!equalizer->adjusting                  ? BROWSE_HINTS
+                         : equalizer->list.selected == SAVE_ROW ? SLOT_HINTS
+                                                                : GAIN_HINTS,
+                         equalizer->adjusting ? 2 : 1, FOOTER_ALIGN_END};
+    EqualizerPlotLayout layout = equalizer_plot_layout(theme, hints, false);
     canvas_fill_rect(canvas,
                      (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height},
                      theme->colors.background);
@@ -224,8 +230,7 @@ static void draw(void *context, Canvas *canvas)
     equalizer_plot_caption(canvas, theme, layout.preamp, equalizer->response);
     label_draw(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
                (Label){layout.reference, i18n_text(STR_EQ_REFERENCE)});
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-                       (Label){layout.hint, hint});
+    footer_hints_draw(canvas, theme, layout.hint, hints);
 }
 
 Screen *equalizer_screen_init(EqualizerScreen *equalizer, EqualizerScreenConfig config)

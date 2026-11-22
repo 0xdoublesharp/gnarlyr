@@ -2,6 +2,7 @@
 
 #include "equalizer_screen.h"
 #include "settings/parametric_file.h"
+#include "ui/footer_hints.h"
 #include "ui/navigation.h"
 
 typedef struct ParametricScreenConfig {
@@ -43,6 +44,7 @@ typedef struct ParametricScreen {
 } ParametricScreen;
 
 Screen *parametric_screen_init(ParametricScreen *editor, ParametricScreenConfig config);
+FooterHints parametric_screen_hints(bool adjusting);
 void parametric_screen_refit(ParametricScreen *editor);
 void sound_shaping_screen_enter(ParametricScreen *editor);
 ScreenAction sound_shaping_screen_key(ParametricScreen *editor, NavigationIntent intent);

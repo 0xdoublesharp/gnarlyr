@@ -2,6 +2,7 @@
 
 #include "core/clock_face.h"
 #include "core/i18n.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/navigation.h"
@@ -170,18 +171,20 @@ static void centered(Canvas *canvas, const Theme *theme, Rect row, const char *t
     label_draw(canvas, style, (Label){label_centered_area(style.font, row, text), text});
 }
 
+static const FooterHint SET_CLOCK_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHANGE},
+                                             {FOOTER_KEY_PLAY, STR_HINT_SAVE},
+                                             {FOOTER_KEY_MENU, STR_HINT_NEXT},
+                                             {FOOTER_KEY_BACK, STR_CANCEL}};
+static const FooterHints SET_CLOCK_FOOTER = {SET_CLOCK_HINTS, 4, FOOTER_ALIGN_END};
+
 static void draw(void *context, Canvas *canvas)
 {
     SetClockScreen *editor = context;
     const Theme *theme = editor->config.theme;
     Rect area = theme_content_area(theme);
     int pad = theme->metrics.padding;
-    int line = font_line_height(theme->fonts.small);
-    int hint_lines =
-        label_wrap_count(theme->fonts.small, i18n_text(STR_SET_CLOCK_HINT), area.width - 2 * pad);
-    Rect hint = {pad, area.y + area.height - hint_lines * line - pad, area.width - 2 * pad,
-                 hint_lines * line};
-    int row_height = (hint.y - area.y) / 3;
+    Rect hint = footer_hints_area(theme, area, SET_CLOCK_FOOTER);
+    int row_height = (hint.y - pad - area.y) / 3;
     Rect row = {pad, area.y, area.width - 2 * pad, row_height};
     header_draw(canvas, theme, editor->screen.title);
     label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
@@ -192,8 +195,7 @@ static void draw(void *context, Canvas *canvas)
     value_text(editor);
     canvas_fill_rect(canvas, row, theme->colors.selection_background);
     centered(canvas, theme, row, editor->text);
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text, false},
-                       (Label){hint, i18n_text(STR_SET_CLOCK_HINT)});
+    footer_hints_draw(canvas, theme, hint, SET_CLOCK_FOOTER);
 }
 
 Screen *set_clock_screen_init(SetClockScreen *editor, SetClockConfig config)

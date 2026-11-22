@@ -132,8 +132,7 @@ static void draw(void *context, Canvas *canvas)
 {
     const EqualizerBrowser *browser = context;
     const Theme *theme = browser->config.choice.theme;
-    const char *hint = i18n_text(STR_EQ_PRESET_HINT);
-    EqualizerPlotLayout layout = equalizer_plot_layout(theme, hint, true);
+    EqualizerPlotLayout layout = equalizer_plot_layout(theme, (FooterHints){0}, true);
     canvas_fill_rect(canvas,
                      (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height},
                      theme->colors.background);
@@ -155,8 +154,6 @@ static void draw(void *context, Canvas *canvas)
         label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.danger, false},
                            (Label){layout.plot, i18n_text(STR_EQ_FILE_UNREADABLE)});
     }
-    label_draw_wrapped(canvas, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-                       (Label){layout.hint, hint});
 }
 
 Screen *equalizer_browser_init(EqualizerBrowser *browser, EqualizerBrowserConfig config)
@@ -172,8 +169,7 @@ Screen *equalizer_browser_init(EqualizerBrowser *browser, EqualizerBrowserConfig
     screen->draw = draw;
     screen->paints_every_pixel = true;
     enter(browser, 0);
-    EqualizerPlotLayout layout =
-        equalizer_plot_layout(config.choice.theme, i18n_text(STR_EQ_PRESET_HINT), true);
+    EqualizerPlotLayout layout = equalizer_plot_layout(config.choice.theme, (FooterHints){0}, true);
     list_view_fit_rows(&browser->choice.list,
                        layout.list.height / config.choice.theme->metrics.row_height);
     return screen;

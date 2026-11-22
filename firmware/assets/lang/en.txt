@@ -32,7 +32,15 @@ STR_HINT_CLOSE = Close
 STR_HINT_OPEN = Open
 STR_HINT_ALWAYS = Always do this
 STR_HINT_SHOW_LYRICS = Show lyrics
-STR_HINT_OPTIONS = Options
+STR_HINT_CHOOSE = Choose
+STR_HINT_ADD = Add
+STR_HINT_ERASE = Erase
+STR_HINT_GO_BACK = Go back
+STR_HINT_SAVE = Save
+STR_HINT_SHOW_RESULTS = Show results
+STR_HINT_ADJUST = Adjust
+STR_HINT_KEEP = Keep
+STR_HINT_NEXT = Next
 
 # Home and Music menus. {0} in a title is the firmware's name.
 STR_MUSIC = Music
@@ -501,10 +509,6 @@ STR_MIXTAPE_PARTIAL = Some songs unavailable
 STR_MIXTAPE_DELETED = Mixtape deleted
 STR_MIXTAPE_RENAMED = Mixtape renamed
 STR_MIXTAPE_SAVED = Mixtape saved
-STR_NAME_CHOOSE_HINT = Volume: choose
-STR_NAME_ADD_HINT = Play: add
-STR_NAME_ERASE_HINT = Menu: erase
-STR_NAME_SAVE_HINT = Hold Play: save
 STR_LISTENING = Listening
 STR_TOP_ARTISTS = Top artists
 STR_TOP_ALBUMS = Top albums
@@ -548,7 +552,6 @@ STR_LYRICS = Lyrics
 STR_NO_LYRICS = No timed lyrics
 STR_LYRICS_HINT = Add a .lrc beside the song
 
-STR_LYRICS_HOLD_HINT = Hold Menu: lyrics
 
 STR_SEARCH = Search
 STR_SEARCH_RESULTS = Results
@@ -574,7 +577,6 @@ STR_SEARCH_FAILED = Couldn't read music
 STR_SEARCH_CANCELLED = Search cancelled
 STR_DISCOVERY_PREPARING = Preparing queue...
 STR_DISCOVERY_HINT = Menu: view options
-STR_QUERY_SEARCH_HINT = Hold Play: search
 STR_ORIGINAL_ORDER = Original order
 STR_ASCENDING = Ascending
 STR_DESCENDING = Descending
@@ -586,7 +588,6 @@ STR_PERSONAL_TAGS = My tags
 STR_NEW_TAG = New tag
 STR_TAG_SAVE_FAILED = Couldn't save tags
 STR_TAG_NAME = Tag name
-STR_SAVE_HINT = Hold Play: save
 STR_FILTER_ACTIVE = Filtered
 STR_CLEAR_SEARCH = Clear search
 STR_SORT_DIRECTION = Direction
@@ -619,13 +620,9 @@ STR_POWER_INTERNAL_CARD = Internal + microSD
 
 STR_POWER_INTERNAL_UNAVAILABLE = No internal storage
 
-STR_EQ_BROWSE_HINT = Vol: band | Play: adjust
 
-STR_EQ_ADJUST_HINT = Vol: gain | Play: keep
 
-STR_EQ_PRESET_HINT = Vol: preview | Play: apply
 
-STR_EQ_SLOT_HINT = Vol: slot | Play: save
 
 STR_EQ_PREAMP = Preamp {0} dB
 
@@ -738,12 +735,13 @@ STR_MOMENTS_FULL = Moments full
 STR_MOMENT_FAILED = Couldn't save moment
 STR_MOMENTS_UNAVAILABLE = Couldn't read moments
 STR_MOMENT_MISSING = Moment unavailable
-STR_MOMENTS_HINT = Play: listen · Hold Play: delete
 STR_MOMENTS_EMPTY = Save a moment while listening
 STR_MOMENT_WORKING = Saving moment
 STR_MOMENT_OPENING = Opening moment
 STR_MOMENT_LABEL = {0} · {1}
-STR_MOMENT_KEEP = Keep moment
+STR_DELETE_MOMENT_QUESTION = Delete moment?
+STR_DELETE_MOMENT_NOTE = The song stays in your library.
+STR_DELETE_MOMENT = Delete moment
 
 STR_NEW_CASSETTE = New two-sided tape
 STR_TAPE_C60 = C60
@@ -818,8 +816,6 @@ STR_PEQ_Q = Q
 STR_PEQ_ENABLED = Enabled
 STR_PEQ_PREAMP = Requested preamp
 STR_PEQ_HZ = {0} Hz
-STR_PEQ_BROWSE_HINT = Vol: browse | Play: edit
-STR_PEQ_EDIT_HINT = Vol: value | Play: keep | Back: cancel
 STR_PEQ_TRIMMED = Kept the 10 strongest filters
 STR_PEQ_MUTED = Preamp muted
 
@@ -851,8 +847,6 @@ STR_SHAPE_BASE = On top of
 STR_SHAPE_NONE = No correction
 STR_SHAPE_LIMIT = Too many filters. Use fewer controls.
 STR_SHAPE_BASE_INVALID = Choose a saved parametric slot first.
-STR_SHAPE_HINT = Vol: browse · Play: adjust
-STR_SHAPE_EDIT_HINT = Vol: shape · Play: keep · Back: cancel
 STR_SHAPE_SEPARATOR =  · 
 STR_SHAPE_SLOT = Slot {0}
 
@@ -875,7 +869,6 @@ STR_SET_CLOCK_HOUR = Hour
 STR_SET_CLOCK_MINUTE = Minute
 STR_SET_CLOCK_ZONE = UTC offset
 STR_SET_CLOCK_NOT_SET = Not set
-STR_SET_CLOCK_HINT = Vol: change · Menu: next · Play: save · Back: cancel
 STR_SET_CLOCK_SAVED = Time saved
 STR_SET_CLOCK_FAILED = Couldn't set clock
 STR_STATUS_BAR = Status bar
@@ -892,12 +885,16 @@ STR_PLAYBACK_SPEED = Playback speed
 STR_SPEED = Speed
 STR_LISTENING_STATS = Recap
 
+# Clearing listening history. STR_HISTORY_CLEARS and STR_HISTORY_KEEPS label the two lists that follow them.
 STR_CLEAR_HISTORY = Clear history
-STR_EXPORT_FIRST = Export plays first
-STR_CLEAR = Clear
+STR_CLEAR_HISTORY_QUESTION = Clear history?
+STR_HISTORY_CLEARS = Clears:
+STR_HISTORY_CLEARS_TEXT = Recap totals, rankings, play-based Smart Lists, and export history.
+STR_HISTORY_KEEPS = Keeps:
+STR_HISTORY_KEEPS_TEXT = Moments, favorites, and music files.
+STR_EXPORT_AND_CLEAR = Export and clear
+STR_CLEAR_NOW = Clear now
 STR_HISTORY_CLEARED = History cleared
-STR_HISTORY_RESET = Resets:\n{0}\nKeeps: {1}
-STR_LISTENING_OPTIONS_HINT = Hold Play: options
 
 STR_CARD_EJECT = Eject card
 STR_CARD_MOUNT = Mount card
@@ -975,7 +972,6 @@ STR_PLUG_RUN_USB_LINE = Powers the player from USB to save the battery.
 STR_PLUG_DAC_LINE = Play your computer's sound on the player.
 STR_PLUG_LOW_LINE = Battery low: charges first
 STR_PLUG_COUNTDOWN = Charging in {0} s
-STR_PLUG_ALWAYS_HINT = Hold Play: always do this
 STR_PLUG_ALWAYS = Always: {0}
 
 STR_STANDBY_POWER = Power

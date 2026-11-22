@@ -42,6 +42,7 @@ typedef struct PlugChooserLayout {
     Rect name;
     Rect line;
     Rect footer;
+    Rect count;
     Rect list;
 } PlugChooserLayout;
 

@@ -12,6 +12,7 @@
 #include "screens/quick_settings_screen.h"
 #include "settings_actions.h"
 #include "text_spy.h"
+#include "ui/footer_hints.h"
 
 enum {
     SHUFFLE_ROW = 0,
@@ -555,6 +556,9 @@ static Canvas full_canvas(void)
                        (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
 }
 
+static const FooterHint QUICK_SETTINGS_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
+                                                  {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
+
 static void all_rows_fit_every_theme_orientation_and_text_size(void)
 {
     start();
@@ -565,8 +569,9 @@ static void all_rows_fit_every_theme_orientation_and_text_size(void)
                 default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
                 panel.screen.enter(&panel, 100);
                 CHECK(panel.list.visible_rows > 0);
-                CHECK(text_width(theme.fonts.small, i18n_text(STR_QUICK_SETTINGS_HINT)) <=
-                      theme.metrics.screen_width - 2 * theme.metrics.padding);
+                FooterHints footer = {QUICK_SETTINGS_HINTS, 2, FOOTER_ALIGN_END};
+                CHECK_EQUAL(theme_is_portrait(&theme) ? 48 : 24,
+                            footer_hints_height(&theme, footer));
                 for (int row = 0; row < panel.model.count(&panel); row++) {
                     list_view_select(&panel.list, row, 100);
                     Canvas canvas = full_canvas();

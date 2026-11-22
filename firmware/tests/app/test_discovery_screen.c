@@ -12,6 +12,7 @@
 #include "player_storage.h"
 #include "settings/settings.h"
 #include "spoken_library.h"
+#include "ui/footer_hints.h"
 #include "ui/label.h"
 
 static FixtureLibrary fixture;
@@ -465,16 +466,15 @@ static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(v
             Canvas canvas = canvas_make(
                 pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
             discovery.screen.draw(&discovery, &canvas);
+            const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
+                                        {FOOTER_KEY_PLAY, STR_HINT_ADD},
+                                        {FOOTER_KEY_MENU, STR_HINT_ERASE},
+                                        {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
+                                        {FOOTER_KEY_HOLD_PLAY, STR_HINT_SHOW_RESULTS}};
+            FooterHints footer = {hints, 5, FOOTER_ALIGN_START};
             int bottom = theme.metrics.header_height + theme.metrics.padding +
-                         2 * theme.metrics.row_height +
-                         4 * (font_line_height(theme.fonts.small) + 2);
+                         2 * theme.metrics.row_height + footer_hints_height(&theme, footer);
             CHECK(bottom <= theme.metrics.screen_height);
-            const StringId hints[] = {STR_NAME_CHOOSE_HINT, STR_NAME_ADD_HINT, STR_NAME_ERASE_HINT,
-                                      STR_QUERY_SEARCH_HINT};
-            for (unsigned index = 0; index < sizeof hints / sizeof *hints; index++) {
-                CHECK(text_width(theme.fonts.small, i18n_text(hints[index])) <=
-                      theme.metrics.screen_width - 2 * theme.metrics.padding);
-            }
             key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
             complete();
             discovery.screen.draw(&discovery, &canvas);

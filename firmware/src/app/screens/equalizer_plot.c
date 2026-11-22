@@ -39,16 +39,17 @@ void equalizer_plot_gain(char *text, size_t capacity, int tenth_db)
     i18n_format_text(&builder, STR_EQ_GAIN, number);
 }
 
-EqualizerPlotLayout equalizer_plot_layout(const Theme *theme, const char *hint, bool browser)
+EqualizerPlotLayout equalizer_plot_layout(const Theme *theme, FooterHints hints, bool browser)
 {
     int pad = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * pad;
     int small = font_line_height(theme->fonts.small);
     int title = font_line_height(theme->fonts.title);
-    int hint_height = label_wrap_count(theme->fonts.small, hint, width) * small;
-    int bottom = theme->metrics.screen_height - pad - hint_height - pad;
+    int hint_height = footer_hints_height(theme, hints);
+    int bottom = theme->metrics.screen_height - hint_height - pad;
     int top = theme->metrics.header_height + pad;
-    EqualizerPlotLayout layout = {.hint = {pad, bottom + pad, width, hint_height}};
+    EqualizerPlotLayout layout = {
+        .hint = {0, bottom + pad, theme->metrics.screen_width, hint_height}};
     if (theme_is_portrait(theme)) {
         int list_height = browser ? 3 * theme->metrics.row_height : 0;
         layout.list = (Rect){pad, top, width, list_height};

@@ -5,6 +5,7 @@
 #include "board_layout.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -355,6 +356,17 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     return action;
 }
 
+static const FooterHint UP_NEXT_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_OPEN},
+                                           {FOOTER_KEY_HOLD_PLAY, STR_EDIT_UP_NEXT}};
+static const FooterHints UP_NEXT_FOOTER = {UP_NEXT_HINTS, 2, FOOTER_ALIGN_START};
+
+static Rect rows_area(const Theme *theme)
+{
+    Rect content = theme_content_area(theme);
+    content.height -= footer_hints_height(theme, UP_NEXT_FOOTER);
+    return content;
+}
+
 static void enter(void *context, uint32_t now_ms)
 {
     UpNextScreen *up_next = context;
@@ -364,6 +376,8 @@ static void enter(void *context, uint32_t now_ms)
     count_rows(up_next);
     observe_player(up_next);
     list_view_init(&up_next->list, &up_next->model, up_next->config.theme, now_ms);
+    list_view_fit_rows(&up_next->list,
+                       list_view_rows_in(&up_next->list, rows_area(up_next->config.theme).height));
     list_view_select(&up_next->list, selected, now_ms);
     refresh_rows(up_next);
 }
@@ -389,7 +403,9 @@ static void draw(void *context, Canvas *canvas)
         label_draw(canvas, style, (Label){.area = area, .text = i18n_text(STR_NOTHING_IS_PLAYING)});
         return;
     }
-    list_view_draw(&up_next->list, canvas, content, up_next->now_ms);
+    list_view_draw(&up_next->list, canvas, rows_area(theme), up_next->now_ms);
+    footer_hints_draw(canvas, theme, footer_hints_area(theme, content, UP_NEXT_FOOTER),
+                      UP_NEXT_FOOTER);
 }
 
 Screen *up_next_screen_init(UpNextScreen *up_next, UpNextConfig config)
