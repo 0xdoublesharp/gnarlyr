@@ -425,6 +425,55 @@ class SyncTest(unittest.TestCase):
         self.assertEqual(tag, scan[16:32])
         self.assertEqual(4096, len(scan))
 
+    def scan_file_with_a_guard(self):
+        record = SCAN_RECORD.pack(b"DSS2", 1, 2, 3, b"tag".ljust(16, b"\0"), 0, 0, 0, 2, 0)
+        guard = b"DSSG" + bytes([1, 2, 0, 1]) + struct.pack("<II4I", 7, 8, 9, 10, 11, 12)
+        data = bytearray(4096)
+        data[:len(record)] = record
+        data[512:512 + len(guard)] = guard
+        data[600] = 0x5A
+        (self.folder / "scan.bin").write_bytes(bytes(data))
+        return bytes(data)
+
+    def test_a_sync_clears_the_scan_guard_and_keeps_the_rest_of_scan_bin(self):
+        self.prepare_echo()
+        before = self.scan_file_with_a_guard()
+        status, output = self.run_sync()
+        self.assertEqual(0, status, output)
+        scan = (self.folder / "scan.bin").read_bytes()
+        self.assertEqual(bytes(32), scan[512:544])
+        self.assertEqual(before[544:], scan[544:])
+        self.assertEqual(b"tag".ljust(16, b"\0"), scan[16:32])
+
+    def test_without_a_fingerprint_the_guard_is_still_cleared(self):
+        self.prepare_echo()
+        before = self.scan_file_with_a_guard()
+        status, output = self.run_sync("--no-fingerprint", "--no-covers")
+        self.assertEqual(0, status, output)
+        scan = (self.folder / "scan.bin").read_bytes()
+        self.assertEqual(before[16:512], scan[16:512])
+        self.assertEqual(bytes(32), scan[512:544])
+        self.assertEqual(before[544:], scan[544:])
+
+    def test_a_covers_only_sync_clears_the_guard_and_keeps_the_fingerprint(self):
+        self.prepare_echo()
+        self.assertEqual(0, self.run_sync("--no-covers")[0])
+        scan = bytearray((self.folder / "scan.bin").read_bytes())
+        scan[512:516] = b"DSSG"
+        scan[516] = 1
+        (self.folder / "scan.bin").write_bytes(bytes(scan))
+        status, output = self.run_sync("--covers-only")
+        self.assertEqual(0, status, output)
+        after = (self.folder / "scan.bin").read_bytes()
+        self.assertEqual(bytes(scan[:512]), after[:512])
+        self.assertEqual(bytes(32), after[512:544])
+
+    def test_a_dry_run_leaves_the_guard(self):
+        self.prepare_echo()
+        before = self.scan_file_with_a_guard()
+        self.run_sync("--dry-run")
+        self.assertEqual(before, (self.folder / "scan.bin").read_bytes())
+
     def test_a_dry_run_writes_nothing(self):
         self.prepare_echo()
         status, output = self.run_sync("--dry-run")

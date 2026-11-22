@@ -29,6 +29,8 @@ SCAN_PRINT_BYTES = 16
 SCAN_VERSION_BYTES = 16
 SCAN_INTERNAL_KNOWN = 1
 SCAN_INTERNAL_UNKNOWN = 2
+SCAN_GUARD_OFFSET = 512
+SCAN_GUARD_BYTES = 32
 MUSIC_GENERATION_FILE = "music_gen.bin"
 USB_VENDOR = "1209"
 USB_PRODUCT = "0001"
@@ -956,6 +958,23 @@ def publish_fingerprint(path, record, fallback, options):
         raise
 
 
+def clear_scan_guard(path, options):
+    if options.dry_run:
+        return
+    try:
+        with open_card_file(path) as file:
+            size = os.fstat(file.fileno()).st_size
+            if size <= SCAN_GUARD_OFFSET:
+                return
+            file.seek(SCAN_GUARD_OFFSET)
+            write_all(file, bytes(min(SCAN_GUARD_BYTES, size - SCAN_GUARD_OFFSET)))
+            settle(file)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise SyncError(f"couldn't write {path}: {error.strerror or error}") from error
+
+
 def check_cache_targets(folder):
     try:
         checked_cache_folder(folder)
@@ -990,6 +1009,8 @@ def sync(drives, options):
         covers_data = build_covers(drives, sources, options)
     print(f"{'Planned for' if options.dry_run else 'Writing'} {folder}")
     scan_path = folder / SCAN_FILE.name
+    if library_data is not None or covers_data is not None:
+        clear_scan_guard(scan_path, options)
     if library_data is not None:
         version = stored_version(read_prefix(scan_path, SCAN_RECORD.size))
         fallback = scan_record(ScanSnapshot(Fingerprint(False, 0, 0, 0)), version)
