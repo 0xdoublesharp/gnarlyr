@@ -143,10 +143,13 @@ static int draw_badge(const UsbPainter *painter, Rect area)
     rate_text(text, &painter->scene->dac);
     const Font *font = theme->fonts.title;
     int inset = theme->metrics.padding / 2;
-    if (text_width(font, text) + 2 * inset + 4 > area.width) {
+    int words_width = text_width(font, text);
+    usb_screen_service(painter->scene);
+    if (words_width + 2 * inset + 4 > area.width) {
         font = theme->fonts.small;
+        words_width = text_width(font, text);
     }
-    int width = text_width(font, text) + 2 * inset;
+    int width = words_width + 2 * inset;
     Rect frame = {area.x, area.y, width < area.width ? width : area.width,
                   font_line_height(font) + inset};
     if (!usb_screen_touches(painter, frame)) {
@@ -158,7 +161,10 @@ static int draw_badge(const UsbPainter *painter, Rect area)
     Rect inside = {glow.x + 1, glow.y + 1, glow.width - 2, glow.height - 2};
     canvas_fill_rect(painter->canvas, inside, colors->backdrop_top);
     Rect words = {inside.x + inset - 2, inside.y, inside.width - 2 * inset + 4, inside.height};
-    usb_screen_text(painter, label_centered_area(font, words, text),
+    int shown = words_width < words.width ? words_width : words.width;
+    words.x += (words.width - shown) / 2;
+    words.width = shown;
+    usb_screen_text(painter, words,
                     (TextStyle){font, usb_screen_tint(colors->accent, colors->text), false}, text);
     return frame.y + frame.height;
 }
