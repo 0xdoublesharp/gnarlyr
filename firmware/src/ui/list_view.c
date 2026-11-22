@@ -11,8 +11,8 @@ enum {
     MIN_THUMB_HEIGHT = 6,
     NARROW_DETAIL_SHARE = 40,
     PERCENT = 100,
-    ICON_BOX = 20,
-    ICON_MIN_GAP = 4,
+    ICON_BOX = LIST_VIEW_ICON_BOX,
+    ICON_MIN_GAP = LIST_VIEW_ICON_MIN_GAP,
     DETAIL_LINE_GAP = LIST_VIEW_DETAIL_LINE_GAP,
     FOCUS_BAR = 3,
     CHEVRON_WIDTH = 8,
@@ -431,10 +431,12 @@ static void draw_wrapped_label(const ListView *view, Canvas *canvas, Row row)
 {
     TextStyle style = label_style(view, row);
     int line = font_line_height(style.font);
-    Rect area = {row.text.x, row.area.y + (row.area.height - 2 * line) / 2, row.text.width,
-                 2 * line};
-    label_draw_paragraph(canvas, style,
-                         (Label){area, view->model->label(view->model->context, row.index)});
+    const char *text = view->model->label(view->model->context, row.index);
+    int lines = min_of(row.area.height / line, label_wrap_count(style.font, text, row.text.width));
+    lines = max_of(2, lines);
+    Rect area = {row.text.x, row.area.y + (row.area.height - lines * line) / 2, row.text.width,
+                 lines * line};
+    label_draw_paragraph(canvas, style, (Label){area, text});
 }
 
 static void draw_label(const ListView *view, Canvas *canvas, Row row, uint32_t now_ms)

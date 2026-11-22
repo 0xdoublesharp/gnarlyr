@@ -16,13 +16,16 @@ static const char EXTRA_FONT_PATH[] =
 static const char USB_FIGURES[] = "0123456789.,:%/+-\xC2\xB7";
 
 static const uint16_t USB_STATE_TEXT[] = {
-    STR_PLUG_COMPUTER,     STR_POWER_CONNECTING,  STR_USB_STATE_CONNECTED,
-    STR_USB_STATE_READING, STR_USB_STATE_WRITING, STR_USB_STATE_WAITING,
-    STR_USB_STATE_LEAVING, STR_USB_UNPLUGGED,     STR_USB_STOPPED,
+    STR_POWER_CONNECTING, STR_USB_STATE_WAITING, STR_USB_STATE_LEAVING,
+    STR_USB_UNPLUGGED,    STR_USB_STOPPED,
 };
+
+static const uint16_t USB_TITLE_TEXT[] = {STR_USB_STORAGE, STR_POWER_TITLE, STR_POWER_CONNECTING,
+                                          STR_PLUG_DAC_SHORT};
 
 static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB,
+    STR_USB_STATE_CONNECTED,
     STR_PLUG_COMPUTER_LINE,
     STR_USB_EJECT_DRIVE,
     STR_USB_EJECT_DRIVES,
@@ -30,7 +33,7 @@ static const uint16_t USB_SMALL_TEXT[] = {
     STR_CHIP_MENU,
     STR_CHIP_BACK,
     STR_CHIP_HOLD_BACK,
-    STR_HINT_EJECT_CARD,
+    STR_HINT_RETURN,
     STR_HINT_VIEW_STATS,
     STR_HINT_MORE_STATS,
     STR_HINT_OVERVIEW,
@@ -145,6 +148,8 @@ void extra_font_hold_for_usb(const Theme *theme)
     hold_codepoints(theme->fonts.small, USB_FIGURES);
     uint32_t states = sizeof USB_STATE_TEXT / sizeof USB_STATE_TEXT[0];
     hold_text(theme->fonts.title, USB_STATE_TEXT, states);
+    hold_text(theme->fonts.header, USB_TITLE_TEXT,
+              sizeof USB_TITLE_TEXT / sizeof USB_TITLE_TEXT[0]);
     hold_text(theme->fonts.small, USB_STATE_TEXT, states);
     hold_text(theme->fonts.small, USB_SMALL_TEXT, sizeof USB_SMALL_TEXT / sizeof USB_SMALL_TEXT[0]);
     font_pack_hold(FONT_PACK_HOLD_FREEZE);

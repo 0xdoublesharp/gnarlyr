@@ -1,4 +1,5 @@
 #include "check.h"
+#include "gfx/text.h"
 #include "ui/list_view.h"
 #include "ui_test_canvas.h"
 #include "ui_test_theme.h"
@@ -587,6 +588,29 @@ static void a_value_that_does_not_fit_beside_its_label_drops_under_it(void)
     CHECK(ui_test_area_has_color(&canvas, under, TEST_THEME.colors.text_secondary));
 }
 
+static const char *three_word_label(const void *context, int index)
+{
+    (void)context;
+    return index == 1 ? "ABAB ABAB ABAB" : "A";
+}
+
+static void a_wrapped_row_given_three_lines_draws_its_third_line(void)
+{
+    ListView view = wrapping_list();
+    model.label = three_word_label;
+    const Font *font = TEST_THEME.fonts.title;
+    int width = text_width(font, "ABAB") + 2 * TEST_THEME.metrics.padding;
+    list_view_measure(&view, width);
+    CHECK_EQUAL(LIST_LINES_WRAPPED, view.lines);
+    int line = font_line_height(font);
+    int height = LIST_VIEW_MAX_WRAPPED_LINES * (line + LIST_VIEW_DETAIL_LINE_GAP);
+    Canvas canvas = ui_test_canvas();
+    int top = theme_content_area(&TEST_THEME).y;
+    list_view_draw_row(&view, &canvas, 1, (Rect){0, top, width, height}, 0);
+    Rect third = {0, top + (height - 3 * line) / 2 + 2 * line, width, line};
+    CHECK(ui_test_area_has_color(&canvas, third, TEST_THEME.colors.text));
+}
+
 static void a_list_that_does_not_wrap_never_grows_its_rows(void)
 {
     ListView view = list_of(3);
@@ -602,6 +626,7 @@ int main(void)
         TEST_CASE(one_label_too_long_turns_every_row_into_a_two_line_row),
         TEST_CASE(a_value_that_does_not_fit_beside_its_label_drops_under_it),
         TEST_CASE(a_list_that_does_not_wrap_never_grows_its_rows),
+        TEST_CASE(a_wrapped_row_given_three_lines_draws_its_third_line),
         TEST_CASE(a_section_label_is_never_focused),
         TEST_CASE(focusing_the_first_row_under_a_label_scrolls_the_label_into_view),
         TEST_CASE(a_section_label_is_drawn_in_the_accent_colour_without_focus),

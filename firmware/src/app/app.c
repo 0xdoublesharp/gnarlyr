@@ -1383,6 +1383,9 @@ static StatusBarState shown_status_bar(const AppState *state, const Screen *scre
         bar.playback = STATUS_PLAYBACK_NONE;
     }
     bar.hides_charging = screen->hides_charging;
+    if (screen->header_status != NULL) {
+        bar.position = screen->header_status;
+    }
     bar.logo = true;
     return bar;
 }

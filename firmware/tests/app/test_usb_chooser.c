@@ -9,10 +9,10 @@
 #include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
+#include "ui/status_bar.h"
 
 enum {
     PROMPT_MS = 15000,
-    LINE_ROWS = 3,
     LARGEST_SIDE = 480,
     PLACES = 3
 };
@@ -54,10 +54,9 @@ static const char *label(int row)
     return chooser->model.label(chooser->model.context, row);
 }
 
-static const char *mark(int row)
+static bool mark(int row)
 {
-    const PlugChooser *chooser = &screens.usb;
-    return chooser->model.detail(chooser->model.context, row);
+    return screens.usb.choices.marked == row;
 }
 
 static ScreenAction key(Screen *screen, Key pressed, KeyGesture gesture, uint32_t now_ms)
@@ -80,8 +79,9 @@ static void the_prompt_offers_connect_to_computer_first_then_charge_usb_power_an
     CHECK(strcmp("Run from USB power", label(2)) == 0);
     CHECK(strcmp("USB audio (DAC)", label(3)) == 0);
     CHECK_EQUAL(0, screens.usb.list.selected);
-    CHECK(mark(0) == NULL);
-    CHECK(mark(1) != NULL);
+    for (int row = 0; row < 4; row++) {
+        CHECK(!mark(row));
+    }
 }
 
 static void the_highlighted_mode_explains_what_happens_to_the_music(void)
@@ -113,14 +113,36 @@ static void the_prompt_lapses_after_fifteen_quiet_seconds(void)
     CHECK(screens.usb.expired);
 }
 
-static void a_key_starts_the_countdown_again(void)
+static void the_countdown_shows_in_the_header_without_the_charging_bolt(void)
 {
     Screen *screen = open_chooser(true);
+    CHECK(strcmp("Charging in 15 s", screen->header_status) == 0);
+    CHECK(screen->hides_charging);
+    Screen *modes = open_chooser(false);
+    CHECK(modes->header_status == NULL);
+    CHECK(!modes->hides_charging);
+}
+
+static void the_first_volume_press_pauses_auto_charge(void)
+{
+    Screen *screen = open_chooser(true);
+    screens.usb.redraw = false;
     press(screen, KEY_VOLUME_UP, 10000);
-    CHECK(strcmp("Charging in 15 s", screens.usb.countdown) == 0);
-    screen->update(screen->context, PROMPT_MS + 9999);
+    CHECK(screens.usb.paused);
+    CHECK(screens.usb.redraw);
+    CHECK(strcmp("Auto-charge paused", screen->header_status) == 0);
+    CHECK_EQUAL(1, screens.usb.list.selected);
+    screen->update(screen->context, 600000);
     CHECK(!screens.usb.expired);
-    screen->update(screen->context, PROMPT_MS + 10000);
+    CHECK(strcmp("Auto-charge paused", screen->header_status) == 0);
+}
+
+static void other_keys_leave_the_countdown_running(void)
+{
+    Screen *screen = open_chooser(true);
+    key(screen, KEY_MENU, KEY_GESTURE_PRESS, 10000);
+    CHECK(!screens.usb.paused);
+    screen->update(screen->context, PROMPT_MS);
     CHECK(screens.usb.expired);
 }
 
@@ -170,7 +192,7 @@ static void usb_mode_opened_by_hand_neither_counts_down_nor_lapses(void)
     CHECK_EQUAL(1, screens.usb.list.selected);
     screen->update(screen->context, 600000);
     CHECK(!screens.usb.expired);
-    CHECK_EQUAL(1, plug_chooser_footer_rows(&screens.usb));
+    CHECK(plug_chooser_has_footer(&screens.usb));
 }
 
 static void usb_mode_marks_play_on_usb_power_while_charging_is_held_off(void)
@@ -180,8 +202,8 @@ static void usb_mode_marks_play_on_usb_power_while_charging_is_held_off(void)
     Screen *screen = settings_screens_usb_modes(&screens, false);
     screen->enter(screen->context, 0);
     CHECK_EQUAL(2, screens.usb.list.selected);
-    CHECK(mark(2) != NULL);
-    CHECK(mark(1) == NULL);
+    CHECK(mark(2));
+    CHECK(!mark(1));
 }
 
 static void use_theme(int appearance, int orientation, int size)
@@ -215,37 +237,52 @@ static const PlugChooser *chooser_at(int place)
     return place == PLUG_PLACE_SETTINGS ? &screens.plug : &screens.usb;
 }
 
-static void every_line_fits_its_three_rows(const PlugChooser *chooser)
+static void every_line_fits_its_rows(const PlugChooser *chooser)
 {
-    PlugChooserLayout layout =
-        plug_chooser_layout(&theme, plug_chooser_footer_rows(chooser), chooser->choices.count);
+    const PlugChooserLayout *layout = &chooser->layout;
+    int rows = theme_is_portrait(&theme) ? 3 : 2;
     for (int row = 0; row < chooser->choices.count; row++) {
         PlugMode mode = plug_chooser_mode(chooser, row);
         const char *line = i18n_text(plug_mode_line(mode, ON_A_CABLE));
-        CHECK(label_wrap_count(theme.fonts.small, line, layout.line.width) <= LINE_ROWS);
+        CHECK(label_wrap_count(theme.fonts.small, line, layout->line.width) <= rows);
+        CHECK(chooser->heights[row] >= theme.metrics.row_height);
     }
+    CHECK(rows * font_line_height(theme.fonts.small) <= layout->line.height);
     static const FooterHint ALWAYS[] = {{FOOTER_KEY_HOLD_PLAY, STR_HINT_ALWAYS}};
     FooterHints footer = {ALWAYS, 1, FOOTER_ALIGN_END};
-    int rows = plug_chooser_footer_rows(chooser);
-    int hint = text_width(theme.fonts.small, footer_hints_key_name(FOOTER_KEY_HOLD_PLAY)) +
-               text_width(theme.fonts.small, i18n_text(STR_HINT_ALWAYS)) + 2 * FOOTER_CHIP_PADDING +
-               FOOTER_CHIP_GAP;
-    bool inline_cue = theme_is_portrait(&theme) && rows > 1;
-    int band = theme_is_portrait(&theme) ? 48 : 24;
-    int cue = font_line_height(theme.fonts.small) + theme.metrics.padding / 2;
-    CHECK_EQUAL(rows == 0 ? 0 : inline_cue ? cue : band, layout.footer.height);
-    CHECK(!inline_cue || hint <= layout.count.width);
-    CHECK(rows == 0 ||
-          footer_hints_lines(&theme, footer, layout.footer.width - 2 * theme.metrics.padding) == 1);
-    int count = text_width(theme.fonts.small, chooser->countdown);
-    CHECK(count <= layout.count.width || layout.count.height == 0);
-    CHECK(theme_is_portrait(&theme) ||
-          hint + count + 2 * theme.metrics.padding <= layout.footer.width - theme.metrics.padding);
-    CHECK(layout.name.height == 0 ||
-          label_wrap_count(theme.fonts.title, i18n_text(plug_mode_name(PLUG_MODE_COMPUTER)),
-                           layout.name.width) <= 2);
+    CHECK(!plug_chooser_has_footer(chooser) ||
+          footer_hints_lines(&theme, footer, layout->footer.width - 2 * theme.metrics.padding) ==
+              1);
+    CHECK(layout->title.height == 0 ||
+          label_wrap_count(theme.fonts.header, chooser->screen.title, layout->title.width) <= 2);
     Rect title = header_title_bounds(&theme);
     CHECK(text_width(theme.fonts.header, chooser->screen.title) <= title.width);
+    CHECK(plug_chooser_shown_rows(chooser) >= 1);
+}
+
+static void the_header_status_is_laid_out(const PlugChooser *chooser, const char *status)
+{
+    StatusBarState bar = {.battery_known = true,
+                          .battery_percent = 80,
+                          .usb_power = true,
+                          .hides_charging = true,
+                          .position = status};
+    bar.title_width =
+        chooser->screen.untitled_header ? 0 : text_width(theme.fonts.header, chooser->screen.title);
+    StatusBarLayout layout;
+    status_bar_layout(&theme, &bar, &layout);
+    CHECK((layout.items & STATUS_BAR_POSITION) != 0);
+}
+
+static void every_header_status_fits(const PlugChooser *chooser)
+{
+    if (!chooser->timed) {
+        return;
+    }
+    the_header_status_is_laid_out(chooser, chooser->countdown);
+    if (!chooser->screen.untitled_header) {
+        the_header_status_is_laid_out(chooser, i18n_text(STR_PLUG_PAUSED));
+    }
 }
 
 static void draw_variant(Screen *screen, const char *name, int variant)
@@ -266,7 +303,8 @@ static void every_chooser_draws_at_every_theme_size_and_orientation(void)
                     start(ON_A_CABLE);
                     use_theme(appearance, orientation, size);
                     Screen *screen = open_at(place);
-                    every_line_fits_its_three_rows(chooser_at(place));
+                    every_line_fits_its_rows(chooser_at(place));
+                    every_header_status_fits(chooser_at(place));
                     draw_variant(screen, NAMES[place], appearance * 100 + orientation * 10 + size);
                 }
             }
@@ -297,52 +335,96 @@ static void a_low_battery_shows_why_usb_power_charges_first(void)
     draw_variant(screen, "plug-low-battery", 0);
 }
 
+static void the_layout_stays_on_the_screen(const PlugChooser *chooser)
+{
+    const PlugChooserLayout *layout = &chooser->layout;
+    Rect screen = {0, 0, theme.metrics.screen_width, theme.metrics.screen_height};
+    CHECK(layout->art.height >= theme.metrics.row_height);
+    CHECK(layout->art.width >= theme.metrics.row_height);
+    CHECK(layout->list.y >= layout->art.y + layout->art.height ||
+          layout->list.x >= layout->art.x + layout->art.width);
+    CHECK(layout->line.y >= layout->list.y + layout->list.height);
+    CHECK(layout->line.y + layout->line.height <= layout->footer.y);
+    CHECK(layout->cue.height == 0 || layout->cue.y + layout->cue.height <= layout->footer.y);
+    CHECK(layout->footer.y + layout->footer.height <= screen.height);
+    CHECK(layout->line.x + layout->line.width <= screen.width);
+}
+
 static void every_chooser_fits_every_size_and_orientation(void)
 {
-    start(ON_A_CABLE);
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
         for (int turn = 0; turn < 2; turn++) {
-            theme = BOARD_THEME;
-            default_theme_set_orientation(&theme,
-                                          turn == 0 ? ORIENTATION_LANDSCAPE : ORIENTATION_PORTRAIT);
-            default_theme_set_text_size(&theme, (TextSize)size);
-            for (int rows = 0; rows <= 2; rows++) {
-                PlugChooserLayout layout = plug_chooser_layout(&theme, rows, PLUG_MODE_COUNT);
-                Rect screen = {0, 0, theme.metrics.screen_width, theme.metrics.screen_height};
-                CHECK(layout.art.height >= theme.metrics.row_height);
-                CHECK(layout.art.width >= theme.metrics.row_height);
-                CHECK(layout.list.height >= 4 * theme.metrics.row_height);
-                CHECK(layout.list.y >= layout.line.y + layout.line.height ||
-                      layout.list.x >= layout.line.x + layout.line.width);
-                CHECK(layout.line.y >= layout.art.y + layout.art.height);
-                CHECK(layout.footer.y + layout.footer.height <= screen.height);
-                CHECK(layout.line.x + layout.line.width <= screen.width);
+            for (int place = 0; place < PLACES; place++) {
+                start(ON_A_CABLE);
+                use_theme(0, turn == 0 ? ORIENTATION_LANDSCAPE : ORIENTATION_PORTRAIT, size);
+                Screen *screen = open_at(place);
+                const PlugChooser *chooser = chooser_at(place);
+                the_layout_stays_on_the_screen(chooser);
+                for (int row = 0; row < chooser->choices.count; row++) {
+                    press(screen, KEY_VOLUME_DOWN, 100 + (uint32_t)row);
+                    CHECK(chooser->list.selected >= chooser->list.top);
+                    CHECK(chooser->list.selected <
+                          chooser->list.top + plug_chooser_shown_rows(chooser));
+                }
             }
         }
     }
 }
 
-static void portrait_rows_use_short_names_while_landscape_keeps_the_full_titles(void)
+static void every_choice_keeps_its_full_name_in_both_orientations(void)
 {
-    static const char *const SHORT[] = {"Computer", "Charge/Play", "USB power", "USB audio"};
     static const char *const FULL[] = {"Connect to computer", "Charge & play", "Run from USB power",
                                        "USB audio (DAC)"};
     for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
-        open_chooser(true);
-        use_theme(0, ORIENTATION_PORTRAIT, size);
-        const PlugChooser *chooser = &screens.usb;
-        PlugChooserLayout layout =
-            plug_chooser_layout(&theme, plug_chooser_footer_rows(chooser), chooser->choices.count);
-        for (int row = 0; row < 4; row++) {
-            CHECK(strcmp(SHORT[row], label(row)) == 0);
-            CHECK(text_width(theme.fonts.body, label(row)) <=
-                  layout.list.width - 4 * theme.metrics.padding);
-        }
-        use_theme(0, ORIENTATION_LANDSCAPE, size);
-        for (int row = 0; row < 4; row++) {
-            CHECK(strcmp(FULL[row], label(row)) == 0);
+        for (int turn = 0; turn < 2; turn++) {
+            start(ON_A_CABLE);
+            use_theme(0, turn == 0 ? ORIENTATION_LANDSCAPE : ORIENTATION_PORTRAIT, size);
+            open_at(PLUG_PLACE_PROMPT);
+            for (int row = 0; row < 4; row++) {
+                CHECK(strcmp(FULL[row], label(row)) == 0);
+            }
         }
     }
+}
+
+static void medium_landscape_shows_all_four_choices_and_the_explanation(void)
+{
+    for (int place = PLUG_PLACE_PROMPT; place <= PLUG_PLACE_SWITCH; place++) {
+        start(ON_A_CABLE);
+        use_theme(0, ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
+        open_at(place);
+        const PlugChooser *chooser = chooser_at(place);
+        CHECK_EQUAL(chooser->choices.count, plug_chooser_shown_rows(chooser));
+        CHECK_EQUAL(0, chooser->layout.cue.height);
+        CHECK(2 * font_line_height(theme.fonts.small) <= chooser->layout.line.height);
+    }
+}
+
+static void the_portrait_prompt_moves_its_title_into_the_body(void)
+{
+    start(ON_A_CABLE);
+    use_theme(0, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
+    Screen *screen = open_at(PLUG_PLACE_PROMPT);
+    CHECK(screen->untitled_header);
+    CHECK(screens.usb.layout.title.height > 0);
+    use_theme(0, ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
+    screen = open_at(PLUG_PLACE_PROMPT);
+    CHECK(!screen->untitled_header);
+    CHECK_EQUAL(0, screens.usb.layout.title.height);
+    use_theme(0, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
+    screen = open_at(PLUG_PLACE_SWITCH);
+    CHECK(!screen->untitled_header);
+}
+
+static void the_portrait_prompt_says_paused_in_the_body(void)
+{
+    start(ON_A_CABLE);
+    use_theme(0, ORIENTATION_PORTRAIT, TEXT_SIZE_MEDIUM);
+    Screen *screen = open_at(PLUG_PLACE_PROMPT);
+    press(screen, KEY_VOLUME_DOWN, 100);
+    CHECK(screens.usb.paused);
+    CHECK(screen->header_status == NULL);
+    draw_variant(screen, "plug-paused-portrait", 0);
 }
 
 int main(void)
@@ -350,10 +432,15 @@ int main(void)
     static const TestCase cases[] = {
         TEST_CASE(the_prompt_offers_connect_to_computer_first_then_charge_usb_power_and_the_dac),
         TEST_CASE(the_highlighted_mode_explains_what_happens_to_the_music),
-        TEST_CASE(portrait_rows_use_short_names_while_landscape_keeps_the_full_titles),
+        TEST_CASE(every_choice_keeps_its_full_name_in_both_orientations),
+        TEST_CASE(medium_landscape_shows_all_four_choices_and_the_explanation),
+        TEST_CASE(the_portrait_prompt_moves_its_title_into_the_body),
+        TEST_CASE(the_portrait_prompt_says_paused_in_the_body),
         TEST_CASE(the_prompt_counts_down_to_charging),
         TEST_CASE(the_prompt_lapses_after_fifteen_quiet_seconds),
-        TEST_CASE(a_key_starts_the_countdown_again),
+        TEST_CASE(the_countdown_shows_in_the_header_without_the_charging_bolt),
+        TEST_CASE(the_first_volume_press_pauses_auto_charge),
+        TEST_CASE(other_keys_leave_the_countdown_running),
         TEST_CASE(one_press_of_play_connects_to_the_computer),
         TEST_CASE(play_on_usb_power_holds_charging_off_without_changing_the_saved_answer),
         TEST_CASE(holding_play_always_does_this_and_says_so),
