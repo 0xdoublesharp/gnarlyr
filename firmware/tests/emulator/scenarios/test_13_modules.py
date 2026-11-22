@@ -61,8 +61,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(settings.loaded(machine))
         for key in (KEY_PLAY, KEY_BACK, KEY_BACK, KEY_PLAY, image_tests.KEY_PREVIOUS, KEY_PLAY, KEY_BACK):
             self.press(machine, key)
+        about, _ = self.module(machine, "format")
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
-                         [(number, True), (1, True), (number, True)])
+                         [(number, True), (about, True), (number, True)])
         self.assertLess(max(call["us"] for call in watch.calls if not call["sectors"]),
                         MODULE_REUSE_LIMIT_US)
         self.assertTrue(settings.loaded(machine))
