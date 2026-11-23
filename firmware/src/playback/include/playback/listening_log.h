@@ -113,7 +113,7 @@ typedef struct ListeningLog {
 } ListeningLog;
 
 typedef struct ListeningCursor {
-    const StoreFile *file;
+    const ListeningLog *log;
     uint32_t next;
     uint16_t kept;
     uint16_t position;
@@ -137,6 +137,7 @@ bool listening_play_listened(const ListeningPlay *play);
 void listening_totals_add(ListeningTotals *totals, const ListeningPlay *play);
 
 void listening_cursor_begin(ListeningCursor *cursor, const ListeningLog *log, uint8_t run);
+bool listening_cursor_current(const ListeningCursor *cursor);
 void listening_cursor_rewind(ListeningCursor *cursor);
 StoreResult listening_cursor_step(ListeningCursor *cursor, ListeningVisitor visitor);
 bool listening_cursor_fetch(const ListeningCursor *cursor, uint16_t position,

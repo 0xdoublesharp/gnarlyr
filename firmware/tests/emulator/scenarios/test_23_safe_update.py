@@ -394,6 +394,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(self.trial_record(cut), (TRIAL_ROLLED_BACK, 0))
         self.assert_rollback_reported(cut)
 
+    def test_a_failed_rollback_continuity_pass_is_retried_on_the_next_boot(self):
+        volume = self.debug_volume()
+        record = b"DSUT" + bytes((TRIAL_ROLLED_BACK, 0, TRIAL_ROLLED_BACK ^ 0x5A, 1))
+        volume.add_file("trial.bin", record.ljust(512, b"\0"), None, IDENTITY.data_directory)
+        session = self.session(volume=volume)
+        machine = session.machine
+        machine.stub_symbol("user_state_module_settle", lambda machine: 0)
+        self.assertEqual(session.run_until_waiting_for_key(presses=0), "reached board_wait_for_key")
+        self.assertEqual(self.trial_record(session), (TRIAL_ROLLED_BACK, 0))
+        self.assert_rollback_reported(session)
+
     def test_a_non_enumerating_build_is_reset_by_power_and_rolled_back(self):
         newer = self.newer_image()
         broken = self.session_module.with_overlay_code(newer, self.usb_overlay_elf,

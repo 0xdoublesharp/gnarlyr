@@ -279,6 +279,7 @@ set(ECHO_OVERLAY_IMPORTS
     canvas_fill_gradient
     canvas_clipped
     font_find_glyph
+    font_pack_hold
     hal_file_reserve
     footer_hints_height
     footer_hints_draw
@@ -558,6 +559,7 @@ target_link_options(echo_rescan_overlay PRIVATE
 set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overlay.ld)
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
+    ${PROJECT_SOURCE_DIR}/src/app/extra_font_usb.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
     ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
@@ -596,6 +598,7 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_span.c)
     set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/app/extra_font_usb.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
         ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c

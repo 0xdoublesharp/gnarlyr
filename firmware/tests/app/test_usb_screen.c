@@ -1372,8 +1372,7 @@ enum {
     FIRST_CJK = 0x2E80,
     HANGUL_GLYPHS = 9216,
     HANGUL_SPREAD = HANGUL_GLYPHS / 3,
-    EXTRA_FONT_CAPACITY = 1000000,
-    HELD_REGION_BYTES = 64 * 368
+    EXTRA_FONT_CAPACITY = 1000000
 };
 
 typedef struct ExtraFile {
@@ -1460,15 +1459,14 @@ static int unheld_glyphs_drawn(void)
     return unheld;
 }
 
-static void draw_storage_variants(const Theme *theme, Variant *list, int count, bool details)
+static void draw_storage_variants(const Theme *theme, Variant *list, int count)
 {
     Canvas canvas = canvas_for(theme);
     for (int index = 0; index < count; index++) {
         AppUsbStatus status = list[index].status;
         status.scene = &list[index].scene;
         if (status.view == APP_USB_DAC ||
-            list[index].scene.page >= usb_screen_pages(theme, status) ||
-            (!details && list[index].scene.page != USB_SCENE_OVERVIEW)) {
+            list[index].scene.page >= usb_screen_pages(theme, status)) {
             continue;
         }
         status = with_page_hint(theme, status, &list[index].scene);
@@ -1493,7 +1491,7 @@ static void storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared(void)
             Theme theme = theme_for(0, orientation, text_size);
             extra_font_hold_for_usb(&theme);
             uint32_t reads = extra_file.reads;
-            draw_storage_variants(&theme, list, count, true);
+            draw_storage_variants(&theme, list, count);
             CHECK_EQUAL(reads, extra_file.reads);
             font_pack_hold(FONT_PACK_HOLD_NONE);
         }
@@ -1574,7 +1572,7 @@ static void han_text(const char *english, char *text, size_t capacity)
     text[length] = '\0';
 }
 
-static void a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_held_glyphs(void)
+static void a_chinese_menu_at_the_largest_text_size_draws_storage_pages_from_held_glyphs(void)
 {
     static uint8_t pack[TEST_PACK_CAPACITY];
     uint32_t size = test_pack_build(pack, (TestPackLanguage){"zh-CN", "Chinese", han_text});
@@ -1585,13 +1583,12 @@ static void a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_he
     CHECK(theme.fonts.title == &FONT_INTER_SEMIBOLD_26);
     extra_font_hold_for_usb(&theme);
     uint32_t held_bytes = font_pack_held_bytes();
-    printf("  Chinese USB text held at the largest size: %u of %u bytes\n", (unsigned)held_bytes,
-           (unsigned)HELD_REGION_BYTES);
-    CHECK(held_bytes > 0 && held_bytes <= HELD_REGION_BYTES);
+    printf("  Chinese USB text held at the largest size: %u bytes\n", (unsigned)held_bytes);
+    CHECK(held_bytes > 0 && held_bytes <= SIM_GLYPHS_CACHE_BYTES);
     uint32_t reads = extra_file.reads;
     Variant list[VARIANTS];
     int count = variants(list);
-    draw_storage_variants(&theme, list, count, false);
+    draw_storage_variants(&theme, list, count);
     CHECK_EQUAL(reads, extra_file.reads);
     font_pack_hold(FONT_PACK_HOLD_NONE);
     font_pack_detach_extra();
@@ -1624,7 +1621,7 @@ int main(void)
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
 #ifdef ECHO_TEST_GLYPHS
         TEST_CASE(storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared),
-        TEST_CASE(a_chinese_menu_at_the_largest_text_size_draws_every_overview_from_held_glyphs),
+        TEST_CASE(a_chinese_menu_at_the_largest_text_size_draws_storage_pages_from_held_glyphs),
         TEST_CASE(the_translated_usb_titles_fit_the_portrait_header_with_the_mark),
 #endif
         TEST_CASE(the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts),

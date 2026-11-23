@@ -220,6 +220,8 @@ static void close_log(const ListeningScreen *screen)
 
 static void compute(const ListeningScreen *screen)
 {
+    work->log.root = screen->store->log.root;
+    work->log.needs_reload = screen->store->log.needs_reload;
     bool opened = open_log(screen);
     uint32_t started_ms = hal_clock_milliseconds();
     for (int step = 0; step < STEPS && work->job.result == STORE_WORKING &&

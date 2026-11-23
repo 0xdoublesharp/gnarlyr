@@ -10,6 +10,7 @@ typedef struct PlayerStorage {
     PathFile order_file;
     SessionJournal journal;
     TrackOrder order;
+    bool write_blocked;
 } PlayerStorage;
 
 extern const char PLAYER_SESSION_PATH[];

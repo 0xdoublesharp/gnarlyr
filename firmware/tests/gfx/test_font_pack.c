@@ -131,6 +131,34 @@ static void a_second_lookup_reads_nothing(void)
     CHECK_EQUAL(reads, pack.reads);
 }
 
+static void a_repeated_row_can_use_every_cache_slot(void)
+{
+    build_pack();
+    uint32_t count = font_pack_attach(READER, memory, sizeof memory);
+    for (uint32_t index = 0; index < count; index++) {
+        CHECK(font_pack_find(0, codepoint_of(index)) != NULL);
+    }
+    uint32_t reads = pack.reads;
+    for (uint32_t index = 0; index < count; index++) {
+        CHECK(font_pack_find(0, codepoint_of(index)) != NULL);
+    }
+    CHECK_EQUAL(reads, pack.reads);
+}
+
+static void a_recent_glyph_survives_a_full_cache(void)
+{
+    build_pack();
+    uint32_t count = font_pack_attach(READER, memory, sizeof memory);
+    for (uint32_t index = 0; index < count; index++) {
+        CHECK(font_pack_find(0, codepoint_of(index)) != NULL);
+    }
+    CHECK(font_pack_find(0, codepoint_of(0)) != NULL);
+    CHECK(font_pack_find(0, codepoint_of(count)) != NULL);
+    uint32_t reads = pack.reads;
+    CHECK(font_pack_find(0, codepoint_of(0)) != NULL);
+    CHECK_EQUAL(reads, pack.reads);
+}
+
 static void the_header_is_read_once(void)
 {
     attach();
@@ -323,14 +351,12 @@ static void too_little_memory_keeps_packs_off(void)
     CHECK(font_pack_find(0, codepoint_of(0)) == NULL);
 }
 
-static void the_memory_holds_whole_sets_of_slots(void)
+static void the_cache_holds_a_power_of_two_slots(void)
 {
     build_pack();
     uint32_t slots = font_pack_attach(READER, memory, sizeof memory);
-    CHECK(slots >= FONT_PACK_WAYS);
-    CHECK_EQUAL(0, slots % FONT_PACK_WAYS);
-    uint32_t sets = slots / FONT_PACK_WAYS;
-    CHECK_EQUAL(0, sets & (sets - 1));
+    CHECK(slots >= FONT_PACK_MIN_SLOTS);
+    CHECK_EQUAL(0, slots & (slots - 1));
 }
 
 static void the_compact_glyph_arena_keeps_the_same_slot_count(void)
@@ -726,6 +752,7 @@ static void the_held_region_fills_to_a_known_count(void)
         }
     }
     CHECK_EQUAL(count * HELD_ENTRY_BYTES, font_pack_held_bytes());
+    CHECK(font_pack_held_bytes() > 32 * 368);
     CHECK(count > 500);
     CHECK(count < 5 * 300);
     CHECK(font_pack_find(EXTRA_FACE, HANGUL) != NULL);
@@ -833,6 +860,8 @@ int main(void)
         TEST_CASE(glyphs_in_later_index_sectors_are_found),
         TEST_CASE(codepoints_outside_the_pack_are_missing),
         TEST_CASE(a_second_lookup_reads_nothing),
+        TEST_CASE(a_repeated_row_can_use_every_cache_slot),
+        TEST_CASE(a_recent_glyph_survives_a_full_cache),
         TEST_CASE(the_header_is_read_once),
         TEST_CASE(a_codepoint_outside_the_face_reads_nothing),
         TEST_CASE(glyphs_on_both_sides_of_a_directory_sector_are_found),
@@ -851,7 +880,7 @@ int main(void)
         TEST_CASE(a_truncated_face_finds_only_what_it_still_holds),
         TEST_CASE(a_failed_read_finds_nothing),
         TEST_CASE(too_little_memory_keeps_packs_off),
-        TEST_CASE(the_memory_holds_whole_sets_of_slots),
+        TEST_CASE(the_cache_holds_a_power_of_two_slots),
         TEST_CASE(the_compact_glyph_arena_keeps_the_same_slot_count),
         TEST_CASE(a_font_falls_back_to_its_pack),
         TEST_CASE(a_character_in_neither_falls_back_to_the_question_mark),

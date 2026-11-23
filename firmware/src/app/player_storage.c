@@ -27,7 +27,8 @@ StoreLoad player_storage_load(PlayerStorage *storage, uint32_t fingerprint, uint
 
 StoreResult player_storage_save(PlayerStorage *storage, uint32_t limit, const SessionState *state)
 {
-    if (!path_file_prepare(&storage->session_file, SESSION_RESERVED_BYTES)) {
+    if (storage->write_blocked ||
+        !path_file_prepare(&storage->session_file, SESSION_RESERVED_BYTES)) {
         return STORE_FAILED;
     }
     if (storage->journal.config.file.source.read == NULL || storage->journal.needs_reload ||
@@ -46,7 +47,8 @@ StoreLoad player_storage_order(PlayerStorage *storage, TrackOrder *order,
                                const uint32_t *generation)
 {
     bool ready = generation == NULL
-                     ? path_file_prepare(&storage->order_file, TRACK_ORDER_FILE_BYTES)
+                     ? !storage->write_blocked &&
+                           path_file_prepare(&storage->order_file, TRACK_ORDER_FILE_BYTES)
                      : path_file_find(&storage->order_file);
     if (!ready || storage->order_file.size < TRACK_ORDER_FILE_BYTES) {
         return STORE_UNREADABLE;

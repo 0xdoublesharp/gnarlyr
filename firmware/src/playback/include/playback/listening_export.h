@@ -39,6 +39,7 @@ typedef struct ListeningExport {
     uint16_t exported;
     uint16_t unknown;
     uint16_t dropped;
+    uint16_t measured_damaged;
     uint8_t stage;
     StoreResult result;
     uint8_t block[STORE_BLOCK_BYTES];

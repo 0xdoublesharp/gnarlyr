@@ -415,7 +415,7 @@ static void a_saved_recap_is_used_until_a_play_changes_the_log(void)
     CHECK(!listening_recap_load(&file, &log_file, LISTENING_THIS_MONTH, &loaded));
 }
 
-static void a_damaged_or_older_cache_block_is_not_used(void)
+static void a_recap_restarts_when_a_play_changes_the_log_between_passes(void)
 {
     reset();
     add_on(0, day_of(2026, 11, 2), NOON);
@@ -432,8 +432,12 @@ static void a_damaged_or_older_cache_block_is_not_used(void)
     for (int step = 0; step < STEP_LIMIT && job.result == STORE_WORKING; step++) {
         listening_recap_step(&job);
     }
+    CHECK_EQUAL(STORE_DONE, job.result);
+    CHECK_EQUAL(2, job.recap.totals.plays);
     CHECK(listening_recap_save(&file, LISTENING_THIS_YEAR, &job));
-    CHECK(!listening_recap_load(&file, &log_file, LISTENING_THIS_YEAR, &loaded));
+    CHECK(listening_recap_load(&file, &log_file, LISTENING_THIS_YEAR, &loaded));
+    ListeningRecap fresh = *run(LISTENING_THIS_YEAR, now);
+    check_same(&fresh, &loaded);
 }
 
 static void an_unreadable_log_fails_the_recap(void)
@@ -526,7 +530,7 @@ int main(void)
         TEST_CASE(new_artists_are_those_first_heard_in_the_period),
         TEST_CASE(a_small_table_gives_the_same_recap),
         TEST_CASE(a_saved_recap_is_used_until_a_play_changes_the_log),
-        TEST_CASE(a_damaged_or_older_cache_block_is_not_used),
+        TEST_CASE(a_recap_restarts_when_a_play_changes_the_log_between_passes),
         TEST_CASE(an_unreadable_log_fails_the_recap),
         TEST_CASE(a_full_ring_recap_is_measured_and_cached),
     };

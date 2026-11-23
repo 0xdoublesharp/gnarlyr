@@ -162,6 +162,7 @@ CORE_SEAM void settings_store_read(SettingsStore *store)
 CORE_SEAM bool player_restore(Player *player, bool cold_start)
 {
     const TrialBootModuleEntry *entry = boot_module();
+    player->storage.write_blocked = entry == NULL;
     return entry != NULL && entry->player_restore(player, cold_start);
 }
 

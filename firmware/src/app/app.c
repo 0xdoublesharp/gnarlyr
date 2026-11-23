@@ -171,9 +171,8 @@ typedef struct AppState {
     bool render_urgent;
     bool render_wanted;
     bool view_stamp_known;
-    bool view_time_only;
     uint32_t view_stamp;
-    uint32_t view_rest;
+    uint32_t view_position;
     uint32_t view_checked_ms;
     uint32_t marquee_due_ms;
     Rect bands[MARQUEE_BAND_COUNT];
@@ -1902,11 +1901,9 @@ void app_reset_for_test(void)
     app = (AppState){0};
 }
 
-void app_hold_usb_glyphs(bool hold)
+void app_release_usb_glyphs(void)
 {
-    if (hold) {
-        extra_font_hold_for_usb(board_theme());
-    } else if (!hal_system_restart_pending()) {
+    if (!hal_system_restart_pending()) {
         font_pack_hold(FONT_PACK_HOLD_NONE);
     }
 }
@@ -2355,7 +2352,7 @@ static uint32_t stamp_add(uint32_t stamp, uint32_t value)
     return hash_update(stamp, &value, sizeof value);
 }
 
-static uint32_t view_stamp(uint32_t *rest)
+static uint32_t view_stamp(uint32_t *position)
 {
     PlayerStatus status = player_status(&app.player);
     HalBattery battery = hal_power_battery();
@@ -2390,25 +2387,37 @@ static uint32_t view_stamp(uint32_t *rest)
         (uint32_t)now_playing->feedback << 3 | (uint32_t)(since < NOW_PLAYING_BADGE_MS) << 2 |
             (uint32_t)(since < NOW_PLAYING_VOLUME_FEEDBACK_MS) << 1 |
             (!deadline_elapsed(app.now_ms, now_playing->repeat_feedback_ms, NOW_PLAYING_BADGE_MS)));
-    *rest = stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
-    return stamp_add(*rest, status.position_ms / VIEW_STAMP_POSITION_MS);
+    *position = status.position_ms / VIEW_STAMP_POSITION_MS;
+    return stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
 }
 
-static bool view_changed(uint32_t now_ms)
+typedef enum ViewChange {
+    VIEW_STILL,
+    VIEW_TIME,
+    VIEW_FULL
+} ViewChange;
+
+static ViewChange view_changed(uint32_t now_ms)
 {
     if (app.view_stamp_known &&
         !deadline_elapsed(now_ms, app.view_checked_ms, VIEW_STAMP_CHECK_MS)) {
-        return false;
+        return VIEW_STILL;
     }
-    uint32_t rest;
-    uint32_t stamp = view_stamp(&rest);
-    bool changed = app.view_stamp_known && stamp != app.view_stamp;
-    app.view_time_only = changed && rest == app.view_rest;
-    app.view_rest = rest;
+    uint32_t position;
+    uint32_t stamp = view_stamp(&position);
+    ViewChange change = VIEW_STILL;
+    if (app.view_stamp_known) {
+        if (stamp != app.view_stamp) {
+            change = VIEW_FULL;
+        } else if (position != app.view_position && app.bands[MARQUEE_BAND_TIME].height > 0) {
+            change = VIEW_TIME;
+        }
+    }
+    app.view_position = position;
     app.view_stamp_known = true;
     app.view_stamp = stamp;
     app.view_checked_ms = now_ms;
-    return changed;
+    return change;
 }
 
 CORE_SEAM void app_step(void)
@@ -2589,9 +2598,7 @@ static void follow_marquees(uint32_t now_ms)
 
 static uint8_t bands_for(bool stepped, bool timed)
 {
-    bool text = app.bands[MARQUEE_BAND_TEXT].height > 0;
-    bool time = app.bands[MARQUEE_BAND_TIME].height > 0;
-    if ((stepped && !text) || (timed && !time)) {
+    if (stepped && app.bands[MARQUEE_BAND_TEXT].height <= 0) {
         return 0;
     }
     return (uint8_t)(stepped << MARQUEE_BAND_TEXT | timed << MARQUEE_BAND_TIME |
@@ -2606,12 +2613,12 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     if (app.screens.now_playing.scrub.active) {
         app.pacer.fast_frames = 0;
     }
-    bool changed = view_changed(now_ms);
+    ViewChange change = view_changed(now_ms);
     bool stepped = marquee_step_reached(now_ms);
     bool urgent = app.render_urgent || app.light_after_frame || fade_running() || slide_running();
     bool quiet = !app.render_wanted && !urgent && app.pacer.fast_frames == 0;
-    uint8_t mask = quiet && (!changed || app.view_time_only) ? bands_for(stepped, changed) : 0;
-    app.render_wanted |= changed || stepped;
+    uint8_t mask = quiet && change != VIEW_FULL ? bands_for(stepped, change == VIEW_TIME) : 0;
+    app.render_wanted |= change != VIEW_STILL || stepped;
     if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
         return;
     }

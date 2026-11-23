@@ -198,6 +198,27 @@ static void a_damaged_record_is_left_out_of_the_export(void)
     CHECK_EQUAL(1, job.cursor.damaged);
 }
 
+static void a_changed_log_must_be_measured_again_before_writing(void)
+{
+    reset();
+    add_three_plays();
+    uint32_t bytes = measure(listening_fixture_lookup());
+    add(listening_fixture_dated(0, MONDAY + 2, 0));
+    CHECK(!listening_export_write(&job, listening_disk_file(&target, bytes)));
+    CHECK_EQUAL(0, target.writes);
+}
+
+static void a_clear_during_writing_invalidates_the_export(void)
+{
+    reset();
+    add_three_plays();
+    uint32_t bytes = measure(listening_fixture_lookup());
+    CHECK(listening_export_write(&job, listening_disk_file(&target, bytes)));
+    CHECK_EQUAL(STORE_WORKING, listening_export_step(&job));
+    CHECK_EQUAL(STORE_DONE, listening_log_clear(&log_file));
+    CHECK_EQUAL(STORE_FAILED, listening_export_step(&job));
+}
+
 static bool long_text(void *context, const ListeningTrack *track, ListeningText *text)
 {
     (void)context;
@@ -317,6 +338,8 @@ int main(void)
         TEST_CASE(the_oldest_plays_are_left_out_of_a_file_that_is_too_small),
         TEST_CASE(a_play_of_a_track_the_lookup_does_not_know_is_left_out),
         TEST_CASE(a_damaged_record_is_left_out_of_the_export),
+        TEST_CASE(a_changed_log_must_be_measured_again_before_writing),
+        TEST_CASE(a_clear_during_writing_invalidates_the_export),
         TEST_CASE(a_tag_that_fills_its_buffer_is_cut_at_a_whole_character),
         TEST_CASE(every_step_reads_the_plays_of_one_sector),
         TEST_CASE(a_failed_write_fails_the_export),

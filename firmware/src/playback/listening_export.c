@@ -157,7 +157,8 @@ bool listening_export_write(ListeningExport *job, StoreFile file)
 {
     Sink sink = {.job = job, .store = true};
     if (job->result != STORE_DONE || job->stage != STAGE_MEASURE || file.write == NULL ||
-        file.size < sizeof HEADER - 1) {
+        file.size < sizeof HEADER - 1 || job->cursor.log->needs_reload ||
+        !listening_cursor_current(&job->cursor)) {
         return false;
     }
     job->file = file;
@@ -165,6 +166,7 @@ bool listening_export_write(ListeningExport *job, StoreFile file)
     job->unknown = 0;
     job->stage = STAGE_WRITE;
     job->result = STORE_WORKING;
+    job->measured_damaged = job->cursor.damaged;
     listening_cursor_rewind(&job->cursor);
     for (size_t index = 0; index + 1 < sizeof HEADER; index++) {
         put(&sink, HEADER[index]);
@@ -177,6 +179,9 @@ CORE_SEAM StoreResult listening_export_step(ListeningExport *job)
     if (job->result != STORE_WORKING) {
         return job->result;
     }
+    if (job->cursor.log->needs_reload || !listening_cursor_current(&job->cursor)) {
+        return job->result = STORE_FAILED;
+    }
     if (job->stage == STAGE_PAD) {
         job->result = pad(job);
         return job->result;
@@ -186,6 +191,9 @@ CORE_SEAM StoreResult listening_export_step(ListeningExport *job)
         return job->result;
     }
     if (result == STORE_DONE && job->stage == STAGE_WRITE) {
+        if (job->cursor.damaged != job->measured_damaged) {
+            return job->result = STORE_FAILED;
+        }
         job->stage = STAGE_PAD;
         job->text_end = job->offset + job->fill;
         result = STORE_WORKING;

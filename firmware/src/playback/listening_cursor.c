@@ -51,8 +51,14 @@ bool listening_play_listened(const ListeningPlay *play)
 
 void listening_cursor_begin(ListeningCursor *cursor, const ListeningLog *log, uint8_t run)
 {
-    *cursor = (ListeningCursor){
-        .file = &log->file, .next = log->root.next, .kept = log->root.kept, .run = run};
+    *cursor =
+        (ListeningCursor){.log = log, .next = log->root.next, .kept = log->root.kept, .run = run};
+}
+
+bool listening_cursor_current(const ListeningCursor *cursor)
+{
+    const ListeningRoot *root = &cursor->log->root;
+    return cursor->next == root->next && cursor->kept == root->kept;
 }
 
 void listening_cursor_rewind(ListeningCursor *cursor)
@@ -84,7 +90,7 @@ StoreResult listening_cursor_step(ListeningCursor *cursor, ListeningVisitor visi
     }
     uint32_t sequence = sequence_at(cursor, cursor->position);
     uint16_t count = run_length(cursor);
-    if (count == 0 || !store_file_read(cursor->file, listening_record_offset(sequence), block,
+    if (count == 0 || !store_file_read(&cursor->log->file, listening_record_offset(sequence), block,
                                        (uint32_t)count * LISTENING_RECORD_BYTES)) {
         return STORE_FAILED;
     }
@@ -106,6 +112,7 @@ bool listening_cursor_fetch(const ListeningCursor *cursor, uint16_t position,
     uint8_t bytes[LISTENING_RECORD_BYTES];
     uint32_t sequence = sequence_at(cursor, position);
     return position < cursor->kept &&
-           store_file_read(cursor->file, listening_record_offset(sequence), bytes, sizeof bytes) &&
+           store_file_read(&cursor->log->file, listening_record_offset(sequence), bytes,
+                           sizeof bytes) &&
            decode_record(bytes, record) && record->sequence == sequence;
 }

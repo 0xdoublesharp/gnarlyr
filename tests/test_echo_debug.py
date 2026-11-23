@@ -2,10 +2,12 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
@@ -95,6 +97,16 @@ class FakeHost:
 
     def eject(self, mount_point):
         self.ejected.append(str(mount_point))
+
+
+class MacHostTests(unittest.TestCase):
+    def test_usb_discovery_reports_a_stalled_profiler(self):
+        expired = subprocess.TimeoutExpired(["system_profiler"], 12)
+        with patch.object(echo_debug.subprocess, "run", side_effect=expired) as run:
+            with self.assertRaises(echo_debug.DebugError) as raised:
+                echo_debug.MacHost().usb_tree()
+        self.assertEqual(raised.exception.code, "usb_listing_timeout")
+        self.assertGreater(run.call_args.kwargs["timeout"], 0)
 
 
 def medium(name, volume_name, mount_point, size=3 * GIB + 512):

@@ -912,6 +912,20 @@ static void play_first_album_track(void)
     tap(KEY_PLAY);
 }
 
+static void a_list_does_not_redraw_when_only_the_playback_second_changes(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_BACK);
+    CHECK(!title_is("Now Playing"));
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    int presents = presents_once_the_screen_rests();
+    fake_hal_audio_set_position(FRAME_PACER_REST_MS);
+    wait_ms(FRAME_PACER_IDLE_MS);
+    CHECK_EQUAL(FRAME_PACER_REST_MS, app_player_status().position_ms);
+    CHECK_EQUAL(presents, fake_hal_present_count());
+}
+
 static void holding_menu_on_a_browse_list_opens_its_view_options(void)
 {
     start_app_with_library();
@@ -9020,6 +9034,7 @@ int main(void)
         TEST_CASE(a_notice_turns_the_display_on),
         TEST_CASE(waking_keeps_the_screen_on_for_a_full_timeout),
         TEST_CASE(a_step_writes_one_full_frame_and_presents_it),
+        TEST_CASE(a_list_does_not_redraw_when_only_the_playback_second_changes),
         TEST_CASE(audio_gets_a_turn_after_every_strip),
         TEST_CASE(bluetooth_gets_a_turn_after_every_strip),
         TEST_CASE(an_unchanged_frame_sends_no_pixels),

@@ -178,6 +178,37 @@ class EchoImageTest(EchoImageHarness):
                          "firmware reached hal_power_off")
         self.assertEqual(saved_settings(), session.fat().read(image_tests.SETTINGS_PATH))
 
+    def test_without_an_intact_start_module_playback_cannot_replace_the_saved_session(self):
+        from echo_emulator.playback import Rig
+        volume = self.profile_volume()
+        volume.add_file("One.wav", self.tagged_wav("One", "Album", 44100, 40, 12000))
+        volume.add_file("Two.wav", self.tagged_wav("Two", "Album", 44100, 600, 12000))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(1500)
+        rig.press("play")
+        path = "/" + image_tests.IDENTITY.data_directory + "/session.bin"
+        saved = rig.session.fat().read(path)
+        self.assertTrue(saved and saved[:4] == b"DSSJ")
+
+        session = rig.session.reboot()
+        for slot in ("slot_1", "slot_2"):
+            session.change_module(slot, START_MODULE, 600, lambda byte: byte ^ 0xFF)
+        machine = session.machine
+        self.started(session)
+        rig.session, rig.machine = session, machine
+        rig.open_songs()
+        rig.play_song(2)
+        rig.run_for(1500)
+        rig.press("play")
+        self.assert_healthy(session)
+        self.hold_power(machine)
+        self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
+                         "firmware reached hal_power_off")
+        self.assertEqual(saved, session.fat().read(path))
+
     def test_without_an_intact_start_module_the_dac_menu_keeps_the_ceiling_after_settings(self):
         session = self.session(volume=self.profile_volume(), usb_answer=None)
         for slot in ("slot_1", "slot_2"):

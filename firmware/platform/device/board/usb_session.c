@@ -15,6 +15,7 @@
 #include "device/usb_leave.h"
 #include "device/volume_space.h"
 #include "emmc.h"
+#include "extra_font.h"
 #include "hal/clock.h"
 #include "hal/input.h"
 #include "hal/system.h"
@@ -822,6 +823,7 @@ static bool left_early(UsbSessionEnd end)
 CORE_SEAM bool usb_storage_session(UsbShared *state)
 {
     shared = state;
+    extra_font_hold_for_usb(app_theme());
     UsbSessionEnd end = run();
     if (left_early(end)) {
         bool stopped = end == USB_SESSION_STOPPED;

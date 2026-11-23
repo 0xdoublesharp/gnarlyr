@@ -175,6 +175,9 @@ static StoreResult step_group(ListeningRecapJob *job)
     if (result != STORE_DONE) {
         return result;
     }
+    if (job->top.cursor.damaged != job->cursor.damaged) {
+        return STORE_FAILED;
+    }
     keep_group(job);
     job->stage++;
     if (job->stage == STAGE_DONE) {
@@ -186,9 +189,16 @@ static StoreResult step_group(ListeningRecapJob *job)
 
 StoreResult listening_recap_step(ListeningRecapJob *job)
 {
-    if (job->result == STORE_WORKING) {
-        job->result = job->stage == STAGE_SUMMARY ? step_summary(job) : step_group(job);
+    if (job->result != STORE_WORKING) {
+        return job->result;
     }
+    if (job->log->needs_reload) {
+        return job->result = STORE_FAILED;
+    }
+    if (!listening_cursor_current(&job->cursor)) {
+        listening_recap_begin(job, job->log, job->recap.span, job->scratch);
+    }
+    job->result = job->stage == STAGE_SUMMARY ? step_summary(job) : step_group(job);
     return job->result;
 }
 
@@ -216,9 +226,9 @@ bool listening_recap_load(const StoreFile *file, const ListeningLog *log, Listen
     uint8_t block[STORE_BLOCK_BYTES];
     StoreHeader header;
     StoreSlot slot = slot_of(file, period);
-    if (store_load(&slot, block, &header) != STORE_READY || header.bytes != RECAP_BYTES ||
-        header.binding != RECAP_BYTES || header.generation != log->root.next ||
-        header.count != log->root.kept) {
+    if (log->needs_reload || store_load(&slot, block, &header) != STORE_READY ||
+        header.bytes != RECAP_BYTES || header.binding != RECAP_BYTES ||
+        header.generation != log->root.next || header.count != log->root.kept) {
         return false;
     }
     ListeningRecap found;
@@ -233,6 +243,10 @@ bool listening_recap_load(const StoreFile *file, const ListeningLog *log, Listen
 bool listening_recap_save(const StoreFile *file, ListeningPeriod period,
                           const ListeningRecapJob *job)
 {
+    if (job->result != STORE_DONE || job->log->needs_reload ||
+        !listening_cursor_current(&job->cursor)) {
+        return false;
+    }
     uint8_t block[STORE_BLOCK_BYTES] = {0};
     copy_bytes(block + STORE_FIELD_BYTES, (const uint8_t *)&job->recap, RECAP_BYTES);
     StoreHeader header = {.generation = job->cursor.next,

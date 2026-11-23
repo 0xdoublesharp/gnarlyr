@@ -161,10 +161,10 @@ static void a_restart_pending_after_usb_keeps_the_held_glyphs(void)
     CHECK(font_pack_find(EXTRA_FACE, HANGUL + 7) != NULL);
     font_pack_hold(FONT_PACK_HOLD_FREEZE);
     fake_hal_set_restart_pending(true);
-    app_hold_usb_glyphs(false);
+    app_release_usb_glyphs();
     CHECK(font_pack_find(EXTRA_FACE, HANGUL + 7) != NULL);
     fake_hal_set_restart_pending(false);
-    app_hold_usb_glyphs(false);
+    app_release_usb_glyphs();
     CHECK_EQUAL(0, font_pack_held_bytes());
 }
 

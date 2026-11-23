@@ -107,7 +107,7 @@ static bool settle(UsbShared *shared)
 {
     bool rolled_back = (shared->trial.settle & USB_SETTLE_ROLLED_BACK) != 0;
     bool settled = user_state_module_settle(shared);
-    FatVolume *volume = rolled_back ? internal_volume_mount() : NULL;
+    FatVolume *volume = rolled_back && settled ? internal_volume_mount() : NULL;
     if (volume != NULL && record_read(volume).state == UPDATE_TRIAL_ROLLED_BACK) {
         fat_delete(volume, UPDATE_TRIAL_PATH);
     }

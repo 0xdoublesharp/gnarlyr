@@ -6,13 +6,12 @@ Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-s
 
 These apply to 1.0.0-beta.1, the public beta. It is the `device` build, which writes debug reports.
 
-- **macOS System Information can hang.** With the player connected, System Information (`system_profiler`) can stop responding. Finder, copying and ejecting are not affected.
+- **macOS System Information can hang.** With the player connected, System Information (`system_profiler`) can stop responding. Finder, copying and ejecting are not affected. The `echo_debug.py` USB discovery command times out after 12 seconds.
 - **Copy speed is still being improved.** On the developer's player, copies run at about 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
 - **Battery life hasn't been measured.**
 - **Two safety nets haven't been tried on a player since their latest fixes:** entering recovery mode by holding Power and Vol+ with the cable in a computer, and the automatic rollback of an update that doesn't start properly. The paperclip route to recovery mode ([`device-recovery.md`](device-recovery.md)) has been used on the player.
 - **Settings reset once if you come from a Gnarlyr development build.** Their files changed format, so the beta starts from defaults; the library is rebuilt.
 - **Some playback has had little listening on a player:** Ogg, Opus, APE, WMA and DSD files, and Bluetooth headphones.
-- **Lists redraw once a second during playback.** Screens without a playback time, such as lists and Settings, still redraw the whole screen at each playback second; beta.2 moves that redraw onto the scrolling-text step.
 
 ### Reporting a problem
 
@@ -82,7 +81,7 @@ Also unchecked on a player by this project: confirming a trial after a session w
 - **A trial build that can't use internal storage at its start** can't count or roll back; maskrom is the way back.
 - **A trial update dated before slot 2's build** may never run if the boot ROM prefers the newer slot; the backup build then counts the starts and rolls the update back.
 - **Audio module damaged in both slots.** Lower-rate conversion and M4A demuxing require this module. If both copies fail validation, those tracks are refused; native-rate FLAC, MP3 and WAV remain available. A healthy copy in either slot is enough.
-- **Module 15 damaged in both slots.** The headphone profile loader lives in module 15, so with no intact copy the player applies a zero volume ceiling to the wired output and refuses profile edits. Settings decoding lives there too, so the player starts with the default settings and saves no setting, which leaves `settings.bin` and `buttons.bin` as they were. Trials are neither counted nor rolled back. An update copied over USB still installs, because the install lives in the USB overlay; it is the way out. Checked in the emulator only.
+- **Module 15 damaged in both slots.** The headphone profile loader lives in module 15, so with no intact copy the player applies a zero volume ceiling to the wired output and refuses profile edits. Settings decoding and resume also live there. The player uses default settings and starts without a resume point, preserving `settings.bin`, `buttons.bin`, `session.bin`, and `order.bin`. Trials are neither counted nor rolled back. An update copied over USB still installs, because the install lives in the USB overlay; it is the way out. Checked in the emulator only.
 - **USB code damaged in both slots.** The USB overlay is stored in both firmware slots. If it were damaged in both while the main code stayed intact, USB storage would be unavailable ("USB missing: reinstall update") and recovery would be through maskrom only.
 - **Language packs must fit the 18 KiB language window.** A pack's resident block plus its largest module segment must fit; the file itself may be larger. The glyph cache keeps 64 packed glyphs; built-in ASCII bypasses it. Additional script coverage still depends on the selected fonts.
 

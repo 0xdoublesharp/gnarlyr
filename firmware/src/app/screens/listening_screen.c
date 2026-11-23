@@ -399,8 +399,18 @@ static void start_export_write(void)
 
 static void advance_export(void)
 {
-    StoreResult result = listening_export_step(&work->export_job);
+    ListeningExport *job = &work->export_job;
     bool writing = work->export_stage == EXPORT_WRITE;
+    if (!listening_cursor_current(&job->cursor)) {
+        if (writing && !hal_file_remove(LISTENING_EXPORT_PATH)) {
+            fail_export(STR_EXPORT_WRITE_FAILED);
+            return;
+        }
+        listening_export_begin(job, job->cursor.log, job->lookup);
+        work->export_stage = EXPORT_MEASURE;
+        return;
+    }
+    StoreResult result = listening_export_step(job);
     if (result == STORE_WORKING) {
         return;
     }

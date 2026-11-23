@@ -73,6 +73,7 @@ SCREENSHOT_MAGIC = b"DSSH"
 SCREENSHOT_SIDE = 480
 DEFAULT_TIMEOUT = 420.0
 LEAVE_TIMEOUT = 60.0
+USB_LISTING_TIMEOUT = 12.0
 POLL_SECONDS = 0.5
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 REPORT_SCHEMA = 1
@@ -125,8 +126,11 @@ class MacHost:
     """What the tool needs from macOS: the USB device tree and ejecting a mounted drive."""
 
     def usb_tree(self):
-        result = subprocess.run(["system_profiler", "SPUSBDataType", "-json"], check=False,
-                                capture_output=True, text=True)
+        try:
+            result = subprocess.run(["system_profiler", "SPUSBDataType", "-json"], check=False,
+                                    capture_output=True, text=True, timeout=USB_LISTING_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            raise DebugError("usb_listing_timeout", "System Information did not return the USB list") from None
         if result.returncode != 0:
             raise DebugError("usb_listing_failed", result.stderr.strip() or "system_profiler failed")
         return json.loads(result.stdout)

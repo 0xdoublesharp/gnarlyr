@@ -29,6 +29,7 @@ typedef struct PackFace {
 typedef struct PackSlot {
     uint32_t key;
     bool present;
+    bool recent;
     Glyph glyph;
     uint8_t bitmap[FONT_PACK_MAX_BITMAP];
 } PackSlot;
@@ -39,6 +40,8 @@ _Static_assert(offsetof(PackSlot, bitmap) == offsetof(PackSlot, glyph) + sizeof(
 typedef struct PackState {
     PackFace faces[FONT_PACK_FACES];
     uint8_t sector[FONT_PACK_SECTOR_BYTES];
+    uint32_t used;
+    uint32_t victim;
 } PackState;
 
 typedef struct ExtraSource {
@@ -53,26 +56,30 @@ static FontPackReader pack_reader;
 static ExtraSource extra_source;
 static PackState *state;
 static PackSlot *slots;
+static uint32_t *keys;
 static uint32_t slot_count;
-static uint32_t victim;
+static size_t cache_bytes;
 static FontPackHold hold;
 static uint32_t held_bytes;
 
 uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
 {
     font_pack_detach();
-    size_t set_bytes = FONT_PACK_WAYS * sizeof(PackSlot);
-    if (reader.read == NULL || memory == NULL || bytes < sizeof(PackState) + set_bytes) {
+    size_t slot_bytes = sizeof(PackSlot) + sizeof(*keys);
+    if (reader.read == NULL || memory == NULL ||
+        bytes < sizeof(PackState) + FONT_PACK_MIN_SLOTS * slot_bytes) {
         return 0;
     }
-    uint32_t sets = 1;
-    while ((size_t)sets * 2 * set_bytes <= bytes - sizeof(PackState)) {
-        sets *= 2;
+    uint32_t count = FONT_PACK_MIN_SLOTS;
+    while ((size_t)count * 2 * slot_bytes <= bytes - sizeof(PackState)) {
+        count *= 2;
     }
     pack_reader = reader;
     state = memory;
     slots = (PackSlot *)(state + 1);
-    slot_count = sets * FONT_PACK_WAYS;
+    slot_count = count;
+    keys = (uint32_t *)(slots + count);
+    cache_bytes = bytes - sizeof(PackState);
     font_pack_hold(FONT_PACK_HOLD_NONE);
     return slot_count;
 }
@@ -96,6 +103,8 @@ void font_pack_forget(void)
     for (uint32_t index = 0; index < slot_count; index++) {
         slots[index].key = 0;
     }
+    state->used = 0;
+    state->victim = 0;
 }
 
 CORE_SEAM void font_pack_hold(FontPackHold next)
@@ -343,9 +352,23 @@ static bool load_glyph(uint32_t index, const PackFace *face, uint32_t codepoint,
            (bytes == 0 || read_face(index, offset, slot->bitmap, bytes));
 }
 
-static uint32_t set_of(uint32_t key)
+static uint32_t next_slot(uint32_t index)
 {
-    return (key * 2654435761u >> 16) & (slot_count / FONT_PACK_WAYS - 1);
+    return (index + 1) & (slot_count - 1);
+}
+
+static uint32_t replacement_slot(void)
+{
+    if (state->used < slot_count) {
+        return state->used++;
+    }
+    uint32_t index = state->victim;
+    while (slots[index].recent) {
+        slots[index].recent = false;
+        index = next_slot(index);
+    }
+    state->victim = next_slot(index);
+    return index;
 }
 
 static uint32_t held_entry_bytes(const PackSlot *slot)
@@ -365,7 +388,7 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
         }
     }
     PackSlot *slot = (PackSlot *)(base + held_bytes);
-    if (held_bytes + sizeof(PackSlot) > slot_count * sizeof(PackSlot)) {
+    if (held_bytes + sizeof(PackSlot) > cache_bytes) {
         return NULL;
     }
     slot->present = load_glyph(face, ready, codepoint, slot);
@@ -383,16 +406,19 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
 static const Glyph *find_cached(uint32_t face, const PackFace *ready, uint32_t codepoint)
 {
     uint32_t key = (face + 1) << 16 | codepoint;
-    PackSlot *set = slots + set_of(key) * FONT_PACK_WAYS;
-    for (uint32_t way = 0; way < FONT_PACK_WAYS; way++) {
-        if (set[way].key == key) {
-            return set[way].present ? &set[way].glyph : NULL;
-        }
+    uint32_t index = 0;
+    while (index < state->used && keys[index] != key) {
+        index++;
     }
-    PackSlot *slot = &set[victim++ % FONT_PACK_WAYS];
-    slot->key = 0;
-    slot->present = load_glyph(face, ready, codepoint, slot);
-    slot->key = key;
+    bool hit = index < state->used;
+    if (!hit) {
+        index = replacement_slot();
+        slots[index].present = load_glyph(face, ready, codepoint, &slots[index]);
+        slots[index].key = key;
+        keys[index] = key;
+    }
+    PackSlot *slot = &slots[index];
+    slot->recent = hit;
     return slot->present ? &slot->glyph : NULL;
 }
 
@@ -412,7 +438,8 @@ const uint8_t *font_pack_bitmap(const Glyph *glyph)
 {
     const uint8_t *address = (const uint8_t *)glyph;
     const uint8_t *start = (const uint8_t *)slots;
-    if (slots == NULL || address < start || address >= start + slot_count * sizeof(PackSlot)) {
+    size_t used_bytes = hold == FONT_PACK_HOLD_NONE ? slot_count * sizeof(PackSlot) : held_bytes;
+    if (slots == NULL || address < start || address >= start + used_bytes) {
         return NULL;
     }
     return address + sizeof(Glyph);

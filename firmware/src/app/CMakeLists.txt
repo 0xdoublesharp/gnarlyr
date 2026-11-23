@@ -60,6 +60,7 @@ add_library(echo_app STATIC
     browse_sections.c
     cover_cache.c
     extra_font.c
+    extra_font_usb.c
     cover_cache_half.c
     cover_placeholders.c
     default_theme.c
