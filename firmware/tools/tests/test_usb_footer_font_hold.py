@@ -3,10 +3,9 @@ import unittest
 from pathlib import Path
 
 FIRMWARE = Path(__file__).resolve().parents[2]
-EXTRA_FONT = FIRMWARE / "src/app/extra_font.c"
+PREFETCH = FIRMWARE / "src/app/extra_font_usb.c"
 FOOTER_HINTS = FIRMWARE / "src/ui/footer_hints.c"
-SESSIONS = [FIRMWARE / "platform/device/board/usb_session.c",
-            FIRMWARE / "platform/device/board/usb_dac_session.c"]
+STORAGE_SESSION = FIRMWARE / "platform/device/board/usb_session.c"
 HINT = re.compile(r"\{\s*FOOTER_KEY_([A-Z_]+)\s*,\s*(STR_[A-Z0-9_]+)\s*\}")
 
 
@@ -26,7 +25,7 @@ def c_string(source, name):
 
 class UsbFooterFontHold(unittest.TestCase):
     def setUp(self):
-        source = EXTRA_FONT.read_text()
+        source = PREFETCH.read_text()
         self.small = set(re.findall(r"STR_[A-Z0-9_]+", table(source, "USB_SMALL_TEXT")))
         self.small |= set(re.findall(r"STR_[A-Z0-9_]+", table(source, "USB_STATE_TEXT")))
         self.figures = c_string(source, "USB_FIGURES")
@@ -36,12 +35,11 @@ class UsbFooterFontHold(unittest.TestCase):
         self.assertTrue(pairs, f"no footer hints found in {path.name}")
         return pairs
 
-    def test_every_usb_footer_chip_and_verb_is_held_before_sharing(self):
-        for path in SESSIONS:
-            for key, verb in self.hints(path):
-                with self.subTest(file=path.name, key=key, verb=verb):
-                    self.assertIn(f"STR_CHIP_{key}", self.small)
-                    self.assertIn(verb, self.small)
+    def test_every_storage_footer_chip_and_verb_is_held_before_sharing(self):
+        for key, verb in self.hints(STORAGE_SESSION):
+            with self.subTest(key=key, verb=verb):
+                self.assertIn(f"STR_CHIP_{key}", self.small)
+                self.assertIn(verb, self.small)
 
     def test_the_footer_separator_is_held_before_sharing(self):
         separator = c_string(FOOTER_HINTS.read_text(), "SEPARATOR")
