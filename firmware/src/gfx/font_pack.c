@@ -56,7 +56,7 @@ static FontPackReader pack_reader;
 static ExtraSource extra_source;
 static PackState *state;
 static PackSlot *slots;
-static uint32_t *keys;
+static uint32_t *cache_index;
 static uint32_t slot_count;
 static size_t cache_bytes;
 static FontPackHold hold;
@@ -65,7 +65,7 @@ static uint32_t held_bytes;
 uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
 {
     font_pack_detach();
-    size_t slot_bytes = sizeof(PackSlot) + sizeof(*keys);
+    size_t slot_bytes = sizeof(PackSlot) + 2 * sizeof(*cache_index);
     if (reader.read == NULL || memory == NULL ||
         bytes < sizeof(PackState) + FONT_PACK_MIN_SLOTS * slot_bytes) {
         return 0;
@@ -78,7 +78,7 @@ uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
     state = memory;
     slots = (PackSlot *)(state + 1);
     slot_count = count;
-    keys = (uint32_t *)(slots + count);
+    cache_index = (uint32_t *)(slots + count);
     cache_bytes = bytes - sizeof(PackState);
     font_pack_hold(FONT_PACK_HOLD_NONE);
     return slot_count;
@@ -102,6 +102,9 @@ void font_pack_forget(void)
     }
     for (uint32_t index = 0; index < slot_count; index++) {
         slots[index].key = 0;
+    }
+    for (uint32_t index = 0; index < 2 * slot_count; index++) {
+        cache_index[index] = 0;
     }
     state->used = 0;
     state->victim = 0;
@@ -357,6 +360,29 @@ static uint32_t next_slot(uint32_t index)
     return (index + 1) & (slot_count - 1);
 }
 
+static uint32_t cell_for(uint32_t key)
+{
+    uint32_t mask = 2 * slot_count - 1;
+    uint32_t hash = key * 2654435761u;
+    uint32_t cell = (hash ^ (hash >> 16)) & mask;
+    while (cache_index[cell] != 0 && slots[cache_index[cell] - 1].key != key) {
+        cell = (cell + 1) & mask;
+    }
+    return cell;
+}
+
+static void forget_key(uint32_t key)
+{
+    uint32_t mask = 2 * slot_count - 1;
+    uint32_t cell = cell_for(key);
+    cache_index[cell] = 0;
+    for (cell = (cell + 1) & mask; cache_index[cell] != 0; cell = (cell + 1) & mask) {
+        uint32_t found = cache_index[cell];
+        cache_index[cell] = 0;
+        cache_index[cell_for(slots[found - 1].key)] = found;
+    }
+}
+
 static uint32_t replacement_slot(void)
 {
     if (state->used < slot_count) {
@@ -368,6 +394,7 @@ static uint32_t replacement_slot(void)
         index = next_slot(index);
     }
     state->victim = next_slot(index);
+    forget_key(slots[index].key);
     return index;
 }
 
@@ -406,16 +433,14 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
 static const Glyph *find_cached(uint32_t face, const PackFace *ready, uint32_t codepoint)
 {
     uint32_t key = (face + 1) << 16 | codepoint;
-    uint32_t index = 0;
-    while (index < state->used && keys[index] != key) {
-        index++;
-    }
-    bool hit = index < state->used;
+    uint32_t found = cache_index[cell_for(key)];
+    bool hit = found != 0;
+    uint32_t index = found - 1;
     if (!hit) {
         index = replacement_slot();
         slots[index].present = load_glyph(face, ready, codepoint, &slots[index]);
         slots[index].key = key;
-        keys[index] = key;
+        cache_index[cell_for(key)] = index + 1;
     }
     PackSlot *slot = &slots[index];
     slot->recent = hit;

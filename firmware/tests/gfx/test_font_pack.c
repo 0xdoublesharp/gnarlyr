@@ -156,6 +156,9 @@ static void a_recent_glyph_survives_a_full_cache(void)
     CHECK(font_pack_find(0, codepoint_of(count)) != NULL);
     uint32_t reads = pack.reads;
     CHECK(font_pack_find(0, codepoint_of(0)) != NULL);
+    for (uint32_t index = 2; index <= count; index++) {
+        CHECK(font_pack_find(0, codepoint_of(index)) != NULL);
+    }
     CHECK_EQUAL(reads, pack.reads);
 }
 
