@@ -111,6 +111,8 @@ _Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the 
 _Static_assert(offsetof(AudioEngine, state) == 44, "the emulator follows the engine state");
 _Static_assert((STRETCH_WORDS + BLOCK_WORDS - 1) / BLOCK_WORDS == STRETCH_BLOCKS,
                "the stretched ring keeps its five DMA items");
+_Static_assert(BLOCK_WORDS + RING_BLOCKS - 1 <= DMA_MAX_BLOCK_WORDS,
+               "the final DMA item can hold the remainder");
 _Static_assert((RING_WORDS - STRETCH_WORDS) * sizeof(uint32_t) / AUDIO_TEMPO_FRAME_BYTES >=
                    AUDIO_TEMPO_LARGEST_BUFFER_FRAMES,
                "the ring tail holds the whole tempo window up to 48 kHz");
@@ -360,10 +362,14 @@ void *hal_system_borrow_listing(uint32_t *size)
     return music_ring;
 }
 
+static uint32_t *stream_ring(void)
+{
+    return stream_buffer != NULL ? stream_buffer : music_ring;
+}
+
 static uint32_t ring_address(void)
 {
-    return (uint32_t)(uintptr_t)(stream_service != NULL && stream_buffer != NULL ? stream_buffer
-                                                                                 : music_ring);
+    return (uint32_t)(uintptr_t)(stream_service != NULL ? stream_ring() : music_ring);
 }
 
 static void update_consumed(void)
@@ -451,15 +457,23 @@ CORE_COLD static bool ensure_path(uint32_t rate)
     return true;
 }
 
+static bool start_dma_ring(uint32_t words)
+{
+    uint32_t blocks = (words + BLOCK_WORDS - 1) / BLOCK_WORDS;
+    uint32_t block_words = words / blocks;
+    if (!dma_ring_items(items, blocks, ring_address(), block_words, (uint32_t)(uintptr_t)items)) {
+        return false;
+    }
+    items[blocks - 1].control_high += words - block_words * blocks;
+    return dmac_start_loop(items);
+}
+
 CORE_COLD static bool start_transfer(uint32_t words, bool audible)
 {
     ring_words = words;
     consumed = 0;
     last_position = 0;
-    uint32_t blocks = (words + BLOCK_WORDS - 1) / BLOCK_WORDS;
-    if (!dma_ring_items(items, blocks, ring_address(), words / blocks,
-                        (uint32_t)(uintptr_t)items) ||
-        !dmac_start_loop(&items[0])) {
+    if (!start_dma_ring(words)) {
         return false;
     }
     dac_path_start_transfer();
@@ -1103,22 +1117,26 @@ CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     return ensure_path(rate);
 }
 
+static uint32_t stream_frame_count(void)
+{
+    return stream_buffer == NULL && stream_frames == 0 ? RING_FRAMES : stream_frames;
+}
+
 uint32_t *board_audio_stream_ring(uint32_t *frames)
 {
-    *frames = stream_buffer != NULL ? stream_frames : RING_FRAMES;
-    return stream_buffer != NULL ? stream_buffer : music_ring;
+    *frames = stream_frame_count();
+    return stream_ring();
 }
 
 void board_audio_stream_buffer(uint32_t *buffer, uint32_t frames)
 {
     stream_buffer = buffer;
-    stream_frames = frames;
+    stream_frames = buffer == NULL && frames > RING_FRAMES ? 0 : frames;
 }
 
 bool board_audio_stream_play(void)
 {
-    return start_transfer(stream_buffer != NULL ? stream_frames * WORDS_PER_FRAME : RING_WORDS,
-                          true);
+    return start_transfer(stream_frame_count() * WORDS_PER_FRAME, true);
 }
 
 CORE_COLD void board_audio_stream_pause(void)

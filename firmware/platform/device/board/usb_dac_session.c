@@ -55,19 +55,12 @@ static UsbShared *shared;
 static UsbPort *const port = &usb_session_screen.port;
 static UsbAudio audio;
 static UsbAudioSink sink;
-#ifdef ECHO_DEBUG_LOOP
-#define USB_DAC_RING_FRAMES 2200u
-#else
 #define USB_DAC_RING_FRAMES 3000u
-#endif
 
 _Static_assert(USB_DAC_RING_FRAMES > 192000 / 200 + 192000 / 1000 + 25,
                "the high-speed ring holds priming, a packet and silence");
 _Static_assert(USB_DAC_RING_FRAMES > 48000 / 50 + 48000 / 250 + 49 + 48000 / 50,
                "the full-speed ring holds adaptive drift and silence");
-
-_Static_assert(2 * USB_DAC_RING_FRAMES * sizeof(uint32_t) <= USB_SESSION_BUFFER_BYTES,
-               "the DAC ring fits the idle mass-storage buffer");
 
 static const char CAPTURE_DAC[] = "dac";
 static DacTally tally;
@@ -304,12 +297,18 @@ static Rect info_area(AppUsbStatus status)
     return showing_details() ? usb_screen_content(theme, &layout) : usb_screen_column(&layout);
 }
 
-static void show_state(void)
+static AppUsbStatus prepare_status(void)
 {
     follow_info(hal_clock_milliseconds());
     serve_audio_usb();
     AppUsbStatus status = dac_status();
     serve_audio_usb();
+    return status;
+}
+
+static void show_state(void)
+{
+    AppUsbStatus status = prepare_status();
     if (playing && usb_audio_asynchronous(&audio)) {
         const Theme *theme = app_theme();
         usb_screen_show_in_bands(
@@ -317,6 +316,16 @@ static void show_state(void)
     } else {
         app_show_usb_status(status);
     }
+}
+
+static void show_info(void)
+{
+    if (!playing || !usb_audio_asynchronous(&audio) || menu_open) {
+        show_state();
+        return;
+    }
+    AppUsbStatus status = prepare_status();
+    usb_screen_show_in_bands(status, info_area(status));
 }
 
 static uint8_t follow_levels(uint32_t now_ms)
@@ -346,17 +355,8 @@ static void sample_buffer(void)
     tally.buffer_samples++;
 }
 
-static void step_meter(uint32_t now_ms)
+static void draw_meters(uint8_t changed)
 {
-    if (menu_open || !deadline_elapsed(now_ms, meter_ms, METER_FRAME_MS)) {
-        return;
-    }
-    uint8_t changed = follow_levels(now_ms);
-    meter_ms = now_ms;
-    sample_buffer();
-    if (scene->page != USB_SCENE_OVERVIEW) {
-        return;
-    }
     AppUsbStatus status = dac_status();
     const Theme *theme = app_theme();
     UsbScreenLayout layout = usb_screen_layout(theme, status);
@@ -365,6 +365,19 @@ static void step_meter(uint32_t now_ms)
             usb_screen_show_in_bands(status, usb_screen_meter_bar(theme, &layout, side));
         }
     }
+}
+
+static void step_meter(uint32_t now_ms)
+{
+    if (menu_open || !deadline_elapsed(now_ms, meter_ms, METER_FRAME_MS)) {
+        return;
+    }
+    uint8_t changed = follow_levels(now_ms);
+    sample_buffer();
+    if (scene->page == USB_SCENE_OVERVIEW) {
+        draw_meters(changed);
+    }
+    meter_ms = hal_clock_milliseconds();
 }
 
 static void stop_output(void)
@@ -398,7 +411,7 @@ static void follow_host(void)
     if ((changes & USB_AUDIO_CHANGED_FORMAT) != 0) {
         follow_format();
     } else if (changes != 0) {
-        show_state();
+        show_info();
     }
 }
 
@@ -452,7 +465,7 @@ static void step_volume(int step)
         return;
     }
     set_volume((uint8_t)level);
-    show_state();
+    show_info();
 }
 
 static void set_gain(uint8_t gain)
@@ -587,11 +600,11 @@ static void refresh(uint32_t now_ms, uint32_t *refreshed)
     *refreshed = now_ms;
     uint8_t shown = scene->state;
     follow_info(now_ms);
-    AppUsbStatus status = dac_status();
     if (scene->state != shown) {
-        app_show_usb_status(status);
+        show_state();
         return;
     }
+    AppUsbStatus status = dac_status();
     usb_screen_show_in_bands(status, info_area(status));
 }
 
@@ -617,7 +630,7 @@ static void serve(void)
 
 static void start_session(void)
 {
-    board_audio_stream_buffer(usb_session_buffer(), USB_DAC_RING_FRAMES);
+    board_audio_stream_buffer(NULL, USB_DAC_RING_FRAMES);
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
