@@ -45,6 +45,8 @@ Each check ends in one of these results:
 | `failed` | A property failed that was meant to hold |
 | `unexpected-pass` | A check written to fail passed: either the code changed or the check went vacuous |
 | `error` | The tool did not produce a verdict, or CBMC reached a function with no body |
+| `reproduced`, `not-reproduced` | `--repro`: the counterexample did or did not replay on the real code |
+| `fixed`, `regressed` | `--repro` for an entry marked `"expect": "fixed"`: the finding no longer replays, as intended, or it replays again, which counts as a failure |
 | `timeout` | The check ran out of time |
 
 The exit code is 0 when every check ended as intended, 1 otherwise, and 2 when a tool is missing.
@@ -197,7 +199,7 @@ The opt-in whole-reader harnesses above give no verdict for the ID3v2, FLAC, MP4
 - **Pruning before instrumentation.** Function pointers are resolved to direct calls, the bodies of replaced callees are removed, and unreachable functions are dropped. This keeps DFCC from instrumenting the picture-streaming code that the tag readers never call.
 - **Closure.** `formal.py --closure` and `tests/test_formal.py` check two things:
   - every contract a harness replaces is the target of some other harness (for `tag_unsync_read`, a plain harness written to prove it by hand). Whether that harness passed is a run result, rolled up in the reader table.
-  - every function in the reader files (`families` in `checks.json`) is the target of a harness or is listed as `outside` the scope.
+  - every function in the reader files (`families` in `checks.json`) is the target of a harness, is listed as `outside` the scope, or is listed as `pending`: in scope but without a harness that matches the current code. `--closure` prints every pending function, so a clean closure does not hide them.
 
   After a run, a passing harness whose replaced contracts were not proven in the same run says so in its detail.
 - **Reachability.** `--cover --harness NAME` runs `cbmc --cover location` on the same instrumented program. It reports the reached blocks of the harness's `targets` only: the function under test and the helpers it inlines, not whole files.
