@@ -211,6 +211,15 @@ class PlantedTests(unittest.TestCase):
         planted["planted"]["line"] = 13
         self.assertEqual(formal.judge_cbmc(10, output, planted)[0], "failed")
 
+    def test_a_planted_line_follows_the_planted_text_in_the_source(self):
+        harness = manifest()["cbmc"]["harnesses"]["id3_unsync_planted"]
+        text = (formal.SOURCE / harness["plant"]["file"]).read_text(encoding="utf-8")
+        line = text[:text.index(harness["plant"]["find"])].count("\n") + 1
+        self.assertEqual(formal.planted_target(harness)["line"], line + harness["planted"]["offset"])
+        for name, entry in manifest()["cbmc"]["harnesses"].items():
+            if entry.get("planted"):
+                self.assertNotIn("line", entry["planted"], name)
+
     def test_a_planted_fault_can_name_the_contract_property_it_breaks(self):
         output = "[g.postcondition.1] line 4 Check ensures clause: FAILURE\nVERIFICATION FAILED"
         planted = {"expect": "failed", "planted": {"property": "g.postcondition"}}

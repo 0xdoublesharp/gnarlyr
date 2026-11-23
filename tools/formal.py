@@ -382,7 +382,7 @@ def judge_cbmc(code, output, harness):
     if verdict != expected:
         return ("failed" if verdict == "failed" else "unexpected-pass"), summary or verdict
     if verdict == "failed" and harness.get("planted"):
-        return judge_planted(output, harness["planted"], summary)
+        return judge_planted(output, planted_target(harness), summary)
     if verdict == "failed":
         found = sorted(set(FAILED_PROPERTY.findall(output)))
         wanted = sorted(harness.get("failures", found))
@@ -390,6 +390,14 @@ def judge_cbmc(code, output, harness):
             return "failed", f"failed {', '.join(found)}; expected {', '.join(wanted)}"
         return "expected-failure", f"{summary}: {', '.join(found)}"
     return "passed", summary or verdict
+
+
+def planted_target(harness, source=SOURCE):
+    planted = dict(harness["planted"])
+    if "offset" in planted:
+        text = (source / harness["plant"]["file"]).read_text(encoding="utf-8")
+        planted["line"] = text[:text.index(harness["plant"]["find"])].count("\n") + 1 + planted["offset"]
+    return planted
 
 
 def judge_planted(output, planted, summary):

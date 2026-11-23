@@ -3154,7 +3154,7 @@
         "expect": "failed",
         "planted": {
           "function": "put_code_point",
-          "line": 161
+          "offset": 7
         }
       },
       "id3_unsync_planted": {
@@ -3213,7 +3213,7 @@
         "expect": "failed",
         "planted": {
           "function": "remove_unsync",
-          "line": 100
+          "offset": 0
         }
       },
       "flac_picture_planted": {
@@ -3341,7 +3341,7 @@
         "expect": "failed",
         "planted": {
           "function": "gain_atom_text",
-          "line": 208
+          "offset": 3
         }
       },
       "playlist_put_planted": {
@@ -3439,7 +3439,7 @@
         "expect": "failed",
         "planted": {
           "function": "read_index",
-          "line": 128
+          "offset": 2
         }
       },
       "theme_text_planted": {
@@ -3494,7 +3494,7 @@
         "expect": "failed",
         "planted": {
           "function": "text_valid",
-          "line": 40
+          "offset": 0
         }
       }
     },
