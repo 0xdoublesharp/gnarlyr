@@ -16,16 +16,21 @@ python3 tools/firmware.py formal                        # every default harness 
 python3 tools/firmware.py formal --cbmc                 # CBMC harnesses only
 python3 tools/firmware.py formal --tla                  # TLA+ models only
 python3 tools/firmware.py formal --harness core_handoff # one harness or model
+python3 tools/firmware.py formal --harness 'id3_*,flac_*' --jobs 6  # shell patterns, several at once
 python3 tools/firmware.py formal --list                 # names, without running anything
 python3 tools/firmware.py formal --all                  # also the opt-in harnesses (hours)
 python3 tools/firmware.py formal --cover --harness NAME # blocks a CBMC harness reaches
+python3 tools/firmware.py formal --closure              # contracts and reader functions without a proof
+python3 tools/firmware.py formal --repro                # replay counterexamples on the real code (host cc)
 ```
+
+`--harness` takes an exact name or a shell pattern, repeated or separated by commas; a pattern also selects opt-in harnesses. `--jobs N` runs N checks at once. Each checker is single-threaded, so give it the broker's `$COMPUTE_JOBS`. CPU time is measured per child process, so it stays correct with `--jobs`. `FORMAL_REPORTS=<folder>` replaces the report folder, for runs on another host.
 
 `python3 tools/formal.py` takes the same options. The entry point uses only Python's standard library and needs neither the ARM toolchain nor a firmware build. It stops if `/Volumes/Scratch` is not mounted.
 
 Each run writes to `/Volumes/Scratch/SnowskyEcho/reports/formal/<worktree>/<date-time>/`:
 
-- `summary.md` and `summary.json`: one row per check.
+- `summary.md` and `summary.json`: one row per check. A `ledger-<host>.jsonl` beside the run folders keeps one line per check with its CPU time, for budget accounting.
 - `cbmc/<harness>/`: the goto programs and a log with the exact commands and CBMC's full output, including counterexample traces.
 - `tla/<model>/`: copies of the spec and config, TLC's state files and a log with the full TLC output, including any trace.
 
@@ -73,6 +78,9 @@ The CI workflow installs the same CBMC release, checks its SHA-256, installs Ope
 | `firmware/formal/cbmc/harnesses/` | One harness file per reader family; the entry point is always `harness()` |
 | `firmware/formal/cbmc/stubs/` | `card.c` (the nondeterministic file), `hash.c` (checksum seam), `hal.c` (file, version and language-memory HAL), `theme.c` (signature seam), `i18n.c` (the pack parser's contract, for the loader harness), `builtins.h` (maps `__builtin_memcpy` to CBMC's modelled `memcpy`), `formal.h` (shared declarations and the target checks) |
 | `firmware/formal/cbmc/catalogue/core/strings.h` | A four-string, three-segment catalogue that replaces the generated one for `language_pack` only |
+| `firmware/formal/cbmc/units/` | One unit harness per parsing function (see Decomposed harnesses); the entry point is `harness()` |
+| `firmware/formal/cbmc/contracts/` | Function and loop contracts for the unit harnesses, as `FORMAL_CONTRACT_<function>` and `FORMAL_LOOP_<function>_<n>` macros |
+| `firmware/formal/repro/` | Host programs that replay a CBMC counterexample on the unmodified product code |
 | `firmware/formal/tla/` | `UpdateRollback.tla`, `CoreHandoff.tla` and one `.cfg` per checked configuration |
 | `tools/formal.py`, `tests/test_formal.py` | The entry point and its unit test |
 
@@ -101,22 +109,22 @@ The harness C follows the firmware rules: no comments, formatted with `.clang-fo
 
 ### Results
 
-The figures are CPU seconds of the checker (`formal.py` measures its child processes). They come from one run on the development Mac (12 cores, Apple Silicon) while it was shared with other builds at load averages of about 8 to 15. The opt-in results and the reachability figures below come from the first runs at `bb0cb274`.
+The figures are CPU seconds of the checker (`formal.py` measures its child processes). They come from a run on 2026-11-22 at `f3861a63`, on mbp2019 (Intel, about 0.45 times the M2's speed per core) through the shared broker, except `settings_codec`, which was re-run on the development Mac (Apple Silicon) after its source list was corrected. The opt-in results and the reachability figures below come from the first runs at `bb0cb274`.
 
 | Harness | Entry points | Bound | Unwind | Mode | Properties | Result | CPU |
 |---|---|---|---|---|---|---|---|
-| `canary` | planted faults in harness code | 16 B | 18 | complete, with `--uninitialized-check` | 57 | fails on exactly its 2 planted properties, as intended | 0 s |
-| `library_database` | `library_open`, `library_read_*`, `library_album_key` | 160 B, fresh | 40 | complete, unsigned overflow on | 895 | passed | 183 s |
-| `scan_record` | `music_record_read`, `music_check_*` | 528 B | 26 | complete | 719 | passed | 1 s |
-| `tags_vorbis_comment` | `tags_read_vorbis_comment` | 64 B, fresh | 4 | depth-bounded | 4,478 | passed | 121 s |
-| `playlist_reader` | `playlist_reader_open`, `_next` | 64 B, fresh | 4 | depth-bounded | 374 | passed | 267 s |
-| `settings_codec` | `settings_decode`, `_encode`, `settings_buttons_decode`, `settings_file_newer` | 96 B | 98 | complete | 2,567 | passed | 18 s |
-| `playback_store` | `store_pair_open`, `store_load`, `store_scan_next` | 1,100 B, fresh | 514 | complete | 1,030 | passed | 39 s |
-| `user_state_records` | `user_state_list_decode`, `_mark_request`, `_age`, `update_trial_decode` | 44 B | 24 | complete | 1,394 | passed | 1 s |
-| `language_pack` | `i18n_attach`, `i18n_pack_segment`, `i18n_attach_segment`, `i18n_text` | 128 B pack, 32 B module | 132 | complete | 859 | passed | 6 s |
-| `language_loader` | `language_load`, `language_use_module` | 256 B, fresh; 192 B memory | 20 | complete | 538 | passed | 50 s |
+| `canary` | planted faults in harness code | 16 B | 18 | complete, with `--uninitialized-check` | 57 | fails on exactly its 2 planted properties, as intended | 1 s |
+| `library_database` | `library_open`, `library_read_*`, `library_album_key` | 160 B, fresh | 40 | complete, unsigned overflow on | 969 | passed | 573 s |
+| `scan_record` | `music_record_read`, `music_check_*` | 528 B | 26 | complete | 733 | passed | 3 s |
+| `tags_vorbis_comment` | `tags_read_vorbis_comment` | 64 B, fresh | 4 | depth-bounded | 4,634 | passed | 450 s |
+| `playlist_reader` | `playlist_reader_open`, `_next` | 64 B, fresh | 4 | depth-bounded | 374 | passed | 816 s |
+| `settings_codec` | `settings_decode`, `_encode`, `settings_buttons_decode`, `settings_file_newer` | 96 B | 98 | complete | 2,929 | passed | 19 s |
+| `playback_store` | `store_pair_open`, `store_load`, `store_scan_next` | 1,100 B, fresh | 514 | complete | 1,030 | passed | 138 s |
+| `user_state_records` | `user_state_list_decode`, `_mark_request`, `_age`, `update_trial_decode` | 44 B | 24 | complete | 1,376 | passed | 3 s |
+| `language_pack` | `i18n_attach`, `i18n_pack_segment`, `i18n_attach_segment`, `i18n_text` | 128 B pack, 32 B module | 132 | complete | 871 | passed | 25 s |
+| `language_loader` | `language_load`, `language_use_module` | 256 B, fresh; 192 B memory | 20 | complete | 538 | passed | 251 s |
 
-Five harnesses are opt-in (`"default": false`). `formal.py` skips them unless they are named with `--harness` or the run uses `--all`. None has a useful verdict yet. The complete runs and the depth-bounded runs at unwind 12 stopped at a 30-minute wall limit after 10 to 18 CPU-minutes.
+Five harnesses are opt-in (`"default": false`). `formal.py` skips them unless they are named with `--harness` or the run uses `--all`. None has a useful verdict as a whole-reader check. The complete runs and the depth-bounded runs at unwind 12 stopped at a 30-minute wall limit after 10 to 18 CPU-minutes. The decomposed harnesses below give most of those readers verdicts, some of them conditional; these five stay for comparison.
 
 | Harness | Status |
 |---|---|
@@ -166,17 +174,179 @@ For every file content up to the bound, every listed entry point stays inside it
 - **`language_loader` (`language.c`, `language_module.c`).** `language_load` with an arbitrary code, then `language_use_module` for any module, reading from a file or a built-in copy (fresh, up to 256 bytes) into 192 bytes of language memory. The parser is replaced by `stubs/i18n.c`, which can return any verdict and any index values allowed by its contract. Every read fits its buffer for every such verdict.
 
   The contract matters. The loader rounds `info.resident` up to 4 bytes before comparing it with the memory's capacity (`language.c:48`), and that sum wraps for a `resident` within 3 of 2³². The real parser keeps `resident` far smaller (`row_matches`, `i18n.c:44`). The stub encodes that bound, and without it the loader check fails.
-- **`theme_pack_v1` (`.gtheme`, `DSTP` version 1, opt-in, no verdict yet).** `theme_pack_open` on up to 640 bytes (fresh): the 512-byte header, the asset rows, the CRC walk and the signature trailer. The assertions are that every accepted asset lies inside the file and that the name and version end inside their fields. The palette decode runs, with its FNV stubbed.
+- **`theme_pack_v1` (`.gtheme`, `DSTP` version 1, opt-in, no verdict yet).** `theme_pack_open` on up to 640 bytes (fresh): the 512-byte header, the asset rows, the CRC walk and the signature trailer. The assertions are that every accepted asset lies inside the file and that the name and version end inside their fields. The palette decode runs, with its FNV stubbed. This harness predates the current theme format: it calls `theme_pack_open` without the check argument and reads asset offsets that `ThemePack` no longer keeps, so it does not build on the current code.
+
+### Decomposed harnesses
+
+The opt-in whole-reader harnesses above give no verdict for the ID3v2, FLAC, MP4, CUE and theme readers, and only shallow ones for the Vorbis comment and playlist readers. The unit harnesses in `firmware/formal/cbmc/units/` replace them with one harness per parsing function. All of them are opt-in (`"unit": true`, `"default": false`): `--all` or a `--harness` pattern runs them, and nothing in `test`, CTest or CI does.
+
+**How a unit harness works.**
+
+- **Contracts live beside the harnesses.** Each function's contract is a macro, `FORMAL_CONTRACT_<function>` (requires, assigns, ensures), in `contracts/<family>.h`. Each loop's contract is `FORMAL_LOOP_<function>_<n>` (assigns, invariant, decreases), where `<n>` counts the function's `for` and `while` heads in source order.
+- **The product source is never edited.** `formal.py` copies each source the harness lists under `patch` into the run folder. It inserts each macro name directly after the matching function signature or loop head, on the same line, so CBMC's line numbers match the repository. The run stops on any of these:
+  - a contract names a function defined more than once;
+  - a function has some of its loops annotated but not all;
+  - a planted change does not match exactly once.
+
+  The headers reach every translation unit with `-include`. A harness reaches `static` functions by including the copied `.c` file.
+- **Assume-guarantee (DFCC).** `goto-instrument --dfcc harness --enforce-contract F --replace-call-with-contract G ... --apply-loop-contracts` checks F against its contract and replaces each listed callee G with its contract. Each G has its own harness that enforces G's contract. DFCC also checks every write against the assigns clause. A contract variant, `F/V`, applies when the caller passes pointers that share an object, as `cue_sheet_next` does: its reader and line buffer live in one `CueSheet`.
+- **Loops.**
+  - A loop with a contract is proved for any number of iterations, so the verdict holds for every file size.
+  - Before DFCC, every other loop is unrolled with `--unwinding-assertions` to the harness's `unwind` bound. That bound is the format's real maximum: 256-byte tag texts, 1,024-byte frames and lines, 32 theme assets, 8 Vorbis keys, the 12-entry ID3 frame table, 64-byte replay-gain texts.
+  - CBMC's own `--unwind 34` then covers only DFCC's library loops.
+- **Pruning before instrumentation.** Function pointers are resolved to direct calls, the bodies of replaced callees are removed, and unreachable functions are dropped. This keeps DFCC from instrumenting the picture-streaming code that the tag readers never call.
+- **Closure.** `formal.py --closure` and `tests/test_formal.py` check two things:
+  - every contract a harness replaces is the target of some other harness (for `tag_unsync_read`, a plain harness written to prove it by hand). Whether that harness passed is a run result, rolled up in the reader table.
+  - every function in the reader files (`families` in `checks.json`) is the target of a harness or is listed as `outside` the scope.
+
+  After a run, a passing harness whose replaced contracts were not proven in the same run says so in its detail.
+- **Reachability.** `--cover --harness NAME` runs `cbmc --cover location` on the same instrumented program. It reports the reached blocks of the harness's `targets` only: the function under test and the helpers it inlines, not whole files.
+
+  The goal counts depend on the unrolling: a loop unrolled to N copies contributes N copies of its blocks. Where a loop's real bound is smaller than the harness bound, the unreachable copies lower the percentage. The harnesses therefore set exact per-loop bounds (`unwindset`) where a loop has a known short maximum. The unreached goals were listed by source line for every harness below 90 %. They are of two kinds:
+  - unrolled copies past a loop's real maximum, for example `next_utf8` line 178, `put_code_point` 158, `r128_value` 269, `divided` 56–61 and `has_bom` 98;
+  - DFCC's loop-contract and wrapper blocks at loop heads and function entries, for example `text_valid` 40 and 50, `tag_decode_gain_text` 314 and the first line of each enforced function.
+
+  A pass counts as a verdict only when its coverage was measured and is high. Three harnesses were found vacuous this way and fixed, as described under Findings.
+- **Planted faults.** Each family has a `<harness>_planted` variant whose `plant` entry makes a one-line off-by-one in a bounds check, on the Scratch copy only. The run must fail on a memory or contract property at the planted line or contract, or the harness counts as broken. The expected line is given as an offset from the line holding the planted text, so `formal.py` finds it again after edits elsewhere in the file. The plant is a manifest rewrite applied by `formal.py`, not a preprocessor define, so the product source never carries it. The results table shows which plants are caught.
+
+**Assumptions every unit harness makes.**
+
+- The file is `stubs/card.c` in fresh mode, so every successful read returns new arbitrary bytes. That over-approximates any real file. The card `ByteSource` has a NULL context.
+- No buffer passed to a parser is larger than `FORMAL_OBJECT_LIMIT` (512 KiB). The player's static RAM is 272 KiB, so no real buffer is larger. CBMC runs with `--object-bits 11`.
+- `hash_update`, `theme_pack_crc` (where replaced) and `theme_signature_inspect` keep the seams described under Common set-up.
+- `tag_unsync_read` takes a `void *` context. CBMC 6.11 loses the value of a function pointer read through that context reinterpreted as `TagUnsync *`: a trace showed the view's source as `formal_card_read` while the comparison with it failed. Its contract therefore does not state the view's source.
+  - The plain harness `tag_unsync_read` is written to prove the function for a view over the card stub. It restricts the indirect call to `formal_card_read`, and CBMC asserts that restriction. It also checks by hand that no byte outside the buffer changes and that the view keeps its source. It has no verdict yet (see Without a verdict), so every ID3 result that reads through the view is conditional on this contract.
+  - That this view is the only one is shown by the code, not checked: `read_through` copies the reader's source, which every ID3 contract requires to be the card.
+- Playlist and CUE: `FORMAL_PLAYLIST_NO_WRAP` is a precondition of `read_line`, `playlist_reader_next` and the CUE harnesses. In UTF-8 mode it limits the file to 2³² − 4 bytes, so a UTF-8 file within 3 bytes of 4 GiB is outside every playlist and CUE verdict, not just outside the termination proof. Covering it needs `is_utf8`'s guarantee that the last sequence is complete, and the contracts do not carry that. Windows-1252 mode has no such limit.
+- CUE: a `CueSheet`'s text fields start with byte 255 zero. The scan state is in zero-initialised memory, and the `handle_line` contract states that no writer puts a non-zero byte there. That contract has no verdict yet.
+- Theme: `crc_valid`'s contract requires at least the 512-byte header. `theme_pack_open` checks the size against the header before any later call, but since the asset checks were rewritten no harness checks the call site (see Without a verdict).
+
+**Results.** The second table rolls the unit results up to the readers named in the task. A reader-level pass is conditional on every contract without a verdict that its harnesses replace, directly or through another harness. `tag_unsync_read` counts only for the ID3 harnesses, because the FLAC, Vorbis and MP4 contracts require the card source. Each row of the first table is the latest run of that harness after its last contract change, measured with CBMC 6.11.0. Every library and theme row was re-run on 2026-11-22 at `f3861a63`, after the ID3 skip fix (`3f2e0823`), the move of the byte-order helpers to `core/bytes.h` (`7c0d6765`) and the theme format changes; the planted variants were re-run on the M2 after their expected lines were made relative to the planted text. The playlist and CUE rows, `rg_number` and `tag_unsync_read` keep their earlier runs: their sources did not change, and the last two have no verdict. Coverage was re-measured for `id3_skip`, `flac_blocks`, `flac_picture`, `id3_frames` and `mp4_item`, whose targets changed; the other coverage figures come from the earlier runs. `bytes_be16` and `bytes_be32` are counted inside their callers, since the instrumented program keeps no blocks of their own. Runs were made through the shared broker on the M2 (Apple Silicon) or on mbp2019 (Intel, about 0.45 times the M2's speed per core), as the CPU column shows, so CPU seconds from the two hosts are not directly comparable. "Coverage" is the share of the target functions' basic blocks that `--cover location` reaches in the same instrumented program. "Caught" means a planted fault failed the named property, as intended.
+
+| Harness | Checks | Replaced callees | Method and bound | Coverage | Result | CPU, host |
+|---|---|---|---|---|---|---|
+| `tag_read` | `tag_read` | `tag_unsync_read` | no other loops | 40/42 (95 %) | passed: 0 of 155 properties failed; **conditional** on unproven `tag_unsync_read` | 4 s, mbp2019 |
+| `tag_decode` | `tag_decode` | none | loop contracts on `tag_decode`; other loops unrolled to 4 | 203/239 (84 %) | passed: 0 of 821 properties failed | 9 s, mbp2019 |
+| `tag_decode_gain_text` | `tag_decode_gain_text` | none | loop contracts on `empty_gain_tail`, `tag_decode_gain_text`; no other loops | 90/105 (85 %) | passed: 0 of 290 properties failed | 7 s, mbp2019 |
+| `replay_gain_field` | `replay_gain_field` | none | other loops unrolled to 23 | 26/30 (86 %) | passed: 0 of 17282 properties failed | 7 s, mbp2019 |
+| `replay_gain_offer` | `replay_gain_offer` | `number_of`, `gain_value`, `peak_value` | no other loops | 28/30 (93 %) | passed: 0 of 353 properties failed; **conditional** on unproven `number_of` | 4 s, mbp2019 |
+| `rg_number` | `number_of` | none | other loops unrolled to 65 | 2764/2880 (95 %) | timeout: stopped at the time limit | 3277 s, M2 |
+| `rg_gain_value` | `gain_value` | none | other loops unrolled to 201 (exact: fraction_value.0:21) | 74/81 (91 %) | passed: 0 of 1584 properties failed | 142 s, mbp2019 |
+| `rg_peak_value` | `peak_value` | none | other loops unrolled to 201 | not measured (cover run stopped after 3282 s) | passed: 0 of 12293 properties failed | 1,513 s, mbp2019 |
+| `replay_gain_offer_r128` | `replay_gain_offer_r128` | none | other loops unrolled to 7 | 78/93 (83 %) | passed: 0 of 243 properties failed | 3 s, mbp2019 |
+| `tag_unsync_read` | `tag_unsync_read` | none | loop contracts on `tag_unsync_read`; other loops unrolled to 64; plain harness, frame asserted by hand | not measured | error: cbmc exited 15 without a verdict | 2706 s, mbp2019 |
+| `id3_unsync` | `remove_unsync` | none | loop contracts on `remove_unsync`; no other loops | 27/29 (93 %) | passed: 0 of 170 properties failed | 4 s, mbp2019 |
+| `id3_value_end` | `value_end` | none | loop contracts on `value_end`; no other loops | 28/30 (93 %) | passed: 0 of 94 properties failed | 4 s, mbp2019 |
+| `id3_genre_text` | `offer_genre_text` | none | other loops unrolled to 256 | not measured (cover run stopped after 990 s) | passed: 0 of 31521 properties failed | 476 s, mbp2019 |
+| `id3_text_frame` | `read_text_frame` | `tag_read`, `tag_decode`, `remove_unsync`, `value_end`, `offer_genre_text` | loop contracts on `for_each_value`; other loops unrolled to 256 | 2757/2813 (98 %) | passed: 0 of 45929 properties failed; **conditional** on unproven `tag_unsync_read` | 792 s, mbp2019 |
+| `id3_skip_value` | `skip_value` | `tag_read` | loop contracts on `skip_value`; no other loops | 36/38 (94 %) | passed: 0 of 173 properties failed; **conditional** on unproven `tag_unsync_read` | 33 s, mbp2019 |
+| `id3_picture_frame` | `read_picture_frame` | `tag_read`, `skip_value` | no other loops | 117/119 (98 %) | passed: 0 of 809 properties failed; **conditional** on unproven `tag_unsync_read` | 192 s, mbp2019 |
+| `id3_gain_frame` | `read_replay_gain_frame` | `tag_read`, `remove_unsync`, `value_end`, `tag_decode_gain_text`, `replay_gain_field`, `replay_gain_offer` | other loops unrolled to 65 | 187/194 (96 %) | passed: 0 of 1748 properties failed; **conditional** on unproven `number_of`, `tag_unsync_read` | 47 s, mbp2019 |
+| `id3_frame` | `read_frame` | `read_text_frame`, `read_picture_frame`, `read_replay_gain_frame` | other loops unrolled to 12 (exact: tag_same_text.0:6) | 151/162 (93 %) | passed: 0 of 2504 properties failed; **conditional** on unproven `number_of`, `tag_unsync_read` | 12 s, mbp2019 |
+| `id3_frames` | `read_frames` | `read_frame`, `tag_read` | loop contracts on `read_frames`; other loops unrolled to 4 | 95/97 (97 %) | passed: 0 of 2344 properties failed; **conditional** on unproven `number_of`, `tag_unsync_read` | 180 s, mbp2019 |
+| `id3_header` | `tags_read_id3v2` | `read_frames`, `tag_read` | other loops unrolled to 256 (exact: tag_same_text.0:5) | 46/48 (95 %) | passed: 0 of 12513 properties failed; **conditional** on unproven `number_of`, `tag_unsync_read` | 28 s, mbp2019 |
+| `id3_v1` | `tags_read_id3v1` | `tag_read`, `tag_decode` | other loops unrolled to 30 | 128/132 (96 %) | passed: 0 of 3590 properties failed; **conditional** on unproven `tag_unsync_read` | 26 s, mbp2019 |
+| `tag_set_duration` | `tag_set_duration` | none | other loops unrolled to 65 | 360/407 (88 %) | passed: 0 of 134 properties failed | 4 s, mbp2019 |
+| `vorbis_entry` | `offer_entry` | `tag_read`, `tag_decode`, `replay_gain_field`, `replay_gain_offer`, `replay_gain_offer_r128` | other loops unrolled to 32 (exact: base64_picture_is_front.0:7,field_for_key.0:9,tag_same_text_folded.0:23,key_length.0:33) | 463/501 (92 %) | passed: 0 of 5490 properties failed; **conditional** on unproven `number_of` | 180 s, mbp2019 |
+| `vorbis_comment_walk` | `tags_read_vorbis_comment` | `offer_entry`, `tag_read` | loop contracts on `tags_read_vorbis_comment`; no other loops | 37/40 (92 %) | passed: 0 of 2263 properties failed; **conditional** on unproven `number_of` | 103 s, mbp2019 |
+| `id3_skip` | `tags_skip_id3v2` | `tag_read` | loop contracts on `tags_skip_id3v2`; other loops unrolled to 2 (exact: tag_same_text.0:4) | 28/30 (93 %) | passed: 0 of 397 properties failed | 5 s, mbp2019 |
+| `flac_picture` | `read_flac_picture` | `tag_read` | other loops unrolled to 2 | 27/29 (93 %) | passed: 0 of 536 properties failed | 7 s, mbp2019 |
+| `flac_blocks` | `tags_read_flac` | `tags_skip_id3v2`, `tag_read`, `tags_read_vorbis_comment`, `read_flac_picture`, `tag_set_duration` | loop contracts on `tags_read_flac`; other loops unrolled to 4 | 34/36 (94 %) | passed: 0 of 2292 properties failed; **conditional** on unproven `number_of` | 24 s, mbp2019 |
+| `mp4_read_atom` | `tags_mp4_read_atom` | `tag_read` | other loops unrolled to 4 | 32/34 (94 %) | passed: 0 of 470 properties failed | 5 s, mbp2019 |
+| `mp4_find_child` | `tags_mp4_find_child` | `tags_mp4_read_atom` | loop contracts on `tags_mp4_find_child`; other loops unrolled to 5 | 33/35 (94 %) | passed: 0 of 843 properties failed | 7 s, mbp2019 |
+| `mp4_sound_track` | `sound_track` | `tags_mp4_read_atom`, `tags_mp4_find_child`, `tag_read` | loop contracts on `sound_track`; other loops unrolled to 5 | 57/59 (96 %) | passed: 0 of 1165 properties failed | 14 s, mbp2019 |
+| `mp4_duration` | `read_duration` | `tags_mp4_find_child`, `tag_read`, `tag_set_duration` | no other loops | 29/31 (93 %) | passed: 0 of 838 properties failed | 9 s, mbp2019 |
+| `mp4_gain_item` | `read_gain_item` | `tags_mp4_find_child`, `tags_mp4_read_atom`, `tag_read`, `replay_gain_field`, `replay_gain_offer` | loop contracts on `read_gain_item`; other loops unrolled to 29 | 76/78 (97 %) | passed: 0 of 2278 properties failed; **conditional** on unproven `number_of` | 18 s, mbp2019 |
+| `mp4_item` | `read_item` | `tags_mp4_read_atom`, `read_gain_item`, `tag_read`, `tag_decode` | loop contracts on `read_item`; other loops unrolled to 30 (exact: item_for.0:9,offer_number.0:9,offer_number.1:9) | 326/420 (78 %) | passed: 0 of 4616 properties failed; **conditional** on unproven `number_of` | 99 s, mbp2019 |
+| `mp4_items` | `read_items` | `tags_mp4_read_atom`, `read_item` | loop contracts on `read_items`; other loops unrolled to 5 | 29/31 (93 %) | passed: 0 of 2078 properties failed; **conditional** on unproven `number_of` | 18 s, mbp2019 |
+| `mp4_tags` | `read_tags` | `tags_mp4_find_child`, `read_items` | no other loops | 29/31 (93 %) | passed: 0 of 1101 properties failed; **conditional** on unproven `number_of` | 11 s, mbp2019 |
+| `mp4_top` | `tags_read_mp4` | `tags_mp4_find_child`, `sound_track`, `read_duration`, `read_tags` | no other loops | 27/29 (93 %) | passed: 0 of 1744 properties failed; **conditional** on unproven `number_of` | 12 s, mbp2019 |
+| `playlist_byte_at` | `byte_at` | none | no other loops | 27/29 (93 %) | passed: 0 of 163 properties failed | 6 s, mbp2019 |
+| `playlist_valid_sequence` | `valid_sequence` | `byte_at` | other loops unrolled to 3 | 35/37 (94 %) | passed: 0 of 135 properties failed | 6 s, mbp2019 |
+| `playlist_is_utf8` | `is_utf8` | `byte_at`, `valid_sequence` | loop contracts on `is_utf8`; no other loops | 33/35 (94 %) | passed: 0 of 279 properties failed | 5 s, mbp2019 |
+| `playlist_open` | `playlist_reader_open` | `is_utf8`, `byte_at` | other loops unrolled to 3 | 50/59 (84 %) | passed: 0 of 197 properties failed | 4 s, mbp2019 |
+| `playlist_code_point` | `next_code_point` | `byte_at` | other loops unrolled to 3 | 37/39 (94 %) | passed: 0 of 226 properties failed | 6 s, mbp2019 |
+| `playlist_put` | `put` | none | other loops unrolled to 4 | 32/34 (94 %) | passed: 0 of 387 properties failed | 327 s, mbp2019 |
+| `playlist_read_line` | `read_line` | `next_code_point`, `put`, `byte_at` | loop contracts on `read_line`; no other loops | 50/52 (96 %) | passed: 0 of 909 properties failed | 51 s, mbp2019 |
+| `playlist_next` | `playlist_reader_next` | `read_line` | loop contracts on `playlist_reader_next`; other loops unrolled to 25 (exact: note_directive.0:16,note_directive.1:12) | 138/151 (91 %) | passed: 0 of 1127 properties failed | 20 s, mbp2019 |
+| `playlist_cue_view` | `playlist_reader_next/formal_cue_reader_next` | `next_code_point`, `put`, `byte_at` | loop contracts on `playlist_reader_next`, `read_line`; other loops unrolled to 25 (exact: note_directive.0:16,note_directive.1:12) | not measured | timeout: stopped at the time limit | 983 s, mbp2019 |
+| `cue_handle_line` | `handle_line` | none | other loops unrolled to 1024 (exact: after_word.0:10,find_word.0:7,read_index.0:4,copy_text.0:256) | not measured | timeout: stopped at the time limit | 2881 s, mbp2019 |
+| `cue_next` | `cue_sheet_next` | `playlist_reader_next/formal_cue_reader_next`, `handle_line` | loop contracts on `cue_sheet_next`; no other loops | 61/63 (96 %) | passed: 0 of 1322 properties failed; **conditional** on unproven `handle_line`, `playlist_reader_next/formal_cue_reader_next` | 21 s, mbp2019 |
+| `cue_usable` | `cue_sheet_usable` | `cue_sheet_next` | loop contracts on `cue_sheet_usable`; no other loops | 25/27 (92 %) | passed: 0 of 1017 properties failed; **conditional** on unproven `handle_line`, `playlist_reader_next/formal_cue_reader_next` | 15 s, mbp2019 |
+| `cue_open` | `cue_sheet_open` | `playlist_reader_open` | no other loops | 25/27 (92 %) | passed: 0 of 166 properties failed | 4 s, mbp2019 |
+| `theme_crc` | `theme_pack_crc` | none | loop contracts on `theme_pack_crc`; no other loops | 26/28 (92 %) | passed: 0 of 95 properties failed | 4 s, mbp2019 |
+| `theme_zeroes` | `zeroes` | none | loop contracts on `zeroes`; no other loops | 27/29 (93 %) | passed: 0 of 128 properties failed | 4 s, mbp2019 |
+| `theme_text` | `text_valid` | `zeroes` | loop contracts on `text_valid`; other loops unrolled to 4 | 96/114 (84 %) | passed: 0 of 400 properties failed | 70 s, mbp2019 |
+| `theme_url` | `url_valid` | `text_valid` | other loops unrolled to 8 | 23/25 (92 %) | passed: 0 of 202 properties failed | 4 s, mbp2019 |
+| `theme_version` | `version_valid` | none | other loops unrolled to 7 | 23/25 (92 %) | passed: 0 of 2307 properties failed | 5 s, mbp2019 |
+| `theme_header` | `header_valid` | `text_valid`, `zeroes`, `url_valid`, `version_valid` | no other loops | 43/47 (91 %) | passed: 0 of 364 properties failed | 5 s, mbp2019 |
+| `theme_crc_walk` | `crc_valid` | `theme_pack_crc` | loop contracts on `crc_valid`; no other loops | 22/24 (91 %) | passed: 0 of 111 properties failed | 9 s, mbp2019 |
+| `theme_palette` | `decode_palette` | none | other loops unrolled to 40 (exact: theme_palette_decode.0:21) | 121/128 (94 %) | passed: 0 of 1961 properties failed | 6 s, mbp2019 |
+| `tag_decode_planted` | `tag_decode` | none | planted fault | not measured | caught: caught put_code_point.assigns at line 150 | 3 s, M2 |
+| `id3_unsync_planted` | `remove_unsync` | none | planted fault | not measured | caught: caught remove_unsync.pointer_dereference at line 94 | 1 s, M2 |
+| `flac_picture_planted` | `read_flac_picture` | `tag_read` | planted fault | not measured | caught: caught read_flac_picture.postcondition at line 195 | 6 s, mbp2019 |
+| `mp4_gain_item_planted` | `read_gain_item` | `tags_mp4_find_child`, `tags_mp4_read_atom`, `tag_read`, `replay_gain_field`, `replay_gain_offer` | planted fault | not measured | caught: caught gain_atom_text.pointer_dereference at line 208 | 6 s, M2 |
+| `playlist_put_planted` | `put` | none | planted fault | not measured | caught: caught put.postcondition at line 163 | 361 s, mbp2019 |
+| `cue_handle_line_planted` | `handle_line` | none | planted fault | not measured | timeout: stopped at the time limit | 3037 s, mbp2019 |
+| `theme_text_planted` | `text_valid` | `zeroes` | planted fault | not measured | caught: caught text_valid.overflow at line 42 | 20 s, M2 |
+
+| Reader | Top harnesses | Result | Unproven contracts the result rests on |
+|---|---|---|---|
+| ID3v2 (`tags_read_id3v2`, `tags_read_id3v1`) | `id3_header`, `id3_v1` | passed, passed | `number_of`, `tag_unsync_read` |
+| FLAC (`tags_read_flac`) | `flac_blocks` | passed | `number_of` |
+| Vorbis comment (`tags_read_vorbis_comment`) | `vorbis_comment_walk` | passed | `number_of` |
+| MP4 (`tags_read_mp4`) | `mp4_top` | passed | `number_of` |
+| CUE sheet (`cue_sheet_open`, `_next`, `_usable`) | `cue_open`, `cue_next`, `cue_usable` | passed, passed, passed | `handle_line`, `playlist_reader_next/formal_cue_reader_next` |
+| Playlist (`playlist_reader_open`, `_next`) | `playlist_open`, `playlist_next` | passed, passed | none: unconditional within the stated assumptions |
+| Theme pack (`theme_pack_open`) | none on the current format | no verdict: `theme_open` was withdrawn when the asset checks were rewritten | the header, text, URL, version, CRC and palette checks pass on their own |
+
+**Without a verdict.**
+
+- `tag_unsync_read` (the ID3 unsynchronisation view). Two formulations stopped without a verdict: a buffer of any size up to 512 KiB (2,475 CPU-seconds on mbp2019), then a fixed 128-byte buffer (2,706 s). The cost is the chunk loop: 64 unrolled writes through `*(*out)++` inside a loop proved by contract. Every ID3 harness that reads through `tag_read` relies on its contract. A seam that would help is a version of `unsync_take` that returns the byte count instead of advancing a pointer to a pointer, so that each write's bound is a plain index.
+- `rg_number` (`number_of`, the replay-gain number scanner). Its cover run reaches 95 % of its blocks, but the check stopped at 3,600 s (3,277 CPU-seconds on the M2). The 64-character unrolling of `decimal_part`, with a 64-bit mantissa multiply in each step, does not converge. `replay_gain_offer`'s pass relies on its contract. A loop contract on `decimal_part`, bounding the mantissa below 10¹² and keeping `at` within `length`, is the next step.
+- `playlist_cue_view` (`playlist_reader_next` checked against the CUE variant). It passed while its precondition was vacuous. Fixed, it stopped at 1,200 s (983 CPU-seconds on mbp2019): the two 1,024-entry existentials on the line buffer are expanded in full. `cue_next`'s pass relies on this contract.
+- `cue_handle_line` (one CUE line: keyword match, quoted value, `INDEX` times, text copies). It passed while vacuous. Fixed, it and its planted variant stopped at 3,600 s (2,881 and 3,037 CPU-seconds on mbp2019), so CUE has no reader-level verdict and its planted fault is not caught. The line loops are unrolled to the real 1,024-byte line, and every scanning helper is inlined. Contracts on `skip_blanks`, `value_of` and `read_digits`, stated as offsets into `sheet->line`, are the next step.
+- The theme pack's asset, style and payload checks. They were rewritten for the current theme format after these harnesses were written: `theme_pack_open` takes a check level, `assets_valid` takes a layout, and the per-asset checks became `descriptor_valid`, `slot_valid`, `icon_valid`, `codec_valid`, `key_taken`, `read_asset` and the style and payload walks. `theme_asset_entry`, `theme_assets` and `theme_open` no longer matched the code and were withdrawn with their contracts. Their earlier passes applied to the earlier format only. The functions without a harness are listed as `pending` for the `theme_v1` family in `checks.json`; `--closure` accepts them but prints each one, so a clean closure does not mean they are checked. The header, text, URL, version, CRC and palette harnesses still match the code and were re-run.
+- Coverage was not measured for `id3_genre_text` (stopped at 990 s), `rg_peak_value` (stopped at 3,282 s), `tag_unsync_read`, `cue_handle_line` or `playlist_cue_view`. Their checks passed, except `tag_unsync_read`'s, but the passes do not show by themselves that the code was reached.
+- Outside the scope of this work, and so without a unit harness:
+  - the Ogg page walk in `tags_vorbis.c`, including the search back from the end of the file for the final page (`last_page`, `page_ending_file`);
+  - the MPEG frame scan in `tags_mpeg.c` (its leading ID3 skip is the shared `tags_skip_id3v2`, which `id3_skip` checks);
+  - `track_tags_read`'s dispatch;
+  - the ASF, APE, RIFF and DSD readers.
+
+  `families` in `checks.json` lists the Ogg functions and the picture-streaming helpers as `outside`.
+
+**Compute.** The re-run on 2026-11-22 took 6,754 CPU-seconds (1.9 hours) on mbp2019 for the default harnesses, the library and theme units, the planted variants and five cover runs, and under two CPU-minutes on the M2. The decomposition work before it took 13.1 CPU-hours over 22 recorded runs:
+- the M2: 4.5 hours of checks and 2.8 of cover runs;
+- mbp2019: 5.6 hours of checks and 0.2 of cover runs.
+
+Runs stopped by hand are not recorded, so the real total is somewhat higher. Most of the time went to the five harnesses without a verdict (`tag_unsync_read`, `rg_number`, `playlist_cue_view` and the two CUE line harnesses), the unsplit `replay_gain_offer` and two runs of `theme_assets` (2,380 and 2,254 CPU-seconds). Most other harnesses finish in under a minute. The largest that finish are `id3_text_frame` (858 s), `id3_genre_text` (631 s) and `playlist_put` (327 s), on mbp2019.
+
+**Findings from the decomposed harnesses.**
+
+- **The ID3 skip loop could wrap the offset and loop forever (FLAC and MP3).** Low severity, a hang on crafted input. Fixed by `3f2e0823`; the description below is of the code before the fix.
+  - `skip_id3` (`tags_vorbis.c:190`, and the same loop in `tags_mpeg.c:48`) adds `10 + synchsafe(size)` to a 32-bit offset for each ID3 header it skips. Nothing stops that sum from passing 2³².
+  - The harness of that time, `flac_skip_id3`, failed its `decreases` clause (`skip_id3.loop_decreases.1`, line 194) and recorded it as an expected failure. CBMC's trace uses a file of 4,159,700,984 bytes. At offset 4,093,640,694 it reads an `ID3` header with size bytes `7F 18 00 00`, a synchsafe 266,731,520. The next offset, 4,093,640,694 + 10 + 266,731,520, wraps to 65,404,928, below the one before. Any such counterexample needs a file of at least 2³² − 2²⁸ bytes.
+  - `formal.py --repro` runs `repro/id3_skip_wrap.c` on the unmodified readers. A synthetic `ByteSource` of size `0xFFFFFFF0` holds 16 chained ID3v2.4 headers; each skips 2²⁸ − 1 bytes, and the last skip lands exactly on 2³², which wraps to offset 0. `track_tags_read` with `TAG_FORMAT_FLAC` and with `TAG_FORMAT_MP3` then reads offset 0 again and again until the program's read limit (4,096 reads) stops it. Without that limit the reader loop does not terminate on the host. What the player does was not observed: a watchdog restart or a stalled scan job are both possible.
+  - The callers pass the FAT file size without a cap: the library scan (`library_scan.c:374`), the CUE scan (`library_scan_cue.c:181`) and the cover pass (`cover_build.c:394`).
+  - A FAT32 file can be up to 2³² − 1 bytes, so the file is legal but has to be built for the purpose.
+  - The fix replaced both loops with one helper, `tags_skip_id3v2` in `tags_id3.c`, which stops at the current header when the next skip would pass the file size. Its harness, `id3_skip`, proves that the loop ends for every file and that the returned offset is at most the file size. `flac_blocks` replaces the helper with that contract. The repro entry is marked `"expect": "fixed"`: `--repro` now reports `fixed` when neither format cycles, and `regressed`, a failure, if either cycles again.
+- **No other memory-safety or contract defect was found.** That holds within the stated assumptions, and only as far as the reader table's conditions allow: ID3v2, FLAC, Vorbis comment and MP4 rest on contracts without a verdict, and CUE has no reader-level verdict. Every other counterexample during development came from a contract that was too weak, and each was traced and fixed in the contract:
+  - 32-bit wrap in an `ensures` that the code cannot reach;
+  - a negative `TagField`, which CBMC allows because the enum's type is signed;
+  - a frame clause that let the unsync view's source be overwritten.
+- **Three harnesses were vacuous until coverage showed it.**
+  - `cue_handle_line` reached 10 of 18,623 target blocks, and `playlist_cue_view` 12 of 388. Their contracts required a parameter to equal a pointer into an object that DFCC allocates during the check (`line == sheet->line`), and a harness argument can never equal that, so the precondition was false.
+  - `vorbis_entry`'s file-source branch (`read_file_bytes`, 0 of 2 blocks) failed the same way through `source.context == reader`.
+  - All three now use `__CPROVER_pointer_in_range_dfcc`, which assigns the pointer when the precondition is assumed and checks it when asserted. The CUE planted fault "passed" for the same reason. Now it runs out of time like the unplanted harness.
+
 
 ### Not covered, and seams worth adding
 
-- **Above the bound and the unwind limit.** A complete pass says nothing about files larger than its bound. A depth-bounded pass also says nothing about paths whose loops run longer. That leaves the following to the fuzzers and unit tests:
-  - the ID3v2, FLAC, MP4 and CUE readers, which have no verdict at all;
-  - the theme pack past its header check;
-  - the Vorbis comment and playlist readers on paths where a loop runs more than three times (unwind 4 allows three iterations);
-  - multi-chunk reads.
+- **Above the bound and the unwind limit.** A complete pass of a whole-reader harness says nothing about files larger than its bound. A depth-bounded pass also says nothing about paths whose loops run longer. The decomposed harnesses close most of this: their file-walking loops are proved by loop contracts for any file size. What they leave open is listed under Decomposed harnesses, Without a verdict.
 - **Not driven.**
-  - The Ogg page walk, and the ASF, APE, WAV/AIFF and DSD tag readers.
+  - The Ogg page walk and final-page search, and the ASF, APE, WAV/AIFF and DSD tag readers.
+  - The theme pack's asset table, styles and payloads (see Without a verdict).
   - The MP4 chapter and timed-metadata readers.
   - The cover image decoders (JPEG, PNG).
   - `fat` and `exfat`.
@@ -187,8 +357,9 @@ For every file content up to the bound, every listed entry point stays inside it
 - **The language catalogue** at its real size.
 - **Seams.** These would make deeper checks affordable, but the product code was not changed to fit the harnesses:
   - Expose `library_content`'s block size as a compile-time option.
-  - Split the tag readers' per-frame handlers (`tags_id3.c`, `tags_vorbis.c`, `tags_mp4.c`) from their walking loops behind a function a harness can call on one frame. A harness could then check each handler completely and the walk separately.
-  - Give `cue_sheet` a public entry point that handles one line.
+  - The decomposed harnesses reach `static` functions by including the source file, so the per-frame handlers and `cue_sheet`'s `handle_line` needed no new entry points.
+  - Let `unsync_take` (`tags_picture.c`) return a byte count instead of advancing `uint8_t **out`, so that `tag_unsync_read` can be proved.
+  - Give `ByteSource` implementations a typed context, or a contract-friendly wrapper, so that a contract can state which source a view reads from without reinterpreting `void *`.
   - Add a pure decode function for the settings and store headers that takes a precomputed checksum, so the real FNV can stay in.
   - Add a `ByteSource`-based variant of `music_check_read_at`, so `scan.bin` needs no HAL stub.
 
