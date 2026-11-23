@@ -10,6 +10,7 @@
 #include "library/lyrics.h"
 #include "ui/header.h"
 #include "ui/label.h"
+#include "ui/marquee.h"
 #include "ui/message_screen.h"
 #include "ui/navigation.h"
 
@@ -202,6 +203,7 @@ static void draw(void *context, Canvas *canvas)
         label_draw_wrapped(canvas, style, (Label){hint, i18n_text(STR_LYRICS_HINT)});
         return;
     }
+    marquee_watch_area(MARQUEE_BAND_TIME, content);
     Rect area = content;
     area.x += theme->metrics.padding;
     area.width -= 2 * theme->metrics.padding;

@@ -10,6 +10,7 @@
 #include "screen_snapshot.h"
 #include "screens/lyrics_screen.h"
 #include "text_spy.h"
+#include "ui/marquee.h"
 
 static const char TEXT[] =
     "[00:00]Before\n[00:00.100]Intro\n[00:01]Middle\n[00:01.500]After\n[00:02.493]Closing\n";
@@ -84,7 +85,12 @@ static void playback_position_updates_the_visible_lyric_window(void)
     start_lyrics();
     fake_hal_audio_set_position(1200);
     screen.screen.update(&screen, 10);
+    marquee_watch_start();
     draw();
+    Rect time_band = marquee_watch_band(MARQUEE_BAND_TIME);
+    Rect content = theme_content_area(&theme);
+    CHECK_EQUAL(content.y, time_band.y);
+    CHECK_EQUAL(content.height, time_band.height);
     CHECK(saw("Intro"));
     CHECK(saw("Middle"));
     CHECK(saw("After"));
