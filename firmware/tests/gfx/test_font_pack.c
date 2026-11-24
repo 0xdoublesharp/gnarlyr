@@ -5,6 +5,7 @@
 #include "core/bytes.h"
 #include "core/i18n.h"
 #include "gfx/font_pack.h"
+#include "gfx/text.h"
 #include "test_glyph_face.h"
 #include "test_pack.h"
 #include "tiny_font.h"
@@ -545,6 +546,67 @@ static bool attach_both(void)
     return font_pack_attach_extra(EXTRA_READER, extra_file.size);
 }
 
+enum {
+    MARQUEE_GLYPHS = 40,
+    MARQUEE_WIDTH = 80,
+    MARQUEE_STRIP = 6
+};
+
+static void cjk_marquee_text(char *text)
+{
+    for (uint32_t index = 0; index < MARQUEE_GLYPHS; index++) {
+        uint32_t codepoint = codepoint_of(index + 1);
+        *text++ = (char)(0xE0 | codepoint >> 12);
+        *text++ = (char)(0x80 | (codepoint >> 6 & 0x3F));
+        *text++ = (char)(0x80 | (codepoint & 0x3F));
+    }
+    *text = '\0';
+}
+
+static void draw_cjk_marquee_frame(const char *text, int offset)
+{
+    Color pixels[MARQUEE_WIDTH * MARQUEE_STRIP] = {0};
+    TextStyle style = {&PACKED_FONT, 0xFFFF, false};
+    for (int y = 0; y < 2 * MARQUEE_STRIP; y += MARQUEE_STRIP) {
+        Canvas strip = canvas_make(pixels, (Rect){0, y, MARQUEE_WIDTH, MARQUEE_STRIP});
+        int width = text_width(style.font, text);
+        CHECK_EQUAL(MARQUEE_GLYPHS * TEST_GLYPH_ADVANCE, width);
+        CHECK_EQUAL(width - offset, text_draw(&strip, style, (Point){-offset, 3}, text));
+        text_draw(&strip, style, (Point){width + 8 - offset, 3}, text);
+    }
+}
+
+static void attach_sparse_extra_face(void)
+{
+    static uint32_t board_memory[(0x6800 - 512 - FONT_PACK_IMAGE_FACES * 8) / 4];
+    CHECK(attach_both());
+    CHECK_EQUAL(64, font_pack_attach((FontPackReader){read_image_faces, NULL}, board_memory,
+                                     sizeof board_memory));
+    TestExtraFont font = extra_font();
+    font.faces[0] = (TestGlyphFace){GLYPHS, FIRST_CODEPOINT + 1, 2, 0, 0};
+    build_extra(&font);
+    CHECK(font_pack_attach_extra(EXTRA_READER, extra_file.size));
+}
+
+static void a_cjk_marquee_keeps_glyphs_and_failed_face_lookups_warm(void)
+{
+    attach_sparse_extra_face();
+    PACKED_FONT = TINY_FONT;
+    PACKED_FONT.pack_face = 1;
+    char text[3 * MARQUEE_GLYPHS + 1];
+    cjk_marquee_text(text);
+    draw_cjk_marquee_frame(text, 0);
+    uint32_t image_reads = pack.reads;
+    uint32_t extra_reads = extra_file.reads;
+    CHECK_EQUAL(1 + 3 * MARQUEE_GLYPHS, image_reads);
+    CHECK_EQUAL(2 + 2 * MARQUEE_GLYPHS, extra_reads);
+    for (int offset = 6; offset <= 24; offset += 6) {
+        draw_cjk_marquee_frame(text, offset);
+    }
+    CHECK_EQUAL(image_reads, pack.reads);
+    CHECK_EQUAL(extra_reads, extra_file.reads);
+}
+
 static void extra_faces_come_from_the_container(void)
 {
     CHECK(attach_both());
@@ -892,6 +954,7 @@ int main(void)
         TEST_CASE(a_font_without_a_pack_face_ignores_packs),
         TEST_CASE(a_missing_glyph_is_read_from_the_cjk_fallback_face),
         TEST_CASE(japanese_language_codes_try_the_japanese_face_before_chinese),
+        TEST_CASE(a_cjk_marquee_keeps_glyphs_and_failed_face_lookups_warm),
         TEST_CASE(extra_faces_come_from_the_container),
         TEST_CASE(the_container_lists_its_languages),
         TEST_CASE(a_damaged_container_is_refused),
