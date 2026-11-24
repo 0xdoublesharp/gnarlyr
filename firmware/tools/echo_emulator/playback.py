@@ -1,5 +1,6 @@
 from .audio import AudioPath
 from .real_volume import real_volume
+from .snapshot import capture_rig_snapshot, restore_rig_snapshot
 
 KEYS = {"play": 250, "menu": 350, "back": 500, "previous": 35, "next": 100}
 CHORD_STEP_MS = 150
@@ -23,6 +24,12 @@ class Rig:
         self.session.run_to_first_frame()
         self.session.run_to_home_screen()
         self.settle(1000)
+
+    def snapshot(self):
+        return capture_rig_snapshot(self)
+
+    def restore(self, snapshot):
+        restore_rig_snapshot(self, snapshot)
 
     def settle(self, quiet=QUIET_MS):
         machine = self.machine
@@ -97,3 +104,15 @@ class Rig:
         first = session.layout["volume_start"] + session.volume.data_start
         return sum(count for stamp, lba, count in session.card.read_log
                    if since <= stamp < until and lba >= first)
+
+
+class PlaybackSnapshot:
+    """Reuse one booted rig for a sweep. Restore before configuring each variation."""
+
+    def __init__(self, rig):
+        self._rig = rig
+        self._snapshot = rig.snapshot()
+
+    def restore(self):
+        self._rig.restore(self._snapshot)
+        return self._rig
