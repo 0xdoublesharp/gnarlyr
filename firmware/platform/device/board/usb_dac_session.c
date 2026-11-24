@@ -12,6 +12,7 @@
 #include "device/usb_audio.h"
 #include "device/usb_audio_sink.h"
 #include "device/usb_level.h"
+#include "gfx/text.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/input.h"
@@ -307,16 +308,26 @@ static AppUsbStatus prepare_status(void)
     return status;
 }
 
-static void show_state(void)
+static void show_screen(bool below_header)
 {
     AppUsbStatus status = prepare_status();
     if (playing && usb_audio_asynchronous(&audio)) {
         const Theme *theme = app_theme();
-        usb_screen_show_in_bands(
-            status, (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height});
+        int top = 0;
+        if (below_header) {
+            top = usb_screen_layout(theme, status).header.height;
+            serve_audio_usb();
+        }
+        usb_screen_show_in_bands(status, (Rect){0, top, theme->metrics.screen_width,
+                                                theme->metrics.screen_height - top});
     } else {
         app_show_usb_status(status);
     }
+}
+
+static void show_state(void)
+{
+    show_screen(false);
 }
 
 static void show_info(void)
@@ -516,8 +527,45 @@ static void apply_choice(UsbDacAction action)
     }
 }
 
-static void follow_menu(UsbDacAction action)
+static void show_menu_row(AppUsbStatus status, const Theme *theme, const UsbScreenLayout *layout,
+                          int index)
 {
+    usb_screen_show_in_bands(status,
+                             usb_screen_dac_menu_row_area(theme, layout, &menu.view, index));
+}
+
+static void show_menu_update(UsbDacAction action, int old_selected, int old_top, bool old_adjusting,
+                             bool old_refused)
+{
+    if (!playing || !usb_audio_asynchronous(&audio) || !menu_open || old_top != menu.view.top ||
+        old_refused != gain_refused) {
+        show_screen(true);
+        return;
+    }
+    AppUsbStatus status = prepare_status();
+    const Theme *theme = app_theme();
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    serve_audio_usb();
+    if (old_selected != menu.view.selected) {
+        show_menu_row(status, theme, &layout, old_selected);
+    }
+    if (old_selected != menu.view.selected || action != USB_DAC_ACTION_REDRAW) {
+        show_menu_row(status, theme, &layout, menu.view.selected);
+    }
+    if (old_adjusting != menu.adjusting) {
+        int top = layout.detail.y + layout.detail.height + theme->metrics.padding / 2;
+        usb_screen_show_in_bands(status, (Rect){0, top, theme->metrics.screen_width,
+                                                theme->metrics.screen_height - top});
+    }
+}
+
+static void follow_menu(Key key, uint32_t time_ms)
+{
+    int old_selected = menu.view.selected;
+    int old_top = menu.view.top;
+    bool old_adjusting = menu.adjusting;
+    bool old_refused = gain_refused;
+    UsbDacAction action = usb_dac_menu_key(&menu, key, time_ms);
     if (action == USB_DAC_ACTION_NONE) {
         return;
     }
@@ -531,7 +579,12 @@ static void follow_menu(UsbDacAction action)
     } else {
         apply_choice(action);
     }
-    show_state();
+    serve_audio_usb();
+    if (next != DAC_NEXT_STAY) {
+        show_state();
+    } else {
+        show_menu_update(action, old_selected, old_top, old_adjusting, old_refused);
+    }
 }
 
 static void open_menu(uint32_t now_ms)
@@ -539,11 +592,12 @@ static void open_menu(uint32_t now_ms)
     settings.volume = shared->dac_volume;
     usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
                       now_ms);
+    serve_audio_usb();
     menu_open = true;
     gain_refused = false;
     port->hid.held = 0;
     port->hid.skipped = 0;
-    show_state();
+    show_screen(true);
 }
 
 static void next_page(void)
@@ -552,14 +606,7 @@ static void next_page(void)
     serve_audio_usb();
     scene->page = (uint8_t)((scene->page + 1) % (hint_pages > 0 ? hint_pages : 1));
     shared->usb_page = scene->page;
-    follow_info(hal_clock_milliseconds());
-    serve_audio_usb();
-    AppUsbStatus status = dac_status();
-    serve_audio_usb();
-    const Theme *theme = app_theme();
-    int top = theme->metrics.header_height;
-    usb_screen_show_in_bands(
-        status, (Rect){0, top, theme->metrics.screen_width, theme->metrics.screen_height - top});
+    show_screen(true);
 }
 
 static void follow_back(HalKeyTransition key)
@@ -568,7 +615,7 @@ static void follow_back(HalKeyTransition key)
         back_armed = !menu_open;
         back_pressed_ms = key.time_ms;
         if (menu_open) {
-            follow_menu(usb_dac_menu_key(&menu, KEY_BACK, key.time_ms));
+            follow_menu(KEY_BACK, key.time_ms);
         }
     } else if (back_armed && deadline_elapsed(key.time_ms, back_pressed_ms, BACK_HOLD_MS)) {
         next = DAC_NEXT_MODES;
@@ -584,7 +631,7 @@ static void follow_key(HalKeyTransition key)
         follow_back(key);
     } else if (menu_open) {
         if (key.pressed) {
-            follow_menu(usb_dac_menu_key(&menu, (Key)key.key, key.time_ms));
+            follow_menu((Key)key.key, key.time_ms);
         }
     } else if (key.key == KEY_MENU && key.pressed) {
         open_menu(key.time_ms);
@@ -640,6 +687,15 @@ static void serve(void)
     }
 }
 
+static void warm_menu_glyphs(void)
+{
+    const Theme *theme = app_theme();
+    usb_dac_menu_open(&menu, (UsbDacMenuConfig){theme, settings, app_headphone_profiles()}, 0);
+    for (int index = 0; index < USB_DAC_ROW_COUNT; index++) {
+        (void)text_width(theme->fonts.title, menu.model.label(menu.model.context, index));
+    }
+}
+
 static void start_session(void)
 {
     board_audio_stream_buffer(NULL, USB_DAC_RING_FRAMES);
@@ -673,6 +729,7 @@ static void start_session(void)
     }
     shared->dac_volume = headphone_audio_limit(hal_audio_headphones(), shared->dac_volume);
     hal_audio_set_volume(shared->dac_volume);
+    warm_menu_glyphs();
 }
 
 static void remember(AppDacSettings before)

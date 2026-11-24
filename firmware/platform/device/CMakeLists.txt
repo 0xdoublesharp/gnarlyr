@@ -634,6 +634,9 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
         ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
         ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
+        board/debug_report_reads.c
+        board/debug_script_file.c
+        board/profiler_prepare.c
         board/time_file_take.c
         board/trial_module.c
         board/trial_record.c

@@ -3,6 +3,7 @@
 #include "core/i18n.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 
 enum {
@@ -331,16 +332,122 @@ static void draw_rows(const UsbPainter *painter, Rect lines)
     }
 }
 
+enum {
+    MENU_FOCUS_BAR = 3
+};
+
+static int smaller_of(int first, int second)
+{
+    return first < second ? first : second;
+}
+
+static int larger_of(int first, int second)
+{
+    return first > second ? first : second;
+}
+
+static Rect menu_rows_area(const Theme *theme, const UsbScreenLayout *layout, const ListView *view,
+                           int *count_out)
+{
+    int top = layout->header.height;
+    Rect rows = {0, top, theme->metrics.screen_width,
+                 layout->detail.y - theme->metrics.padding - top};
+    int count = view->model->count(view->model->context);
+    if (count > view->visible_rows) {
+        rows.width -= theme->metrics.scrollbar_width + theme->metrics.scrollbar_inset;
+    }
+    if (count_out != NULL) {
+        *count_out = count;
+    }
+    return rows;
+}
+
+Rect usb_screen_dac_menu_row_area(const Theme *theme, const UsbScreenLayout *layout,
+                                  const ListView *view, int index)
+{
+    int count = 0;
+    Rect rows = menu_rows_area(theme, layout, view, &count);
+    int position = index - view->top;
+    if (position < 0 || position >= view->visible_rows || index < 0 || index >= count) {
+        return (Rect){0, 0, 0, 0};
+    }
+    int height = theme->metrics.row_height;
+    return (Rect){rows.x, rows.y + position * height, rows.width, height};
+}
+
+static void draw_menu_row(const UsbPainter *painter, const ListView *view, int index, Rect row)
+{
+    const Theme *theme = painter->theme;
+    const ThemeColors *colors = &theme->colors;
+    const ListModel *model = view->model;
+    bool selected = index == view->selected;
+    if (selected) {
+        canvas_fill_rect(painter->canvas, row, theme_selection_fill(theme));
+        canvas_fill_rect(painter->canvas, (Rect){row.x, row.y, MENU_FOCUS_BAR, row.height},
+                         colors->accent);
+    }
+    int padding = theme->metrics.padding;
+    Rect text = {row.x + padding, row.y, row.width - 2 * padding, theme->metrics.row_height};
+    if (model->icon != NULL) {
+        int size = smaller_of(LIST_VIEW_ICON_BOX, smaller_of(text.width, text.height));
+        int gap = larger_of(LIST_VIEW_ICON_MIN_GAP, padding - LIST_VIEW_ICON_MIN_GAP);
+        Rect box = {text.x, text.y + (text.height - size) / 2, size, size};
+        if (usb_screen_touches(painter, box)) {
+            Color main = selected ? colors->selection_text : colors->text_secondary;
+            Canvas clipped = canvas_clipped(painter->canvas, row);
+            usb_screen_service(painter->scene);
+            icon_draw(&clipped, model->icon(model->context, index), box,
+                      (IconInk){main, selected ? main : colors->accent});
+            usb_screen_service(painter->scene);
+        }
+        int taken = smaller_of(text.width, size + gap);
+        text.x += taken;
+        text.width -= taken;
+    }
+    const char *detail = model->detail != NULL ? model->detail(model->context, index) : NULL;
+    if (detail != NULL) {
+        usb_screen_service(painter->scene);
+        TextStyle style = {theme_is_portrait(theme) ? theme->fonts.small : theme->fonts.body,
+                           colors->text_secondary, false};
+        int width = smaller_of(text_width(style.font, detail),
+                               larger_of(0, text.width - theme->metrics.detail_gap));
+        Rect box = {text.x + text.width - width, text.y, width, text.height};
+        if (usb_screen_touches(painter, box)) {
+            usb_screen_text(painter, box, style, detail);
+        }
+        text.width -= width + theme->metrics.detail_gap;
+    }
+    if (text.width > 0 && usb_screen_touches(painter, text)) {
+        TextStyle style = {selected ? theme->fonts.title : theme->fonts.body,
+                           selected ? colors->selection_text : colors->text, false};
+        usb_screen_text(painter, text, style, model->label(model->context, index));
+    }
+}
+
 static void draw_menu(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
-    int top = painter->layout.header.height;
-    Rect area = {0, top, theme->metrics.screen_width,
-                 painter->layout.detail.y - theme->metrics.padding - top};
-    canvas_fill_rect(painter->canvas, area, theme->colors.background);
+    const ListView *view = painter->scene->menu;
+    int count = 0;
+    Rect rows = menu_rows_area(theme, &painter->layout, view, &count);
+    Rect area = {0, rows.y, theme->metrics.screen_width, rows.height};
+    if (!usb_screen_touches(painter, area)) {
+        return;
+    }
+    theme_background_draw(theme, painter->canvas,
+                          view->background == 0 ? THEME_ART_LIST : view->background, area);
     usb_screen_service(painter->scene);
-    list_view_draw(painter->scene->menu, painter->canvas, area, hal_clock_milliseconds());
-    usb_screen_service(painter->scene);
+    if (count > view->visible_rows) {
+        list_view_draw_scrollbar(view, painter->canvas, area, count - view->visible_rows);
+    }
+    int height = theme->metrics.row_height;
+    for (int position = 0; position < view->visible_rows && view->top + position < count;
+         position++) {
+        Rect row = {rows.x, rows.y + position * height, rows.width, height};
+        if (usb_screen_touches(painter, row)) {
+            draw_menu_row(painter, view, view->top + position, row);
+        }
+    }
 }
 
 static int state_bottom(const UsbPainter *painter)

@@ -228,14 +228,12 @@ static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
         }
         uint32_t status = read_register(host, MMC_STATUS);
         uint32_t count = (status >> STATUS_FIFO_COUNT_SHIFT) & STATUS_FIFO_COUNT_MASK;
-        if (count == 0) {
-            board_audio_stream_service();
-        }
         uint32_t left = total - received;
         uint32_t end = received + (count < left ? count : left);
         for (; received < end; received++) {
             words[received] = register_read(fifo);
         }
+        board_audio_stream_service();
     }
     return true;
 }

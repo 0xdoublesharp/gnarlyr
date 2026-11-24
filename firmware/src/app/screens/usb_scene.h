@@ -148,6 +148,8 @@ Rect usb_screen_meter_change(const Theme *theme, const UsbScreenLayout *layout,
                              UsbMeterDelta delta);
 Rect usb_screen_dac_rows_area(const Theme *theme, const UsbScreenLayout *layout,
                               const UsbScene *scene);
+Rect usb_screen_dac_menu_row_area(const Theme *theme, const UsbScreenLayout *layout,
+                                  const ListView *view, int index);
 uint32_t usb_screen_text_sum(const char *text);
 int usb_screen_pages(const Theme *theme, AppUsbStatus status);
 int usb_screen_page_kind(const UsbScene *scene, int pages);

@@ -9,7 +9,8 @@ enum {
     STATUS_MAP = 0x0F0000,
     STATUS_NOT_READY = 0x03,
     STATUS_POWER_DOWN_DONE = 0x01,
-    POWER_DOWN_LIMIT_MS = 150,
+    POWER_DOWN_POLL_MS = 5,
+    POWER_DOWN_LIMIT_MS = 200,
     POWER_CONTROL_MAP = 0x020000,
     SERIAL_PORT_BIT = 0x40,
     HEADPHONE_BIT = 0x10,
@@ -129,18 +130,31 @@ CORE_COLD static bool write_mono_table(const DacBus *bus)
     return true;
 }
 
-CORE_COLD static bool change_power_bit(const DacBus *bus, uint8_t bit, bool down)
+CORE_COLD static bool change_power_bit_checked(const DacBus *bus, uint8_t bit, bool down,
+                                               bool *changed)
 {
+    bool any_changed = false;
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         uint8_t value = 0;
         bus->delay_us(bus->context, RELEASE_WAIT_US);
-        if (!bus->read(bus->context, CHIPS[chip], POWER_CONTROL_MAP, &value) ||
-            !bus->write(bus->context, CHIPS[chip], POWER_CONTROL_MAP,
-                        (uint8_t)(down ? value | bit : value & ~bit))) {
+        if (!bus->read(bus->context, CHIPS[chip], POWER_CONTROL_MAP, &value)) {
+            return false;
+        }
+        uint8_t next = (uint8_t)(down ? value | bit : value & ~bit);
+        any_changed |= next != value;
+        if (!bus->write(bus->context, CHIPS[chip], POWER_CONTROL_MAP, next)) {
             return false;
         }
     }
+    if (changed != NULL) {
+        *changed = any_changed;
+    }
     return true;
+}
+
+CORE_COLD static bool change_power_bit(const DacBus *bus, uint8_t bit, bool down)
+{
+    return change_power_bit_checked(bus, bit, down, NULL);
 }
 
 static bool release_power_bit(const DacBus *bus, uint8_t bit)
@@ -326,11 +340,11 @@ CORE_COLD static bool wait_for_power_down(const DacBus *bus)
             if ((status & STATUS_POWER_DOWN_DONE) != 0) {
                 break;
             }
-            if (waited_ms == POWER_DOWN_LIMIT_MS) {
-                return false;
+            if (waited_ms >= POWER_DOWN_LIMIT_MS) {
+                return true;
             }
-            wait_ms(bus, 1);
-            waited_ms++;
+            wait_ms(bus, POWER_DOWN_POLL_MS);
+            waited_ms += POWER_DOWN_POLL_MS;
         } while (true);
     }
     return true;
@@ -339,13 +353,16 @@ CORE_COLD static bool wait_for_power_down(const DacBus *bus)
 CORE_COLD bool dac_sequence_power_down(const DacBus *bus)
 {
     if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080046, 0x21) ||
-        !write_both(bus, 0x090003, 0xEF)) {
+        !write_both(bus, 0x010010, 0x00) || !write_both(bus, 0x090003, 0xEF)) {
         return false;
     }
     wait_ms(bus, 150);
+    bool powered_down = false;
     return read_status(bus) != DAC_NO_REPLY && write_both(bus, 0x0F0010, 0x86) &&
-           change_power_bit(bus, HEADPHONE_BIT, true) && wait_for_power_down(bus) &&
-           change_power_bit(bus, SERIAL_PORT_BIT, true) && write_both(bus, 0x080046, 0x20);
+           change_power_bit_checked(bus, HEADPHONE_BIT, true, &powered_down) &&
+           (!powered_down || wait_for_power_down(bus)) &&
+           change_power_bit(bus, SERIAL_PORT_BIT, true) && write_both(bus, 0x010010, 0x99) &&
+           write_both(bus, 0x080046, 0x20) && write_both(bus, 0x010010, 0x00);
 }
 
 CORE_COLD void dac_output_off(const DacBus *bus)

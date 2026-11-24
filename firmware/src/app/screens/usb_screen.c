@@ -434,18 +434,22 @@ static void draw_stage(const UsbPainter *painter)
     int top = painter->layout.header.height;
     int rule = painter->layout.detail.y - theme->metrics.padding;
     int width = theme->metrics.screen_width;
-    canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top}, colors->backdrop_top,
-                         colors->backdrop_bottom);
-    bool terrain = painter->status.view == APP_USB_STORAGE && painter->status.scene != NULL &&
-                   usb_screen_shows_traffic(painter->scene);
-    if (painter->status.view != APP_USB_DAC && !painter->details && !terrain) {
-        draw_floor(painter, rule);
+    if (painter->scene->menu == NULL) {
+        canvas_fill_gradient(painter->canvas, (Rect){0, top, width, rule - top},
+                             colors->backdrop_top, colors->backdrop_bottom);
+        bool terrain = painter->status.view == APP_USB_STORAGE && painter->status.scene != NULL &&
+                       usb_screen_shows_traffic(painter->scene);
+        if (painter->status.view != APP_USB_DAC && !painter->details && !terrain) {
+            draw_floor(painter, rule);
+        }
     }
-    canvas_fill_rect(painter->canvas, (Rect){0, rule, width, theme->metrics.screen_height - rule},
-                     colors->background);
-    canvas_fill_rect(painter->canvas,
-                     (Rect){painter->layout.detail.x, rule, painter->layout.detail.width, 1},
-                     colors->divider);
+    Rect bottom = {0, rule, width, theme->metrics.screen_height - rule};
+    if (usb_screen_touches(painter, bottom)) {
+        canvas_fill_rect(painter->canvas, bottom, colors->background);
+        canvas_fill_rect(painter->canvas,
+                         (Rect){painter->layout.detail.x, rule, painter->layout.detail.width, 1},
+                         colors->divider);
+    }
 }
 
 static bool warning(const UsbScene *scene)
@@ -657,9 +661,12 @@ bool usb_screen_touches(const UsbPainter *painter, Rect area)
 
 static void show_row(AppUsbStatus status, Rect row, int piece)
 {
+    const UsbScene *scene = usb_screen_scene(status);
     for (int left = row.x; left < row.x + row.width; left += piece) {
         int width = row.x + row.width - left;
+        usb_screen_service(scene);
         app_show_usb_area(status, (Rect){left, row.y, width < piece ? width : piece, row.height});
+        usb_screen_service(scene);
     }
 }
 

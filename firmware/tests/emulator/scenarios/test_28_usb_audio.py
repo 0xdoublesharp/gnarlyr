@@ -307,8 +307,15 @@ class EchoImageTest(EchoImageHarness):
         values = [struct.unpack("<h", response)[0] for setup, response in host.responses[first:]
                   if setup[:2] == (0xA1, 1)]
         self.assertEqual(values, [-2560, -5120, 0])
+        bands = self.watch_overview(machine)
         for key in (350, KEY_NEXT, KEY_PLAY, 500, 500):
+            before_bands = len(bands)
             self.press(machine, key)
+            if key == KEY_NEXT:
+                step_bands = bands[before_bands:]
+                self.assertGreater(len(step_bands), 0)
+                self.assertLessEqual(len(step_bands), 210)
+        self.assertLessEqual(self.max_poll_gap_us, MAX_USB_POLL_GAP_US)
         self.assertEqual(host.hid, [])
         self.press(machine, KEY_PLAY)
         self.assertEqual(host.hid, [0xCD, 0])
