@@ -280,7 +280,22 @@ CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
 
 CORE_COLD static bool set_volume_with_retry(const DacBus *bus, uint8_t volume)
 {
-    return dac_set_volume(bus, volume) || dac_set_volume(bus, volume);
+    for (int attempt = 0; attempt < 2; attempt++) {
+        if (dac_set_volume(bus, volume)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+CORE_COLD static bool write_channel_values_with_retry(const DacBus *bus)
+{
+    for (int attempt = 0; attempt < 2; attempt++) {
+        if (write_channel_values(bus)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 CORE_COLD static bool change_analog(const DacBus *bus, DacAnalog after)
@@ -329,8 +344,7 @@ CORE_SEAM void dac_output_on(const DacBus *bus, uint8_t volume)
     set_pin(bus, DAC_PIN_ENABLE_A, true);
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_AMP, true);
-    if ((!write_channel_values(bus) && !write_channel_values(bus)) ||
-        !set_volume_with_retry(bus, volume)) {
+    if (!write_channel_values_with_retry(bus) || !set_volume_with_retry(bus, volume)) {
         return;
     }
     wait_ms(bus, 10);
