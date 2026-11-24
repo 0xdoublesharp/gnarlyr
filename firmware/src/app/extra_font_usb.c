@@ -11,8 +11,6 @@ static const uint16_t USB_STATE_TEXT[] = {
     STR_USB_UNPLUGGED,    STR_USB_STOPPED,
 };
 
-static const uint16_t USB_TITLE_TEXT[] = {STR_USB_STORAGE, STR_POWER_TITLE, STR_POWER_CONNECTING};
-
 static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB,
     STR_USB_STATE_CONNECTED,
@@ -47,6 +45,7 @@ static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB_FULL_SPEED,
     STR_POWER_TITLE,
     STR_POWER_PERCENT,
+    STR_POWER_UNKNOWN,
     STR_USB_HOLD_BACK_HINT,
     STR_USB_KEEP_HOLDING,
     STR_USB_LEAVING_HINT,
@@ -83,7 +82,6 @@ static const uint16_t USB_SMALL_TEXT[] = {
     STR_USB_LINK_HIGH,
     STR_USB_LINK_FULL,
     STR_USB_UNKNOWN,
-    STR_CHIP_VOL,
 };
 
 static void hold_codepoints(const Font *font, const char *text)
@@ -105,11 +103,8 @@ void extra_font_hold_for_usb(const Theme *theme)
     font_pack_hold(FONT_PACK_HOLD_PIN);
     hold_codepoints(theme->fonts.title, USB_FIGURES);
     hold_codepoints(theme->fonts.small, USB_FIGURES);
-    uint32_t states = sizeof USB_STATE_TEXT / sizeof USB_STATE_TEXT[0];
-    hold_text(theme->fonts.title, USB_STATE_TEXT, states);
-    hold_text(theme->fonts.header, USB_TITLE_TEXT,
-              sizeof USB_TITLE_TEXT / sizeof USB_TITLE_TEXT[0]);
-    hold_text(theme->fonts.small, USB_STATE_TEXT, states);
+    hold_text(theme->fonts.title, USB_STATE_TEXT, sizeof USB_STATE_TEXT / sizeof USB_STATE_TEXT[0]);
+    hold_codepoints(theme->fonts.header, i18n_text(STR_USB_STORAGE));
     hold_text(theme->fonts.small, USB_SMALL_TEXT, sizeof USB_SMALL_TEXT / sizeof USB_SMALL_TEXT[0]);
     font_pack_hold(FONT_PACK_HOLD_FREEZE);
 }

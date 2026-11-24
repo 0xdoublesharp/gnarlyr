@@ -8,6 +8,17 @@
 #include "usb.h"
 #include "usb_registers.h"
 
+#define USB_PORT_SIZE __attribute__((optimize("Os")))
+
+enum {
+    INTERFACE_STATUS = 0x81,
+    ENDPOINT_STATUS = 0x82,
+    ENDPOINT_FEATURE = 0x02,
+    GET_STATUS = 0,
+    SET_FEATURE = 3,
+    DAC_HID_IN = 0x82
+};
+
 static void arm_setup(void)
 {
     write_register(out_control(0) + 0x10u, EP0_OUT_SETUP_SIZE);
@@ -38,39 +49,49 @@ static uint32_t tx_space(const UsbPort *port, uint32_t endpoint)
     return queue_has_room ? status & TX_SPACE_MASK : 0;
 }
 
-static bool send(const UsbPort *port, uint32_t endpoint, const uint8_t *bytes, uint32_t length)
+static bool wait_for_space(const UsbPort *port, uint32_t endpoint, uint32_t words)
 {
-    uint32_t words = (length + 3) / 4;
     uint32_t start = hal_clock_milliseconds();
-    bool space_unreported = port->link.dedicated_fifos && endpoint == 0;
-    while (!space_unreported && tx_space(port, endpoint) < words) {
+    while (tx_space(port, endpoint) < words) {
         if (hal_clock_milliseconds() - start > SPACE_TIMEOUT_MS) {
             return false;
         }
     }
-    write_register(in_control(endpoint) + 0x10u, ONE_PACKET | length);
-    set_bits(in_control(endpoint), EP_ENABLE | EP_CLEAR_NAK);
+    return true;
+}
+
+USB_PORT_SIZE static bool send_control_packet(const UsbPort *port, const uint8_t *bytes,
+                                              uint32_t length)
+{
+    uint32_t words = (length + 3) / 4;
+    if (!port->link.dedicated_fifos && !wait_for_space(port, 0, words)) {
+        return false;
+    }
+    write_register(in_control(0) + 0x10u, ONE_PACKET | length);
+    set_bits(in_control(0), EP_ENABLE | EP_CLEAR_NAK);
     for (uint32_t word = 0; word < words; word++) {
         uint32_t value = 0;
         for (uint32_t byte = 0; byte < 4 && word * 4 + byte < length; byte++) {
             value |= (uint32_t)bytes[word * 4 + byte] << (8 * byte);
         }
-        write_register(fifo(endpoint), value);
+        write_register(fifo(0), value);
     }
     return true;
 }
 
-static bool send_control(const UsbPort *port, const uint8_t *bytes, uint32_t length)
+static bool send_control(const UsbPort *port, UsbReply reply, uint32_t requested)
 {
-    uint32_t sent = 0;
-    while (length - sent > USB_PACKET_SIZE) {
-        if (!send(port, 0, bytes + sent, USB_PACKET_SIZE) ||
+    uint32_t left = reply.length;
+    const uint8_t *bytes = reply.data;
+    while (left > USB_PACKET_SIZE || (left == USB_PACKET_SIZE && reply.length < requested)) {
+        if (!send_control_packet(port, bytes, USB_PACKET_SIZE) ||
             !wait_clear(in_control(0), EP_ENABLE, SPACE_TIMEOUT_MS)) {
             return false;
         }
-        sent += USB_PACKET_SIZE;
+        bytes += USB_PACKET_SIZE;
+        left -= USB_PACKET_SIZE;
     }
-    return send(port, 0, bytes == NULL ? NULL : bytes + sent, length - sent);
+    return send_control_packet(port, bytes, left);
 }
 
 static uint32_t next_frame_parity(void)
@@ -118,7 +139,7 @@ static void clear_endpoint_interrupts(uint32_t endpoint)
     write_register(out_control(endpoint) + 0x08u, EP_INT_ALL);
 }
 
-static void handle_reset(UsbPort *port)
+USB_PORT_SIZE static void handle_reset(UsbPort *port)
 {
     write_register(DCFG, read_register(DCFG) & ~DCFG_ADDRESS_MASK);
     for (uint32_t endpoint = 0; endpoint < 4; endpoint++) {
@@ -132,6 +153,7 @@ static void handle_reset(UsbPort *port)
     }
     usb_flush_fifos();
     port->configured = false;
+    port->device.configuration = 0;
     if (port->resets < UINT8_MAX) {
         port->resets++;
     }
@@ -183,7 +205,7 @@ static void activate_audio_endpoints(const UsbPort *port)
     (void)port;
 }
 
-static void activate_endpoints(const UsbPort *port)
+USB_PORT_SIZE static void activate_endpoints(const UsbPort *port)
 {
     if (port->audio == NULL) {
         activate_bulk_endpoints(port);
@@ -215,14 +237,36 @@ static void change_stream(const UsbPort *port)
     start_stream(port);
 }
 
-static void clear_halt(uint16_t endpoint)
+static uint32_t endpoint_control(uint16_t endpoint)
 {
     uint32_t number = endpoint & 0x0Fu;
-    uint32_t control = (endpoint & 0x80u) != 0 ? in_control(number) : out_control(number);
-    write_register(control, (read_register(control) & ~EP_STALL) | EP_SET_DATA0);
+    return (endpoint & 0x80u) != 0 ? in_control(number) : out_control(number);
 }
 
-static void apply_action(UsbPort *port, UsbReply reply)
+static void reset_storage(UsbPort *port)
+{
+    msc_reset(port->msc);
+    port->in_busy = false;
+    port->in_left = 0;
+}
+
+static void configure_endpoints(UsbPort *port, bool configured)
+{
+    port->configured = configured;
+    if (configured) {
+        activate_endpoints(port);
+        return;
+    }
+    disable_endpoint(out_control(1));
+    disable_endpoint(in_control(1));
+    if (port->audio != NULL) {
+        disable_endpoint(in_control(2));
+    } else {
+        reset_storage(port);
+    }
+}
+
+static void apply_action(UsbPort *port, UsbSetup setup, UsbReply reply)
 {
     switch (reply.action) {
     case USB_ACTION_SET_ADDRESS:
@@ -230,32 +274,41 @@ static void apply_action(UsbPort *port, UsbReply reply)
                                  ((uint32_t)reply.value << DCFG_ADDRESS_SHIFT));
         break;
     case USB_ACTION_CONFIGURE:
-        port->configured = reply.value == 1;
-        if (port->configured) {
-            activate_endpoints(port);
-        } else if (port->audio != NULL) {
-            disable_endpoint(out_control(1));
-            disable_endpoint(in_control(1));
-            disable_endpoint(in_control(2));
-        }
+        configure_endpoints(port, reply.value == 1);
         break;
     case USB_ACTION_STREAM:
         change_stream(port);
         break;
-    case USB_ACTION_CLEAR_HALT:
-        clear_halt(reply.value);
+    case USB_ACTION_CLEAR_HALT: {
+        uint32_t control = endpoint_control(reply.value);
+        write_register(control, (read_register(control) & ~EP_STALL) | EP_SET_DATA0);
         break;
+    }
     case USB_ACTION_MSC_RESET:
-        msc_reset(port->msc);
-        port->in_busy = false;
-        port->in_left = 0;
+        reset_storage(port);
         break;
     case USB_ACTION_NONE:
+        if (setup.request_type == ENDPOINT_FEATURE && setup.request == SET_FEATURE) {
+            set_bits(endpoint_control(reply.value), EP_STALL);
+        }
         break;
     }
 }
 
-static void finish_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
+static bool answer_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
+{
+    if (reply.kind == USB_REPLY_STALL) {
+        return false;
+    }
+    apply_action(port, setup, reply);
+    if (setup.request_type == ENDPOINT_STATUS && setup.request == GET_STATUS &&
+        (setup.index & 0x0Fu) != 0) {
+        port->device.scratch[0] = (read_register(endpoint_control(setup.index)) & EP_STALL) != 0;
+    }
+    return send_control(port, reply, setup.length);
+}
+
+USB_PORT_SIZE static void finish_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
 {
     if (port->audio != NULL && reply.action == USB_ACTION_CONFIGURE && reply.value == 1 &&
         !audio_fifos().fits) {
@@ -266,14 +319,10 @@ static void finish_setup(UsbPort *port, UsbSetup setup, UsbReply reply)
         (port->audio->changes & USB_AUDIO_CHANGED_FORMAT) != 0 && port->format_changed != NULL) {
         port->format_changed();
     }
-    apply_action(port, reply);
-    if (reply.kind == USB_REPLY_STALL) {
-        set_bits(in_control(0), EP_STALL);
+    if (!answer_setup(port, setup, reply)) {
+        set_bits(in_control(0), EP_STALL | EP_CLEAR_NAK);
         set_bits(out_control(0), EP_STALL);
-    } else if (reply.kind == USB_REPLY_DATA) {
-        send_control(port, reply.data, reply.length);
-    } else if ((setup.request_type & 0x80u) == 0) {
-        send(port, 0, NULL, 0);
+        arm_setup();
     }
 }
 
@@ -287,12 +336,30 @@ static void trace_setup(UsbPort *port, UsbSetup setup, UsbReplyKind kind)
     port->setups.seen++;
 }
 
-static void process_setup(UsbPort *port)
+static bool valid_control_target(const UsbPort *port, UsbSetup setup)
+{
+    if (setup.request_type == ENDPOINT_FEATURE) {
+        return port->configured && (setup.index == DAC_HID_IN) == (port->audio != NULL);
+    }
+    if (setup.request == GET_STATUS && setup.request_type == ENDPOINT_STATUS) {
+        return (setup.index & 0x0Fu) == 0 ||
+               (port->configured && (setup.index != DAC_HID_IN || port->audio != NULL));
+    }
+    return setup.request_type != INTERFACE_STATUS || setup.request != GET_STATUS ||
+           (port->configured && (setup.index == 0 || port->audio != NULL));
+}
+
+USB_PORT_SIZE static void process_setup(UsbPort *port)
 {
     disable_endpoint(in_control(0));
+    write_register(in_control(0), read_register(in_control(0)) & ~EP_STALL);
+    write_register(out_control(0), read_register(out_control(0)) & ~EP_STALL);
     UsbSetup setup = usb_setup_parse((const uint8_t *)port->setup);
-    UsbReply reply = port->audio != NULL ? usb_audio_setup(port->audio, setup)
-                                         : usb_device_setup(&port->device, setup);
+    UsbReply reply = {.kind = USB_REPLY_STALL};
+    if (valid_control_target(port, setup)) {
+        reply = port->audio != NULL ? usb_audio_setup(port->audio, setup)
+                                    : usb_device_setup(&port->device, setup);
+    }
     trace_setup(port, setup, reply.kind);
     port->setup_pending = false;
     port->setup_ready = false;
@@ -370,6 +437,20 @@ static void receive_storage(UsbPort *port, uint32_t count)
     msc_receive(port->msc, bytes, count < capacity ? count : capacity);
 }
 
+static void receive_setup(UsbPort *port, uint32_t count)
+{
+    port->control_data_pending = false;
+    port->control_out_pending = false;
+    port->setup_ready = false;
+    port->setup_pending = count == sizeof port->setup;
+    if (!port->setup_pending) {
+        read_fifo(NULL, 0, count);
+        return;
+    }
+    port->setup[0] = read_register(fifo(0));
+    port->setup[1] = read_register(fifo(0));
+}
+
 static void handle_receive(UsbPort *port)
 {
     if (receive_blocked(port)) {
@@ -382,11 +463,7 @@ static void handle_receive(UsbPort *port)
     if (storage_packet(port, status)) {
         receive_storage(port, count);
     } else if (type == PACKET_SETUP_DATA) {
-        port->control_data_pending = false;
-        port->control_out_pending = false;
-        read_fifo(port->setup, sizeof port->setup / 4, count);
-        port->setup_pending = true;
-        port->setup_ready = false;
+        receive_setup(port, count);
     } else if (type == PACKET_OUT_DATA) {
         read_fifo(port->out_packet, sizeof port->out_packet / 4, count);
         uint32_t capacity = sizeof port->out_packet;
@@ -434,17 +511,6 @@ static void handle_in_endpoints(UsbPort *port)
             port->in_busy = false;
         }
     }
-}
-
-static bool wait_for_space(const UsbPort *port, uint32_t endpoint, uint32_t words)
-{
-    uint32_t start = hal_clock_milliseconds();
-    while (tx_space(port, endpoint) < words) {
-        if (hal_clock_milliseconds() - start > SPACE_TIMEOUT_MS) {
-            return false;
-        }
-    }
-    return true;
 }
 
 static bool send_bulk(const UsbPort *port, const uint32_t *words, uint32_t length)

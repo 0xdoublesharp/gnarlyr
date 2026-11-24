@@ -24,7 +24,7 @@ typedef enum FooterAlign {
 enum {
     FOOTER_CHIP_PADDING = 4,
     FOOTER_CHIP_GAP = 6,
-    FOOTER_HINT_GAP = 8,
+    FOOTER_HINT_GAP = 4,
     FOOTER_LINE_SPACE = 4,
     FOOTER_VERB_ALPHA = 10
 };

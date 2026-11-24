@@ -782,7 +782,7 @@ static HalUsbWrites write_split(const MscStats *stats)
         .hcon = {card_speed.hcon[INTERNAL_LUN], card_speed.hcon[CARD_LUN]}};
 }
 
-static void remember_session(UsbSessionEnd end)
+__attribute__((optimize("Os"))) static void remember_session(UsbSessionEnd end)
 {
     msc_reset(&msc);
     const MscStats *stats = &msc.stats;
