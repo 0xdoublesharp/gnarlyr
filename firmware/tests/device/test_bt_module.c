@@ -710,6 +710,31 @@ static void a_stop_after_the_module_reported_playing_sends_the_pause_notice_firs
     CHECK(frame_bytes_are(&frame, STREAM_OFF, sizeof STREAM_OFF));
 }
 
+static void connected_with_version(const char *ready, uint32_t now_ms)
+{
+    power_on(START_MS);
+    receive_text(ready, START_MS + 200);
+    settle(START_MS + 200);
+    receive_connected(PHONES, "WH-1000XM4", now_ms);
+    settle(now_ms);
+}
+
+static void non_cv15_module_skips_play_and_pause_notices(void)
+{
+    BtModuleFrame frame;
+    connected_with_version("CV14", START_MS + 400);
+    receive_text("CP", START_MS + 500);
+    settle(START_MS + 500);
+    CHECK(bt_module_set_stream(&module, true, START_MS + 900, &frame));
+    CHECK(frame_bytes_are(&frame, STREAM_ON, sizeof STREAM_ON));
+    CHECK(!poll(START_MS + 900 + BT_MODULE_PLAY_NOTICE_DELAY_MS, &frame));
+    receive_text("CC", START_MS + 1100);
+    settle(START_MS + 1100);
+    CHECK(bt_module_set_stream(&module, false, START_MS + 1300, &frame));
+    CHECK(frame_bytes_are(&frame, STREAM_OFF, sizeof STREAM_OFF));
+    CHECK(!poll(START_MS + 1300 + BT_MODULE_PLAY_NOTICE_DELAY_MS, &frame));
+}
+
 static void status_changes_and_sent_links_are_kept(void)
 {
     BtModuleFrame frame;
@@ -1079,6 +1104,7 @@ int main(void)
         TEST_CASE(a_player_pause_and_resume_send_only_cy0),
         TEST_CASE(a_start_after_the_module_reported_paused_sends_the_play_notice_first),
         TEST_CASE(a_stop_after_the_module_reported_playing_sends_the_pause_notice_first),
+        TEST_CASE(non_cv15_module_skips_play_and_pause_notices),
         TEST_CASE(streaming_needs_a_connection),
         TEST_CASE(a_dropped_link_ends_the_stream),
         TEST_CASE(a_pause_report_right_after_the_stream_starts_restarts_it_once),

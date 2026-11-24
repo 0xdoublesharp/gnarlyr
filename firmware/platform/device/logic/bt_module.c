@@ -1,6 +1,7 @@
 #include "device/bt_module.h"
 
 #include "core/deadline.h"
+#include "core/seam.h"
 
 enum {
     ADDRESS_SIZE = HAL_BLUETOOTH_ADDRESS_SIZE,
@@ -40,7 +41,7 @@ static void set_state(BtModule *module, HalBluetoothState state, uint32_t now_ms
     module->last_query_ms = now_ms;
 }
 
-static void restart(BtModule *module, HalBluetoothState state, uint32_t now_ms)
+CORE_COLD static void restart(BtModule *module, HalBluetoothState state, uint32_t now_ms)
 {
     HalBluetoothStatus *status = &module->status;
     HalBluetoothLink link = status->link;
@@ -330,7 +331,8 @@ static void note_event(BtModule *module, const uint8_t *bytes, uint32_t size, ui
     add_event(module, event_letter(bytes[1]), size > 2 ? event_letter(bytes[2]) : '.', now_ms);
 }
 
-static void handle_frame(BtModule *module, const uint8_t *bytes, uint32_t size, uint32_t now_ms)
+CORE_COLD static void handle_frame(BtModule *module, const uint8_t *bytes, uint32_t size,
+                                   uint32_t now_ms)
 {
     module->status.link.frames++;
     if (bytes[1] != 'Q') {
@@ -639,7 +641,8 @@ bool bt_module_poll(BtModule *module, uint32_t now_ms, BtModuleFrame *frame)
     }
 }
 
-bool bt_module_set_stream(BtModule *module, bool on, uint32_t now_ms, BtModuleFrame *frame)
+CORE_COLD bool bt_module_set_stream(BtModule *module, bool on, uint32_t now_ms,
+                                    BtModuleFrame *frame)
 {
     if (module->status.state != HAL_BLUETOOTH_CONNECTED) {
         return false;
@@ -650,12 +653,14 @@ bool bt_module_set_stream(BtModule *module, bool on, uint32_t now_ms, BtModuleFr
     module->restart_stream = false;
     module->stream_restarted = false;
     uint8_t notice = 0;
-    if (on && module->play_state == PLAY_STATE_PAUSED) {
-        notice = PLAY_NOTICE;
-        module->play_state = PLAY_STATE_PLAYING;
-    } else if (!on && module->play_state == PLAY_STATE_PLAYING) {
-        notice = PAUSE_NOTICE;
-        module->play_state = PLAY_STATE_PAUSED;
+    if (module->status.version == '5') {
+        if (on && module->play_state == PLAY_STATE_PAUSED) {
+            notice = PLAY_NOTICE;
+            module->play_state = PLAY_STATE_PLAYING;
+        } else if (!on && module->play_state == PLAY_STATE_PLAYING) {
+            notice = PAUSE_NOTICE;
+            module->play_state = PLAY_STATE_PAUSED;
+        }
     }
     if (notice == 0) {
         stream_frame(module, on, now_ms, frame);

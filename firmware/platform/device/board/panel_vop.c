@@ -60,13 +60,13 @@ static void bus_pixels(void *context, const uint16_t *pixels, uint32_t count)
     vop_pixels(vop(), pixels, count);
 }
 
-static void bus_delay(void *context, uint32_t milliseconds)
+CORE_COLD static void bus_delay(void *context, uint32_t milliseconds)
 {
     (void)context;
     board_delay_ms(milliseconds);
 }
 
-static void bus_serviced_delay(void *context, uint32_t milliseconds)
+CORE_COLD static void bus_serviced_delay(void *context, uint32_t milliseconds)
 {
     (void)context;
     if (board_panic_active()) {
@@ -83,7 +83,7 @@ static void bus_serviced_delay(void *context, uint32_t milliseconds)
 static const PanelBus BUS = {bus_command, bus_data, bus_pixels, bus_delay, NULL};
 static const PanelBus SERVICED_BUS = {bus_command, bus_data, bus_pixels, bus_serviced_delay, NULL};
 
-static void power_controller(void)
+CORE_COLD static void power_controller(void)
 {
     cru_gate(VOP_GATE, true);
     cru_reset(VOP_RESET, true);
@@ -94,7 +94,7 @@ static void power_controller(void)
     controller_running = true;
 }
 
-static void mux_panel_pins(void)
+CORE_COLD static void mux_panel_pins(void)
 {
     for (uint8_t pin = PANEL_FIRST_PIN; pin <= PANEL_LAST_PIN; pin++) {
         gpio_mux((GpioPin){0, pin}, GPIO_FUNCTION_ALTERNATE);
@@ -102,7 +102,7 @@ static void mux_panel_pins(void)
     gpio_mux(PANEL_RESET, GPIO_FUNCTION_GPIO);
 }
 
-static void pulse_reset(void)
+CORE_COLD static void pulse_reset(void)
 {
     gpio_output(PANEL_RESET, true);
     board_delay_ms(RESET_HIGH_MS);
@@ -112,7 +112,7 @@ static void pulse_reset(void)
     board_delay_ms(RESET_SETTLE_MS);
 }
 
-void board_panel_start(void)
+CORE_COLD void board_panel_start(void)
 {
     power_controller();
     mux_panel_pins();
@@ -120,17 +120,17 @@ void board_panel_start(void)
     panel_send_init(&BUS);
 }
 
-void board_panel_sleep(void)
+CORE_COLD void board_panel_sleep(void)
 {
     panel_sleep(&SERVICED_BUS);
 }
 
-void board_panel_wake(void)
+CORE_COLD void board_panel_wake(void)
 {
     panel_wake(&SERVICED_BUS);
 }
 
-void board_panel_set_rotation(PanelRotation rotation)
+CORE_COLD void board_panel_set_rotation(PanelRotation rotation)
 {
     panel_set_rotation(&BUS, rotation);
 }

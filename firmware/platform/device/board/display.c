@@ -55,7 +55,7 @@ CORE_COLD void board_display_clear(void)
     }
 }
 
-static void stop_pwm(void)
+CORE_COLD static void stop_pwm(void)
 {
     if (!pwm_running) {
         return;
@@ -72,7 +72,7 @@ CORE_COLD static void drive_backlight(bool level)
     gpio_output(BACKLIGHT, level);
 }
 
-static void start_pwm(void)
+CORE_COLD static void start_pwm(void)
 {
     cru_gate(PWM_GATE, true);
     cru_reset(PWM_RESET, true);
@@ -115,14 +115,14 @@ bool board_display_lit(void)
     return backlight_on;
 }
 
-void board_backlight_full(void)
+CORE_COLD void board_backlight_full(void)
 {
     ramping = false;
     backlight_on = true;
     drive_backlight(true);
 }
 
-static void start_fade_in(void)
+CORE_COLD static void start_fade_in(void)
 {
     ramping = true;
     ramp_started_ms = hal_clock_milliseconds();
@@ -145,7 +145,7 @@ void board_display_service(void)
     register_write(PWM_DUTY, backlight_duty(pwm_period, percent));
 }
 
-void board_backlight_off(void)
+CORE_COLD void board_backlight_off(void)
 {
     ramping = false;
     backlight_on = false;
@@ -164,6 +164,7 @@ CORE_COLD void board_display_start(void)
 {
     brightness = HAL_DISPLAY_BRIGHTNESS_MAX;
     backlight_on = false;
+    cru_gate(PWM_GATE, false);
     drive_backlight(false);
     board_panel_start();
     board_display_clear();
