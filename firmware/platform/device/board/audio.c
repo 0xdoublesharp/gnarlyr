@@ -7,6 +7,7 @@
 #include "audio_dsp.h"
 #include "audio_process.h"
 #include "board.h"
+#include "core/bytes.h"
 #include "core/format.h"
 #include "core/seam.h"
 #include "core1_region.h"
@@ -150,9 +151,7 @@ static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t len
     const HalFile *open = context;
     uint32_t started_us = hal_clock_microseconds();
     bool read = hal_file_read(*open, offset, buffer, length);
-    uint32_t read_us = hal_clock_microseconds() - started_us;
-    read_us_pending += read_us;
-    stats.read_total_us += read_us;
+    read_us_pending += hal_clock_microseconds() - started_us;
     return read;
 }
 
@@ -164,7 +163,6 @@ static uint32_t larger(uint32_t a, uint32_t b)
 static void pump(uint32_t consumed_frames)
 {
     uint32_t frames = audio_engine_stats(&engine).frames;
-    read_us_pending = 0;
     uint32_t decode_started_us = hal_clock_microseconds();
     if (using_core1) {
         core1_source.fill_budget = board_display_lit() ? FILL_BUDGET_BYTES : FILL_BURST_BYTES;
@@ -189,6 +187,8 @@ static void pump(uint32_t consumed_frames)
     stats.decode_total_us += stats.decode_us;
     stats.read_us = read_us_pending;
     stats.read_max_us = larger(stats.read_max_us, stats.read_us);
+    stats.read_total_us += stats.read_us;
+    read_us_pending = 0;
 }
 
 static bool open_file(void *context, const char *path, FlacInput *input)
@@ -207,39 +207,66 @@ CORE_COLD static void close_file(void *context)
     hal_file_close(&file);
 }
 
-static bool tag_is(const uint8_t *bytes, const char *tag)
+static bool same_bytes(const uint8_t *first, const uint8_t *second)
 {
-    return bytes[0] == (uint8_t)tag[0] && bytes[1] == (uint8_t)tag[1] &&
-           bytes[2] == (uint8_t)tag[2] && bytes[3] == (uint8_t)tag[3];
+    return first[0] == second[0] && first[1] == second[1] && first[2] == second[2] &&
+           first[3] == second[3];
 }
 
-static SourceKind kind_of(const char *path)
+static bool tag_is(const uint8_t *bytes, const char *tag)
 {
+    return same_bytes(bytes, (const uint8_t *)tag);
+}
+
+CORE_COLD static bool id3_flac(FlacInput input, const uint8_t *magic)
+{
+    if (magic[0] != 'I' || magic[1] != 'D' || magic[2] != '3') {
+        return false;
+    }
+    uint8_t version = magic[3];
+    bool footer = (magic[5] & 0x10u) != 0;
+    if (version < 2 || version > 4 || magic[4] == 0xFF || (footer && version != 4) ||
+        ((magic[6] | magic[7] | magic[8] | magic[9]) & 0x80u) != 0) {
+        return false;
+    }
+    uint32_t offset = 10u + bytes_synchsafe(magic + 6) + (footer ? 10u : 0u);
+    uint8_t tag[4];
+    return offset <= input.size - sizeof tag &&
+           input.read(input.context, offset, tag, sizeof tag) && tag_is(tag, "fLaC");
+}
+
+CORE_COLD static SourceKind kind_of(const char *path)
+{
+    static const struct {
+        uint8_t tag[4];
+        uint8_t kind;
+    } DIRECT[] = {
+        {{'f', 'L', 'a', 'C'}, SOURCE_FLAC}, {{'D', 'S', 'D', ' '}, SOURCE_DSD},
+        {{'F', 'R', 'M', '8'}, SOURCE_DSD},  {{0x30, 0x26, 0xB2, 0x75}, SOURCE_WMA},
+        {{'M', 'A', 'C', ' '}, SOURCE_APE},
+    };
     FlacInput input;
     if (!open_file(NULL, path, &input)) {
         return SOURCE_FLAC;
     }
-    uint8_t magic[SNIFF_BYTES] = {0};
+    uint8_t magic[SNIFF_BYTES];
     bool read = input.size >= SNIFF_BYTES && input.read(input.context, 0, magic, sizeof magic);
+    bool flac = !read || id3_flac(input, magic);
     close_file(NULL);
-    if (!read || tag_is(magic, "fLaC")) {
+    if (flac) {
         return SOURCE_FLAC;
+    }
+    for (uint32_t index = 0; index < sizeof DIRECT / sizeof DIRECT[0]; index++) {
+        if (same_bytes(magic, DIRECT[index].tag)) {
+            return (SourceKind)DIRECT[index].kind;
+        }
     }
     if ((tag_is(magic, "RIFF") && tag_is(magic + 8, "WAVE")) ||
         (tag_is(magic, "FORM") && (tag_is(magic + 8, "AIFF") || tag_is(magic + 8, "AIFC")))) {
         return SOURCE_WAV;
     }
-    if (tag_is(magic, "DSD ") || tag_is(magic, "FRM8")) {
-        return SOURCE_DSD;
-    }
     if (tag_is(magic, "OggS")) {
         return tag_is(magic + 28, "Opus") ? SOURCE_OPUS : SOURCE_VORBIS;
-    }
-    if (magic[0] == 0x30 && magic[1] == 0x26 && magic[2] == 0xB2 && magic[3] == 0x75) {
-        return SOURCE_WMA;
-    }
-    if (tag_is(magic, "MAC ")) {
-        return SOURCE_APE;
     }
     if (mp4_signature(magic)) {
         return SOURCE_M4A;
@@ -287,7 +314,12 @@ CORE_COLD static bool open_chosen(void *context, const char *path, uint32_t star
     if (unknown_format || !board_audio_process_prepare()) {
         return false;
     }
-    if (source_kind != SOURCE_WAV) {
+    if (source_kind == SOURCE_WAV) {
+        if (using_core1) {
+            board_core1_stop();
+            using_core1 = false;
+        }
+    } else {
         using_core1 = board_core1_start_stream((Core1Program)source_kind);
         core1_source.clock_mhz = hal_system_clock_mhz();
         if (!using_core1) {
@@ -430,7 +462,7 @@ static void restart_transfer(void)
 CORE_COLD static void stop_path(void)
 {
     stop_transfer();
-    if (path_up) {
+    if (path_up || dac_path_is_up()) {
         dac_path_stop();
         path_up = false;
     }
@@ -485,8 +517,7 @@ CORE_COLD static bool start_output(bool audible)
            hal_clock_milliseconds() - started_ms < PREFILL_TIMEOUT_MS) {
         pump(0);
     }
-    stats = (HalAudioStats){0};
-    output_started_us = hal_clock_microseconds();
+    hal_audio_reset_stats();
     stopped_waiting = false;
     return start_transfer(engine.config.ring_words, audible);
 }
@@ -532,8 +563,8 @@ static AudioEngineTrack engine_track(const HalAudioTrack *track)
                               .fade_ms = track->fade_ms};
 }
 
-CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
-                              const HalAudioTrack *next, bool paused)
+CORE_SEAM CORE_COLD bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
+                                        const HalAudioTrack *next, bool paused)
 {
     if (!workspace_loan_claimable(&workspace_loan)) {
         return false;
@@ -552,7 +583,7 @@ CORE_SEAM bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms,
     return engine.state != AUDIO_ENGINE_STOPPED;
 }
 
-void hal_audio_queue_next(const HalAudioTrack *track)
+CORE_COLD void hal_audio_queue_next(const HalAudioTrack *track)
 {
     ensure_engine();
     HalAudioStatus status = hal_audio_status();
@@ -668,14 +699,14 @@ static void apply_volume(void)
     }
 }
 
-void hal_audio_set_volume(uint8_t level)
+CORE_COLD void hal_audio_set_volume(uint8_t level)
 {
     volume_level = headphone_audio_limit(hal_audio_headphones(), level);
     volume_set = true;
     apply_volume();
 }
 
-void hal_audio_set_bluetooth_volume(uint8_t level)
+CORE_COLD void hal_audio_set_bluetooth_volume(uint8_t level)
 {
     bluetooth_level = level < HAL_AUDIO_VOLUME_MAX ? level : HAL_AUDIO_VOLUME_MAX;
     apply_volume();
@@ -738,44 +769,25 @@ void hal_audio_set_effects(HalAudioEffects effects)
 
 static HalAudioState state_of(AudioEngineState state)
 {
-    switch (state) {
-    case AUDIO_ENGINE_PLAYING:
-        return HAL_AUDIO_PLAYING;
-    case AUDIO_ENGINE_PAUSED:
-        return HAL_AUDIO_PAUSED;
-    case AUDIO_ENGINE_STOPPED:
-        return HAL_AUDIO_STOPPED;
-    }
-    return HAL_AUDIO_STOPPED;
+    _Static_assert((int)AUDIO_ENGINE_STOPPED == (int)HAL_AUDIO_STOPPED &&
+                       (int)AUDIO_ENGINE_PLAYING == (int)HAL_AUDIO_PLAYING &&
+                       (int)AUDIO_ENGINE_PAUSED == (int)HAL_AUDIO_PAUSED,
+                   "audio states match");
+    return state <= AUDIO_ENGINE_PAUSED ? (HalAudioState)state : HAL_AUDIO_STOPPED;
 }
 
 static HalAudioCodec codec_of(AudioCodec codec)
 {
-    switch (codec) {
-    case AUDIO_CODEC_WAV:
-        return HAL_AUDIO_CODEC_WAV;
-    case AUDIO_CODEC_MP3:
-        return HAL_AUDIO_CODEC_MP3;
-    case AUDIO_CODEC_AAC:
-        return HAL_AUDIO_CODEC_AAC;
-    case AUDIO_CODEC_ALAC:
-        return HAL_AUDIO_CODEC_ALAC;
-    case AUDIO_CODEC_VORBIS:
-        return HAL_AUDIO_CODEC_VORBIS;
-    case AUDIO_CODEC_AIFF:
-        return HAL_AUDIO_CODEC_AIFF;
-    case AUDIO_CODEC_DSD:
-        return HAL_AUDIO_CODEC_DSD;
-    case AUDIO_CODEC_WMA:
-        return HAL_AUDIO_CODEC_WMA;
-    case AUDIO_CODEC_APE:
-        return HAL_AUDIO_CODEC_APE;
-    case AUDIO_CODEC_OPUS:
-        return HAL_AUDIO_CODEC_OPUS;
-    case AUDIO_CODEC_FLAC:
-        break;
-    }
-    return HAL_AUDIO_CODEC_FLAC;
+    static const uint8_t CODECS[] = {
+        [AUDIO_CODEC_FLAC] = HAL_AUDIO_CODEC_FLAC, [AUDIO_CODEC_WAV] = HAL_AUDIO_CODEC_WAV,
+        [AUDIO_CODEC_MP3] = HAL_AUDIO_CODEC_MP3,   [AUDIO_CODEC_AAC] = HAL_AUDIO_CODEC_AAC,
+        [AUDIO_CODEC_ALAC] = HAL_AUDIO_CODEC_ALAC, [AUDIO_CODEC_VORBIS] = HAL_AUDIO_CODEC_VORBIS,
+        [AUDIO_CODEC_OPUS] = HAL_AUDIO_CODEC_OPUS, [AUDIO_CODEC_DSD] = HAL_AUDIO_CODEC_DSD,
+        [AUDIO_CODEC_AIFF] = HAL_AUDIO_CODEC_AIFF, [AUDIO_CODEC_APE] = HAL_AUDIO_CODEC_APE,
+        [AUDIO_CODEC_WMA] = HAL_AUDIO_CODEC_WMA,
+    };
+    return (size_t)codec < sizeof CODECS / sizeof CODECS[0] ? (HalAudioCodec)CODECS[codec]
+                                                            : HAL_AUDIO_CODEC_FLAC;
 }
 
 static HalAudioProblem unreadable_problem(void)
@@ -795,7 +807,7 @@ static HalAudioProblem unreadable_problem(void)
     return source_kind == SOURCE_M4A ? HAL_AUDIO_PROBLEM_AAC_ONLY : HAL_AUDIO_PROBLEM_UNREADABLE;
 }
 
-HalAudioRefusal hal_audio_refusal(void)
+CORE_COLD HalAudioRefusal hal_audio_refusal(void)
 {
     ensure_engine();
     AudioRefusal refusal = audio_engine_refusal(&engine);
@@ -857,7 +869,7 @@ static void change_rate(void)
     restart_output(true, paused);
 }
 
-static void shut_down_when_idle(void)
+CORE_COLD static void shut_down_when_idle(void)
 {
     if (audio_engine_status(&engine).state != AUDIO_ENGINE_STOPPED) {
         stopped_waiting = false;
@@ -877,7 +889,7 @@ static void shut_down_when_idle(void)
     }
 }
 
-static void poll_jack(void)
+CORE_COLD static void poll_jack(void)
 {
     uint32_t now_ms = hal_clock_milliseconds();
     if (now_ms - last_jack_poll_ms < JACK_POLL_MS) {
@@ -887,7 +899,8 @@ static void poll_jack(void)
     if (board_jack_poll() && output_setting == HAL_AUDIO_OUTPUT_AUTO) {
         apply_volume();
     }
-    if (!board_jack_settling() && hal_audio_jack() != HAL_AUDIO_JACK_NONE) {
+    if (board_bluetooth_routed() || (!board_bluetooth_settling() && !board_jack_settling() &&
+                                     hal_audio_jack() != HAL_AUDIO_JACK_NONE)) {
         dac_path_guard(false);
     }
 }
@@ -901,18 +914,23 @@ void hal_audio_service(void)
         stream_service();
         return;
     }
-    if (!engine_ready || !transferring || tone_active) {
+    if (!engine_ready || tone_active) {
         return;
     }
-    update_consumed();
-    pump(consumed);
-    change_rate();
-    shut_down_when_idle();
+    if (transferring) {
+        update_consumed();
+        pump(consumed);
+        change_rate();
+    }
+    if (transferring || path_up || using_core1 || dac_path_is_up()) {
+        shut_down_when_idle();
+    }
 }
 
 void hal_audio_reset_stats(void)
 {
     stats = (HalAudioStats){0};
+    read_us_pending = 0;
     output_started_us = hal_clock_microseconds();
 }
 
@@ -932,7 +950,7 @@ CORE_COLD HalAudioStats hal_audio_stats(void)
     return result;
 }
 
-HalToneResult hal_audio_dma_tone_start(uint32_t sample_rate)
+CORE_COLD HalToneResult hal_audio_dma_tone_start(uint32_t sample_rate)
 {
     ensure_engine();
     stop_tone();
@@ -970,7 +988,7 @@ void hal_audio_dma_tone_stop(void)
     stop_tone();
 }
 
-HalDmaToneStatus hal_audio_dma_tone_status(void)
+CORE_COLD HalDmaToneStatus hal_audio_dma_tone_status(void)
 {
     if (!tone_active) {
         return (HalDmaToneStatus){.running = false, .position = 0};
@@ -984,7 +1002,7 @@ const char *board_audio_current_path(void)
     return engine_ready ? audio_engine_current_path(&engine) : NULL;
 }
 
-void board_audio_before_clock_change(void)
+CORE_COLD void board_audio_before_clock_change(void)
 {
     resume_after_clock_change = false;
     if (!board_core1_streaming()) {
@@ -1001,7 +1019,7 @@ void board_audio_before_clock_change(void)
     using_core1 = false;
 }
 
-void board_audio_after_clock_change(void)
+CORE_COLD void board_audio_after_clock_change(void)
 {
     if (!resume_after_clock_change) {
         return;
@@ -1020,6 +1038,7 @@ CORE_COLD void board_audio_shut_down(void)
     stop_path();
     board_core1_stop();
     using_core1 = false;
+    stopped_waiting = false;
 }
 
 bool board_audio_converting(void)
@@ -1227,19 +1246,31 @@ CORE_SEAM void hal_audio_set_sleep_remaining(uint32_t remaining_ms)
     audio_engine_set_sleep_remaining(&engine, remaining_ms);
 }
 
+CORE_COLD static bool repeat_mark_restarts(bool clear)
+{
+    if (engine.state == AUDIO_ENGINE_STOPPED || engine.segment_count == 0) {
+        return false;
+    }
+    if (engine.repeat_state == 2) {
+        return true;
+    }
+    return engine.repeat_state == 1 && !clear &&
+           audio_engine_status(&engine).position_samples > engine.repeat_a;
+}
+
 CORE_SEAM CORE_COLD uint8_t hal_audio_repeat_mark(bool clear)
 {
     ensure_engine();
     update_consumed();
     audio_engine_observe(&engine, consumed);
-    bool restart = engine.repeat_state != 0 || clear;
+    bool restart = repeat_mark_restarts(clear);
     bool paused = engine.state == AUDIO_ENGINE_PAUSED;
     if (restart) {
         stop_transfer();
     }
     uint8_t state = audio_engine_repeat_mark(&engine, clear);
     if (restart) {
-        restart_output(true, paused);
+        restart_output(engine.state != AUDIO_ENGINE_STOPPED, paused);
     }
     return engine.state == AUDIO_ENGINE_STOPPED ? 0 : state;
 }

@@ -171,9 +171,49 @@ static void opener_admission_changes_with_the_reported_core_clock(void)
     m4a_file_free(&file);
 }
 
+static void trailing_slack_at_frame_end_never_releases_past_written(void)
+{
+    file = m4a_file_load("ape/seek16.ape");
+    CHECK(file.size > 0);
+    memset(&control, 0, sizeof control);
+    StreamRegion region = {&control, pcm, ring, sizeof ring, NULL, NULL};
+    core1_source_init(&source, region, (FlacFileOpener){open_file, close_file, NULL}, &unused, 64);
+    source.ape = &adapter;
+    core1_stream_init(&stream, region, core1_ape_decoder(&decoder, snapshot, region));
+    closes = 0;
+    AudioSource audio = core1_source_interface(&source, CORE1_FORMAT_APE);
+    AudioTrackInfo track;
+    CHECK(audio.open(audio.context, "seek.ape", 0, &track));
+    uint32_t position = 0;
+    AudioFrameResult result = AUDIO_FRAME_WAIT;
+    for (uint32_t step = 0; step < 100000; step++) {
+        source.refilling = false;
+        core1_source_fill(&source);
+        while (core1_stream_step(&stream)) {
+            CHECK(control.released <= source.written);
+        }
+        CHECK(control.released <= source.written);
+        AudioFrame frame;
+        result = audio.next(audio.context, &frame);
+        if (result == AUDIO_FRAME_END || result == AUDIO_FRAME_ERROR) {
+            break;
+        }
+        if (result == AUDIO_FRAME_READY) {
+            CHECK_EQUAL(position, frame.first_sample);
+            position += frame.samples;
+            audio.release(audio.context);
+        }
+    }
+    CHECK_EQUAL(AUDIO_FRAME_END, result);
+    CHECK_EQUAL(track.stream.total_samples, position);
+    audio.close(audio.context);
+    m4a_file_free(&file);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(trailing_slack_at_frame_end_never_releases_past_written),
         TEST_CASE(opener_admission_changes_with_the_reported_core_clock),
         TEST_CASE(queued_tracks_add_no_gap_or_extra_output_frames),
         TEST_CASE(real_ring_streaming_has_exact_length_and_sample_precise_seeks),

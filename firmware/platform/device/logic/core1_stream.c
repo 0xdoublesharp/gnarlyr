@@ -389,11 +389,13 @@ CORE_SEAM void core1_source_fill(Core1Source *source)
     uint32_t released =
         control->acked_generation == source->generation ? control->released : source->start_offset;
     core1_observe();
+    uint32_t unread = source->written > released ? source->written - released : 0;
     if (!source->refilling && control->acked_generation == source->generation &&
-        source->written - released > source->region.ring_bytes / 2) {
+        unread > source->region.ring_bytes / 2) {
         return;
     }
-    uint32_t target = core1_smaller(released + source->region.ring_bytes, source->end_offset);
+    uint32_t limit = core1_smaller(released, source->end_offset);
+    uint32_t target = limit + core1_smaller(source->end_offset - limit, source->region.ring_bytes);
     uint32_t budget = source->fill_budget;
     while (source->written < target && budget > 0) {
         uint32_t position = source->written % source->region.ring_bytes;

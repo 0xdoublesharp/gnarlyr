@@ -129,6 +129,15 @@ static void update_crc(Core1Ape *ape, uint32_t samples)
     ape->crc = ape_updatecrc(bytes, (int)count, ape->crc);
 }
 
+static uint32_t released_position(const Core1Ape *ape)
+{
+    if (ape->region.control == NULL) {
+        return ape->position;
+    }
+    uint32_t written = ape->region.control->written - ape->region.control->start_offset;
+    return ape->position < written ? ape->position : written;
+}
+
 static Core1DecodeResult chunk(Core1Ape *ape, Core1Block *block)
 {
 #if defined(__arm__)
@@ -167,7 +176,7 @@ static Core1DecodeResult chunk(Core1Ape *ape, Core1Block *block)
     *block = (Core1Block){.channels = {ape->pcm[0], ape->pcm[ape->decoder.channels > 1 ? 1 : 0]},
                           .first_sample = ape->next_sample,
                           .samples = count,
-                          .position = ape->position};
+                          .position = released_position(ape)};
     ape->next_sample += count;
     return CORE1_DECODED;
 }

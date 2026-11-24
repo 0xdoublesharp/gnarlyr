@@ -27,7 +27,7 @@ static HalJackPin boot_pin(GpioPin pin)
                         .pull = gpio_pull_enabled(pin)};
 }
 
-static void prepare_pins(void)
+CORE_COLD static void prepare_pins(void)
 {
     if (pins_ready) {
         return;
@@ -43,13 +43,13 @@ static void prepare_pins(void)
     pins_ready = true;
 }
 
-HalJackPins board_jack_boot_pins(void)
+CORE_COLD HalJackPins board_jack_boot_pins(void)
 {
     prepare_pins();
     return boot_state;
 }
 
-CORE_SEAM bool board_jack_poll(void)
+CORE_SEAM CORE_COLD bool board_jack_poll(void)
 {
     prepare_pins();
     if (board_bluetooth_routed() || board_bluetooth_settling()) {

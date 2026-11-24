@@ -1,6 +1,7 @@
 #include "hal/bluetooth.h"
 #include "board.h"
 #include "core/deadline.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "dac.h"
 #include "device/bt_module.h"
@@ -74,7 +75,7 @@ static uint32_t uart_read(uint32_t offset)
     return register_read(UART1_BASE + offset);
 }
 
-static void pins_off(void)
+CORE_COLD static void pins_off(void)
 {
     gpio_mux(MODULE_POWER, GPIO_FUNCTION_GPIO);
     gpio_output(MODULE_POWER, false);
@@ -84,12 +85,12 @@ static void pins_off(void)
     gpio_output(UART_PIN_A, false);
 }
 
-void board_bluetooth_off(void)
+CORE_COLD void board_bluetooth_off(void)
 {
     pins_off();
 }
 
-static void uart_clock_on(void)
+CORE_COLD static void uart_clock_on(void)
 {
     cru_reset(UART1_RESET, true);
     board_delay_ms(1);
@@ -100,24 +101,32 @@ static void uart_clock_on(void)
     cru_write(CRU_UART_CLOCK, CRU_UART1_DIVIDER_ONE);
 }
 
-static void uart_configure(void)
+CORE_COLD static void uart_configure(void)
 {
-    uart_write(UART_SOFTWARE_RESET, RESET_ALL);
-    uart_write(UART_INTERRUPT_ENABLE, 0);
-    uart_write(UART_DMA_ACK, 1);
-    uart_write(UART_MODEM_CONTROL, 0);
-    uart_write(UART_FIFO_ENABLE, 1);
-    uart_write(UART_RX_TRIGGER, 0);
-    uart_write(UART_TX_EMPTY_TRIGGER, 0);
-    uart_write(UART_LINE_CONTROL, LINE_8N1);
-    uart_write(UART_LINE_CONTROL, LINE_8N1 | DIVISOR_LATCH);
-    uart_write(UART_DATA, DIVISOR_115200);
-    uart_write(UART_DIVISOR_HIGH, 0);
-    uart_write(UART_LINE_CONTROL, LINE_8N1);
-    uart_write(UART_SOFTWARE_RESET, RESET_FIFOS);
+    static const struct {
+        uint8_t offset;
+        uint8_t value;
+    } WRITES[] = {
+        {UART_SOFTWARE_RESET, RESET_ALL},
+        {UART_INTERRUPT_ENABLE, 0},
+        {UART_DMA_ACK, 1},
+        {UART_MODEM_CONTROL, 0},
+        {UART_FIFO_ENABLE, 1},
+        {UART_RX_TRIGGER, 0},
+        {UART_TX_EMPTY_TRIGGER, 0},
+        {UART_LINE_CONTROL, LINE_8N1},
+        {UART_LINE_CONTROL, LINE_8N1 | DIVISOR_LATCH},
+        {UART_DATA, DIVISOR_115200},
+        {UART_DIVISOR_HIGH, 0},
+        {UART_LINE_CONTROL, LINE_8N1},
+        {UART_SOFTWARE_RESET, RESET_FIFOS},
+    };
+    for (uint32_t index = 0; index < sizeof WRITES / sizeof WRITES[0]; index++) {
+        uart_write(WRITES[index].offset, WRITES[index].value);
+    }
 }
 
-static void uart_open(void)
+CORE_COLD static void uart_open(void)
 {
     register_write(GRF_BASE + GRF_IOMUX_CON, GRF_UART1_GROUP_A);
     uart_clock_on();
@@ -126,12 +135,12 @@ static void uart_open(void)
     gpio_mux(UART_PIN_B, GPIO_FUNCTION_ALTERNATE);
 }
 
-static uint16_t fifo_depth(void)
+CORE_COLD static uint16_t fifo_depth(void)
 {
     return (uint16_t)((uart_read(UART_PARAMETERS) >> FIFO_MODE_SHIFT & 0xFFu) * FIFO_MODE_UNIT);
 }
 
-static void power_on(void)
+CORE_COLD static void power_on(void)
 {
     pins_off();
     uart_open();
@@ -142,30 +151,43 @@ static void power_on(void)
     powered = true;
 }
 
-static void match_stock_housekeeping(void)
+CORE_COLD static void match_stock_housekeeping(void)
 {
-    register_write(GRF_BASE + 0xC4u, 0x00010000u);
-    register_write(CRU_BASE + 0x84u, 0x00920092u);
-    register_write(CRU_BASE + 0xA0u, 0x00020002u);
-    register_write(CRU_BASE + 0xC0u, 0x00680068u);
-    register_write(GRF_BASE + 0x14u, 0x00200020u);
-    register_write(GRF_BASE + 0x54u, 0x00010001u);
+    static const struct {
+        uint32_t address;
+        uint32_t value;
+    } WRITES[] = {
+        {GRF_BASE + 0xC4u, 0x00010000u}, {CRU_BASE + 0x84u, 0x00920092u},
+        {CRU_BASE + 0xA0u, 0x00020002u}, {CRU_BASE + 0xC0u, 0x00680068u},
+        {GRF_BASE + 0x14u, 0x00200020u}, {GRF_BASE + 0x54u, 0x00010001u},
+    };
+    for (uint32_t index = 0; index < sizeof WRITES / sizeof WRITES[0]; index++) {
+        register_write(WRITES[index].address, WRITES[index].value);
+    }
     matched_stock = true;
 }
 
-static void route_to_module(bool to_module)
+CORE_COLD static void route_to_module(bool to_module)
 {
     if (to_module && !matched_stock) {
         match_stock_housekeeping();
     }
-    PinRef mute_pin = board_dac_pin(DAC_PIN_MUTE);
-    gpio_output((GpioPin){mute_pin.port, mute_pin.pin}, to_module);
-    gpio_output(WIRED_OUTPUT, !to_module);
-    if (routed != to_module) {
+    bool changed = routed != to_module;
+    if (changed) {
         rerouted_ms = hal_clock_milliseconds();
     }
     routed = to_module;
+    if (!to_module && changed) {
+        dac_path_guard(true);
+    }
+    PinRef mute_pin = board_dac_pin(DAC_PIN_MUTE);
+    bool mute_high = to_module || !dac_path_is_up() || dac_path_is_muted() || dac_path_is_guarded();
+    gpio_output((GpioPin){mute_pin.port, mute_pin.pin}, mute_high);
+    gpio_output(WIRED_OUTPUT, !to_module);
     board_audio_output_changed();
+    if (to_module) {
+        dac_path_guard(false);
+    }
 }
 
 bool board_bluetooth_pin(bool mute_pin, bool level)
@@ -184,7 +206,7 @@ bool board_bluetooth_settling(void)
            !deadline_elapsed(hal_clock_milliseconds(), rerouted_ms, ROUTE_SETTLE_MS);
 }
 
-static void follow_stream(void)
+CORE_COLD static void follow_stream(void)
 {
     if (module.status.streaming) {
         route_to_module(true);
@@ -193,7 +215,7 @@ static void follow_stream(void)
     }
 }
 
-static void power_off(void)
+CORE_COLD static void power_off(void)
 {
     pins_off();
     powered = false;
@@ -202,7 +224,7 @@ static void power_off(void)
     }
 }
 
-void hal_bluetooth_set_power(bool on)
+CORE_COLD void hal_bluetooth_set_power(bool on)
 {
     if (on) {
         power_on();
@@ -212,7 +234,7 @@ void hal_bluetooth_set_power(bool on)
     bt_module_power_off(&module);
 }
 
-static void send(const BtModuleFrame *frame)
+CORE_COLD static void send(const BtModuleFrame *frame)
 {
     bool starting = frame->bytes[1] == 'Y' && frame->bytes[3] != 0;
     if (starting) {
@@ -239,7 +261,7 @@ static void send(const BtModuleFrame *frame)
     }
 }
 
-void hal_bluetooth_scan(void)
+CORE_COLD void hal_bluetooth_scan(void)
 {
     BtModuleFrame frame;
     if (powered && bt_module_scan(&module, hal_clock_milliseconds(), &frame)) {
@@ -247,7 +269,7 @@ void hal_bluetooth_scan(void)
     }
 }
 
-void hal_bluetooth_stop_scan(void)
+CORE_COLD void hal_bluetooth_stop_scan(void)
 {
     BtModuleFrame frame;
     if (powered && bt_module_stop_scan(&module, hal_clock_milliseconds(), &frame)) {
@@ -255,7 +277,7 @@ void hal_bluetooth_stop_scan(void)
     }
 }
 
-void hal_bluetooth_connect(const HalBluetoothDevice *device)
+CORE_COLD void hal_bluetooth_connect(const HalBluetoothDevice *device)
 {
     BtModuleFrame frame;
     if (powered && bt_module_connect(&module, device, hal_clock_milliseconds(), &frame)) {
@@ -263,7 +285,7 @@ void hal_bluetooth_connect(const HalBluetoothDevice *device)
     }
 }
 
-void hal_bluetooth_disconnect(void)
+CORE_COLD void hal_bluetooth_disconnect(void)
 {
     BtModuleFrame frame;
     if (powered && bt_module_disconnect(&module, hal_clock_milliseconds(), &frame)) {
@@ -306,7 +328,7 @@ void board_bluetooth_drain(void)
     }
 }
 
-static void receive(uint32_t now_ms)
+CORE_COLD static void receive(uint32_t now_ms)
 {
     while (rx_tail != rx_head) {
         bt_module_receive(&module, rx_ring[rx_tail], now_ms);
@@ -336,7 +358,7 @@ const HalBluetoothStatus *hal_bluetooth_status(void)
     return &module.status;
 }
 
-void hal_bluetooth_set_stream(bool on)
+CORE_COLD void hal_bluetooth_set_stream(bool on)
 {
     BtModuleFrame frame;
     if (powered && bt_module_set_stream(&module, on, hal_clock_milliseconds(), &frame)) {

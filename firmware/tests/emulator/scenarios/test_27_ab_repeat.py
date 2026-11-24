@@ -68,6 +68,32 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(len(rig.audio.plays), 1)
         self.assert_healthy(rig.session)
 
+    def test_double_press_ab_repeat_while_paused_does_not_restart_dma_or_underflow(self):
+        from echo_emulator.playback import Rig
+        rate = 48000
+        wav = self.tagged_wav("Loop", "Loop", rate, 160, 1000)
+        volume = self.transition_volume([("Loop.wav", wav)], 5)
+        volume.add_file("buttons.bin", buttons_file({PLAYBACK_MENU_HOLD: BUTTON_ACTION_AB_REPEAT}),
+                        directory=IDENTITY.data_directory)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        starts = []
+        rig.machine.hook_symbol("dmac_start_loop", lambda: starts.append(rig.machine.milliseconds()))
+        rig.open_songs()
+        started = rig.play_song(1)
+        rig.run_for(300)
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        starts_before = len(starts)
+        rig.press("menu", hold=MENU_HOLD_MS)
+        rig.press("menu", hold=MENU_HOLD_MS)
+        self.assertEqual(starts_before, len(starts))
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        rig.run_for(400)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assert_healthy(rig.session)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

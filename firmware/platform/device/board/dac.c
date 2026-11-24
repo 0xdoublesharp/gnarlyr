@@ -109,7 +109,7 @@ typedef enum I2cStage {
     I2C_STAGE_RECEIVE
 } I2cStage;
 
-static const uint32_t SOC_AUDIO_GATES[] = {0x0E, 0x10, 0x11, 0x12, 0x13, 0x82, 0x83, 0x96};
+static const uint8_t SOC_AUDIO_GATES[] = {0x0E, 0x10, 0x11, 0x12, 0x13, 0x82, 0x83, 0x96};
 static const GpioPin I2C_PINS[] = {{2, 10}, {2, 11}};
 static const GpioPin I2S_PINS[] = {{1, 0}, {1, 1}, {1, 2}, {1, 3}};
 static const DacPin DAC_PIN_LIST[] = {DAC_PIN_MUTE, DAC_PIN_ENABLE_A, DAC_PIN_ENABLE_B,
@@ -129,7 +129,7 @@ static DacLevel chip_volume;
 static uint32_t retried_ms;
 static void (*fade_service)(void);
 
-static void note_failure(I2cStage stage)
+CORE_COLD static void note_failure(I2cStage stage)
 {
     if (detail.stage == 0) {
         detail =
@@ -137,7 +137,7 @@ static void note_failure(I2cStage stage)
     }
 }
 
-static bool wait_pending(uint32_t bits, I2cStage stage)
+CORE_COLD static bool wait_pending(uint32_t bits, I2cStage stage)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((register_read(I2C_IPD) & bits) == 0) {
@@ -150,17 +150,17 @@ static bool wait_pending(uint32_t bits, I2cStage stage)
     return true;
 }
 
-HalToneDetail hal_audio_tone_detail(void)
+CORE_COLD HalToneDetail hal_audio_tone_detail(void)
 {
     return detail;
 }
 
-DacIdentity hal_audio_dac_identity(int chip)
+CORE_COLD DacIdentity hal_audio_dac_identity(int chip)
 {
     return identity[chip != 0];
 }
 
-static bool i2c_start(uint32_t mode)
+CORE_COLD static bool i2c_start(uint32_t mode)
 {
     register_write(I2C_IPD, I2C_ALL_PENDING);
     register_write(I2C_CON, I2C_ENABLE | mode | I2C_START);
@@ -172,7 +172,7 @@ static bool i2c_start(uint32_t mode)
     return true;
 }
 
-static bool i2c_stop(void)
+CORE_COLD static bool i2c_stop(void)
 {
     register_write(I2C_IPD, I2C_ALL_PENDING);
     register_write(I2C_CON, I2C_ENABLE | I2C_STOP);
@@ -182,7 +182,7 @@ static bool i2c_stop(void)
     return stopped;
 }
 
-static bool i2c_send(const uint8_t *bytes, uint32_t count)
+CORE_COLD static bool i2c_send(const uint8_t *bytes, uint32_t count)
 {
     if (!i2c_start(0)) {
         i2c_stop();
@@ -205,7 +205,7 @@ static bool i2c_send(const uint8_t *bytes, uint32_t count)
     return i2c_stop() && sent;
 }
 
-static uint32_t frame_header(uint8_t *frame, uint8_t address, uint32_t map)
+CORE_COLD static uint32_t frame_header(uint8_t *frame, uint8_t address, uint32_t map)
 {
     frame[0] = address;
     frame[1] = (uint8_t)(map >> 16);
@@ -215,7 +215,7 @@ static uint32_t frame_header(uint8_t *frame, uint8_t address, uint32_t map)
     return 5;
 }
 
-static bool dac_write(void *context, uint8_t address, uint32_t map, uint8_t value)
+CORE_COLD static bool dac_write(void *context, uint8_t address, uint32_t map, uint8_t value)
 {
     (void)context;
     uint8_t frame[FRAME_CAPACITY];
@@ -224,7 +224,7 @@ static bool dac_write(void *context, uint8_t address, uint32_t map, uint8_t valu
     return i2c_send(frame, length);
 }
 
-bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
+CORE_COLD bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *value)
 {
     (void)context;
     uint8_t frame[FRAME_CAPACITY];
@@ -274,14 +274,14 @@ static void dac_delay(void *context, uint32_t microseconds)
 
 static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL};
 
-static void start_soc_clocks(void)
+CORE_COLD static void set_soc_clocks(bool on)
 {
     for (uint32_t index = 0; index < sizeof SOC_AUDIO_GATES / sizeof SOC_AUDIO_GATES[0]; index++) {
-        cru_gate(SOC_AUDIO_GATES[index], true);
+        cru_gate(SOC_AUDIO_GATES[index], on);
     }
 }
 
-static void start_i2c(void)
+CORE_COLD static void start_i2c(void)
 {
     gpio_mux(I2C_PINS[0], GPIO_FUNCTION_ALTERNATE);
     gpio_mux(I2C_PINS[1], GPIO_FUNCTION_ALTERNATE);
@@ -293,12 +293,12 @@ static void start_i2c(void)
     register_write(I2C_CLKDIV, i2c_clock_divider(board_pclk_hz(), I2C_BUS_KHZ));
 }
 
-static void set_bits(uint32_t address, uint32_t mask, uint32_t bits)
+CORE_COLD static void set_bits(uint32_t address, uint32_t mask, uint32_t bits)
 {
     register_write(address, (register_read(address) & ~mask) | bits);
 }
 
-static void start_acodec(const uint8_t *row)
+CORE_COLD static void start_acodec(const uint8_t *row)
 {
     cru_write(0x10, CRU_ACODEC_SELECT);
     set_bits(ACODEC_MUX_CONTROL, 1u << 2, 0);
@@ -314,7 +314,14 @@ static void start_acodec(const uint8_t *row)
     set_bits(ACODEC_MUX_CONTROL, 1u << 2, 1u << 2);
 }
 
-static void start_i2s(uint32_t divider, uint32_t format, uint32_t interrupts, bool transfer)
+CORE_COLD static void stop_acodec(void)
+{
+    set_bits(ACODEC_MUX_CONTROL, 1u << 2, 0);
+    set_bits(ACODEC_MUX_ENABLE, (1u << 2) | (1u << 0), (1u << 2) | (1u << 0));
+}
+
+CORE_COLD static void start_i2s(uint32_t divider, uint32_t format, uint32_t interrupts,
+                                bool transfer)
 {
     cru_reset(RESET_I2S1, true);
     board_delay_ms(I2S_RESET_MS);
@@ -384,7 +391,7 @@ static bool play_for(const int16_t *samples, int count, uint32_t duration_ms)
     }
 }
 
-static void stop_i2s(void)
+CORE_COLD static void stop_i2s(void)
 {
     register_write(I2S_XFER, 0);
     register_write(I2S_DMACR, 0);
@@ -405,7 +412,7 @@ static uint8_t current_volume(void)
     return volume_known ? volume_value : DAC_VOLUME_MUTED;
 }
 
-static bool play_tone_segments(void)
+CORE_COLD static bool play_tone_segments(void)
 {
     static int16_t samples[TONE_PERIOD_SAMPLES];
     tone_fill(samples, TONE_PERIOD_SAMPLES, TONE_AMPLITUDE);
@@ -420,7 +427,7 @@ static bool play_tone_segments(void)
            play_for(NULL, 1, TONE_GAP_MS);
 }
 
-static void use_dac_pins_as_gpio(void)
+CORE_COLD static void use_dac_pins_as_gpio(void)
 {
     for (uint32_t index = 0; index < sizeof DAC_PIN_LIST / sizeof DAC_PIN_LIST[0]; index++) {
         PinRef ref = board_dac_pin(DAC_PIN_LIST[index]);
@@ -430,7 +437,7 @@ static void use_dac_pins_as_gpio(void)
     }
 }
 
-static void identify_once(void)
+CORE_COLD static void identify_once(void)
 {
     if (identity[0].source != DAC_IDENTITY_NOT_READ) {
         return;
@@ -440,19 +447,27 @@ static void identify_once(void)
     detail = kept;
 }
 
-static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, uint32_t format,
-                                      uint32_t interrupts, bool transfer)
+CORE_COLD static void stop_soc_audio(void)
+{
+    stop_i2s();
+    stop_acodec();
+    set_soc_clocks(false);
+}
+
+CORE_COLD static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider,
+                                                uint32_t format, uint32_t interrupts, bool transfer)
 {
     uint32_t started = hal_clock_microseconds();
     detail = (HalToneDetail){.stage = I2C_STAGE_NONE, .pending = 0};
     cru_gate(GATE_GPIO1, true);
     use_dac_pins_as_gpio();
     dac_power_pins(&BUS);
-    start_soc_clocks();
+    set_soc_clocks(true);
     start_i2c();
     identify_once();
     if (!dac_probe(&BUS)) {
         dac_output_off(&BUS);
+        set_soc_clocks(false);
         return HAL_TONE_NO_DAC;
     }
     start_acodec(rate->acodec);
@@ -460,7 +475,7 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
     DacResult configured = dac_configure(&BUS, rate->dac_byte, analog);
     if (configured != DAC_READY) {
         dac_output_off(&BUS);
-        stop_i2s();
+        stop_soc_audio();
         return result_of(configured);
     }
     board_dac_diagnostics.start_us = hal_clock_microseconds() - started;
@@ -471,17 +486,17 @@ static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider, u
     return HAL_TONE_PLAYED;
 }
 
-static void stop_audio_path(void)
+CORE_COLD static void stop_audio_path(void)
 {
     uint32_t started = hal_clock_microseconds();
     dac_up = false;
     dac_output_off(&BUS);
     board_dac_diagnostics.stop_us = hal_clock_microseconds() - started;
     chip_volume = (DacLevel){.applied = DAC_VOLUME_MUTED};
-    stop_i2s();
+    stop_soc_audio();
 }
 
-HalToneResult hal_audio_test_tone(void)
+CORE_COLD HalToneResult hal_audio_test_tone(void)
 {
     hal_audio_dma_tone_stop();
     const AudioRate *rate = audio_clock_rate(TONE_RATE_HZ);
@@ -495,7 +510,7 @@ HalToneResult hal_audio_test_tone(void)
     return played ? HAL_TONE_PLAYED : HAL_TONE_STALLED;
 }
 
-CORE_SEAM HalToneResult dac_path_start(uint32_t sample_rate)
+CORE_SEAM CORE_COLD HalToneResult dac_path_start(uint32_t sample_rate)
 {
     const AudioRate *rate = audio_clock_rate(sample_rate);
     if (rate == NULL) {
@@ -505,7 +520,7 @@ CORE_SEAM HalToneResult dac_path_start(uint32_t sample_rate)
                             I2S_FORMAT_32_BIT_WORDS, I2S_INTERRUPTS_FOR_DMA, false);
 }
 
-CORE_SEAM void dac_path_stop(void)
+CORE_SEAM CORE_COLD void dac_path_stop(void)
 {
     stop_audio_path();
 }
@@ -525,7 +540,7 @@ static void wait_serving(uint32_t microseconds)
     } while (hal_clock_microseconds() - start < microseconds);
 }
 
-void dac_path_output_on(void)
+CORE_COLD void dac_path_output_on(void)
 {
     dac_output_on(&BUS, DAC_VOLUME_MUTED);
     chip_volume.applied = DAC_VOLUME_MUTED;
@@ -540,21 +555,21 @@ static void serving_delay(void *context, uint32_t microseconds)
 
 static const DacBus SERVING_BUS = {dac_write, dac_read, dac_set_pin, serving_delay, NULL};
 
-static void fade_to(uint8_t target)
+CORE_COLD static void fade_to(uint8_t target)
 {
     if (!dac_fade_volume(&SERVING_BUS, &chip_volume, target, FADE_STEP_US)) {
         retried_ms = hal_clock_milliseconds();
     }
 }
 
-static bool apply_analog(DacAnalog next)
+CORE_COLD static bool apply_analog(DacAnalog next)
 {
     bool applied = dac_apply_analog(&SERVING_BUS, chip_analog, next);
     chip_analog = applied ? next : (DacAnalog){.filter = DAC_ANALOG_UNKNOWN};
     return applied;
 }
 
-void dac_path_set_muted(bool mute)
+CORE_COLD void dac_path_set_muted(bool mute)
 {
     muted = mute;
     if (mute) {
@@ -573,14 +588,14 @@ void dac_path_set_muted(bool mute)
     fade_to(target);
 }
 
-void dac_path_stream_quiet(void)
+CORE_COLD void dac_path_stream_quiet(void)
 {
     muted = true;
     chip_volume.applied = DAC_VOLUME_MUTED;
     dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
 }
 
-void dac_path_fade_out(void)
+CORE_COLD void dac_path_fade_out(void)
 {
     muted = true;
     fade_to(DAC_VOLUME_MUTED);
@@ -595,16 +610,16 @@ void dac_path_service(void)
     }
 }
 
-void dac_path_set_volume(uint8_t value)
+CORE_COLD void dac_path_set_volume(uint8_t value)
 {
     volume_value = value;
     volume_known = true;
-    if (dac_up && !muted && chip_analog.filter != DAC_ANALOG_UNKNOWN) {
+    if (dac_up && !muted && !guarded && chip_analog.filter != DAC_ANALOG_UNKNOWN) {
         fade_to(value);
     }
 }
 
-static bool set_analog(DacAnalog next)
+CORE_COLD static bool set_analog(DacAnalog next)
 {
     if (!dac_up || (chip_analog.gain_high == next.gain_high && chip_analog.filter == next.filter)) {
         analog = next;
@@ -625,12 +640,12 @@ static bool set_analog(DacAnalog next)
     return changed;
 }
 
-bool dac_path_set_gain(bool high)
+CORE_COLD bool dac_path_set_gain(bool high)
 {
     return set_analog((DacAnalog){.gain_high = high, .filter = analog.filter});
 }
 
-bool dac_path_set_filter(uint8_t filter)
+CORE_COLD bool dac_path_set_filter(uint8_t filter)
 {
     return filter < DAC_ANALOG_FILTERS &&
            set_analog((DacAnalog){.gain_high = analog.gain_high, .filter = filter});
@@ -644,6 +659,11 @@ bool dac_path_is_up(void)
 bool dac_path_is_muted(void)
 {
     return muted;
+}
+
+bool dac_path_is_guarded(void)
+{
+    return guarded;
 }
 
 CORE_SEAM bool dac_path_take_underrun(void)
@@ -667,7 +687,7 @@ CORE_SEAM void dac_path_stop_transfer(void)
     register_write(I2S_DMACR, 0);
 }
 
-CORE_SEAM void dac_path_guard(bool held)
+CORE_SEAM CORE_COLD void dac_path_guard(bool held)
 {
     if (guarded == held) {
         return;
