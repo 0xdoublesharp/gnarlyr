@@ -8,6 +8,7 @@
 #include "favorite_playlist.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "settings/settings.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/list_navigation.h"
@@ -537,7 +538,10 @@ static void enter(void *context, uint32_t now_ms)
     } else if (!browse->shelf_root) {
         browse->count = browse_count(browse->pool->config.library, browse->query);
     }
-    list_view_fit(&browse->list);
+    const Theme *theme = browse->pool->config.theme;
+    int rows = theme_content_area(theme).height / list_view_row_height(&browse->list);
+    int capacity = theme->metrics.text_size == TEXT_SIZE_SMALL ? BROWSE_ROWS : THEME_MAX_ROWS;
+    list_view_fit_rows(&browse->list, min_of(rows, capacity));
     browse->screen.fast_list = browse->count > (uint32_t)browse->list.visible_rows;
     list_view_select(&browse->list, browse->list.selected, now_ms);
     refresh_rows(browse);

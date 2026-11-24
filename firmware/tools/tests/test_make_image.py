@@ -1,4 +1,5 @@
 import datetime
+import os
 import re
 import subprocess
 import struct
@@ -6,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS_DIRECTORY))
@@ -333,6 +335,15 @@ class DefaultsTest(unittest.TestCase):
         today = datetime.date.today()
         self.assertEqual((today.year, today.month, today.day), make_image.default_date())
 
+    def test_an_explicit_date_wins_over_the_epoch(self):
+        date = (2026, 10, 22)
+        self.assertEqual(date, make_image.chosen_date(date, {"SOURCE_DATE_EPOCH": "0"}))
+
+    def test_an_invalid_epoch_cannot_silently_use_the_wall_clock(self):
+        for epoch in ("", "-1", "2026-10-22", "253402300800"):
+            with self.assertRaisesRegex(make_image.ImageError, "SOURCE_DATE_EPOCH"):
+                make_image.chosen_date(None, {"SOURCE_DATE_EPOCH": epoch})
+
 
 class ValidatorTest(unittest.TestCase):
     def test_a_missing_magic_is_reported(self):
@@ -421,6 +432,21 @@ class GeneratedHeaderTest(unittest.TestCase):
             self.assertEqual([], make_image.validate_image(image))
             self.assertEqual(0x00010000, word(image, 0x004))
             self.assertEqual(0, word(image, 0x070))
+
+    def test_the_command_reproduces_the_whole_image_with_a_fixed_build_date(self):
+        with tempfile.TemporaryDirectory() as directory:
+            elf = Path(directory) / "firmware.elf"
+            elf.write_bytes(firmware_elf(firmware()))
+            pack = Path(directory) / "en.pack"
+            pack.write_bytes(lang_pack.language_pack("en"))
+            inputs = ["--elf", str(elf), "--build-tag", "abc1234", "--language-pack", str(pack)]
+            outputs = [Path(directory) / name for name in ("first.img", "second.img")]
+            with patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "0"}):
+                for output in outputs:
+                    self.assertEqual(0, make_image.main(inputs + ["--output", str(output)]))
+            first, second = (output.read_bytes() for output in outputs)
+            self.assertEqual(0x01011970, word(first, make_image.DATE_OFFSET))
+            self.assertEqual(first, second)
 
 
 class SectionCheckTest(unittest.TestCase):

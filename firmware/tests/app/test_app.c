@@ -439,14 +439,16 @@ static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
     start_app();
     move_down(2);
     tap(KEY_PLAY);
+    int depth = app_screen_depth();
     move_up(3);
     tap(KEY_PLAY);
     CHECK(title_is("Export plays"));
-    int depth = app_screen_depth();
     int reserves = fake_hal_reserve_count();
-    for (int press = 0; press < 4; press++) {
+    for (int press = 0; press < 3; press++) {
         tap(KEY_PLAY);
         wait_ms(FRAME_PACER_ACTIVE_MS);
+        CHECK(title_is("Export plays"));
+        CHECK_EQUAL(depth, app_screen_depth());
     }
     HalFile file;
     CHECK(!hal_file_open(&file, "/.scrobbler.log"));
@@ -454,6 +456,7 @@ static void exporting_without_plays_settles_at_once_and_keeps_one_back(void)
     CHECK_EQUAL(depth, app_screen_depth());
     tap(KEY_BACK);
     CHECK(title_is("Recap"));
+    CHECK_EQUAL(depth, app_screen_depth());
     tap(KEY_BACK);
     CHECK(title_is("Home"));
 }
