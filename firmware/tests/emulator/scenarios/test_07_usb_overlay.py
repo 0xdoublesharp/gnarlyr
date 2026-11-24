@@ -7,12 +7,24 @@ from echo_image_harness import (
     EchoImageHarness,
     main,
     IDENTITY,
+    PROJECT,
     english,
     make_image,
 )
 
 
 class EchoImageTest(EchoImageHarness):
+    def damage_rescan_overlay(self, session, slot):
+        lba = session.layout[slot] + make_image.OVERLAY_OFFSET // 512 + 1
+        sector = bytearray(session.disk.read(lba, 1))
+        sector[0] ^= 0xFF
+        session.disk.write(lba, bytes(sector))
+        session.before = session.disk.snapshot()
+
+    def rescan_overlay_reads(self, session, slot):
+        first = session.layout[slot] + make_image.OVERLAY_OFFSET // 512
+        last = first + make_image.OVERLAY_CAPACITY // 512
+        return [(lba, count) for _, lba, count in session.card.reads if first <= lba < last]
     def test_a_second_usb_session_reloads_the_usb_overlay_from_slot_1(self):
         session = self.session()
         machine = session.machine
@@ -73,6 +85,44 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(any(machine.read_memory(make_image.OVERLAY_BASE,
                                                  make_image.OVERLAY_CAPACITY)))
         self.assertTrue(session.file_exists(IDENTITY.update_file))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_a_damaged_rescan_overlay_in_slot_1_is_replaced_by_the_copy_in_slot_2(self):
+        track = (PROJECT / "tests" / "fixtures" / "mp3" /
+                 "cbr_128_44k_stereo_tagged.mp3").read_bytes()
+        session = self.session(files=[("TRACK01.MP3", track, None)])
+        self.damage_rescan_overlay(session, "slot_1")
+        session.machine.stop_at("hal_system_return_scratch")
+        reason = session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "reached hal_system_return_scratch")
+        self.assertEqual(self.built_library_tracks(session), 1)
+        self.assertTrue(self.rescan_overlay_reads(session, "slot_1"))
+        self.assertTrue(self.rescan_overlay_reads(session, "slot_2"))
+        self.assert_only_the_user_volume_changed(session)
+        self.assert_healthy(session)
+
+    def test_without_intact_rescan_code_the_scan_refuses_and_nothing_from_it_runs(self):
+        track = (PROJECT / "tests" / "fixtures" / "mp3" /
+                 "cbr_128_44k_stereo_tagged.mp3").read_bytes()
+        session = self.session(files=[("TRACK01.MP3", track, None)])
+        self.damage_rescan_overlay(session, "slot_1")
+        self.damage_rescan_overlay(session, "slot_2")
+        machine = session.machine
+        machine.note("hal_system_return_scratch")
+        toasts = self.collect_toasts(machine)
+        self.assertEqual(machine.run(until=lambda: self.rescan_overlay_reads(session, "slot_1"),
+                                     until_ms=self.session_module.FRAME_LIMIT_MS),
+                         "condition met")
+        executed = machine.count_window_code()
+        self.assertEqual(machine.run(until=lambda: english("STR_SCAN_NO_CODE") in toasts,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS),
+                         "condition met")
+        self.assertTrue(self.rescan_overlay_reads(session, "slot_2"))
+        self.assertNotIn("hal_system_return_scratch", machine.reached)
+        self.assertEqual(executed[0], 0)
+        self.assertFalse(any(machine.read_memory(make_image.OVERLAY_BASE,
+                                                 make_image.OVERLAY_CAPACITY)))
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
 

@@ -51,21 +51,10 @@ static bool prepare_file(void *context, uint8_t bank, uint32_t size, StoreFile *
     PathFile *file = &tags->files[bank];
     bool exists = path_file_find(file);
     StoreFile previous = path_file_store(file);
-    if (exists && !known_bank(tags, bank, &previous)) {
+    if ((exists && !known_bank(tags, bank, &previous)) ||
+        (exists && file->size < size && !hal_file_remove(file->path)) ||
+        !path_file_prepare(file, size)) {
         return false;
-    }
-    if (exists && file->size < size) {
-        if (!hal_file_remove(file->path)) {
-            return false;
-        }
-        exists = false;
-    }
-    if (!exists) {
-        HalReserveResult reserved = hal_file_reserve(file->path, size);
-        if ((reserved != HAL_RESERVE_CREATED && reserved != HAL_RESERVE_EXISTS) ||
-            !path_file_find(file)) {
-            return false;
-        }
     }
     *io = path_file_store(file);
     return io->size >= size && known_bank(tags, bank, io);

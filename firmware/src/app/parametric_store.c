@@ -4,6 +4,7 @@
 
 #include "equalizer_presets.h"
 #include "hal/storage.h"
+#include "headphone_store.h"
 
 static ParametricBank bank;
 
@@ -16,15 +17,8 @@ static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t leng
 {
     (void)context;
     uint8_t prefix[PARAMETRIC_FILE_BYTES];
-    if (offset > sizeof prefix || length > sizeof prefix - offset ||
-        !hal_internal_file_read(PARAMETRIC_STORE_PATH, prefix, offset + length)) {
-        return false;
-    }
-    uint8_t *destination = bytes;
-    for (uint32_t index = 0; index < length; index++) {
-        destination[index] = prefix[offset + index];
-    }
-    return true;
+    PathSlice slice = {offset, bytes, length};
+    return headphone_store_internal_read(PARAMETRIC_STORE_PATH, prefix, sizeof prefix, &slice);
 }
 
 static bool write_file(void *context, uint32_t offset, const void *bytes, uint32_t length)

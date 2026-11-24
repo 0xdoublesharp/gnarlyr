@@ -19,9 +19,6 @@ from echo_image_harness import (
     struct,
 )
 
-MP4_TRACK_BYTES = 92
-MP4_TRACK_UNSUPPORTED_AT = 89
-
 
 class EchoImageTest(EchoImageHarness):
     def test_analog_seek_clears_old_pcm_and_output_changes_fade(self):
@@ -284,30 +281,28 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_an_m4a_probe_without_its_audio_module_reports_nothing_unsupported(self):
-        from echo_emulator.machine import TRAMPOLINE, STUB_RETURN, PAGE
-        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
-        session = self.session()
-        machine = session.machine
+        from echo_emulator.core1_bridge import CORE1_M4A, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        raw = (PROJECT / "tests/fixtures/m4a_music/Aac Artist/Aac Album/02 Tail.m4a").read_bytes()
+        volume = Fat32Volume()
+        volume.add_file("A.m4a", raw)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        Core1Bridge(rig.audio, {CORE1_M4A: self.elf.with_name("core1_m4a.bin").read_bytes()})
+        machine = rig.machine
         number, dsp = self.module(machine, "dsp")
         for slot in ("slot_1", "slot_2"):
-            session.change_module(slot, number, 32, lambda byte: byte ^ 1)
-        session.run_to_first_frame()
-        session.run_to_home_screen()
+            rig.session.change_module(slot, number, 32, lambda byte: byte ^ 1)
+        toasts = self.collect_toasts(machine)
+        rig.open_songs()
+        rig.play_song(1)
+        rig.run_for(1000)
         self.assertFalse(dsp.loaded(machine))
-        track = TRAMPOLINE + PAGE
-        machine.uc.mem_map(track, PAGE)
-        machine.uc.mem_write(track, b"\xff" * MP4_TRACK_BYTES)
-        returned = TRAMPOLINE + 0x904
-        machine.add_address_hook(returned, lambda: machine.stop("probe returned"))
-        for register, value in zip((UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3),
-                                   (STUB_RETURN | 1, 0, 4096, track)):
-            machine.uc.reg_write(register, value)
-        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["mp4_probe"] | 1)
-        self.assertEqual("probe returned", machine.run(until_ms=machine.milliseconds() + 2000))
-        self.assertEqual(0, machine.reg(UC_ARM_REG_R0))
-        self.assertEqual(0, machine.read_memory(track + MP4_TRACK_UNSUPPORTED_AT, 1)[0])
+        self.assertIn("Couldn't read track", toasts)
+        self.assertNotIn("Only AAC-LC and ALAC M4A play", toasts)
+        self.assertEqual([], rig.audio.audible)
+        self.assert_healthy(rig.session)
 
     def test_ape_player_runs_both_arm_cores_and_resumes_at_the_saved_sample(self):
         from echo_emulator.core1_bridge import CORE1_APE, Core1Bridge
@@ -574,60 +569,36 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_the_independent_audio_module_parses_and_seeks_real_aac_packets(self):
-        from echo_emulator.machine import TRAMPOLINE, STUB_RETURN, PAGE
-        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_SP
-        session = self.session()
-        session.run_to_first_frame()
-        session.run_to_home_screen()
-        machine = session.machine
+        from echo_emulator.core1_bridge import CORE1_M4A, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        from unicorn.arm_const import UC_ARM_REG_R1
         raw = (PROJECT / "tests/fixtures/m4a_music/Aac Artist/Aac Album/02 Tail.m4a").read_bytes()
-        scratch = TRAMPOLINE + PAGE
-        machine.uc.mem_map(scratch, PAGE)
-        callback, returned = TRAMPOLINE + 0x900, TRAMPOLINE + 0x904
-        registers = (UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3)
-
-        def read_input():
-            offset, destination, size = (machine.reg(register) for register in registers[1:])
-            valid = offset <= len(raw) and size <= len(raw) - offset
-            if valid:
-                machine.uc.mem_write(destination, raw[offset:offset + size])
-            machine.uc.reg_write(UC_ARM_REG_R0, int(valid))
-            machine.uc.reg_write(UC_ARM_REG_PC, STUB_RETURN | 1)
-
-        machine.add_address_hook(callback, read_input)
-        machine.add_address_hook(returned, lambda: machine.stop("audio API returned"))
-
-        def call(name, arguments):
-            stack = machine.reg(UC_ARM_REG_SP)
-            extra = arguments[4:]
-            room = (len(extra) * 4 + 7) // 8 * 8
-            if extra:
-                machine.uc.mem_write(stack - room, struct.pack("<" + "I" * len(extra), *extra))
-            machine.uc.reg_write(UC_ARM_REG_SP, stack - room)
-            for register, value in zip(registers, arguments):
-                machine.uc.reg_write(register, value)
-            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
-            reason = machine.run(until_ms=machine.milliseconds() + 1000)
-            self.assertEqual("audio API returned", reason)
-            result = machine.reg(UC_ARM_REG_R0)
-            machine.uc.reg_write(UC_ARM_REG_SP, stack)
-            return result
-
-        track, cursor, offset_at, size_at = scratch, scratch + 256, scratch + 768, scratch + 772
-        self.assertEqual(1, call("mp4_probe", [callback | 1, 0, len(raw), track]))
-        self.assertEqual((44100, 1024, 45124, 1024, 44100),
-                         struct.unpack("<5I", machine.read_memory(track + 36, 20)))
-        self.assertEqual(1, call("mp4_cursor_seek", [cursor, callback | 1, 0, len(raw), track, 0]))
-        self.assertEqual(1, call("mp4_cursor_next", [cursor, callback | 1, 0, len(raw), track,
-                                                    offset_at, size_at]))
-        offset, size = struct.unpack("<2I", machine.read_memory(offset_at, 8))
-        self.assertGreater(size, 0)
-        self.assertLessEqual(offset + size, len(raw))
+        volume = Fat32Volume()
+        volume.add_file("A.m4a", raw)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        bridge = Core1Bridge(rig.audio,
+                             {CORE1_M4A: self.elf.with_name("core1_m4a.bin").read_bytes()})
+        machine = rig.machine
+        self.assertNotIn("mp4_probe", machine.symbols)
+        self.assertNotIn("mp4_cursor_seek", machine.symbols)
+        self.assertNotIn("mp4_cursor_next", machine.symbols)
+        machine.hook_symbol("hal_audio_play", lambda: machine.uc.reg_write(UC_ARM_REG_R1, 500))
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.rate == 44100 and rig.audio.running,
+            until_ms=machine.milliseconds() + 3000))
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual([CORE1_M4A], bridge.started)
         _, dsp = self.module(machine, "dsp")
         self.assertTrue(dsp.loaded(machine))
-        self.assert_healthy(session)
+        control = struct.unpack("<31I", machine.read_memory(0x01020100, 124))
+        self.assertEqual((44100, 2, 24, 1024, 44100),
+                         (control[1], control[2], control[3], control[4], control[6]))
+        self.assertGreater(control[7], 0)
+        self.assert_healthy(rig.session)
 
     def test_unavailable_flac_core_refuses_the_track_without_starting_output(self):
         rig = self.playback_rig()

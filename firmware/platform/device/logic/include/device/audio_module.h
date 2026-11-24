@@ -17,5 +17,5 @@ typedef struct AudioModuleEntry {
     uint32_t (*render)(AudioResample *resample, uint32_t *words, uint32_t frames);
     bool (*open[AUDIO_MODULE_OPENS])(void *context, const char *path, uint32_t start_ms,
                                      AudioTrackInfo *track);
-    bool (*read)(void *context, uint32_t offset, void *buffer, uint32_t length);
+    bool (*read[AUDIO_MODULE_OPENS])(void *context, uint32_t offset, void *buffer, uint32_t length);
 } AudioModuleEntry;

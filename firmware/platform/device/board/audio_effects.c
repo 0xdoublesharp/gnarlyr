@@ -14,14 +14,16 @@ static const AudioEffectsEntry *entry(void)
     return (const AudioEffectsEntry *)(uintptr_t)(AUDIO_EFFECTS_BASE + OVERLAY_HEADER_BYTES);
 }
 
-CORE_SEAM CORE_COLD bool board_audio_effects_prepare(void)
+CORE_COLD bool board_audio_effects_prepare(void)
 {
     const BoardOverlay overlay = {.image_offset = 0,
                                   .magic = AUDIO_EFFECTS_MAGIC,
                                   .base = (uint8_t *)(uintptr_t)AUDIO_EFFECTS_BASE,
                                   .capacity = AUDIO_EFFECTS_BYTES,
                                   .module = AUDIO_EFFECTS_NUMBER};
-    ready = board_overlay_load(&overlay) && entry()->magic == AUDIO_EFFECTS_MAGIC;
+    if (!ready || !board_overlay_is_loaded(&overlay)) {
+        ready = board_overlay_load(&overlay) && entry()->magic == AUDIO_EFFECTS_MAGIC;
+    }
     return ready;
 }
 

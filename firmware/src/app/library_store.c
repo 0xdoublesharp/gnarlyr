@@ -3,15 +3,10 @@
 #include <stddef.h>
 
 #include "favorite_playlist.h"
+#include "store_file.h"
 
 const char LIBRARY_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/library.db";
 const char HIDDEN_TRACKS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/hidden.bin";
-
-static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    const LibraryStore *store = context;
-    return hal_file_read(store->file, offset, buffer, length);
-}
 
 static void attach_hidden(LibraryStore *store)
 {
@@ -40,7 +35,7 @@ bool library_store_open(LibraryStore *store)
         store->library = (Library){0};
         return false;
     }
-    ByteSource file_source = {.read = read_file, .context = store};
+    ByteSource file_source = {.read = store_file_read_open, .context = &store->file};
     block_cache_init(&store->cache, file_source, store->file.size);
     if (library_open(&store->library, block_cache_source(&store->cache), store->file.size) !=
         LIBRARY_OK) {

@@ -19,7 +19,7 @@ bool core1_open_dsd(void *context, const char *path, uint32_t start_ms, AudioTra
         return false;
     }
     uint32_t end = DSD_HEADER_BYTES + source->dsd->bytes;
-    source->input = (FlacInput){.read = dsd_stream_read, .context = source->dsd, .size = end};
+    source->input = (FlacInput){.context = source->dsd, .size = end};
     source->start_offset = 0;
     source->end_offset = end;
     source->written = 0;

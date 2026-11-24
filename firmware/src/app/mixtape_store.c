@@ -14,46 +14,11 @@ enum {
     RECOVER
 };
 
-static bool read_file(void *context, uint32_t offset, void *bytes, uint32_t length)
-{
-    const MixtapeFile *source = context;
-    HalFile file;
-    if (!hal_file_open(&file, source->path)) {
-        return false;
-    }
-    bool read = hal_file_read(file, offset, bytes, length);
-    hal_file_close(&file);
-    return read;
-}
-
-static bool write_file(void *context, uint32_t offset, const void *bytes, uint32_t length)
-{
-    const MixtapeFile *file = context;
-    return hal_file_write_at(file->path, offset, bytes, length);
-}
-
-static bool find_file(MixtapeFile *file)
-{
-    HalFile handle;
-    file->size = 0;
-    if (!hal_file_open(&handle, file->path)) {
-        return false;
-    }
-    file->size = handle.size;
-    hal_file_close(&handle);
-    return true;
-}
-
-static StoreFile file_io(MixtapeFile *file)
-{
-    return (StoreFile){.source = {read_file, file}, .write = write_file, .size = file->size};
-}
-
 StoreLoad mixtape_store_init(MixtapeStore *store)
 {
     *store = (MixtapeStore){.catalog_file.path = "/" FIRMWARE_DATA_DIRECTORY "/mixes.bin"};
-    store->load = find_file(&store->catalog_file)
-                      ? mix_catalog_open(&store->catalog, file_io(&store->catalog_file))
+    store->load = path_file_find(&store->catalog_file)
+                      ? mix_catalog_open(&store->catalog, path_file_store(&store->catalog_file))
                       : STORE_EMPTY;
     return store->load;
 }
@@ -73,17 +38,11 @@ bool mixtape_store_read(const MixtapeStore *store, uint16_t slot, MixEntry *entr
 static bool writable_catalog(MixtapeStore *store)
 {
     if (store->result == STORE_WORKING ||
-        (store->load != STORE_READY && store->load != STORE_EMPTY)) {
+        (store->load != STORE_READY && store->load != STORE_EMPTY) ||
+        !path_file_prepare(&store->catalog_file, MIX_CATALOG_BYTES)) {
         return false;
     }
-    if (!find_file(&store->catalog_file)) {
-        HalReserveResult reserved = hal_file_reserve(store->catalog_file.path, MIX_CATALOG_BYTES);
-        if ((reserved != HAL_RESERVE_CREATED && reserved != HAL_RESERVE_EXISTS) ||
-            !find_file(&store->catalog_file)) {
-            return false;
-        }
-    }
-    store->load = mix_catalog_open(&store->catalog, file_io(&store->catalog_file));
+    store->load = mix_catalog_open(&store->catalog, path_file_store(&store->catalog_file));
     return store->load == STORE_READY || store->load == STORE_EMPTY;
 }
 
@@ -157,17 +116,18 @@ bool mixtape_store_change(MixtapeStore *store, MixtapeChange change)
 
 static void data_path(MixtapeStore *store)
 {
+    store->data_file.file.path = store->data_file.path;
     mix_tape_path(store->slot, store->entry.file_bank, store->data_file.path);
 }
 
 static bool start_check(MixtapeStore *store)
 {
     data_path(store);
-    if (!find_file(&store->data_file)) {
+    if (!path_file_find(&store->data_file.file)) {
         store->tape.load = STORE_UNREADABLE;
         return false;
     }
-    mix_tape_check_begin(&store->job.check, &store->tape, file_io(&store->data_file),
+    mix_tape_check_begin(&store->job.check, &store->tape, path_file_store(&store->data_file.file),
                          store->entry.generation);
     return true;
 }
@@ -192,22 +152,15 @@ static bool allocate_tape(MixtapeStore *store)
 {
     uint32_t size = STORE_BLOCK_BYTES + store->measured.bytes;
     data_path(store);
-    bool exists = find_file(&store->data_file);
-    if (exists && store->data_file.size < size) {
-        if (!hal_file_remove(store->data_file.path)) {
-            return false;
-        }
-        exists = false;
+    if (path_file_find(&store->data_file.file) && store->data_file.file.size < size &&
+        !hal_file_remove(store->data_file.file.path)) {
+        return false;
     }
-    if (!exists) {
-        HalReserveResult result = hal_file_reserve(store->data_file.path, size);
-        if ((result != HAL_RESERVE_CREATED && result != HAL_RESERVE_EXISTS) ||
-            !find_file(&store->data_file)) {
-            return false;
-        }
+    if (!path_file_prepare(&store->data_file.file, size)) {
+        return false;
     }
-    return mix_tape_write_begin(&store->job.writer, file_io(&store->data_file), &store->measured,
-                                store->entry.generation);
+    return mix_tape_write_begin(&store->job.writer, path_file_store(&store->data_file.file),
+                                &store->measured, store->entry.generation);
 }
 
 static StoreResult measure(MixtapeStore *store)

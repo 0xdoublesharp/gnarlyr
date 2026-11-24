@@ -66,32 +66,22 @@ CORE_COLD bool core1_open(void *context, const char *path, uint32_t start_ms, Au
            entry()->open[route >> ROUTE_OPEN_SHIFT](context, path, start_ms, track);
 }
 
-CORE_SEAM CORE_COLD bool mp4_probe(FlacInput input, Mp4Track *track)
+bool core1_module_read(const Core1Source *source, void *buffer, uint32_t length)
 {
-    track->unsupported = false;
-    return load(AUDIO_DSP_NUMBER) && dsp()->probe(input, track);
-}
-
-CORE_SEAM bool mp4_cursor_seek(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track,
-                               uint32_t sample)
-{
-    return dsp()->seek(cursor, input, track, sample);
-}
-
-CORE_SEAM bool mp4_cursor_next(Mp4Cursor *cursor, FlacInput input, const Mp4Track *track,
-                               uint32_t *offset, uint32_t *size)
-{
-    return dsp()->next(cursor, input, track, offset, size);
-}
-
-bool m4a_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    return entry()->magic == AUDIO_DSP_MAGIC && entry()->read(context, offset, buffer, length);
+    uint32_t route = ROUTES[source->format];
+    return entry()->magic == AUDIO_MODULE_MAGIC(route & ROUTE_NUMBER) &&
+           entry()->read[route >> ROUTE_OPEN_SHIFT](source->input.context, source->written, buffer,
+                                                    length);
 }
 
 CORE_SEAM bool ogg_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
-    return entry()->magic == AUDIO_OGG_MAGIC && entry()->read(context, offset, buffer, length);
+    return entry()->magic == AUDIO_OGG_MAGIC && entry()->read[0](context, offset, buffer, length);
+}
+
+bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    return ogg_stream_read(context, offset, buffer, length);
 }
 
 CORE_SEAM bool aiff_probe(FlacInput input, WavFormat *format)

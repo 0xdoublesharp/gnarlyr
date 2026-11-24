@@ -17,6 +17,7 @@ add_library(echo_app STATIC
     order_publish.c
     order_adopt.c
     path_file.c
+    store_file.c
     personal_tags.c
     player_jump.c
     player_storage.c
