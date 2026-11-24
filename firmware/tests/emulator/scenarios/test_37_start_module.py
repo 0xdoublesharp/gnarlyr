@@ -130,7 +130,10 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(applied)
         self.assertEqual(0, applied[-1][2], applied)
         failed = [call for call in self.start_loads(watch) if not call["loaded"]]
-        self.assertEqual(sum(len(calls) for calls in wrappers), len(failed), failed)
+        self.assertTrue(all(wrappers))
+        self.assertEqual(1, len(failed), failed)
+        for slot in ("slot_1", "slot_2"):
+            self.assertTrue(session.module_reads(slot, START_MODULE))
         settled = len(watch.loads())
         machine.run(until_ms=machine.milliseconds() + 1500)
         self.assertEqual(settled, len(watch.loads()))
@@ -179,35 +182,39 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(saved_settings(), session.fat().read(image_tests.SETTINGS_PATH))
 
     def test_without_an_intact_start_module_playback_cannot_replace_the_saved_session(self):
-        from echo_emulator.playback import Rig
-        volume = self.profile_volume()
-        volume.add_file("One.wav", self.tagged_wav("One", "Album", 44100, 40, 12000))
-        volume.add_file("Two.wav", self.tagged_wav("Two", "Album", 44100, 600, 12000))
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  volume=volume, module_elfs=self.module_elfs)
-        rig.open_songs()
-        rig.play_song(1)
+        rig = self.playback_rig()
+        rig.press("play")
+        rig.press_many("next", 2)
+        rig.press("play")
+        rig.press("play", hold=800)
+        rig.press("play")
         rig.run_for(1500)
         rig.press("play")
-        path = "/" + image_tests.IDENTITY.data_directory + "/session.bin"
-        saved = rig.session.fat().read(path)
-        self.assertTrue(saved and saved[:4] == b"DSSJ")
+        directory = "/" + image_tests.IDENTITY.data_directory
+        paths = [directory + "/session.bin", directory + "/order.bin"]
+        saved = [rig.session.fat().read(path) for path in paths]
+        self.assertEqual(b"DSSJ", saved[0][:4])
+        self.assertIn(b"DSTO", (saved[1][:4], saved[1][131584:131588]))
 
         session = rig.session.reboot()
         for slot in ("slot_1", "slot_2"):
             session.change_module(slot, START_MODULE, 600, lambda byte: byte ^ 0xFF)
         machine = session.machine
-        self.started(session)
+        _, watch = self.started(session)
+        played = machine.trace("hal_audio_play")
         rig.session, rig.machine = session, machine
         rig.open_songs()
         rig.play_song(2)
         rig.run_for(1500)
         rig.press("play")
+        self.assertTrue(played)
         self.assert_healthy(session)
         self.hold_power(machine)
         self.assertEqual(machine.run(until_ms=machine.milliseconds() + 8000),
                          "firmware reached hal_power_off")
-        self.assertEqual(saved, session.fat().read(path))
+        self.assertEqual(saved, [session.fat().read(path) for path in paths])
+        attempts = [call for call in watch.calls if call["module"] == START_MODULE]
+        self.assertEqual(1, len(attempts), attempts)
 
     def test_without_an_intact_start_module_the_dac_menu_keeps_the_ceiling_after_settings(self):
         session = self.session(volume=self.profile_volume(), usb_answer=None)

@@ -658,6 +658,22 @@ def default_date():
     return today.year, today.month, today.day
 
 
+def chosen_date(given, environment):
+    if given is not None:
+        return given
+    epoch = environment.get("SOURCE_DATE_EPOCH")
+    if epoch is None:
+        return default_date()
+    try:
+        seconds = int(epoch)
+        if seconds < 0:
+            raise ValueError
+        date = datetime.datetime.fromtimestamp(seconds, datetime.timezone.utc)
+    except (ValueError, OverflowError, OSError):
+        raise ImageError("SOURCE_DATE_EPOCH must be a valid non-negative Unix timestamp") from None
+    return date.year, date.month, date.day
+
+
 def parse_date(text):
     try:
         year, month, day = (int(part) for part in text.split("-"))
@@ -681,7 +697,8 @@ def parse_arguments(argv):
     parser.add_argument("--elf", type=Path, required=True,
                         help="device ELF with .code at 0x03050000 and .data at 0x03004000")
     parser.add_argument("--build-tag", help="defaults to ECHO_BUILD_TAG, else the short git commit, + when dirty")
-    parser.add_argument("--date", type=parse_date, help="YYYY-MM-DD; defaults to today")
+    parser.add_argument("--date", type=parse_date,
+                        help="YYYY-MM-DD; defaults to SOURCE_DATE_EPOCH in UTC or today")
     parser.add_argument("--overlay", type=Path, help="rescan overlay ELF linked at 0x0307A000")
     parser.add_argument("--usb-overlay", type=Path,
                         help="USB and update overlay ELF linked at 0x0307A000")
@@ -706,8 +723,8 @@ def parse_arguments(argv):
 def main(argv=None):
     arguments = parse_arguments(argv)
     build_tag = chosen_build_tag(arguments.build_tag, os.environ, Path(__file__).resolve().parents[1])
-    date = arguments.date or default_date()
     try:
+        date = chosen_date(arguments.date, os.environ)
         main_elf = arguments.elf.read_bytes()
         firmware = firmware_from_elf(main_elf)
         overlay = usb_overlay = b""

@@ -6,19 +6,70 @@
 #include "core/i18n.h"
 #include "default_theme.h"
 #include "fixture_library.h"
+#include "hal/display.h"
 
 static FixtureLibrary fixture;
 static BrowsePool pool;
 
-static BrowseScreen *opened(BrowseQuery query)
+static BrowseScreen *open_with_theme(BrowseQuery query, const Theme *theme)
 {
-    browse_pool_init(&pool, (BrowsePoolConfig){.library = fixture_library_open(&fixture),
-                                               .theme = &BOARD_THEME,
+    browse_pool_init(&pool, (BrowsePoolConfig){.library = &fixture.library,
+                                               .theme = theme,
                                                .section = browse_sections_at,
                                                .sections = browse_sections_range});
     Screen *screen = browse_pool_open(&pool, 0, query);
     screen->enter(screen->context, 0);
     return screen->context;
+}
+
+static BrowseScreen *opened(BrowseQuery query)
+{
+    fixture_library_open(&fixture);
+    return open_with_theme(query, &BOARD_THEME);
+}
+
+static void add_song_rows(uint16_t count)
+{
+    Library *library = fixture_library_open(&fixture);
+    LibrarySectionInfo *order = &library->sections[LIBRARY_TITLE_ORDER];
+    order->offset = fixture.size;
+    order->count = order->music = count;
+    for (uint16_t row = 0; row < count; row++) {
+        fixture.bytes[fixture.size + 2u * row] = (uint8_t)(row % FIXTURE_TRACKS);
+        fixture.bytes[fixture.size + 2u * row + 1u] = 0;
+    }
+    fixture.memory.size += 2u * count;
+    library->size = fixture.memory.size;
+}
+
+static bool song_row_has_ink(Canvas *canvas, const Theme *theme, int row)
+{
+    int height = theme->metrics.row_height;
+    int top = theme->metrics.header_height + row * height;
+    for (int y = top + 2; y < top + height - 2; y++) {
+        for (int x = theme->metrics.padding; x < 100; x++) {
+            if (canvas_pixel_at(canvas, x, y) == theme->colors.text) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void small_portrait_draws_fourteen_cached_song_rows(void)
+{
+    static Color pixels[HAL_DISPLAY_LONG_SIDE * HAL_DISPLAY_SHORT_SIDE];
+    Theme theme = BOARD_THEME;
+    default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
+    default_theme_set_text_size(&theme, TEXT_SIZE_SMALL);
+    add_song_rows(20);
+    BrowseScreen *browse = open_with_theme(browse_root_query(BROWSE_ALL_SONGS), &theme);
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    browse->screen.draw(browse, &canvas);
+    CHECK_EQUAL(14, browse->list.visible_rows);
+    CHECK(song_row_has_ink(&canvas, &theme, 13));
+    CHECK(!song_row_has_ink(&canvas, &theme, 14));
 }
 
 static int section_at(const BrowseScreen *browse, int index)
@@ -216,6 +267,7 @@ static void every_track_action_has_an_icon_and_the_file_rows_say_what_happens(vo
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(small_portrait_draws_fourteen_cached_song_rows),
         TEST_CASE(albums_are_lettered_by_their_sort_key),
         TEST_CASE(folder_names_offer_sections_without_reordering_tracks),
         TEST_CASE(an_appended_favorite_playlist_has_its_own_sorted_run),

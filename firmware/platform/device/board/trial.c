@@ -68,6 +68,7 @@ _Static_assert(sizeof(UsbReport) >= DIAG_REPORT_WORDS * 4 &&
 static uint32_t power_since_ms;
 static uint32_t escape_since_ms;
 static bool power_released;
+static bool boot_module_failed;
 __attribute__((section(".noinit"))) static TrialDiag diag;
 
 void board_slot_cache_invalidate(void);
@@ -80,7 +81,12 @@ static uint32_t *copy_buffer(void)
 
 static const TrialBootModuleEntry *boot_module(void)
 {
-    return hal_system_load_module(TRIAL_BOOT_MODULE_NUMBER);
+    if (boot_module_failed) {
+        return NULL;
+    }
+    const TrialBootModuleEntry *entry = hal_system_load_module(TRIAL_BOOT_MODULE_NUMBER);
+    boot_module_failed = entry == NULL;
+    return entry;
 }
 
 static uint32_t record_locate(FatVolume *volume)
