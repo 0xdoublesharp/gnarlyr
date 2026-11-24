@@ -386,6 +386,12 @@ class FindingThePlayer(VolumeCase):
         status = echo_debug.Tool(FakeHost(usb_tree(player([]), player(media)))).status()
         self.assertTrue(status["connected"])
 
+    def test_a_ghost_unmounted_media_entry_with_the_same_serial_is_ignored(self):
+        ghost = player([{"bsd_name": "disk5", "Logical Unit": 0}])
+        media = [medium("Internal storage", "ECHO", self.root)]
+        status = echo_debug.Tool(FakeHost(usb_tree(ghost, player(media)))).status()
+        self.assertTrue(status["connected"])
+
     def test_another_volume_name_can_be_asked_for(self):
         host = self.host(medium("Internal storage", "PLAYER", self.root))
         self.assertTrue(echo_debug.Tool(host, volume_name="PLAYER").status()["connected"])
