@@ -32,6 +32,8 @@
 #include "hal/storage.h"
 #include "hal/system.h"
 
+void board_clock_lower_for_playback(void);
+
 enum {
     RING_BLOCKS = 7,
     BLOCK_WORDS = 4000,
@@ -49,6 +51,8 @@ enum {
     FILL_BUDGET_BYTES = 8192,
     FILL_BURST_BYTES = 65536,
     LONGEST_REST_MS = 40,
+    LIGHT_REST_MS = 55,
+    LIGHT_RATE_HZ = 48000,
     RING_SERVICES = 4,
     RESTING_PUMPS = 4,
     IDLE_SHUTDOWN_MS = 3000,
@@ -306,10 +310,18 @@ static AudioSource chosen_source(void)
                                   flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
 
+static bool ensure_audio_clock(void)
+{
+    return hal_system_clock_mhz() >= AUDIO_CLOCK_MHZ || hal_system_set_clock_mhz(AUDIO_CLOCK_MHZ);
+}
+
 CORE_COLD static bool open_chosen(void *context, const char *path, uint32_t start_ms,
                                   AudioTrackInfo *track)
 {
     (void)context;
+    if (!ensure_audio_clock()) {
+        return false;
+    }
     source_kind = kind_of(path);
     unknown_format = source_kind == SOURCE_UNKNOWN;
     core1_source.unsupported = false;
@@ -557,13 +569,6 @@ static void stop_tone(void)
     }
 }
 
-static void ensure_audio_clock(void)
-{
-    if (hal_system_clock_mhz() < AUDIO_CLOCK_MHZ) {
-        hal_system_set_clock_mhz(AUDIO_CLOCK_MHZ);
-    }
-}
-
 static AudioEngineTrack engine_track(const HalAudioTrack *track)
 {
     if (track == NULL) {
@@ -774,6 +779,9 @@ CORE_COLD void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
 {
     ensure_engine();
     audio_engine_set_equalizer(&engine, curve);
+    if (engine.equalizing && transferring) {
+        (void)ensure_audio_clock();
+    }
 }
 
 void hal_audio_set_effects(HalAudioEffects effects)
@@ -1090,13 +1098,33 @@ static uint32_t input_ms(void)
     return core1_stream_input_ms(core1_source.region.ring_bytes, engine.decode_track);
 }
 
+static bool light_stream(uint32_t rate)
+{
+    if (rate > LIGHT_RATE_HZ || engine.state != AUDIO_ENGINE_PLAYING || !engine.decoding ||
+        engine.rate_pending || engine.draining || engine.equalizing || engine.stretching ||
+        engine.resample.factor != 1) {
+        return false;
+    }
+    AudioCodec codec = engine.decode_track.codec;
+    return codec == AUDIO_CODEC_FLAC || codec == AUDIO_CODEC_MP3 || codec == AUDIO_CODEC_ALAC ||
+           codec == AUDIO_CODEC_WAV;
+}
+
 uint32_t board_audio_plan_rest(bool dark)
 {
     uint32_t rate = engine_ready ? audio_engine_rate(&engine) : 0;
     rest_ms = 0;
     if (dark && transferring && !tone_active && stream_service == NULL && rate != 0) {
+        bool light = light_stream(rate);
+        if (light && !board_audio_running_low()) {
+            board_clock_lower_for_playback();
+        }
+        if (board_bluetooth_powered()) {
+            return 0;
+        }
         uint32_t ring_ms = RING_FRAMES * MILLISECONDS_PER_SECOND / rate;
-        rest_ms = smallest(LONGEST_REST_MS, ring_ms / RING_SERVICES, handoff_ms());
+        rest_ms = smallest(light ? LIGHT_REST_MS : LONGEST_REST_MS, ring_ms / RING_SERVICES,
+                           handoff_ms());
         uint32_t input_limit_ms = input_ms() / RING_SERVICES;
         rest_ms = rest_ms < input_limit_ms ? rest_ms : input_limit_ms;
     }

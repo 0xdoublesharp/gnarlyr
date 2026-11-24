@@ -342,8 +342,8 @@ static void govern_coast(void)
 static uint32_t pass_interval_ms(void)
 {
     uint32_t interval_ms = app_pass_interval_ms();
-    bool dark = interval_ms >= DARK_PASS_MS && !board_display_lit() &&
-                usb_plug.state != USB_PLUG_LISTENING && !board_bluetooth_powered();
+    bool dark =
+        interval_ms >= DARK_PASS_MS && !board_display_lit() && usb_plug.state != USB_PLUG_LISTENING;
     uint32_t rest_ms = board_audio_plan_rest(dark);
     return rest_ms != 0 ? rest_ms : interval_ms;
 }

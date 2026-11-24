@@ -16,11 +16,20 @@ static const ClockGovernorLimits FROM_100 = {.window_us = 50000000,
                                              .deepen_percent = 50,
                                              .raise_percent = 60,
                                              .hurry_percent = 90};
+static const ClockGovernorLimits FROM_96 = {.window_us = 50000000,
+                                            .lowest_divider = 1,
+                                            .highest_divider = 4,
+                                            .deepen_percent = 50,
+                                            .raise_percent = 60,
+                                            .hurry_percent = 90};
 
 uint32_t core1_pace_units(uint32_t cycles, uint32_t mhz)
 {
     if (mhz == 0 || mhz == CORE1_PACE_UNIT_MHZ) {
         return cycles;
+    }
+    if (mhz < CORE1_PACE_UNIT_MHZ && CORE1_PACE_UNIT_MHZ % mhz != 0) {
+        return (uint32_t)((uint64_t)cycles * CORE1_PACE_UNIT_MHZ / mhz);
     }
     return mhz > CORE1_PACE_UNIT_MHZ ? cycles / (mhz / CORE1_PACE_UNIT_MHZ)
                                      : cycles * (CORE1_PACE_UNIT_MHZ / mhz);
@@ -44,17 +53,20 @@ uint32_t core1_pace_rest_mhz(uint32_t mhz)
     return mhz > CORE1_PACE_IDLE_MHZ ? CORE1_PACE_IDLE_MHZ : mhz;
 }
 
-uint32_t core1_pace_divider_field(uint32_t mhz)
+uint32_t core1_pace_divider_field(uint32_t pll_mhz, uint32_t mhz)
 {
-    return CORE1_PACE_PLL_MHZ / mhz - 1u;
+    return pll_mhz / mhz - 1u;
 }
 
-const ClockGovernorLimits *core1_pace_limits(uint32_t ceiling_mhz)
+const ClockGovernorLimits *core1_pace_limits(uint32_t pll_mhz, uint32_t ceiling_mhz)
 {
+    if (pll_mhz != CORE1_PACE_PLL_MHZ) {
+        return &FROM_96;
+    }
     return ceiling_mhz == CORE1_PACE_PLL_MHZ ? &FROM_200 : &FROM_100;
 }
 
-uint32_t core1_pace_mhz(uint32_t divider)
+uint32_t core1_pace_mhz(uint32_t pll_mhz, uint32_t divider)
 {
-    return CORE1_PACE_PLL_MHZ / divider;
+    return pll_mhz / divider;
 }
