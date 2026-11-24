@@ -3,11 +3,14 @@
 
 #include "board.h"
 #include "core/seam.h"
+#include "device/core1_pace.h"
 #include "device/pll.h"
 #include "dmac.h"
 #include "hal/system.h"
 #include "irq.h"
 #include "registers.h"
+
+void board_clock_lower_for_playback(void);
 
 #define PLL_CON0 (CRU_BASE + 0x00u)
 #define PLL_CON1 (CRU_BASE + 0x04u)
@@ -28,7 +31,7 @@
 #define MODE_FROM_PLL 0x00010001u
 #define MODE_CLEAR_DIVIDER 0x3F000000u
 #define MODE_ON_PLL 0x1u
-#define CLOCK_SELECT_UNDIVIDED 0xFFFF0000u
+#define SYSTEM_CLOCK_SELECT_MASK 0x0FFF0000u
 #define PCLK_UNDIVIDED 0x03000000u
 #define CORE_SPEED_SLOW 0x30400000u
 #define BUS_SPEED_SLOW 0xC0000000u
@@ -48,12 +51,13 @@ enum {
 static uint32_t current_mhz;
 static uint32_t extra_divider;
 static uint32_t coast_divider;
+static bool dark_playback;
 static HalBootClocks boot_clocks;
 
 static void leave_pll(void)
 {
     register_write(CRU_MODE, MODE_FROM_CRYSTAL);
-    register_write(CRU_CLOCK_SELECT, CLOCK_SELECT_UNDIVIDED);
+    register_write(CRU_CLOCK_SELECT, SYSTEM_CLOCK_SELECT_MASK);
     register_write(CRU_PCLK_SELECT, PCLK_UNDIVIDED);
 }
 
@@ -119,7 +123,7 @@ static bool run_from_pll(uint32_t mhz)
         run_from_crystal();
         return false;
     }
-    register_write(CRU_CLOCK_SELECT, setting.clock_select);
+    register_write(CRU_CLOCK_SELECT, setting.clock_select & SYSTEM_CLOCK_SELECT_MASK);
     board_delay_us(DIVIDER_SETTLE_US);
     register_write(CRU_PCLK_SELECT, setting.pclk_select);
     board_delay_us(DIVIDER_SETTLE_US);
@@ -217,23 +221,51 @@ void board_clock_coast_divider(uint32_t divider)
     }
 }
 
-static bool change_clock(uint32_t mhz)
+static bool retune(uint32_t mhz, bool keep_audio)
 {
-    dmac_suspend();
-    board_start_record_step(HAL_START_STEP_CLOCK_SWITCH);
+    uint32_t previous = current_mhz;
     uint32_t primask = irq_save();
     bool switched = switch_clock(mhz);
+    if (keep_audio) {
+        if (!switched) {
+            (void)switch_clock(previous);
+        }
+        if (board_core1_streaming()) {
+            register_write(CORE1_PACE_PLL_STATE, current_mhz);
+        }
+        dark_playback = current_mhz == IDLE_FROM_MHZ;
+    }
     irq_restore(primask);
+    return switched;
+}
+
+static bool change_clock(uint32_t mhz, bool keep_audio)
+{
+    if (!keep_audio) {
+        dmac_suspend();
+    }
+    board_start_record_step(HAL_START_STEP_CLOCK_SWITCH);
+    bool switched = retune(mhz, keep_audio);
     board_start_record_step_done();
-    dmac_resume();
+    if (!keep_audio) {
+        dmac_resume();
+    }
     board_display_after_clock_change();
     return switched;
+}
+
+void board_clock_lower_for_playback(void)
+{
+    if (current_mhz == COAST_FROM_MHZ && !board_usb_core_powered()) {
+        hal_system_coast(false);
+        (void)change_clock(IDLE_FROM_MHZ, true);
+    }
 }
 
 void board_clock_raise(uint32_t mhz)
 {
     if (hal_system_clock_mhz() < mhz) {
-        (void)change_clock(mhz);
+        (void)change_clock(mhz, false);
     }
 }
 
@@ -244,8 +276,12 @@ CORE_SEAM bool hal_system_set_clock_mhz(uint32_t mhz)
     if (mhz == current || (mhz < current && board_usb_core_powered())) {
         return true;
     }
+    if (dark_playback && mhz == COAST_FROM_MHZ) {
+        return change_clock(mhz, true);
+    }
+    dark_playback = false;
     board_audio_before_clock_change();
-    bool switched = change_clock(mhz);
+    bool switched = change_clock(mhz, false);
     board_audio_after_clock_change();
     return switched;
 }

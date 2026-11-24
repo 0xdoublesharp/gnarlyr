@@ -509,6 +509,9 @@ static void set_display(bool on)
     app.light_after_frame = on;
     if (on) {
         hal_system_coast(false);
+        if (hal_system_clock_mhz() == SCREEN_ON_CLOCK_MHZ && !hal_audio_status().idle) {
+            hal_system_set_clock_mhz(WORK_CLOCK_MHZ);
+        }
     } else {
         hal_display_set_power(false);
     }

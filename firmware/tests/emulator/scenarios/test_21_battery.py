@@ -5,14 +5,50 @@ import sys
 import tempfile
 from pathlib import Path
 
+from unicorn import UC_HOOK_MEM_WRITE
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import EchoImageHarness, main, IDENTITY
+from echo_emulator import direct
 from echo_emulator.emmc import SdCard, SparseDisk
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig
 from echo_emulator.bluetooth import Headphones
-from echo_emulator.power import DecoderLoad, PowerMeter
+from echo_emulator.power import CRU_CLOCK_SELECT, DecoderLoad, PowerMeter
+
+
+CORE1_PACE_PLL_STATE = 0x01020060
+
+
+class PlaybackDecoderLoad(DecoderLoad):
+    def start(self, program):
+        if not self.active or self.program != program:
+            self.pll_mhz = self.machine.pll_hz() // 1000000
+            self.divider = 2
+        return super().start(program)
+
+    def watch(self):
+        super().watch()
+
+        def write_divider(uc, access, address, size, value, user):
+            if value & 0x70000000:
+                self.divider = (value >> 12 & 7) + 1
+                self.mhz = self.pll_mhz // self.divider
+
+        direct.hook_add(self.core.uc, UC_HOOK_MEM_WRITE, write_divider,
+                        None, CRU_CLOCK_SELECT, CRU_CLOCK_SELECT)
+
+    def step(self):
+        pll = self.machine.pll_hz() // 1000000
+        if self.active and pll != self.pll_mhz:
+            self.pll_mhz = pll
+            published = self.machine.read_memory(CORE1_PACE_PLL_STATE, 4)
+            self.core.uc.mem_write(CORE1_PACE_PLL_STATE, published)
+            self.mhz = pll // self.divider
+            if not self.awake:
+                self.next_wake_us = self.wake_at()
+        super().step()
 
 
 class EchoImageTest(EchoImageHarness):
@@ -58,10 +94,10 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(0, result["underruns"], result)
         self.assert_healthy(rig.session)
 
-    def battery_case(self, codec, output):
+    def battery_case(self, codec, output, wake=False):
         volume = Fat32Volume()
         rate, channels = (16000, 1) if codec == "speech" else (44100, 2)
-        extension = "wav" if codec == "speech" else codec
+        extension = {"speech": "wav", "alac": "m4a"}.get(codec, codec)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ("Load." + extension)
             command = ["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
@@ -73,6 +109,8 @@ class EchoImageTest(EchoImageHarness):
                 command += ["-sample_fmt", "s16"]
             elif codec == "ogg":
                 command += ["-c:a", "vorbis", "-strict", "-2"]
+            elif codec == "alac":
+                command += ["-c:a", "alac"]
             subprocess.run(command + [str(path)], check=True)
             volume.add_file(path.name, path.read_bytes())
         if output == 0:
@@ -104,18 +142,19 @@ class EchoImageTest(EchoImageHarness):
 
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
-        if codec != "speech":
-            DecoderLoad(rig.audio, self.elf.parent)
+        if extension != "wav":
+            PlaybackDecoderLoad(rig.audio, self.elf.parent)
         rig.open_songs()
         started = rig.play_song(1)
         rig.run_for(500)
         self.assertIsNotNone(rig.first_audio_after(started),
                              (codec, output, rig.audio.plays, rig.machine.faults,
                               rig.machine.panics, getattr(rig.audio.core1, "instructions", 0)))
+        dma_started = rig.audio.started_us
         rig.machine.power_key_released_at_ms = rig.machine.milliseconds() + 150
         rig.run_for(1000)
         result = meters[0].measure(rig, inserted[0], 4000)
-        result.update(codec=codec, output=output)
+        result.update(codec=codec, output=output, pll_mhz=rig.machine.pll_hz() // 1000000)
         if radios:
             result["bluetooth_commands"] = [item.hex() for _, item in radios[0].commands]
             self.assertTrue(radios[0].streaming, result)
@@ -126,6 +165,13 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(result["backlight_on"], result)
         self.assertEqual(0, result["panel_on_ms"], result)
         self.assertEqual(0, result["backlight_on_ms"], result)
+        if wake:
+            rig.machine.power_key_released_at_ms = rig.machine.milliseconds() + 150
+            rig.run_for(500)
+            self.assertEqual(200, rig.machine.pll_hz() // 1000000)
+            self.assertEqual(0, len(rig.audio.underruns(started)))
+            self.assertEqual(0, rig.audio.output_underruns())
+        self.assertEqual(dma_started, rig.audio.started_us)
         self.assert_healthy(rig.session)
         return result
 
@@ -133,7 +179,10 @@ class EchoImageTest(EchoImageHarness):
         figures = []
         for codec in os.environ.get("ECHO_BATTERY_CODECS", "flac,mp3,speech").split(","):
             for output in (1, 2, 0):
-                figures.append(self.battery_case(codec, output))
+                result = self.battery_case(codec, output)
+                self.assertEqual(96 if codec in ("flac", "mp3", "alac", "wav") else 200,
+                                 result["pll_mhz"], result)
+                figures.append(result)
                 destination = os.environ.get("ECHO_BATTERY_REPORT")
                 if destination:
                     Path(destination).write_text(json.dumps(figures, indent=2) + "\n")
@@ -141,6 +190,16 @@ class EchoImageTest(EchoImageHarness):
         destination = os.environ.get("ECHO_BATTERY_REPORT")
         if destination:
             Path(destination).write_text(json.dumps(figures, indent=2) + "\n")
+
+    def test_light_flac_uses_the_96_mhz_pll_with_the_screen_off(self):
+        result = self.battery_case("flac", 1, wake=True)
+        self.assertEqual(96, result["pll_mhz"], result)
+        self.assertTrue(set(result["core1_clock_ms"]) <= {"24", "48", "96"}, result)
+
+    def test_native_pcm_and_alac_use_the_96_mhz_pll_with_the_screen_off(self):
+        for codec in ("wav", "alac"):
+            result = self.battery_case(codec, 1)
+            self.assertEqual(96, result["pll_mhz"], result)
 
 
 if __name__ == "__main__":
