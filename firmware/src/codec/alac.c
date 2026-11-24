@@ -81,6 +81,8 @@ typedef struct AlacElement {
     bool escape;
 } AlacElement;
 
+static AlacLpcHook default_lpc_hook;
+
 bool alac_parse_cookie(const uint8_t *bytes, uint32_t length, AlacConfig *config)
 {
     if (bytes == NULL || config == NULL || length < ALAC_COOKIE_BYTES || bytes[4] != 0) {
@@ -107,6 +109,17 @@ void alac_start(AlacDecoder *decoder, const AlacConfig *config)
 {
     decoder->config = *config;
     decoder->sample_count = 0;
+    decoder->lpc_hook = default_lpc_hook;
+}
+
+void alac_set_default_lpc_hook(AlacLpcHook hook)
+{
+    default_lpc_hook = hook;
+}
+
+void alac_set_lpc_hook(AlacDecoder *decoder, AlacLpcHook hook)
+{
+    decoder->lpc_hook = hook;
 }
 
 uint32_t alac_samples(const AlacDecoder *decoder)
@@ -405,9 +418,8 @@ static void lpc_filter_any(AlacRun run, AlacLpc *lpc)
     lpc_filter_order(run, lpc, lpc->order);
 }
 
-static void lpc_filter(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t shift)
+static void lpc_filter(AlacRun run, AlacLpc *lpc)
 {
-    AlacRun run = {.samples = samples, .count = count, .shift = shift};
     if (lpc->order == 4) {
         lpc_filter_4(run, lpc);
     } else if (lpc->order == 8) {
@@ -417,18 +429,29 @@ static void lpc_filter(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t 
     }
 }
 
-static void unfix(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t sample_bits)
+static bool restore_with_hook(AlacRun run, const AlacLpc *lpc, const AlacLpcHook *hook)
 {
-    uint32_t shift = 32u - sample_bits;
+    AlacLpcJob job = {.coefficients = lpc->coefs,
+                      .count = run.count,
+                      .order = lpc->order,
+                      .quant = lpc->shift,
+                      .sample_bits = (uint8_t)(32u - run.shift)};
+    return hook->restore != NULL && hook->restore(hook->context, run.samples, job);
+}
+
+static void unfix(AlacRun run, AlacLpc *lpc, const AlacLpcHook *hook)
+{
     if (lpc->mode != 0) {
-        lpc_simple(samples, count, shift);
+        lpc_simple(run.samples, run.count, run.shift);
     }
     if (lpc->order == ALAC_ORDER_SIMPLE) {
-        lpc_simple(samples, count, shift);
+        lpc_simple(run.samples, run.count, run.shift);
     } else if (lpc->order > 0) {
-        uint32_t warm = lpc->order + 1u < count ? lpc->order + 1u : count;
-        lpc_simple(samples, warm, shift);
-        lpc_filter(samples, count, lpc, shift);
+        uint32_t warm = lpc->order + 1u < run.count ? lpc->order + 1u : run.count;
+        lpc_simple(run.samples, warm, run.shift);
+        if (warm < run.count && !restore_with_hook(run, lpc, hook)) {
+            lpc_filter(run, lpc);
+        }
     }
 }
 
@@ -491,7 +514,9 @@ static AlacResult read_channel(AlacDecoder *decoder, AlacBits *bits, AlacElement
     if (!read_residuals(bits, samples, element->count, &golomb)) {
         return ALAC_BAD_DATA;
     }
-    unfix(samples, element->count, lpc, element->sample_bits);
+    AlacRun run = {
+        .samples = samples, .count = element->count, .shift = 32u - element->sample_bits};
+    unfix(run, lpc, &decoder->lpc_hook);
     return ALAC_OK;
 }
 

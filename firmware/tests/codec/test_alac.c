@@ -339,6 +339,55 @@ static void stereo_streams_return_distinct_channels(void)
     close_stream(&stream);
 }
 
+typedef struct HookTrace {
+    uint32_t calls;
+    AlacLpcJob job;
+    int16_t first_coefficient;
+    int16_t last_coefficient;
+    bool accept;
+} HookTrace;
+
+static bool trace_predictor(void *context, int32_t *samples, AlacLpcJob job)
+{
+    HookTrace *trace = context;
+    trace->calls++;
+    trace->first_coefficient = job.coefficients[0];
+    trace->last_coefficient = job.coefficients[job.order - 1];
+    trace->job = job;
+    trace->job.coefficients = NULL;
+    if (trace->accept) {
+        samples[job.order + 1u] = 1234;
+    }
+    return trace->accept;
+}
+
+static void a_predictor_hook_can_restore_or_decline_an_adaptive_block(void)
+{
+    static int32_t expected[ALAC_MAX_FRAME_SAMPLES];
+    Stream stream;
+    CHECK(open_stream(&stream, "music_16_mono"));
+    Packet packet = next_packet(&stream);
+    HookTrace trace = {0};
+    alac_start(&decoder, &stream.config);
+    CHECK_EQUAL(ALAC_OK, alac_decode_packet(&decoder, packet.bytes, packet.length));
+    uint32_t bytes = alac_samples(&decoder) * sizeof(*expected);
+    memcpy(expected, alac_channel(&decoder, 0), bytes);
+    alac_set_lpc_hook(&decoder, (AlacLpcHook){trace_predictor, &trace});
+    CHECK_EQUAL(ALAC_OK, alac_decode_packet(&decoder, packet.bytes, packet.length));
+    CHECK(memcmp(expected, alac_channel(&decoder, 0), bytes) == 0);
+    CHECK_EQUAL(1, trace.calls);
+    CHECK_EQUAL(6, trace.job.order);
+    CHECK_EQUAL(8, trace.job.quant);
+    CHECK_EQUAL(16, trace.job.sample_bits);
+    CHECK_EQUAL(alac_samples(&decoder), trace.job.count);
+    CHECK_EQUAL(-74, trace.first_coefficient);
+    CHECK_EQUAL(157, trace.last_coefficient);
+    trace.accept = true;
+    CHECK_EQUAL(ALAC_OK, alac_decode_packet(&decoder, packet.bytes, packet.length));
+    CHECK_EQUAL(1234, alac_channel(&decoder, 0)[7]);
+    close_stream(&stream);
+}
+
 static void put_bits(Writer *writer, uint32_t value, uint32_t count)
 {
     for (uint32_t bit = 0; bit < count; bit++) {
@@ -620,6 +669,7 @@ int main(void)
         TEST_CASE(packets_report_full_and_partial_frame_lengths),
         TEST_CASE(mono_streams_return_the_same_channel_for_both_indices),
         TEST_CASE(stereo_streams_return_distinct_channels),
+        TEST_CASE(a_predictor_hook_can_restore_or_decline_an_adaptive_block),
         TEST_CASE(a_hand_built_stereo_escape_frame_decodes),
         TEST_CASE(a_hand_built_partial_mono_escape_frame_decodes),
         TEST_CASE(an_empty_partial_frame_is_rejected),

@@ -147,6 +147,7 @@ add_library(echo_device_logic STATIC
     fat_names.c
     fat_utf8.c
     fat_reserve.c
+    alac_accel.c
     flac_accel.c
     image_crc.c
     jack_sense.c
