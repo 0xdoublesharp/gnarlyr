@@ -975,13 +975,25 @@ static void a_list_does_not_redraw_when_only_the_playback_second_changes(void)
     start_app_with_library();
     play_first_album_track();
     tap(KEY_BACK);
-    CHECK(!title_is("Now Playing"));
+    CHECK(title_is("Back In Black"));
     CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
-    int presents = presents_once_the_screen_rests();
-    fake_hal_audio_set_position(FRAME_PACER_REST_MS);
+    fake_hal_set_wall(1794390060u, 0);
+    for (int frame = 0; frame < 300; frame++) {
+        wait_ms(FRAME_PACER_ACTIVE_MS);
+    }
+    uint32_t frames = app_frame_stats()->recorded;
+    for (uint32_t second = 1; second <= 3; second++) {
+        fake_hal_audio_set_position(second * FRAME_PACER_REST_MS);
+        wait_ms(FRAME_PACER_REST_MS);
+        CHECK_EQUAL(second * FRAME_PACER_REST_MS, app_player_status().position_ms);
+    }
+    CHECK_EQUAL(frames, app_frame_stats()->recorded);
+    fake_hal_set_wall(1794390120u, 0);
     wait_ms(FRAME_PACER_IDLE_MS);
-    CHECK_EQUAL(FRAME_PACER_REST_MS, app_player_status().position_ms);
-    CHECK_EQUAL(presents, fake_hal_present_count());
+    CHECK_EQUAL(frames + 1, app_frame_stats()->recorded);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 41, .millivolts = 4000});
+    wait_ms(FRAME_PACER_IDLE_MS);
+    CHECK_EQUAL(frames + 2, app_frame_stats()->recorded);
 }
 
 static void holding_menu_on_a_browse_list_opens_its_view_options(void)

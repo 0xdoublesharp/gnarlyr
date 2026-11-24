@@ -56,7 +56,7 @@ static FontPackReader pack_reader;
 static ExtraSource extra_source;
 static PackState *state;
 static PackSlot *slots;
-static uint32_t *cache_index;
+static uint16_t *cache_index;
 static uint32_t slot_count;
 static size_t cache_bytes;
 static FontPackHold hold;
@@ -76,20 +76,20 @@ static inline uint32_t pack_word(const uint8_t *bytes)
 uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
 {
     font_pack_detach();
-    size_t slot_bytes = sizeof(PackSlot) + 2 * sizeof(*cache_index);
+    size_t slot_bytes = sizeof(PackSlot) + 2 * sizeof(*cache_index) + sizeof(uint32_t);
     if (reader.read == NULL || memory == NULL ||
         bytes < sizeof(PackState) + FONT_PACK_MIN_SLOTS * slot_bytes) {
         return 0;
     }
     uint32_t count = FONT_PACK_MIN_SLOTS;
-    while ((size_t)count * 2 * slot_bytes <= bytes - sizeof(PackState)) {
+    while (count <= UINT16_MAX / 2 && (size_t)count * 2 * slot_bytes <= bytes - sizeof(PackState)) {
         count *= 2;
     }
     pack_reader = reader;
     state = memory;
     slots = (PackSlot *)(state + 1);
     slot_count = count;
-    cache_index = (uint32_t *)(slots + count);
+    cache_index = (uint16_t *)(slots + count);
     cache_bytes = bytes - sizeof(PackState);
     font_pack_hold(FONT_PACK_HOLD_NONE);
     return slot_count;
@@ -114,9 +114,7 @@ void font_pack_forget(void)
     for (uint32_t index = 0; index < slot_count; index++) {
         slots[index].key = 0;
     }
-    for (uint32_t index = 0; index < 2 * slot_count; index++) {
-        cache_index[index] = 0;
-    }
+    __builtin_memset(cache_index, 0, slot_count * (2 * sizeof(*cache_index) + sizeof(uint32_t)));
     state->used = 0;
     state->victim = 0;
 }
@@ -289,19 +287,17 @@ static bool read_sector(uint32_t index, const PackFace *face, uint32_t number)
 static int32_t last_at_or_below(const uint8_t *base, uint32_t count, uint32_t stride,
                                 uint32_t codepoint)
 {
-    int32_t low = 0;
-    int32_t high = (int32_t)count - 1;
-    int32_t found = -1;
-    while (low <= high) {
-        int32_t middle = low + (high - low) / 2;
-        if (bytes_le16(base + (uint32_t)middle * stride) <= codepoint) {
-            found = middle;
+    uint32_t low = 0;
+    uint32_t high = count;
+    while (low < high) {
+        uint32_t middle = (low + high) / 2;
+        if (bytes_le16(base + middle * stride) <= codepoint) {
             low = middle + 1;
         } else {
-            high = middle - 1;
+            high = middle;
         }
     }
-    return found;
+    return (int32_t)low - 1;
 }
 
 static uint32_t smaller(uint32_t left, uint32_t right)
@@ -330,8 +326,11 @@ static const uint8_t *find_entry(uint32_t index, const PackFace *face, uint32_t 
     uint32_t first = (uint32_t)sector * FONT_PACK_ENTRIES_PER_SECTOR;
     uint32_t count = smaller(FONT_PACK_ENTRIES_PER_SECTOR, face->count - first);
     int32_t position = last_at_or_below(state->sector, count, FONT_PACK_ENTRY_BYTES, codepoint);
+    if (position < 0) {
+        return NULL;
+    }
     const uint8_t *entry = state->sector + (uint32_t)position * FONT_PACK_ENTRY_BYTES;
-    return position >= 0 && bytes_le16(entry) == codepoint ? entry : NULL;
+    return bytes_le16(entry) == codepoint ? entry : NULL;
 }
 
 static bool bitmap_fits(const PackFace *face, uint32_t offset, uint32_t bytes)
@@ -340,15 +339,11 @@ static bool bitmap_fits(const PackFace *face, uint32_t offset, uint32_t bytes)
            bytes <= face->size - offset;
 }
 
-static bool load_glyph(uint32_t index, const PackFace *face, uint32_t codepoint, PackSlot *slot)
+static bool load_glyph(uint32_t index, const PackFace *face, const uint8_t *entry, PackSlot *slot)
 {
-    const uint8_t *entry = find_entry(index, face, codepoint);
-    if (entry == NULL) {
-        return false;
-    }
     uint32_t bytes = ((uint32_t)entry[2] * entry[3] + 1) / 2;
     uint32_t offset = pack_word(entry + 8);
-    slot->glyph = (Glyph){.codepoint = (uint16_t)codepoint,
+    slot->glyph = (Glyph){.codepoint = (uint16_t)bytes_le16(entry),
                           .bitmap_offset = 0,
                           .width = entry[2],
                           .height = entry[3],
@@ -364,27 +359,33 @@ static uint32_t next_slot(uint32_t index)
     return (index + 1) & (slot_count - 1);
 }
 
-static uint32_t cell_for(uint32_t key)
+static uint32_t key_hash(uint32_t key)
 {
-    uint32_t mask = 2 * slot_count - 1;
     uint32_t hash = key * 2654435761u;
-    uint32_t cell = (hash ^ (hash >> 16)) & mask;
-    while (cache_index[cell] != 0 && slots[cache_index[cell] - 1].key != key) {
-        cell = (cell + 1) & mask;
+    return hash ^ (hash >> 16);
+}
+
+static uint16_t *cell_for(uint32_t key)
+{
+    uint16_t *cell = &cache_index[key_hash(key) & (slot_count - 1)];
+    while (*cell != 0 && slots[*cell - 1].key != key) {
+        cell = &cache_index[slot_count + *cell - 1];
     }
     return cell;
 }
 
-static void forget_key(uint32_t key)
+static uint32_t *miss_cell(uint32_t key)
 {
-    uint32_t mask = 2 * slot_count - 1;
-    uint32_t cell = cell_for(key);
-    cache_index[cell] = 0;
-    for (cell = (cell + 1) & mask; cache_index[cell] != 0; cell = (cell + 1) & mask) {
-        uint32_t found = cache_index[cell];
-        cache_index[cell] = 0;
-        cache_index[cell_for(slots[found - 1].key)] = found;
-    }
+    uint32_t *keys = (uint32_t *)(cache_index + 2 * slot_count);
+    uint32_t first = key_hash(key) & (slot_count - 1);
+    uint32_t index = first;
+    do {
+        if (keys[index] == 0 || keys[index] == key) {
+            return &keys[index];
+        }
+        index = next_slot(index);
+    } while (index != first);
+    return &keys[first];
 }
 
 static uint32_t replacement_slot(void)
@@ -398,7 +399,7 @@ static uint32_t replacement_slot(void)
         index = next_slot(index);
     }
     state->victim = next_slot(index);
-    forget_key(slots[index].key);
+    *cell_for(slots[index].key) = cache_index[slot_count + index];
     return index;
 }
 
@@ -422,7 +423,8 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
     if (held_bytes + sizeof(PackSlot) > cache_bytes) {
         return NULL;
     }
-    slot->present = load_glyph(face, ready, codepoint, slot);
+    const uint8_t *entry = find_entry(face, ready, codepoint);
+    slot->present = entry != NULL && load_glyph(face, ready, entry, slot);
     if (!slot->present && face >= FONT_PACK_IMAGE_FACES && hold == FONT_PACK_HOLD_FREEZE) {
         return NULL;
     }
@@ -434,20 +436,36 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
     return slot->present ? &slot->glyph : NULL;
 }
 
-static const Glyph *find_cached(uint32_t face, const PackFace *ready, uint32_t codepoint)
+static const Glyph *cache_glyph(uint32_t face, const PackFace *ready, uint32_t codepoint)
 {
     uint32_t key = (face + 1) << 16 | codepoint;
-    uint32_t found = cache_index[cell_for(key)];
-    bool hit = found != 0;
-    uint32_t index = found - 1;
-    if (!hit) {
-        index = replacement_slot();
-        slots[index].present = load_glyph(face, ready, codepoint, &slots[index]);
-        slots[index].key = key;
-        cache_index[cell_for(key)] = index + 1;
+    uint32_t *miss = miss_cell(key);
+    if (*miss == key) {
+        return NULL;
     }
+    const uint8_t *entry = find_entry(face, ready, codepoint);
+    if (entry == NULL) {
+        *miss = key;
+        return NULL;
+    }
+    uint32_t index = replacement_slot();
     PackSlot *slot = &slots[index];
-    slot->recent = hit;
+    slot->key = key;
+    slot->recent = false;
+    slot->present = load_glyph(face, ready, entry, slot);
+    cache_index[slot_count + index] = 0;
+    *cell_for(key) = (uint16_t)(index + 1);
+    return slot->present ? &slot->glyph : NULL;
+}
+
+static const Glyph *find_cached(uint32_t face, const PackFace *ready, uint32_t codepoint)
+{
+    uint32_t found = *cell_for((face + 1) << 16 | codepoint);
+    if (found == 0) {
+        return cache_glyph(face, ready, codepoint);
+    }
+    PackSlot *slot = &slots[found - 1];
+    slot->recent = true;
     return slot->present ? &slot->glyph : NULL;
 }
 

@@ -2380,48 +2380,42 @@ static void service_discovery(uint32_t now_ms)
     }
 }
 
-static uint32_t stamp_add(uint32_t stamp, uint32_t value)
-{
-    return hash_update(stamp, &value, sizeof value);
-}
-
 static uint32_t view_stamp(uint32_t *position)
 {
     PlayerStatus status = player_status(&app.player);
     HalBattery battery = hal_power_battery();
     WallNow wall = wall_time_now();
-    uint32_t stamp = HASH_START;
-    stamp = stamp_add(stamp, (uint32_t)status.state);
-    stamp = stamp_add(stamp, status.has_track);
-    stamp = stamp_add(stamp, status.track);
-    stamp = stamp_add(stamp, status.duration_ms);
-    stamp = stamp_add(stamp, status.volume);
-    stamp = stamp_add(stamp, (uint32_t)status.shuffle);
-    stamp = stamp_add(stamp, (uint32_t)status.repeat);
-    stamp = stamp_add(stamp, status.ab_repeat);
-    stamp = stamp_add(stamp, status.place.number);
-    stamp = stamp_add(stamp, status.place.total);
-    stamp = stamp_add(stamp, app.settings.settings.status_items |
-                                 (uint32_t)app.settings.settings.battery_percent << 8);
-    stamp = stamp_add(stamp, battery.known);
-    stamp = stamp_add(stamp, battery.percent);
-    stamp = stamp_add(stamp, battery.charging);
-    stamp = stamp_add(stamp, battery.charge_disabled);
-    stamp = stamp_add(stamp, battery.usb_power);
-    stamp = stamp_add(stamp, (uint32_t)bluetooth_of(&app.bluetooth));
-    stamp = stamp_add(stamp, app.lock.locked);
-    stamp = stamp_add(stamp, app.toast.visible);
-    stamp = stamp_add(stamp, app.toast.until_ms);
-    stamp = stamp_add(stamp, app.themes.active);
     const NowPlayingScreen *now_playing = &app.screens.now_playing;
     uint32_t since = app.now_ms - now_playing->feedback_started_ms;
-    stamp = stamp_add(
-        stamp,
+    const uint32_t values[] = {
+        (uint32_t)status.state,
+        status.has_track,
+        status.track,
+        status.duration_ms,
+        status.volume,
+        (uint32_t)status.shuffle,
+        (uint32_t)status.repeat,
+        status.ab_repeat,
+        status.place.number,
+        status.place.total,
+        app.settings.settings.status_items | (uint32_t)app.settings.settings.battery_percent << 8,
+        battery.known,
+        battery.percent,
+        battery.charging,
+        battery.charge_disabled,
+        battery.usb_power,
+        (uint32_t)bluetooth_of(&app.bluetooth),
+        app.lock.locked,
+        app.toast.visible,
+        app.toast.until_ms,
+        app.themes.active,
         (uint32_t)now_playing->feedback << 3 | (uint32_t)(since < NOW_PLAYING_BADGE_MS) << 2 |
             (uint32_t)(since < NOW_PLAYING_VOLUME_FEEDBACK_MS) << 1 |
-            (!deadline_elapsed(app.now_ms, now_playing->repeat_feedback_ms, NOW_PLAYING_BADGE_MS)));
+            (!deadline_elapsed(app.now_ms, now_playing->repeat_feedback_ms, NOW_PLAYING_BADGE_MS)),
+        wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0,
+    };
     *position = status.position_ms / VIEW_STAMP_POSITION_MS;
-    return stamp_add(stamp, wall.known ? wall.local_s / VIEW_STAMP_MINUTE_S : 0);
+    return hash_update(HASH_START, values, sizeof values);
 }
 
 typedef enum ViewChange {
@@ -2430,7 +2424,7 @@ typedef enum ViewChange {
     VIEW_FULL
 } ViewChange;
 
-static ViewChange view_changed(uint32_t now_ms)
+__attribute__((noinline)) static ViewChange view_changed(uint32_t now_ms)
 {
     if (app.view_stamp_known &&
         !deadline_elapsed(now_ms, app.view_checked_ms, VIEW_STAMP_CHECK_MS)) {
@@ -2633,6 +2627,18 @@ static uint8_t bands_for(bool stepped, bool timed)
                      timed << MARQUEE_BAND_TAPE);
 }
 
+static bool playback_view_rests(void)
+{
+    const Screen *screen = top_screen();
+    const AppScreens *screens = &app.screens;
+    const SettingsScreens *settings = &screens->modules.settings.settings;
+    return (uintptr_t)screen - (uintptr_t)&screens->browse < sizeof screens->browse ||
+           (screen == &screens->home.screen && !screens->home_art.cycling) ||
+           screen == &screens->music.screen || screen == &settings->menu.screen ||
+           screen == &settings->group_menu.screen ||
+           (screen == &screens->modules.views.mixtapes.screen && !mixtape_busy());
+}
+
 static void render_when_due(uint32_t now_ms, uint32_t started_us)
 {
     if (!app.display_on) {
@@ -2647,7 +2653,9 @@ static void render_when_due(uint32_t now_ms, uint32_t started_us)
     bool quiet = !app.render_wanted && !urgent && app.pacer.fast_frames == 0;
     uint8_t mask = quiet && change != VIEW_FULL ? bands_for(stepped, change == VIEW_TIME) : 0;
     app.render_wanted |= change != VIEW_STILL || stepped;
-    if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted)) {
+    if (!frame_pacer_due(&app.pacer, now_ms, urgent || app.render_wanted) ||
+        (quiet && !app.render_wanted && app.pacer.quiet_frames >= FRAME_PACER_IDLE_FRAMES &&
+         app.player.state == PLAYER_PLAYING && playback_view_rests())) {
         return;
     }
     app.render_urgent = false;

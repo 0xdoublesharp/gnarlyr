@@ -22,6 +22,7 @@ MP3_FRAME = bytes.fromhex("fffb9064") + bytes(413)
 MISSING_FILE_BYTES = 16384
 IMAGE_FACES = 21
 SLOT_BYTES = 368
+INDEX_BYTES_PER_SLOT = 4
 HOLD_NONE = 0
 HOLD_FREEZE = 2
 SETTINGS_LANGUAGE = slice(19, 24)
@@ -171,6 +172,10 @@ class EchoImageTest(EchoImageHarness):
             key, present = struct.unpack_from("<IB", memory, slot * SLOT_BYTES)
             if key:
                 entries[(key >> 16) - 1, key & 0xFFFF] = bool(present)
+        misses = slots + count * (SLOT_BYTES + INDEX_BYTES_PER_SLOT)
+        for key, in struct.iter_unpack("<I", machine.read_memory(misses, count * 4)):
+            if key:
+                entries[(key >> 16) - 1, key & 0xFFFF] = False
         return entries
 
     def hangul_lookups(self, machine):
