@@ -5,50 +5,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-from unicorn import UC_HOOK_MEM_WRITE
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import EchoImageHarness, main, IDENTITY
-from echo_emulator import direct
 from echo_emulator.emmc import SdCard, SparseDisk
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import Rig
 from echo_emulator.bluetooth import Headphones
-from echo_emulator.power import CRU_CLOCK_SELECT, DecoderLoad, PowerMeter
-
-
-CORE1_PACE_PLL_STATE = 0x01020060
-
-
-class PlaybackDecoderLoad(DecoderLoad):
-    def start(self, program):
-        if not self.active or self.program != program:
-            self.pll_mhz = self.machine.pll_hz() // 1000000
-            self.divider = 2
-        return super().start(program)
-
-    def watch(self):
-        super().watch()
-
-        def write_divider(uc, access, address, size, value, user):
-            if value & 0x70000000:
-                self.divider = (value >> 12 & 7) + 1
-                self.mhz = self.pll_mhz // self.divider
-
-        direct.hook_add(self.core.uc, UC_HOOK_MEM_WRITE, write_divider,
-                        None, CRU_CLOCK_SELECT, CRU_CLOCK_SELECT)
-
-    def step(self):
-        pll = self.machine.pll_hz() // 1000000
-        if self.active and pll != self.pll_mhz:
-            self.pll_mhz = pll
-            published = self.machine.read_memory(CORE1_PACE_PLL_STATE, 4)
-            self.core.uc.mem_write(CORE1_PACE_PLL_STATE, published)
-            self.mhz = pll // self.divider
-            if not self.awake:
-                self.next_wake_us = self.wake_at()
-        super().step()
+from echo_emulator.power import DecoderLoad, PowerMeter
 
 
 class EchoImageTest(EchoImageHarness):
@@ -143,7 +107,7 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
         if extension != "wav":
-            PlaybackDecoderLoad(rig.audio, self.elf.parent)
+            DecoderLoad(rig.audio, self.elf.parent)
         rig.open_songs()
         started = rig.play_song(1)
         rig.run_for(500)

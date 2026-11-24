@@ -7,7 +7,7 @@ from unicorn import UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB, Uc
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_emulator.core1 import CONTROL, CONTROL_SLOTS, RAM_BASE, RAM_BYTES, SLOT_BYTES, Core1
-from echo_emulator.power import DecoderLoad
+from echo_emulator.power import DecoderLoad, SHARED_PLL_MHZ
 
 RING_BYTES = 4096
 SLOT_FULL = 1
@@ -74,6 +74,20 @@ def decoder_load(machine, program=None, wfi=WFI_ADDRESS):
 
 
 class DecoderLoadTest(unittest.TestCase):
+    def test_a_pll_change_retimes_a_sleeping_decoder(self):
+        machine = Machine()
+        load = decoder_load(machine)
+        load.reload = 99999
+        load.next_wake_us = 1000
+        for pll, expected_mhz in ((96, 48), (200, 100)):
+            with self.subTest(pll=pll):
+                machine.put(SHARED_PLL_MHZ, pll)
+                load.step()
+                self.assertEqual(expected_mhz, load.mhz)
+                self.assertAlmostEqual(100000 / expected_mhz, load.next_wake_us)
+                self.assertEqual(pll, load.core.word(SHARED_PLL_MHZ))
+                self.assertFalse(load.awake)
+
     def test_a_slot_core_0_empties_before_the_publish_stays_empty(self):
         machine = Machine()
         machine.put(slot_state(0), SLOT_FULL)

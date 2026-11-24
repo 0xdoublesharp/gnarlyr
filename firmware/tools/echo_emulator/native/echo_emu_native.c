@@ -24,6 +24,7 @@
 #define EMU_CORE1_RING 0x01040000u
 #define EMU_CORE1_SAMPLE_BYTES (EMU_CORE1_RING - EMU_CORE1_SAMPLES)
 #define EMU_CORE1_SHARED_CYCLES 0x0102005Cu
+#define EMU_CORE1_SHARED_PLL_MHZ 0x01020060u
 #define EMU_CORE1_WRITTEN_OFFSET 40u
 #define EMU_CORE1_SCB_BASE 0xE0000000u
 #define EMU_CORE1_SCB_SIZE 0x100000u
@@ -281,6 +282,8 @@ typedef struct {
     double period_start;
     double next_wake_us;
     uint32_t mhz;
+    uint32_t pll_mhz;
+    uint32_t divider;
     uint32_t reload;
     uint32_t wfi;
     uint32_t counter;
@@ -2133,6 +2136,32 @@ static double decoder_wake_at(const EmuDecoder *d)
     return d->h.period_start + period * (wraps + 1.0);
 }
 
+static void decoder_sync_pll(EmuDecoder *d)
+{
+    uint8_t published[4] = {0};
+    if (d->host_core1_ram != NULL) {
+        uint32_t offset =
+            EMU_CORE1_SHARED_OFFSET + EMU_CORE1_SHARED_PLL_MHZ - EMU_CORE1_SHARED_BASE;
+        memcpy(published, d->host_core1_ram + offset, sizeof published);
+    } else if (d->host_uc != NULL) {
+        uc_mem_read(d->host_uc, EMU_CORE1_SHARED_PLL_MHZ, published, sizeof published);
+    }
+    uint32_t mhz = read_u32_le(published);
+    if (mhz == 0u || mhz == d->h.pll_mhz) {
+        return;
+    }
+    emu_decoder_deliver(d);
+    uint32_t previous = d->h.mhz;
+    d->h.pll_mhz = mhz;
+    d->h.mhz = mhz / d->h.divider;
+    double elapsed = d->h.time_us - d->h.period_start;
+    d->h.period_start = d->h.time_us - elapsed * previous / d->h.mhz;
+    emu_core1_write_u32(d->core1, EMU_CORE1_SHARED_PLL_MHZ, mhz);
+    if (!d->h.awake) {
+        d->h.next_wake_us = decoder_wake_at(d);
+    }
+}
+
 static void decoder_wfi_cb(uc_engine *uc, uint64_t addr, uint32_t size, void *ud)
 {
     (void)addr;
@@ -2169,7 +2198,8 @@ static void decoder_write_cb(uc_engine *uc, uc_mem_type type, uint64_t addr, int
     } else if (addr == EMU_CORE1_SYSTICK_CURRENT) {
         d->h.period_start = d->h.time_us;
     } else if ((uint64_t)value & 0x70000000ULL) {
-        d->h.mhz = EMU_CORE1_PLL_MHZ / ((((uint32_t)value >> 12) & 7u) + 1u);
+        d->h.divider = (((uint32_t)value >> 12) & 7u) + 1u;
+        d->h.mhz = d->h.pll_mhz / d->h.divider;
     }
 }
 
@@ -2227,6 +2257,8 @@ EmuDecoder *emu_decoder_attach(EmuCore1 *c1, uc_engine *host_uc, void *host_core
     d->host_uc = host_uc;
     d->host_core1_ram = (uint8_t *)host_core1_ram;
     d->h.mhz = 100u;
+    d->h.pll_mhz = EMU_CORE1_PLL_MHZ;
+    d->h.divider = 2u;
     d->h.wfi = wfi;
     d->h.counter = counter;
     d->h.in_units = in_units;
@@ -2398,6 +2430,7 @@ int emu_decoder_advance_to(EmuDecoder *d, double now_us)
 
 int emu_decoder_step(EmuDecoder *d, double now_us)
 {
+    decoder_sync_pll(d);
     for (int i = 0; i < EMU_CORE1_WAKES_PER_STEP; i++) {
         if (!d->h.awake) {
             if (now_us < d->h.next_wake_us) {

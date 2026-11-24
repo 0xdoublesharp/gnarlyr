@@ -133,6 +133,8 @@ class EmuDecoderHeader(ctypes.Structure):
         ("period_start", ctypes.c_double),
         ("next_wake_us", ctypes.c_double),
         ("mhz", ctypes.c_uint32),
+        ("pll_mhz", ctypes.c_uint32),
+        ("divider", ctypes.c_uint32),
         ("reload", ctypes.c_uint32),
         ("wfi", ctypes.c_uint32),
         ("counter", ctypes.c_uint32),

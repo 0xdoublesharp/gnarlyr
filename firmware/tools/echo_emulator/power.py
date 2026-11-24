@@ -53,6 +53,7 @@ SYSTICK_RELOAD = 0xE000E014
 SYSTICK_CURRENT = 0xE000E018
 CRU_CLOCK_SELECT = 0x40180014
 SHARED_CYCLES = 0x0102005C
+SHARED_PLL_MHZ = 0x01020060
 PLL_MHZ = 200
 WFI = 0xBF30
 IDLE_SEARCH_BYTES = 512
@@ -64,8 +65,8 @@ class DecoderLoad:
     """Core 1 for power measurements: its program runs at the clock it sets, on its own timer.
 
     The program runs until its idle routine reaches WFI. Its time advances by one instruction per
-    cycle of the clock it has selected (CRU 0x14 bits 14:12 under the write mask, from the 200 MHz
-    PLL). SysTick counts that time: reads of the current value follow it, every wrap adds a period
+    cycle of the clock it has selected (the PLL rate divided by the CRU 0x14 field). SysTick
+    counts that time: reads of the current value follow it, every wrap adds a period
     to the program's elapsed counter as its tick handler would, and WFI ends at the next wrap.
     A wake runs in steps that follow core 0's time. Each time core 0 refills the input, core 1 runs
     until it catches up with core 0's clock or reaches WFI, its results reach core 0 at once, and
@@ -92,6 +93,8 @@ class DecoderLoad:
         self._next_wake_us = 0.0
         self._awake = False
         self._mhz = 100
+        self._pll_mhz = PLL_MHZ
+        self._divider = 2
         self._reload = 0
         self._period_start = 0.0
         self._time_us = 0.0
@@ -115,6 +118,8 @@ class DecoderLoad:
             self._next_wake_us = hdr.next_wake_us
             self._awake = bool(hdr.awake)
             self._mhz = hdr.mhz
+            self._pll_mhz = hdr.pll_mhz
+            self._divider = hdr.divider
             self._reload = hdr.reload
             self._period_start = hdr.period_start
             self._time_us = hdr.time_us
@@ -257,6 +262,7 @@ class DecoderLoad:
         self.counter, self.in_units = self.elapsed_counter(symbols)
         self.wfi = self.find_wfi(symbols["core1_idle"])
         self._mhz, self._reload, self._period_start = 100, 0, 0.0
+        self._pll_mhz, self._divider = PLL_MHZ, 2
         self._time_us = self.machine.microseconds()
         self._resting = False
         self._awake = False
@@ -302,6 +308,8 @@ class DecoderLoad:
                 hdr.period_start = self._period_start
                 hdr.next_wake_us = self._next_wake_us
                 hdr.mhz = self._mhz
+                hdr.pll_mhz = self._pll_mhz
+                hdr.divider = self._divider
                 hdr.reload = self._reload
                 hdr.resting = 1 if self._resting else 0
                 hdr.awake = 1 if self._awake else 0
@@ -341,7 +349,8 @@ class DecoderLoad:
             elif address == SYSTICK_CURRENT:
                 self._period_start = self._time_us
             elif value & 0x70000000:
-                self._mhz = PLL_MHZ // ((value >> 12 & 7) + 1)
+                self._divider = (value >> 12 & 7) + 1
+                self._mhz = self._pll_mhz // self._divider
 
         direct.hook_add(uc, UC_HOOK_BLOCK, block)
         direct.hook_add(uc, UC_HOOK_CODE, wfi, None, self.wfi, self.wfi)
@@ -459,6 +468,20 @@ class DecoderLoad:
             self._awake = False
             self._next_wake_us = self.wake_at()
 
+    def sync_pll(self):
+        published = self.machine.read_memory(SHARED_PLL_MHZ, 4)
+        mhz = struct.unpack("<I", published)[0]
+        if mhz == 0 or mhz == self._pll_mhz:
+            return
+        self.deliver()
+        previous = self._mhz
+        self._pll_mhz = mhz
+        self._mhz = mhz // self._divider
+        self._period_start = self._time_us - (self._time_us - self._period_start) * previous / self._mhz
+        self.core.uc.mem_write(SHARED_PLL_MHZ, published)
+        if not self._awake:
+            self._next_wake_us = self.wake_at()
+
     def step(self):
         if not self.active:
             return
@@ -468,6 +491,7 @@ class DecoderLoad:
             if rc != 0:
                 raise RuntimeError("decoder did not reach WFI")
             return
+        self.sync_pll()
         for _ in range(WAKES_PER_STEP):
             if not self._awake:
                 if now < self._next_wake_us:

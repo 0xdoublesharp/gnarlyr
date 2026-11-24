@@ -3540,6 +3540,7 @@
           "track_tags_format_for_name",
           "read_format",
           "track_tags_read",
+          "track_tags_read_index",
           "tag_le16",
           "tag_le64",
           "decode_group",
