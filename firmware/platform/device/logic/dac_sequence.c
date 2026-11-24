@@ -278,6 +278,11 @@ CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
     return write_both(bus, PCM_VOLUME_A, volume);
 }
 
+CORE_COLD static bool set_volume_with_retry(const DacBus *bus, uint8_t volume)
+{
+    return dac_set_volume(bus, volume) || dac_set_volume(bus, volume);
+}
+
 CORE_COLD static bool change_analog(const DacBus *bus, DacAnalog after)
 {
     return dac_sequence_power_down(bus) &&
@@ -292,8 +297,7 @@ CORE_COLD static bool change_filter(const DacBus *bus, uint8_t filter)
         return false;
     }
     wait_ms(bus, 150);
-    bool written = write_both(bus, PCM_FILTER, filter_value(filter));
-    return write_both(bus, PCM_MUTE, 0xEC) && written;
+    return write_both(bus, PCM_FILTER, filter_value(filter)) && write_both(bus, PCM_MUTE, 0xEC);
 }
 
 CORE_SEAM CORE_COLD bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
@@ -301,10 +305,13 @@ CORE_SEAM CORE_COLD bool dac_apply_analog(const DacBus *bus, DacAnalog before, D
     if (after.filter >= DAC_ANALOG_FILTERS) {
         return false;
     }
-    if (before.gain_high != after.gain_high || before.filter == DAC_ANALOG_UNKNOWN) {
-        return change_analog(bus, after);
+    bool gain = before.gain_high != after.gain_high || before.filter == DAC_ANALOG_UNKNOWN;
+    bool applied = gain ? change_analog(bus, after)
+                        : before.filter == after.filter || change_filter(bus, after.filter);
+    if (!applied) {
+        set_pin(bus, DAC_PIN_MUTE, true);
     }
-    return before.filter == after.filter || change_filter(bus, after.filter);
+    return applied;
 }
 
 uint8_t dac_volume_value(uint8_t level, DacCurve curve)
@@ -322,8 +329,10 @@ CORE_SEAM void dac_output_on(const DacBus *bus, uint8_t volume)
     set_pin(bus, DAC_PIN_ENABLE_A, true);
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_AMP, true);
-    write_channel_values(bus);
-    dac_set_volume(bus, volume);
+    if ((!write_channel_values(bus) && !write_channel_values(bus)) ||
+        !set_volume_with_retry(bus, volume)) {
+        return;
+    }
     wait_ms(bus, 10);
     set_pin(bus, DAC_PIN_MUTE, false);
 }
@@ -382,11 +391,10 @@ CORE_SEAM void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume)
 {
     if (muted) {
         set_pin(bus, DAC_PIN_MUTE, true);
-        dac_set_volume(bus, DAC_VOLUME_MUTED);
+        set_volume_with_retry(bus, DAC_VOLUME_MUTED);
         return;
     }
-    dac_set_volume(bus, volume);
-    set_pin(bus, DAC_PIN_MUTE, false);
+    set_pin(bus, DAC_PIN_MUTE, !set_volume_with_retry(bus, volume));
 }
 
 uint8_t dac_ramp_next(uint8_t current, uint8_t target)

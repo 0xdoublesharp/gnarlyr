@@ -19,7 +19,7 @@ struct Bookmarks;
 typedef struct TrialBootModuleEntry {
     uint32_t magic;
     void (*start)(struct UsbShared *shared, uint32_t *buffer);
-    void (*session_end)(struct UsbShared *shared, uint32_t *buffer);
+    void (*session_end)(struct UsbShared *shared, uint32_t *buffer, const uint32_t *running);
     bool (*settle)(struct UsbShared *shared);
     void (*headphones_load)(struct HeadphoneStore *store);
     void (*settings_read)(struct SettingsStore *store);
@@ -39,5 +39,6 @@ extern const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY;
 
 bool trial_module_install(const TrialInstall *install, bool both);
 void trial_boot_module_start(struct UsbShared *shared, uint32_t *buffer);
-void trial_boot_module_session_end(struct UsbShared *shared, uint32_t *buffer);
+void trial_boot_module_session_end(struct UsbShared *shared, uint32_t *buffer,
+                                   const uint32_t *running);
 bool user_state_module_settle(struct UsbShared *shared);

@@ -34,3 +34,4 @@ echo_add_unit_test(NAME test_wide_divide
     SOURCES device/test_wide_divide.c
     LIBRARIES echo_device_logic
 )
+add_subdirectory(device)

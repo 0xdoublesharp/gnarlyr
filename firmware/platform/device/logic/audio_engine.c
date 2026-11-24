@@ -317,15 +317,23 @@ CORE_COLD bool audio_engine_seek(AudioEngine *engine, uint32_t position_ms)
         position_ms = (uint32_t)((uint64_t)sample * 1000 / playing.track.stream.sample_rate);
     }
     bool started = begin_track(engine, &track, position_ms);
-    if (started && engine->repeat_state == 2) {
+    if (!started) {
+        playing.start = 0;
+        playing.skipped = 0;
+        playing.base_ms = position_ms;
+        playing.base_sample = sample;
+        engine->segments[0] = playing;
+        return false;
+    }
+    if (engine->repeat_state == 2) {
         engine->skip_frames = sample;
         engine->decode_limit = engine->repeat_b;
         engine->segments[0].base_sample = sample;
     }
-    if (started && state == AUDIO_ENGINE_PAUSED) {
+    if (state == AUDIO_ENGINE_PAUSED) {
         engine->state = AUDIO_ENGINE_PAUSED;
     }
-    return started;
+    return true;
 }
 
 CORE_SEAM bool audio_engine_seek_on(AudioEngine *engine, uint32_t token, uint32_t position_ms)

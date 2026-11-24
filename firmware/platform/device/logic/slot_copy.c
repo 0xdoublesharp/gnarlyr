@@ -108,9 +108,21 @@ static bool header_is_ours(const uint8_t *bytes)
     return bytes_le32(bytes + FW_SIZE_OFFSET) == FW_SIZE;
 }
 
+SlotValidity slot_copy_check(const UpdateStorage *storage, uint32_t slot, uint32_t *buffer)
+{
+    if (!read_slot(storage, slot, 1, buffer)) {
+        return SLOT_UNREADABLE;
+    }
+    if (!header_is_ours((const uint8_t *)buffer)) {
+        return SLOT_INVALID;
+    }
+    if (!read_slot(storage, slot + FW_SIZE / SECTOR_BYTES, 1, buffer + HEADER_WORDS)) {
+        return SLOT_UNREADABLE;
+    }
+    return same_words(buffer, buffer + HEADER_WORDS, HEADER_WORDS) ? SLOT_VALID : SLOT_INVALID;
+}
+
 bool slot_copy_is_valid(const UpdateStorage *storage, uint32_t slot, uint32_t *buffer)
 {
-    return read_slot(storage, slot, 1, buffer) && header_is_ours((const uint8_t *)buffer) &&
-           read_slot(storage, slot + FW_SIZE / SECTOR_BYTES, 1, buffer + HEADER_WORDS) &&
-           same_words(buffer, buffer + HEADER_WORDS, HEADER_WORDS);
+    return slot_copy_check(storage, slot, buffer) == SLOT_VALID;
 }

@@ -63,3 +63,4 @@ echo_add_unit_test(NAME test_cover_build
     LIBRARIES echo_library_scan
 )
 target_compile_definitions(test_cover_build PRIVATE ECHO_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+add_subdirectory(library)

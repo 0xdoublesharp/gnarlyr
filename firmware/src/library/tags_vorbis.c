@@ -249,7 +249,7 @@ bool tags_read_flac(TagReader *reader)
         }
         offset = body + length;
     }
-    return found_info;
+    return found_info && last;
 }
 
 static bool read_page(const TagReader *reader, uint32_t offset, OggPage *page)

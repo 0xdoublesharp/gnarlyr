@@ -19,11 +19,14 @@
 CORE_SEAM bool user_state_module_settle(UsbShared *shared)
 {
     bool changed = (shared->trial.settle & USB_SETTLE_CHANGED) != 0;
-    shared->trial.settle = 0;
     FatVolume *internal = internal_volume_mount();
     FatVolume *music = hal_file_volume() == HAL_VOLUME_CARD ? board_music_volume() : internal;
     UserStateDisk disk = {internal, music};
     UserStateIo io = user_state_fat_io(&disk, (uint8_t *)(uintptr_t)USER_STATE_BUFFER_BASE,
                                        SLOT_COPY_BUFFER_WORDS * 4);
-    return internal != NULL && user_state_run(&io, hal_system_version(), changed);
+    if (internal == NULL || !user_state_run(&io, hal_system_version(), changed)) {
+        return false;
+    }
+    shared->trial.settle &= USB_SETTLE_ROLLED_BACK;
+    return true;
 }

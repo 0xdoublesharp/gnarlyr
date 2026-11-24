@@ -182,6 +182,14 @@ static UsbReply set_interface(UsbAudio *audio, UsbSetup setup)
                : stall();
 }
 
+static UsbReply get_interface(UsbAudio *audio, UsbSetup setup)
+{
+    if (setup.index > USB_AUDIO_HID_INTERFACE || setup.value != 0 || setup.length != 1) {
+        return stall();
+    }
+    return little_endian(audio, setup.index == STREAMING_INTERFACE ? audio->alt : 0, 1, setup);
+}
+
 static bool own_descriptor(UsbSetup setup)
 {
     uint8_t type = (uint8_t)(setup.value >> 8);
@@ -286,10 +294,8 @@ UsbReply usb_audio_setup(UsbAudio *audio, UsbSetup setup)
     case TYPE_CLASS_ENDPOINT_OUT:
         return class_out(audio, setup);
     case TYPE_STANDARD_INTERFACE_IN:
-        return setup.request == REQUEST_GET_INTERFACE
-                   ? little_endian(audio, setup.index == STREAMING_INTERFACE ? audio->alt : 0, 1,
-                                   setup)
-                   : standard(audio, setup);
+        return setup.request == REQUEST_GET_INTERFACE ? get_interface(audio, setup)
+                                                      : standard(audio, setup);
     case TYPE_STANDARD_INTERFACE_OUT:
         return setup.request == REQUEST_SET_INTERFACE ? set_interface(audio, setup)
                                                       : standard(audio, setup);

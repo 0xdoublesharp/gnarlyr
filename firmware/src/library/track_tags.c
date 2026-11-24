@@ -330,13 +330,30 @@ void tag_offer_replay_gain(TagReader *reader, ReplayGainField field, const char 
     (void)replay_gain_offer(&reader->replay_gain, field, text, length);
 }
 
+typedef struct FlacTagSource {
+    ByteSource inner;
+    bool failed;
+} FlacTagSource;
+
+static bool read_flac_bytes(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    FlacTagSource *source = context;
+    bool read = source->inner.read(source->inner.context, offset, buffer, length);
+    source->failed |= !read;
+    return read;
+}
+
 static bool read_tags_with_options(ByteSource source, uint32_t size, TagFormat format,
                                    bool skip_pictures, TrackTags *tags)
 {
     *tags = (TrackTags){.duration_ms = 0, .picture = {.kind = TAG_PICTURE_NONE}};
+    FlacTagSource checked = {.inner = source};
+    if (format == TAG_FORMAT_FLAC) {
+        source = (ByteSource){read_flac_bytes, &checked};
+    }
     TagReader reader = {
         .source = source, .size = size, .tags = tags, .skip_pictures = skip_pictures};
-    bool read = read_format(&reader, format);
+    bool read = read_format(&reader, format) && !checked.failed;
     if (read) {
         tags->replay_gain = replay_gain_finish(&reader.replay_gain);
     }

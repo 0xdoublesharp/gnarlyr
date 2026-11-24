@@ -315,7 +315,7 @@ bool board_trial_session_ended(void)
     if (entry == NULL) {
         return false;
     }
-    entry->session_end(shared, copy_buffer());
+    entry->session_end(shared, copy_buffer(), (const uint32_t *)(uintptr_t)OVERLAY_WINDOW_BASE);
     board_slot_cache_invalidate();
     return !shared->trial.running && !shared->trial.promoting;
 }

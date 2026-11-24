@@ -28,26 +28,32 @@ enum {
     OVERLAY_HEADER_WORDS = OVERLAY_HEADER_BYTES / 4
 };
 
-static UpdateTrial record_read(FatVolume *volume)
+static bool record_read(FatVolume *volume, UpdateTrial *trial)
 {
     uint8_t bytes[UPDATE_TRIAL_BYTES];
     FatFile record;
     if (!fat_open(volume, UPDATE_TRIAL_PATH, &record) ||
         !fat_read(volume, &record, 0, bytes, sizeof bytes)) {
-        return (UpdateTrial){UPDATE_TRIAL_NONE, 0};
+        return false;
     }
-    return update_trial_decode(bytes);
+    *trial = update_trial_decode(bytes);
+    return true;
 }
 
 static bool record_write(FatVolume *volume, UpdateTrial trial)
 {
     uint8_t bytes[UPDATE_TRIAL_BYTES];
-    if (trial.state == UPDATE_TRIAL_NONE) {
-        fat_delete(volume, UPDATE_TRIAL_PATH);
-        return true;
-    }
     update_trial_encode(trial, bytes);
     return trial_record_store(volume, bytes);
+}
+
+static bool record_clear(FatVolume *volume)
+{
+    if (!record_write(volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
+        return false;
+    }
+    fat_delete(volume, UPDATE_TRIAL_PATH);
+    return true;
 }
 
 static void keep_diagnostics(FatVolume *volume, uint32_t *buffer)
@@ -68,11 +74,15 @@ static void keep_diagnostics(FatVolume *volume, uint32_t *buffer)
 static void roll_back(const TrialDisk *disk, uint32_t *buffer)
 {
     const UpdateStorage *storage = &disk->storage;
-    keep_diagnostics(disk->volume, buffer);
-    if (!slot_copy_is_valid(storage, storage->slot_2, buffer)) {
-        record_write(disk->volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0});
+    SlotValidity validity = slot_copy_check(storage, storage->slot_2, buffer);
+    if (validity == SLOT_UNREADABLE) {
         return;
     }
+    if (validity == SLOT_INVALID) {
+        record_clear(disk->volume);
+        return;
+    }
+    keep_diagnostics(disk->volume, buffer);
     if (trial_record_copy(disk, storage->slot_2, storage->slot_1, buffer,
                           (UpdateProgress){NULL, NULL}) &&
         record_write(disk->volume, (UpdateTrial){UPDATE_TRIAL_ROLLED_BACK, 0})) {
@@ -86,7 +96,14 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
     if (!trial_record_open(&disk)) {
         return;
     }
-    UpdateTrial trial = record_read(disk.volume);
+    UpdateTrial trial;
+    if (!record_read(disk.volume, &trial)) {
+        return;
+    }
+    if (trial.state == UPDATE_TRIAL_NONE) {
+        fat_delete(disk.volume, UPDATE_TRIAL_PATH);
+        return;
+    }
     UpdateTrialStep step = update_trial_boot(&trial);
     if (step == UPDATE_TRIAL_STEP_ROLL_BACK) {
         roll_back(&disk, buffer);
@@ -105,18 +122,25 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
 
 static bool settle(UsbShared *shared)
 {
-    bool rolled_back = (shared->trial.settle & USB_SETTLE_ROLLED_BACK) != 0;
-    bool settled = user_state_module_settle(shared);
-    FatVolume *volume = rolled_back && settled ? internal_volume_mount() : NULL;
-    if (volume != NULL && record_read(volume).state == UPDATE_TRIAL_ROLLED_BACK) {
-        fat_delete(volume, UPDATE_TRIAL_PATH);
+    if (!user_state_module_settle(shared)) {
+        return false;
     }
-    return settled;
+    if ((shared->trial.settle & USB_SETTLE_ROLLED_BACK) == 0) {
+        return true;
+    }
+    FatVolume *volume = internal_volume_mount();
+    UpdateTrial trial;
+    if (volume == NULL || !record_read(volume, &trial) ||
+        (trial.state == UPDATE_TRIAL_ROLLED_BACK && !record_clear(volume))) {
+        return false;
+    }
+    shared->trial.settle = 0;
+    return true;
 }
 
-static bool running_from_slot_1(const UpdateStorage *storage, uint32_t *buffer)
+static bool running_from_slot_1(const UpdateStorage *storage, uint32_t *buffer,
+                                const uint32_t *window)
 {
-    const uint32_t *window = (const uint32_t *)(uintptr_t)OVERLAY_WINDOW_BASE;
     if (!storage->read(NULL, storage->slot_1 + USB_OVERLAY_IMAGE_OFFSET / SECTOR_BYTES, 1,
                        buffer)) {
         return false;
@@ -149,20 +173,28 @@ static void report_backup(void *context, uint32_t done, uint32_t total)
 }
 
 static UpdateTrialPromotion promotion(const TrialDisk *disk, const UsbShared *shared,
-                                      uint32_t *buffer)
+                                      uint32_t *buffer, const uint32_t *running)
 {
-    UpdateTrial trial = record_read(disk->volume);
+    UpdateTrial trial;
+    if (!record_read(disk->volume, &trial)) {
+        return UPDATE_TRIAL_KEEP;
+    }
+    SlotValidity validity = slot_copy_check(&disk->storage, disk->storage.slot_1, buffer);
+    if (validity == SLOT_UNREADABLE) {
+        return UPDATE_TRIAL_KEEP;
+    }
     UpdateTrialCheck check = {.confirmed = shared->last_session.end == HAL_USB_END_EJECTED &&
                                            shared->last_session.internal_write_ok,
-                              .slot_1_valid =
-                                  slot_copy_is_valid(&disk->storage, disk->storage.slot_1, buffer),
-                              .running_slot_1 = running_from_slot_1(&disk->storage, buffer)};
+                              .slot_1_valid = validity == SLOT_VALID,
+                              .running_slot_1 =
+                                  validity == SLOT_VALID &&
+                                  running_from_slot_1(&disk->storage, buffer, running)};
     return update_trial_promotion(trial.state, check);
 }
 
 static bool end_trial(FatVolume *volume, UsbShared *shared)
 {
-    if (!record_write(volume, (UpdateTrial){UPDATE_TRIAL_NONE, 0})) {
+    if (!record_clear(volume)) {
         return false;
     }
     shared->trial.running = false;
@@ -170,30 +202,34 @@ static bool end_trial(FatVolume *volume, UsbShared *shared)
     return true;
 }
 
-void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer)
+static bool promote(const TrialDisk *disk, UsbShared *shared, uint32_t *buffer)
+{
+    uint32_t shown = 0;
+    show_backup(shown);
+    if (!record_write(disk->volume, (UpdateTrial){UPDATE_TRIAL_PROMOTING, 0})) {
+        return false;
+    }
+    shared->trial.promoting = true;
+    return trial_record_copy(disk, disk->storage.slot_1, disk->storage.slot_2, buffer,
+                             (UpdateProgress){report_backup, &shown}) &&
+           end_trial(disk->volume, shared);
+}
+
+void trial_boot_module_session_end(UsbShared *shared, uint32_t *buffer, const uint32_t *running)
 {
     TrialDisk disk;
     if (!trial_record_open(&disk)) {
         return;
     }
-    UpdateTrialPromotion step = promotion(&disk, shared, buffer);
+    UpdateTrialPromotion step = promotion(&disk, shared, buffer, running);
     if (step == UPDATE_TRIAL_CLEAR) {
         end_trial(disk.volume, shared);
         return;
     }
-    if (step != UPDATE_TRIAL_PROMOTE) {
-        return;
+    if (step == UPDATE_TRIAL_PROMOTE && !promote(&disk, shared, buffer)) {
+        app_show_notice(i18n_text(STR_UPDATE_FAILED), i18n_text(STR_UPDATE_FAILED_HINT));
+        board_wait_for_key();
     }
-    uint32_t shown = 0;
-    show_backup(0);
-    if (record_write(disk.volume, (UpdateTrial){UPDATE_TRIAL_PROMOTING, 0}) &&
-        trial_record_copy(&disk, disk.storage.slot_1, disk.storage.slot_2, buffer,
-                          (UpdateProgress){report_backup, &shown}) &&
-        end_trial(disk.volume, shared)) {
-        return;
-    }
-    app_show_notice(i18n_text(STR_UPDATE_FAILED), i18n_text(STR_UPDATE_FAILED_HINT));
-    board_wait_for_key();
 }
 
 static void rename_stock_label(void)
