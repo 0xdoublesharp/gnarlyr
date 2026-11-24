@@ -24,5 +24,6 @@ typedef struct UsbCardSpeed {
 void usb_card_prepare(const EmmcLayout *internal);
 void usb_card_speed_up(bool internal_ready, uint32_t *scratch);
 void usb_card_speed_down(void);
+void usb_card_clear_fast(uint8_t lun);
 bool usb_card_slow_down(uint8_t lun);
 UsbCardSpeed usb_card_speed(void);

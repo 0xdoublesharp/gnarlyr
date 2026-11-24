@@ -417,6 +417,7 @@ if(NOT ECHO_RELEASE)
         board_debug_history
         board_debug_usb_is_powered
         board_debug_usb_kept_on
+        board_idle_microseconds
         board_power_charge_pin
         board_power_display
         board_pc_profile
@@ -455,12 +456,18 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
 )
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
+        board/audio_dsp.c
+        board/audio_effects.c
+        board/audio_process.c
         board/bluetooth.c
         board/clock_switch.c
         board/cru.c
         board/core1.c
         board/dac.c
+        board/dmac.c
         board/emmc.c
+        board/gpio.c
+        board/panel_vop.c
         board/sd.c
         board/storage.c
         board/usb.c
@@ -475,6 +482,7 @@ if(CMAKE_CROSSCOMPILING)
         board/extension.c
         board/glyphs.c
         board/high_ram.c
+        board/input.c
         board/internal_volume.c
         board/jack.c
         board/language.c

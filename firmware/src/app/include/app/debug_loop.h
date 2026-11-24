@@ -16,9 +16,14 @@ DebugFrames app_debug_frames(void);
 
 #ifdef ECHO_DEBUG_LOOP
 
+typedef struct DebugBootMark {
+    uint32_t ms_plus_one;
+    uint32_t us;
+} DebugBootMark;
+
 void debug_loop_event(DebugEventKind kind, uint32_t value);
 void debug_loop_boot(DebugBootStep step);
-const uint32_t *debug_loop_boot_times(void);
+const DebugBootMark *debug_loop_boot_times(void);
 const DebugLog *debug_loop_log(void);
 const DebugRefusals *debug_loop_refusals(void);
 bool debug_loop_playing(void);

@@ -645,13 +645,18 @@ static bool follow_card(void)
         return false;
     }
     if (eject_card) {
+        usb_card_clear_fast(USB_CARD_SD);
         sd_eject(true);
         eject_card = false;
+    }
+    if (!sd_card_ready()) {
+        usb_card_clear_fast(USB_CARD_SD);
     }
     BlockDevice device;
     bool ready = sd_start(&device);
     bool changed = ready != card_present;
     if (changed) {
+        usb_card_clear_fast(USB_CARD_SD);
         msc_set_media(&msc, CARD_LUN, ready, ready ? sd_sector_count() : 0);
         scene->usage[CARD_LUN].free_sectors = free_at_connect(ready, CARD_LUN);
     }

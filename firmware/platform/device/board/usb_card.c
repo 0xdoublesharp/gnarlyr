@@ -250,6 +250,9 @@ static const CardStreamOps EMMC_OPS = {
 static bool locate_sd(UsbCard *card, uint32_t lba, uint32_t count, uint32_t *address)
 {
     BlockDevice device;
+    if (!sd_card_ready()) {
+        card->fast = false;
+    }
     uint32_t sectors = sd_sector_count();
     if (!sd_start(&device) || lba >= sectors || count > sectors - lba) {
         return false;
@@ -375,10 +378,21 @@ void usb_card_speed_up(bool internal_ready, uint32_t *scratch)
     }
 }
 
+void usb_card_clear_fast(uint8_t lun)
+{
+    if (lun < USB_CARD_COUNT) {
+        cards[lun].fast = false;
+    }
+}
+
 bool usb_card_slow_down(uint8_t lun)
 {
     UsbCard *card = &cards[lun];
     if (!card->fast) {
+        return false;
+    }
+    if (card->sd && !sd_card_ready()) {
+        card->fast = false;
         return false;
     }
     set_speed(card, false);
@@ -389,7 +403,12 @@ bool usb_card_slow_down(uint8_t lun)
 void usb_card_speed_down(void)
 {
     for (uint8_t lun = 0; lun < USB_CARD_COUNT; lun++) {
-        if (cards[lun].fast) {
+        if (!cards[lun].fast) {
+            continue;
+        }
+        if (cards[lun].sd && !sd_card_ready()) {
+            cards[lun].fast = false;
+        } else {
             set_speed(&cards[lun], false);
         }
     }

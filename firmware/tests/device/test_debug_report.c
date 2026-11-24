@@ -99,15 +99,20 @@ static void missing_boot_markers_are_reported_as_unknown(void)
 
 static void boot_markers_keep_zero_and_completed_phases_separate_from_unknown(void)
 {
-    uint32_t times[DEBUG_BOOT_COUNT] = {
-        [DEBUG_BOOT_CLOCK] = 1, [DEBUG_BOOT_FRAME] = 400001, [DEBUG_BOOT_INTERACTIVE] = 1500001};
+    uint64_t times[DEBUG_BOOT_COUNT] = {
+        [DEBUG_BOOT_CLOCK] = 1,
+        [DEBUG_BOOT_FRAME] = 400001,
+        [DEBUG_BOOT_INTERACTIVE] = 1500001,
+        [DEBUG_BOOT_AUDIO] = 5000000001ull,
+    };
     DebugReportInput input = plain_input();
     input.boot_us = times;
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("boot.clock_us: 0"));
     CHECK(has_line("boot.frame_us: 400000"));
     CHECK(has_line("boot.interactive_us: 1500000"));
-    CHECK(has_line("boot.audio_us: unknown"));
+    CHECK(has_line("boot.audio_us: 5000000000"));
+    CHECK(has_line("boot.display_us: unknown"));
 }
 
 static DebugReportInput plugged_in_at_97_percent(void)
@@ -326,10 +331,17 @@ static void core_0_busy_time_is_a_share_of_the_uptime(void)
     CHECK(has_line("core0.busy_percent: 25"));
 }
 
-static void a_wrapped_microsecond_clock_gives_no_busy_share(void)
+static void long_uptime_microseconds_keep_an_accurate_busy_share(void)
 {
     DebugReportInput input = plain_input();
-    input.uptime_ms = 4300000;
+    input.uptime_ms = 7200000;
+    input.clock_us = 7200000000ull;
+    input.idle_us = 5400000000ull;
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("core0.clock_us: 7200000000"));
+    CHECK(has_line("core0.idle_us: 5400000000"));
+    CHECK(has_line("core0.busy_percent: 25"));
+    input.idle_us = input.clock_us + 1;
     format(&input, DEBUG_REPORT_BYTES);
     CHECK(has_line("core0.busy_percent: unknown"));
 }
@@ -1505,7 +1517,7 @@ int main(void)
         TEST_CASE(the_firmware_is_named_with_its_version_and_build_tag),
         TEST_CASE(a_version_without_a_tag_reports_the_build_as_unknown),
         TEST_CASE(core_0_busy_time_is_a_share_of_the_uptime),
-        TEST_CASE(a_wrapped_microsecond_clock_gives_no_busy_share),
+        TEST_CASE(long_uptime_microseconds_keep_an_accurate_busy_share),
         TEST_CASE(an_unread_battery_is_unknown_not_zero),
         TEST_CASE(the_power_section_gives_the_raw_pin_the_adc_and_each_percent),
         TEST_CASE(a_charging_gauge_at_its_limit_is_reported_as_capped),

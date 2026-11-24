@@ -220,6 +220,9 @@ CORE_SEAM CORE_COLD void board_wait_for_key(void)
         if (board_input_take_key_press()) {
             return;
         }
+        if (!hal_input_waiting()) {
+            board_profile_wait();
+        }
     }
 }
 

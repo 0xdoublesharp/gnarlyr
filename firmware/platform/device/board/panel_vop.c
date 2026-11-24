@@ -68,6 +68,10 @@ static void bus_delay(void *context, uint32_t milliseconds)
 static void bus_serviced_delay(void *context, uint32_t milliseconds)
 {
     (void)context;
+    if (board_panic_active()) {
+        board_panic_delay_ms(milliseconds);
+        return;
+    }
     uint32_t start = hal_clock_milliseconds();
     while (!deadline_elapsed(hal_clock_milliseconds(), start, milliseconds)) {
         hal_audio_service();
@@ -160,8 +164,8 @@ static bool push_blocks(const uint16_t *pixels, uint32_t words)
 
 static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t count)
 {
-    if (push_failed || count < PUSH_MIN_PIXELS || ((uintptr_t)pixels & 3u) != 0 ||
-        !dmac_present()) {
+    if (board_panic_active() || push_failed || count < PUSH_MIN_PIXELS ||
+        ((uintptr_t)pixels & 3u) != 0 || !dmac_present()) {
         return false;
     }
     panel_begin_write(&BUS, window);

@@ -1,4 +1,5 @@
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "board.h"
@@ -6,9 +7,13 @@
 #include "core/seam.h"
 #include "core/string_builder.h"
 #include "device/panic_text.h"
+#include "dmac.h"
 #include "hal/display.h"
 #include "hal/system.h"
+#include "registers.h"
 #include "usb.h"
+
+#define CRU_CLOCK_SELECT (CRU_BASE + 0x14u)
 
 enum {
     SCALE = 2,
@@ -20,6 +25,7 @@ enum {
     LINE_CAPACITY = 32,
     HEX_DIGITS = 8,
     MILLISECONDS_PER_SECOND = 1000,
+    MICROSECONDS_PER_MILLISECOND = 1000,
     POWER_HOLD_MS = 2000,
     STACKED_LR_WORD = 5,
     STACKED_PC_WORD = 6,
@@ -31,8 +37,32 @@ enum {
 
 static uint16_t glyph[GLYPH_WIDTH * GLYPH_HEIGHT];
 static int line;
+static bool panic_active;
 static bool power_down;
 static uint32_t power_down_since_ms;
+
+bool board_panic_active(void)
+{
+    return panic_active;
+}
+
+void board_panic_delay_ms(uint32_t milliseconds)
+{
+    uint32_t divider = (register_read(CRU_CLOCK_SELECT) & 7u) + 1u;
+    uint32_t ticks_per_ms = hal_system_clock_mhz() * MICROSECONDS_PER_MILLISECOND / divider;
+    uint32_t prev = register_read(SYSTICK_CURRENT);
+    uint32_t rem = 0;
+    while (milliseconds > 0) {
+        uint32_t now = register_read(SYSTICK_CURRENT);
+        uint32_t delta = now < prev ? prev - now : 1u;
+        prev = now;
+        rem += delta;
+        if (rem >= ticks_per_ms) {
+            rem -= ticks_per_ms;
+            milliseconds--;
+        }
+    }
+}
 
 static void draw_line(const char *text)
 {
@@ -53,12 +83,18 @@ static void append_hex(StringBuilder *builder, uint32_t value)
     }
 }
 
-static void draw_hex_line(const char *label, uint32_t value)
+static void draw_pair_line(const char *first_label, uint32_t first, const char *second_label,
+                           uint32_t second)
 {
     char text[LINE_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
-    string_builder_append(&builder, label);
-    append_hex(&builder, value);
+    string_builder_append(&builder, first_label);
+    append_hex(&builder, first);
+    if (second_label != NULL) {
+        string_builder_append_char(&builder, ' ');
+        string_builder_append(&builder, second_label);
+        append_hex(&builder, second);
+    }
     draw_line(text);
 }
 
@@ -78,7 +114,12 @@ static void draw_run_line(void)
 
 static void start_screen(const char *title)
 {
+    panic_active = true;
+    power_down = false;
     usb_silence_audio();
+    if (dmac_push_busy()) {
+        dmac_push_cancel();
+    }
     hal_display_set_rotation(HAL_DISPLAY_LANDSCAPE);
     board_display_clear();
     board_backlight_full();
@@ -89,22 +130,9 @@ static void start_screen(const char *title)
 CORE_SEAM void board_panic_stall(uint32_t pc, uint32_t lr)
 {
     start_screen("STALL");
-    draw_hex_line("PC ", pc);
-    draw_hex_line("LR ", lr);
+    draw_pair_line("PC ", pc, NULL, 0);
+    draw_pair_line("LR ", lr, NULL, 0);
     draw_run_line();
-}
-
-static void draw_pair_line(const char *first_label, uint32_t first, const char *second_label,
-                           uint32_t second)
-{
-    char text[LINE_CAPACITY];
-    StringBuilder builder = string_builder_make(text, sizeof text);
-    string_builder_append(&builder, first_label);
-    append_hex(&builder, first);
-    string_builder_append_char(&builder, ' ');
-    string_builder_append(&builder, second_label);
-    append_hex(&builder, second);
-    draw_line(text);
 }
 
 static void draw_words_line(const uint32_t *words)
@@ -130,7 +158,7 @@ CORE_SEAM void board_panic_fault(const uint32_t *frame, uint32_t status)
     draw_run_line();
 }
 
-void board_panic_poll_power(uint32_t now_ms)
+CORE_COLD void board_panic_poll_power(uint32_t now_ms)
 {
     if (!board_power_key_down()) {
         power_down = false;
