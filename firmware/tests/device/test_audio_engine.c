@@ -1634,6 +1634,28 @@ static void a_b_at_or_before_a_is_refused_without_restarting(void)
     CHECK_EQUAL(1, engine.repeat_state);
 }
 
+static void paused_double_mark_and_stopped_clear_never_restart_or_underflow(void)
+{
+    start_engine();
+    CHECK_EQUAL(0, audio_engine_repeat_mark(&engine, true));
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, engine.state);
+    CHECK(play_range("lpc_16_44k_stereo", 0, 200, 7));
+    pump_until_full(0);
+    audio_engine_observe(&engine, 2000);
+    audio_engine_pause(&engine);
+    uint32_t produced = engine.produced;
+    CHECK_EQUAL(1, audio_engine_repeat_mark(&engine, false));
+    CHECK_EQUAL(1, audio_engine_repeat_mark(&engine, false));
+    CHECK_EQUAL(produced, engine.produced);
+    CHECK_EQUAL(AUDIO_ENGINE_PAUSED, engine.state);
+    CHECK_EQUAL(0, audio_engine_repeat_mark(&engine, true));
+    CHECK_EQUAL(produced, engine.produced);
+    CHECK_EQUAL(0, engine.repeat_state);
+    audio_engine_stop(&engine);
+    CHECK_EQUAL(0, audio_engine_repeat_mark(&engine, true));
+    CHECK_EQUAL(AUDIO_ENGINE_STOPPED, engine.state);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -1641,6 +1663,7 @@ int main(void)
         TEST_CASE(arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level),
         TEST_CASE(ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advancing),
         TEST_CASE(a_b_at_or_before_a_is_refused_without_restarting),
+        TEST_CASE(paused_double_mark_and_stopped_clear_never_restart_or_underflow),
         TEST_CASE(sleep_fades_in_the_pcm_stage_and_cancel_restores_unity),
         TEST_CASE(headphones_compose_before_clipping_at_native_and_converted_rates),
         TEST_CASE(replacing_a_buffered_next_song_keeps_the_current_position),

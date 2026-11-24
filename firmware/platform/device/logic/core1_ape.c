@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/bytes.h"
+#include "device/core1_source_private.h"
 
 #if !defined(__arm__)
 #include <setjmp.h>
@@ -64,10 +65,27 @@ static Core1DecodeResult configure(Core1Ape *ape)
     return CORE1_DECODED;
 }
 
+static void publish_released(const Core1Ape *ape)
+{
+    volatile StreamControl *control = ape->region.control;
+    if (control == NULL || control->generation == 0 ||
+        control->generation != control->acked_generation) {
+        return;
+    }
+    uint32_t written = control->written;
+    uint32_t target = control->start_offset + ape->position;
+    uint32_t released = target < written ? target : written;
+    if (released > control->released) {
+        core1_publish();
+        control->released = released;
+    }
+}
+
 static Core1DecodeResult begin_frame(Core1Ape *ape)
 {
     uint8_t header[APE_RECORD_BYTES];
     if (!ape->input.read(ape->input.context, ape->position, header, sizeof header)) {
+        publish_released(ape);
         return CORE1_STARVED;
     }
     uint32_t bytes = bytes_le32(header);
@@ -129,6 +147,15 @@ static void update_crc(Core1Ape *ape, uint32_t samples)
     ape->crc = ape_updatecrc(bytes, (int)count, ape->crc);
 }
 
+static uint32_t released_position(const Core1Ape *ape)
+{
+    if (ape->region.control == NULL) {
+        return ape->position;
+    }
+    uint32_t written = ape->region.control->written - ape->region.control->start_offset;
+    return ape->position < written ? ape->position : written;
+}
+
 static Core1DecodeResult chunk(Core1Ape *ape, Core1Block *block)
 {
 #if defined(__arm__)
@@ -167,7 +194,7 @@ static Core1DecodeResult chunk(Core1Ape *ape, Core1Block *block)
     *block = (Core1Block){.channels = {ape->pcm[0], ape->pcm[ape->decoder.channels > 1 ? 1 : 0]},
                           .first_sample = ape->next_sample,
                           .samples = count,
-                          .position = ape->position};
+                          .position = released_position(ape)};
     ape->next_sample += count;
     return CORE1_DECODED;
 }

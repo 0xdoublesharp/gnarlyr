@@ -19,6 +19,7 @@ bool dac_path_set_gain(bool high);
 bool dac_path_set_filter(uint8_t filter);
 bool dac_path_take_underrun(void);
 bool dac_path_is_muted(void);
+bool dac_path_is_guarded(void);
 bool dac_path_is_up(void);
 bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *value);
 void dac_path_start_transfer(void);

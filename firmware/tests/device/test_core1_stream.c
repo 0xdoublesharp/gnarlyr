@@ -753,6 +753,27 @@ static void the_input_ring_lasts_as_long_as_the_stream_takes_to_read_it(void)
     CHECK_EQUAL(UINT32_MAX, core1_stream_input_ms(32768, unknown));
 }
 
+static void a_released_cursor_past_written_still_refills_without_underflow(void)
+{
+    start(BIG_RING_BYTES);
+    free(opened.bytes);
+    opened = (Fixture){.bytes = calloc(BIG_RING_BYTES * 2, 1), .size = BIG_RING_BYTES * 2};
+    CHECK(opened.bytes != NULL);
+    source.input = (FlacInput){read_fixture, &opened, BIG_RING_BYTES * 2};
+    source.streaming = true;
+    source.refilling = false;
+    source.generation = control.acked_generation = 1;
+    source.written = control.written = FILL_BUDGET;
+    source.end_offset = BIG_RING_BYTES * 2;
+    control.released = FILL_BUDGET + 8;
+    core1_source_fill(&source);
+    CHECK_EQUAL(FILL_BUDGET * 2, source.written);
+    CHECK(source.refilling);
+    source.streaming = false;
+    free(opened.bytes);
+    opened = (Fixture){0};
+}
+
 static void a_full_hand_off_holds_at_least_the_bound_core_0_rests_on(void)
 {
     CHECK_EQUAL(4097u, core1_stream_handoff_frames(512, 512, false));
@@ -766,6 +787,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_full_input_ring_waits_for_half_a_ring_then_refills_in_bounded_bursts),
+        TEST_CASE(a_released_cursor_past_written_still_refills_without_underflow),
         TEST_CASE(a_24_bit_96k_track_streams_through_core_1_exactly),
         TEST_CASE(a_16_bit_track_streams_through_core_1_exactly),
         TEST_CASE(a_mono_track_plays_its_channel_on_both_sides),

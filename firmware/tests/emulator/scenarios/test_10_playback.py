@@ -820,6 +820,131 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(rig.audio.core1.starts, 0)
         self.assert_healthy(rig.session)
 
+    def test_id3v2_tagged_flac_plays_as_flac_with_consistent_read_stats(self):
+        import subprocess
+        import tempfile
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        wav = self.tagged_wav("Tagged", "Tagged", 44100, 15, 4000)
+        with tempfile.TemporaryDirectory() as directory:
+            encoded = Path(directory) / "raw.flac"
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "wav", "-i", "pipe:0", "-c:a",
+                            "flac", "-compression_level", "0", "-threads", "1", str(encoded)],
+                           input=wav, check=True)
+            raw = encoded.read_bytes()
+        id3v23 = b"ID3\x03\x00\x00\x00\x00\x00\x10" + bytes(16) + raw
+        id3v24 = b"ID3\x04\x00\x00\x00\x00\x00\x10" + bytes(16) + raw
+        volume = Fat32Volume()
+        volume.add_file("A.flac", id3v23)
+        volume.add_file("B.flac", id3v24)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        rig.open_songs()
+        first = rig.play_song(1)
+        rig.run_for(500)
+        self.assertIsNotNone(rig.first_audio_after(first))
+        self.assertEqual(0, rig.audio.requested_program)
+        values = struct.unpack("<12I", rig.machine.read_memory(rig.machine.symbols["stats"], 48))
+        blocks, read_max_us, read_total_us = values[3], values[8], values[9]
+        self.assertGreater(blocks, 0)
+        self.assertLessEqual(read_total_us // blocks, read_max_us)
+        second = rig.skip("next")
+        rig.run_for(400)
+        self.assertIsNotNone(rig.first_audio_after(second))
+        self.assertEqual(0, rig.audio.requested_program)
+        self.assert_healthy(rig.session)
+
+    def test_flac_to_wav_stops_core1_and_failed_play_shuts_down_idle_path(self):
+        import subprocess
+        import tempfile
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        first_wav = self.tagged_wav("Alpha", "Alpha", 44100, 15, 4000)
+        wav = self.tagged_wav("Beta", "Beta", 44100, 15, 4000)
+        third_wav = self.tagged_wav("Gamma", "Gamma", 44100, 15, 4000)
+        with tempfile.TemporaryDirectory() as directory:
+            first_path = Path(directory) / "A.flac"
+            third_path = Path(directory) / "C.flac"
+            for raw, out in ((first_wav, first_path), (third_wav, third_path)):
+                subprocess.run(["ffmpeg", "-v", "error", "-f", "wav", "-i", "pipe:0", "-c:a",
+                                "flac", "-compression_level", "0", "-threads", "1", str(out)],
+                               input=raw, check=True)
+            first_flac = first_path.read_bytes()
+            third_flac = third_path.read_bytes()
+        volume = Fat32Volume()
+        volume.add_file("A.flac", first_flac)
+        volume.add_file("B.wav", wav)
+        volume.add_file("C.flac", third_flac)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        stops = machine.trace("dac_path_stop")
+        rig.open_songs()
+        first = rig.play_song(1)
+        rig.run_for(300)
+        self.assertIsNotNone(rig.first_audio_after(first))
+        self.assertEqual(1, machine.read_memory(machine.symbols["using_core1"], 1)[0])
+        self.assertTrue(rig.audio.core1.active)
+        second = rig.skip("next")
+        rig.run_for(300)
+        self.assertIsNotNone(rig.first_audio_after(second))
+        self.assertEqual(0, machine.read_memory(machine.symbols["using_core1"], 1)[0])
+        self.assertFalse(rig.audio.core1.active)
+        machine.stub_symbol("board_core1_start_stream", lambda current: 0)
+        before_stops = len(stops)
+        rig.skip("next")
+        self.assertEqual(0, machine.read_memory(machine.symbols["transferring"], 1)[0])
+        self.assertEqual(1, machine.read_memory(machine.symbols["path_up"], 1)[0])
+        rig.run_for(3500)
+        self.assertGreater(len(stops), before_stops)
+        self.assertEqual(0, machine.read_memory(machine.symbols["path_up"], 1)[0])
+        self.assert_healthy(rig.session)
+
+    def test_stop_audio_path_powers_down_acodec_and_gates_audio_clocks(self):
+        from echo_emulator.devices import GPIO_DATA, RegisterFile
+        from echo_emulator.machine import PAGE, TRAMPOLINE
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
+        session = self.session()
+        session.run_to_first_frame()
+        session.run_to_home_screen()
+        machine = session.machine
+        acodec = RegisterFile()
+        acodec.regs[0x200] = 1 << 2
+        acodec.regs[0x214] = 0
+        machine.map_device(RegisterFile(), 0x40030000, PAGE)
+        machine.map_device(RegisterFile(), 0x40040000, PAGE)
+        machine.map_device(acodec, 0x40090000, PAGE)
+        stopped_gates = (0x10, 0x11, 0x12, 0x13, 0x82, 0x83)
+        kept_gates = (0x0E, 0x96)
+        for gate in stopped_gates + kept_gates:
+            machine.cru.write_word(0x80 + 4 * (gate // 16), 1 << (gate % 16 + 16))
+        returned = TRAMPOLINE + 0x904
+        machine.add_address_hook(returned, lambda: machine.stop("dac API returned"))
+
+        def invoke(symbol):
+            context = machine.uc.context_save()
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[symbol] | 1)
+            self.assertEqual("dac API returned", machine.run(until_ms=machine.milliseconds() + 2000))
+            machine.uc.context_restore(context)
+
+        machine.uc.mem_write(machine.symbols["guarded"], b"\x01")
+        invoke("dac_path_output_on")
+        self.assertEqual(1, machine.gpio[2].regs.get(GPIO_DATA, 0) >> 1 & 1)
+        machine.uc.mem_write(machine.symbols["guarded"], b"\x00")
+        invoke("dac_path_output_on")
+        self.assertEqual(0, machine.gpio[2].regs.get(GPIO_DATA, 0) >> 1 & 1)
+        invoke("dac_path_stop")
+        self.assertEqual(0, acodec.regs[0x200] & (1 << 2))
+        self.assertEqual((1 << 2) | (1 << 0), acodec.regs[0x214] & ((1 << 2) | (1 << 0)))
+        for gate in stopped_gates:
+            word = machine.cru.regs.get(0x80 + 4 * (gate // 16), 0)
+            self.assertEqual(1, word >> (gate % 16) & 1, hex(gate))
+        for gate in kept_gates:
+            word = machine.cru.regs.get(0x80 + 4 * (gate // 16), 0)
+            self.assertEqual(0, word >> (gate % 16) & 1, hex(gate))
+        self.assert_healthy(session)
+
 
 
 if __name__ == "__main__":

@@ -205,6 +205,35 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(dozed["core0_busy_percent"], awake["core0_busy_percent"], (awake, dozed))
         self.assert_healthy(rig.session)
 
+    def test_unplugging_wired_headphones_does_not_silence_bluetooth_and_unroute_keeps_wired_muted(self):
+        from echo_emulator.devices import GPIO_DATA
+        from echo_image_harness import DAC_MUTED
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, in_range=False)
+        machine = rig.machine
+        machine.balanced_plugged = True
+        rig.run_for(200)
+        self.assertEqual(0, machine.read_memory(machine.symbols["guarded"], 1)[0])
+        machine.balanced_plugged = False
+        rig.run_for(200)
+        self.assertEqual(1, machine.read_memory(machine.symbols["guarded"], 1)[0])
+        rig.open_songs()
+        rig.play_song(1)
+        machine.uc.mem_write(machine.symbols["dac_up"], b"\x01")
+        machine.uc.mem_write(machine.symbols["muted"], b"\x00")
+        before = len(rig.audio.volumes)
+        rig.press("next")
+        self.assertEqual(before, len(rig.audio.volumes))
+        machine.uc.mem_write(machine.symbols["muted"], b"\x01")
+        module.come_back()
+        self.run_until(rig, lambda: module.streaming, RETRY_MS + 4000)
+        self.assertEqual(0, machine.read_memory(machine.symbols["guarded"], 1)[0])
+        self.assertLess(rig.audio.volumes[-1][1], DAC_MUTED)
+        rig.press("play")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+        self.assertEqual(1, machine.read_memory(machine.symbols["guarded"], 1)[0])
+        self.assertEqual(1, machine.gpio[2].regs.get(GPIO_DATA, 0) >> 1 & 1)
+        self.assert_healthy(rig.session)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))
