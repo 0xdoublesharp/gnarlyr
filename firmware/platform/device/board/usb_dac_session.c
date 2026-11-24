@@ -293,6 +293,7 @@ static Rect info_area(AppUsbStatus status)
 {
     const Theme *theme = app_theme();
     UsbScreenLayout layout = usb_screen_layout(theme, status);
+    serve_audio_usb();
     return showing_details() ? usb_screen_content(theme, &layout)
                              : usb_screen_dac_rows_area(theme, &layout, scene);
 }

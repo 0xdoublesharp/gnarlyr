@@ -903,7 +903,7 @@ class EchoImageTest(EchoImageHarness):
     def test_stop_audio_path_powers_down_acodec_and_gates_audio_clocks(self):
         from echo_emulator.devices import GPIO_DATA, RegisterFile
         from echo_emulator.machine import PAGE, TRAMPOLINE
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_PRIMASK
         session = self.session()
         session.run_to_first_frame()
         session.run_to_home_screen()
@@ -922,6 +922,9 @@ class EchoImageTest(EchoImageHarness):
         machine.add_address_hook(returned, lambda: machine.stop("dac API returned"))
 
         def invoke(symbol):
+            self.assertEqual("condition met", machine.run(
+                until=lambda: machine.exception_depth == 0 and machine.reg(UC_ARM_REG_PRIMASK) == 0,
+                until_ms=machine.milliseconds() + 2000))
             context = machine.uc.context_save()
             machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
             machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[symbol] | 1)

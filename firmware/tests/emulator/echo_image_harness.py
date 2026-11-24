@@ -442,6 +442,8 @@ class EchoImageHarness(unittest.TestCase):
         session.machine.note("updater_check")
         polls = session.machine.trace("board_input_take_key_press")
         session.run_to_first_frame()
+        if not rest_in_waits:
+            session.machine.stub_symbol("board_profile_wait", lambda _: None)
         self.assertEqual(session.run_until_waiting_for_key(presses=1),
                          "reached board_wait_for_key")
         self.assert_healthy(session)
@@ -619,14 +621,18 @@ class EchoImageHarness(unittest.TestCase):
             self.press(machine, key)
 
     def charging_on_a_charger(self):
-        from unicorn.arm_const import UC_ARM_REG_R0
+        from unicorn import UC_HOOK_MEM_WRITE
         session, machine, asked = self.asked_session()
         machine.host_absent = True
         charge_frames = machine.trace("charge_art_draw")
         dark = []
-        machine.hook_symbol("hal_display_set_power",
-                            lambda: dark.append(machine.milliseconds())
-                            if machine.reg(UC_ARM_REG_R0) == 0 else None)
+        panel_asleep = machine.symbols["panel_asleep"]
+
+        def record_sleep(uc, access, address, size, asleep, user):
+            if asleep:
+                dark.append(machine.milliseconds())
+
+        machine.uc.hook_add(UC_HOOK_MEM_WRITE, record_sleep, None, panel_asleep, panel_asleep)
         session.run_to_home_screen()
         machine.run(until_ms=STARTUP_SETTLED_MS)
         machine.vbus = True
