@@ -630,7 +630,9 @@ class EchoImageHarness(unittest.TestCase):
         session.run_to_home_screen()
         machine.run(until_ms=STARTUP_SETTLED_MS)
         machine.vbus = True
-        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
+        self.assertEqual(machine.run(until=lambda: machine.usb_pulled_up,
+                                     until_ms=machine.milliseconds() + CABLE_STEADY_MS +
+                                     PROMPT_NOTICED_MS), "condition met")
         self.assertEqual(asked, [])
         self.assertEqual([event for _, event in machine.usb_log], ["soft disconnect", "pull-up on"])
         self.hold_power(machine)
@@ -640,6 +642,7 @@ class EchoImageHarness(unittest.TestCase):
         machine.run(until_ms=machine.milliseconds() + CHARGE_LIT_MS + PROMPT_NOTICED_MS)
         self.assertTrue(dark)
         self.assertEqual(asked, [])
+        self.assertTrue(machine.usb_pulled_up)
         return session, machine, asked, charge_frames, dark
 
     def writes_after_last_disconnect(self, machine, since=0):

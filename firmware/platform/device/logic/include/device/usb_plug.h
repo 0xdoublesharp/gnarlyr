@@ -24,7 +24,8 @@ typedef enum UsbPlugAnswer {
 } UsbPlugAnswer;
 
 enum {
-    USB_PLUG_STEADY_MS = 1000
+    USB_PLUG_STEADY_MS = 1000,
+    USB_PLUG_LISTEN_TIMEOUT_MS = 15000
 };
 
 typedef struct UsbPlug {

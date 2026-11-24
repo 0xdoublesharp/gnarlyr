@@ -133,6 +133,7 @@ class EchoImageTest(EchoImageHarness):
         session.machine.stop_at("hal_system_return_scratch")
         self.assertEqual(session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
                          "reached hal_system_return_scratch")
+        self.assertEqual(session.machine.core_hz, 200_000_000)
         database = session.fat().read("/" + image_tests.IDENTITY.data_directory + "/library.db")
         offset, count = struct.unpack_from("<II", database, 8)
         self.assertEqual(count, 3)

@@ -20,7 +20,13 @@ UsbPlugAction usb_plug_update(UsbPlug *plug, bool cable, uint32_t now_ms)
     }
     if (plug->state == USB_PLUG_SETTLING &&
         deadline_elapsed(now_ms, plug->since_ms, USB_PLUG_STEADY_MS)) {
+        plug->since_ms = now_ms;
         return USB_PLUG_START;
+    }
+    if (plug->state == USB_PLUG_LISTENING &&
+        deadline_elapsed(now_ms, plug->since_ms, USB_PLUG_LISTEN_TIMEOUT_MS)) {
+        plug->state = USB_PLUG_SERVED;
+        return USB_PLUG_STOP;
     }
     return USB_PLUG_NOTHING;
 }

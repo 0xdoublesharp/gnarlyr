@@ -4165,19 +4165,64 @@ static void the_clock_never_changes_with_the_screen_while_audio_is_up(void)
     CHECK_EQUAL(200, hal_system_clock_mhz());
 }
 
+static void an_idle_lit_screen_lowers_the_clock_after_audio_releases(void)
+{
+    start_app_with_library();
+    Settings chosen = settings_defaults();
+    chosen.screen_timeout = SCREEN_TIMEOUT_OPTION_COUNT - 1;
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings_encode(&chosen, bytes);
+    CHECK(hal_internal_file_write(SETTINGS_STORE_PATH, bytes, sizeof bytes));
+    restart_app();
+    play_first_album_track();
+    CHECK_EQUAL(200, hal_system_clock_mhz());
+    tap(KEY_PLAY);
+    wait_ms(1000);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK(fake_hal_display_on());
+    CHECK_EQUAL(96, hal_system_clock_mhz());
+}
+
+static void leaving_or_darkening_bluetooth_allows_idle_power_off(void)
+{
+    for (int route = 0; route < 3; route++) {
+        start_app_with_library();
+        play_first_album_track();
+        hold_back();
+        open_setting(SETTINGS_GROUP_CONNECTIONS * SETTINGS_GROUP_ROWS + SETTINGS_BLUETOOTH_ITEM -
+                     SETTINGS_CONNECTIONS_FIRST);
+        CHECK(title_is("Bluetooth"));
+        tap(KEY_PLAY);
+        CHECK(fake_hal_bluetooth_powered());
+        if (route == 0) {
+            hold_back();
+            CHECK(title_is("Home"));
+        } else if (route == 1) {
+            tap(KEY_MENU);
+            CHECK(title_is("Now Playing"));
+        } else {
+            wait_ms(DEFAULT_TIMEOUT_MS);
+            CHECK(!fake_hal_display_on());
+        }
+        wait_ms(BLUETOOTH_LINK_IDLE_OFF_MS);
+        CHECK(!fake_hal_bluetooth_powered());
+    }
+}
+
 static void with_the_screen_off_the_cpu_drops_to_the_crystal_once_audio_is_down(void)
 {
     start_app_with_library();
     tap(KEY_POWER);
     CHECK_EQUAL(24, hal_system_clock_mhz());
     tap(KEY_POWER);
-    CHECK_EQUAL(200, hal_system_clock_mhz());
+    CHECK_EQUAL(96, hal_system_clock_mhz());
     play_first_album_track();
     tap(KEY_POWER);
     CHECK_EQUAL(200, hal_system_clock_mhz());
     fake_hal_audio_set_idle(true);
     step();
     CHECK_EQUAL(24, hal_system_clock_mhz());
+    hal_system_set_clock_mhz(200);
     fake_hal_audio_set_idle(false);
     step();
     CHECK_EQUAL(200, hal_system_clock_mhz());
@@ -4777,6 +4822,8 @@ static void a_rescan_of_an_empty_card_writes_an_empty_library(void)
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
     step();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(200, fake_hal_scratch_clock_mhz());
+    CHECK_EQUAL(96, hal_system_clock_mhz());
     CHECK_EQUAL(0, fake_hal_scratch_outstanding());
     CHECK(fake_hal_library_writes() > 0);
     CHECK(toast_is("Library: 0 tracks"));
@@ -5377,6 +5424,7 @@ static void a_full_card_says_it_is_full(void)
 static void a_rescan_after_an_installed_update_asks_for_a_restart(void)
 {
     start_app_with_library();
+    play_first_album_track();
     fake_hal_set_empty_card(true);
     fake_hal_set_restart_pending(true);
     app_request_rescan();
@@ -5384,6 +5432,8 @@ static void a_rescan_after_an_installed_update_asks_for_a_restart(void)
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
     CHECK_EQUAL(0, fake_hal_library_writes());
     CHECK(toast_is("Restart to finish the update"));
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK_EQUAL(HAL_AUDIO_STOPPED, hal_audio_status().state);
 }
 
 static void the_music_check_after_an_installed_update_skips_the_walk(void)
@@ -5407,6 +5457,46 @@ static void a_rescan_without_scratch_memory_says_so(void)
     step();
     fake_hal_refuse_scratch(false);
     CHECK(toast_is("No memory for the scan"));
+}
+
+static void a_failed_rescan_keeps_the_playback_position(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    uint32_t position = PLAYING_POSITION_MS / 2;
+    fake_hal_audio_set_position(position);
+    step();
+    fake_hal_set_empty_card(true);
+    fake_hal_refuse_scratch(true);
+    app_request_rescan();
+    step();
+    CHECK(toast_is("No memory for the scan"));
+    step();
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK_EQUAL(position, app_player_status().position_ms);
+    app_start_after_storage();
+    CHECK_EQUAL(position, app_player_status().position_ms);
+}
+
+static void a_successful_rescan_keeps_an_unloaded_players_seek(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_audio_set_position(10000);
+    tap(KEY_PLAY);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(HAL_AUDIO_STOPPED, hal_audio_status().state);
+    CHECK(app_player_status().position_ms > 0);
+    headset(HAL_HEADSET_PREVIOUS);
+    CHECK_EQUAL(0, app_player_status().position_ms);
+    fake_hal_set_empty_card(true);
+    fake_hal_preserve_library_on_rescan();
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(1, fake_hal_rescan_loads());
+    CHECK(app_player_status().has_track);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK_EQUAL(0, app_player_status().position_ms);
 }
 
 static bool rescan_message_is(ScanResult result, const char *expected)
@@ -7278,13 +7368,13 @@ static void the_cpu_clock_cycles_through_24_96_and_200_mhz(void)
 {
     start_app();
     open_diagnostics_row(DIAGNOSTICS_CPU_CLOCK_INDEX);
+    CHECK_EQUAL(96, hal_system_clock_mhz());
+    tap(KEY_PLAY);
     CHECK_EQUAL(200, hal_system_clock_mhz());
     tap(KEY_PLAY);
     CHECK_EQUAL(24, hal_system_clock_mhz());
     tap(KEY_PLAY);
     CHECK_EQUAL(96, hal_system_clock_mhz());
-    tap(KEY_PLAY);
-    CHECK_EQUAL(200, hal_system_clock_mhz());
 }
 
 static void the_stall_test_asks_before_it_freezes_the_main_loop(void)
@@ -7343,7 +7433,7 @@ static void a_clock_that_does_not_lock_stays_where_it_was(void)
     fake_hal_refuse_clock_switch();
     open_diagnostics_row(DIAGNOSTICS_CPU_CLOCK_INDEX);
     tap(KEY_PLAY);
-    CHECK_EQUAL(200, hal_system_clock_mhz());
+    CHECK_EQUAL(96, hal_system_clock_mhz());
     CHECK(title_is("About"));
 }
 
@@ -8902,6 +8992,9 @@ static void standby_keeps_the_queue_and_position_until_power_wakes(void)
     step();
     uint32_t position = app_player_status().position_ms;
     int releases = fake_hal_audio_release_count();
+    wait_ms(DEFAULT_TIMEOUT_MS);
+    CHECK(!fake_hal_display_on());
+    CHECK_EQUAL(200, hal_system_clock_mhz());
     tap(KEY_POWER);
     CHECK(app_standby()->active);
     CHECK(!fake_hal_display_on());
@@ -9025,6 +9118,8 @@ int main(void)
         TEST_CASE(standby_low_battery_really_powers_off),
         TEST_CASE(standby_deadline_really_powers_off_instead_of_reentering),
         TEST_CASE(standby_keeps_the_queue_and_position_until_power_wakes),
+        TEST_CASE(an_idle_lit_screen_lowers_the_clock_after_audio_releases),
+        TEST_CASE(leaving_or_darkening_bluetooth_allows_idle_power_off),
         TEST_CASE(a_profile_chosen_in_dac_mode_is_committed_after_the_session),
         TEST_CASE(dac_choices_made_during_usb_are_saved_with_the_settings),
         TEST_CASE(play_on_usb_power_can_be_saved_and_is_applied_again_after_restart),
@@ -9315,6 +9410,8 @@ int main(void)
         TEST_CASE(a_rescan_after_an_installed_update_asks_for_a_restart),
         TEST_CASE(after_an_installed_update_screens_use_the_resident_font),
         TEST_CASE(a_rescan_without_scratch_memory_says_so),
+        TEST_CASE(a_failed_rescan_keeps_the_playback_position),
+        TEST_CASE(a_successful_rescan_keeps_an_unloaded_players_seek),
         TEST_CASE(a_rescan_borrows_the_idle_audio_buffer_for_its_listing),
         TEST_CASE(each_way_a_scan_runs_out_has_its_own_message),
         TEST_CASE(the_music_check_after_an_installed_update_skips_the_walk),

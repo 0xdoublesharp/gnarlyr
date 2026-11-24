@@ -52,13 +52,16 @@ static void the_second_is_counted_across_a_wrap_of_the_clock(void)
     CHECK_EQUAL(USB_PLUG_START, at(0x1E8u, true));
 }
 
-static void usb_keeps_listening_for_as_long_as_the_cable_is_in(void)
+static void usb_stops_listening_on_a_charger_even_across_a_wrap(void)
 {
-    listening_from(1000);
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(5000, true));
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(3600000, true));
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(0x80000000u, true));
+    uint32_t started_ms = UINT32_MAX - USB_PLUG_STEADY_MS;
+    listening_from(started_ms - USB_PLUG_STEADY_MS);
+    uint32_t stop_ms = started_ms + USB_PLUG_LISTEN_TIMEOUT_MS;
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(stop_ms - 1, true));
     CHECK_EQUAL(USB_PLUG_LISTENING, plug.state);
+    CHECK_EQUAL(USB_PLUG_STOP, at(stop_ms, true));
+    CHECK_EQUAL(USB_PLUG_SERVED, plug.state);
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(stop_ms + USB_PLUG_LISTEN_TIMEOUT_MS, true));
 }
 
 static void pulling_the_cable_while_listening_stops_usb(void)
@@ -93,7 +96,7 @@ static void a_start_that_fails_is_not_tried_again_until_the_cable_has_left(void)
 static void a_retry_listens_again_with_the_cable_still_in(void)
 {
     listening_from(1000);
-    usb_plug_served(&plug);
+    CHECK_EQUAL(USB_PLUG_STOP, at(2000 + USB_PLUG_LISTEN_TIMEOUT_MS, true));
     usb_plug_retry(&plug);
     CHECK_EQUAL(USB_PLUG_NOTHING, at(20000, true));
     CHECK_EQUAL(USB_PLUG_START, at(20000 + USB_PLUG_STEADY_MS, true));
@@ -113,7 +116,7 @@ static void a_retry_while_listening_changes_nothing(void)
     listening_from(1000);
     usb_plug_retry(&plug);
     CHECK_EQUAL(USB_PLUG_LISTENING, plug.state);
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(20000, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(15000, true));
 }
 
 static void choosing_player_stops_a_listener_until_the_cable_leaves(void)
@@ -130,10 +133,11 @@ static void choosing_player_stops_a_listener_until_the_cable_leaves(void)
 static void a_mode_request_restarts_a_served_connection_without_unplugging(void)
 {
     listening_from(1000);
-    usb_plug_served(&plug);
+    uint32_t stopped_ms = 2000 + USB_PLUG_LISTEN_TIMEOUT_MS;
+    CHECK_EQUAL(USB_PLUG_STOP, at(stopped_ms, true));
     CHECK_EQUAL(USB_PLUG_NOTHING, usb_plug_request(&plug, true));
-    CHECK_EQUAL(USB_PLUG_NOTHING, at(10000, true));
-    CHECK_EQUAL(USB_PLUG_START, at(11000, true));
+    CHECK_EQUAL(USB_PLUG_NOTHING, at(stopped_ms + 1, true));
+    CHECK_EQUAL(USB_PLUG_START, at(stopped_ms + 1 + USB_PLUG_STEADY_MS, true));
 }
 
 static void a_mode_change_stops_the_old_listener_before_starting_another(void)
@@ -202,7 +206,7 @@ int main(void)
         TEST_CASE(the_cable_must_hold_for_a_second_before_usb_is_started),
         TEST_CASE(a_cable_that_bounces_starts_its_second_over),
         TEST_CASE(the_second_is_counted_across_a_wrap_of_the_clock),
-        TEST_CASE(usb_keeps_listening_for_as_long_as_the_cable_is_in),
+        TEST_CASE(usb_stops_listening_on_a_charger_even_across_a_wrap),
         TEST_CASE(pulling_the_cable_while_listening_stops_usb),
         TEST_CASE(after_a_session_nothing_starts_until_the_cable_has_left),
         TEST_CASE(a_start_that_fails_is_not_tried_again_until_the_cable_has_left),
