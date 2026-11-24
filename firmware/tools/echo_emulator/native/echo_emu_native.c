@@ -2147,7 +2147,7 @@ static void decoder_sync_pll(EmuDecoder *d)
         uc_mem_read(d->host_uc, EMU_CORE1_SHARED_PLL_MHZ, published, sizeof published);
     }
     uint32_t mhz = read_u32_le(published);
-    if (mhz == 0u || mhz == d->h.pll_mhz) {
+    if (mhz < d->h.divider || mhz == d->h.pll_mhz) {
         return;
     }
     emu_decoder_deliver(d);

@@ -5,7 +5,7 @@ from unicorn import UC_HOOK_BLOCK, UC_HOOK_CODE, UC_HOOK_MEM_READ, UC_HOOK_MEM_W
 from unicorn.arm_const import UC_ARM_REG_PC
 
 from . import direct
-from .core1 import CONTROL, RING, SAMPLES, Core1
+from .core1 import CONTROL, RING, SAMPLES, SHARED_PLL_MHZ, Core1
 from .core1_bridge import CONTROL_BYTES, RING_BYTES, SAMPLE_BYTES
 from .machine import load_symbols
 
@@ -53,7 +53,6 @@ SYSTICK_RELOAD = 0xE000E014
 SYSTICK_CURRENT = 0xE000E018
 CRU_CLOCK_SELECT = 0x40180014
 SHARED_CYCLES = 0x0102005C
-SHARED_PLL_MHZ = 0x01020060
 PLL_MHZ = 200
 WFI = 0xBF30
 IDLE_SEARCH_BYTES = 512
@@ -471,7 +470,7 @@ class DecoderLoad:
     def sync_pll(self):
         published = self.machine.read_memory(SHARED_PLL_MHZ, 4)
         mhz = struct.unpack("<I", published)[0]
-        if mhz == 0 or mhz == self._pll_mhz:
+        if mhz < self._divider or mhz == self._pll_mhz:
             return
         self.deliver()
         previous = self._mhz

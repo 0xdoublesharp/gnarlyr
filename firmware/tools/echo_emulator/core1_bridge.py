@@ -1,4 +1,4 @@
-from .core1 import CONTROL, RING, SAMPLES, SLICE, Core1
+from .core1 import CONTROL, RING, SAMPLES, SHARED_PLL_MHZ, SLICE, Core1
 
 CONTROL_BYTES = 128
 CORE1_FLAC = 0
@@ -57,6 +57,7 @@ class Core1Bridge:
                 core.run_budget(due * SLICE)
             return
         core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
+        core.uc.mem_write(SHARED_PLL_MHZ, machine.read_memory(SHARED_PLL_MHZ, 4))
         core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
         if due:
             core.run_budget(due * SLICE)

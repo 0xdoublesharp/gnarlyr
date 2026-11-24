@@ -6,8 +6,10 @@ from pathlib import Path
 from unicorn import UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB, Uc
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from echo_emulator.core1 import CONTROL, CONTROL_SLOTS, RAM_BASE, RAM_BYTES, SLOT_BYTES, Core1
-from echo_emulator.power import DecoderLoad, SHARED_PLL_MHZ
+from echo_emulator.core1 import (
+    CONTROL, CONTROL_SLOTS, RAM_BASE, RAM_BYTES, SHARED_PLL_MHZ, SLOT_BYTES, Core1,
+)
+from echo_emulator.power import DecoderLoad
 
 RING_BYTES = 4096
 SLOT_FULL = 1
