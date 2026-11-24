@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "core/bytes.h"
 #include "core/drive_path.h"
 #include "scan_internal.h"
 
@@ -43,9 +44,15 @@ static bool entry_is_directory(const ScanState *state, uint32_t offset)
     return state->listing[offset] == ENTRY_DIRECTORY;
 }
 
+static uint32_t entry_extra(const ScanState *state, bool directory, bool placed)
+{
+    return directory ? (placed ? PLACE_BYTES : 0)
+                     : (state->tag_cache != NULL ? sizeof(ScanFileStamp) : 0);
+}
+
 static uint32_t entry_bytes(const ScanState *state, uint32_t offset, bool placed)
 {
-    uint32_t place = placed && entry_is_directory(state, offset) ? PLACE_BYTES : 0;
+    uint32_t place = entry_extra(state, entry_is_directory(state, offset), placed);
     return 2 + scan_text_length(scan_entry_name(state, offset)) + place;
 }
 
@@ -99,7 +106,7 @@ static void sort_names(const ScanState *state, uint32_t *items, uint32_t *scratc
 static bool store_entry(ScanState *state, const ScanEntry *entry)
 {
     uint32_t length = scan_text_length(entry->name);
-    uint32_t place = entry->directory && state->placing ? PLACE_BYTES : 0;
+    uint32_t place = entry_extra(state, entry->directory, state->placing);
     if (length + 2 + place > state->playlist_floor - state->listing_used) {
         return false;
     }
@@ -108,7 +115,12 @@ static bool store_entry(ScanState *state, const ScanEntry *entry)
     for (uint32_t index = 0; index <= length; index++) {
         record[1 + index] = (uint8_t)entry->name[index];
     }
+    ScanFileStamp stamp;
     const uint8_t *bytes = (const uint8_t *)&entry->place;
+    if (!entry->directory && place != 0) {
+        stamp = (ScanFileStamp){entry->size, entry->modified, entry->cluster};
+        bytes = (const uint8_t *)&stamp;
+    }
     for (uint32_t index = 0; index < place; index++) {
         record[2 + length + index] = bytes[index];
     }
@@ -225,7 +237,8 @@ static bool wanted(const ScanState *state, const Batch *batch, const char *name)
 
 static ScanResult add_to_batch(ScanState *state, Batch *batch)
 {
-    uint32_t length = scan_text_length(state->entry.name);
+    uint32_t length =
+        scan_text_length(state->entry.name) + entry_extra(state, state->entry.directory, false);
     while (!batch_fits(state, batch, length)) {
         if (batch->count < MINIMUM_BATCH) {
             return SCAN_FOLDER_TOO_BIG;
@@ -367,35 +380,58 @@ void scan_report(const ScanJob *job, const ScanStats *stats)
     }
 }
 
-static ScanResult add_read_file(ScanState *state, const ScanJob *job, ScanStats *stats,
-                                ByteSource source, uint32_t size)
+static ScanResult add_whole_track(ScanState *state, ScanStats *stats)
 {
-    TagFormat format = track_tags_format_for_name(state->path);
-    if (!track_tags_read_index(source, size, format, &state->tags)) {
-        stats->skipped++;
-        return SCAN_OK;
-    }
     track_fields_from_tags(state->path + 1, &state->tags, &state->fields);
-    if (scan_is_chaptered_name(state->path) &&
-        mp4_chapters_open(&state->chapters, source, size, state->tags.duration_ms)) {
-        return scan_add_chapters(state, job, stats);
-    }
     ScanResult result = scan_add_track(state, &state->fields.track);
     stats->tracks += result == SCAN_OK;
     return result;
 }
 
-static ScanResult add_file(ScanState *state, const ScanJob *job, ScanStats *stats)
+static ScanResult read_track(ScanState *state, const ScanJob *job, ScanStats *stats,
+                             const ScanFileStamp *stamp)
 {
     ByteSource source;
     uint32_t size = 0;
-    ScanResult result = SCAN_OK;
-    stats->files++;
-    if (job->files.open_file(job->files.context, state->path, &source, &size)) {
-        result = add_read_file(state, job, stats, source, size);
-        job->files.close_file(job->files.context);
-    } else {
+    if (!job->files.open_file(job->files.context, state->path, &source, &size)) {
         stats->skipped++;
+        return SCAN_OK;
+    }
+    ScanResult result = SCAN_OK;
+    TagFormat format = track_tags_format_for_name(state->path);
+    if (!track_tags_read_index(source, size, format, &state->tags)) {
+        stats->skipped++;
+    } else if (scan_is_chaptered_name(state->path) &&
+               mp4_chapters_open(&state->chapters, source, size, state->tags.duration_ms)) {
+        track_fields_from_tags(state->path + 1, &state->tags, &state->fields);
+        result = scan_add_chapters(state, job, stats);
+    } else {
+        if (stamp != NULL && size == stamp->size) {
+            scan_tag_cache_add(state->tag_cache, state->path, stamp, &state->tags);
+        }
+        result = add_whole_track(state, stats);
+    }
+    job->files.close_file(job->files.context);
+    return result;
+}
+
+static ScanResult add_file(ScanState *state, const ScanJob *job, ScanStats *stats, uint32_t offset)
+{
+    ScanFileStamp stamp;
+    bool reusable = state->tag_cache != NULL && !scan_is_chaptered_name(state->path);
+    if (reusable) {
+        const uint8_t *bytes =
+            state->listing + offset + entry_bytes(state, offset, false) - sizeof stamp;
+        stamp = (ScanFileStamp){bytes_le32(bytes), bytes_le32(bytes + 4), bytes_le32(bytes + 8)};
+        reusable = stamp.size != 0;
+    }
+    stats->files++;
+    ScanResult result;
+    if (reusable && scan_tag_cache_find(state->tag_cache, state->path, &stamp, &state->tags)) {
+        scan_tag_cache_add(state->tag_cache, state->path, &stamp, &state->tags);
+        result = add_whole_track(state, stats);
+    } else {
+        result = read_track(state, job, stats, reusable ? &stamp : NULL);
     }
     scan_report(job, stats);
     return result;
@@ -514,7 +550,7 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
         return SCAN_PATH_TOO_LONG;
     }
     if (!directory) {
-        ScanResult result = add_file(state, job, stats);
+        ScanResult result = add_file(state, job, stats, offset);
         scan_truncate_path(state, state->levels[state->depth - 1].path_length);
         return result;
     }
@@ -581,6 +617,13 @@ static bool split_memory(ScanState **state, const ScanJob *job)
         return false;
     }
     uint32_t size = job->size - skip;
+    uint32_t cache_size =
+        job->tag_cache.size == SCAN_TAG_CACHE_BYTES
+            ? (uint32_t)((sizeof(ScanTagCache) + ALIGNMENT - 1) & ~(ALIGNMENT - 1u))
+            : 0;
+    if (size < 2 * MINIMUM_LISTING + header + cache_size) {
+        cache_size = 0;
+    }
     uint32_t listing = separate ? job->listing_size - own_skip : size / LISTING_SHARE;
     listing = listing < MINIMUM_LISTING ? MINIMUM_LISTING : listing;
     listing = listing > MAXIMUM_LISTING ? MAXIMUM_LISTING : listing;
@@ -592,8 +635,11 @@ static bool split_memory(ScanState **state, const ScanJob *job)
     (*state)->listing_used = 0;
     (*state)->playlist_floor = listing;
     (*state)->playlist_count = 0;
-    library_builder_init(&(*state)->builder, memory + header + taken, size - header - taken,
-                         job->scratch);
+    uint32_t end = size & ~(ALIGNMENT - 1u);
+    (*state)->tag_cache =
+        cache_size != 0 ? (ScanTagCache *)(void *)(memory + end - cache_size) : NULL;
+    library_builder_init(&(*state)->builder, memory + header + taken,
+                         end - header - taken - cache_size, job->scratch);
     return true;
 }
 
@@ -778,6 +824,9 @@ ScanResult library_scan(const ScanJob *job, ScanStats *stats)
                           (BuilderProgress){job->progress.phase, job->progress.context});
     scan_truncate_path(state, 1);
     state->levels[0].place = (ScanPlace){.flags = 0};
+    if (state->tag_cache != NULL) {
+        scan_tag_cache_begin(state->tag_cache, &job->tag_cache, job->full);
+    }
     ScanResult result = walk(state, job, stats);
     stats->tracks -= state->hidden;
     if (result == SCAN_OK) {
@@ -786,6 +835,10 @@ ScanResult library_scan(const ScanJob *job, ScanStats *stats)
     if (result != SCAN_OK) {
         return result;
     }
-    return scan_builder_result(
+    result = scan_builder_result(
         library_builder_finish(&state->builder, job->sink, job->capacity, &stats->length));
+    if (result == SCAN_OK && state->tag_cache != NULL) {
+        scan_tag_cache_finish(state->tag_cache);
+    }
+    return result;
 }

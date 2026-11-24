@@ -39,6 +39,7 @@ add_library(echo_library_scan STATIC
     mp4_chapters.c
     playlist_reader.c
     replay_gain.c
+    scan_tag_cache.c
     sort_fold_table.c
     sort_key.c
     tags_ape.c
@@ -60,6 +61,12 @@ target_link_libraries(echo_library_scan
     PRIVATE echo_options
 )
 if(CMAKE_CROSSCOMPILING)
+    set_source_files_properties(
+        builder_store.c
+        scan_tag_cache.c
+        TARGET_DIRECTORY echo_library_scan
+        PROPERTIES COMPILE_OPTIONS -Oz
+    )
     set_source_files_properties(
         cover_build.c
         cue_sheet.c

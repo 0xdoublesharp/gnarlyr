@@ -10,6 +10,7 @@
 #include "library/track_fields.h"
 #include "library/track_tags.h"
 #include "mp4_chapters.h"
+#include "scan_tag_cache.h"
 
 enum {
     ENTRY_PLAIN = 0,
@@ -45,6 +46,7 @@ typedef struct ScanState {
     uint32_t playlist_floor;
     uint32_t playlist_count;
     bool placing;
+    ScanTagCache *tag_cache;
     PlaylistReader playlist;
     CueSheet cue;
     Mp4Chapters chapters;

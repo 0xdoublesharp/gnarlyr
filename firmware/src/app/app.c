@@ -135,8 +135,14 @@ typedef struct AppState {
     Standby standby;
     LowBattery low_battery;
     uint32_t battery_check_ms;
+    union {
+        struct {
+            bool rescan_requested;
+            bool rescan_full;
+        };
+        uint16_t rescan_flags;
+    };
     bool usb_power;
-    bool rescan_requested;
     bool library_rebuilt;
     uint8_t rescan_stops;
     bool covers_pending;
@@ -1724,7 +1730,7 @@ static void build_screens(uint32_t now_ms)
         .power = &app.power,
         .toast = &app.toast,
         .covers = &app.covers,
-        .rescan_requested = &app.rescan_manual,
+        .rescan_requested = &app.rescan_full,
         .language_requested = &app.language_requested,
         .bluetooth = &app.bluetooth,
         .listening = &app.listening,
@@ -2009,9 +2015,11 @@ CORE_COLD static void run_rescan(void)
     RescanProgress progress = {show_rescan_progress, show_build_progress};
     log_scan(DEBUG_SCAN_START, 0);
     hal_system_set_clock_mhz(WORK_CLOCK_MHZ);
-    RescanOutcome outcome = library_rescan_run(progress, app.rescan_stops);
-    use_wanted_clock();
+    uint32_t stops = app.rescan_stops | (app.rescan_full ? SCAN_FULL_REQUEST : 0);
     app.rescan_stops = 0;
+    app.rescan_flags = 0;
+    RescanOutcome outcome = library_rescan_run(progress, stops);
+    use_wanted_clock();
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
     if (outcome.result == SCAN_OK) {
@@ -2309,7 +2317,7 @@ static const DebugAppHooks DEBUG_APP_HOOKS = {.power = &app.power,
                                               .settings = &app.settings,
                                               .charging = &app.charging,
                                               .rescan_manual = &app.rescan_manual,
-                                              .rescan_requested = &app.rescan_requested,
+                                              .rescan_requested = &app.rescan_full,
                                               .render_urgent = &app.render_urgent,
                                               .stop_charging = stop_charging,
                                               .settle = settle_screens,
@@ -2468,22 +2476,20 @@ CORE_SEAM void app_step(void)
                 show_working_notice(STR_MUSIC, i18n_text(STR_CHECKING_MUSIC), WIRE_SHAPE_DISC);
                 changed = walk_music(MUSIC_WALK_CHECK) || !library_store_open(&app.library);
             }
-            if (!changed && app.rescan_manual) {
+            if (changed) {
+                app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECK_CHANGED));
+                app.rescan_requested = true;
+                app.rescan_stops = 0;
+            } else if (app.rescan_manual) {
                 log_scan(DEBUG_SCAN_UP_TO_DATE, 0);
                 toast_show(
                     &app.toast,
                     i18n_text(app.music_unchecked ? STR_SCREEN_MISSING : STR_LIBRARY_UP_TO_DATE),
                     hal_clock_milliseconds());
             }
-            if (changed) {
-                app_show_notice(i18n_text(STR_MUSIC), i18n_text(STR_CHECK_CHANGED));
-            }
             app.rescan_manual = false;
-            app.rescan_requested |= changed;
-            app.rescan_stops = changed ? 0 : app.rescan_stops;
         }
-        if (app.rescan_requested) {
-            app.rescan_requested = false;
+        if (app.rescan_flags != 0) {
             run_rescan();
             return;
         }
@@ -2536,7 +2542,7 @@ CORE_SEAM void app_step(void)
     if (app.reload_pending) {
         Toast toast = app.toast;
         app.reload_pending = false;
-        app.rescan_requested = false;
+        app.rescan_flags = 0;
         app.music_check_requested = false;
         bool restored = hal_system_settle_user_state(true);
         start_app(false);
@@ -2678,7 +2684,7 @@ uint32_t app_pass_interval_ms(void)
     bool visual = app.display_on && (app.pacer.fast_frames > 0 || app.render_urgent ||
                                      app.render_wanted || app.charging);
     bool busy = visual || fade_running() || slide_running() || app.prepare_pending ||
-                app.rescan_requested || app.music_check_requested || app.rescan_manual;
+                app.rescan_flags != 0 || app.music_check_requested || app.rescan_manual;
     if (busy) {
         return PASS_BUSY_MS;
     }

@@ -23,6 +23,8 @@ typedef struct ScanEntry {
     uint32_t modified;
     ScanPlace place;
     char name[SCAN_NAME_CAPACITY];
+    uint32_t size;
+    uint32_t cluster;
 } ScanEntry;
 
 typedef struct ScanFileSystem {
@@ -79,7 +81,17 @@ typedef struct ScanJob {
     uint32_t capacity;
     ScanProgress progress;
     ScanTrackFilter filter;
+    BuilderScratch tag_cache;
+    bool full;
 } ScanJob;
+
+enum {
+    SCAN_TAG_CACHE_BYTES = 8 * 1024 * 1024
+};
+
+#define SCAN_FULL_REQUEST UINT32_C(0x80000000)
+
+extern const char SCAN_TAG_CACHE_PATH[];
 
 ScanResult library_scan(const ScanJob *job, ScanStats *stats);
 bool scan_is_cue_name(const char *name);
