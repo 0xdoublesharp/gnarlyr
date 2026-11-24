@@ -4,6 +4,7 @@ import os
 import platform
 import subprocess
 import tempfile
+import weakref
 from pathlib import Path
 
 import unicorn
@@ -21,6 +22,38 @@ GPIO_WRITE_CB = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_uint32, ctypes.
 GRF_WRITE_CB = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_uint32)
 MMC_READ_CB = ctypes.CFUNCTYPE(ctypes.c_uint64, ctypes.c_uint32, ctypes.c_uint32)
 MMC_WRITE_CB = ctypes.CFUNCTYPE(None, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_uint64)
+SNAPSHOT_REGION_CB = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_size_t)
+
+
+def _close_engine(close, args, kwargs, resources):
+    close(*args, **kwargs)
+
+
+class NativeEngine:
+    def __init__(self, uc, lib, kind, pointer, shared_owner=None):
+        self.lib = lib
+        self.kind = kind
+        self.pointer = pointer
+        self.shared_owner = shared_owner
+        self.mmio = set()
+        self.mmcs = {}
+        self.pages = {}
+        _, close, args, kwargs = uc._Uc__finalizer.detach()
+        uc._Uc__finalizer = weakref.finalize(uc, _close_engine, close, args, kwargs, self)
+        uc._native_engine = self
+
+    def __del__(self):
+        for page in self.pages.values():
+            self.lib.emu_generic_page_destroy(page)
+        for mmc in self.mmcs.values():
+            self.lib.emu_mmc_destroy(mmc)
+        getattr(self.lib, f"emu_{self.kind}_destroy")(self.pointer)
+
+    def unmap(self, uc, first, end):
+        uc.mem_unmap(first, end - first)
+        page = self.pages.pop(first, None)
+        if page is not None:
+            self.lib.emu_generic_page_destroy(page)
 
 
 class EmuWindow(ctypes.Structure):
@@ -253,6 +286,8 @@ def _configure_signatures(lib):
     lib.emu_core1_create.restype = vp
     lib.emu_core1_destroy.argtypes = [vp]
     lib.emu_core1_destroy.restype = None
+    lib.emu_core1_decoder.argtypes = [vp]
+    lib.emu_core1_decoder.restype = vp
     lib.emu_core1_clear_cache.argtypes = [vp]
     lib.emu_core1_clear_cache.restype = None
     lib.emu_core1_read_u32.argtypes = [vp, u32]
@@ -293,6 +328,11 @@ def _configure_signatures(lib):
     lib.emu_decoder_step.argtypes = [vp, dbl]
     lib.emu_decoder_step.restype = ctypes.c_int
 
+    for kind in ("core0", "core1", "decoder", "generic_page", "mmc"):
+        snapshot = getattr(lib, f"emu_{kind}_snapshot")
+        snapshot.argtypes = [vp, SNAPSHOT_REGION_CB]
+        snapshot.restype = None
+
 
 def load_native():
     global _CACHED, _LIB
@@ -313,7 +353,7 @@ def load_native():
     if not target.is_file():
         tmp = target.with_name(f"{target.stem}.{os.getpid()}{suffix}")
         cmd = [
-            "cc", "-O3", "-shared", "-fPIC", "-Wall", "-Wextra",
+            "cc", "-O3", "-shared", "-fPIC", "-Wall", "-Wextra", "-Werror",
             f"-I{inc}", str(src), str(uc_lib),
             f"-Wl,-rpath,{lib_dir}", "-o", str(tmp),
         ]

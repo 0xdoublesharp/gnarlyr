@@ -51,7 +51,7 @@ class Panel:
         self._sweeps = []
         self._columns = (0, 0)
         self._rows = (0, 0)
-        self.current = None
+        self._current = None
         self.window = None
         self.position = 0
         self._frame = [0] * (WIDTH * HEIGHT)
@@ -72,6 +72,13 @@ class Panel:
         self._native_ptr = ptr
         self._frame_synced_total = -1
         self._painted_synced_total = -1
+
+    @property
+    def current(self):
+        if self._native_ptr is None:
+            return self._current
+        groups = self.groups
+        return groups[-1] if groups else None
 
     @property
     def groups(self):
@@ -204,8 +211,8 @@ class Panel:
             self._native_lib.emu_panel_command(self._native_ptr, value & 0xFF)
             return
         self.window = None
-        self.current = [value, []]
-        self._groups.append(self.current)
+        self._current = [value, []]
+        self._groups.append(self._current)
         if value == RAMWR:
             self.window = Window(self._columns, self._rows, self.machine.cycles())
             self._windows.append(self.window)

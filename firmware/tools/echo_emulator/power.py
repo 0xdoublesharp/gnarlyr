@@ -105,13 +105,8 @@ class DecoderLoad:
         audio.core1 = self
         self.machine.hook_symbol("core1_source_fill", self.step)
 
-    def __del__(self):
-        self._detach_native()
-
     def _detach_native(self):
-        native = getattr(self, "_native", None)
-        lib = getattr(self, "_native_lib", None)
-        if native and lib is not None:
+        if self._native is not None:
             hdr = self._hdr
             self._instructions = hdr.instructions
             self._wakes = hdr.wakes
@@ -126,7 +121,6 @@ class DecoderLoad:
             self._resting = bool(hdr.resting)
             self._native = None
             self._hdr = None
-            lib.emu_decoder_destroy(native)
 
     @property
     def instructions(self):
@@ -297,6 +291,7 @@ class DecoderLoad:
                 self.core._native, self.machine.uc._uch, host_ram, self.wfi,
                 self.counter, 1 if self.in_units else 0, self.ring_bytes)
             if native:
+                self.core.uc._native_decoder_host = self.machine.uc
                 self._native_lib = lib
                 self._native = native
                 hdr = lib.emu_decoder_header(native).contents

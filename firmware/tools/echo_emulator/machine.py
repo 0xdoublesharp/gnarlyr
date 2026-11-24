@@ -225,26 +225,6 @@ class Machine:
         if rest_in_waits:
             self.rest_at_idle_polls()
 
-    def __del__(self):
-        lib = getattr(self, "_native_lib", None)
-        pages = getattr(self, "_native_generic_pages", None)
-        if pages and lib is not None:
-            for gp in pages.values():
-                lib.emu_generic_page_destroy(gp)
-            pages.clear()
-        mmcs = getattr(self, "_native_mmcs", None)
-        if mmcs and lib is not None:
-            for item in mmcs:
-                lib.emu_mmc_destroy(item[0])
-            mmcs.clear()
-        native = getattr(self, "_native", None)
-        if native and lib is not None:
-            self._native = None
-            self._native_header = None
-            self._ram_view = None
-            self._core1_ram_view = None
-            lib.emu_core0_destroy(native)
-
     @property
     def base_cycles(self):
         return self._native_header.base_cycles if self._native_header is not None else self._base_cycles
@@ -655,6 +635,8 @@ class Machine:
             self.map_device(controller, base, PAGE)
             return
         mmc_ptr[0] = ptr
+        self.uc._native_engine.mmcs[base] = ptr
+        self.uc._native_engine.mmio.add((base, base + PAGE))
         self._native_mmcs.append((ptr, rcb, wcb))
         orig_reset = controller.hard_reset
 
@@ -686,6 +668,10 @@ class Machine:
             self._grf_cb = native_accel.GRF_WRITE_CB(self._on_native_grf_write)
             native = self._native_lib.emu_core0_create(self.uc._uch, self._gpio_cb, self._grf_cb)
             if native:
+                engine = native_accel.NativeEngine(self.uc, self._native_lib, "core0", native)
+                engine.mmio.update((base, last + 1) for base, last, _ in self.uc.mem_regions()
+                                   if base >= PERIPHERAL_FIRST)
+                self._native_generic_pages = engine.pages
                 self._native = native
                 self._native_header = self._native_lib.emu_core0_header(native).contents
                 self.uc._native_python_exit = self._mark_native_python_exit

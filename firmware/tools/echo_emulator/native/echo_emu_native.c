@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -145,7 +146,7 @@ struct EmuPanel {
     int32_t row0;
     int32_t row1;
     int32_t active_window;
-    int32_t position;
+    int64_t position;
     int32_t sweep_windows;
     int64_t sweep_nonzero;
     int32_t sweep_next_row;
@@ -310,6 +311,84 @@ struct EmuDecoder {
     uc_hook write_cru_hook;
     uc_hook store_hook;
 };
+
+typedef void (*EmuSnapshotRegion)(void *data, size_t size, size_t capacity);
+
+#define SNAP_FIELD(obj, member) visit(&(obj)->member, sizeof((obj)->member), sizeof((obj)->member))
+#define SNAP_RANGE(type, obj, first, end)                                                          \
+    do {                                                                                           \
+        size_t size = offsetof(type, end) - offsetof(type, first);                                 \
+        visit(&(obj)->first, size, size);                                                          \
+    } while (0)
+#define SNAP_BUFFER(obj, member, count, cap)                                                       \
+    visit((obj)->member, (obj)->count * sizeof(*(obj)->member), (obj)->cap * sizeof(*(obj)->member))
+
+void emu_core0_snapshot(EmuCore0 *c, EmuSnapshotRegion visit)
+{
+    EmuPanel *p = c->panel;
+    SNAP_FIELD(c, h);
+    SNAP_RANGE(EmuCore0, c, budget_cycle, gpio_ctx);
+    SNAP_FIELD(c, grf_regs);
+    SNAP_RANGE(EmuPanel, p, frame, groups);
+    SNAP_FIELD(p, group_count);
+    SNAP_FIELD(p, param_len);
+    SNAP_FIELD(p, window_count);
+    SNAP_FIELD(p, sweep_count);
+    SNAP_BUFFER(p, groups, group_count, group_cap);
+    SNAP_BUFFER(p, params, param_len, param_cap);
+    SNAP_BUFFER(p, windows, window_count, window_cap);
+    SNAP_BUFFER(p, sweeps, sweep_count, sweep_cap);
+}
+
+void emu_core1_snapshot(EmuCore1 *c, EmuSnapshotRegion visit)
+{
+    SNAP_RANGE(EmuCore1, c, instructions, clock_writes);
+    SNAP_FIELD(c, clock_write_count);
+    SNAP_BUFFER(c, clock_writes, clock_write_count, clock_write_cap);
+    SNAP_FIELD(c, block_cache);
+}
+
+void emu_decoder_snapshot(EmuDecoder *d, EmuSnapshotRegion visit)
+{
+    SNAP_FIELD(d, h);
+    SNAP_RANGE(EmuDecoder, d, stored_mask, wfi_hook);
+}
+
+void emu_generic_page_snapshot(EmuGenericPage *p, EmuSnapshotRegion visit)
+{
+    visit(p, sizeof(*p), sizeof(*p));
+}
+
+typedef struct {
+    uint32_t base;
+    uint32_t size;
+    uint32_t permissions;
+    void *data;
+    uc_cb_mmio_read_t read;
+    uc_cb_mmio_write_t write;
+} EmuMapping;
+
+static size_t map_regions(uc_engine *uc, const EmuMapping *regions, size_t count)
+{
+    for (size_t i = 0; i < count; i++) {
+        const EmuMapping *r = &regions[i];
+        uc_err err = r->read
+                         ? uc_mmio_map(uc, r->base, r->size, r->read, r->data, r->write, r->data)
+                         : uc_mem_map_ptr(uc, r->base, r->size, r->permissions, r->data);
+        if (err != UC_ERR_OK) {
+            return i;
+        }
+    }
+    return count;
+}
+
+static void unmap_regions(uc_engine *uc, const EmuMapping *regions, size_t count)
+{
+    while (count > 0u) {
+        const EmuMapping *r = &regions[--count];
+        uc_mem_unmap(uc, r->base, r->size);
+    }
+}
 
 static void *alloc_page_aligned(size_t size)
 {
@@ -644,8 +723,8 @@ void emu_panel_pixel(EmuPanel *p, uint16_t value)
     }
     p->pixel_total++;
     if (width > 0) {
-        int32_t x = w->c0 + (p->position % width);
-        int32_t y = w->r0 + (p->position / width) - EMU_FIRST_VISIBLE_ROW;
+        int64_t x = w->c0 + (p->position % width);
+        int64_t y = w->r0 + (p->position / width) - EMU_FIRST_VISIBLE_ROW;
         p->position++;
         if (x >= 0 && x < EMU_PANEL_WIDTH && y >= 0 && y < EMU_PANEL_HEIGHT) {
             int32_t idx = y * EMU_PANEL_WIDTH + x;
@@ -694,13 +773,13 @@ void emu_panel_pixels(EmuPanel *p, const uint16_t *values, uint32_t len)
     p->pixel_total += count;
     uint32_t done = 0;
     while (done < count) {
-        int32_t row = p->position / width;
-        int32_t col = p->position % width;
+        int64_t row = p->position / width;
+        int32_t col = (int32_t)(p->position % width);
         uint32_t span = (uint32_t)(width - col);
         if (count - done < span) {
             span = count - done;
         }
-        int32_t y = w->r0 + row - EMU_FIRST_VISIBLE_ROW;
+        int64_t y = w->r0 + row - EMU_FIRST_VISIBLE_ROW;
         int32_t x = w->c0 + col;
         int32_t first = x > 0 ? x : 0;
         int32_t last =
@@ -765,13 +844,13 @@ static void vop_mmio_write(uc_engine *uc, uint64_t offset, unsigned size, uint64
 
 static void dmac_push_block(EmuPanel *p, uint32_t source, uint32_t words)
 {
-    if (words == 0u) {
+    if (words == 0u || words > UINT32_MAX / 4u) {
         return;
     }
     uint32_t pixels = words * 2u;
     uint32_t byte_len = words * 4u;
     EmuCore0 *c = p->core0;
-    if (c != NULL && source >= EMU_RAM_BASE &&
+    if (c != NULL && source % _Alignof(uint16_t) == 0u && source >= EMU_RAM_BASE &&
         (uint64_t)source + (uint64_t)byte_len <= (uint64_t)EMU_RAM_BASE + EMU_RAM_SIZE) {
         const uint16_t *src = (const uint16_t *)(c->ram_buf + (source - EMU_RAM_BASE));
         emu_panel_pixels(p, src, pixels);
@@ -1127,6 +1206,14 @@ struct EmuMmc {
     emu_mmc_write_cb_t write_cb;
 };
 
+void emu_mmc_snapshot(EmuMmc *m, EmuSnapshotRegion visit)
+{
+    SNAP_RANGE(EmuMmc, m, busy_until, fifo);
+    SNAP_FIELD(m, fifo_head);
+    SNAP_FIELD(m, fifo_len);
+    SNAP_BUFFER(m, fifo, fifo_len, fifo_cap);
+}
+
 static inline int mmc_busy(EmuMmc *m)
 {
     uint64_t cur = core0_cycles(m->core0);
@@ -1358,37 +1445,37 @@ EmuCore0 *emu_core0_create(uc_engine *uc, emu_gpio_write_cb_t gpio_cb, emu_grf_w
     uint32_t mid_size = EMU_CODE_WINDOW_END - EMU_DATA_LOW_END;
     uint32_t high_size = (EMU_RAM_BASE + EMU_RAM_SIZE) - EMU_CODE_WINDOW_END;
     uint32_t rw = UC_PROT_READ | UC_PROT_WRITE;
-    if (uc_mem_map_ptr(uc, EMU_RAM_BASE, low_size, rw, c->ram_buf) != UC_ERR_OK ||
-        uc_mem_map_ptr(uc, EMU_DATA_LOW_END, mid_size, UC_PROT_ALL, c->ram_buf + low_size) !=
-            UC_ERR_OK ||
-        uc_mem_map_ptr(uc, EMU_CODE_WINDOW_END, high_size, rw, c->ram_buf + low_size + mid_size) !=
-            UC_ERR_OK ||
-        uc_mem_map_ptr(uc, EMU_CORE1_RAM_BASE, EMU_CORE1_RAM_SIZE, rw, c->core1_ram_buf) !=
-            UC_ERR_OK) {
+    for (uint32_t port = 0; port < 3u; port++) {
+        c->gpio_ctx[port].core0 = c;
+        c->gpio_ctx[port].port = port;
+    }
+    const EmuMapping regions[] = {
+        {EMU_RAM_BASE, low_size, rw, c->ram_buf, NULL, NULL},
+        {EMU_DATA_LOW_END, mid_size, UC_PROT_ALL, c->ram_buf + low_size, NULL, NULL},
+        {EMU_CODE_WINDOW_END, high_size, rw, c->ram_buf + low_size + mid_size, NULL, NULL},
+        {EMU_CORE1_RAM_BASE, EMU_CORE1_RAM_SIZE, rw, c->core1_ram_buf, NULL, NULL},
+        {0x60070000u, 0x1000u, 0u, c->panel, vop_mmio_read, vop_mmio_write},
+        {0x60000000u, 0x1000u, 0u, c->panel, dmac_mmio_read, dmac_mmio_write},
+        {0xE000E000u, 0x1000u, 0u, c, systick_mmio_read, systick_mmio_write},
+        {0x400D0000u, 0x1000u, 0u, c, adc_mmio_read, adc_mmio_write},
+        {0x40120000u, 0x1000u, 0u, c, wdog_mmio_read, wdog_mmio_write},
+        {0x40160000u, 0x1000u, 0u, &c->gpio_ctx[0], gpio_mmio_read, gpio_mmio_write},
+        {0x40170000u, 0x1000u, 0u, &c->gpio_ctx[1], gpio_mmio_read, gpio_mmio_write},
+        {0x50030000u, 0x1000u, 0u, &c->gpio_ctx[2], gpio_mmio_read, gpio_mmio_write},
+        {0x50010000u, 0x1000u, 0u, c, grf_mmio_read, grf_mmio_write},
+    };
+    size_t count = sizeof(regions) / sizeof(regions[0]);
+    size_t mapped = map_regions(uc, regions, count);
+    if (mapped != count ||
+        uc_hook_add(uc, &c->block_hook, UC_HOOK_BLOCK, (void *)core0_trampoline_cb, c,
+                    EMU_TRAMPOLINE, EMU_TRAMPOLINE) != UC_ERR_OK) {
+        unmap_regions(uc, regions, mapped);
         free(c->ram_buf);
         free(c->core1_ram_buf);
         free(c->panel);
         free(c);
         return NULL;
     }
-    for (uint32_t port = 0; port < 3u; port++) {
-        c->gpio_ctx[port].core0 = c;
-        c->gpio_ctx[port].port = port;
-    }
-    uc_mmio_map(uc, 0x60070000ULL, 0x1000u, vop_mmio_read, c->panel, vop_mmio_write, c->panel);
-    uc_mmio_map(uc, 0x60000000ULL, 0x1000u, dmac_mmio_read, c->panel, dmac_mmio_write, c->panel);
-    uc_mmio_map(uc, 0xE000E000ULL, 0x1000u, systick_mmio_read, c, systick_mmio_write, c);
-    uc_mmio_map(uc, 0x400D0000ULL, 0x1000u, adc_mmio_read, c, adc_mmio_write, c);
-    uc_mmio_map(uc, 0x40120000ULL, 0x1000u, wdog_mmio_read, c, wdog_mmio_write, c);
-    uc_mmio_map(uc, 0x40160000ULL, 0x1000u, gpio_mmio_read, &c->gpio_ctx[0], gpio_mmio_write,
-                &c->gpio_ctx[0]);
-    uc_mmio_map(uc, 0x40170000ULL, 0x1000u, gpio_mmio_read, &c->gpio_ctx[1], gpio_mmio_write,
-                &c->gpio_ctx[1]);
-    uc_mmio_map(uc, 0x50030000ULL, 0x1000u, gpio_mmio_read, &c->gpio_ctx[2], gpio_mmio_write,
-                &c->gpio_ctx[2]);
-    uc_mmio_map(uc, 0x50010000ULL, 0x1000u, grf_mmio_read, c, grf_mmio_write, c);
-    uc_hook_add(uc, &c->block_hook, UC_HOOK_BLOCK, (void *)core0_trampoline_cb, c, EMU_TRAMPOLINE,
-                EMU_TRAMPOLINE);
     return c;
 }
 
@@ -1749,7 +1836,7 @@ uint32_t emu_panel_vop_pixel_mode(const EmuPanel *p)
 
 static inline uint32_t core1_block_insns(EmuCore1 *c1, uint64_t addr, uint32_t size)
 {
-    if (addr < EMU_CORE1_CODE_SIZE && size <= 0xFFFFu) {
+    if (addr < EMU_CORE1_CODE_SIZE && size <= EMU_CORE1_CODE_SIZE - addr && size <= 0xFFFFu) {
         uint32_t idx = (uint32_t)(addr >> 1);
         uint32_t cached = c1->block_cache[idx];
         if ((cached >> 16) == size && (cached & 0xFFFFu) != 0u) {
@@ -1866,27 +1953,21 @@ EmuCore1 *emu_core1_create(uc_engine *uc, void *shared_ram_ptr)
         return NULL;
     }
     uint32_t rw = UC_PROT_READ | UC_PROT_WRITE;
-    uc_err err = uc_mem_map_ptr(uc, EMU_CORE1_CODE_BASE, EMU_CORE1_CODE_SIZE,
-                                UC_PROT_READ | UC_PROT_EXEC, c1->code_buf);
-    if (err == UC_ERR_OK) {
-        if (c1->is_shared) {
-            err = uc_mem_map_ptr(uc, EMU_CORE1_RAM_BASE, EMU_CORE1_SHARED_OFFSET, rw,
-                                 c1->priv_ram_buf);
-            if (err == UC_ERR_OK) {
-                err = uc_mem_map_ptr(uc, EMU_CORE1_SHARED_BASE, EMU_CORE1_SHARED_SIZE, rw,
-                                     c1->shared_ram_buf);
-            }
-        } else {
-            err = uc_mem_map_ptr(uc, EMU_CORE1_RAM_BASE, EMU_CORE1_RAM_SIZE, rw, c1->priv_ram_buf);
-        }
-    }
-    if (err == UC_ERR_OK) {
-        err = uc_mem_map_ptr(uc, EMU_CORE1_SCB_BASE, EMU_CORE1_SCB_SIZE, rw, c1->scb_buf);
-    }
-    if (err == UC_ERR_OK) {
-        err = uc_mem_map_ptr(uc, EMU_CORE1_PERIPH_BASE, EMU_CORE1_PERIPH_SIZE, rw, c1->periph_buf);
-    }
-    if (err != UC_ERR_OK) {
+    uint32_t private_size = c1->is_shared ? EMU_CORE1_SHARED_OFFSET : EMU_CORE1_RAM_SIZE;
+    const EmuMapping regions[] = {
+        {EMU_CORE1_CODE_BASE, EMU_CORE1_CODE_SIZE, UC_PROT_READ | UC_PROT_EXEC, c1->code_buf, NULL,
+         NULL},
+        {EMU_CORE1_RAM_BASE, private_size, rw, c1->priv_ram_buf, NULL, NULL},
+        {EMU_CORE1_SCB_BASE, EMU_CORE1_SCB_SIZE, rw, c1->scb_buf, NULL, NULL},
+        {EMU_CORE1_PERIPH_BASE, EMU_CORE1_PERIPH_SIZE, rw, c1->periph_buf, NULL, NULL},
+        {EMU_CORE1_SHARED_BASE, EMU_CORE1_SHARED_SIZE, rw, c1->shared_ram_buf, NULL, NULL},
+    };
+    size_t count = sizeof(regions) / sizeof(regions[0]) - (c1->is_shared ? 0u : 1u);
+    size_t mapped = map_regions(uc, regions, count);
+    if (mapped != count ||
+        uc_hook_add(uc, &c1->clock_hook, UC_HOOK_MEM_WRITE, (void *)core1_clock_write_cb, c1,
+                    EMU_CORE1_CRU_CLOCK_SELECT, EMU_CORE1_CRU_CLOCK_SELECT) != UC_ERR_OK) {
+        unmap_regions(uc, regions, mapped);
         free(c1->code_buf);
         free(c1->scb_buf);
         free(c1->periph_buf);
@@ -1894,8 +1975,6 @@ EmuCore1 *emu_core1_create(uc_engine *uc, void *shared_ram_ptr)
         free(c1);
         return NULL;
     }
-    uc_hook_add(uc, &c1->clock_hook, UC_HOOK_MEM_WRITE, (void *)core1_clock_write_cb, c1,
-                EMU_CORE1_CRU_CLOCK_SELECT, EMU_CORE1_CRU_CLOCK_SELECT);
     return c1;
 }
 
@@ -1904,6 +1983,7 @@ void emu_core1_destroy(EmuCore1 *c1)
     if (c1 == NULL) {
         return;
     }
+    free(c1->decoder);
     free(c1->clock_writes);
     free(c1->code_buf);
     free(c1->scb_buf);
@@ -1919,14 +1999,14 @@ void emu_core1_clear_cache(EmuCore1 *c1)
 
 uint32_t emu_core1_read_u32(const EmuCore1 *c1, uint32_t addr)
 {
-    if (addr >= EMU_CORE1_RAM_BASE && addr + 4u <= EMU_CORE1_SHARED_BASE) {
+    if (addr >= EMU_CORE1_RAM_BASE && addr <= EMU_CORE1_SHARED_BASE - 4u) {
         return read_u32_le(c1->priv_ram_buf + (addr - EMU_CORE1_RAM_BASE));
     }
     if (addr >= EMU_CORE1_SHARED_BASE &&
-        addr + 4u <= EMU_CORE1_SHARED_BASE + EMU_CORE1_SHARED_SIZE) {
+        addr <= EMU_CORE1_SHARED_BASE + EMU_CORE1_SHARED_SIZE - 4u) {
         return read_u32_le(c1->shared_ram_buf + (addr - EMU_CORE1_SHARED_BASE));
     }
-    if (addr >= EMU_CORE1_SCB_BASE && addr + 4u <= EMU_CORE1_SCB_BASE + EMU_CORE1_SCB_SIZE) {
+    if (addr >= EMU_CORE1_SCB_BASE && addr <= EMU_CORE1_SCB_BASE + EMU_CORE1_SCB_SIZE - 4u) {
         return read_u32_le(c1->scb_buf + (addr - EMU_CORE1_SCB_BASE));
     }
     uint32_t v = 0u;
@@ -1936,16 +2016,16 @@ uint32_t emu_core1_read_u32(const EmuCore1 *c1, uint32_t addr)
 
 void emu_core1_write_u32(EmuCore1 *c1, uint32_t addr, uint32_t value)
 {
-    if (addr >= EMU_CORE1_RAM_BASE && addr + 4u <= EMU_CORE1_SHARED_BASE) {
+    if (addr >= EMU_CORE1_RAM_BASE && addr <= EMU_CORE1_SHARED_BASE - 4u) {
         write_u32_le(c1->priv_ram_buf + (addr - EMU_CORE1_RAM_BASE), value);
         return;
     }
     if (addr >= EMU_CORE1_SHARED_BASE &&
-        addr + 4u <= EMU_CORE1_SHARED_BASE + EMU_CORE1_SHARED_SIZE) {
+        addr <= EMU_CORE1_SHARED_BASE + EMU_CORE1_SHARED_SIZE - 4u) {
         write_u32_le(c1->shared_ram_buf + (addr - EMU_CORE1_SHARED_BASE), value);
         return;
     }
-    if (addr >= EMU_CORE1_SCB_BASE && addr + 4u <= EMU_CORE1_SCB_BASE + EMU_CORE1_SCB_SIZE) {
+    if (addr >= EMU_CORE1_SCB_BASE && addr <= EMU_CORE1_SCB_BASE + EMU_CORE1_SCB_SIZE - 4u) {
         write_u32_le(c1->scb_buf + (addr - EMU_CORE1_SCB_BASE), value);
         return;
     }
@@ -2107,9 +2187,38 @@ static void decoder_store_cb(uc_engine *uc, uc_mem_type type, uint64_t addr, int
     }
 }
 
+static void delete_hook(uc_engine *uc, uc_hook hook)
+{
+    if (hook != 0u) {
+        uc_hook_del(uc, hook);
+    }
+}
+
+void emu_decoder_destroy(EmuDecoder *d)
+{
+    EmuCore1 *c1 = d->core1;
+    delete_hook(c1->uc, d->wfi_hook);
+    delete_hook(c1->uc, d->read_cur_hook);
+    delete_hook(c1->uc, d->write_sys_hook);
+    delete_hook(c1->uc, d->write_cru_hook);
+    delete_hook(c1->uc, d->store_hook);
+    delete_hook(c1->uc, c1->block_hook);
+    c1->block_hook = 0u;
+    c1->decoder = NULL;
+    free(d);
+}
+
+EmuDecoder *emu_core1_decoder(EmuCore1 *c1)
+{
+    return c1->decoder;
+}
+
 EmuDecoder *emu_decoder_attach(EmuCore1 *c1, uc_engine *host_uc, void *host_core1_ram, uint32_t wfi,
                                uint32_t counter, uint8_t in_units, uint32_t ring_bytes)
 {
+    if (c1->decoder != NULL) {
+        return c1->decoder;
+    }
     EmuDecoder *d = (EmuDecoder *)calloc(1, sizeof(EmuDecoder));
     if (d == NULL) {
         return NULL;
@@ -2122,32 +2231,26 @@ EmuDecoder *emu_decoder_attach(EmuCore1 *c1, uc_engine *host_uc, void *host_core
     d->h.counter = counter;
     d->h.in_units = in_units;
     d->h.ring_bytes = ring_bytes;
+    uc_engine *uc = c1->uc;
+    if (uc_hook_add(uc, &c1->block_hook, UC_HOOK_BLOCK, (void *)core1_block_cb, c1, 1u, 0u) !=
+            UC_ERR_OK ||
+        uc_hook_add(uc, &d->wfi_hook, UC_HOOK_CODE, (void *)decoder_wfi_cb, d, wfi, wfi) !=
+            UC_ERR_OK ||
+        uc_hook_add(uc, &d->read_cur_hook, UC_HOOK_MEM_READ, (void *)decoder_read_cur_cb, d,
+                    EMU_CORE1_SYSTICK_CURRENT, EMU_CORE1_SYSTICK_CURRENT) != UC_ERR_OK ||
+        uc_hook_add(uc, &d->write_sys_hook, UC_HOOK_MEM_WRITE, (void *)decoder_write_cb, d,
+                    EMU_CORE1_SYSTICK_RELOAD, EMU_CORE1_SYSTICK_CURRENT) != UC_ERR_OK ||
+        uc_hook_add(uc, &d->write_cru_hook, UC_HOOK_MEM_WRITE, (void *)decoder_write_cb, d,
+                    EMU_CORE1_CRU_CLOCK_SELECT, EMU_CORE1_CRU_CLOCK_SELECT) != UC_ERR_OK ||
+        uc_hook_add(uc, &d->store_hook, UC_HOOK_MEM_WRITE, (void *)decoder_store_cb, d,
+                    EMU_CORE1_CONTROL,
+                    EMU_CORE1_CONTROL + EMU_CORE1_CONTROL_BYTES - 1u) != UC_ERR_OK) {
+        emu_decoder_destroy(d);
+        return NULL;
+    }
     c1->decoder = d;
     emu_core1_clear_cache(c1);
-    if (c1->block_hook == 0) {
-        uc_hook_add(c1->uc, &c1->block_hook, UC_HOOK_BLOCK, (void *)core1_block_cb, c1, 1ULL, 0ULL);
-    }
-    uc_hook_add(c1->uc, &d->wfi_hook, UC_HOOK_CODE, (void *)decoder_wfi_cb, d, wfi, wfi);
-    uc_hook_add(c1->uc, &d->read_cur_hook, UC_HOOK_MEM_READ, (void *)decoder_read_cur_cb, d,
-                EMU_CORE1_SYSTICK_CURRENT, EMU_CORE1_SYSTICK_CURRENT);
-    uc_hook_add(c1->uc, &d->write_sys_hook, UC_HOOK_MEM_WRITE, (void *)decoder_write_cb, d,
-                EMU_CORE1_SYSTICK_RELOAD, EMU_CORE1_SYSTICK_CURRENT);
-    uc_hook_add(c1->uc, &d->write_cru_hook, UC_HOOK_MEM_WRITE, (void *)decoder_write_cb, d,
-                EMU_CORE1_CRU_CLOCK_SELECT, EMU_CORE1_CRU_CLOCK_SELECT);
-    uc_hook_add(c1->uc, &d->store_hook, UC_HOOK_MEM_WRITE, (void *)decoder_store_cb, d,
-                EMU_CORE1_CONTROL, EMU_CORE1_CONTROL + EMU_CORE1_CONTROL_BYTES - 1u);
     return d;
-}
-
-void emu_decoder_destroy(EmuDecoder *d)
-{
-    if (d == NULL) {
-        return;
-    }
-    if (d->core1 != NULL && d->core1->decoder == d) {
-        d->core1->decoder = NULL;
-    }
-    free(d);
 }
 
 EmuDecoderHeader *emu_decoder_header(EmuDecoder *d)

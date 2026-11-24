@@ -8,6 +8,8 @@ from types import CellType, FunctionType, MethodType
 
 from unicorn import Uc
 
+from .native_accel import SNAPSHOT_REGION_CB
+
 
 def _memory_regions(uc):
     return {(first, last + 1): access for first, last, access in uc.mem_regions()}
@@ -19,6 +21,58 @@ def _callback_functions(callback):
         yield from (ref for ref in get_referents(thunk) if isinstance(ref, FunctionType))
 
 
+def _native_regions(resolve, pointer):
+    regions = []
+    resolve(pointer, SNAPSHOT_REGION_CB(lambda address, size, capacity:
+                                       regions.append((address, size, capacity))))
+    return regions
+
+
+class _NativeState:
+    def __init__(self, engine):
+        self.engine = engine
+        self.pages = engine.pages.copy()
+        self.parts = []
+        self.capture(engine.kind, engine.pointer)
+        for page in self.pages.values():
+            self.capture("generic_page", page)
+        for mmc in engine.mmcs.values():
+            self.capture("mmc", mmc)
+        self.decoder = self.current_decoder()
+        if self.decoder is not None:
+            self.capture("decoder", self.decoder)
+
+    def current_decoder(self):
+        if self.engine.kind == "core1":
+            return self.engine.lib.emu_core1_decoder(self.engine.pointer)
+        return None
+
+    def capture(self, kind, pointer):
+        resolve = getattr(self.engine.lib, f"emu_{kind}_snapshot")
+        regions = _native_regions(resolve, pointer)
+        data = [ctypes.string_at(address, size) if size else b"" for address, size, _ in regions]
+        self.parts.append((resolve, pointer, data))
+
+    def validate(self):
+        if not self.pages.items() <= self.engine.pages.items():
+            raise ValueError("a native MMIO page mapped at capture has changed")
+        if self.decoder is not None and self.current_decoder() != self.decoder:
+            raise ValueError("a native decoder registered at capture has changed")
+
+    def restore(self, uc):
+        decoder = self.current_decoder()
+        if decoder is not None and self.decoder is None:
+            self.engine.lib.emu_decoder_destroy(decoder)
+            del uc._native_decoder_host
+        for resolve, pointer, data in self.parts:
+            regions = _native_regions(resolve, pointer)
+            for saved, (address, _, capacity) in zip(data, regions, strict=True):
+                if len(saved) > capacity:
+                    raise ValueError("a native snapshot buffer has lost capacity")
+                if saved:
+                    ctypes.memmove(address, saved, len(saved))
+
+
 class _EngineState:
     def __init__(self, uc):
         self.uc = uc
@@ -27,8 +81,15 @@ class _EngineState:
         self.hooks = uc._callbacks.copy()
         self.mmio = uc._mmio_callbacks.copy()
         self.hook_exception = uc._hook_exception
+        self.native = None
+        mmio = set(self.mmio)
+        native = getattr(uc, "_native_engine", None)
+        if native is not None:
+            self.native = _NativeState(native)
+            mmio.update(native.mmio)
+            mmio.update(bounds for bounds in self.regions if bounds[0] in native.pages)
         self.ram = {bounds: bytes(uc.mem_read(bounds[0], bounds[1] - bounds[0]))
-                    for bounds in self.regions.keys() - self.mmio.keys()}
+                    for bounds in self.regions.keys() - mmio}
 
     def callbacks(self):
         yield from self.hooks.values()
@@ -43,15 +104,22 @@ class _EngineState:
             raise ValueError("a Unicorn device mapped at capture has been removed")
         if not self.regions.items() <= _memory_regions(uc).items():
             raise ValueError("a Unicorn memory region mapped at capture has changed")
+        if self.native is not None:
+            self.native.validate()
 
     def restore(self):
         uc = self.uc
         for handle in uc._callbacks.keys() - self.hooks.keys():
             uc.hook_del(handle)
         for first, end in _memory_regions(uc).keys() - self.regions.keys():
-            uc.mem_unmap(first, end - first)
+            if self.native is None:
+                uc.mem_unmap(first, end - first)
+            else:
+                self.native.engine.unmap(uc, first, end)
         for (first, _), data in self.ram.items():
             uc.mem_write(first, data)
+        if self.native is not None:
+            self.native.restore(uc)
         uc.context_restore(self.context)
         uc.ctl_flush_tb()
         uc._hook_exception = self.hook_exception

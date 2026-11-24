@@ -46,7 +46,7 @@ class _NativeClockWrites(list):
 
 
 class Core1:
-    def __init__(self, program, ring_bytes, shared_ram_ptr=None):
+    def __init__(self, program, ring_bytes, shared_with=None):
         self.ring_bytes = ring_bytes
         self.uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
         self._native_lib = native_accel.load_native()
@@ -57,9 +57,13 @@ class Core1:
         self._clock_writes = _NativeClockWrites(self)
         self._clock = CLOCK_100_MHZ
         if self._native_lib is not None:
+            shared_ram = getattr(shared_with, "core1_shared_ram_ptr", None)
+            shared_ram_ptr = shared_ram() if shared_ram is not None else None
             self._native = self._native_lib.emu_core1_create(self.uc._uch, shared_ram_ptr)
             if self._native:
                 self._shared = shared_ram_ptr is not None
+                owner = shared_with.uc._native_engine if self._shared else None
+                native_accel.NativeEngine(self.uc, self._native_lib, "core1", self._native, owner)
                 shared_ptr = self._native_lib.emu_core1_shared_ptr(self._native)
                 self._shared_view = memoryview(
                     (ctypes.c_uint8 * 0x40000).from_address(shared_ptr)).cast("B")
@@ -77,14 +81,6 @@ class Core1:
         sp, pc = struct.unpack("<II", program[:8])
         self.uc.reg_write(UC_ARM_REG_SP, sp)
         self.pc = pc | 1
-
-    def __del__(self):
-        native = getattr(self, "_native", None)
-        lib = getattr(self, "_native_lib", None)
-        if native and lib is not None:
-            self._native = None
-            self._shared_view = None
-            lib.emu_core1_destroy(native)
 
     @property
     def clock(self):

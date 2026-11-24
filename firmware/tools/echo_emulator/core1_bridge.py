@@ -37,12 +37,8 @@ class Core1Bridge:
         if program not in self.programs:
             return 0
         self.ring_bytes = RING_BYTES[program]
-        shared_ptr = None
-        getter = getattr(self.machine, "core1_shared_ram_ptr", None)
-        if getter is not None:
-            shared_ptr = getter()
         self.core = Core1(self.machine.read_memory(0x01000000, len(self.programs[program])),
-                          self.ring_bytes, shared_ram_ptr=shared_ptr)
+                          self.ring_bytes, shared_with=self.machine)
         self.active = self.core.boot()
         self.starts += int(self.active)
         if self.active:

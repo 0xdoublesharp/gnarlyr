@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import CONFIG, EchoImageHarness, main
 from echo_emulator.fat_volume import Fat32Volume
-from echo_emulator.playback import Rig
+from echo_emulator.playback import PlaybackSnapshot, Rig
 from echo_emulator.core1 import CONTROL
 from echo_emulator.power import DecoderLoad, PowerMeter
 
@@ -162,7 +162,7 @@ def position_frames(drawn):
 
 
 class EchoImageTest(EchoImageHarness):
-    def feed_rig(self, case, start_delay_ms=0):
+    def boot_feed_rig(self, case):
         name, data = encoded(case)
         volume = Fat32Volume()
         volume.add_file(name, data)
@@ -174,10 +174,17 @@ class EchoImageTest(EchoImageHarness):
         rig.machine.hook_symbol("frame_pacer_done",
                                 lambda: frames.append(rig.machine.milliseconds()))
         rig.open_songs()
+        return rig, meter, frames
+
+    def start_feed(self, rig, case, start_delay_ms):
         rig.run_for(start_delay_ms)
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
         self.assertEqual(CASES[case][1], rig.audio.rate)
+
+    def feed_rig(self, case):
+        rig, meter, frames = self.boot_feed_rig(case)
+        self.start_feed(rig, case, 0)
         return rig, meter, frames
 
     def blocks(self, rig):
@@ -349,6 +356,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(dark["panel_asleep"], dark)
         self.assertFalse(lit["panel_asleep"], lit)
         self.assertEqual([], rig.audio.underruns(resumed_ms)[:5], case)
+        self.assert_healthy(rig.session)
         return dark, lit
 
     def test_playback_resumed_with_the_screen_off_after_a_pause_stays_fed(self):
@@ -503,9 +511,12 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def sweep_start_phases(self, case, dark, delays):
+        rig, meter, frames = self.boot_feed_rig(case)
+        snapshot = PlaybackSnapshot(rig)
         for delay_ms in delays:
             with self.subTest(case=case, dark=dark, delay_ms=delay_ms):
-                rig, meter, frames = self.feed_rig(case, delay_ms)
+                snapshot.restore()
+                self.start_feed(rig, case, delay_ms)
                 since_ms = rig.machine.milliseconds()
                 shift_ms = WINDOW_SHIFTS_MS[delay_ms // DELAY_STEP_MS % len(WINDOW_SHIFTS_MS)]
                 result = self.measure(rig, meter, frames, case, dark,
@@ -519,6 +530,7 @@ class EchoImageTest(EchoImageHarness):
                 self.assertEqual(0, result["output_underruns"], result)
                 self.assertGreaterEqual(lowest, RING_FRAMES // 4, (delay_ms, shift_ms))
                 self.assertEqual([], rig.audio.underruns(since_ms)[:5], (delay_ms, shift_ms))
+                self.assert_healthy(rig.session)
 
     def test_192_khz_small_block_flac_stays_fed_at_start_phases_0_to_12_ms_with_the_screen_off(self):
         self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_0_TO_12_MS)

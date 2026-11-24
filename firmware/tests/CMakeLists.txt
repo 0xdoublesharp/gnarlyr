@@ -191,6 +191,31 @@ if(ARM_GCC)
                 )
             endforeach()
         endforeach()
+        foreach(mode IN ITEMS native python)
+            set(test_name emulator_snapshot_parity_${mode})
+            if(mode STREQUAL "native")
+                set(native_enabled 1)
+            else()
+                set(native_enabled 0)
+            endif()
+            add_test(NAME ${test_name}
+                COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                    ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_snapshot_parity.py
+                    --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
+                    --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
+                    --usb-overlay-elf
+                    ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
+            )
+            set_tests_properties(${test_name} PROPERTIES
+                ENVIRONMENT "ECHO_EMU_NATIVE=${native_enabled}"
+                FIXTURES_REQUIRED device_image
+                SKIP_RETURN_CODE 77
+                LABELS echo_image
+                PROCESSORS 1
+                COST 100
+                TIMEOUT ${echo_scenario_timeout}
+            )
+        endforeach()
         echo_emulator_timeout(echo_parametric_timeout 1500)
         set_tests_properties(
             device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns
