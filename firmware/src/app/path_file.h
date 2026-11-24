@@ -10,6 +10,12 @@ typedef struct PathFile {
     uint32_t size;
 } PathFile;
 
+typedef struct PathSlice {
+    uint32_t offset;
+    void *bytes;
+    uint32_t length;
+} PathSlice;
+
 bool path_file_read(void *context, uint32_t offset, void *bytes, uint32_t length);
 bool path_file_write(void *context, uint32_t offset, const void *bytes, uint32_t length);
 StoreFile path_file_store(PathFile *file);

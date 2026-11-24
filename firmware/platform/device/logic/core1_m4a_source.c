@@ -23,8 +23,7 @@ static bool begin_m4a(Core1Source *source, const Mp4Track *mp4, uint32_t packet)
     if (mp4->sample_count == 0 || !m4a_stream_start(source->m4a, file, mp4, packet)) {
         return false;
     }
-    source->input =
-        (FlacInput){.read = core1_m4a_read, .context = source->m4a, .size = M4A_VIRTUAL_END};
+    source->input = (FlacInput){.context = source->m4a, .size = M4A_VIRTUAL_END};
     source->start_offset = 0;
     source->end_offset = M4A_VIRTUAL_END;
     source->written = 0;

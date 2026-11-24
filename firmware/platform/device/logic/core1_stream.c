@@ -402,7 +402,11 @@ CORE_SEAM void core1_source_fill(Core1Source *source)
         uint32_t length = core1_smaller(core1_smaller(target - source->written, budget),
                                         source->region.ring_bytes - position);
         void *destination = (void *)(uintptr_t)&source->region.ring[position];
-        if (!source->input.read(source->input.context, source->written, destination, length)) {
+        bool ok =
+            source->input.read != NULL
+                ? source->input.read(source->input.context, source->written, destination, length)
+                : core1_module_read(source, destination, length);
+        if (!ok) {
             source->read_failed = true;
             return;
         }
@@ -488,14 +492,4 @@ AudioSource core1_source_interface(Core1Source *source, Core1Format format)
 {
     source->format = (uint8_t)format;
     return (AudioSource){core1_open, next_frame, release_frame, close_stream, source};
-}
-
-bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    return ogg_stream_read(context, offset, buffer, length);
-}
-
-bool core1_m4a_read(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    return m4a_stream_read(context, offset, buffer, length);
 }

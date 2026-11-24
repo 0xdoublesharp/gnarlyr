@@ -673,7 +673,7 @@ CORE_SEAM CORE_COLD void hal_audio_seek(uint32_t position_ms)
     seek_to(position_ms, audio_engine_status(&engine).state == AUDIO_ENGINE_PAUSED);
 }
 
-CORE_SEAM CORE_COLD void hal_audio_set_speed(uint16_t speed)
+CORE_COLD void hal_audio_set_speed(uint16_t speed)
 {
     ensure_engine();
     if (speed == engine.speed) {
@@ -1216,7 +1216,7 @@ void board_audio_stream_close(void)
     stream_frames = 0;
 }
 
-CORE_SEAM void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
+void hal_audio_set_replay_gain(uint32_t token, uint32_t gain)
 {
     ensure_engine();
     audio_engine_set_replay_gain(&engine, token, gain);

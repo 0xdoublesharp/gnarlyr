@@ -1,11 +1,12 @@
 #pragma once
 
 #include "hal/storage.h"
+#include "path_file.h"
 #include "playback/mix_tape.h"
 
 typedef struct MixtapeFile {
+    PathFile file;
     char path[MIX_TAPE_PATH_BYTES];
-    uint32_t size;
 } MixtapeFile;
 
 typedef enum MixtapeOperation {
@@ -24,7 +25,7 @@ typedef struct MixtapeChange {
 } MixtapeChange;
 
 typedef struct MixtapeStore {
-    MixtapeFile catalog_file;
+    PathFile catalog_file;
     MixtapeFile data_file;
     MixCatalog catalog;
     MixEntry entry;

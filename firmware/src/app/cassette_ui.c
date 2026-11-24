@@ -65,8 +65,9 @@ bool mixtape_ui_append(MixtapeUi *ui)
         return false;
     }
     ui->append_file = ui->store.data_file;
+    ui->append_file.file.path = ui->append_file.path;
     ui->append_tape = ui->store.tape;
-    ui->append_tape.file.source.context = &ui->append_file;
+    ui->append_tape.file.source.context = &ui->append_file.file;
     MixSource source = {read_append, ui, (uint16_t)(ui->append_tape.count + 1)};
     MixtapeChange change = {.operation = MIXTAPE_SAVE,
                             .slot = ui->slot,

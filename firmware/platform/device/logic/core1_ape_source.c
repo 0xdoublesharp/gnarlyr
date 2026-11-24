@@ -45,7 +45,7 @@ bool core1_open_ape(void *context, const char *path, uint32_t start_ms, AudioTra
         core1_source_stop(source);
         return false;
     }
-    source->input = (FlacInput){ape_stream_read, source->ape, APE_VIRTUAL_END};
+    source->input = (FlacInput){.context = source->ape, .size = APE_VIRTUAL_END};
     source->region.ring_bytes = APE_RING_BYTES;
     source->start_offset = 0;
     source->end_offset = APE_VIRTUAL_END;

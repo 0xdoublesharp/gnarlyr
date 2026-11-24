@@ -1,5 +1,6 @@
 #pragma once
 
+#include "path_file.h"
 #include "player.h"
 #include "settings/headphone_file.h"
 #include "settings_store.h"
@@ -14,6 +15,8 @@ typedef struct HeadphoneStore {
 } HeadphoneStore;
 
 StoreFile headphone_store_file(void);
+bool headphone_store_internal_read(const char *path, uint8_t *scratch, uint32_t capacity,
+                                   const PathSlice *slice);
 HeadphoneAudio headphone_store_parameters(const HeadphoneProfiles *profiles);
 void headphone_store_load(HeadphoneStore *store);
 bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *profiles,

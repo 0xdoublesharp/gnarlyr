@@ -1,14 +1,9 @@
 #include "cover_cache.h"
 
 #include "app/debug_loop.h"
+#include "store_file.h"
 
 const char COVER_CACHE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/covers.bin";
-
-static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t length)
-{
-    const CoverCache *cache = context;
-    return hal_file_read(cache->file, offset, buffer, length);
-}
 
 static void clear_slots(CoverCache *cache)
 {
@@ -30,7 +25,7 @@ void cover_cache_open(CoverCache *cache, const Library *library)
     if (!hal_file_open(&cache->file, COVER_CACHE_PATH)) {
         return;
     }
-    ByteSource source = {.read = read_file, .context = cache};
+    ByteSource source = {.read = store_file_read_open, .context = &cache->file};
     cache->available = covers_open(&cache->covers, source, cache->file.size);
     if (!cache->available) {
         hal_file_close(&cache->file);

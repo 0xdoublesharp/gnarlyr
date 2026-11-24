@@ -182,7 +182,7 @@ void board_core1_park(void)
     }
 }
 
-CORE_SEAM void board_core1_stop(void)
+void board_core1_stop(void)
 {
     if (streaming) {
         board_start_record_step(HAL_START_STEP_CORE1_STOP);

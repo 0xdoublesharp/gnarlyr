@@ -43,7 +43,7 @@ bool core1_open_wma(void *context, const char *path, uint32_t start_ms, AudioTra
     }
     uint64_t desired = (uint64_t)start_ms * wma.rate / 1000;
     uint32_t target = desired < wma.samples ? (uint32_t)desired : wma.samples;
-    source->input = (FlacInput){asf_stream_read, source->asf, WMA_VIRTUAL_END};
+    source->input = (FlacInput){.context = source->asf, .size = WMA_VIRTUAL_END};
     source->region.ring_bytes = WMA_RING_BYTES;
     source->start_offset = 0;
     source->end_offset = WMA_VIRTUAL_END;

@@ -6,4 +6,5 @@ const AudioModuleEntry AUDIO_APE_WMA_MODULE_ENTRY = {
     .magic = AUDIO_APE_WMA_MAGIC,
     .render = audio_resample_render,
     .open = {core1_open_ape, core1_open_wma},
+    .read = {ape_stream_read, asf_stream_read},
 };

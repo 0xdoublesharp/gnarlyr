@@ -6,5 +6,5 @@ const AudioModuleEntry AUDIO_OGG_MODULE_ENTRY = {
     .magic = AUDIO_OGG_MAGIC,
     .render = audio_resample_render,
     .open = {core1_open_ogg},
-    .read = ogg_stream_read,
+    .read = {ogg_stream_read},
 };

@@ -30,4 +30,4 @@ bool core1_open_vorbis(Core1Source *source, OggTrack *track, uint32_t start_ms);
 bool core1_open_opus(Core1Source *source, const OggTrack *track, uint32_t start_ms);
 
 bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length);
-bool core1_m4a_read(void *context, uint32_t offset, void *buffer, uint32_t length);
+bool core1_module_read(const Core1Source *source, void *buffer, uint32_t length);

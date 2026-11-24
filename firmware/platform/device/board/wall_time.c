@@ -29,7 +29,7 @@ HalWallTime hal_clock_wall(void)
     return wall_clock_now(&wall, hal_clock_milliseconds());
 }
 
-CORE_SEAM CORE_COLD void board_wall_time_restore(void)
+CORE_COLD void board_wall_time_restore(void)
 {
     if (!restore_pending) {
         return;

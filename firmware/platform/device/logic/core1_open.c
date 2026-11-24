@@ -12,3 +12,19 @@ bool core1_open(void *context, const char *path, uint32_t start_ms, AudioTrackIn
     const Core1Source *source = context;
     return OPENS[source->format](context, path, start_ms, track);
 }
+
+bool core1_ogg_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    return ogg_stream_read(context, offset, buffer, length);
+}
+
+bool core1_module_read(const Core1Source *source, void *buffer, uint32_t length)
+{
+    static bool (*const READS[])(void *, uint32_t, void *, uint32_t) = {
+        [CORE1_FORMAT_M4A] = m4a_stream_read,
+        [CORE1_FORMAT_DSD] = dsd_stream_read,
+        [CORE1_FORMAT_APE] = ape_stream_read,
+        [CORE1_FORMAT_WMA] = asf_stream_read,
+    };
+    return READS[source->format](source->input.context, source->written, buffer, length);
+}
