@@ -91,7 +91,7 @@ With `next` and `kept` from the counters, the ring holds the sequences from `nex
 | uncertain | the counters may or may not have been published. Nothing more is written until the log is opened again |
 | idle | the log is switched off |
 
-`listening_log_note` counts a boot, a charge session or a full charge with step 2 alone.
+`listening_log_note` counts a boot, a charge session or a full charge with step 2 alone. The app asks for one boot count per cold start (`ListeningStore.boot`) and counts it when the log opens. If that write is uncertain, the next open compares the boots counter with the expected value and counts again only when the first write did not land, before any play is appended.
 
 `listening_log_clear` runs from the listening module. It publishes a zero-counter root with no visible records to the spare counter block through `store_publish`, keeping the next sequence number. The previous block and the ring remain intact until publication succeeds. A torn write leaves the previous history or a valid empty root; subsequent plays keep the sequence moving. The app drops active listening time and pending retries after publication, including an uncertain publication, so a later flush cannot restore cleared history. A readback failure is reported and the next clear reloads the log before retrying. The new generation invalidates Smart List cache stamps. Moments, favorites and exported files are separate and remain unchanged.
 

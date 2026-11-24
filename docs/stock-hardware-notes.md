@@ -57,7 +57,7 @@ Register addresses are CS43198 addresses; the datasheet is DS1156F2.
 **Restart** `0x03051b22`: `0B0000=1F`, then 80 ms, then GPIO1.4 (amplifier) high, then init `0x03051736`. The init order matches `platform/device/logic/dac_sequence.c`, which [stock-firmware.md](stock-firmware.md) records. Gnarlyr differs in two places: it writes muted volumes during init where stock writes 0 dB (`dac_sequence.c:51-52`), and it writes the sample-rate byte after the outputs are released (`:225`).
 
 **Gain** `080000`:
-- Stock writes `0x31` for High and `0x10` for Low (`0x03051b18`: `movs r1,#16; lsls r0,r1,#15`), the same as `dac_sequence.c:34-35`.
+- Stock writes `0x31` for High and `0x10` for Low (`0x03051b18`: `movs r1,#16; lsls r0,r1,#15`). Gnarlyr writes the same High and the documented `0x20` for Low (`DAC_GAIN_LOW_VALUE` in `device/dac_sequence.h`).
 - OUT_FS = 01, which `0x10` selects, is listed as reserved in DS1156F2 §7.5.1; `0x20` would be the documented 1.41 Vrms setting. Whether stock's Low matches either documented level needs a measurement on a player.
 - At runtime `0x03061206` rewrites the register while the output is powered, with no PDN_HP step or mute, although §7.5.1 allows OUT_FS changes only with PDN_HP set.
 
@@ -218,7 +218,7 @@ These rates come from running stock's solver in an emulator with each profile se
 - **Profile row values.** The 96 MHz row has the same CON0/CON1 as `platform/device/logic/pll.c:45`. Stock's 196 MHz row uses a 588 MHz VCO; Gnarlyr's 200 MHz row uses 400 MHz (`pll.c:46`).
 
 **Gnarlyr's policy**:
-- Core 0 runs at 96 MHz when idle and 200 MHz with the screen on or audio playing (`src/app/app.c:273-279`), and coasts at /2 between passes (`clock_switch.c:183`, `board/main.c:253`).
+- Core 0 runs at 96 MHz when idle and 200 MHz with the screen on or audio playing (`src/app/app.c:273-279`); light screen-off playback moves the PLL to 96 MHz ([core1-clock.md](../firmware/docs/core1-clock.md)), and coasts at /2 between passes (`clock_switch.c:183`, `board/main.c:253`).
 - It sleeps in WFI between passes (`main.c:243`).
 - Core 1 runs at 100 MHz, or 200 MHz for DSD and hi-res Vorbis.
 

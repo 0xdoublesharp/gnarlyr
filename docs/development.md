@@ -89,7 +89,13 @@ python3 tools/firmware.py test --group smoke --jobs 2
 python3 tools/firmware.py test --jobs 6
 ```
 
-`--jobs` defaults to four and controls both build and test parallelism. The two overrides let tests run with different concurrency from compilation. ARM image checks reserve two CTest slots each. The wrapper has no option to skip a required build.
+`--jobs` defaults to four and controls both build and test parallelism. The two overrides let tests run with different concurrency from compilation. ARM image checks reserve one CTest slot each, and carry a CTest `COST` so the longest scenarios start first. The wrapper has no option to skip a required build.
+
+### Emulator speed
+
+The ARM emulator builds a native C accelerator, `firmware/tools/echo_emulator/native/echo_emu_native.c`, on first use with the system `cc` against the installed Unicorn. It caches the library as `libecho_emu_native_<hash>` under `firmware/build/native_cache`, which the wrapper keeps on Scratch, and rebuilds it when the source or the Unicorn library's path changes. If it can't be built, the emulator uses its Python hooks. Set `ECHO_EMU_NATIVE=0` to force the Python path; `emulator_snapshot_parity_native` and `emulator_snapshot_parity_python` run the same snapshot check both ways.
+
+Scenarios can boot once and reuse the state: `Session.snapshot()` and `Rig.snapshot()` capture the machine in memory, and `restore()` puts it back before the next case. The heavy small-block feed sweeps are split into separate tests, and their generated audio is cached under `fixture_cache` beside the device image.
 
 ## Build or run the simulator
 

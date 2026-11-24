@@ -16,16 +16,17 @@ Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music playe
 ### What's new
 
 - **Faster USB copying.** The player connects at High Speed (480 Mbit/s) and copies about twice as fast as before: 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
-- **New USB screens.** Connect to computer draws the last 10 seconds of reads and writes as a wireframe landscape. It shows the link speed as a USB symbol (with a lightning bolt at High Speed) and a row for each drive with its free space and activity. Press Menu for detailed stats. The USB DAC screen shows the level, the format, both volumes and the buffer, and tapping Back opens its details.
+- **New USB screens.** Connect to computer draws the last 10 seconds of reads and writes as a wireframe landscape. It shows the link speed as a USB symbol (with a lightning bolt at High Speed) and a row for each drive with its free space, which updates once the computer stops writing, and activity. Press Menu for detailed stats. The USB DAC screen shows the level, the format, both volumes and the buffer, and tapping Back opens its details.
 - **Safe updates.** A new version starts on trial and the previous one is kept as a backup. If the new one fails to start properly, the player puts the backup back and says "Update rolled back".
 - **Card eject and hot-insert.** Settings → Eject card makes the microSD card safe to remove. Insert or remove a card while the player runs, and the library follows it.
-- **Fast library scans with progress.** The player shows what it is doing while it checks for changes, sorts and saves. You can browse and play as soon as the tracks are ready, and album covers fill in later.
+- **Fast library scans with progress.** The player shows what it is doing while it checks for changes, sorts and saves. You can browse and play as soon as the tracks are ready, and album covers fill in later. After you copy music, the rescan reuses the saved tags of unchanged files and reads only new or changed ones; Settings → Rescan library reads every file again.
 - **Recap.** See your listening time, plays, skips and top songs, albums and artists. The Recap row in Recap shows a month, a year or all time as a short run of cards.
 - **Wireframe start-up and shutdown.** Turn them off in Settings → Power → Start and stop animation.
 - **Make it yours.** Choose from five themes or add `.gtheme` packs. Settings → Orientation offers portrait mode, and Settings → Home screen chooses and orders the items on Home.
 - **Formats.** FLAC, MP3, WAV, AIFF, AAC and Apple Lossless (`.m4a`, `.m4b` audiobooks with chapters), Ogg Vorbis, Opus, APE, WMA, and DSD (DSF/DFF, played as PCM). Also CUE sheets and M3U playlists, at up to 192 kHz.
 - **Parametric EQ and sound controls.** Use up to ten filters, or import AutoEQ files. Sound shaping offers seven simple controls. Also crossfeed, playback speed from 0.5× to 3× at the same pitch, fades between shuffled songs, and Skip silence and Speech boost for audiobooks and podcasts.
 - **Bluetooth headphones,** with their own volume, as well as the 3.5 mm and 4.4 mm jacks.
+- **Lower clocks when there's less to do.** The player runs at 96 MHz when idle and from the 24 MHz crystal in standby, and switches the audio clocks off when playback stops. With the screen off, FLAC, WAV, Apple Lossless and MP3 up to 48 kHz play at 96 MHz instead of 200 MHz. Apple Lossless can use the player's audio accelerator, and the FLAC, Apple Lossless, Ogg Vorbis, Opus and WMA decoders do the same work in fewer instructions. Lower-clock playback and the Apple Lossless accelerator haven't been checked on a player yet, and battery life and the savings haven't been measured.
 - **ReplayGain** (Track, Album or Auto) and four **headphone profiles**, each with trim, balance and a volume limit.
 - **Language packs.** English is built in. Make a pack for your language at <https://gnarlyr.com/languages.html> and copy it to the player.
 
@@ -37,8 +38,22 @@ Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music playe
 - Two safety nets haven't been tried on a player since their latest fixes: recovery mode by holding Power and Vol+, and the automatic rollback of a broken update.
 - Settings reset to their defaults if you come from a Gnarlyr development build.
 - Ogg, Opus, APE, WMA and DSD playback, and Bluetooth, have had the least listening on a player. Reports on them are especially welcome.
+- Lower-clock screen-off playback, the Apple Lossless accelerator, rescans that reuse saved tags and the updating USB free space haven't been checked on a player yet.
 
 To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues>. Include the version from Settings → About → Firmware, what you did and what happened. Attach the report files from the hidden `.gnarlyr/debug` folder on the player's internal drive. The full list is in [known issues](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/known-issues.md#beta-testers).
+
+## Unreleased: beta fixes and speed-ups
+
+- **Power.** The idle clock is 96 MHz and standby runs from the 24 MHz crystal, also when standby starts with the screen already dark. When audio stops, the ACODEC PLL powers down and six audio clock gates turn off. The PWM clock stays gated until the backlight first turns on. Light screen-off playback (FLAC, WAV, ALAC and MP3 at 48 kHz or below, no equalizer, playback speed or rate conversion) drops the PLL to 96 MHz without stopping playback DMA, and core 1 follows the new rate ([the clock reference](core1-clock.md)).
+- **Decoders.** FLAC and ALAC refill their bit readers a word at a time, Tremor uses its ARM assembly, Opus uses `OPUS_FAST_INT64`, and the hottest decoder files build with `-O3`. In the M4A program the ALAC adaptive predictor runs on HIFIACC for orders 3 to 30 once order-4 and order-8 self-tests pass, and falls back to software otherwise ([hardware](hardware.md), Audio).
+- **DAC.** A volume change writes only PCM Volume A, which sets both channels. A start that asks for the ACODEC PLL row already running skips reprogramming it and its 5 ms settle. Play and pause notices go only to Bluetooth modules that report version CV15.
+- **USB.** A USB connection that nothing answers, such as a wall charger, stops listening after 15 s, and USB Mode reconnects it without unplugging. Free space on the Connect to computer screen updates during the session. A full-speed DAC session ends at the last buffered audio instead of replaying old frames. Bluetooth switched off for the DAC is put to sleep, so Play can wake it and reconnect afterwards.
+- **Library.** Rescans reuse saved tags for unchanged files; Settings → Rescan library reads everything again. ID3 tags near the end of a file are bounded by the file size, and an ID3-prefixed FLAC file is recognised as FLAC.
+- **Start-up and faults.** A start on a low battery shows its notice before switching off. A fault wakes a sleeping panel, resets the display controller and still switches off when Power is held. The SD-card eject notice no longer trips the stall watch. After a USB session the trial record is found and checked again, and a damaged glyph face is read from slot 2. Verified audio module bodies are not checked again on every load. System time from the SysTick only moves forward.
+- **Playback.** A–B repeat no longer restarts output on a refused B mark or a failed seek, APE playback can't release data it hasn't written, a change from a core 1 format to WAV or AIFF stops core 1, and routing to Bluetooth releases the mute guard set when wired headphones are unplugged; the DAC volume is not written while that guard holds.
+- **Screens.** Portrait Home fits Now Playing at large text without scrolling, and the developer frame-time overlay fits in portrait. CJK titles that scroll no longer reload their glyphs on every frame, and static menus and lists no longer redraw once a second during playback. The missing-fonts list leaves out raw file and folder names, and a language pack, built-in or copied to the player, stops saying it needs fonts once its menu characters can be drawn.
+- **Listening log.** Cold starts are counted, and an uncertain write is resolved before the next play is added.
+- Host tests and emulator scenarios cover these changes. No player check is recorded for any of them.
 
 ## Unreleased: Sunset Drive meters
 
@@ -117,16 +132,16 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 
 ## USB screens
 
-- Connect to computer shows the live rate in MB/s beside fixed read and write arrows, a 10-second graph, what was read and written, and a gauge per drive with free space at connect and a light with write and read arrows that fade over 300 ms. Nothing in the rate row moves or changes size: an arrow lights while its direction is in use and stays lit 0.4 s after the last transfer, both dim with a dimmed 0.0 when nothing moves, and the rate is averaged over about a second.
+- Connect to computer shows the live rate in MB/s beside fixed read and write arrows, a 10-second graph, what was read and written, and a gauge per drive with free space, read at connect and again once the computer's writes have been quiet for 3 seconds, and a light with write and read arrows that fade over 300 ms. Nothing in the rate row moves or changes size: an arrow lights while its direction is in use and stays lit 0.4 s after the last transfer, both dim with a dimmed 0.0 when nothing moves, and the rate is averaged over about a second.
 - Press Menu on the Connect to computer screen, or tap Back on the USB DAC screen, for details: per-drive data, commands, command size, peak and average rate, drive busy time, errors with the last sense code, link and session time; for the DAC, the exact format, interface, buffer range, clock correction and feedback, underruns and overruns, gain register, host volume and data rate. The chosen page is kept until restart.
 - During high-speed USB DAC streaming the screen now draws each row in 160-pixel pieces, keeping USB audio polling inside the 125 µs frame (148 → 114 µs worst gap), so redraws no longer cost audio packets.
-- The DAC ring now shares the idle mass-storage buffer, which leaves 9 KB of the USB overlay free in developer builds.
+- The DAC session's PCM ring uses the idle music ring in data RAM, where I2S DMA reads don't compete with the processor's instruction fetches. The DAC screen services USB between drawing bands, repaints only the meter segments and rows that changed, and a volume change redraws only the volume figures.
 - Native rendering, rate, sparkline, free-space and counter tests and ARM scenarios cover software behaviour. Player checks are listed in [known issues](known-issues.md).
 
 ## USB DAC
 
 - High-speed UAC2 adds stereo 16/24/32-bit PCM at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. Full-speed UAC1 retains 16/24-bit at 44.1/48 kHz.
-- Explicit feedback follows the player’s clock without dropping or repeating samples in UAC2. The USB overlay ring targets 5 ms of device buffering (17,600 bytes in device, 24,000 in release); headphone trim/balance and DAC volume remain available. An empty USB stream is cleared and muted before it reprimes.
+- Explicit feedback follows the player’s clock without dropping or repeating samples in UAC2. The PCM ring (24,000 bytes in data RAM) targets 5 ms of device buffering; headphone trim/balance and DAC volume remain available. An empty USB stream is cleared and muted before it reprimes.
 - ▶ sends host play/pause; 400 ms Vol+ and Vol− holds send next and previous. Volume taps change the local DAC volume.
 - Native descriptor, clock-drift and PCM tests and ARM streaming scenarios cover software behavior. Physical host compatibility, clock accuracy, both outputs, remote keys and hardware CPU margin remain open in the [host acceptance checks](known-issues.md#usb-dac-host-acceptance).
 
@@ -139,8 +154,9 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 ## Library and navigation
 
 - Home defaults to Music, Mixtapes, Recap, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept.
-- The library opens as soon as its tracks are sorted; album covers fill in afterwards while the player is idle and not playing, pause for a key press, playback or a USB cable, and resume where they stopped, also after a restart. In the emulator, a generated 4,003-track card is browsable after 29.6 s and has all 303 covers after 135.8 s; the same card took 160.9 s, all of it before the library opened, at the start of this work. Not yet timed on a player.
-- Settings → Rescan library says "Library is up to date" instead of rebuilding when the music, the firmware and the last scan are unchanged (1.5 s on 4,003 tracks in the emulator; it rebuilt for 34.7 s before).
+- The library opens as soon as its tracks are sorted; album covers fill in afterwards while the player is idle and not playing, pause for a key press, playback or a USB cable, and resume where they stopped, also after a restart. In the emulator, before tag caching, a generated 4,003-track card is browsable after 29.6 s and has all 303 covers after 135.8 s; the same card took 160.9 s, all of it before the library opened, at the start of this work. Not yet timed on a player.
+- Rescans after a music change reuse the tags saved from the last scan for every file whose path, size, modification time and first cluster are unchanged, so only new or changed files are opened (200 tagged tracks plus one added file: 403 ms and one file opened, against 1,181 ms and 200 files for the first scan, in the emulator). Settings → Rescan library always rebuilds and reads every file. Track indexing no longer probes embedded artwork; the cover pass still finds it.
+- When the music, the firmware and the last scan are unchanged, the music check skips the rebuild (1.5 s on 4,003 tracks in the emulator; it rebuilt for 34.7 s before).
 - Album art: Ogg and Opus pictures, CMYK and YCCK JPEGs and JPEG EXIF orientation are shown; ID3 tags with unsynchronisation are read correctly; embedded art that can't be decoded gives way to the folder image. echo-sync picks the same picture as the player for every case of a 55-album test corpus.
 - Cover decoding is about a fifth faster, and long file reads and writes take one card command per 16 KB.
 - A scan that stops the player (a fault, a stall, power loss) skips the file it was reading at the next start and lists it in the debug report; after three stops in a row the library is built without covers.
@@ -215,7 +231,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Ogg Vorbis compatibility is checked against independently built Xiph and aoTuV encoders and ffmpeg-native output, across VBR qualities −1 to 10, speech rates, 192 kHz stereo and managed 500 kbit/s. Large artwork comments are skipped during decode. Chained files stop at their first link with its correct duration; multiplexed files ignore other checked serials when Vorbis is first.
 
-- The desktop simulator plays Vorbis and Opus with the firmware decoders, including seeking, mono output, Opus gain and end trimming. Core-1 emulation measures about 0.81/1.34/2.31 million instructions per 20 ms for q10 stereo at 48/96/192 kHz. These are software checks; neither codec has been listened to on the player, and actual real-time margin remains unmeasured.
+- The desktop simulator plays Vorbis and Opus with the firmware decoders, including seeking, mono output, Opus gain and end trimming. Core-1 emulation measured about 0.81/1.34/2.31 million instructions per 20 ms for q10 stereo at 48/96/192 kHz, before the decoder speed-ups. These are software checks; neither codec has been listened to on the player, and actual real-time margin remains unmeasured.
 
 - Output-underrun diagnostics exclude intentional muted DMA pauses, clear stale start/resume flags and retain pending playback faults. Unmuted interruptions remain visible.
 

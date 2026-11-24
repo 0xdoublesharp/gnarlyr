@@ -5,7 +5,8 @@ select PLL / 1 for 200 MHz decode work. DSD64 mono uses 100 MHz; DSD64 stereo,
 DSD128 and mono DSD256 use 200 MHz. Vorbis above 96 kHz uses 200 MHz. APE
 Fast stereo above 96 kHz and Normal stereo above 48 kHz use 200 MHz. Other
 programs retain 100 MHz. These clocks provide two or four million cycles per
-20 ms, respectively. Instructions are not cycles: the emulator does not model
+20 ms, respectively. During light screen-off playback core 0 lowers the PLL to
+96 MHz, and core 1 then runs at 96 MHz at most (below). Instructions are not cycles: the emulator does not model
 Cortex-M3 instruction timing, SRAM waits, storage contention or power draw.
 
 ## Hardware and stock reference
@@ -43,15 +44,17 @@ the profile values must not be presented as measurements of stock DSD playback.
 
 The apparent voltage-related calls passing `0x100`/`0x120` in the clock setter
 land at `0x030617CE`, which only loads and returns a stored word. They do not
-write a regulator. No voltage adjustment or PLL retune is introduced here.
+write a regulator. No voltage adjustment is introduced here; the only PLL
+retune during playback is the move between 200 and 96 MHz described below.
 200 MHz is below both the documented maximum and stock's active calculation
 clock targets. Higher steps would require additional PLL/system-clock work and
 are outside this implementation.
 
 ## Requests and transitions
 
-The audio HAL sets the PLL to 200 MHz before starting a decoder and keeps it
-there until audio/core 1 shut down. `core1_divider_for` still selects /2 for
+The audio HAL sets the PLL to 200 MHz before opening a track and keeps it
+there until audio/core 1 shut down, except during light screen-off playback
+(next section). `core1_divider_for` still selects /2 for
 startup. Every program serves its stream through `core1_serve`, which installs
 `StreamRegion.request_clock` and `StreamRegion.hurry_clock`; the stream resets the
 request to 100 MHz on adoption or cancellation, so a seek or a track change within
@@ -87,7 +90,40 @@ continuously running 200 MHz decoder. Stop gates/powers down core 1 as before.
 Core 0's coasting writes only system-divider bits 2:0. Its
 `tick_clock_set_rate` accounts for system time across those changes; calculation
 clock requests neither call it nor change core 0's PLL, divider or timebase.
-No request handshake or dispatch is added to resident core-0 code.
+Core 0 publishes the PLL rate in one shared word (`CORE1_PACE_PLL_STATE`);
+core 1 reads it and does not call back into core 0.
+
+## Screen-off playback at 96 MHz
+
+When the display is dark and no USB core is powered, `board_audio_plan_rest`
+checks the playing stream. FLAC, WAV, ALAC and MP3 at 48 kHz or below qualify
+when the engine is decoding without a pending rate change, drain, equalizer,
+playback-speed stretch or rate conversion, and the output ring is not running
+low. Core 0 then retunes the PLL from 200 to 96 MHz with interrupts masked and
+playback DMA left running, and writes the new rate to `CORE1_PACE_PLL_STATE`.
+If the switch fails, it returns to the previous rate. Wired playback in this
+state rests up to 55 ms between passes instead of 40 ms; with Bluetooth powered
+the clock still drops, but passes take no rest.
+
+Core 1 checks the shared word when it wakes. On a change it recomputes its
+divider against the new PLL rate, restarts the governor with limits for a
+96 MHz PLL (96, 48 or 24 MHz, halving and doubling as above) and reloads its SysTick for
+the new clock. Waking the screen, turning the equalizer on or opening a track
+raises the PLL back to 200 MHz, again without stopping DMA, and core 1 follows
+the same way. The emulator models the shared word and the retune; host tests
+cover the divider and limit arithmetic. Playback quality, core 1 margin at
+96 MHz and power saved have not been measured on the player.
+
+## Decoder speed-ups
+
+Core 1 programs keep the clocks above; their decoders got cheaper. FLAC and
+ALAC refill their bit readers a 32-bit word at a time, and ALAC splits its
+predictor adaptation from prediction. Tremor is built with `_ARM_ASSEM_` and
+`-O3`, libopus with `OPUS_FAST_INT64=1` and `-O3` on eight CELT and SILK
+files, and the ALAC decoder and two WMA files with `-O3`. In the M4A program the
+ALAC adaptive predictor can also run on HIFIACC ([hardware](hardware.md),
+Audio). Native and ARM decoder comparisons cover the output; the cycle savings
+on the player have not been measured.
 
 ## Admission and checks
 

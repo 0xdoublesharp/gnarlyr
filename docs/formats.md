@@ -113,6 +113,7 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | discovery preferences | 1 | |
 | debug screenshots | 1 | `tools/echo_debug.py` |
 | `scan.bin` | `DSS2` | the card and internal music fingerprints, firmware tag, internal state and generation in a 52-byte record |
+| `tagcache.bin` | `DST` then version byte 1 | disposable tag cache for incremental rescans: 8 MiB in two 4 MiB banks behind one 16-byte header (version word, sequence, length, checksum) at the start of the file; [library-format.md](../firmware/docs/library-format.md), Building on the device |
 
 `resume.bin` and `upnext.bin` from earlier builds are no longer read or created; the session journal holds that state.
 
