@@ -33,6 +33,7 @@ _Static_assert((int)DEBUG_SOAK_CABLE == (int)HAL_PROBE_CABLE &&
 
 typedef struct Writer {
     StringBuilder text;
+    const char *prefix;
     size_t line_start;
     bool truncated;
 } Writer;
@@ -122,9 +123,9 @@ static const char *const SPEED_FALLBACK_NAMES[] = {"none", "not_configured", "fe
 static const char *const STEP_NAMES[HAL_START_STEP_COUNT] = {
     "none",       "backlight_on", "backlight_off", "clock_switch", "core1_start",
     "core1_stop", "card_write",   "watchdog_test", "loader"};
-static const char *const PART_NAMES[DEBUG_FRAME_PARTS] = {
-    "frame.part.covers_us",   "frame.part.reflections_us", "frame.part.text_us",
-    "frame.part.backdrop_us", "frame.part.hash_us",        "frame.part.audio_us"};
+static const char *const PART_NAMES[DEBUG_FRAME_PARTS] = {"part.covers_us", "part.reflections_us",
+                                                          "part.text_us",   "part.backdrop_us",
+                                                          "part.hash_us",   "part.audio_us"};
 
 #define NAME_IN(names, index)                                                                      \
     ((size_t)(index) < sizeof(names) / sizeof(names)[0] ? (names)[index] : UNKNOWN)
@@ -132,6 +133,9 @@ static const char *const PART_NAMES[DEBUG_FRAME_PARTS] = {
 static void begin(Writer *writer, const char *key)
 {
     writer->line_start = writer->text.length;
+    if (writer->prefix != NULL) {
+        string_builder_append(&writer->text, writer->prefix);
+    }
     string_builder_append(&writer->text, key);
     string_builder_append(&writer->text, ": ");
 }
@@ -264,17 +268,18 @@ bool debug_report_cold_start(const HalStartInfo *start, uint32_t uptime_ms)
 
 static void put_standby(Writer *writer, const Standby *standby)
 {
-    put_unsigned(writer, "standby.entries", standby->entries);
-    put_unsigned(writer, "standby.wakes", standby->wakes);
-    if (standby->entries == 0) {
-        return;
+    writer->prefix = "standby.";
+    put_unsigned(writer, "entries", standby->entries);
+    put_unsigned(writer, "wakes", standby->wakes);
+    if (standby->entries != 0) {
+        put_known(writer, "wake_latency_ms", standby->wakes != 0 && !standby->waking,
+                  standby->latency_ms);
+        put_unsigned(writer, "entry_ms", standby->entry_ms);
+        put_unsigned(writer, "wake_ms", standby->wake_ms);
+        put_known(writer, "entry_mv", standby->entry_mv != 0, standby->entry_mv);
+        put_known(writer, "wake_mv", standby->wake_mv != 0, standby->wake_mv);
     }
-    put_known(writer, "standby.wake_latency_ms", standby->wakes != 0 && !standby->waking,
-              standby->latency_ms);
-    put_unsigned(writer, "standby.entry_ms", standby->entry_ms);
-    put_unsigned(writer, "standby.wake_ms", standby->wake_ms);
-    put_known(writer, "standby.entry_mv", standby->entry_mv != 0, standby->entry_mv);
-    put_known(writer, "standby.wake_mv", standby->wake_mv != 0, standby->wake_mv);
+    writer->prefix = NULL;
 }
 
 static void put_system(Writer *writer, const DebugReportInput *input)
@@ -316,27 +321,45 @@ static void put_battery(Writer *writer, const DebugReportInput *input)
     put_unsigned(writer, "battery.usb_power", battery.usb_power);
 }
 
+static void put_known_list(Writer *writer, const char *const *keys, const uint32_t *values,
+                           size_t count, bool known)
+{
+    for (size_t index = 0; index < count; index++) {
+        put_known(writer, keys[index], known, values[index]);
+    }
+}
+
 static void put_power(Writer *writer, const DebugReportInput *input)
 {
+    static const char *const GAUGE_KEYS[] = {
+        "gauge_millivolts", "percent_plain", "percent_gauge", "percent_shown",
+        "offset_applied",   "capped",        "held",
+    };
     const DebugReportPower *power = &input->power;
     bool gauged = power->gauge_readings != 0;
     bool charging = input->battery.charging;
-    put_unsigned(writer, "power.vbus", power->vbus);
-    put_unsigned(writer, "power.usb_powered", power->usb_powered);
-    put_known(writer, "power.charge_pin", power->pin_known, power->pin_high);
-    put_text(writer, "power.adc_source", reading_source(power->adc_from_gauge, power->adc_known));
-    put_known(writer, "power.adc_raw", power->adc_known, power->adc_raw);
-    put_known(writer, "power.adc_millivolts", power->adc_known, battery_millivolts(power->adc_raw));
-    put_unsigned(writer, "power.gauge_readings", power->gauge_readings);
-    put_known(writer, "power.gauge_millivolts", gauged, power->gauge_millivolts);
-    put_known(writer, "power.percent_plain", gauged, power->percent_plain);
-    put_known(writer, "power.percent_gauge", gauged, power->percent_gauge);
-    put_known(writer, "power.percent_shown", power->shown_known, power->percent_shown);
-    put_known(writer, "power.offset_applied", gauged, charging);
-    put_known(writer, "power.capped", gauged,
-              charging && power->percent_gauge >= BATTERY_CHARGING_MAX_PERCENT);
-    put_known(writer, "power.held", gauged && power->shown_known,
-              power->percent_shown != power->percent_gauge);
+    writer->prefix = "power.";
+    put_unsigned(writer, "vbus", power->vbus);
+    put_unsigned(writer, "usb_powered", power->usb_powered);
+    put_known(writer, "charge_pin", power->pin_known, power->pin_high);
+    put_text(writer, "adc_source", reading_source(power->adc_from_gauge, power->adc_known));
+    put_known(writer, "adc_raw", power->adc_known, power->adc_raw);
+    put_known(writer, "adc_millivolts", power->adc_known, battery_millivolts(power->adc_raw));
+    put_unsigned(writer, "gauge_readings", power->gauge_readings);
+    const uint32_t values[] = {
+        power->gauge_millivolts,
+        power->percent_plain,
+        power->percent_gauge,
+        power->percent_shown,
+        charging,
+        charging && power->percent_gauge >= BATTERY_CHARGING_MAX_PERCENT,
+        power->percent_shown != power->percent_gauge,
+    };
+    put_known_list(writer, GAUGE_KEYS, values, 3, gauged);
+    put_known(writer, GAUGE_KEYS[3], power->shown_known, values[3]);
+    put_known_list(writer, GAUGE_KEYS + 4, values + 4, 2, gauged);
+    put_known(writer, GAUGE_KEYS[6], gauged && power->shown_known, values[6]);
+    writer->prefix = NULL;
 }
 
 static void append_flag(StringBuilder *text, uint8_t flags, uint8_t flag)
@@ -456,12 +479,14 @@ static void put_writes(Writer *writer, const HalUsbWrites *writes)
 static void put_usb(Writer *writer, const HalUsbLast *usb, bool kept_on)
 {
     bool known = usb->end != HAL_USB_END_NONE;
-    put_text(writer, "usb.sense_mode", kept_on ? "kept_on" : "normal");
-    put_text(writer, "usb.last_end", NAME_IN(USB_END_NAMES, usb->end));
-    put_known(writer, "usb.left_mounted", known, usb->left_mounted);
-    put_known(writer, "usb.internal_sectors_written", known, usb->internal_written);
-    put_known(writer, "usb.card_sectors_written", known, usb->card_written);
-    put_known(writer, "usb.writes_after_eject", known, usb->writes_after_eject);
+    writer->prefix = "usb.";
+    put_text(writer, "sense_mode", kept_on ? "kept_on" : "normal");
+    put_text(writer, "last_end", NAME_IN(USB_END_NAMES, usb->end));
+    put_known(writer, "left_mounted", known, usb->left_mounted);
+    put_known(writer, "internal_sectors_written", known, usb->internal_written);
+    put_known(writer, "card_sectors_written", known, usb->card_written);
+    put_known(writer, "writes_after_eject", known, usb->writes_after_eject);
+    writer->prefix = NULL;
     if (known) {
         put_writes(writer, &usb->writes);
     }
@@ -478,10 +503,10 @@ static void put_usb(Writer *writer, const HalUsbLast *usb, bool kept_on)
 static void put_usb_words(Writer *writer, const DebugReportUsbWords *words)
 {
     static const char *const START_KEYS[DEBUG_REPORT_GRF_WORDS] = {
-        "usb.grf_e8_start", "usb.grf_84_start", "usb.grf_b4_start", "usb.grf_b8_start",
-        "usb.grf_98_start"};
-    static const char *const KEYS[DEBUG_REPORT_GRF_WORDS] = {
-        "usb.grf_e8", "usb.grf_84", "usb.grf_b4", "usb.grf_b8", "usb.grf_98"};
+        "grf_e8_start", "grf_84_start", "grf_b4_start", "grf_b8_start", "grf_98_start"};
+    static const char *const KEYS[DEBUG_REPORT_GRF_WORDS] = {"grf_e8", "grf_84", "grf_b4", "grf_b8",
+                                                             "grf_98"};
+    writer->prefix = "usb.";
     for (uint32_t index = 0; index < DEBUG_REPORT_GRF_WORDS; index++) {
         put_address(writer, START_KEYS[index], words->grf_start != NULL,
                     words->grf_start != NULL ? words->grf_start[index] : 0);
@@ -489,9 +514,10 @@ static void put_usb_words(Writer *writer, const DebugReportUsbWords *words)
     for (uint32_t index = 0; index < DEBUG_REPORT_GRF_WORDS; index++) {
         put_address(writer, KEYS[index], true, words->grf[index]);
     }
-    put_address(writer, "usb.gotgctl", words->core_known, words->gotgctl);
-    put_known(writer, "usb.b_session", words->core_known,
+    put_address(writer, "gotgctl", words->core_known, words->gotgctl);
+    put_known(writer, "b_session", words->core_known,
               (words->gotgctl & DEBUG_REPORT_B_SESSION_VALID) != 0);
+    writer->prefix = NULL;
 }
 
 static const char *boot_kind(const DebugReportInput *input)
@@ -563,23 +589,25 @@ static void put_average(Writer *writer, const char *key, uint32_t total, uint32_
 
 static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
 {
+    static const char *const KEYS[] = {
+        "module_on_ms", "init_done_ms", "connect_ms", "connected_ms", "stream_ms", "first_audio_ms",
+    };
     if (link == NULL) {
         return;
     }
     const HalBluetoothTimeline *time = &link->timeline;
-    put_unsigned(writer, "bluetooth.module_on_ms", time->module_on_ms);
-    put_unsigned(writer, "bluetooth.init_done_ms", time->init_done_ms);
-    put_unsigned(writer, "bluetooth.connect_ms", time->connect_ms);
-    put_unsigned(writer, "bluetooth.connected_ms", time->connected_ms);
-    put_unsigned(writer, "bluetooth.stream_ms", time->stream_ms);
-    put_unsigned(writer, "bluetooth.first_audio_ms", time->first_audio_ms);
-    begin(writer, "bluetooth.reports");
+    const uint32_t values[] = {time->module_on_ms, time->init_done_ms, time->connect_ms,
+                               time->connected_ms, time->stream_ms,    time->first_audio_ms};
+    writer->prefix = "bluetooth.";
+    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    begin(writer, "reports");
     for (uint32_t index = 0; index < link->event_count; index++) {
         string_builder_append_char(&writer->text, link->events[index][0]);
         string_builder_append_char(&writer->text, link->events[index][1]);
         string_builder_append_char(&writer->text, ' ');
     }
     finish(writer);
+    writer->prefix = NULL;
 }
 
 static void put_audio(Writer *writer, const DebugReportAudio *audio)
@@ -587,33 +615,35 @@ static void put_audio(Writer *writer, const DebugReportAudio *audio)
     const HalAudioStats *stats = &audio->stats;
     bool running = audio->running;
     bool decoded = stats->blocks != 0;
-    put_text(writer, "audio.state", NAME_IN(AUDIO_NAMES, audio->state));
-    put_unsigned(writer, "audio.running", running);
-    put_known(writer, "audio.buffered_ms", running, stats->buffered_ms);
-    put_known(writer, "audio.underruns", running, stats->underruns);
-    put_unsigned(writer, "audio.output_underruns", stats->output_underruns);
-    put_unsigned(writer, "audio.blocks", stats->blocks);
-    put_average(writer, "audio.handoff_avg_us", stats->decode_total_us, stats->blocks);
-    put_known(writer, "audio.handoff_max_us", decoded, stats->decode_max_us);
-    put_average(writer, "audio.read_avg_us", stats->read_total_us, stats->blocks);
-    put_known(writer, "audio.read_max_us", decoded, stats->read_max_us);
-    put_unsigned(writer, "audio.busy_us", stats->busy_us);
-    put_known(writer, "audio.elapsed_us", running, stats->elapsed_us);
-    put_share(writer, "audio.busy_percent", stats->busy_us, running ? stats->elapsed_us : 0);
+    writer->prefix = "audio.";
+    put_text(writer, "state", NAME_IN(AUDIO_NAMES, audio->state));
+    put_unsigned(writer, "running", running);
+    put_known(writer, "buffered_ms", running, stats->buffered_ms);
+    put_known(writer, "underruns", running, stats->underruns);
+    put_unsigned(writer, "output_underruns", stats->output_underruns);
+    put_unsigned(writer, "blocks", stats->blocks);
+    put_average(writer, "handoff_avg_us", stats->decode_total_us, stats->blocks);
+    put_known(writer, "handoff_max_us", decoded, stats->decode_max_us);
+    put_average(writer, "read_avg_us", stats->read_total_us, stats->blocks);
+    put_known(writer, "read_max_us", decoded, stats->read_max_us);
+    put_unsigned(writer, "busy_us", stats->busy_us);
+    put_known(writer, "elapsed_us", running, stats->elapsed_us);
+    put_share(writer, "busy_percent", stats->busy_us, running ? stats->elapsed_us : 0);
+    writer->prefix = NULL;
 }
 
 static void put_frames(Writer *writer, const DebugFrames *frames)
 {
+    static const char *const KEYS[] = {"total_avg_us", "total_worst_us", "update_avg_us",
+                                       "draw_avg_us", "send_avg_us"};
     bool drawn = frames->count != 0;
-    put_unsigned(writer, "frame.count", frames->count);
-    put_known(writer, "frame.total_avg_us", drawn, frames->total_us);
-    put_known(writer, "frame.total_worst_us", drawn, frames->worst_us);
-    put_known(writer, "frame.update_avg_us", drawn, frames->update_us);
-    put_known(writer, "frame.draw_avg_us", drawn, frames->draw_us);
-    put_known(writer, "frame.send_avg_us", drawn, frames->send_us);
-    for (int part = 0; part < DEBUG_FRAME_PARTS; part++) {
-        put_known(writer, PART_NAMES[part], drawn, frames->part_us[part]);
-    }
+    writer->prefix = "frame.";
+    put_unsigned(writer, "count", frames->count);
+    const uint32_t values[] = {frames->total_us, frames->worst_us, frames->update_us,
+                               frames->draw_us, frames->send_us};
+    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], drawn);
+    put_known_list(writer, PART_NAMES, frames->part_us, DEBUG_FRAME_PARTS, drawn);
+    writer->prefix = NULL;
 }
 
 static void append_plain(StringBuilder *text, DebugSpan span)

@@ -178,7 +178,11 @@ def medium_volumes(medium):
 
 
 def find_players(tree):
-    return [entry for entry in usb_entries(tree) if is_player(entry)]
+    players = [entry for entry in usb_entries(tree) if is_player(entry)]
+    with_media = {entry.get("serial_num") for entry in players
+                  if entry.get("serial_num") and entry.get("Media")}
+    return [entry for entry in players
+            if entry.get("Media") or entry.get("serial_num") not in with_media]
 
 
 def internal_volume(player, volume_name):

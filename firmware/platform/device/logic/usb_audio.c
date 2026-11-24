@@ -336,7 +336,9 @@ UsbReply usb_audio_receive(UsbAudio *audio, UsbSetup setup, const uint8_t *data,
     }
     uint32_t value = read_little_endian(data, needed);
     if (control == CONTROL_RATE) {
-        return take_rate(audio, value) ? status(USB_ACTION_NONE, 0) : stall();
+        return take_rate(audio, value)
+                   ? status(audio->alt != 0 ? USB_ACTION_STREAM : USB_ACTION_NONE, audio->alt)
+                   : stall();
     }
     if (control == CONTROL_MUTE) {
         audio->muted = value != 0;

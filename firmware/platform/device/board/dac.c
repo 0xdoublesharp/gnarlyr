@@ -275,7 +275,10 @@ static void dac_set_pin(void *context, DacPin pin, bool level)
 static void dac_delay(void *context, uint32_t microseconds)
 {
     (void)context;
-    board_delay_us(microseconds);
+    uint32_t start = hal_clock_microseconds();
+    do {
+        board_audio_stream_service();
+    } while (hal_clock_microseconds() - start < microseconds);
 }
 
 static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL};
@@ -294,7 +297,7 @@ CORE_COLD static void start_i2c(void)
     gpio_mux(I2C_PINS[1], GPIO_FUNCTION_ALTERNATE);
     register_write(GRF_PIN_GROUPS, GRF_I2C0_GROUP_A);
     cru_reset(RESET_I2C0, true);
-    board_delay_us(200);
+    dac_delay(NULL, 200);
     cru_reset(RESET_I2C0, false);
     register_write(I2C_CON, 0);
     register_write(I2C_CLKDIV, i2c_clock_divider(board_pclk_hz(), I2C_BUS_KHZ));
@@ -327,7 +330,7 @@ CORE_COLD static void start_acodec(const uint8_t *row)
     set_bits(ACODEC_M7, 0xFu << 4, (uint32_t)row[3] << 4);
     set_bits(ACODEC_MUX_ENABLE, 1u << 0, 0);
     set_bits(ACODEC_MUX_ENABLE, 1u << 2, 0);
-    board_delay_ms(ACODEC_SETTLE_MS);
+    dac_delay(NULL, ACODEC_SETTLE_MS * 1000u);
     set_bits(ACODEC_MUX_CONTROL, 1u << 2, 1u << 2);
     acodec_row = key;
     acodec_running = true;
@@ -344,7 +347,7 @@ CORE_COLD static void start_i2s(uint32_t divider, uint32_t format, uint32_t inte
                                 bool transfer)
 {
     cru_reset(RESET_I2S1, true);
-    board_delay_ms(I2S_RESET_MS);
+    dac_delay(NULL, I2S_RESET_MS * 1000u);
     cru_reset(RESET_I2S1, false);
     for (uint32_t index = 0; index < sizeof I2S_PINS / sizeof I2S_PINS[0]; index++) {
         gpio_mux(I2S_PINS[index], GPIO_FUNCTION_ALTERNATE);
@@ -356,9 +359,10 @@ CORE_COLD static void start_i2s(uint32_t divider, uint32_t format, uint32_t inte
     cru_write(0x20, CRU_I2S_CLOCK);
     register_write(I2S_XFER, 0);
     register_write(I2S_CLR, 1);
-    board_delay_ms(I2S_CLEAR_MS);
+    dac_delay(NULL, I2S_CLEAR_MS * 1000u);
     uint32_t start = hal_clock_milliseconds();
     while (register_read(I2S_CLR) != 0 && hal_clock_milliseconds() - start < I2C_TIMEOUT_MS) {
+        board_audio_stream_service();
     }
     register_write(I2S_TXCR, format);
     register_write(I2S_RXCR, format);

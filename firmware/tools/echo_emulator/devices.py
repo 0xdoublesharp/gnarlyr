@@ -55,6 +55,7 @@ STATUS_FIFO_COUNT_SHIFT = 17
 
 GINTSTS = 0x14
 GRSTCTL = 0x10
+GINT_GLOBAL_OUT_NAK = 1 << 7
 GINT_USB_RESET = 1 << 12
 USB_PHY_OFF = (0xB4, 0x00010001)
 GRSTCTL_SOFT_RESET = 1
@@ -62,6 +63,8 @@ GRSTCTL_FLUSH_BITS = (1 << 4) | (1 << 5)
 GRSTCTL_AHB_IDLE = 1 << 31
 DCTL = 0x804
 DCTL_SOFT_DISCONNECT = 1 << 1
+DCTL_SET_GLOBAL_OUT_NAK = 1 << 9
+DCTL_CLEAR_GLOBAL_OUT_NAK = 1 << 10
 
 SYSTICK_CTRL = 0x10
 SYSTICK_RELOAD = 0x14
@@ -700,7 +703,11 @@ class UsbCore(RegisterFile):
             return
         if offset == DCTL:
             was_disconnected = self.regs.get(DCTL, 0) & DCTL_SOFT_DISCONNECT
-            super().write_word(offset, value)
+            super().write_word(offset, value & ~(DCTL_SET_GLOBAL_OUT_NAK | DCTL_CLEAR_GLOBAL_OUT_NAK))
+            if value & DCTL_SET_GLOBAL_OUT_NAK:
+                self.interrupts |= GINT_GLOBAL_OUT_NAK
+            if value & DCTL_CLEAR_GLOBAL_OUT_NAK:
+                self.interrupts &= ~GINT_GLOBAL_OUT_NAK
             if was_disconnected and not value & DCTL_SOFT_DISCONNECT:
                 self.machine.usb_connected()
             elif not was_disconnected and value & DCTL_SOFT_DISCONNECT:

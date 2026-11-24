@@ -388,9 +388,29 @@ static void hid_enumeration_and_idle_requests_use_the_consumer_interface(void)
     CHECK_EQUAL(0, audio.hid_idle);
 }
 
+static void changing_the_rate_while_streaming_requests_a_stream_reset(void)
+{
+    UsbAudio audio = ready_audio();
+    usb_device_set_speed(&device, USB_SPEED_HIGH);
+    static const uint8_t ninety_six[] = {0x00, 0x77, 0x01, 0x00};
+    static const uint8_t forty_eight[] = {0x80, 0xBB, 0x00, 0x00};
+    UsbSetup request = setup(0x21, 1, 0x0100, 0x0400, 4);
+    UsbReply idle = usb_audio_receive(&audio, request, ninety_six, 4);
+    CHECK_EQUAL(USB_REPLY_STATUS, idle.kind);
+    CHECK_EQUAL(USB_ACTION_NONE, idle.action);
+    CHECK_EQUAL(96000, audio.rate);
+    CHECK_EQUAL(USB_REPLY_STATUS, usb_audio_setup(&audio, setup(0x01, 11, 2, 1, 0)).kind);
+    UsbReply live = usb_audio_receive(&audio, request, forty_eight, 4);
+    CHECK_EQUAL(USB_REPLY_STATUS, live.kind);
+    CHECK_EQUAL(USB_ACTION_STREAM, live.action);
+    CHECK_EQUAL(2, live.value);
+    CHECK_EQUAL(48000, audio.rate);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(changing_the_rate_while_streaming_requests_a_stream_reset),
         TEST_CASE(other_speed_descriptors_and_clock_controls_do_not_cross_protocols),
         TEST_CASE(hid_enumeration_and_idle_requests_use_the_consumer_interface),
         TEST_CASE(high_speed_offers_three_asynchronous_formats_and_a_clock_source),

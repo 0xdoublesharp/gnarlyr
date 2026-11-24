@@ -346,27 +346,24 @@ static int larger_of(int first, int second)
     return first > second ? first : second;
 }
 
-static Rect menu_rows_area(const Theme *theme, const UsbScreenLayout *layout, const ListView *view,
-                           int *count_out)
+static __attribute__((noinline)) int
+menu_rows_area(const Theme *theme, const UsbScreenLayout *layout, const ListView *view, Rect *rows)
 {
     int top = layout->header.height;
-    Rect rows = {0, top, theme->metrics.screen_width,
-                 layout->detail.y - theme->metrics.padding - top};
+    *rows = (Rect){0, top, theme->metrics.screen_width,
+                   layout->detail.y - theme->metrics.padding - top};
     int count = view->model->count(view->model->context);
     if (count > view->visible_rows) {
-        rows.width -= theme->metrics.scrollbar_width + theme->metrics.scrollbar_inset;
+        rows->width -= theme->metrics.scrollbar_width + theme->metrics.scrollbar_inset;
     }
-    if (count_out != NULL) {
-        *count_out = count;
-    }
-    return rows;
+    return count;
 }
 
 Rect usb_screen_dac_menu_row_area(const Theme *theme, const UsbScreenLayout *layout,
                                   const ListView *view, int index)
 {
-    int count = 0;
-    Rect rows = menu_rows_area(theme, layout, view, &count);
+    Rect rows;
+    int count = menu_rows_area(theme, layout, view, &rows);
     int position = index - view->top;
     if (position < 0 || position >= view->visible_rows || index < 0 || index >= count) {
         return (Rect){0, 0, 0, 0};
@@ -394,9 +391,8 @@ static void draw_menu_row(const UsbPainter *painter, const ListView *view, int i
         Rect box = {text.x, text.y + (text.height - size) / 2, size, size};
         if (usb_screen_touches(painter, box)) {
             Color main = selected ? colors->selection_text : colors->text_secondary;
-            Canvas clipped = canvas_clipped(painter->canvas, row);
             usb_screen_service(painter->scene);
-            icon_draw(&clipped, model->icon(model->context, index), box,
+            icon_draw(painter->canvas, model->icon(model->context, index), box,
                       (IconInk){main, selected ? main : colors->accent});
             usb_screen_service(painter->scene);
         }
@@ -428,8 +424,8 @@ static void draw_menu(const UsbPainter *painter)
 {
     const Theme *theme = painter->theme;
     const ListView *view = painter->scene->menu;
-    int count = 0;
-    Rect rows = menu_rows_area(theme, &painter->layout, view, &count);
+    Rect rows;
+    int count = menu_rows_area(theme, &painter->layout, view, &rows);
     Rect area = {0, rows.y, theme->metrics.screen_width, rows.height};
     if (!usb_screen_touches(painter, area)) {
         return;

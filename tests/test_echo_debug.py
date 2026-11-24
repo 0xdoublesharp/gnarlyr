@@ -381,6 +381,11 @@ class FindingThePlayer(VolumeCase):
         media = [medium("Internal storage", "ECHO", self.root)]
         self.assert_refused(FakeHost(usb_tree(player(media), player(media))), "several_players")
 
+    def test_a_ghost_empty_entry_with_the_same_serial_is_ignored(self):
+        media = [medium("Internal storage", "ECHO", self.root)]
+        status = echo_debug.Tool(FakeHost(usb_tree(player([]), player(media)))).status()
+        self.assertTrue(status["connected"])
+
     def test_another_volume_name_can_be_asked_for(self):
         host = self.host(medium("Internal storage", "PLAYER", self.root))
         self.assertTrue(echo_debug.Tool(host, volume_name="PLAYER").status()["connected"])

@@ -44,13 +44,14 @@
 #define GRSTCTL_AFTER_FLUSH 0x8u
 #define GAHBCFG_TX_EMPTY_LEVEL (1u << 7)
 #define GINT_RX_LEVEL (1u << 4)
+#define GINT_GLOBAL_OUT_NAK (1u << 7)
 #define GINT_USB_RESET (1u << 12)
 #define GINT_ENUMERATION_DONE (1u << 13)
 #define GINT_IN_ENDPOINT (1u << 18)
 #define GINT_OUT_ENDPOINT (1u << 19)
 #define GINT_INCOMPLETE_ISO_IN (1u << 20)
 #define GINT_INCOMPLETE_ISO_OUT (1u << 21)
-#define GINTMSK_VALUE 0xC00C3C10u
+#define GINTMSK_VALUE 0xC00C3C90u
 #define DCFG_CLEARED_BITS 0x7F3u
 #define DCFG_FULL_SPEED 0x1u
 #define DCFG_HIGH_SPEED 0x0u
@@ -62,6 +63,8 @@
 #define DCFG_ADDRESS_MASK (0x7Fu << DCFG_ADDRESS_SHIFT)
 #define DCTL_SOFT_DISCONNECT (1u << 1)
 #define DCTL_CLEAR_GLOBAL_IN_NAK (1u << 8)
+#define DCTL_SET_GLOBAL_OUT_NAK (1u << 9)
+#define DCTL_CLEAR_GLOBAL_OUT_NAK (1u << 10)
 #define EP_ENABLE (1u << 31)
 #define EP_DISABLE (1u << 30)
 #define EP_CLEAR_NAK (1u << 26)
@@ -70,6 +73,7 @@
 #define EP_SET_EVEN_FRAME (1u << 28)
 #define EP_SET_ODD_FRAME (1u << 29)
 #define EP_ODD_FRAME (1u << 16)
+#define EP_NAK_STATUS (1u << 17)
 #define EP_ISO_ACTIVE 0x00048000u
 #define EP_INTERRUPT_ACTIVE 0x000C8000u
 #define EP_MAX_PACKET_MASK 0x7FFu
@@ -78,12 +82,14 @@
 #define EP_IDLE_CONTROL 0x48000000u
 #define EP_BULK_ACTIVE 0x18088000u
 #define EP_INT_TRANSFER_DONE (1u << 0)
+#define EP_INT_DISABLED (1u << 1)
 #define EP_INT_SETUP (1u << 3)
+#define EP_INT_IN_NAK_EFF (1u << 6)
 #define EP_INT_ALL 0xFFFFu
 #define EP0_OUT_SETUP_SIZE 0x60080040u
 #define ONE_PACKET (1u << 19)
 #define PACKET_COUNT_SHIFT 19
-#define DIEPMSK_VALUE 0x2Fu
+#define DIEPMSK_VALUE 0x6Fu
 #define DOEPMSK_VALUE 0x0Fu
 #define DAINT_EP0 0x00010001u
 #define DAINT_EP1 0x00020002u
@@ -119,6 +125,8 @@ enum {
     STREAM_CLOCK_TURNS = 63,
     RESET_TIMEOUT_MS = 100,
     SPACE_TIMEOUT_MS = 100,
+    ENDPOINT_DISABLE_TIMEOUT_MS = 2,
+    RX_DRAIN_LIMIT = 8,
     PHY_SETTLE_US = 5,
     PHY_READY_MS = 10,
     CLOCK_GATE_MS = 10,

@@ -634,17 +634,27 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
         ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
         ${PROJECT_SOURCE_DIR}/src/settings/headphone_profile.c
+        board/debug_report_file.c
         board/debug_report_reads.c
         board/debug_script_file.c
         board/profiler_prepare.c
         board/time_file_take.c
         board/trial_module.c
         board/trial_record.c
+        board/update.c
+        board/usb_figure.c
+        board/usb_session.c
         logic/fat_delete.c
         logic/slot_copy.c
         logic/updater_install.c
         PROPERTIES COMPILE_OPTIONS -Os)
-    set_source_files_properties(${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
+        board/debug_report_file.c
+        logic/rtc_registers.c
         PROPERTIES COMPILE_OPTIONS "-Os;-fno-inline-functions-called-once")
     if(ECHO_USB_SCREEN_CAPTURES)
         target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)

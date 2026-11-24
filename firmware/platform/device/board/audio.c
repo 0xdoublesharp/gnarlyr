@@ -1177,8 +1177,9 @@ CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     }
     ensure_engine();
     ensure_audio_clock();
-    board_audio_shut_down();
     stream_service = service;
+    dac_path_set_fade_service(serve_fade);
+    board_audio_shut_down();
     clear_ring();
     return ensure_path(rate);
 }
@@ -1229,8 +1230,9 @@ void board_audio_stream_service(void)
 
 void board_audio_stream_close(void)
 {
-    board_audio_shut_down();
     stream_service = NULL;
+    dac_path_set_fade_service(NULL);
+    board_audio_shut_down();
     stream_buffer = NULL;
     stream_frames = 0;
 }

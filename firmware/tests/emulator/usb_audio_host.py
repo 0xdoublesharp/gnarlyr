@@ -35,6 +35,60 @@ class UsbAudioHost:
         self.bus_started = False
         self.in_due = {}
         self.vary_levels = False
+        self.global_out_nak = False
+        self.incomp_iso_out = False
+        self.incomp_iso_in = False
+        self.iso_out_stuck = False
+        self.iso_in_stuck = False
+        self.bad_disables = 0
+        self.fifo_rx_dirty = False
+        self.fifo_tx_dirty = set()
+        self.tx_disabled_dirty = set()
+        self.unflushed_fifo_uses = 0
+        self.unflushed_tx_disables = 0
+
+    def trigger_incomplete_iso_out(self):
+        self.incomp_iso_out = True
+        self.iso_out_stuck = True
+
+    def trigger_incomplete_iso_in(self):
+        self.incomp_iso_in = True
+        self.iso_in_stuck = True
+        self.core.regs[0x920] = self.core.regs.get(0x920, 0) | (1 << 31)
+        self.in_due.pop(1, None)
+
+    def trigger_bus_reset(self):
+        self.rx.clear()
+        self.words.clear()
+        self.requests.clear()
+        self.pending = None
+        self.control.clear()
+        self.in_due.clear()
+        self.enabled = False
+        self.next_packet = None
+        self.registered = False
+        self.global_out_nak = False
+        self.incomp_iso_out = False
+        self.incomp_iso_in = False
+        self.iso_out_stuck = False
+        self.iso_in_stuck = False
+        for ep in range(3):
+            self.core.regs[0x900 + ep * 0x20] = 0
+            self.core.regs[0x908 + ep * 0x20] = 0
+            self.core.regs[0xB00 + ep * 0x20] = 0
+            self.core.regs[0xB08 + ep * 0x20] = 0
+        self.core.raise_reset()
+
+    def direct_rate(self, rate):
+        self.rate = rate
+        self.feedback_value = (rate << 16) // 8000
+        if self.high:
+            self.setup(0x21, 1, 0x0100, 0x0400, 4, struct.pack("<I", rate))
+        else:
+            self.setup(0x22, 1, 0x0100, 1, 3, struct.pack("<I", rate)[:3])
+
+    def global_out_nak_effective(self):
+        return self.global_out_nak and not self.rx
 
     def setup(self, kind, request, value=0, index=0, length=0, payload=b""):
         self.requests.append((struct.pack("<BBHHH", kind, request, value, index, length), payload))
@@ -53,6 +107,7 @@ class UsbAudioHost:
     def format(self, rate, width):
         self.setup(0x01, 11, 0, 1)
         self.rate, self.width = rate, width
+        self.feedback_value = (rate << 16) // 8000
         if self.high:
             self.setup(0x21, 1, 0x0100, 0x0400, 4, struct.pack("<I", rate))
         else:
@@ -106,7 +161,8 @@ class UsbAudioHost:
     def stream_packet(self):
         self.accumulator += self.feedback_value if self.high else (self.rate << 16) // 1000
         count, self.accumulator = divmod(self.accumulator, 1 << 16)
-        if not self.core.regs.get(0xB20, 0) & (1 << 31):
+        control = self.core.regs.get(0xB20, 0)
+        if not (control & (1 << 31)) or (control & (1 << 17)) or self.iso_out_stuck or self.global_out_nak:
             self.missed += 1
             return
         data = bytearray()
@@ -132,13 +188,19 @@ class UsbAudioHost:
     def read_word(self, offset):
         if offset == 0x014:
             self.transactions()
-            events = self.original_read(offset)
+            events = self.original_read(offset) & ~(1 << 7)
             if self.rx:
                 events |= 1 << 4
+            if self.global_out_nak_effective():
+                events |= 1 << 7
             if any(self.core.regs.get(0xB08 + ep * 0x20, 0) for ep in range(2)):
                 events |= 1 << 19
             if any(self.core.regs.get(0x908 + ep * 0x20, 0) for ep in range(3)):
                 events |= 1 << 18
+            if self.incomp_iso_in:
+                events |= 1 << 20
+            if self.incomp_iso_out:
+                events |= 1 << 21
             return events
         if offset == 0x808:
             return ((self.machine.microseconds() // (125 if self.high else 1000)) & 0x3FFF) << 8 | (0 if self.high else 6)
@@ -160,17 +222,79 @@ class UsbAudioHost:
         return self.original_read(offset)
 
     def write_word(self, offset, value):
-        if offset == 0x014 and value & (1 << 12) and self.bus_started:
-            self.registered = True
-            self.core.interrupts |= 1 << 13
+        if offset in (0x024, 0x028, 0x104, 0x108):
+            self.fifo_rx_dirty = True
+            self.fifo_tx_dirty.update((0, 1, 2))
+            self.original_write(offset, value)
+            return
+        if offset == 0x010:
+            if value & (1 << 4):
+                self.fifo_rx_dirty = False
+            if value & (1 << 5):
+                fifo_num = (value >> 6) & 0x1F
+                if fifo_num == 0x10:
+                    self.fifo_tx_dirty.clear()
+                    self.tx_disabled_dirty.clear()
+                else:
+                    self.fifo_tx_dirty.discard(fifo_num)
+                    self.tx_disabled_dirty.discard(fifo_num)
+            self.original_write(offset, value)
+            return
+        if offset == 0x014:
+            if value & (1 << 20):
+                self.incomp_iso_in = False
+            if value & (1 << 21):
+                self.incomp_iso_out = False
+            if value & (1 << 12) and self.bus_started:
+                self.registered = True
+                self.core.interrupts |= 1 << 13
         if offset == 0x804:
             self.bus_started = not value & 2
+            if value & (1 << 9):
+                self.global_out_nak = True
+            if value & (1 << 10):
+                self.global_out_nak = False
         if offset in (0x908, 0x928, 0x948, 0xB08, 0xB28):
             self.core.regs[offset] = self.core.regs.get(offset, 0) & ~value
             return
         if offset in (0x900, 0x920, 0x940, 0xB00, 0xB20):
+            current = self.core.regs.get(offset, 0)
+            is_in = offset < 0xB00
+            ep_num = (offset - (0x900 if is_in else 0xB00)) // 0x20
+            nak = current & (1 << 17)
+            if value & (1 << 27):
+                nak = 1 << 17
+                if is_in:
+                    self.core.regs[offset + 8] = self.core.regs.get(offset + 8, 0) | (1 << 6)
+            elif value & (1 << 26):
+                nak = 0
             if value & (1 << 30):
-                value &= ~((1 << 31) | (1 << 30))
+                can_disable = (not is_in and self.global_out_nak_effective() and not (value & (1 << 31))) or (
+                    is_in and not (value & (1 << 31)))
+                if current & (1 << 31) and not can_disable:
+                    self.bad_disables += 1
+                    value = (current | (1 << 17)) & ~(1 << 30)
+                else:
+                    value = (value & ~((1 << 31) | (1 << 30))) | nak
+                    self.core.regs[offset + 8] = self.core.regs.get(offset + 8, 0) | (1 << 1)
+                    if is_in and current & (1 << 31):
+                        self.tx_disabled_dirty.add(ep_num)
+                        self.in_due.pop(ep_num, None)
+                    if offset == 0xB20:
+                        self.iso_out_stuck = False
+                    elif offset == 0x920:
+                        self.iso_in_stuck = False
+            else:
+                if (value & (1 << 31)) and not is_in and ep_num > 0 and self.fifo_rx_dirty:
+                    self.unflushed_fifo_uses += 1
+                if (value & (1 << 31)) and is_in:
+                    if ep_num in self.fifo_tx_dirty:
+                        self.unflushed_fifo_uses += 1
+                    if ep_num in self.tx_disabled_dirty:
+                        self.unflushed_tx_disables += 1
+                if current & (1 << 31) and not (value & (1 << 31)):
+                    value |= 1 << 31
+                value = (value & ~(1 << 17)) | nak
             if value & (1 << 29):
                 value |= 1 << 16
             elif value & (1 << 28):
@@ -178,7 +302,7 @@ class UsbAudioHost:
             if offset == 0x900 and value & (1 << 31) and self.core.regs.get(0x910, 0) & 0x7FFFF == 0:
                 value &= ~(1 << 31)
                 self.complete_request()
-            self.core.regs[offset] = value & ~((1 << 28) | (1 << 29))
+            self.core.regs[offset] = value & ~((1 << 26) | (1 << 27) | (1 << 28) | (1 << 29))
             return
         if offset in (0x910, 0x930, 0x950):
             self.tx[(offset - 0x910) // 0x20] = bytearray()
@@ -186,6 +310,10 @@ class UsbAudioHost:
             return
         if offset in (0x1000, 0x2000, 0x3000):
             endpoint = offset // 0x1000 - 1
+            if endpoint in self.fifo_tx_dirty:
+                self.unflushed_fifo_uses += 1
+            if endpoint in self.tx_disabled_dirty:
+                self.unflushed_tx_disables += 1
             buffer = self.tx.setdefault(endpoint, bytearray())
             buffer.extend(value.to_bytes(4, "little"))
             length = self.core.regs.get(0x910 + endpoint * 0x20, 0) & 0x7FFFF

@@ -12,8 +12,11 @@ GINT_IN_ENDPOINT = 1 << 18
 GINT_OUT_ENDPOINT = 1 << 19
 EP_ENABLE = 1 << 31
 EP_DISABLE = 1 << 30
+EP_SET_NAK = 1 << 27
 EP_INT_TRANSFER_DONE = 1 << 0
+EP_INT_DISABLED = 1 << 1
 EP_INT_SETUP = 1 << 3
+EP_INT_IN_NAK_EFF = 1 << 6
 PACKET_OUT_DATA = 2
 PACKET_OUT_DONE = 3
 PACKET_SETUP_DONE = 4
@@ -177,8 +180,11 @@ class StorageHost:
             self.control_write(table is self.inputs, number, endpoint, value)
 
     def control_write(self, is_in, number, endpoint, value):
+        if is_in and value & EP_SET_NAK:
+            endpoint.events |= EP_INT_IN_NAK_EFF
         if value & EP_DISABLE:
-            endpoint.control = value & ~(EP_ENABLE | EP_DISABLE)
+            endpoint.control = value & ~(EP_ENABLE | EP_DISABLE | EP_SET_NAK)
+            endpoint.events |= EP_INT_DISABLED
             return
         starting = value & EP_ENABLE and not endpoint.control & EP_ENABLE
         endpoint.control = value

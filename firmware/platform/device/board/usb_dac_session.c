@@ -301,11 +301,19 @@ static Rect info_area(AppUsbStatus status)
 
 static AppUsbStatus prepare_status(void)
 {
+    serve_audio_usb();
     follow_info(hal_clock_milliseconds());
     serve_audio_usb();
     AppUsbStatus status = dac_status();
     serve_audio_usb();
     return status;
+}
+
+static __attribute__((noinline)) void show_band_from(const AppUsbStatus *status, const Theme *theme,
+                                                     int top)
+{
+    usb_screen_show_in_bands(
+        *status, (Rect){0, top, theme->metrics.screen_width, theme->metrics.screen_height - top});
 }
 
 static void show_screen(bool below_header)
@@ -318,8 +326,7 @@ static void show_screen(bool below_header)
             top = usb_screen_layout(theme, status).header.height;
             serve_audio_usb();
         }
-        usb_screen_show_in_bands(status, (Rect){0, top, theme->metrics.screen_width,
-                                                theme->metrics.screen_height - top});
+        show_band_from(&status, theme, top);
     } else {
         app_show_usb_status(status);
     }
@@ -374,6 +381,7 @@ static void draw_meters(const uint8_t before[USB_SCENE_CHANNELS])
     AppUsbStatus status = dac_status();
     const Theme *theme = app_theme();
     UsbScreenLayout layout = usb_screen_layout(theme, status);
+    serve_audio_usb();
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
         UsbMeterDelta delta = {
             .side = side, .before = before[side], .after = scene->dac.level[side]};
@@ -402,8 +410,9 @@ static void step_meter(uint32_t now_ms)
 static void stop_output(void)
 {
     if (playing) {
-        board_audio_stream_pause();
         playing = false;
+        usb_audio_sink_set_playing(&sink, false);
+        board_audio_stream_pause();
     }
     usb_audio_sink_set_asynchronous(&sink, usb_audio_asynchronous(&audio));
     usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio));
@@ -449,8 +458,7 @@ static void keep_output(void)
 {
     keep_stream();
     if (scene->state != stream_state()) {
-        follow_info(hal_clock_milliseconds());
-        AppUsbStatus status = dac_status();
+        AppUsbStatus status = prepare_status();
         const Theme *theme = app_theme();
         UsbScreenLayout layout = usb_screen_layout(theme, status);
         Rect area =
@@ -527,10 +535,10 @@ static void apply_choice(UsbDacAction action)
     }
 }
 
-static void show_menu_row(AppUsbStatus status, const Theme *theme, const UsbScreenLayout *layout,
-                          int index)
+static __attribute__((noinline)) void show_menu_row(const AppUsbStatus *status, const Theme *theme,
+                                                    const UsbScreenLayout *layout, int index)
 {
-    usb_screen_show_in_bands(status,
+    usb_screen_show_in_bands(*status,
                              usb_screen_dac_menu_row_area(theme, layout, &menu.view, index));
 }
 
@@ -547,15 +555,14 @@ static void show_menu_update(UsbDacAction action, int old_selected, int old_top,
     UsbScreenLayout layout = usb_screen_layout(theme, status);
     serve_audio_usb();
     if (old_selected != menu.view.selected) {
-        show_menu_row(status, theme, &layout, old_selected);
+        show_menu_row(&status, theme, &layout, old_selected);
     }
     if (old_selected != menu.view.selected || action != USB_DAC_ACTION_REDRAW) {
-        show_menu_row(status, theme, &layout, menu.view.selected);
+        show_menu_row(&status, theme, &layout, menu.view.selected);
     }
     if (old_adjusting != menu.adjusting) {
-        int top = layout.detail.y + layout.detail.height + theme->metrics.padding / 2;
-        usb_screen_show_in_bands(status, (Rect){0, top, theme->metrics.screen_width,
-                                                theme->metrics.screen_height - top});
+        show_band_from(&status, theme,
+                       layout.detail.y + layout.detail.height + theme->metrics.padding / 2);
     }
 }
 
@@ -587,11 +594,16 @@ static void follow_menu(Key key, uint32_t time_ms)
     }
 }
 
+static __attribute__((noinline)) void load_menu(uint32_t now_ms)
+{
+    usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
+                      now_ms);
+}
+
 static void open_menu(uint32_t now_ms)
 {
     settings.volume = shared->dac_volume;
-    usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
-                      now_ms);
+    load_menu(now_ms);
     serve_audio_usb();
     menu_open = true;
     gain_refused = false;
@@ -658,12 +670,11 @@ static void refresh(uint32_t now_ms, uint32_t *refreshed)
     }
     *refreshed = now_ms;
     uint8_t shown = scene->state;
-    follow_info(now_ms);
+    AppUsbStatus status = prepare_status();
     if (scene->state != shown) {
         show_state();
         return;
     }
-    AppUsbStatus status = dac_status();
     usb_screen_show_in_bands(status, info_area(status));
 }
 
@@ -690,10 +701,20 @@ static void serve(void)
 static void warm_menu_glyphs(void)
 {
     const Theme *theme = app_theme();
-    usb_dac_menu_open(&menu, (UsbDacMenuConfig){theme, settings, app_headphone_profiles()}, 0);
+    load_menu(0);
+    const ListModel *model = &menu.model;
     for (int index = 0; index < USB_DAC_ROW_COUNT; index++) {
-        (void)text_width(theme->fonts.title, menu.model.label(menu.model.context, index));
+        const char *label = model->label(model->context, index);
+        const char *detail = model->detail(model->context, index);
+        (void)text_width(theme->fonts.title, label);
+        (void)text_width(theme->fonts.body, label);
+        if (detail != NULL) {
+            (void)text_width(theme->fonts.body, detail);
+        }
     }
+    (void)text_width(theme->fonts.body, "0123456789");
+    (void)text_width(theme->fonts.body, i18n_text(STR_GAIN_HIGH));
+    (void)text_width(theme->fonts.body, i18n_text(STR_JACK_35));
 }
 
 static void start_session(void)

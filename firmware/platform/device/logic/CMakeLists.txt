@@ -247,6 +247,7 @@ set(ECHO_DEVICE_LOGIC_LTO_SOURCES ${ECHO_DEVICE_LOGIC_LTO_SOURCES} PARENT_SCOPE)
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         battery_gauge.c
+        card_write.c
         clock_governor.c
         core1_m4a_source.c
         core1_open_flac.c
@@ -264,7 +265,9 @@ if(CMAKE_CROSSCOMPILING)
         mp3_probe.c
         mp4_demux.c
         msc.c
+        power_history.c
         slot_copy.c
+        stream_drift.c
         time_file.c
         update_names.c
         update_trial.c
@@ -272,8 +275,11 @@ if(CMAKE_CROSSCOMPILING)
         updater_install.c
         usb_activity.c
         usb_audio.c
+        usb_audio_descriptors.c
+        usb_audio_hid.c
         usb_device.c
         usb_fallback.c
+        usb_fifo.c
         usb_forced.c
         usb_leave.c
         usb_level.c
@@ -283,10 +289,6 @@ if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(${ECHO_DEVICE_LOGIC_LTO_SOURCES}
         PROPERTIES COMPILE_OPTIONS "-Os;-flto;-ffat-lto-objects;-g"
     )
-    if(NOT ECHO_RELEASE)
-        set_source_files_properties(debug_report.c
-            PROPERTIES COMPILE_OPTIONS "-Os;-fno-inline-functions-called-once")
-    endif()
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic

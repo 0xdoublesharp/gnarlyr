@@ -339,7 +339,8 @@ class EchoImageTest(EchoImageHarness):
         first = asset["offset"] + row
         for at in range(first // 512 + 1, (asset["offset"] + asset["bytes"]) // 512):
             session.disk.write(sectors[at], bytes(512))
-        self.press(machine, KEY_NEXT)
+        for _ in range(3):
+            self.press(machine, KEY_NEXT)
         machine.run(until_ms=machine.milliseconds() + DAC_MENU_RUN_MS)
         after = self.art_share(machine.panel.frame, art)
         print(json.dumps({"usb_dac_menu_art_share_before": round(before, 3),
