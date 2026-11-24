@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import struct
@@ -8,9 +9,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main
+from echo_image_harness import CONFIG, EchoImageHarness, main
 from echo_emulator.fat_volume import Fat32Volume
-from echo_emulator.playback import Rig
+from echo_emulator.playback import PlaybackSnapshot, Rig
 from echo_emulator.core1 import CONTROL
 from echo_emulator.power import DecoderLoad, PowerMeter
 
@@ -20,9 +21,15 @@ DARK_SETTLE_MS = 1500
 MEASURE_MS = 3000
 TAP_MS = 120
 FED_MS = 40
-START_DELAYS_MS = tuple(range(0, 41, 4))
-EARLY_DARK_DELAYS_MS = tuple(range(0, 65, 4))
-LATE_DARK_DELAYS_MS = tuple(range(68, 129, 4))
+PHASE_DELAYS_0_TO_12_MS = tuple(range(0, 13, 4))
+PHASE_DELAYS_16_TO_28_MS = tuple(range(16, 29, 4))
+PHASE_DELAYS_32_TO_40_MS = tuple(range(32, 41, 4))
+PHASE_DELAYS_32_TO_44_MS = tuple(range(32, 45, 4))
+PHASE_DELAYS_48_TO_64_MS = tuple(range(48, 65, 4))
+PHASE_DELAYS_68_TO_80_MS = tuple(range(68, 81, 4))
+PHASE_DELAYS_84_TO_96_MS = tuple(range(84, 97, 4))
+PHASE_DELAYS_100_TO_112_MS = tuple(range(100, 113, 4))
+PHASE_DELAYS_116_TO_128_MS = tuple(range(116, 129, 4))
 DELAY_STEP_MS = 4
 WINDOW_SHIFTS_MS = (0, 5, 11)
 RING_FRAMES = 14000
@@ -41,7 +48,6 @@ LOWEST_CORE1_MHZ = 25
 TRACK_CHANGE_WATCH_MS = 300
 TRACK_CHANGE_LIMIT_MS = 2000
 TRACK_CHANGE_SLOW_LIMIT_US = 50000
-WINDOW_OFFSETS_MS = (0, 125, 250, 375)
 DSD128_RATE = 5644800
 DSD_OUTPUT_RATE = 88200
 DSD_PATTERN_FRAMES = 22050
@@ -97,9 +103,32 @@ def dsd128_stereo(seconds):
 ENCODED = {}
 
 
+def fixture_cache_path(case):
+    payload = json.dumps([case, CASES[case], SECONDS], sort_keys=True).encode("utf-8")
+    digest = hashlib.sha256(payload).hexdigest()[:24]
+    return Path(CONFIG["image"]).parent / "fixture_cache" / f"{case}-{digest}.bin"
+
+
 def encoded(case):
-    if case not in ENCODED:
-        ENCODED[case] = encode(case)
+    if case in ENCODED:
+        return ENCODED[case]
+    name = CASES[case][0]
+    cached = fixture_cache_path(case)
+    try:
+        data = cached.read_bytes()
+    except FileNotFoundError:
+        _, data = encode(case)
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=f".{case}-", suffix=".tmp", dir=cached.parent)
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(data)
+            os.replace(temp_path, cached)
+        except BaseException:
+            temp_path.unlink(missing_ok=True)
+            raise
+    ENCODED[case] = (name, data)
     return ENCODED[case]
 
 
@@ -133,7 +162,7 @@ def position_frames(drawn):
 
 
 class EchoImageTest(EchoImageHarness):
-    def feed_rig(self, case, start_delay_ms=0):
+    def boot_feed_rig(self, case):
         name, data = encoded(case)
         volume = Fat32Volume()
         volume.add_file(name, data)
@@ -145,10 +174,17 @@ class EchoImageTest(EchoImageHarness):
         rig.machine.hook_symbol("frame_pacer_done",
                                 lambda: frames.append(rig.machine.milliseconds()))
         rig.open_songs()
+        return rig, meter, frames
+
+    def start_feed(self, rig, case, start_delay_ms):
         rig.run_for(start_delay_ms)
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
         self.assertEqual(CASES[case][1], rig.audio.rate)
+
+    def feed_rig(self, case):
+        rig, meter, frames = self.boot_feed_rig(case)
+        self.start_feed(rig, case, 0)
         return rig, meter, frames
 
     def blocks(self, rig):
@@ -320,6 +356,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(dark["panel_asleep"], dark)
         self.assertFalse(lit["panel_asleep"], lit)
         self.assertEqual([], rig.audio.underruns(resumed_ms)[:5], case)
+        self.assert_healthy(rig.session)
         return dark, lit
 
     def test_playback_resumed_with_the_screen_off_after_a_pause_stays_fed(self):
@@ -436,12 +473,33 @@ class EchoImageTest(EchoImageHarness):
         self.dark_then_lit(rig, meter, case, skipped_ms)
         self.assert_healthy(rig.session)
 
-    def test_a_resume_anywhere_in_core_1s_load_window_keeps_heavy_streams_fed(self):
-        for case in ("dsd128_stereo", "opus48_2_5ms"):
-            for offset_ms in WINDOW_OFFSETS_MS:
-                with self.subTest(case=case, offset_ms=offset_ms):
-                    for result in self.resumed_in_the_dark(case, PAUSED_DARK_MS + offset_ms):
-                        self.assert_fed(result)
+    def assert_resumed_in_load_window(self, case, offset_ms):
+        for result in self.resumed_in_the_dark(case, PAUSED_DARK_MS + offset_ms):
+            self.assert_fed(result)
+
+    def test_dsd128_resume_at_0_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("dsd128_stereo", 0)
+
+    def test_dsd128_resume_at_125_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("dsd128_stereo", 125)
+
+    def test_dsd128_resume_at_250_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("dsd128_stereo", 250)
+
+    def test_dsd128_resume_at_375_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("dsd128_stereo", 375)
+
+    def test_opus_2_5ms_resume_at_0_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("opus48_2_5ms", 0)
+
+    def test_opus_2_5ms_resume_at_125_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("opus48_2_5ms", 125)
+
+    def test_opus_2_5ms_resume_at_250_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("opus48_2_5ms", 250)
+
+    def test_opus_2_5ms_resume_at_375_ms_in_core_1s_load_window_stays_fed(self):
+        self.assert_resumed_in_load_window("opus48_2_5ms", 375)
 
     def test_a_track_change_in_the_same_core_1_program_starts_at_its_full_clock(self):
         volume = Fat32Volume()
@@ -468,10 +526,13 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(slow_us, TRACK_CHANGE_SLOW_LIMIT_US, dict(decoder.clock_us))
         self.assert_healthy(rig.session)
 
-    def sweep_start_phases(self, case, dark, delays=START_DELAYS_MS):
+    def sweep_start_phases(self, case, dark, delays):
+        rig, meter, frames = self.boot_feed_rig(case)
+        snapshot = PlaybackSnapshot(rig)
         for delay_ms in delays:
             with self.subTest(case=case, dark=dark, delay_ms=delay_ms):
-                rig, meter, frames = self.feed_rig(case, delay_ms)
+                snapshot.restore()
+                self.start_feed(rig, case, delay_ms)
                 since_ms = rig.machine.milliseconds()
                 shift_ms = WINDOW_SHIFTS_MS[delay_ms // DELAY_STEP_MS % len(WINDOW_SHIFTS_MS)]
                 result = self.measure(rig, meter, frames, case, dark,
@@ -485,24 +546,73 @@ class EchoImageTest(EchoImageHarness):
                 self.assertEqual(0, result["output_underruns"], result)
                 self.assertGreaterEqual(lowest, RING_FRAMES // 4, (delay_ms, shift_ms))
                 self.assertEqual([], rig.audio.underruns(since_ms)[:5], (delay_ms, shift_ms))
+                self.assert_healthy(rig.session)
 
-    def test_192_khz_small_block_flac_stays_fed_at_start_phases_to_64_ms_with_the_screen_off(self):
-        self.sweep_start_phases("flac192_512", True, EARLY_DARK_DELAYS_MS)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_0_to_12_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_0_TO_12_MS)
 
-    def test_192_khz_small_block_flac_stays_fed_at_start_phases_from_68_ms_with_the_screen_off(self):
-        self.sweep_start_phases("flac192_512", True, LATE_DARK_DELAYS_MS)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_16_to_28_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_16_TO_28_MS)
 
-    def test_192_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_on(self):
-        self.sweep_start_phases("flac192_512", False)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_32_to_44_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_32_TO_44_MS)
 
-    def test_176_khz_small_block_flac_stays_fed_at_start_phases_to_64_ms_with_the_screen_off(self):
-        self.sweep_start_phases("flac176_512", True, EARLY_DARK_DELAYS_MS)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_48_to_64_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_48_TO_64_MS)
 
-    def test_176_khz_small_block_flac_stays_fed_at_start_phases_from_68_ms_with_the_screen_off(self):
-        self.sweep_start_phases("flac176_512", True, LATE_DARK_DELAYS_MS)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_68_to_80_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_68_TO_80_MS)
 
-    def test_176_khz_small_block_flac_stays_fed_at_every_start_phase_with_the_screen_on(self):
-        self.sweep_start_phases("flac176_512", False)
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_84_to_96_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_84_TO_96_MS)
+
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_100_to_112_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_100_TO_112_MS)
+
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_116_to_128_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac192_512", True, PHASE_DELAYS_116_TO_128_MS)
+
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_0_to_12_ms_with_the_screen_on(self):
+        self.sweep_start_phases("flac192_512", False, PHASE_DELAYS_0_TO_12_MS)
+
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_16_to_28_ms_with_the_screen_on(self):
+        self.sweep_start_phases("flac192_512", False, PHASE_DELAYS_16_TO_28_MS)
+
+    def test_192_khz_small_block_flac_stays_fed_at_start_phases_32_to_40_ms_with_the_screen_on(self):
+        self.sweep_start_phases("flac192_512", False, PHASE_DELAYS_32_TO_40_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_0_to_12_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_0_TO_12_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_16_to_28_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_16_TO_28_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_32_to_44_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_32_TO_44_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_48_to_64_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_48_TO_64_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_68_to_80_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_68_TO_80_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_84_to_96_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_84_TO_96_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_100_to_112_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_100_TO_112_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_116_to_128_ms_with_the_screen_off(self):
+        self.sweep_start_phases("flac176_512", True, PHASE_DELAYS_116_TO_128_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_0_to_12_ms_with_the_screen_on(self):
+        self.sweep_start_phases("flac176_512", False, PHASE_DELAYS_0_TO_12_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_16_to_28_ms_with_the_screen_on(self):
+        self.sweep_start_phases("flac176_512", False, PHASE_DELAYS_16_TO_28_MS)
+
+    def test_176_khz_small_block_flac_stays_fed_at_start_phases_32_to_40_ms_with_the_screen_on(self):
+        self.sweep_start_phases("flac176_512", False, PHASE_DELAYS_32_TO_40_MS)
 
     def test_192_khz_flac_opus_vorbis_and_44_khz_flac_stay_fed_with_the_screen_off(self):
         for case in ("flac192_512", "opus48_20ms", "vorbis44", "flac44"):

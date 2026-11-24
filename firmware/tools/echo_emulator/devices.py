@@ -328,8 +328,34 @@ class Watchdog(RegisterFile):
     def __init__(self, machine):
         super().__init__()
         self.machine = machine
-        self.top = 0
-        self.last_kick = 0
+        self._top = 0
+        self._last_kick = 0
+
+    @property
+    def top(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return hdr.wdog_top if hdr is not None else self._top
+
+    @top.setter
+    def top(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.wdog_top = value
+        else:
+            self._top = value
+
+    @property
+    def last_kick(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return hdr.wdog_last_kick if hdr is not None else self._last_kick
+
+    @last_kick.setter
+    def last_kick(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.wdog_last_kick = value
+        else:
+            self._last_kick = value
 
     def timeout_cycles(self):
         clocks = 1 << (16 + self.top)
@@ -355,7 +381,18 @@ class Vop(RegisterFile):
     def __init__(self, machine):
         super().__init__()
         self.machine = machine
-        self.pixel_mode = False
+        self._pixel_mode = False
+
+    @property
+    def pixel_mode(self):
+        panel = getattr(self.machine, "panel", None)
+        if panel is not None and panel._native_ptr is not None:
+            return bool(panel._native_lib.emu_panel_vop_pixel_mode(panel._native_ptr))
+        return self._pixel_mode
+
+    @pixel_mode.setter
+    def pixel_mode(self, value):
+        self._pixel_mode = bool(value)
 
     def read_word(self, offset):
         if offset == VOP_STATUS:
@@ -386,7 +423,18 @@ class Dmac(RegisterFile):
     def __init__(self, machine=None):
         super().__init__()
         self.machine = machine
-        self.pushed_pixels = 0
+        self._pushed_pixels = 0
+
+    @property
+    def pushed_pixels(self):
+        panel = getattr(self.machine, "panel", None)
+        if panel is not None and panel._native_ptr is not None:
+            return panel._native_lib.emu_panel_dmac_pushed(panel._native_ptr)
+        return self._pushed_pixels
+
+    @pushed_pixels.setter
+    def pushed_pixels(self, value):
+        self._pushed_pixels = value
 
     def read_word(self, offset):
         if offset == self.COMP_TYPE:
@@ -408,19 +456,97 @@ class Dmac(RegisterFile):
         for source, words in blocks:
             self.machine.panel.pixels(
                 struct.unpack("<%dH" % (2 * words), self.machine.read_memory(source, 4 * words)))
-            self.pushed_pixels += 2 * words
+            self._pushed_pixels += 2 * words
 
 
 class Systick(RegisterFile):
     def __init__(self, machine):
         super().__init__()
         self.machine = machine
-        self.base_cycle = 0
-        self.enabled = False
-        self.tick_interrupt = False
-        self.reload = 0
-        self.delivered_wraps = 0
-        self.vtor = 0
+        self._base_cycle = 0
+        self._enabled = False
+        self._tick_interrupt = False
+        self._reload = 0
+        self._delivered_wraps = 0
+        self._vtor = 0
+
+    @property
+    def base_cycle(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return hdr.systick_base_cycle if hdr is not None else self._base_cycle
+
+    @base_cycle.setter
+    def base_cycle(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.systick_base_cycle = value
+        else:
+            self._base_cycle = value
+
+    @property
+    def enabled(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return bool(hdr.systick_enabled) if hdr is not None else self._enabled
+
+    @enabled.setter
+    def enabled(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.systick_enabled = 1 if value else 0
+        else:
+            self._enabled = bool(value)
+
+    @property
+    def tick_interrupt(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return bool(hdr.systick_tick_interrupt) if hdr is not None else self._tick_interrupt
+
+    @tick_interrupt.setter
+    def tick_interrupt(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.systick_tick_interrupt = 1 if value else 0
+        else:
+            self._tick_interrupt = bool(value)
+
+    @property
+    def reload(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return hdr.systick_reload if hdr is not None else self._reload
+
+    @reload.setter
+    def reload(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.systick_reload = value
+        else:
+            self._reload = value
+
+    @property
+    def delivered_wraps(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return hdr.systick_delivered_wraps if hdr is not None else self._delivered_wraps
+
+    @delivered_wraps.setter
+    def delivered_wraps(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.systick_delivered_wraps = value
+        else:
+            self._delivered_wraps = value
+
+    @property
+    def vtor(self):
+        hdr = getattr(self.machine, "_native_header", None)
+        return hdr.systick_vtor if hdr is not None else self._vtor
+
+    @vtor.setter
+    def vtor(self, value):
+        hdr = getattr(self.machine, "_native_header", None)
+        if hdr is not None:
+            hdr.systick_vtor = value
+        else:
+            self._vtor = value
 
     def elapsed(self):
         return self.machine.cycles() - self.base_cycle
@@ -439,7 +565,11 @@ class Systick(RegisterFile):
         return self.reload - self.elapsed() % (self.reload + 1)
 
     def acknowledge(self):
-        self.delivered_wraps = self.wraps()
+        native = getattr(self.machine, "_native", None)
+        if native is not None:
+            self.machine._native_lib.emu_core0_systick_acknowledge(native)
+        else:
+            self._delivered_wraps = self.wraps()
 
     def read_word(self, offset):
         if offset == SYSTICK_CURRENT:
@@ -455,8 +585,12 @@ class Systick(RegisterFile):
         return super().read_word(offset)
 
     def restart(self):
-        self.base_cycle = self.machine.cycles()
-        self.delivered_wraps = 0
+        native = getattr(self.machine, "_native", None)
+        if native is not None:
+            self.machine._native_lib.emu_core0_systick_restart(native)
+        else:
+            self._base_cycle = self.machine.cycles()
+            self._delivered_wraps = 0
 
     def write_word(self, offset, value):
         if offset == SYSTICK_CTRL:

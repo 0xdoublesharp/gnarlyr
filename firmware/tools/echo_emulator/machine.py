@@ -1,3 +1,5 @@
+import array
+import ctypes
 import struct
 import sys
 from pathlib import Path
@@ -11,7 +13,7 @@ from unicorn.arm_const import (
     UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3, UC_ARM_REG_R12, UC_ARM_REG_SP, UC_ARM_REG_XPSR,
     UC_CPU_ARM_CORTEX_M3)
 
-from . import devices, direct
+from . import devices, direct, native_accel
 from .panel import Panel
 
 TOOLS_DIRECTORY = Path(__file__).resolve().parents[1]
@@ -26,6 +28,7 @@ STUB_RETURN = TRAMPOLINE + 0x800
 RETURN_INSTRUCTION = b"\x70\x47"
 CORE1_RAM_BASE = 0x01000000
 CORE1_RAM_SIZE = 0x60000
+CORE1_SHARED_OFFSET = 0x20000
 PAGE = 0x1000
 SLICE_INSTRUCTIONS = 4000
 MASKED_SLICE_INSTRUCTIONS = 5
@@ -105,6 +108,11 @@ class Overlay:
         self.header = self.stored[:header]
 
     def loaded(self, machine):
+        native = getattr(machine, "_native", None)
+        if native is not None and RAM_BASE <= self.base and self.base + len(self.stored) <= RAM_BASE + RAM_SIZE:
+            lib = machine._native_lib
+            return bool(lib.emu_core0_memcmp(native, self.base, self.header, len(self.header))
+                        and lib.emu_core0_memcmp(native, self.base, self.stored, len(self.stored)))
         return (machine.read_memory(self.base, len(self.header)) == self.header
                 and machine.read_memory(self.base, len(self.stored)) == self.stored)
 
@@ -147,33 +155,45 @@ class Machine:
         self.uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
         self.uc.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M3)
         self.read_register = direct.RegisterReader(self.uc)
-        self.base_cycles = 0
-        self.jump_cycles = 0
-        self.core_hz = CRYSTAL_HZ
-        self.rate_mark_cycles = 0
-        self.rate_mark_us = 0
+        self.write_register = direct.RegisterWriter(self.uc)
+        self._native_lib = native_accel.load_native()
+        self._native = None
+        self._native_header = None
+        self._native_generic_pages = {}
+        self._native_mmcs = []
+        self._ram_view = None
+        self._core1_ram_view = None
+        self._ram_addr = 0
+        self._core1_ram_addr = 0
+        self._gpio_cb = None
+        self._grf_cb = None
+        self._base_cycles = 0
+        self._jump_cycles = 0
+        self._core_hz = CRYSTAL_HZ
+        self._rate_mark_cycles = 0
+        self._rate_mark_us = 0
         self.clock_log = []
-        self.vbus = False
-        self.adc_key_value = ADC_NO_KEY
-        self.adc_battery_value = ADC_BATTERY_4000_MV
-        self.power_key_pressed_at_ms = 0
-        self.power_key_released_at_ms = 300
-        self.card_present = False
-        self.balanced_plugged = False
+        self._vbus = False
+        self._adc_key_value = ADC_NO_KEY
+        self._adc_battery_value = ADC_BATTERY_4000_MV
+        self._power_key_pressed_at_ms = 0
+        self._power_key_released_at_ms = 300
+        self._card_present = False
+        self._balanced_plugged = False
         self.gpio_log = []
         self.grf_log = []
         self.pwm_log = []
         self.pmu_flag_writes = []
-        self.unknown_mmio = set()
+        self._unknown_mmio = set()
         self.faults = []
-        self.watchdog_kicks = 0
-        self.watchdog_running = False
+        self._watchdog_kicks = 0
+        self._watchdog_running = False
         self.watchdog_resets = 0
         self.traces = {}
         self.reset_requested = None
         self.stop_reason = None
-        self.exception_depth = 0
-        self.pending_return = False
+        self._exception_depth = 0
+        self._pending_return = False
         self.panel = Panel(self)
         self.generic_pages = {}
         self.usb_reset_ack = False
@@ -190,14 +210,14 @@ class Machine:
         self.usb_pulled_up = False
         self.host_ejected = False
         self.cable_bit_dies_with_usb = False
-        self.cable_bit_dead = False
+        self._cable_bit_dead = False
         self.usb_answer = USB_ANSWER_FILE_TRANSFER
         self.entries = {}
-        self.entered = None
-        self.parked = None
-        self.interrupted_parked = None
-        self.resumed = None
-        self.halting = False
+        self._entered = None
+        self._parked = None
+        self._interrupted_parked = None
+        self._resumed = None
+        self._halting = False
         self.build_memory()
         self.load_firmware()
         self.install_hooks()
@@ -205,8 +225,285 @@ class Machine:
         if rest_in_waits:
             self.rest_at_idle_polls()
 
+    @property
+    def base_cycles(self):
+        return self._native_header.base_cycles if self._native_header is not None else self._base_cycles
+
+    @base_cycles.setter
+    def base_cycles(self, value):
+        if self._native_header is not None:
+            self._native_header.base_cycles = value
+        else:
+            self._base_cycles = value
+
+    @property
+    def jump_cycles(self):
+        return self._native_header.jump_cycles if self._native_header is not None else self._jump_cycles
+
+    @jump_cycles.setter
+    def jump_cycles(self, value):
+        if self._native_header is not None:
+            self._native_header.jump_cycles = value
+        else:
+            self._jump_cycles = value
+
+    @property
+    def core_hz(self):
+        return self._native_header.core_hz if self._native_header is not None else self._core_hz
+
+    @core_hz.setter
+    def core_hz(self, value):
+        if self._native_header is not None:
+            self._native_header.core_hz = value
+        else:
+            self._core_hz = value
+
+    @property
+    def rate_mark_cycles(self):
+        return self._native_header.rate_mark_cycles if self._native_header is not None else self._rate_mark_cycles
+
+    @rate_mark_cycles.setter
+    def rate_mark_cycles(self, value):
+        if self._native_header is not None:
+            self._native_header.rate_mark_cycles = value
+        else:
+            self._rate_mark_cycles = value
+
+    @property
+    def rate_mark_us(self):
+        return self._native_header.rate_mark_us if self._native_header is not None else self._rate_mark_us
+
+    @rate_mark_us.setter
+    def rate_mark_us(self, value):
+        if self._native_header is not None:
+            self._native_header.rate_mark_us = value
+        else:
+            self._rate_mark_us = value
+
+    @property
+    def vbus(self):
+        return bool(self._native_header.vbus) if self._native_header is not None else self._vbus
+
+    @vbus.setter
+    def vbus(self, value):
+        if self._native_header is not None:
+            self._native_header.vbus = 1 if value else 0
+        else:
+            self._vbus = bool(value)
+
+    @property
+    def cable_bit_dead(self):
+        return bool(self._native_header.cable_bit_dead) if self._native_header is not None else self._cable_bit_dead
+
+    @cable_bit_dead.setter
+    def cable_bit_dead(self, value):
+        if self._native_header is not None:
+            self._native_header.cable_bit_dead = 1 if value else 0
+        else:
+            self._cable_bit_dead = bool(value)
+
+    @property
+    def adc_key_value(self):
+        return self._native_header.adc_key_value if self._native_header is not None else self._adc_key_value
+
+    @adc_key_value.setter
+    def adc_key_value(self, value):
+        if self._native_header is not None:
+            self._native_header.adc_key_value = value
+        else:
+            self._adc_key_value = value
+
+    @property
+    def adc_battery_value(self):
+        return self._native_header.adc_battery_value if self._native_header is not None else self._adc_battery_value
+
+    @adc_battery_value.setter
+    def adc_battery_value(self, value):
+        if self._native_header is not None:
+            self._native_header.adc_battery_value = value
+        else:
+            self._adc_battery_value = value
+
+    @property
+    def power_key_pressed_at_ms(self):
+        return self._native_header.power_key_pressed_at_ms if self._native_header is not None else self._power_key_pressed_at_ms
+
+    @power_key_pressed_at_ms.setter
+    def power_key_pressed_at_ms(self, value):
+        if self._native_header is not None:
+            self._native_header.power_key_pressed_at_ms = value
+        else:
+            self._power_key_pressed_at_ms = value
+
+    @property
+    def power_key_released_at_ms(self):
+        return self._native_header.power_key_released_at_ms if self._native_header is not None else self._power_key_released_at_ms
+
+    @power_key_released_at_ms.setter
+    def power_key_released_at_ms(self, value):
+        if self._native_header is not None:
+            self._native_header.power_key_released_at_ms = value
+        else:
+            self._power_key_released_at_ms = value
+
+    @property
+    def card_present(self):
+        return bool(self._native_header.card_present) if self._native_header is not None else self._card_present
+
+    @card_present.setter
+    def card_present(self, value):
+        if self._native_header is not None:
+            self._native_header.card_present = 1 if value else 0
+        else:
+            self._card_present = bool(value)
+
+    @property
+    def balanced_plugged(self):
+        return bool(self._native_header.balanced_plugged) if self._native_header is not None else self._balanced_plugged
+
+    @balanced_plugged.setter
+    def balanced_plugged(self, value):
+        if self._native_header is not None:
+            self._native_header.balanced_plugged = 1 if value else 0
+        else:
+            self._balanced_plugged = bool(value)
+
+    @property
+    def watchdog_kicks(self):
+        return self._native_header.wdog_kicks if self._native_header is not None else self._watchdog_kicks
+
+    @watchdog_kicks.setter
+    def watchdog_kicks(self, value):
+        if self._native_header is not None:
+            self._native_header.wdog_kicks = value
+        else:
+            self._watchdog_kicks = value
+
+    @property
+    def watchdog_running(self):
+        return bool(self._native_header.wdog_running) if self._native_header is not None else self._watchdog_running
+
+    @watchdog_running.setter
+    def watchdog_running(self, value):
+        if self._native_header is not None:
+            self._native_header.wdog_running = 1 if value else 0
+        else:
+            self._watchdog_running = bool(value)
+
+    @property
+    def exception_depth(self):
+        return self._native_header.exception_depth if self._native_header is not None else self._exception_depth
+
+    @exception_depth.setter
+    def exception_depth(self, value):
+        if self._native_header is not None:
+            self._native_header.exception_depth = value
+        else:
+            self._exception_depth = value
+
+    @property
+    def pending_return(self):
+        return bool(self._native_header.pending_return) if self._native_header is not None else self._pending_return
+
+    @pending_return.setter
+    def pending_return(self, value):
+        if self._native_header is not None:
+            self._native_header.pending_return = 1 if value else 0
+        else:
+            self._pending_return = bool(value)
+
+    @property
+    def halting(self):
+        return bool(self._native_header.halting) if self._native_header is not None else self._halting
+
+    @halting.setter
+    def halting(self, value):
+        if self._native_header is not None:
+            self._native_header.halting = 1 if value else 0
+        else:
+            self._halting = bool(value)
+
+    @property
+    def parked(self):
+        if self._native_header is not None:
+            val = self._native_header.parked
+            return val if val else None
+        return self._parked
+
+    @parked.setter
+    def parked(self, value):
+        if self._native_header is not None:
+            self._native_header.parked = value or 0
+        else:
+            self._parked = value
+
+    @property
+    def interrupted_parked(self):
+        if self._native_header is not None:
+            val = self._native_header.interrupted_parked
+            return val if val else None
+        return self._interrupted_parked
+
+    @interrupted_parked.setter
+    def interrupted_parked(self, value):
+        if self._native_header is not None:
+            self._native_header.interrupted_parked = value or 0
+        else:
+            self._interrupted_parked = value
+
+    @property
+    def entered(self):
+        if self._native_header is not None:
+            val = self._native_header.entered
+            return val if val else None
+        return self._entered
+
+    @entered.setter
+    def entered(self, value):
+        if self._native_header is not None:
+            self._native_header.entered = value or 0
+        else:
+            self._entered = value
+
+    @property
+    def resumed(self):
+        if self._native_header is not None:
+            val = self._native_header.resumed
+            return val if val else None
+        return self._resumed
+
+    @resumed.setter
+    def resumed(self, value):
+        if self._native_header is not None:
+            self._native_header.resumed = value or 0
+        else:
+            self._resumed = value
+
+    @property
+    def unknown_mmio(self):
+        if self._native_generic_pages:
+            lib = self._native_lib
+            buf = (ctypes.c_uint32 * 1024)()
+            for gp in self._native_generic_pages.values():
+                count = lib.emu_generic_page_drain_touched(gp, buf, 1024)
+                for index in range(count):
+                    self._unknown_mmio.add(buf[index])
+        return self._unknown_mmio
+
+    def core1_ram_ptr(self):
+        if self._native is not None:
+            return self._native_lib.emu_core0_core1_ram(self._native)
+        return None
+
+    def core1_shared_ram_ptr(self):
+        ptr = self.core1_ram_ptr()
+        return ptr + CORE1_SHARED_OFFSET if ptr else None
+
     def cycles(self):
-        return self.base_cycles + self.jump_cycles
+        hdr = self._native_header
+        if hdr is not None:
+            return hdr.base_cycles + hdr.jump_cycles
+        return self._base_cycles + self._jump_cycles
 
     def stamp(self):
         self.stamps += 1
@@ -218,8 +515,12 @@ class Machine:
             self.jump_cycles += cycles
 
     def microseconds(self):
-        since = self.cycles() - self.rate_mark_cycles
-        return self.rate_mark_us + since * 1000000 // self.core_hz
+        hdr = self._native_header
+        if hdr is not None:
+            since = hdr.base_cycles + hdr.jump_cycles - hdr.rate_mark_cycles
+            return hdr.rate_mark_us + since * 1000000 // hdr.core_hz
+        since = self._base_cycles + self._jump_cycles - self._rate_mark_cycles
+        return self._rate_mark_us + since * 1000000 // self._core_hz
 
     def milliseconds(self):
         return self.microseconds() // 1000
@@ -228,6 +529,9 @@ class Machine:
         self.rate_mark_us = self.microseconds()
         self.rate_mark_cycles = self.cycles()
         self.core_hz = hz
+        if self._native_header is not None:
+            self._native_header.pclk_hz = self.pclk_hz()
+            self._native_lib.emu_core0_recompute_budget(self._native)
         self.clock_log.append((self.rate_mark_us // 1000, hz))
 
     def external_pin_levels(self, port):
@@ -274,12 +578,76 @@ class Machine:
     def map_device(self, device, base, size):
         direct.map_device(self.uc, base, size, device)
 
+    def _on_native_gpio_write(self, port, offset, value):
+        try:
+            self.gpio[port].write_word(offset, value)
+        except BaseException as error:
+            direct.callback_failed(self.uc, error)
+
+    def _on_native_grf_write(self, offset, value):
+        try:
+            self.grf.write_word(offset, value)
+        except BaseException as error:
+            direct.callback_failed(self.uc, error)
+
+    def _mark_native_python_exit(self):
+        if self._native_header is not None:
+            self._native_header.python_exit = 1
+
+    def _map_native_mmc(self, controller, base):
+        lib = self._native_lib
+        mmc_ptr = [None]
+
+        def sync_state():
+            ptr = mmc_ptr[0]
+            if ptr is not None:
+                lib.emu_mmc_sync(ptr, controller.busy_until,
+                                 controller.regs.get(devices.MMC_RINTSTS, 0))
+
+        def slow_read(offset, size):
+            try:
+                return controller.read(offset, size)
+            except BaseException as error:
+                direct.callback_failed(self.uc, error)
+                return 0
+
+        def on_write(offset, size, value):
+            try:
+                controller.write(offset, size, value)
+                ptr = mmc_ptr[0]
+                if ptr is not None:
+                    if offset == devices.MMC_CTRL and (value & 0x2 or (value & 0x7) == 0x7):
+                        lib.emu_mmc_clear_fifo(ptr)
+                    if controller.read_queue:
+                        words = array.array("I", controller.read_queue)
+                        controller.read_queue.clear()
+                        buf = (ctypes.c_uint32 * len(words)).from_buffer(words)
+                        lib.emu_mmc_load_fifo(ptr, buf, len(words))
+                    lib.emu_mmc_sync(ptr, controller.busy_until,
+                                     controller.regs.get(devices.MMC_RINTSTS, 0))
+            except BaseException as error:
+                direct.callback_failed(self.uc, error)
+
+        rcb = native_accel.MMC_READ_CB(slow_read)
+        wcb = native_accel.MMC_WRITE_CB(on_write)
+        ptr = lib.emu_mmc_map(self._native, base, rcb, wcb)
+        if not ptr:
+            self.map_device(controller, base, PAGE)
+            return
+        mmc_ptr[0] = ptr
+        self.uc._native_engine.mmcs[base] = ptr
+        self.uc._native_engine.mmio.add((base, base + PAGE))
+        self._native_mmcs.append((ptr, rcb, wcb))
+        orig_reset = controller.hard_reset
+
+        def wrapped_reset():
+            orig_reset()
+            lib.emu_mmc_clear_fifo(ptr)
+            sync_state()
+
+        controller.hard_reset = wrapped_reset
+
     def build_memory(self):
-        self.uc.mem_map(RAM_BASE, RAM_SIZE)
-        self.uc.mem_map(TRAMPOLINE, PAGE)
-        self.uc.mem_map(CORE1_RAM_BASE, CORE1_RAM_SIZE)
-        self.uc.mem_write(TRAMPOLINE, b"\x00\xbf" * (PAGE // 2))
-        self.uc.mem_write(STUB_RETURN, RETURN_INSTRUCTION)
         self.gpio = [devices.Gpio(self, port) for port in range(3)]
         self.cru = devices.Cru(self)
         self.systick = devices.Systick(self)
@@ -293,19 +661,57 @@ class Machine:
         self.sd_controller = DwMmc(self, None)
         self.grf = devices.Grf(self)
         self.rtc_bus = devices.RtcBus(self)
-        mapping = [
-            (self.gpio[0], 0x40160000, PAGE), (self.gpio[1], 0x40170000, PAGE),
-            (self.gpio[2], 0x50030000, PAGE), (self.grf, 0x50010000, PAGE),
-            (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
-            (devices.Pwm(self), 0x400F0000, PAGE), (devices.SarAdc(self), 0x400D0000, PAGE),
-            (self.watchdog, 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
-            (self.vop, 0x60070000, PAGE), (self.dmac, 0x60000000, PAGE),
-            (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
-            (self.sd_controller, 0x60020000, PAGE), (self.rtc_bus, 0x40050000, PAGE),
-        ]
         from .bluetooth import UART_BASE, BluetoothModule
         self.bluetooth = BluetoothModule(self)
-        mapping.append((self.bluetooth, UART_BASE, PAGE))
+        if self._native_lib is not None:
+            self._gpio_cb = native_accel.GPIO_WRITE_CB(self._on_native_gpio_write)
+            self._grf_cb = native_accel.GRF_WRITE_CB(self._on_native_grf_write)
+            native = self._native_lib.emu_core0_create(self.uc._uch, self._gpio_cb, self._grf_cb)
+            if native:
+                engine = native_accel.NativeEngine(self.uc, self._native_lib, "core0", native)
+                engine.mmio.update((base, last + 1) for base, last, _ in self.uc.mem_regions()
+                                   if base >= PERIPHERAL_FIRST)
+                self._native_generic_pages = engine.pages
+                self._native = native
+                self._native_header = self._native_lib.emu_core0_header(native).contents
+                self.uc._native_python_exit = self._mark_native_python_exit
+                ram_ptr = self._native_lib.emu_core0_ram(native)
+                core1_ptr = self._native_lib.emu_core0_core1_ram(native)
+                self._ram_addr = ram_ptr
+                self._core1_ram_addr = core1_ptr
+                self._ram_view = memoryview(
+                    (ctypes.c_uint8 * RAM_SIZE).from_address(ram_ptr)).cast("B")
+                self._core1_ram_view = memoryview(
+                    (ctypes.c_uint8 * CORE1_RAM_SIZE).from_address(core1_ptr)).cast("B")
+                self.panel.attach_native(self._native_lib, self._native_lib.emu_core0_panel(native))
+        if self._native is None:
+            self.uc.mem_map(RAM_BASE, RAM_SIZE)
+            self.uc.mem_map(CORE1_RAM_BASE, CORE1_RAM_SIZE)
+        self.uc.mem_map(TRAMPOLINE, PAGE)
+        self.uc.mem_write(TRAMPOLINE, b"\x00\xbf" * (PAGE // 2))
+        self.uc.mem_write(STUB_RETURN, RETURN_INSTRUCTION)
+        if self._native is not None:
+            self._map_native_mmc(self.emmc_controller, 0x60030000)
+            self._map_native_mmc(self.sd_controller, 0x60020000)
+            mapping = [
+                (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
+                (devices.Pwm(self), 0x400F0000, PAGE),
+                (self.usb, 0x60080000, 0x10000),
+                (self.rtc_bus, 0x40050000, PAGE),
+                (self.bluetooth, UART_BASE, PAGE),
+            ]
+        else:
+            mapping = [
+                (self.gpio[0], 0x40160000, PAGE), (self.gpio[1], 0x40170000, PAGE),
+                (self.gpio[2], 0x50030000, PAGE), (self.grf, 0x50010000, PAGE),
+                (self.pmu, 0x50020000, PAGE), (self.cru, 0x40180000, PAGE),
+                (devices.Pwm(self), 0x400F0000, PAGE), (devices.SarAdc(self), 0x400D0000, PAGE),
+                (self.watchdog, 0x40120000, PAGE), (self.systick, 0xE000E000, PAGE),
+                (self.vop, 0x60070000, PAGE), (self.dmac, 0x60000000, PAGE),
+                (self.usb, 0x60080000, 0x10000), (self.emmc_controller, 0x60030000, PAGE),
+                (self.sd_controller, 0x60020000, PAGE), (self.rtc_bus, 0x40050000, PAGE),
+                (self.bluetooth, UART_BASE, PAGE),
+            ]
         for device, base, size in mapping:
             self.map_device(device, base, size)
 
@@ -326,20 +732,28 @@ class Machine:
             if data_len:
                 start = data_load - base + offset
                 self.uc.mem_write(data_exec, image[start:start + data_len])
+        if self._native is not None:
+            self._native_lib.emu_core0_clear_block_cache(self._native)
         self.check_elf_matches()
-        stack, reset = struct.unpack("<II", self.uc.mem_read(make_image.DATA_BASE, 8))
+        stack, reset = struct.unpack("<II", self.read_memory(make_image.DATA_BASE, 8))
         self.uc.reg_write(UC_ARM_REG_SP, stack)
         self.entry = reset & ~1
 
     def check_elf_matches(self):
         code = make_image.elf_sections(Path(self.elf_path).read_bytes())[".code"].content
-        loaded = bytes(self.uc.mem_read(make_image.CODE_BASE, len(code)))
+        loaded = self.read_memory(make_image.CODE_BASE, len(code))
         if loaded != code:
             raise ValueError("the ELF does not belong to the image")
 
     def unmapped(self, uc, access, address, size, value, user):
         page = address & ~(PAGE - 1)
         if PERIPHERAL_FIRST <= address < PERIPHERAL_LAST and page not in self.generic_pages:
+            if self._native is not None:
+                gp = self._native_lib.emu_generic_page_map(self.uc._uch, page)
+                if gp:
+                    self._native_generic_pages[page] = gp
+                    self.generic_pages[page] = gp
+                    return True
             self.generic_pages[page] = devices.GenericPage(self, page)
             self.map_device(self.generic_pages[page], page, PAGE)
             return True
@@ -349,7 +763,8 @@ class Machine:
     def install_hooks(self):
         self.uc.hook_add(UC_HOOK_MEM_READ_UNMAPPED | UC_HOOK_MEM_WRITE_UNMAPPED
                          | UC_HOOK_MEM_FETCH_UNMAPPED, self.unmapped)
-        self.add_address_hook(TRAMPOLINE, self.exception_return)
+        if self._native is None:
+            self.add_address_hook(TRAMPOLINE, self.exception_return)
         self.hook_symbol("hal_system_set_usb_answer", self.override_usb_answer,
                          optional="hal_system_set_usb_answer" in self.optional_hooks)
 
@@ -362,9 +777,14 @@ class Machine:
         for name in FAILURE_SYMBOLS:
             self.hook_symbol(name, self.failure_hook(name))
 
+    def _rest_idle_poll(self):
+        if self._native_header is not None:
+            self._native_header.rest_pending = 1
+        self.uc.emu_stop()
+
     def rest_at_idle_polls(self):
         for name in IDLE_POLL_SYMBOLS:
-            self.hook_symbol(name, self.uc.emu_stop)
+            self.hook_symbol(name, self._rest_idle_poll)
 
     def failure_hook(self, name):
         def failed():
@@ -379,15 +799,28 @@ class Machine:
             callbacks.append(callback)
             return
         callbacks = self.entries[address] = [callback]
+        hdr = self._native_header
 
         def hook(uc, where, size, user):
-            if self.resumed == where:
-                self.resumed = None
+            if hdr is not None:
+                if hdr.budget_hit:
+                    return
+                if hdr.resumed == where:
+                    hdr.resumed = 0
+                    return
+                hdr.entered = where
+                for entry in callbacks:
+                    entry()
+                    if hdr.halting:
+                        break
                 return
-            self.entered = where
+            if self._resumed == where:
+                self._resumed = None
+                return
+            self._entered = where
             for entry in callbacks:
                 entry()
-                if self.halting:
+                if self._halting:
                     break
 
         direct.hook_add(self.uc, UC_HOOK_BLOCK, hook, None, address, address)
@@ -406,11 +839,16 @@ class Machine:
                               lambda: callback() if overlay.loaded(self) else None)
 
     def stub_symbol(self, name, handler):
+        hdr = self._native_header
+        write_reg = self.write_register
+
         def replaced():
+            if hdr is not None:
+                hdr.pending_insns = 0
             result = handler(self)
             if result is not None:
-                self.uc.reg_write(UC_ARM_REG_R0, result & 0xFFFFFFFF)
-            self.uc.reg_write(UC_ARM_REG_PC, STUB_RETURN | 1)
+                write_reg(UC_ARM_REG_R0, result & 0xFFFFFFFF)
+            write_reg(UC_ARM_REG_PC, STUB_RETURN | 1)
 
         self.hook_symbol(name, replaced)
 
@@ -421,6 +859,12 @@ class Machine:
         return self.read_register(register)
 
     def read_memory(self, address, length):
+        ram_addr = self._ram_addr
+        if ram_addr:
+            if RAM_BASE <= address and address + length <= RAM_BASE + RAM_SIZE:
+                return ctypes.string_at(ram_addr + (address - RAM_BASE), length)
+            if CORE1_RAM_BASE <= address and address + length <= CORE1_RAM_BASE + CORE1_RAM_SIZE:
+                return ctypes.string_at(self._core1_ram_addr + (address - CORE1_RAM_BASE), length)
         return bytes(self.uc.mem_read(address, length))
 
     def read_cstring(self, address):
@@ -434,6 +878,8 @@ class Machine:
     def stop(self, reason):
         self.stop_reason = reason
         self.halting = True
+        if self._native_header is not None:
+            self._native_header.python_exit = 1
         self.uc.emu_stop()
 
     def continue_past_stop(self):
@@ -499,8 +945,18 @@ class Machine:
         self.usb_log.append((self.milliseconds(), "soft disconnect"))
         self.register_log.append(("usb", "soft disconnect", 0))
 
+    def _sync_scheduled(self):
+        if self._native_header is not None:
+            if self.scheduled:
+                self._native_header.has_sched = 1
+                self._native_header.next_sched_ms = min(item[0] for item in self.scheduled)
+            else:
+                self._native_header.has_sched = 0
+            self._native_lib.emu_core0_recompute_budget(self._native)
+
     def at_ms(self, milliseconds, action):
         self.scheduled.append((milliseconds, action))
+        self._sync_scheduled()
 
     def run_scheduled(self):
         now = self.milliseconds()
@@ -508,6 +964,7 @@ class Machine:
         for item in due:
             self.scheduled.remove(item)
             item[1]()
+        self._sync_scheduled()
 
     def stop_at(self, name):
         def reached():
@@ -651,7 +1108,72 @@ class Machine:
         else:
             self.base_cycles += self.core_hz // 1000
 
+    def _run_native(self, until_ms, until, max_instructions):
+        self.stop_reason = None
+        executed = 0
+        if not self.started:
+            self.uc.reg_write(UC_ARM_REG_PC, self.entry)
+            self.started = True
+        step_limit = 20000 if until is not None else 0
+        has_until_ms = 1 if until_ms is not None else 0
+        target_ms = int(until_ms) if until_ms is not None else 0
+        lib, native, hdr = self._native_lib, self._native, self._native_header
+        self._sync_scheduled()
+        first = True
+        rc = 0
+        while self.stop_reason is None:
+            if self.scheduled and (first or rc == native_accel.EXIT_SCHEDULED):
+                self.run_scheduled()
+            if first:
+                if hdr.pending_return:
+                    self.finish_exception()
+                if hdr.exception_depth == 0 and self.interrupt_due():
+                    self.enter_systick()
+                first = False
+            if until_ms is not None and self.milliseconds() >= until_ms:
+                self.stop_reason = "time limit"
+                break
+            if until is not None and until():
+                self.stop_reason = "condition met"
+                break
+            if max_instructions is not None and executed >= max_instructions:
+                self.stop_reason = "instruction limit"
+                break
+            rem_max = max(1, max_instructions - executed) if max_instructions is not None else 0
+            rc = lib.emu_core0_run(native, target_ms, has_until_ms, step_limit, rem_max)
+            executed += hdr.slice_insns
+            if self.uc._hook_exception is not None:
+                error = self.uc._hook_exception
+                self.uc._hook_exception = None
+                raise error
+            if rc == native_accel.EXIT_UC_ERROR:
+                error = UcError(hdr.last_err)
+                self.faults.append((self.cycles(), str(error), 0, self.current_pc()))
+                self.stop_reason = "fault: %s at %s" % (error, self.symbol_at(self.current_pc()))
+                break
+            if rc == native_accel.EXIT_RESET:
+                hdr.reset_requested_flag = 0
+                self.reset_requested = hdr.reset_cycle
+                self.stop("system reset requested")
+                break
+            if rc == native_accel.EXIT_WATCHDOG:
+                self.watchdog_resets += 1
+                self.stop("watchdog reset")
+                break
+            if self.faults and self.stop_reason is None:
+                self.stop_reason = "fault: %s" % (self.faults[-1],)
+                break
+            if rc == native_accel.EXIT_TIME_LIMIT:
+                self.stop_reason = "time limit"
+                break
+            if rc == native_accel.EXIT_INSN_LIMIT:
+                self.stop_reason = "instruction limit"
+                break
+        return self.stop_reason
+
     def run(self, until_ms=None, until=None, max_instructions=None):
+        if self._native is not None and "step_slice" not in self.__dict__:
+            return self._run_native(until_ms, until, max_instructions)
         self.stop_reason = None
         executed = 0
         while self.stop_reason is None:
@@ -689,8 +1211,27 @@ class Machine:
         if not self.started:
             self.uc.reg_write(UC_ARM_REG_PC, self.entry)
             self.started = True
-        start = self.read_register(UC_ARM_REG_PC)
         count = self.next_slice_length()
+        if self._native is not None:
+            rc = self._native_lib.emu_core0_step_once(self._native, count)
+            if self.uc._hook_exception is not None:
+                error = self.uc._hook_exception
+                self.uc._hook_exception = None
+                raise error
+            if rc == native_accel.EXIT_UC_ERROR:
+                error = UcError(self._native_header.last_err)
+                self.faults.append((self.cycles(), str(error), 0, self.current_pc()))
+                self.stop_reason = "fault: %s at %s" % (error, self.symbol_at(self.current_pc()))
+                return
+            if rc == native_accel.EXIT_RESET:
+                self._native_header.reset_requested_flag = 0
+                self.reset_requested = self._native_header.reset_cycle
+                self.stop("system reset requested")
+                return
+            if self.faults and self.stop_reason is None:
+                self.stop_reason = "fault: %s" % (self.faults[-1],)
+            return
+        start = self.read_register(UC_ARM_REG_PC)
         self.resumed = self.parked if self.parked == start else None
         self.parked = None
         self.entered = None
