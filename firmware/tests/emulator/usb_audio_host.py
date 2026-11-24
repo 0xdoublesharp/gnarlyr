@@ -57,7 +57,7 @@ class UsbAudioHost:
         self.core.regs[0x920] = self.core.regs.get(0x920, 0) | (1 << 31)
         self.in_due.pop(1, None)
 
-    def trigger_bus_reset(self):
+    def trigger_bus_reset(self, leave_endpoints_enabled=False):
         self.rx.clear()
         self.words.clear()
         self.requests.clear()
@@ -72,11 +72,12 @@ class UsbAudioHost:
         self.incomp_iso_in = False
         self.iso_out_stuck = False
         self.iso_in_stuck = False
-        for ep in range(3):
-            self.core.regs[0x900 + ep * 0x20] = 0
-            self.core.regs[0x908 + ep * 0x20] = 0
-            self.core.regs[0xB00 + ep * 0x20] = 0
-            self.core.regs[0xB08 + ep * 0x20] = 0
+        if not leave_endpoints_enabled:
+            for ep in range(3):
+                self.core.regs[0x900 + ep * 0x20] = 0
+                self.core.regs[0x908 + ep * 0x20] = 0
+                self.core.regs[0xB00 + ep * 0x20] = 0
+                self.core.regs[0xB08 + ep * 0x20] = 0
         self.core.raise_reset()
 
     def direct_rate(self, rate):
@@ -293,6 +294,8 @@ class UsbAudioHost:
                     if ep_num in self.tx_disabled_dirty:
                         self.unflushed_tx_disables += 1
                 if current & (1 << 31) and not (value & (1 << 31)):
+                    if ep_num > 0 and not (value & ((1 << 26) | (1 << 27))):
+                        self.bad_disables += 1
                     value |= 1 << 31
                 value = (value & ~(1 << 17)) | nak
             if value & (1 << 29):

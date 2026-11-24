@@ -328,6 +328,7 @@ static bool fill_fifo(const MmcHost *host, const uint32_t *words, uint32_t total
         for (; sent < end; sent++) {
             register_write(fifo, words[sent]);
         }
+        board_audio_stream_service();
     }
     return true;
 }

@@ -71,6 +71,38 @@ class StorageHost:
         self.next_due_us = 0
         self.enumerated = False
         self.armed_packets = []
+        self.global_out_nak = False
+        self.bad_disables = 0
+        self.fifo_rx_dirty = False
+        self.fifo_tx_dirty = set()
+        self.tx_disabled_dirty = set()
+        self.unflushed_fifo_uses = 0
+        self.unflushed_tx_disables = 0
+
+    def observe_core_write(self, offset, value):
+        if offset in (0x024, 0x028, 0x104, 0x108):
+            self.fifo_rx_dirty = True
+            self.fifo_tx_dirty.update((0, 1, 2))
+        elif offset == 0x010:
+            if value & 1:
+                self.fifo_rx_dirty = False
+                self.fifo_tx_dirty.clear()
+                self.tx_disabled_dirty.clear()
+            if value & (1 << 4):
+                self.fifo_rx_dirty = False
+            if value & (1 << 5):
+                fifo_num = (value >> 6) & 0x1F
+                if fifo_num == 0x10:
+                    self.fifo_tx_dirty.clear()
+                    self.tx_disabled_dirty.clear()
+                else:
+                    self.fifo_tx_dirty.discard(fifo_num)
+                    self.tx_disabled_dirty.discard(fifo_num)
+        elif offset == 0x804:
+            if value & (1 << 9):
+                self.global_out_nak = True
+            if value & (1 << 10):
+                self.global_out_nak = False
 
     def claims(self, offset):
         return offset in (GRXSTSR, GRXSTSP, DAINT, DSTS) or 0x900 <= offset < 0xC00 or \
@@ -183,9 +215,26 @@ class StorageHost:
         if is_in and value & EP_SET_NAK:
             endpoint.events |= EP_INT_IN_NAK_EFF
         if value & EP_DISABLE:
+            can_disable = (not is_in and self.global_out_nak and not (value & EP_ENABLE)) or (
+                is_in and not (value & EP_ENABLE))
+            if endpoint.control & EP_ENABLE and not can_disable:
+                self.bad_disables += 1
+            if is_in and endpoint.control & EP_ENABLE:
+                self.tx_disabled_dirty.add(number)
             endpoint.control = value & ~(EP_ENABLE | EP_DISABLE | EP_SET_NAK)
             endpoint.events |= EP_INT_DISABLED
             return
+        if endpoint.control & EP_ENABLE and not (value & EP_ENABLE):
+            if number > 0 and not (value & ((1 << 26) | EP_SET_NAK)):
+                self.bad_disables += 1
+        if value & EP_ENABLE:
+            if not is_in and number > 0 and self.fifo_rx_dirty:
+                self.unflushed_fifo_uses += 1
+            if is_in:
+                if number in self.fifo_tx_dirty:
+                    self.unflushed_fifo_uses += 1
+                if number in self.tx_disabled_dirty:
+                    self.unflushed_tx_disables += 1
         starting = value & EP_ENABLE and not endpoint.control & EP_ENABLE
         endpoint.control = value
         if not starting:
@@ -211,6 +260,10 @@ class StorageHost:
             self.in_sizes.append(endpoint.bytes)
 
     def fifo_write(self, number, value):
+        if number in self.fifo_tx_dirty:
+            self.unflushed_fifo_uses += 1
+        if number in self.tx_disabled_dirty:
+            self.unflushed_tx_disables += 1
         endpoint = self.inputs[number]
         endpoint.words.append(value)
         if len(endpoint.words) * 4 >= endpoint.bytes:

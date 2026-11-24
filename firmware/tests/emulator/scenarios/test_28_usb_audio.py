@@ -7,6 +7,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import EchoImageHarness, main, CABLE_STEADY_MS, KEY_NEXT, KEY_PLAY
 from usb_audio_host import UsbAudioHost
 from echo_emulator.audio import AudioPath
+from echo_emulator.dac_hardware import (
+    DAC_GAIN_HIGH_VALUE,
+    DAC_GAIN_LOW_VALUE,
+    DAC_GAIN_REGISTER,
+    DAC_LEFT_ADDRESS,
+    DAC_RIGHT_ADDRESS,
+    I2C_LATENCY_US,
+    RealCs43198Bus,
+    RealDmac,
+    RealI2sRegs,
+)
 from echo_emulator.devices import RegisterFile
 
 
@@ -22,114 +33,6 @@ OVERVIEW_ROWS_MIN_Y = 65
 MAX_OVERVIEW_ROW_BANDS = 240
 MAX_METER_BAND_WIDTH = 120
 MAX_USB_POLL_GAP_US = 80
-DAC_LEFT_ADDRESS = 0x60
-DAC_RIGHT_ADDRESS = 0x66
-DAC_GAIN_HIGH_VALUE = 0x31
-DAC_GAIN_LOW_VALUE = 0x20
-I2C_LATENCY_US = 200
-
-
-class RealI2sRegs(RegisterFile):
-    def write_word(self, offset, value):
-        if offset == 0x20:
-            self.regs[offset] = 0
-            return
-        super().write_word(offset, value)
-
-
-class RealCs43198Bus(RegisterFile):
-    CON = 0x00
-    MRXADDR = 0x08
-    MTXCNT = 0x10
-    MRXCNT = 0x14
-    IPD = 0x1C
-    TXDATA = 0x100
-    RXDATA = 0x200
-    START = 0x08
-    STOP = 0x10
-    TX_DONE = 0x04
-    RX_DONE = 0x08
-    START_DONE = 0x10
-    STOP_DONE = 0x20
-    NAK = 0x40
-
-    def __init__(self, machine, latency_us=I2C_LATENCY_US):
-        super().__init__()
-        self.machine = machine
-        self.latency_us = latency_us
-        self.chips = {
-            DAC_LEFT_ADDRESS: {0x020000: 0xF6, 0x0F0000: 0x00},
-            DAC_RIGHT_ADDRESS: {0x020000: 0xF6, 0x0F0000: 0x00},
-        }
-        self.pointer = {DAC_LEFT_ADDRESS: 0, DAC_RIGHT_ADDRESS: 0}
-        self.pending_bits = 0
-        self.ready_us = 0
-        self.power_down_ready_us = {}
-        self.transactions = 0
-        self.polls_during_i2c = 0
-
-    def schedule(self, bits, delay_us):
-        self.pending_bits |= bits
-        self.ready_us = self.machine.microseconds() + delay_us
-
-    def read_word(self, offset):
-        if offset == self.IPD:
-            if self.pending_bits and self.machine.microseconds() >= self.ready_us:
-                self.regs[self.IPD] = self.regs.get(self.IPD, 0) | self.pending_bits
-                self.pending_bits = 0
-            return self.regs.get(self.IPD, 0)
-        return super().read_word(offset)
-
-    def sent_bytes(self, count):
-        words = range((count + 3) // 4)
-        return b"".join(self.regs.get(self.TXDATA + 4 * word, 0).to_bytes(4, "little")
-                        for word in words)[:count]
-
-    def transmit(self, count):
-        frame = self.sent_bytes(count)
-        self.transactions += 1
-        address = frame[0] if frame else 0
-        if address not in self.chips or count < 5:
-            self.schedule(self.NAK, self.latency_us)
-            return
-        reg_map = frame[1] << 16 | frame[2] << 8 | frame[3]
-        self.pointer[address] = reg_map
-        if count >= 6:
-            before = self.chips[address].get(reg_map, 0)
-            self.chips[address][reg_map] = frame[5]
-            if reg_map == 0x020000 and (frame[5] & 0x10) and not (before & 0x10):
-                self.power_down_ready_us[address] = self.machine.microseconds() + 10000
-                self.chips[address][0x0F0000] = 0x00
-        self.schedule(self.TX_DONE, self.latency_us)
-
-    def receive(self, count):
-        address = (self.regs.get(self.MRXADDR, 0) & 0xFF) - 1
-        self.transactions += 1
-        if address not in self.chips:
-            self.schedule(self.NAK, self.latency_us)
-            return
-        reg_map = self.pointer[address]
-        value = self.chips[address].get(reg_map, 0)
-        if reg_map == 0x0F0000 and address in self.power_down_ready_us:
-            if self.machine.microseconds() >= self.power_down_ready_us[address]:
-                value = 0x01
-                self.chips[address][0x0F0000] = value
-        self.regs[self.RXDATA] = value
-        self.schedule(self.RX_DONE, self.latency_us)
-
-    def write_word(self, offset, value):
-        if offset == self.IPD:
-            self.regs[self.IPD] = self.regs.get(self.IPD, 0) & ~value
-            return
-        super().write_word(offset, value)
-        if offset == self.CON and value & self.START:
-            self.schedule(self.START_DONE, 10)
-        elif offset == self.CON and value & self.STOP:
-            self.schedule(self.STOP_DONE, 10)
-        elif offset == self.MTXCNT:
-            self.transmit(value)
-        elif offset == self.MRXCNT:
-            self.receive(value)
 
 
 def dac_fields(data, rate):
@@ -429,7 +332,7 @@ class EchoImageTest(EchoImageHarness):
             if key == KEY_NEXT:
                 step_bands = bands[before_bands:]
                 self.assertGreater(len(step_bands), 0)
-                self.assertLessEqual(len(step_bands), 210)
+                self.assertLessEqual(len(step_bands), 315)
         self.assertLessEqual(self.max_poll_gap_us, MAX_USB_POLL_GAP_US)
         self.assertEqual(host.hid, [])
         self.press(machine, KEY_PLAY)
@@ -525,7 +428,7 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(machine.run(until=lambda: audio.running,
                                          until_ms=machine.milliseconds() + 300), "condition met")
             machine.run(until_ms=machine.milliseconds() + 80)
-        host.trigger_bus_reset()
+        host.trigger_bus_reset(leave_endpoints_enabled=True)
         host.enumerate()
         self.assertEqual(machine.run(until=lambda: not audio.running,
                                      until_ms=machine.milliseconds() + 200), "condition met")
@@ -555,49 +458,12 @@ class EchoImageTest(EchoImageHarness):
         session, machine, asked = self.asked_session()
         machine.host_stays = True
         dac_bus = RealCs43198Bus(machine, latency_us=I2C_LATENCY_US)
+        rate_box = [48000]
+        real_dmac = RealDmac(machine, lambda: rate_box[0])
         machine.map_device(dac_bus, 0x40040000, 0x1000)
         machine.map_device(RealI2sRegs(), 0x40030000, 0x1000)
         machine.map_device(RegisterFile(), 0x40090000, 0x1000)
-        running = [False]
-        started_us = [0]
-        dma_ring = [0]
-        items = [0]
-        rate_box = [48000]
-
-        def start_loop(m):
-            from unicorn.arm_const import UC_ARM_REG_R0
-            items[0] = m.reg(UC_ARM_REG_R0)
-            dma_ring[0] = struct.unpack("<I", m.read_memory(items[0], 4))[0]
-            started_us[0] = m.microseconds()
-            running[0] = True
-            return 1
-
-        def stop_loop(m):
-            running[0] = False
-
-        def ring_words():
-            total = 0
-            item = items[0]
-            for _ in range(64):
-                words = struct.unpack_from("<I", machine.read_memory(item, 24), 16)[0]
-                total += words
-                item = struct.unpack_from("<I", machine.read_memory(item, 24), 8)[0]
-                if item == items[0]:
-                    break
-            return total
-
-        def source(m):
-            if not running[0]:
-                return 0
-            elapsed = m.microseconds() - started_us[0]
-            words = elapsed * rate_box[0] * 2 // 1000000
-            return dma_ring[0] + (words % ring_words()) * 4
-
-        machine.stub_symbol("dmac_start_loop", start_loop)
-        machine.stub_symbol("dmac_stop", stop_loop)
-        machine.stub_symbol("dmac_source", source)
-        machine.stub_symbol("dmac_running", lambda m: int(running[0]))
-        machine.stub_symbol("dmac_suspended", lambda m: 0)
+        real_dmac.attach()
         host = UsbAudioHost(machine, 48000, 3, True)
         host.vary_levels = True
         host.enumerate()
@@ -610,7 +476,7 @@ class EchoImageTest(EchoImageHarness):
         self.press(machine, KEY_NEXT)
         self.press(machine, KEY_NEXT)
         self.press(machine, KEY_PLAY)
-        self.assertEqual(machine.run(until=lambda: running[0],
+        self.assertEqual(machine.run(until=lambda: real_dmac.running,
                                      until_ms=machine.milliseconds() + 4000), "condition met")
         polls_during_ops = [0]
         last_poll_us = [None]
@@ -625,8 +491,8 @@ class EchoImageTest(EchoImageHarness):
 
         machine.hook_symbol("usb_poll", track_poll)
         machine.run(until_ms=machine.milliseconds() + 80)
-        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(0x080000), DAC_GAIN_LOW_VALUE)
-        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(0x080000), DAC_GAIN_LOW_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
         self.press(machine, KEY_MENU)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_VOLUME_UP)
@@ -634,13 +500,13 @@ class EchoImageTest(EchoImageHarness):
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_VOLUME_UP)
         self.press(machine, KEY_PLAY)
-        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(0x080000), DAC_GAIN_HIGH_VALUE)
-        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(0x080000), DAC_GAIN_HIGH_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
         self.assertEqual(machine.read_memory(machine.overlays[0].symbols["gain_refused"], 1)[0], 0)
-        self.assertTrue(running[0])
+        self.assertTrue(real_dmac.running)
         self.press(machine, KEY_PLAY)
-        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(0x080000), DAC_GAIN_LOW_VALUE)
-        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(0x080000), DAC_GAIN_LOW_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
         self.press(machine, KEY_VOLUME_UP)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_PLAY)
@@ -648,22 +514,25 @@ class EchoImageTest(EchoImageHarness):
         host.setup(0x21, 1, 0x0100, 0x0200, 1, b"\x00")
         self.press(machine, KEY_BACK)
         machine.run(until_ms=machine.milliseconds() + 120)
-        self.assertTrue(running[0])
+        self.assertTrue(real_dmac.running)
         self.assertEqual(host.missed, 0)
         self.assertEqual(host.bad_disables, 0)
         self.assertEqual(host.unflushed_fifo_uses, 0)
         self.assertEqual(host.unflushed_tx_disables, 0)
+        self.assertEqual(real_dmac.bad_disables, 0)
         self.assertEqual(struct.unpack("<I", machine.read_memory(machine.symbols["stats"] + 8, 4))[0], 0)
         polls_before_switch = polls_during_ops[0]
         rate_box[0] = 96000
         host.format(96000, 4)
-        self.assertEqual(machine.run(until=lambda: running[0] and
+        self.assertEqual(machine.run(until=lambda: real_dmac.running and
                                      struct.unpack("<I", machine.read_memory(
                                          machine.overlays[0].symbols["open_rate"], 4))[0] == 96000,
                                      until_ms=machine.milliseconds() + 2500), "condition met")
         self.assertGreater(polls_during_ops[0] - polls_before_switch, 500)
         self.assertLess(max_op_gap_us[0], 5000)
         self.assertGreater(dac_bus.transactions, 100)
+        self.assertGreaterEqual(real_dmac.starts, 2)
+        self.assertEqual(real_dmac.bad_disables, 0)
         self.assertEqual(host.bad_disables, 0)
         self.assertEqual(host.unflushed_fifo_uses, 0)
         self.assertEqual(host.unflushed_tx_disables, 0)

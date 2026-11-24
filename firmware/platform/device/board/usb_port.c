@@ -205,11 +205,15 @@ static void handle_reset(UsbPort *port)
     write_register(DCFG, read_register(DCFG) & ~DCFG_ADDRESS_MASK);
     for (uint32_t endpoint = 0; endpoint < 4; endpoint++) {
         clear_endpoint_interrupts(endpoint);
-        if (endpoint > 0 && (read_register(in_control(endpoint)) & EP_ENABLE) != 0) {
-            write_register(in_control(endpoint), EP_IDLE_CONTROL);
-        }
-        if (endpoint > 0 && (read_register(out_control(endpoint)) & EP_ENABLE) != 0) {
-            write_register(out_control(endpoint), EP_IDLE_CONTROL);
+        if (endpoint > 0) {
+            if ((read_register(in_control(endpoint)) & EP_ENABLE) != 0) {
+                disable_endpoint(NULL, endpoint);
+                write_register(in_control(endpoint), EP_IDLE_CONTROL);
+            }
+            if ((read_register(out_control(endpoint)) & EP_ENABLE) != 0) {
+                disable_endpoint(port, endpoint);
+                write_register(out_control(endpoint), EP_IDLE_CONTROL);
+            }
         }
     }
     usb_flush_fifos();
@@ -636,10 +640,11 @@ static void pump_bulk_in(UsbPort *port)
     }
 }
 
-static bool send_periodic(uint32_t endpoint, uint32_t word, uint32_t length, bool iso)
+static bool send_periodic(const UsbPort *port, uint32_t endpoint, uint32_t word, uint32_t length,
+                          bool iso)
 {
     uint32_t control = read_register(in_control(endpoint));
-    if ((control & EP_ENABLE) != 0) {
+    if ((control & EP_ENABLE) != 0 || tx_space(port, endpoint) < 1) {
         return false;
     }
     uint32_t parity = iso ? next_frame_parity() : 0;
@@ -658,14 +663,14 @@ static void pump_audio_in(UsbPort *port)
     uint16_t tick = (uint16_t)((read_register(DSTS) >> 8) & 0x3FFF);
     if (streaming(port) && usb_audio_asynchronous(port->audio) && port->feedback != NULL &&
         (read_register(in_control(1)) & EP_ENABLE) == 0) {
-        send_periodic(1, port->feedback(tick), 4, true);
+        send_periodic(port, 1, port->feedback(tick), 4, true);
     }
     uint16_t usage = 0;
     uint32_t now = hal_clock_milliseconds();
     bool pending = usb_audio_hid_report(&port->hid, &usage);
     bool idle = port->audio->hid_idle != 0 &&
                 deadline_elapsed(now, port->hid_sent_ms, 4u * port->audio->hid_idle);
-    if ((pending || idle) && send_periodic(2, usage, 2, false)) {
+    if ((pending || idle) && send_periodic(port, 2, usage, 2, false)) {
         port->audio->hid_usage = usage;
         port->hid_sent_ms = now;
         if (pending) {
@@ -790,6 +795,7 @@ CORE_SEAM void usb_poll(UsbPort *port)
             finish_control_out(port, port->control_data_length, port->control_data);
         }
     }
+    events = read_register(GINTSTS);
     if ((events & GINT_RX_LEVEL) != 0) {
         handle_receive(port);
     }

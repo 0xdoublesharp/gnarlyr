@@ -115,6 +115,74 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.watchdog_resets, 0)
         self.assert_healthy(session)
 
+    def test_gain_filter_and_i2c_fault_through_real_cs43198_and_dmac(self):
+        from echo_emulator.dac_hardware import (
+            DAC_FILTER_REGISTER,
+            DAC_GAIN_HIGH_VALUE,
+            DAC_GAIN_LOW_VALUE,
+            DAC_GAIN_REGISTER,
+            DAC_LEFT_ADDRESS,
+            DAC_RIGHT_ADDRESS,
+        )
+        from echo_emulator.playback import Rig
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  module_elfs=self.module_elfs, real_dac=True, real_dmac=True)
+        machine, session = rig.machine, rig.session
+        dac_bus = rig.audio.dac_bus
+        real_dmac = rig.audio.real_dmac
+        toasts = self.collect_toasts(machine)
+        rig.open_songs()
+        mark = rig.play_song(1)
+        rig.run_for(500)
+        audible = rig.first_audio_after(mark)
+        self.assertIsNotNone(audible)
+        self.assertTrue(real_dmac.running)
+        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
+        rig.press_many("back", 3)
+        rig.press("previous")
+        rig.press("play")
+        rig.press("play")
+        rig.press_many("next", SOUND_GAIN_ROW)
+        rig.press("play")
+        rig.press("next")
+        rig.press("play")
+        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
+        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
+        rig.press_many("next", SOUND_FILTER_ROW - SOUND_GAIN_ROW)
+        rig.press("play")
+        rig.press_many("next", NON_OVERSAMPLING)
+        rig.press("play")
+        rig.run_for(300)
+        self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_FILTER_REGISTER), 0x22)
+        self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_FILTER_REGISTER), 0x22)
+        self.assertEqual(rig.audio.underruns(audible), [])
+        self.assertEqual(0, rig.audio.output_underruns())
+        self.assertEqual(0, real_dmac.bad_disables)
+        rig.press_many("previous", SOUND_FILTER_ROW - SOUND_GAIN_ROW)
+        dac_bus.fail_register = DAC_GAIN_REGISTER
+        rig.audio.dac_events.clear()
+        rig.press("play")
+        rig.press("previous")
+        rig.press("play")
+        self.assertEqual(english("STR_GAIN_NOT_CHANGED"), toasts[-1])
+        self.assertNotIn("unmute", rig.audio.dac_events[rig.audio.dac_events.index("apply"):])
+        saved = session.fat().read(SETTINGS_PATH)
+        self.assertEqual(1, saved[SETTINGS_GAIN_FIELD])
+        dac_bus.fail_register = None
+        rig.audio.dac_events.clear()
+        rig.press("menu")
+        rig.press("play")
+        self.assertGreater(rig.audio.suspend_depth, 0)
+        rig.press("play")
+        self.assertEqual(0, rig.audio.suspend_depth)
+        self.assertIn("unmute", rig.audio.dac_events)
+        self.assertLess(rig.audio.dac_events.index("apply"), rig.audio.dac_events.index("unmute"))
+        self.assertEqual(0, real_dmac.bad_disables)
+        self.assertGreater(dac_bus.transactions, 80)
+        self.assertEqual(machine.watchdog_resets, 0)
+        self.assert_healthy(session)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

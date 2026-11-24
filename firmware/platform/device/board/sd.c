@@ -91,10 +91,18 @@ static void host_set_bus_width(void *context, uint8_t bits)
     mmc_set_bus_width(&SD_MMC_HOST, bits);
 }
 
+static void sd_delay_ms(uint32_t milliseconds)
+{
+    uint32_t start = hal_clock_milliseconds();
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, milliseconds)) {
+        board_audio_stream_service();
+    }
+}
+
 static void host_delay(void *context, uint32_t milliseconds)
 {
     (void)context;
-    board_delay_ms(milliseconds);
+    sd_delay_ms(milliseconds);
 }
 
 static bool host_card_present(void *context)
@@ -125,10 +133,10 @@ CORE_COLD static void start_card_detect(void)
     register_write(GRF_BASE + GRF_DETECT_MUX, GRF_DETECT_MUX_VALUE);
     gpio_input(CARD_DETECT);
     register_write(GRF_BASE + GRF_DETECT_PULL, GRF_DETECT_PULL_VALUE);
-    board_delay_ms(DETECT_SETTLE_MS);
+    sd_delay_ms(DETECT_SETTLE_MS);
     presence.candidate = host_card_present(NULL);
     presence.since_ms = hal_clock_milliseconds();
-    board_delay_ms(CARD_PRESENCE_STEADY_MS);
+    sd_delay_ms(CARD_PRESENCE_STEADY_MS);
 }
 
 void sd_reset_controller(void)
@@ -146,7 +154,7 @@ CORE_COLD static void clock_controller(void)
     cru_write(CRU_MMC_DIVIDERS, CRU_SD_IDENTIFY);
     register_write(GRF_BASE + GRF_SD_MUX_LOW, GRF_SD_MUX_LOW_VALUE);
     register_write(GRF_BASE + GRF_SD_MUX_HIGH, GRF_SD_MUX_HIGH_VALUE);
-    board_delay_ms(POWER_SETTLE_MS);
+    sd_delay_ms(POWER_SETTLE_MS);
     controller_on = true;
 }
 
@@ -161,11 +169,11 @@ static void power_up_card(void)
     clock_controller();
     start_log.powered_before = mmc_powered(&SD_MMC_HOST);
     power_card_off();
-    board_delay_ms(CARD_OFF_MS);
+    sd_delay_ms(CARD_OFF_MS);
     mmc_reset_controller(&SD_MMC_HOST);
-    board_delay_ms(POWER_UP_MS);
+    sd_delay_ms(POWER_UP_MS);
     mmc_set_clock(&SD_MMC_HOST, SD_CLOCK_IDENTIFY);
-    board_delay_ms(POWER_SETTLE_MS);
+    sd_delay_ms(POWER_SETTLE_MS);
 }
 
 CORE_COLD void sd_quiesce(void)

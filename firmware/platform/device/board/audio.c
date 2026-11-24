@@ -295,6 +295,7 @@ CORE_SEAM bool board_audio_vorbis_wait(Core1Source *source)
         if (slot->state == STREAM_SLOT_FULL && slot->generation == source->generation) {
             return false;
         }
+        hal_system_keep_alive();
         board_delay_ms(1);
     }
     return false;
@@ -1221,11 +1222,18 @@ uint32_t board_audio_stream_consumed(void)
     return transferring ? consumed : 0;
 }
 
-void board_audio_stream_service(void)
+bool board_audio_stream_service(void)
 {
-    if (stream_service != NULL) {
-        stream_service();
+    if (stream_service == NULL) {
+        return false;
     }
+    stream_service();
+    return true;
+}
+
+void board_audio_set_stream_service(void (*service)(void))
+{
+    stream_service = service;
 }
 
 void board_audio_stream_close(void)

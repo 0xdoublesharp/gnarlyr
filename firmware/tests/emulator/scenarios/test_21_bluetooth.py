@@ -35,7 +35,8 @@ def said(pattern, name=BUDS):
 
 
 class EchoImageTest(EchoImageHarness):
-    def bluetooth_rig(self, on_bluetooth=False, in_range=True, pauses_new_streams=False):
+    def bluetooth_rig(self, on_bluetooth=False, in_range=True, pauses_new_streams=False,
+                      *, real_dac=False, real_dmac=False):
         from echo_emulator.bluetooth import Headphones
         from echo_emulator.playback import Rig, ALBUM_COUNT
         from echo_emulator.real_volume import real_volume
@@ -53,7 +54,8 @@ class EchoImageTest(EchoImageHarness):
             toasts.append(self.collect_toasts(machine))
 
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
-                  module_elfs=self.module_elfs, prepare=prepare)
+                  module_elfs=self.module_elfs, prepare=prepare,
+                  real_dac=real_dac, real_dmac=real_dmac)
         return rig, rig.machine.bluetooth, toasts[0]
 
     def run_until(self, rig, condition, limit_ms):
@@ -232,6 +234,29 @@ class EchoImageTest(EchoImageHarness):
         self.run_until(rig, lambda: not module.streaming, WAIT_MS)
         self.assertEqual(1, machine.read_memory(machine.symbols["guarded"], 1)[0])
         self.assertEqual(1, machine.gpio[2].regs.get(GPIO_DATA, 0) >> 1 & 1)
+        self.assert_healthy(rig.session)
+
+    def test_bluetooth_stream_and_pause_resume_through_real_cs43198_and_dmac(self):
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, real_dac=True, real_dmac=True)
+        dac_bus = rig.audio.dac_bus
+        real_dmac = rig.audio.real_dmac
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        rig.run_for(500)
+        self.assertTrue(real_dmac.running)
+        self.assertGreaterEqual(real_dmac.suspends, 1)
+        self.assertGreaterEqual(real_dmac.resumes, 1)
+        self.assertEqual(real_dmac.bad_disables, 0)
+        self.assertGreater(dac_bus.transactions, 50)
+        self.assertEqual(rig.audio.output_underruns(), 0)
+        rig.press("play")
+        self.run_until(rig, lambda: not module.streaming, WAIT_MS)
+        rig.press("play")
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        rig.run_for(300)
+        self.assertTrue(real_dmac.running)
+        self.assertEqual(real_dmac.bad_disables, 0)
         self.assert_healthy(rig.session)
 
 

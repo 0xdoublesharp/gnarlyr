@@ -120,6 +120,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual([count for _, _, count in card_writes], [COMMAND_SECTORS] * COMMANDS)
         self.assertEqual(card_reads, [COMMAND_SECTORS] * COMMANDS)
         self.assertEqual(host.faults, [])
+        self.assertEqual(host.bad_disables, 0)
+        self.assertEqual(host.unflushed_fifo_uses, 0)
+        self.assertEqual(host.unflushed_tx_disables, 0)
         self.assert_healthy(session)
         return session, machine, card
 
@@ -200,8 +203,71 @@ class EchoImageTest(EchoImageHarness):
         read, status = scsi.read(CARD_LUN, FIRST_LBA, FULL_SPEED_BYTES // SECTOR)
         self.assertEqual((read, status), (data, (0, 0)))
         self.assertEqual(host.faults, [])
+        self.assertEqual(host.bad_disables, 0)
+        self.assertEqual(host.unflushed_fifo_uses, 0)
+        self.assertEqual(host.unflushed_tx_disables, 0)
         self.assertEqual(max(host.armed_packets), 15)
         self.assertEqual(max(host.in_sizes), 15 * FULL_SPEED_PACKET)
+        self.assert_healthy(session)
+
+    def test_hot_inserting_sd_card_during_usb_storage_keeps_polling_usb(self):
+        from echo_emulator.emmc import SdCard, SparseDisk
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.usb_storage_host import ScsiHost, StorageHost
+        session = self.session(vbus=True)
+        machine = session.machine
+        disk = SparseDisk(1024 * 1024)
+        Fat32Volume(fsinfo=True).write_to(disk, 0)
+        card = SdCard(disk, machine)
+        machine.card_present = False
+        machine.sd_controller.card = card
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda machine: 0)
+        machine.stub_symbol("usb_activity_quiet", lambda machine: 1)
+        host = StorageHost(machine, SECTOR, HOST_MB_PER_S)
+        machine.usb.host = host
+        machine.note("usb_activity_start")
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: machine.usb_reset_ack,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        host.enumerate()
+        self.assertEqual(machine.run(until=host.configured,
+                                     until_ms=machine.milliseconds() + CONFIGURE_LIMIT_MS),
+                         "condition met")
+        self.assertEqual(machine.run(until=lambda: "usb_activity_start" in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        scsi = ScsiHost(machine, host)
+        self.assertTrue(scsi.until_ready(0))
+        self.assertEqual(scsi.test_unit_ready(CARD_LUN)[0], 1)
+        sd_active = [False]
+        polls_during_sd = [0]
+        from unicorn.arm_const import UC_ARM_REG_LR
+        returns = set()
+
+        def leave_sd():
+            sd_active[0] = False
+
+        def enter_sd():
+            sd_active[0] = True
+            address = machine.reg(UC_ARM_REG_LR) & ~1
+            if address not in returns:
+                returns.add(address)
+                machine.add_address_hook(address, leave_sd)
+
+        def note_poll():
+            if sd_active[0]:
+                polls_during_sd[0] += 1
+
+        machine.hook_symbol("sd_start", enter_sd)
+        machine.hook_symbol("usb_poll", note_poll)
+        machine.card_present = True
+        machine.run(until_ms=machine.milliseconds() + 400)
+        self.assertTrue(scsi.until_ready(CARD_LUN))
+        self.assertGreater(polls_during_sd[0], 0)
+        self.assertEqual(host.faults, [])
+        self.assertEqual(host.bad_disables, 0)
+        self.assertEqual(host.unflushed_fifo_uses, 0)
+        self.assertEqual(host.unflushed_tx_disables, 0)
         self.assert_healthy(session)
 
 

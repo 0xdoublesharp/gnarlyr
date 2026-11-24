@@ -19,14 +19,18 @@ SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_path_start_transfer", "
 
 
 class AudioPath:
-    def __init__(self, machine):
+    def __init__(self, machine, *, real_dac=False, real_dmac=False):
         self.machine = machine
+        self.real_dac = real_dac
+        self.real_dmac_enabled = real_dmac
+        self.dac_bus = None
+        self.real_dmac = None
         self.core1 = None
         self.rate = 44100
         self.ring = machine.symbols["music_ring"]
         self.dma_ring = self.ring
-        self.running = False
-        self.suspend_depth = 0
+        self._running = False
+        self._suspend_depth = 0
         self.paused_us = 0
         self.output_fault = False
         self.resume_fault = False
@@ -48,33 +52,73 @@ class AudioPath:
         begin = offset + make_image.CORE1_MODULE_HEADER_SIZE
         Core1Bridge(self, {CORE1_FLAC: machine.image[begin:begin + size]})
 
+    @property
+    def running(self):
+        return self.real_dmac.running if self.real_dmac is not None else self._running
+
+    @running.setter
+    def running(self, value):
+        self._running = value
+
+    @property
+    def suspend_depth(self):
+        if self.real_dmac is not None:
+            return 1 if self.real_dmac.suspended else 0
+        return self._suspend_depth
+
+    @suspend_depth.setter
+    def suspend_depth(self, value):
+        self._suspend_depth = value
+
     def install(self):
         machine = self.machine
         self.volumes = []
-        machine.stub_symbol("dac_path_start", self.start)
-        machine.stub_symbol("dac_set_volume", self.set_volume)
-        machine.stub_symbol("dmac_start_loop", self.start_loop)
-        machine.stub_symbol("dmac_source", self.source)
-        machine.stub_symbol("dmac_running", lambda machine: int(self.running))
-        for name in SILENT_RETURNS:
-            machine.stub_symbol(name, lambda machine: None)
-        machine.stub_symbol("dac_apply_analog", self.apply_analog)
+        if self.real_dac:
+            from .dac_hardware import RealCs43198Bus, RealI2sRegs
+            from .devices import RegisterFile
+            self.dac_bus = RealCs43198Bus(machine)
+            machine.map_device(self.dac_bus, 0x40040000, 0x1000)
+            machine.map_device(RealI2sRegs(), 0x40030000, 0x1000)
+            machine.map_device(RegisterFile(), 0x40090000, 0x1000)
+            machine.hook_symbol("dac_path_start", self.note_rate)
+            machine.hook_symbol("dac_set_volume", self.note_volume)
+            machine.hook_symbol("dac_apply_analog", lambda: self.dac_events.append("apply"))
+        else:
+            machine.stub_symbol("dac_path_start", self.start)
+            machine.stub_symbol("dac_set_volume", self.set_volume)
+            for name in SILENT_RETURNS:
+                machine.stub_symbol(name, lambda machine: None)
+            machine.stub_symbol("dac_apply_analog", self.apply_analog)
+            machine.stub_symbol("dac_path_take_underrun", self.take_output_fault)
+        if self.real_dmac_enabled:
+            from .dac_hardware import RealDmac
+            self.real_dmac = RealDmac(machine, lambda: self.rate)
+            self.real_dmac.attach()
+        else:
+            machine.stub_symbol("dmac_start_loop", self.start_loop)
+            machine.stub_symbol("dmac_source", self.source)
+            machine.stub_symbol("dmac_running", lambda machine: int(self.running))
+            machine.stub_symbol("dmac_stop", self.stop)
+            machine.stub_symbol("dmac_suspend", self.suspend)
+            machine.stub_symbol("dmac_resume", self.resume)
+            machine.stub_symbol("dmac_suspended", lambda machine: int(self.suspend_depth > 0))
         machine.hook_symbol("board_core1_start_stream", self.note_program)
         for name in ("core1_power_up", "core1_hold", "core1_prepare"):
             machine.stub_symbol(name, lambda machine: 0)
         machine.stub_symbol("core1_run", self.start_core1)
         machine.stub_symbol("core1_stop", self.stop_core1)
-        machine.stub_symbol("dmac_stop", self.stop)
-        machine.stub_symbol("dmac_suspend", self.suspend)
-        machine.stub_symbol("dmac_resume", self.resume)
-        machine.stub_symbol("dmac_suspended", lambda machine: int(self.suspend_depth > 0))
-        machine.stub_symbol("dac_path_take_underrun", self.take_output_fault)
         machine.hook_symbol("dac_path_start_transfer", self.note_start)
         machine.hook_symbol("dac_set_muted", self.note_mute)
         machine.hook_symbol("hal_audio_play", self.note_play)
         machine.hook_symbol("audio_engine_pump", self.sample_level)
         direct.hook_add(machine.uc, UC_HOOK_MEM_WRITE, self.ring_write, None, self.ring,
                         self.ring + RING_BYTES - 1)
+
+    def note_rate(self):
+        self.rate = self.machine.reg(UC_ARM_REG_R0)
+
+    def note_volume(self):
+        self.volumes.append((self.machine.milliseconds(), self.machine.reg(UC_ARM_REG_R1)))
 
     def note_program(self):
         self.requested_program = self.machine.reg(UC_ARM_REG_R0)
@@ -147,10 +191,14 @@ class AudioPath:
         return struct.unpack("<I", self.machine.read_memory(self.machine.symbols["stats"] + 8, 4))[0]
 
     def elapsed_us(self, machine):
+        if self.real_dmac is not None:
+            return self.real_dmac.elapsed_us()
         now = self.paused_us if self.suspend_depth else machine.microseconds()
         return now - self.started_us
 
     def ring_words(self):
+        if self.real_dmac is not None:
+            return self.real_dmac.ring_words()
         total = 0
         item = self.items
         for _ in range(64):

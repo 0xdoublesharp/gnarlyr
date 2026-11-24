@@ -142,7 +142,9 @@ static bool wait_for_push(void)
         if (deadline_elapsed(hal_clock_microseconds(), start, PUSH_TIMEOUT_US)) {
             return false;
         }
-        dmac_push_wait_event();
+        if (!board_audio_stream_service()) {
+            dmac_push_wait_event();
+        }
     }
     board_note_idle_us(hal_clock_microseconds() - start);
     return true;
@@ -179,6 +181,14 @@ CORE_COLD void board_panel_panic_reset(void)
     }
 }
 
+static void drain_push(void)
+{
+    uint32_t start = hal_clock_microseconds();
+    while (!deadline_elapsed(hal_clock_microseconds(), start, PUSH_DRAIN_US)) {
+        board_audio_stream_service();
+    }
+}
+
 static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t count)
 {
     if (board_panic_active() || push_failed || count < PUSH_MIN_PIXELS ||
@@ -190,7 +200,7 @@ static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t cou
         return false;
     }
     if (push_blocks(pixels, count / 2u)) {
-        board_delay_us(PUSH_DRAIN_US);
+        drain_push();
         vop_end_fifo(vop());
         return true;
     }

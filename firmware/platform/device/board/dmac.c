@@ -1,4 +1,5 @@
 #include "dmac.h"
+#include "board.h"
 #include "core/deadline.h"
 #include "core/seam.h"
 
@@ -96,11 +97,11 @@ CORE_SEAM bool dmac_start_loop(const DmaItem *item)
     return true;
 }
 
-static void suspend_channel(void)
+static void suspend_at(uint32_t cfg_low)
 {
-    register_write(CHANNEL_CFG_LOW, register_read(CHANNEL_CFG_LOW) | CFG_SUSPEND);
+    register_write(cfg_low, register_read(cfg_low) | CFG_SUSPEND);
     for (int poll = 0; poll < SUSPEND_POLLS; poll++) {
-        if ((register_read(CHANNEL_CFG_LOW) & CFG_FIFO_EMPTY) != 0) {
+        if ((register_read(cfg_low) & CFG_FIFO_EMPTY) != 0) {
             return;
         }
     }
@@ -112,11 +113,12 @@ CORE_SEAM void dmac_stop(void)
         return;
     }
     if ((register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0) {
-        suspend_channel();
+        suspend_at(CHANNEL_CFG_LOW);
         register_write(DMAC_CHANNEL_ENABLE, CHANNEL_WRITE_ENABLE);
         uint32_t start = hal_clock_milliseconds();
         while ((register_read(DMAC_CHANNEL_ENABLE) & CHANNEL_BIT) != 0 &&
                !deadline_elapsed(hal_clock_milliseconds(), start, STOP_TIMEOUT_MS)) {
+            board_audio_stream_service();
         }
     }
     register_write(CHANNEL_CFG_LOW, register_read(CHANNEL_CFG_LOW) & ~CFG_SUSPEND);
@@ -135,7 +137,7 @@ CORE_SEAM void dmac_suspend(void)
         return;
     }
     if (suspend_depth == 0) {
-        suspend_channel();
+        suspend_at(CHANNEL_CFG_LOW);
     }
     suspend_depth++;
 }
@@ -153,7 +155,7 @@ CORE_SEAM void dmac_resume(void)
 
 void dmac_push_start(uint32_t source, uint32_t destination, uint32_t words)
 {
-    register_write(DMAC_CHANNEL_ENABLE, PUSH_WRITE_ENABLE);
+    dmac_push_cancel();
     register_write(DMAC_CLEAR_TFR, PUSH_BIT);
     register_write(DMAC_CLEAR_ERR, PUSH_BIT);
     register_write(DMAC_MASK_TFR, PUSH_WRITE_ENABLE | PUSH_BIT);
@@ -184,5 +186,11 @@ bool dmac_push_busy(void)
 
 void dmac_push_cancel(void)
 {
-    register_write(DMAC_CHANNEL_ENABLE, PUSH_WRITE_ENABLE);
+    if (dmac_push_busy()) {
+        suspend_at(PUSH_CFG_LOW);
+        register_write(DMAC_CHANNEL_ENABLE, PUSH_WRITE_ENABLE);
+        for (int poll = 0; poll < SUSPEND_POLLS && dmac_push_busy(); poll++) {
+        }
+        register_write(PUSH_CFG_LOW, register_read(PUSH_CFG_LOW) & ~CFG_SUSPEND);
+    }
 }

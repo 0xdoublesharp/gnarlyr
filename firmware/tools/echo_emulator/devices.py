@@ -708,6 +708,8 @@ class UsbCore(RegisterFile):
                 self.interrupts |= GINT_GLOBAL_OUT_NAK
             if value & DCTL_CLEAR_GLOBAL_OUT_NAK:
                 self.interrupts &= ~GINT_GLOBAL_OUT_NAK
+            if self.host is not None and hasattr(self.host, "observe_core_write"):
+                self.host.observe_core_write(offset, value)
             if was_disconnected and not value & DCTL_SOFT_DISCONNECT:
                 self.machine.usb_connected()
             elif not was_disconnected and value & DCTL_SOFT_DISCONNECT:
@@ -718,10 +720,14 @@ class UsbCore(RegisterFile):
                 self.interrupts = 0
                 self.reset_fifo_sizes()
             self.regs[offset] = value & ~(GRSTCTL_SOFT_RESET | GRSTCTL_FLUSH_BITS)
+            if self.host is not None and hasattr(self.host, "observe_core_write"):
+                self.host.observe_core_write(offset, value)
             return
         super().write_word(offset, value)
         if offset in (self.GRXFSIZ, self.GNPTXFSIZ, self.DIEPTXF1, self.DIEPTXF2):
             self.check_fifo_ram(offset)
+            if self.host is not None and hasattr(self.host, "observe_core_write"):
+                self.host.observe_core_write(offset, value)
 
     def raise_reset(self):
         self.interrupts |= GINT_USB_RESET

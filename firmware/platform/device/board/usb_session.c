@@ -168,9 +168,16 @@ static void prepare_luns(void)
     msc_use_write_buffer(&msc, write_buffer, WRITE_BUFFER_SECTORS);
 }
 
+static bool polling_usb;
+
 static void serve_while_drawing(void)
 {
+    if (polling_usb) {
+        return;
+    }
+    polling_usb = true;
     usb_poll(port);
+    polling_usb = false;
 }
 
 static void finish_last_reply(void)
@@ -692,7 +699,9 @@ static bool follow_card(void)
         usb_card_clear_fast(USB_CARD_SD);
     }
     BlockDevice device;
+    board_audio_set_stream_service(serve_while_drawing);
     bool ready = sd_start(&device);
+    board_audio_set_stream_service(NULL);
     bool changed = ready != card_present;
     if (changed) {
         usb_card_clear_fast(USB_CARD_SD);
