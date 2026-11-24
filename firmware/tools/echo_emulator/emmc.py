@@ -154,6 +154,7 @@ class DwMmc(RegisterFile):
         self.busy_until = 0
         self.resets = []
         self.regs[MMC_FIFOTH] = FIFOTH_RESET_VALUE
+        self.inject_fifo_read_error(0, 0)
 
     def hard_reset(self):
         commands = len(self.card.commands) if self.card is not None else 0
@@ -163,6 +164,7 @@ class DwMmc(RegisterFile):
         self.write_words = []
         self.write_target = None
         self.busy_until = 0
+        self.inject_fifo_read_error(0, 0)
 
     def busy(self):
         remaining = self.busy_until - self.machine.cycles()
@@ -172,12 +174,26 @@ class DwMmc(RegisterFile):
 
     def read(self, offset, size):
         if offset == MMC_FIFO:
-            return self.read_queue.popleft() if self.read_queue and not self.busy() else 0
+            return self.read_fifo()
         return super().read(offset, size)
+
+    def inject_fifo_read_error(self, after_words, status):
+        self.read_error_after = after_words
+        self.read_error_status = status
+
+    def read_fifo(self):
+        if not self.read_queue or self.busy():
+            return 0
+        value = self.read_queue.popleft()
+        if self.read_error_after > 0:
+            self.read_error_after -= 1
+            if self.read_error_after == 0:
+                self.raise_status(self.read_error_status)
+        return value
 
     def read_word(self, offset):
         if offset == MMC_FIFO:
-            return self.read_queue.popleft() if self.read_queue and not self.busy() else 0
+            return self.read_fifo()
         if offset == MMC_STATUS:
             waiting = self.busy()
             count = 0 if waiting else min(len(self.read_queue), FIFO_COUNT_LIMIT)

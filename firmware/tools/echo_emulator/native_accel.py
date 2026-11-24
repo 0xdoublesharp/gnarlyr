@@ -234,6 +234,8 @@ def _configure_signatures(lib):
     lib.emu_mmc_sync.restype = None
     lib.emu_mmc_clear_fifo.argtypes = [vp]
     lib.emu_mmc_clear_fifo.restype = None
+    lib.emu_mmc_inject_fifo_read_error.argtypes = [vp, u32, u32]
+    lib.emu_mmc_inject_fifo_read_error.restype = None
     lib.emu_mmc_load_fifo.argtypes = [vp, ctypes.POINTER(u32), u32]
     lib.emu_mmc_load_fifo.restype = None
 

@@ -15,7 +15,6 @@ FIRST_LBA = 8192
 SETTLE_MS = 300
 CONFIGURE_LIMIT_MS = 2000
 INT_DATA_CRC = 1 << 7
-MMC_FIFO = 0x200
 FULL_SPEED_PACKET = 64
 HOST_MB_PER_S = 40
 INSTANT_HOST_MB_PER_S = 400
@@ -184,21 +183,8 @@ class EchoImageTest(EchoImageHarness):
         session, machine, card, disk, host, scsi = self.storage_host(fast=True)
         data = self.pattern(2)
         self.assertEqual(scsi.write(CARD_LUN, FIRST_LBA, data), (0, 0))
-        controller = machine.sd_controller
-        read = controller.read
-        state = {"words": 0}
-
-        def failing_read(offset, size):
-            value = read(offset, size)
-            if offset == MMC_FIFO:
-                state["words"] += 1
-                if state["words"] == FAILING_WORD:
-                    controller.raise_status(INT_DATA_CRC)
-            return value
-
-        controller.read = failing_read
+        machine.sd_controller.inject_fifo_read_error(FAILING_WORD, INT_DATA_CRC)
         _, status = scsi.read(CARD_LUN, FIRST_LBA, COMMAND_SECTORS)
-        controller.read = read
         self.assertEqual(status, (1, COMMAND_SECTORS * SECTOR))
         sense, _ = scsi.request_sense(CARD_LUN)
         self.assertEqual((sense[2], sense[12]), (0x03, 0x11))

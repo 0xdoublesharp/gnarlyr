@@ -1201,6 +1201,9 @@ struct EmuMmc {
     EmuCore0 *core0;
     uint64_t busy_until;
     uint32_t rintsts;
+    uint32_t read_error_after;
+    uint32_t read_error_status;
+    uint32_t read_error_pending;
     uint32_t *fifo;
     uint32_t fifo_head;
     uint32_t fifo_len;
@@ -1234,6 +1237,9 @@ static uint64_t mmc_mmio_read(uc_engine *uc, uint64_t offset, unsigned size, voi
     EmuMmc *m = (EmuMmc *)ud;
     if (offset == 0x200ULL) {
         if (m->fifo_head < m->fifo_len && !mmc_busy(m)) {
+            if (m->read_error_after != 0u && --m->read_error_after == 0u) {
+                m->read_error_pending |= m->read_error_status;
+            }
             return m->fifo[m->fifo_head++];
         }
         return 0ULL;
@@ -1250,7 +1256,10 @@ static uint64_t mmc_mmio_read(uc_engine *uc, uint64_t offset, unsigned size, voi
         return (word >> shift) & subword_mask(size);
     }
     if (base == 0x44u) {
-        uint32_t word = mmc_busy(m) ? (m->rintsts & ~(1u << 3)) : m->rintsts;
+        uint32_t word = m->rintsts | m->read_error_pending;
+        if (mmc_busy(m)) {
+            word &= ~(1u << 3);
+        }
         unsigned shift = (unsigned)(offset & 3u) * 8u;
         return (word >> shift) & subword_mask(size);
     }
@@ -1264,6 +1273,10 @@ static void mmc_mmio_write(uc_engine *uc, uint64_t offset, unsigned size, uint64
 {
     (void)uc;
     EmuMmc *m = (EmuMmc *)ud;
+    if ((offset & ~3ULL) == 0x44u) {
+        unsigned shift = (unsigned)(offset & 3u) * 8u;
+        m->read_error_pending &= ~((uint32_t)(value & subword_mask(size)) << shift);
+    }
     if (m->write_cb != NULL) {
         m->write_cb((uint32_t)offset, (uint32_t)size, value);
     }
@@ -1305,6 +1318,13 @@ void emu_mmc_clear_fifo(EmuMmc *m)
 {
     m->fifo_head = 0u;
     m->fifo_len = 0u;
+}
+
+void emu_mmc_inject_fifo_read_error(EmuMmc *m, uint32_t after_words, uint32_t status)
+{
+    m->read_error_after = after_words;
+    m->read_error_status = status;
+    m->read_error_pending = 0u;
 }
 
 void emu_mmc_load_fifo(EmuMmc *m, const uint32_t *words, uint32_t count)

@@ -338,7 +338,9 @@ static void draw_menu(const UsbPainter *painter)
     Rect area = {0, top, theme->metrics.screen_width,
                  painter->layout.detail.y - theme->metrics.padding - top};
     canvas_fill_rect(painter->canvas, area, theme->colors.background);
+    usb_screen_service(painter->scene);
     list_view_draw(painter->scene->menu, painter->canvas, area, hal_clock_milliseconds());
+    usb_screen_service(painter->scene);
 }
 
 static int state_bottom(const UsbPainter *painter)

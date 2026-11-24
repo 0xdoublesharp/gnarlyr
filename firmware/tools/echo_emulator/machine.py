@@ -646,6 +646,9 @@ class Machine:
             sync_state()
 
         controller.hard_reset = wrapped_reset
+        controller.inject_fifo_read_error = (
+            lambda words, status: lib.emu_mmc_inject_fifo_read_error(ptr, words, status)
+        )
 
     def build_memory(self):
         self.gpio = [devices.Gpio(self, port) for port in range(3)]
