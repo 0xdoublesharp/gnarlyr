@@ -516,7 +516,6 @@ if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         logic/usb_audio_descriptors.c
         logic/usb_audio_hid.c
-        logic/usb_audio_sink.c
         TARGET_DIRECTORY echo_device_logic
         PROPERTIES COMPILE_OPTIONS -Os
     )

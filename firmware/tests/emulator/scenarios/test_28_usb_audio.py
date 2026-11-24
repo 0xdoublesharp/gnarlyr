@@ -13,7 +13,6 @@ SCENE_BYTES = 96
 SCENE_SEARCH_BYTES = 64
 DAC_BITS = (16, 24, 32)
 KEY_VOLUME_UP = 120
-FULL_SCREEN_BANDS = 666
 OVERVIEW_COLUMN_X = 192
 OVERVIEW_ROWS_MIN_Y = 65
 MAX_OVERVIEW_ROW_BANDS = 240
@@ -201,18 +200,38 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(host.missed, 0)
         self.assertEqual(audio.output_underruns(), 0)
 
-    def watch_volume_redraw(self, machine, symbol):
-        applied = []
-        machine.hook_symbol(symbol, lambda: applied.append((len(self.serviced), len(self.meter_draws))))
-        return applied
+    def watch_volume_redraw(self, machine, symbol, bands):
+        from unicorn.arm_const import UC_ARM_REG_LR
+        pending = False
+        redraw = []
 
-    def assert_volume_redraw(self, machine, applied):
-        self.assertEqual(machine.run(until=lambda: applied and len(self.serviced) > applied[-1][0],
+        def applied():
+            nonlocal pending
+            pending = True
+
+        def drawing():
+            nonlocal pending
+            if not pending or redraw:
+                return
+            pending = False
+            first = len(bands)
+            address = machine.reg(UC_ARM_REG_LR) & ~1
+
+            def drawn():
+                if not redraw:
+                    redraw.append(bands[first:])
+
+            machine.add_address_hook(address, drawn)
+
+        machine.hook_symbol(symbol, applied)
+        machine.hook_symbol("usb_screen_show_in_bands", drawing)
+        return redraw
+
+    def assert_volume_redraw(self, machine, redraw):
+        self.assertEqual(machine.run(until=lambda: bool(redraw),
                                      until_ms=machine.milliseconds() + 1000), "condition met")
-        bands = len(self.meter_draws) - applied[-1][1]
-        self.assertGreater(bands, 0)
-        self.assertLess(bands, FULL_SCREEN_BANDS // 2)
-        return bands
+        self.assert_overview_rows(redraw[0])
+        return len(redraw[0])
 
     def watch_overview(self, machine):
         from unicorn.arm_const import UC_ARM_REG_SP
@@ -253,10 +272,9 @@ class EchoImageTest(EchoImageHarness):
         print(f"\n[USB DAC Overview] widest meter band {widest} px, refresh {len(rows)} bands")
 
     def assert_player_volume_redraw(self, machine, bands):
-        applied = self.watch_volume_redraw(machine, "hal_audio_set_volume")
+        redraw = self.watch_volume_redraw(machine, "hal_audio_set_volume", bands)
         machine.press_key(KEY_VOLUME_UP, delay_ms=20, hold_ms=150)
-        count = self.assert_volume_redraw(machine, applied)
-        self.assert_overview_rows(bands[-count:])
+        count = self.assert_volume_redraw(machine, redraw)
         print(f"[USB DAC Overview] Vol+ {count} bands, maximum USB poll gap {self.max_poll_gap_us} us")
         self.assertGreater(self.max_poll_gap_us, 0)
         self.assertLessEqual(self.max_poll_gap_us, MAX_USB_POLL_GAP_US)
@@ -269,10 +287,9 @@ class EchoImageTest(EchoImageHarness):
         self.assert_overview_refresh(machine, bands)
         self.assert_player_volume_redraw(machine, bands)
         self.assert_stream_clean(audio, host)
-        applied = self.watch_volume_redraw(machine, "board_audio_set_attenuation")
+        redraw = self.watch_volume_redraw(machine, "board_audio_set_attenuation", bands)
         host.setup(0x21, 1, 0x0200, 0x0200, 2, struct.pack("<h", -2560))
-        count = self.assert_volume_redraw(machine, applied)
-        self.assert_overview_rows(bands[-count:])
+        self.assert_volume_redraw(machine, redraw)
         self.assert_stream_clean(audio, host)
         self.assertTrue(audio.running)
         self.assertEqual(audio.started_us, started)

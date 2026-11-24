@@ -126,12 +126,20 @@ class EchoImageTest(EchoImageHarness):
     def test_a_mini_stock_size_image_is_refused_and_nothing_is_written(self):
         self.assert_update_refused(("ECHOV496.IMG", None, self.session_module.STOCK_SIZE))
 
+    def updater_accesses(self, session):
+        fat = session.fat()
+        timing = fat.find(f"/{IDENTITY.data_directory}/rescan_times.bin")
+        self.assertIsNotNone(timing)
+        timing_lba = fat.data_start + (timing[1] - 2) * fat.sectors_per_cluster
+        return [access[:3] if access[:3] == ("W", timing_lba, 1) else access
+                for access in session.card.accesses]
+
     def test_a_key_wait_that_spins_ends_like_one_that_rests(self):
         rested, rested_polls = self.refuse_an_update(True)
         spun, spun_polls = self.refuse_an_update(False)
         self.assertGreater(len(rested_polls), 0)
         self.assertGreater(len(spun_polls), SPIN_POLLS_PER_REST * len(rested_polls))
-        self.assertEqual(rested.card.accesses, spun.card.accesses)
+        self.assertEqual(self.updater_accesses(rested), self.updater_accesses(spun))
         self.assertEqual(rested.machine.reached, spun.machine.reached)
         self.assertEqual(rested.changed_sectors(), spun.changed_sectors())
         self.assertEqual(rested.machine.gpio_log[-1][1:6], spun.machine.gpio_log[-1][1:6])

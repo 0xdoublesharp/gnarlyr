@@ -1,6 +1,7 @@
 #include "usb_screen_parts.h"
 
 #include "core/i18n.h"
+#include "core/seam.h"
 #include "home_art.h"
 #include "ui/brand_mark.h"
 #include "ui/footer_hints.h"
@@ -661,7 +662,7 @@ static void show_row(AppUsbStatus status, Rect row, int piece)
     }
 }
 
-void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
+CORE_SEAM void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
 {
     if (rect_is_empty(area)) {
         return;
