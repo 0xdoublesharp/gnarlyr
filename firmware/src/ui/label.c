@@ -131,9 +131,13 @@ static bool prefers_break_after(uint32_t codepoint)
 
 size_t label_wrap_line(const Font *font, const char *text, int max_width)
 {
+    if (text == NULL) {
+        return 0;
+    }
     int used = 0;
     const char *cursor = text;
-    const char *fitting = NULL;
+    const char *fitting = text;
+    bool has_fit = false;
     const char *preferred = NULL;
     uint32_t previous = 0;
     for (;;) {
@@ -141,8 +145,9 @@ size_t label_wrap_line(const Font *font, const char *text, int max_width)
         uint32_t codepoint = utf8_next(&cursor);
         bool ends = codepoint == ' ' || codepoint == '\n' || codepoint == 0;
         if (ends || (before != text && label_breaks_between(previous, codepoint))) {
-            if (used <= max_width || fitting == NULL) {
+            if (used <= max_width || !has_fit) {
                 fitting = before;
+                has_fit = true;
                 preferred =
                     prefers_break_after(previous) && used * 2 >= max_width ? before : preferred;
             }
@@ -153,7 +158,8 @@ size_t label_wrap_line(const Font *font, const char *text, int max_width)
         used += advance_of(font, codepoint);
         previous = codepoint;
     }
-    return (size_t)((preferred != NULL && used > max_width ? preferred : fitting) - text);
+    const char *chosen = preferred != NULL && used > max_width ? preferred : fitting;
+    return chosen != NULL ? (size_t)(chosen - text) : 0;
 }
 
 static const char *after_wrap(const char *cursor)
@@ -254,7 +260,10 @@ static void draw_wrapped(Canvas *canvas, TextStyle style, const WrappedLabel *wr
         }
         draw_line(&clipped, style, (WrappedLine){row, cursor, end, centered, service});
         serve(service);
-        cursor = end != NULL ? after_wrap(end) : NULL;
+        if (end == NULL) {
+            break;
+        }
+        cursor = after_wrap(end);
     }
 }
 

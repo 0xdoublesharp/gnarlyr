@@ -645,9 +645,7 @@ static void draw(void *context, Canvas *canvas)
     }
     canvas_fill_rect(canvas, content, theme->colors.background);
     header_draw(canvas, theme, screen->screen.title);
-    if (screen->mode == MODE_PERIODS) {
-        list_view_draw(&screen->list, canvas, content, screen->now_ms);
-    } else if (screen->mode == MODE_RECAP) {
+    if (screen->mode == MODE_RECAP) {
         recap_cards_draw(screen, canvas, content);
     } else if (screen->mode == MODE_MENU) {
         draw_menu(screen, canvas, content);
@@ -655,13 +653,13 @@ static void draw(void *context, Canvas *canvas)
         draw_totals(screen, canvas, content);
     } else if (screen->mode == MODE_EXPORT) {
         draw_export(screen, canvas, content);
-    } else if (work->top.result == STORE_FAILED) {
+    } else if (screen->mode != MODE_PERIODS && work->top.result == STORE_FAILED) {
         message_draw(canvas, theme, content, i18n_text(STR_HISTORY_UNAVAILABLE));
-    } else if (!work->named) {
+    } else if (screen->mode != MODE_PERIODS && !work->named) {
         MessageConfig working = {
             .message = i18n_text(STR_LISTENING_WORKING), .theme = theme, .motion = screen->motion};
         message_draw_working(canvas, content, &working);
-    } else if (work->top.count == 0) {
+    } else if (screen->mode != MODE_PERIODS && work->top.count == 0) {
         message_draw(canvas, theme, content, i18n_text(STR_LISTENING_EMPTY));
     } else {
         list_view_draw(&screen->list, canvas, content, screen->now_ms);

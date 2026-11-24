@@ -107,7 +107,7 @@ static int line_height(const Theme *theme, bool stacked)
 
 int footer_hints_lines(const Theme *theme, FooterHints hints, int width)
 {
-    FooterPlan plan;
+    FooterPlan plan = {0};
     plan.count = min_of(hints.count, FOOTER_MEASURED);
     plan.stacked = theme_is_portrait(theme);
     measure(theme->fonts.small, hints.items, theme->metrics.padding, &plan);
@@ -192,7 +192,7 @@ static void draw_lines(Canvas *canvas, const FooterRun *run, FooterHints hints, 
         return;
     }
     int font_height = font_line_height(run->font);
-    FooterPlan plan;
+    FooterPlan plan = {0};
     plan.count = min_of(hints.count, FOOTER_MEASURED);
     plan.stacked = run->line > 2 * font_height;
     measure(run->font, hints.items, padding, &plan);

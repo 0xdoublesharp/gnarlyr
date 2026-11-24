@@ -180,7 +180,7 @@ uint32_t flac_bits_read(FlacBits *bits, uint32_t count)
 
 int32_t flac_bits_read_signed(FlacBits *bits, uint32_t count)
 {
-    if (count == 0) {
+    if (count == 0 || count > WORD_BITS) {
         return 0;
     }
     uint32_t value = flac_bits_read(bits, count);

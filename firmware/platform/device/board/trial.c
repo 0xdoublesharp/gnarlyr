@@ -69,6 +69,7 @@ static uint32_t power_since_ms;
 static uint32_t escape_since_ms;
 static bool power_released;
 static bool boot_module_failed;
+static uint32_t boot_module_failed_at;
 __attribute__((section(".noinit"))) static TrialDiag diag;
 
 void board_slot_cache_invalidate(void);
@@ -79,13 +80,22 @@ static uint32_t *copy_buffer(void)
                                    SLOT_COPY_BUFFER_WORDS * 4);
 }
 
+enum {
+    BOOT_MODULE_RETRY_MS = 10000
+};
+
 static const TrialBootModuleEntry *boot_module(void)
 {
-    if (boot_module_failed) {
+    uint32_t now_ms = hal_clock_milliseconds();
+    if (boot_module_failed &&
+        !deadline_elapsed(now_ms, boot_module_failed_at, BOOT_MODULE_RETRY_MS)) {
         return NULL;
     }
     const TrialBootModuleEntry *entry = hal_system_load_module(TRIAL_BOOT_MODULE_NUMBER);
     boot_module_failed = entry == NULL;
+    if (boot_module_failed) {
+        boot_module_failed_at = now_ms;
+    }
     return entry;
 }
 
@@ -201,10 +211,12 @@ CORE_SEAM StoreLoad spoken_store_read(Bookmarks *bookmarks)
 bool hal_system_settle_user_state(bool requested)
 {
     UsbShared *shared = usb_session_shared();
-    const TrialBootModuleEntry *entry =
-        requested || shared->trial.settle != 0 ? boot_module() : NULL;
-    if (entry == NULL) {
+    if (!requested && shared->trial.settle == 0) {
         return true;
+    }
+    const TrialBootModuleEntry *entry = boot_module();
+    if (entry == NULL) {
+        return false;
     }
     board_audio_shut_down();
     board_audio_process_forget();

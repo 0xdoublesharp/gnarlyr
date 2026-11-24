@@ -1110,24 +1110,43 @@ static bool light_stream(uint32_t rate)
            codec == AUDIO_CODEC_WAV;
 }
 
+static bool dark_clock_hold;
+
 uint32_t board_audio_plan_rest(bool dark)
 {
     uint32_t rate = engine_ready ? audio_engine_rate(&engine) : 0;
     rest_ms = 0;
-    if (dark && transferring && !tone_active && stream_service == NULL && rate != 0) {
-        bool light = light_stream(rate);
-        if (light && !board_audio_running_low()) {
-            board_clock_lower_for_playback();
-        }
+    if (!dark || !transferring || tone_active || stream_service != NULL || rate == 0) {
+        dark_clock_hold = false;
+        return 0;
+    }
+    bool light = light_stream(rate);
+    bool low = board_audio_running_low();
+    if (low) {
+        dark_clock_hold = true;
+        (void)ensure_audio_clock();
         if (board_bluetooth_powered()) {
             return 0;
         }
-        uint32_t ring_ms = RING_FRAMES * MILLISECONDS_PER_SECOND / rate;
-        rest_ms = smallest(light ? LIGHT_REST_MS : LONGEST_REST_MS, ring_ms / RING_SERVICES,
-                           handoff_ms());
-        uint32_t input_limit_ms = input_ms() / RING_SERVICES;
-        rest_ms = rest_ms < input_limit_ms ? rest_ms : input_limit_ms;
+        rest_ms = 1;
+        return rest_ms;
     }
+    if (!light) {
+        dark_clock_hold = false;
+        (void)ensure_audio_clock();
+    } else if (!dark_clock_hold ||
+               audio_engine_buffered(&engine, consumed) >= RING_FRAMES * 3 / 4) {
+        dark_clock_hold = false;
+        board_clock_lower_for_playback();
+    }
+    if (board_bluetooth_powered()) {
+        return 0;
+    }
+    uint32_t ring_ms = RING_FRAMES * MILLISECONDS_PER_SECOND / rate;
+    rest_ms =
+        smallest(light ? LIGHT_REST_MS : LONGEST_REST_MS, ring_ms / RING_SERVICES, handoff_ms());
+    uint32_t input_limit_ms = input_ms() / RING_SERVICES;
+    rest_ms = rest_ms < input_limit_ms ? rest_ms : input_limit_ms;
     return rest_ms;
 }
 

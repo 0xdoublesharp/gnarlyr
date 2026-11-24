@@ -305,10 +305,17 @@ static uint32_t smaller(uint32_t left, uint32_t right)
     return left < right ? left : right;
 }
 
-static int32_t find_index_sector(uint32_t index, const PackFace *face, uint32_t codepoint)
+static int32_t find_index_sector(uint32_t index, const PackFace *face, uint32_t codepoint,
+                                 bool *failed)
 {
     int32_t directory = last_at_or_below(face->root, face->roots, 2, codepoint);
-    if (directory < 0 || !read_sector(index, face, 1u + (uint32_t)directory)) {
+    if (directory < 0) {
+        return -1;
+    }
+    if (!read_sector(index, face, 1u + (uint32_t)directory)) {
+        if (failed != NULL) {
+            *failed = true;
+        }
         return -1;
     }
     uint32_t first = (uint32_t)directory * FONT_PACK_DIRECTORY_ENTRIES;
@@ -317,10 +324,17 @@ static int32_t find_index_sector(uint32_t index, const PackFace *face, uint32_t 
     return within < 0 ? -1 : (int32_t)(first + (uint32_t)within);
 }
 
-static const uint8_t *find_entry(uint32_t index, const PackFace *face, uint32_t codepoint)
+static const uint8_t *find_entry(uint32_t index, const PackFace *face, uint32_t codepoint,
+                                 bool *failed)
 {
-    int32_t sector = find_index_sector(index, face, codepoint);
-    if (sector < 0 || !read_sector(index, face, 1u + face->roots + (uint32_t)sector)) {
+    int32_t sector = find_index_sector(index, face, codepoint, failed);
+    if (sector < 0) {
+        return NULL;
+    }
+    if (!read_sector(index, face, 1u + face->roots + (uint32_t)sector)) {
+        if (failed != NULL) {
+            *failed = true;
+        }
         return NULL;
     }
     uint32_t first = (uint32_t)sector * FONT_PACK_ENTRIES_PER_SECTOR;
@@ -423,7 +437,7 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
     if (held_bytes + sizeof(PackSlot) > cache_bytes) {
         return NULL;
     }
-    const uint8_t *entry = find_entry(face, ready, codepoint);
+    const uint8_t *entry = find_entry(face, ready, codepoint, NULL);
     slot->present = entry != NULL && load_glyph(face, ready, entry, slot);
     if (!slot->present && face >= FONT_PACK_IMAGE_FACES && hold == FONT_PACK_HOLD_FREEZE) {
         return NULL;
@@ -443,9 +457,12 @@ static const Glyph *cache_glyph(uint32_t face, const PackFace *ready, uint32_t c
     if (*miss == key) {
         return NULL;
     }
-    const uint8_t *entry = find_entry(face, ready, codepoint);
+    bool failed = false;
+    const uint8_t *entry = find_entry(face, ready, codepoint, &failed);
     if (entry == NULL) {
-        *miss = key;
+        if (!failed) {
+            *miss = key;
+        }
         return NULL;
     }
     uint32_t index = replacement_slot();

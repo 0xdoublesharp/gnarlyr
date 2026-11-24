@@ -97,7 +97,13 @@ static bool unpack_tags(const ScanTagCache *cache, TrackTags *tags)
 bool scan_tag_cache_find(ScanTagCache *cache, const char *path, const ScanFileStamp *stamp,
                          TrackTags *tags)
 {
-    while (cache->loaded || (cache->loaded = advance(cache))) {
+    for (;;) {
+        if (!cache->loaded) {
+            cache->loaded = advance(cache);
+            if (!cache->loaded) {
+                return false;
+            }
+        }
         int order = walk_order(cache->contents, path);
         if (order > 0) {
             return false;
@@ -109,7 +115,6 @@ bool scan_tag_cache_find(ScanTagCache *cache, const char *path, const ScanFileSt
                    old->cluster == stamp->cluster && unpack_tags(cache, tags);
         }
     }
-    return false;
 }
 
 static void append(ScanTagCache *cache, const void *bytes, uint32_t length)

@@ -73,6 +73,9 @@ int plug_chooser_shown_rows(const PlugChooser *chooser)
 {
     int room = chooser->list_area.height;
     int row = chooser->list.top;
+    if (row < 0) {
+        return 0;
+    }
     while (row < chooser->choices.count && chooser->heights[row] <= room) {
         room -= chooser->heights[row];
         row++;

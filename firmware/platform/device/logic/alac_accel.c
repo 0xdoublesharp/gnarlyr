@@ -62,14 +62,15 @@ static uint32_t dma_address(const void *buffer)
 
 static void describe_dma(AlacAccelLink *links, uint32_t address, uint32_t count, bool input)
 {
-    for (uint32_t index = 0; count != 0; index++) {
+    for (uint32_t index = 0; count != 0 && index < ALAC_ACCEL_DMA_LINKS; index++) {
         uint32_t length = count < ALAC_ACCEL_DMA_WORDS ? count : ALAC_ACCEL_DMA_WORDS;
         count -= length;
+        bool more = count != 0 && index + 1 < ALAC_ACCEL_DMA_LINKS;
         links[index] = (AlacAccelLink){
             .source = input ? address : ACCEL_OUTPUT,
             .destination = input ? ACCEL_INPUT : address,
-            .next = count != 0 ? dma_address(&links[index + 1]) : 0,
-            .control = (input ? 0x02109125u : 0x00A09425u) | (count != 0 ? DMA_LINK_ENABLE : 0),
+            .next = more ? dma_address(&links[index + 1]) : 0,
+            .control = (input ? 0x02109125u : 0x00A09425u) | (more ? DMA_LINK_ENABLE : 0),
             .length = length,
         };
         address += length * sizeof(int32_t);

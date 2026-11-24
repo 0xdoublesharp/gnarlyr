@@ -388,6 +388,21 @@ static ScanResult add_whole_track(ScanState *state, ScanStats *stats)
     return result;
 }
 
+typedef struct ScanTagSource {
+    ByteSource inner;
+    bool failed;
+} ScanTagSource;
+
+static bool read_tag_bytes(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    ScanTagSource *source = context;
+    bool ok = source->inner.read(source->inner.context, offset, buffer, length);
+    if (!ok) {
+        source->failed = true;
+    }
+    return ok;
+}
+
 static ScanResult read_track(ScanState *state, const ScanJob *job, ScanStats *stats,
                              const ScanFileStamp *stamp)
 {
@@ -399,14 +414,16 @@ static ScanResult read_track(ScanState *state, const ScanJob *job, ScanStats *st
     }
     ScanResult result = SCAN_OK;
     TagFormat format = track_tags_format_for_name(state->path);
-    if (!track_tags_read_index(source, size, format, &state->tags)) {
+    ScanTagSource checked = {.inner = source};
+    ByteSource tag_source = {.context = &checked, .read = read_tag_bytes};
+    if (!track_tags_read_index(tag_source, size, format, &state->tags)) {
         stats->skipped++;
     } else if (scan_is_chaptered_name(state->path) &&
                mp4_chapters_open(&state->chapters, source, size, state->tags.duration_ms)) {
         track_fields_from_tags(state->path + 1, &state->tags, &state->fields);
         result = scan_add_chapters(state, job, stats);
     } else {
-        if (stamp != NULL && size == stamp->size) {
+        if (stamp != NULL && size == stamp->size && !checked.failed) {
             scan_tag_cache_add(state->tag_cache, state->path, stamp, &state->tags);
         }
         result = add_whole_track(state, stats);

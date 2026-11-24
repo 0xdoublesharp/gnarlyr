@@ -962,11 +962,11 @@ static ScreenAction open_status_bar(void *context)
 }
 
 enum {
-    ROW_SPECIAL = -1,
+    ROW_SPECIAL = 0xFFu,
     LIST_GROUPS = SETTINGS_GROUP_LIBRARY + 1
 };
 
-static const int8_t ROW_CHOICES[SETTINGS_ITEM_COUNT] = {
+static const uint8_t ROW_CHOICES[SETTINGS_ITEM_COUNT] = {
     13,          11,          14,          ROW_SPECIAL,
     ROW_SPECIAL, ROW_SPECIAL, 30,          15,
     16,          12,          0,           1,
@@ -1055,7 +1055,7 @@ static void bind_choice_rows(SettingsScreens *screens)
         screens->entries[index] = (SettingsEntry){.choice = &CHOICES[index], .owner = screens};
     }
     for (int item = 0; item < SETTINGS_ITEM_COUNT; item++) {
-        int choice = ROW_CHOICES[item];
+        uint8_t choice = ROW_CHOICES[item];
         if (choice != ROW_SPECIAL) {
             screens->items[item] = (MenuItem){.label = i18n_text(CHOICES[choice].title),
                                               .select = open_choice,
