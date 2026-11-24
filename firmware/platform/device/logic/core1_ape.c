@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/bytes.h"
+#include "device/core1_source_private.h"
 
 #if !defined(__arm__)
 #include <setjmp.h>
@@ -64,10 +65,27 @@ static Core1DecodeResult configure(Core1Ape *ape)
     return CORE1_DECODED;
 }
 
+static void publish_released(const Core1Ape *ape)
+{
+    volatile StreamControl *control = ape->region.control;
+    if (control == NULL || control->generation == 0 ||
+        control->generation != control->acked_generation) {
+        return;
+    }
+    uint32_t written = control->written;
+    uint32_t target = control->start_offset + ape->position;
+    uint32_t released = target < written ? target : written;
+    if (released > control->released) {
+        core1_publish();
+        control->released = released;
+    }
+}
+
 static Core1DecodeResult begin_frame(Core1Ape *ape)
 {
     uint8_t header[APE_RECORD_BYTES];
     if (!ape->input.read(ape->input.context, ape->position, header, sizeof header)) {
+        publish_released(ape);
         return CORE1_STARVED;
     }
     uint32_t bytes = bytes_le32(header);

@@ -1,6 +1,8 @@
+#include <stdlib.h>
 #include <string.h>
 
 #include "check.h"
+#include "core/bytes.h"
 #include "device/core1_ape.h"
 #include "m4a_fixture_files.h"
 
@@ -210,9 +212,53 @@ static void trailing_slack_at_frame_end_never_releases_past_written(void)
     m4a_file_free(&file);
 }
 
+static void large_trailing_skip_past_one_ring_reaches_eof_without_stalling(void)
+{
+    M4aFile base = m4a_file_load("ape/fast16.ape");
+    CHECK(base.size > 52);
+    uint32_t extra = APE_RING_BYTES + 16384u;
+    uint8_t *padded = calloc(1, base.size + extra);
+    CHECK(padded != NULL);
+    memcpy(padded, base.bytes, base.size);
+    if (bytes_le16(padded + 4) >= 3980) {
+        bytes_put_le32(padded + 24, bytes_le32(padded + 24) + extra);
+    }
+    file = (M4aFile){.bytes = padded, .size = base.size + extra};
+    setup();
+    AudioSource audio = core1_source_interface(&source, CORE1_FORMAT_APE);
+    AudioTrackInfo track;
+    CHECK(audio.open(audio.context, "padded.ape", 0, &track));
+    uint32_t position = 0;
+    AudioFrameResult result = AUDIO_FRAME_WAIT;
+    for (uint32_t step = 0; step < 50000; step++) {
+        core1_source_fill(&source);
+        while (core1_stream_step(&stream)) {
+            CHECK(control.released <= source.written);
+        }
+        CHECK(control.released <= source.written);
+        AudioFrame frame;
+        result = audio.next(audio.context, &frame);
+        if (result == AUDIO_FRAME_END || result == AUDIO_FRAME_ERROR) {
+            break;
+        }
+        if (result == AUDIO_FRAME_READY) {
+            CHECK_EQUAL(position, frame.first_sample);
+            position += frame.samples;
+            audio.release(audio.context);
+        }
+    }
+    CHECK_EQUAL(AUDIO_FRAME_END, result);
+    CHECK_EQUAL(track.stream.total_samples, position);
+    audio.close(audio.context);
+    free(padded);
+    file = (M4aFile){0};
+    m4a_file_free(&base);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(large_trailing_skip_past_one_ring_reaches_eof_without_stalling),
         TEST_CASE(trailing_slack_at_frame_end_never_releases_past_written),
         TEST_CASE(opener_admission_changes_with_the_reported_core_clock),
         TEST_CASE(queued_tracks_add_no_gap_or_extra_output_frames),

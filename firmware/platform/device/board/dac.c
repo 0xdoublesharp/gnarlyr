@@ -97,7 +97,8 @@ enum {
     ACODEC_SETTLE_MS = 5,
     FADE_STEP_US = 2000,
     FADE_IN_FLOOR = 80,
-    VOLUME_RETRY_MS = 250
+    VOLUME_RETRY_MS = 250,
+    SOC_AUDIO_STOP_GATES = 6
 };
 
 typedef enum I2cStage {
@@ -109,7 +110,7 @@ typedef enum I2cStage {
     I2C_STAGE_RECEIVE
 } I2cStage;
 
-static const uint8_t SOC_AUDIO_GATES[] = {0x0E, 0x10, 0x11, 0x12, 0x13, 0x82, 0x83, 0x96};
+static const uint8_t SOC_AUDIO_GATES[] = {0x10, 0x11, 0x12, 0x13, 0x82, 0x83, 0x0E, 0x96};
 static const GpioPin I2C_PINS[] = {{2, 10}, {2, 11}};
 static const GpioPin I2S_PINS[] = {{1, 0}, {1, 1}, {1, 2}, {1, 3}};
 static const DacPin DAC_PIN_LIST[] = {DAC_PIN_MUTE, DAC_PIN_ENABLE_A, DAC_PIN_ENABLE_B,
@@ -260,6 +261,9 @@ static void dac_set_pin(void *context, DacPin pin, bool level)
     if (pin == DAC_PIN_MUTE || pin == DAC_PIN_ENABLE_A) {
         level = board_bluetooth_pin(pin == DAC_PIN_MUTE, level);
     }
+    if (pin == DAC_PIN_MUTE && guarded) {
+        level = true;
+    }
     PinRef ref = board_dac_pin(pin);
     if (ref.present) {
         gpio_output((GpioPin){ref.port, ref.pin}, level);
@@ -276,7 +280,8 @@ static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL};
 
 CORE_COLD static void set_soc_clocks(bool on)
 {
-    for (uint32_t index = 0; index < sizeof SOC_AUDIO_GATES / sizeof SOC_AUDIO_GATES[0]; index++) {
+    uint32_t count = on ? sizeof SOC_AUDIO_GATES : SOC_AUDIO_STOP_GATES;
+    for (uint32_t index = 0; index < count; index++) {
         cru_gate(SOC_AUDIO_GATES[index], on);
     }
 }
@@ -540,7 +545,7 @@ static void wait_serving(uint32_t microseconds)
     } while (hal_clock_microseconds() - start < microseconds);
 }
 
-CORE_COLD void dac_path_output_on(void)
+CORE_SEAM CORE_COLD void dac_path_output_on(void)
 {
     dac_output_on(&BUS, DAC_VOLUME_MUTED);
     chip_volume.applied = DAC_VOLUME_MUTED;

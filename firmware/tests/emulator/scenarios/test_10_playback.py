@@ -901,7 +901,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_stop_audio_path_powers_down_acodec_and_gates_audio_clocks(self):
-        from echo_emulator.devices import RegisterFile
+        from echo_emulator.devices import GPIO_DATA, RegisterFile
         from echo_emulator.machine import PAGE, TRAMPOLINE
         from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC
         session = self.session()
@@ -914,21 +914,35 @@ class EchoImageTest(EchoImageHarness):
         machine.map_device(RegisterFile(), 0x40030000, PAGE)
         machine.map_device(RegisterFile(), 0x40040000, PAGE)
         machine.map_device(acodec, 0x40090000, PAGE)
-        gates = (0x0E, 0x10, 0x11, 0x12, 0x13, 0x82, 0x83, 0x96)
-        for gate in gates:
+        stopped_gates = (0x10, 0x11, 0x12, 0x13, 0x82, 0x83)
+        kept_gates = (0x0E, 0x96)
+        for gate in stopped_gates + kept_gates:
             machine.cru.write_word(0x80 + 4 * (gate // 16), 1 << (gate % 16 + 16))
         returned = TRAMPOLINE + 0x904
-        machine.add_address_hook(returned, lambda: machine.stop("dac stop returned"))
-        context = machine.uc.context_save()
-        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["dac_path_stop"] | 1)
-        self.assertEqual("dac stop returned", machine.run(until_ms=machine.milliseconds() + 2000))
-        machine.uc.context_restore(context)
+        machine.add_address_hook(returned, lambda: machine.stop("dac API returned"))
+
+        def invoke(symbol):
+            context = machine.uc.context_save()
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[symbol] | 1)
+            self.assertEqual("dac API returned", machine.run(until_ms=machine.milliseconds() + 2000))
+            machine.uc.context_restore(context)
+
+        machine.uc.mem_write(machine.symbols["guarded"], b"\x01")
+        invoke("dac_path_output_on")
+        self.assertEqual(1, machine.gpio[2].regs.get(GPIO_DATA, 0) >> 1 & 1)
+        machine.uc.mem_write(machine.symbols["guarded"], b"\x00")
+        invoke("dac_path_output_on")
+        self.assertEqual(0, machine.gpio[2].regs.get(GPIO_DATA, 0) >> 1 & 1)
+        invoke("dac_path_stop")
         self.assertEqual(0, acodec.regs[0x200] & (1 << 2))
         self.assertEqual((1 << 2) | (1 << 0), acodec.regs[0x214] & ((1 << 2) | (1 << 0)))
-        for gate in gates:
+        for gate in stopped_gates:
             word = machine.cru.regs.get(0x80 + 4 * (gate // 16), 0)
             self.assertEqual(1, word >> (gate % 16) & 1, hex(gate))
+        for gate in kept_gates:
+            word = machine.cru.regs.get(0x80 + 4 * (gate // 16), 0)
+            self.assertEqual(0, word >> (gate % 16) & 1, hex(gate))
         self.assert_healthy(session)
 
 

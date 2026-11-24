@@ -94,6 +94,50 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual([], rig.audio.underruns(started))
         self.assert_healthy(rig.session)
 
+    def test_ab_repeat_clearing_mark_a_during_fade_seeks_cleanly_without_underflow(self):
+        from echo_emulator.audio import RING_BYTES
+        from echo_emulator.playback import Rig
+        rate = 48000
+        first = self.tagged_wav("Alpha", "Album", rate, 40, 1000)
+        second = self.tagged_wav("Beta", "Album", rate, 40, 2000)
+        volume = self.transition_volume([("Alpha.wav", first), ("Beta.wav", second)], 0)
+        volume.add_file("buttons.bin", buttons_file({PLAYBACK_MENU_HOLD: BUTTON_ACTION_AB_REPEAT}),
+                        directory=IDENTITY.data_directory)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        mark_entries = []
+        engine_entries = []
+        dma_starts = []
+        machine.hook_symbol("hal_audio_repeat_mark",
+                            lambda: mark_entries.append((machine.milliseconds(),
+                                                         rig.audio.elapsed_us(machine))))
+        machine.hook_symbol("audio_engine_repeat_mark",
+                            lambda: engine_entries.append(rig.audio.elapsed_us(machine)))
+        machine.hook_symbol("dmac_start_loop", lambda: dma_starts.append(machine.milliseconds()))
+        rig.open_songs()
+        started = rig.play_song(1)
+        first_press = machine.milliseconds()
+        rig.press("menu", hold=MENU_HOLD_MS)
+        self.assertEqual(1, len(mark_entries))
+        delay_to_mark = mark_entries[0][0] - first_press
+        target_ms = 4000 - delay_to_mark - 25
+        self.assertGreater(target_ms, rig.audio.elapsed_us(machine) // 1000)
+        self.assertEqual("condition met", machine.run(
+            until=lambda: rig.audio.elapsed_us(machine) // 1000 >= target_ms,
+            until_ms=machine.milliseconds() + 4000))
+        starts_before = len(dma_starts)
+        rig.press("menu", hold=MENU_HOLD_MS)
+        self.assertEqual(2, len(mark_entries))
+        self.assertEqual(2, len(engine_entries))
+        self.assertLess(mark_entries[1][1], 4000000)
+        self.assertGreaterEqual(engine_entries[1], 4000000)
+        self.assertEqual(starts_before + 1, len(dma_starts))
+        rig.run_for(400)
+        self.assertEqual([], rig.audio.underruns(started))
+        self.assertLessEqual(max(level for _, level in rig.audio.levels), RING_BYTES // 8)
+        self.assert_healthy(rig.session)
+
 
 if __name__ == "__main__":
     sys.exit(main(EchoImageTest))

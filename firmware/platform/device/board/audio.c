@@ -1267,10 +1267,15 @@ CORE_SEAM CORE_COLD uint8_t hal_audio_repeat_mark(bool clear)
     bool paused = engine.state == AUDIO_ENGINE_PAUSED;
     if (restart) {
         stop_transfer();
+        audio_engine_observe(&engine, consumed);
     }
     uint8_t state = audio_engine_repeat_mark(&engine, clear);
     if (restart) {
-        restart_output(engine.state != AUDIO_ENGINE_STOPPED, paused);
+        bool ready = engine.state != AUDIO_ENGINE_STOPPED;
+        if (ready && engine.produced != 0) {
+            ready = audio_engine_seek(&engine, audio_engine_status(&engine).position_ms);
+        }
+        restart_output(ready, paused);
     }
     return engine.state == AUDIO_ENGINE_STOPPED ? 0 : state;
 }
