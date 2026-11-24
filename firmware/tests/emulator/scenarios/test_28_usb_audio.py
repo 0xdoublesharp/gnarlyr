@@ -14,6 +14,11 @@ SCENE_SEARCH_BYTES = 64
 DAC_BITS = (16, 24, 32)
 KEY_VOLUME_UP = 120
 FULL_SCREEN_BANDS = 666
+OVERVIEW_COLUMN_X = 192
+OVERVIEW_ROWS_MIN_Y = 65
+MAX_OVERVIEW_ROW_BANDS = 240
+MAX_METER_BAND_WIDTH = 120
+MAX_USB_POLL_GAP_US = 80
 
 
 def dac_fields(data, rate):
@@ -49,8 +54,6 @@ class EchoImageTest(EchoImageHarness):
         completed = set()
         self.write_complete = True
         self.sink_instructions = 0
-        if rate == 192000:
-            self.meter_copy(machine)
         def leave_packet():
             self.write_complete = True
         def enter_packet():
@@ -90,6 +93,8 @@ class EchoImageTest(EchoImageHarness):
     def stream_rate(self, rate):
         session, audio, host = self.dac_session(rate)
         machine = session.machine
+        if rate == 192000:
+            self.meter_copy(machine)
         start = machine.milliseconds()
         measured_us = machine.microseconds()
         sink_instructions = self.sink_instructions
@@ -191,18 +196,67 @@ class EchoImageTest(EchoImageHarness):
         bands = len(self.meter_draws) - applied[-1][1]
         self.assertGreater(bands, 0)
         self.assertLess(bands, FULL_SCREEN_BANDS // 2)
+        return bands
+
+    def watch_overview(self, machine):
+        from unicorn.arm_const import UC_ARM_REG_SP
+        bands = []
+        last_poll_us = None
+        self.max_poll_gap_us = 0
+
+        def record_poll():
+            nonlocal last_poll_us
+            now = machine.microseconds()
+            if last_poll_us is not None:
+                self.max_poll_gap_us = max(self.max_poll_gap_us, now - last_poll_us)
+            last_poll_us = now
+
+        def record_band():
+            stack = machine.reg(UC_ARM_REG_SP)
+            bands.append(struct.unpack("<4i", machine.read_memory(stack, 16)))
+
+        machine.hook_symbol("usb_poll", record_poll)
+        machine.hook_symbol("app_show_usb_area", record_band)
+        return bands
+
+    def assert_overview_rows(self, bands):
+        self.assertGreater(len(bands), 0)
+        self.assertLessEqual(len(bands), MAX_OVERVIEW_ROW_BANDS)
+        self.assertTrue(all(x >= OVERVIEW_COLUMN_X and y >= OVERVIEW_ROWS_MIN_Y
+                            for x, y, _, _ in bands), min(bands))
+
+    def assert_overview_refresh(self, machine, bands):
+        start = machine.milliseconds()
+        self.assertEqual(machine.run(until_ms=start + 1100), "time limit")
+        meter = [band for band in bands if band[0] < OVERVIEW_COLUMN_X]
+        rows = [band for band in bands if band[0] >= OVERVIEW_COLUMN_X]
+        self.assertGreater(len(meter), 0)
+        widest = max(band[2] for band in meter)
+        self.assertLessEqual(widest, MAX_METER_BAND_WIDTH)
+        self.assert_overview_rows(rows)
+        print(f"\n[USB DAC Overview] widest meter band {widest} px, refresh {len(rows)} bands")
+
+    def assert_player_volume_redraw(self, machine, bands):
+        applied = self.watch_volume_redraw(machine, "hal_audio_set_volume")
+        machine.press_key(KEY_VOLUME_UP, delay_ms=20, hold_ms=150)
+        count = self.assert_volume_redraw(machine, applied)
+        self.assert_overview_rows(bands[-count:])
+        print(f"[USB DAC Overview] Vol+ {count} bands, maximum USB poll gap {self.max_poll_gap_us} us")
+        self.assertGreater(self.max_poll_gap_us, 0)
+        self.assertLessEqual(self.max_poll_gap_us, MAX_USB_POLL_GAP_US)
 
     def test_usb_audio_volume_changes_redraw_only_part_of_the_screen(self):
         session, audio, host = self.dac_session(192000)
         machine = session.machine
         started = audio.started_us
-        applied = self.watch_volume_redraw(machine, "hal_audio_set_volume")
-        machine.press_key(KEY_VOLUME_UP, delay_ms=20, hold_ms=150)
-        self.assert_volume_redraw(machine, applied)
+        bands = self.watch_overview(machine)
+        self.assert_overview_refresh(machine, bands)
+        self.assert_player_volume_redraw(machine, bands)
         self.assert_stream_clean(audio, host)
         applied = self.watch_volume_redraw(machine, "board_audio_set_attenuation")
         host.setup(0x21, 1, 0x0200, 0x0200, 2, struct.pack("<h", -2560))
-        self.assert_volume_redraw(machine, applied)
+        count = self.assert_volume_redraw(machine, applied)
+        self.assert_overview_rows(bands[-count:])
         self.assert_stream_clean(audio, host)
         self.assertTrue(audio.running)
         self.assertEqual(audio.started_us, started)

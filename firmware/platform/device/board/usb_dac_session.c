@@ -286,7 +286,6 @@ static AppUsbStatus dac_status(void)
 
 static bool showing_details(void)
 {
-    dac_status();
     return !menu_open && scene->page != USB_SCENE_OVERVIEW && scene->page < hint_pages;
 }
 
@@ -294,7 +293,8 @@ static Rect info_area(AppUsbStatus status)
 {
     const Theme *theme = app_theme();
     UsbScreenLayout layout = usb_screen_layout(theme, status);
-    return showing_details() ? usb_screen_content(theme, &layout) : usb_screen_column(&layout);
+    return showing_details() ? usb_screen_content(theme, &layout)
+                             : usb_screen_dac_rows_area(theme, &layout, scene);
 }
 
 static AppUsbStatus prepare_status(void)
@@ -320,7 +320,8 @@ static void show_state(void)
 
 static void show_info(void)
 {
-    if (!playing || !usb_audio_asynchronous(&audio) || menu_open) {
+    if (!playing || !usb_audio_asynchronous(&audio) || menu_open ||
+        scene->state != stream_state()) {
         show_state();
         return;
     }
@@ -328,15 +329,16 @@ static void show_info(void)
     usb_screen_show_in_bands(status, info_area(status));
 }
 
-static uint8_t follow_levels(uint32_t now_ms)
+static bool follow_levels(uint32_t now_ms, uint8_t before[USB_SCENE_CHANNELS])
 {
     uint16_t peaks[USB_SCENE_CHANNELS];
     usb_audio_sink_take_peaks(&sink, peaks);
-    uint8_t changed = 0;
+    bool changed = false;
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
+        before[side] = scene->dac.level[side];
         uint8_t now = playing ? usb_level_of(peaks[side]) : 0;
-        uint8_t level = usb_level_follow(scene->dac.level[side], now, now_ms - meter_ms);
-        changed |= (uint8_t)(level != scene->dac.level[side] ? 1u << side : 0u);
+        uint8_t level = usb_level_follow(before[side], now, now_ms - meter_ms);
+        changed |= level != before[side];
         scene->dac.level[side] = level;
     }
     return changed;
@@ -355,14 +357,18 @@ static void sample_buffer(void)
     tally.buffer_samples++;
 }
 
-static void draw_meters(uint8_t changed)
+static void draw_meters(const uint8_t before[USB_SCENE_CHANNELS])
 {
     AppUsbStatus status = dac_status();
     const Theme *theme = app_theme();
     UsbScreenLayout layout = usb_screen_layout(theme, status);
     for (int side = 0; side < USB_SCENE_CHANNELS; side++) {
-        if ((changed & (1u << side)) != 0) {
-            usb_screen_show_in_bands(status, usb_screen_meter_bar(theme, &layout, side));
+        UsbMeterDelta delta = {
+            .side = side, .before = before[side], .after = scene->dac.level[side]};
+        Rect area = usb_screen_meter_change(theme, &layout, delta);
+        if (area.width > 0 && area.height > 0) {
+            serve_audio_usb();
+            usb_screen_show_in_bands(status, area);
         }
     }
 }
@@ -372,10 +378,11 @@ static void step_meter(uint32_t now_ms)
     if (menu_open || !deadline_elapsed(now_ms, meter_ms, METER_FRAME_MS)) {
         return;
     }
-    uint8_t changed = follow_levels(now_ms);
+    uint8_t before[USB_SCENE_CHANNELS];
+    bool changed = follow_levels(now_ms, before);
     sample_buffer();
-    if (scene->page == USB_SCENE_OVERVIEW) {
-        draw_meters(changed);
+    if (changed && scene->page == USB_SCENE_OVERVIEW) {
+        draw_meters(before);
     }
     meter_ms = hal_clock_milliseconds();
 }
@@ -432,7 +439,11 @@ static void keep_output(void)
     if (scene->state != stream_state()) {
         follow_info(hal_clock_milliseconds());
         AppUsbStatus status = dac_status();
-        usb_screen_show_in_bands(status, info_area(status));
+        const Theme *theme = app_theme();
+        UsbScreenLayout layout = usb_screen_layout(theme, status);
+        Rect area =
+            showing_details() ? usb_screen_content(theme, &layout) : usb_screen_column(&layout);
+        usb_screen_show_in_bands(status, area);
     }
 }
 
