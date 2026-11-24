@@ -125,6 +125,9 @@ class EchoImageTest(EchoImageHarness):
         from unicorn import UC_HOOK_MEM_READ
         number, effects = self.module(machine, "effects")
         last = effects.base + len(effects.stored) - 1
+        bss_end = effects.base + make_image.EFFECTS_MODULE_CAPACITY - 1
+        self.assertLess(last, bss_end)
+        uc.mem_write(bss_end, b"\xa7")
         metadata = ((machine.symbols["device_noinit_end"] + 7) & ~7) + 144
         magic = int.from_bytes(make_image.module_magic(number), "little")
         uc.mem_write(metadata, struct.pack("<5I", 0, magic, effects.base,
@@ -133,16 +136,18 @@ class EchoImageTest(EchoImageHarness):
         watch = uc.hook_add(UC_HOOK_MEM_READ, lambda *args: body_reads.append(last),
                             begin=last, end=last)
         uc.ctl_flush_tb()
-        self.assertEqual(1, call("board_audio_effects_prepare"))
+        self.assertEqual(1, call("board_audio_process_prepare"))
         self.assertEqual([], body_reads)
+        self.assertEqual(b"\xa7", bytes(uc.mem_read(bss_end, 1)))
         original = bytes(uc.mem_read(last, 1))
         uc.mem_write(last, bytes((original[0] ^ 1,)))
         self.assertEqual(0, call("board_overlay_is_loaded", metadata))
         self.assertEqual([last], body_reads)
         uc.mem_write(last, original)
         body_reads.clear()
-        self.assertEqual(1, call("board_audio_effects_prepare"))
+        self.assertEqual(1, call("board_audio_process_prepare"))
         self.assertEqual([last], body_reads)
+        self.assertEqual(b"\x00", bytes(uc.mem_read(bss_end, 1)))
         uc.hook_del(watch)
 
     def test_integer_tempo_matches_native_pcm_in_the_processing_slot(self):

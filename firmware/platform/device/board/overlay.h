@@ -31,6 +31,7 @@ typedef struct BoardOverlay {
 } BoardOverlay;
 
 bool board_overlay_is_loaded(const BoardOverlay *overlay);
+bool board_overlay_is_cached(const BoardOverlay *overlay);
 bool board_overlay_load(const BoardOverlay *overlay);
 const void *board_usb_overlay_load(void);
 void board_module_forget(void);

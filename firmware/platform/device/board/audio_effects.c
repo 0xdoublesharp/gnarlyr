@@ -21,7 +21,7 @@ CORE_COLD bool board_audio_effects_prepare(void)
                                   .base = (uint8_t *)(uintptr_t)AUDIO_EFFECTS_BASE,
                                   .capacity = AUDIO_EFFECTS_BYTES,
                                   .module = AUDIO_EFFECTS_NUMBER};
-    if (!ready || !board_overlay_is_loaded(&overlay)) {
+    if (!ready || !board_overlay_is_cached(&overlay)) {
         ready = board_overlay_load(&overlay) && entry()->magic == AUDIO_EFFECTS_MAGIC;
     }
     return ready;

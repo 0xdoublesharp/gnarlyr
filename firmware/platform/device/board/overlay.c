@@ -146,6 +146,16 @@ static uint8_t *audio_slot(const BoardOverlay *overlay)
     }
 }
 
+static bool cache_matches(const BoardOverlay *overlay, const uint8_t *loaded)
+{
+    return loaded != NULL && *loaded != 0 && *loaded == overlay->module;
+}
+
+bool board_overlay_is_cached(const BoardOverlay *overlay)
+{
+    return cache_matches(overlay, audio_slot(overlay)) && header_size(overlay) != 0;
+}
+
 CORE_SEAM bool board_overlay_is_loaded(const BoardOverlay *overlay)
 {
     bool intact = already_loaded(overlay) != 0;
@@ -159,9 +169,8 @@ CORE_SEAM bool board_overlay_is_loaded(const BoardOverlay *overlay)
 bool board_overlay_load(const BoardOverlay *overlay)
 {
     uint8_t *loaded = audio_slot(overlay);
-    bool cached = loaded != NULL && *loaded != 0 && *loaded == overlay->module;
     uint32_t size = header_size(overlay);
-    if (size == 0 || (!cached && !body_intact(overlay, size))) {
+    if (size == 0 || (!cache_matches(overlay, loaded) && !body_intact(overlay, size))) {
         size = load_from_storage(overlay);
     }
     clear(overlay, size);
