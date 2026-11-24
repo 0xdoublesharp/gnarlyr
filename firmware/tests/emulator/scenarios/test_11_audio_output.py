@@ -121,6 +121,30 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual([], rig.session.module_reads("slot_2", number))
         self.assert_healthy(rig.session)
 
+    def check_effects_module_reuse(self, machine, call, uc):
+        from unicorn import UC_HOOK_MEM_READ
+        number, effects = self.module(machine, "effects")
+        last = effects.base + len(effects.stored) - 1
+        metadata = ((machine.symbols["device_noinit_end"] + 7) & ~7) + 144
+        magic = int.from_bytes(make_image.module_magic(number), "little")
+        uc.mem_write(metadata, struct.pack("<5I", 0, magic, effects.base,
+                                           make_image.EFFECTS_MODULE_CAPACITY, number))
+        body_reads = []
+        watch = uc.hook_add(UC_HOOK_MEM_READ, lambda *args: body_reads.append(last),
+                            begin=last, end=last)
+        uc.ctl_flush_tb()
+        self.assertEqual(1, call("board_audio_effects_prepare"))
+        self.assertEqual([], body_reads)
+        original = bytes(uc.mem_read(last, 1))
+        uc.mem_write(last, bytes((original[0] ^ 1,)))
+        self.assertEqual(0, call("board_overlay_is_loaded", metadata))
+        self.assertEqual([last], body_reads)
+        uc.mem_write(last, original)
+        body_reads.clear()
+        self.assertEqual(1, call("board_audio_effects_prepare"))
+        self.assertEqual([last], body_reads)
+        uc.hook_del(watch)
+
     def test_integer_tempo_matches_native_pcm_in_the_processing_slot(self):
         import subprocess
         from unicorn import Uc, UC_ARCH_ARM, UC_MODE_THUMB, UC_MODE_MCLASS, UC_HOOK_CODE
@@ -195,6 +219,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(marker, bytes(uc.mem_read(following, len(marker))))
         uc.mem_write(damaged, original)
         uc.ctl_remove_cache(process.base, process.base + len(process.stored))
+        self.check_effects_module_reuse(machine, call, uc)
         for rate, speed in ((8000, 50), (16000, 100), (48000, 50), (48000, 150), (48000, 200)):
             self.assertEqual(1, call("audio_process_tempo_start", bank, bank_frames, rate, speed))
             frames = 12000

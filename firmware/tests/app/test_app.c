@@ -35,6 +35,8 @@
 #include "library_rescan.h"
 #include "music_check.h"
 #include "music_record.h"
+#include "path_file.h"
+#include "playback/listening_log.h"
 #include "playback/spoken.h"
 #include "plug_modes.h"
 #include "scan_guard.h"
@@ -910,6 +912,42 @@ static void play_first_album_track(void)
     open_music_entry(MUSIC_ALBUMS_INDEX);
     tap(KEY_PLAY);
     tap(KEY_PLAY);
+}
+
+static void record_a_listen(void)
+{
+    play_first_album_track();
+    fake_hal_audio_set_position(2000);
+    wait_ms(2000);
+    app_stop();
+}
+
+static void check_listening_boot(uint16_t position, uint32_t boot)
+{
+    PathFile file = {LISTENING_LOG_PATH, LISTENING_LOG_FILE_BYTES};
+    ListeningLog log;
+    CHECK_EQUAL(STORE_READY,
+                listening_log_open(&log, (ListeningLogConfig){path_file_store(&file), true}));
+    ListeningCursor cursor;
+    listening_cursor_begin(&cursor, &log, LISTENING_SECTOR_RECORDS);
+    ListeningRecord record;
+    CHECK(listening_cursor_fetch(&cursor, position, &record));
+    CHECK_EQUAL(boot, record.boot);
+    CHECK_EQUAL(boot, log.root.counters.boots);
+}
+
+static void listening_records_count_cold_boots_and_survive_a_storage_restart(void)
+{
+    start_app_with_library();
+    record_a_listen();
+    check_listening_boot(0, 1);
+    app_leave_storage();
+    app_start_after_storage();
+    step();
+    check_listening_boot(0, 1);
+    restart_app();
+    record_a_listen();
+    check_listening_boot(1, 2);
 }
 
 static void a_list_does_not_redraw_when_only_the_playback_second_changes(void)
@@ -9143,6 +9181,7 @@ int main(void)
         TEST_CASE(selecting_music_opens_the_music_menu),
         TEST_CASE(back_returns_to_the_previous_screen),
         TEST_CASE(repeated_play_on_a_listening_leaf_keeps_one_back_to_its_menu),
+        TEST_CASE(listening_records_count_cold_boots_and_survive_a_storage_restart),
         TEST_CASE(a_storage_session_mid_slide_ends_the_slide_before_the_restart_draws),
         TEST_CASE(exporting_without_plays_settles_at_once_and_keeps_one_back),
         TEST_CASE(a_long_back_returns_home_from_deep_screens),

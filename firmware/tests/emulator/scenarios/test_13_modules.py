@@ -33,6 +33,26 @@ START_MODULE = 15
 
 
 class EchoImageTest(EchoImageHarness):
+    def assert_fast_module_reuse(self, machine, number):
+        from unicorn import Uc, UC_ARCH_ARM, UC_MODE_MCLASS, UC_MODE_THUMB
+        from unicorn.arm_const import (UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0,
+                                       UC_ARM_REG_SP, UC_ARM_REG_XPSR, UC_CPU_ARM_CORTEX_M3)
+        from echo_emulator.machine import CRYSTAL_HZ, PAGE, RAM_BASE, RAM_SIZE, STUB_RETURN, TRAMPOLINE
+        core = Uc(UC_ARCH_ARM, UC_MODE_THUMB | UC_MODE_MCLASS)
+        core.ctl_set_cpu_model(UC_CPU_ARM_CORTEX_M3)
+        core.mem_map(RAM_BASE, RAM_SIZE)
+        core.mem_write(RAM_BASE, machine.read_memory(RAM_BASE, RAM_SIZE))
+        core.mem_map(TRAMPOLINE, PAGE)
+        core.reg_write(UC_ARM_REG_SP, machine.reg(UC_ARM_REG_SP))
+        core.reg_write(UC_ARM_REG_XPSR, 0x01000000)
+        core.reg_write(UC_ARM_REG_R0, number)
+        core.reg_write(UC_ARM_REG_LR, STUB_RETURN | 1)
+        budget = MODULE_REUSE_LIMIT_US * (CRYSTAL_HZ // 1000000)
+        core.emu_start(machine.symbols["hal_system_load_module"] | 1, STUB_RETURN, count=budget)
+        self.assertEqual(STUB_RETURN, core.reg_read(UC_ARM_REG_PC), "cached module instruction budget")
+        self.assertEqual(make_image.MODULE_BASE + make_image.OVERLAY_HEADER_SIZE,
+                         core.reg_read(UC_ARM_REG_R0))
+
     def cold_playing_rig(self):
         rig = self.playback_rig()
         self.open_settings(rig.machine)
@@ -64,9 +84,9 @@ class EchoImageTest(EchoImageHarness):
         about, _ = self.module(machine, "format")
         self.assertEqual([(call["module"], call["loaded"]) for call in watch.loads()],
                          [(number, True), (about, True), (number, True)])
-        self.assertLess(max(call["us"] for call in watch.calls if not call["sectors"]),
-                        MODULE_REUSE_LIMIT_US)
+        self.assertTrue(any(not call["sectors"] for call in watch.calls))
         self.assertTrue(settings.loaded(machine))
+        self.assert_fast_module_reuse(machine, number)
         self.assert_module_code_never_written(watch)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
@@ -357,10 +377,10 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         rig.run_for(600)
         self.assertEqual(watch.loads(), first)
-        reuses = [call["us"] for call in watch.calls if not call["sectors"]]
-        self.assertTrue(reuses)
-        self.assertLess(max(reuses), MODULE_REUSE_LIMIT_US)
+        reuses = sum(not call["sectors"] for call in watch.calls)
+        self.assertGreater(reuses, 0)
         self.assertTrue(playing.loaded(machine))
+        self.assert_fast_module_reuse(machine, number)
         self.assert_module_code_never_written(watch)
         self.assertTrue(self.loaded_language_pack(session, pack))
         self.assertTrue(self.loaded_language_segment(session, pack, number))
@@ -369,7 +389,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.watchdog_resets, 0)
         self.assert_healthy(session)
         print("\n[module load, track playing] " + watch.describe(first[0]))
-        print("[module reuse] %d calls, longest %d us" % (len(reuses), max(reuses)))
+        print("[module reuse] %d calls" % reuses)
 
     def test_about_uses_the_second_format_copy_when_the_first_is_damaged(self):
         session, machine = self.started_session()

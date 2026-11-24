@@ -163,6 +163,28 @@ static void a_detached_store_never_writes_its_waiting_play_to_the_next_drive(voi
     CHECK_EQUAL(writes, disk.writes);
 }
 
+static void an_uncertain_boot_write_is_resolved_before_the_first_play_is_logged(void)
+{
+    for (int committed = 0; committed <= 1; committed++) {
+        reset();
+        store.boot.pending = true;
+        disk.blind_from_write = disk.writes + 1;
+        disk.cut_write = committed ? 0 : disk.blind_from_write;
+        listening_store_follow(&store, observed(1, 0, PLAYER_PLAYING), 0);
+        listening_store_flush(&store, observed(1, 1000, PLAYER_PAUSED), 1000);
+        CHECK(store.log.needs_reload);
+        CHECK(store.waiting);
+        disk.blind_from_write = 0;
+        listening_store_follow(&store, (ListeningObservation){0}, 2100);
+        CHECK(!store.waiting);
+        ListeningSeen seen;
+        CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
+        CHECK_EQUAL(1, seen.count);
+        CHECK_EQUAL(1, seen.first.boot);
+        CHECK_EQUAL(1, store.log.root.counters.boots);
+    }
+}
+
 static void an_uncertain_commit_is_reloaded_before_a_retry(void)
 {
     reset();
@@ -543,6 +565,7 @@ int main(void)
         TEST_CASE(the_last_song_finishing_is_not_reported_as_stopped),
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),
         TEST_CASE(a_detached_store_never_writes_its_waiting_play_to_the_next_drive),
+        TEST_CASE(an_uncertain_boot_write_is_resolved_before_the_first_play_is_logged),
         TEST_CASE(an_uncertain_commit_is_reloaded_before_a_retry),
         TEST_CASE(export_lookup_rejects_an_identity_that_now_names_another_track),
         TEST_CASE(export_lookup_finds_a_track_by_key_when_a_rebuild_moved_it),

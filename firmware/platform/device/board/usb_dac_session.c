@@ -426,7 +426,8 @@ static void follow_host(void)
 static void keep_stream(void)
 {
     bool empty = playing && (int32_t)(sink.written - board_audio_stream_consumed()) <= 0;
-    if (playing && (empty || hal_clock_milliseconds() - last_packet_ms > STREAM_IDLE_MS)) {
+    if (playing &&
+        (empty || deadline_elapsed(hal_clock_milliseconds(), last_packet_ms, STREAM_IDLE_MS + 1))) {
         stop_output();
     } else {
         start_output();
@@ -605,7 +606,7 @@ static void follow_keys(void)
 
 static void refresh(uint32_t now_ms, uint32_t *refreshed)
 {
-    if (now_ms - *refreshed < INFO_REFRESH_MS || menu_open) {
+    if (!deadline_elapsed(now_ms, *refreshed, INFO_REFRESH_MS) || menu_open) {
         return;
     }
     *refreshed = now_ms;

@@ -1903,6 +1903,7 @@ CORE_SEAM void app_start(void)
 {
     app.library_rebuilt = false;
     start_app(true);
+    app.listening.boot = (ListeningBoot){.pending = true};
 }
 
 CORE_SEAM void app_start_after_storage(void)

@@ -1935,6 +1935,43 @@ static void put_id3_header(uint8_t *bytes, uint32_t size)
     put_synchsafe(bytes + 6, size);
 }
 
+static bool read_at_end_of_large_file(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const MemorySource *memory = context;
+    uint32_t start = UINT32_MAX - memory->size;
+    if (offset < start || length > UINT32_MAX - offset) {
+        return false;
+    }
+    memcpy(buffer, memory->bytes + (offset - start), length);
+    return true;
+}
+
+static void a_truncated_id3_tag_near_the_offset_limit_keeps_its_complete_frames(void)
+{
+    uint8_t bytes[22];
+    put_id3_header(bytes, 127);
+    memcpy(bytes + 10, "TIT2\x00\x00\x00\x02\x00\x00\x03R", 12);
+    MemorySource memory = {.bytes = bytes, .size = sizeof bytes};
+    TrackTags tags = {0};
+    TagReader reader = {
+        .source = {read_at_end_of_large_file, &memory}, .size = UINT32_MAX, .tags = &tags};
+    uint32_t tag_size = 0;
+    CHECK(tags_read_id3v2(&reader, UINT32_MAX - sizeof bytes, &tag_size));
+    CHECK_EQUAL(137u, tag_size);
+    CHECK_EQUAL(0, strcmp("R", tags.text[TAG_TITLE]));
+}
+
+static void flac_id3_skip_stops_after_eight_consecutive_empty_headers(void)
+{
+    uint8_t bytes[200] = {0};
+    for (uint32_t offset = 0; offset < sizeof bytes; offset += 10) {
+        put_id3_header(bytes + offset, 0);
+    }
+    CHECK_EQUAL(80u, skip_in(bytes, sizeof bytes, false));
+    put_id3_header(bytes + 80, 10);
+    CHECK_EQUAL(180u, skip_in(bytes, sizeof bytes, false));
+}
+
 static void id3_skip_stops_at_the_file_end_and_on_empty_mp3_headers(void)
 {
     uint8_t bytes[64] = {0};
@@ -2004,6 +2041,8 @@ int main(void)
         TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
         TEST_CASE(replay_gain_text_decoding_handles_every_encoding_boundary),
         TEST_CASE(chained_id3_headers_past_4_gib_stop_without_wrapping),
+        TEST_CASE(a_truncated_id3_tag_near_the_offset_limit_keeps_its_complete_frames),
+        TEST_CASE(flac_id3_skip_stops_after_eight_consecutive_empty_headers),
         TEST_CASE(files_after_one_or_two_id3_headers_read_as_before),
         TEST_CASE(id3_skip_stops_at_the_file_end_and_on_empty_mp3_headers),
     };
