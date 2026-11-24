@@ -22,10 +22,9 @@
 
 static inline ogg_int32_t MULT32(ogg_int32_t x, ogg_int32_t y) {
   int lo,hi;
-  asm volatile("smull\t%0, %1, %2, %3"
-               : "=&r"(lo),"=&r"(hi)
-               : "%r"(x),"r"(y)
-	       : "cc");
+  __asm__("smull\t%0, %1, %2, %3"
+          : "=&r"(lo),"=&r"(hi)
+          : "%r"(x),"r"(y));
   return(hi);
 }
 
@@ -35,30 +34,29 @@ static inline ogg_int32_t MULT31(ogg_int32_t x, ogg_int32_t y) {
 
 static inline ogg_int32_t MULT31_SHIFT15(ogg_int32_t x, ogg_int32_t y) {
   int lo,hi;
-  asm volatile("smull	%0, %1, %2, %3\n\t"
-	       "movs	%0, %0, lsr #15\n\t"
-	       "adc	%1, %0, %1, lsl #17\n\t"
-               : "=&r"(lo),"=&r"(hi)
-               : "%r"(x),"r"(y)
-	       : "cc");
+  __asm__("smull\t%0, %1, %2, %3\n\t"
+          "movs\t%0, %0, lsr #15\n\t"
+          "adc\t%1, %0, %1, lsl #17\n\t"
+          : "=&r"(lo),"=&r"(hi)
+          : "%r"(x),"r"(y)
+          : "cc");
   return(hi);
 }
 
-#define MB() asm volatile ("" : : : "memory")
+#define MB() __asm__ volatile ("" : : : "memory")
 
 static inline void XPROD32(ogg_int32_t  a, ogg_int32_t  b,
 			   ogg_int32_t  t, ogg_int32_t  v,
 			   ogg_int32_t *x, ogg_int32_t *y)
 {
   int x1, y1, l;
-  asm(	"smull	%0, %1, %4, %6\n\t"
-	"smlal	%0, %1, %5, %7\n\t"
-	"rsb	%3, %4, #0\n\t"
-	"smull	%0, %2, %5, %6\n\t"
-	"smlal	%0, %2, %3, %7"
-	: "=&r" (l), "=&r" (x1), "=&r" (y1), "=r" (a)
-	: "3" (a), "r" (b), "r" (t), "r" (v)
-	: "cc" );
+  __asm__("smull\t%0, %1, %4, %6\n\t"
+          "smlal\t%0, %1, %5, %7\n\t"
+          "rsb\t%3, %4, #0\n\t"
+          "smull\t%0, %2, %5, %6\n\t"
+          "smlal\t%0, %2, %3, %7"
+          : "=&r" (l), "=&r" (x1), "=&r" (y1), "=r" (a)
+          : "3" (a), "r" (b), "r" (t), "r" (v));
   *x = x1;
   MB();
   *y = y1;
@@ -69,14 +67,13 @@ static inline void XPROD31(ogg_int32_t  a, ogg_int32_t  b,
 			   ogg_int32_t *x, ogg_int32_t *y)
 {
   int x1, y1, l;
-  asm(	"smull	%0, %1, %4, %6\n\t"
-	"smlal	%0, %1, %5, %7\n\t"
-	"rsb	%3, %4, #0\n\t"
-	"smull	%0, %2, %5, %6\n\t"
-	"smlal	%0, %2, %3, %7"
-	: "=&r" (l), "=&r" (x1), "=&r" (y1), "=r" (a)
-	: "3" (a), "r" (b), "r" (t), "r" (v)
-	: "cc" );
+  __asm__("smull\t%0, %1, %4, %6\n\t"
+          "smlal\t%0, %1, %5, %7\n\t"
+          "rsb\t%3, %4, #0\n\t"
+          "smull\t%0, %2, %5, %6\n\t"
+          "smlal\t%0, %2, %3, %7"
+          : "=&r" (l), "=&r" (x1), "=&r" (y1), "=r" (a)
+          : "3" (a), "r" (b), "r" (t), "r" (v));
   *x = x1 << 1;
   MB();
   *y = y1 << 1;
@@ -87,14 +84,13 @@ static inline void XNPROD31(ogg_int32_t  a, ogg_int32_t  b,
 			    ogg_int32_t *x, ogg_int32_t *y)
 {
   int x1, y1, l;
-  asm(	"rsb	%2, %4, #0\n\t"
-	"smull	%0, %1, %3, %5\n\t"
-	"smlal	%0, %1, %2, %6\n\t"
-	"smull	%0, %2, %4, %5\n\t"
-	"smlal	%0, %2, %3, %6"
-	: "=&r" (l), "=&r" (x1), "=&r" (y1)
-	: "r" (a), "r" (b), "r" (t), "r" (v)
-	: "cc" );
+  __asm__("rsb\t%2, %4, #0\n\t"
+          "smull\t%0, %1, %3, %5\n\t"
+          "smlal\t%0, %1, %2, %6\n\t"
+          "smull\t%0, %2, %4, %5\n\t"
+          "smlal\t%0, %2, %3, %6"
+          : "=&r" (l), "=&r" (x1), "=&r" (y1)
+          : "r" (a), "r" (b), "r" (t), "r" (v));
   *x = x1 << 1;
   MB();
   *y = y1 << 1;
@@ -105,22 +101,42 @@ static inline void XNPROD31(ogg_int32_t  a, ogg_int32_t  b,
 #ifndef _V_CLIP_MATH
 #define _V_CLIP_MATH
 
+#ifdef __thumb2__
+static inline ogg_int32_t CLIP_TO_23(ogg_int32_t x) {
+  ogg_int32_t res;
+  __asm__("ssat\t%0, #24, %1" : "=r"(res) : "r"(x));
+  return res;
+}
+
+static inline ogg_int32_t CLIP_TO_15(ogg_int32_t x) {
+  ogg_int32_t res;
+  __asm__("ssat\t%0, #16, %1" : "=r"(res) : "r"(x));
+  return res;
+}
+#else
+static inline ogg_int32_t CLIP_TO_23(ogg_int32_t x) {
+  if(x>8388607)return 8388607;
+  if(x<-8388608)return -8388608;
+  return x;
+}
+
 static inline ogg_int32_t CLIP_TO_15(ogg_int32_t x) {
   int tmp;
-  asm volatile("subs	%1, %0, #32768\n\t"
-	       "movpl	%0, #0x7f00\n\t"
-	       "orrpl	%0, %0, #0xff\n"
-	       "adds	%1, %0, #32768\n\t"
-	       "movmi	%0, #0x8000"
-	       : "+r"(x),"=r"(tmp)
-	       :
-	       : "cc");
+  __asm__ volatile("subs\t%1, %0, #32768\n\t"
+                   "movpl\t%0, #0x7f00\n\t"
+                   "orrpl\t%0, %0, #0xff\n"
+                   "adds\t%1, %0, #32768\n\t"
+                   "movmi\t%0, #0x8000"
+                   : "+r"(x),"=r"(tmp)
+                   :
+                   : "cc");
   return(x);
 }
+#endif
 
 #endif
 
-#ifndef _V_LSP_MATH_ASM
+#if !defined(_V_LSP_MATH_ASM) && !defined(__thumb__)
 #define _V_LSP_MATH_ASM
 
 static inline void lsp_loop_asm(ogg_uint32_t *qip,ogg_uint32_t *pip,

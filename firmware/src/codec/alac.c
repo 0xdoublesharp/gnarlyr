@@ -81,6 +81,8 @@ typedef struct AlacElement {
     bool escape;
 } AlacElement;
 
+static AlacLpcHook default_lpc_hook;
+
 bool alac_parse_cookie(const uint8_t *bytes, uint32_t length, AlacConfig *config)
 {
     if (bytes == NULL || config == NULL || length < ALAC_COOKIE_BYTES || bytes[4] != 0) {
@@ -107,6 +109,17 @@ void alac_start(AlacDecoder *decoder, const AlacConfig *config)
 {
     decoder->config = *config;
     decoder->sample_count = 0;
+    decoder->lpc_hook = default_lpc_hook;
+}
+
+void alac_set_default_lpc_hook(AlacLpcHook hook)
+{
+    default_lpc_hook = hook;
+}
+
+void alac_set_lpc_hook(AlacDecoder *decoder, AlacLpcHook hook)
+{
+    decoder->lpc_hook = hook;
 }
 
 uint32_t alac_samples(const AlacDecoder *decoder)
@@ -125,7 +138,14 @@ static void bits_start(AlacBits *bits, const uint8_t *data, uint32_t length)
     *bits = (AlacBits){.data = data, .length = length};
 }
 
-static void bits_refill(AlacBits *bits)
+static inline __attribute__((always_inline)) uint32_t load_be32(const uint8_t *bytes)
+{
+    uint32_t value;
+    __builtin_memcpy(&value, bytes, sizeof value);
+    return __builtin_bswap32(value);
+}
+
+static __attribute__((noinline)) void bits_refill_tail(AlacBits *bits)
 {
     while (bits->fill <= ALAC_REFILL_LEVEL) {
         uint32_t byte = bits->next < bits->length ? bits->data[bits->next] : 0u;
@@ -135,7 +155,30 @@ static void bits_refill(AlacBits *bits)
     }
 }
 
-static void bits_drop(AlacBits *bits, uint32_t count)
+static inline __attribute__((always_inline)) void bits_refill(AlacBits *bits)
+{
+    if (bits->fill > ALAC_REFILL_LEVEL) {
+        return;
+    }
+    if (bits->next <= bits->length && bits->length - bits->next >= sizeof(uint32_t)) {
+        uint32_t value = load_be32(bits->data + bits->next);
+        if (bits->fill == 0) {
+            bits->word = value;
+            bits->next += sizeof(uint32_t);
+            bits->fill = 32;
+            return;
+        }
+        uint32_t kept = (32u - bits->fill) & ~7u;
+        uint32_t drop = 32u - kept;
+        bits->word |= (value >> drop) << (drop - bits->fill);
+        bits->next += kept >> 3;
+        bits->fill += kept;
+        return;
+    }
+    bits_refill_tail(bits);
+}
+
+static inline __attribute__((always_inline)) void bits_drop(AlacBits *bits, uint32_t count)
 {
     bits->word <<= count;
     bits->fill -= count;
@@ -146,7 +189,9 @@ static uint32_t bits_read(AlacBits *bits, uint32_t count)
     if (count == 0) {
         return 0;
     }
-    bits_refill(bits);
+    if (bits->fill < count) {
+        bits_refill(bits);
+    }
     uint32_t value = bits->word >> (32 - count);
     bits_drop(bits, count);
     return value;
@@ -174,9 +219,11 @@ static void bits_seek(AlacBits *bits, uint32_t position)
     (void)bits_read(bits, position & 7u);
 }
 
-static uint32_t rice_read(AlacBits *bits, AlacRice rice)
+static inline __attribute__((always_inline)) uint32_t rice_read(AlacBits *bits, AlacRice rice)
 {
-    bits_refill(bits);
+    if (bits->fill < ALAC_PREFIX_MAX + 1u) {
+        bits_refill(bits);
+    }
     uint32_t prefix = (uint32_t)__builtin_clz(~bits->word | 1u);
     if (prefix >= ALAC_PREFIX_MAX) {
         bits_drop(bits, ALAC_PREFIX_MAX);
@@ -187,7 +234,9 @@ static uint32_t rice_read(AlacBits *bits, AlacRice rice)
     if (rice.k < 2) {
         return value;
     }
-    bits_refill(bits);
+    if (bits->fill < rice.k) {
+        bits_refill(bits);
+    }
     uint32_t extra = bits->word >> (32 - rice.k);
     if (extra > 1) {
         value += extra - 1;
@@ -211,7 +260,7 @@ static int32_t unfold_sign(uint32_t value)
 
 static void residual_sample(AlacBits *bits, AlacResidual *state, const AlacGolomb *golomb)
 {
-    uint32_t k = 31u - count_leading_zeros((state->mean >> ALAC_MEAN_SHIFT) + 3u);
+    uint32_t k = 31u - (uint32_t)__builtin_clz((state->mean >> ALAC_MEAN_SHIFT) + 3u);
     k = k < golomb->kb ? k : golomb->kb;
     uint32_t n = rice_read(bits, (AlacRice){(1u << k) - 1u, k, golomb->sample_bits});
     uint32_t folded = n + state->zmode;
@@ -261,11 +310,6 @@ static int32_t extend_sign(uint32_t value, uint32_t shift)
     return (int32_t)(value << shift) >> shift;
 }
 
-static int32_t sign_of(int32_t value)
-{
-    return (value > 0) - (value < 0);
-}
-
 static void lpc_simple(int32_t *samples, uint32_t count, uint32_t shift)
 {
     for (uint32_t index = 1; index < count; index++) {
@@ -280,6 +324,11 @@ typedef struct AlacRun {
     uint32_t shift;
 } AlacRun;
 
+typedef struct AlacAdapt {
+    uint32_t order;
+    uint32_t shift;
+} AlacAdapt;
+
 static inline __attribute__((always_inline)) uint32_t lpc_sum(const int32_t *taps, int32_t anchor,
                                                               const int32_t *coefs, uint32_t order)
 {
@@ -291,17 +340,37 @@ static inline __attribute__((always_inline)) uint32_t lpc_sum(const int32_t *tap
     return sum;
 }
 
-static inline __attribute__((always_inline)) void lpc_adapt(int32_t *coefs, const int32_t *taps,
-                                                            int32_t error, const AlacLpc *lpc)
+static inline __attribute__((always_inline)) void
+lpc_adapt_positive(int32_t *coefs, const int32_t *taps, int32_t error, AlacAdapt adapt)
 {
     int32_t anchor = taps[-1];
-    int32_t direction = sign_of(error);
 #pragma GCC unroll 32
-    for (uint32_t tap = 0; tap < lpc->order && error * direction > 0; tap++) {
+    for (uint32_t tap = 0; tap < adapt.order && error > 0; tap++) {
         int32_t difference = anchor - taps[tap];
-        int32_t sign = sign_of(difference) * direction;
-        coefs[tap] = (int16_t)(coefs[tap] - sign);
-        error -= ((difference * sign) >> lpc->shift) * (int32_t)(tap + 1);
+        if (difference == 0) {
+            continue;
+        }
+        int32_t step = difference > 0 ? 1 : -1;
+        int32_t magnitude = difference > 0 ? difference : -difference;
+        coefs[tap] = (int16_t)(coefs[tap] - step);
+        error -= (magnitude >> adapt.shift) * (int32_t)(tap + 1);
+    }
+}
+
+static inline __attribute__((always_inline)) void
+lpc_adapt_negative(int32_t *coefs, const int32_t *taps, int32_t error, AlacAdapt adapt)
+{
+    int32_t anchor = taps[-1];
+#pragma GCC unroll 32
+    for (uint32_t tap = 0; tap < adapt.order && error < 0; tap++) {
+        int32_t difference = anchor - taps[tap];
+        if (difference == 0) {
+            continue;
+        }
+        int32_t step = difference > 0 ? -1 : 1;
+        int32_t neg_magnitude = difference > 0 ? -difference : difference;
+        coefs[tap] = (int16_t)(coefs[tap] - step);
+        error -= (neg_magnitude >> adapt.shift) * (int32_t)(tap + 1);
     }
 }
 
@@ -309,23 +378,26 @@ static inline __attribute__((always_inline)) void lpc_filter_order(AlacRun run, 
                                                                    uint32_t order)
 {
     int32_t coefs[ALAC_MAX_ORDER];
-    AlacLpc fixed = *lpc;
-    fixed.order = (uint8_t)order;
+    AlacAdapt adapt = {.order = order, .shift = lpc->shift};
+#pragma GCC unroll 8
     for (uint32_t tap = 0; tap < order; tap++) {
         coefs[tap] = lpc->coefs[tap];
     }
-    uint32_t round = lpc->shift != 0 ? 1u << (lpc->shift - 1u) : 0u;
+    uint32_t round = adapt.shift != 0 ? 1u << (adapt.shift - 1u) : 0u;
     for (uint32_t index = order + 1; index < run.count; index++) {
         const int32_t *taps = run.samples + index - order;
         int32_t anchor = taps[-1];
         int32_t error = run.samples[index];
-        int32_t predicted = (int32_t)(lpc_sum(taps, anchor, coefs, order) + round) >> lpc->shift;
+        int32_t predicted = (int32_t)(lpc_sum(taps, anchor, coefs, order) + round) >> adapt.shift;
         run.samples[index] =
             extend_sign((uint32_t)predicted + (uint32_t)anchor + (uint32_t)error, run.shift);
-        if (error != 0) {
-            lpc_adapt(coefs, taps, error, &fixed);
+        if (error > 0) {
+            lpc_adapt_positive(coefs, taps, error, adapt);
+        } else if (error < 0) {
+            lpc_adapt_negative(coefs, taps, error, adapt);
         }
     }
+#pragma GCC unroll 8
     for (uint32_t tap = 0; tap < order; tap++) {
         lpc->coefs[tap] = (int16_t)coefs[tap];
     }
@@ -346,9 +418,8 @@ static void lpc_filter_any(AlacRun run, AlacLpc *lpc)
     lpc_filter_order(run, lpc, lpc->order);
 }
 
-static void lpc_filter(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t shift)
+static void lpc_filter(AlacRun run, AlacLpc *lpc)
 {
-    AlacRun run = {.samples = samples, .count = count, .shift = shift};
     if (lpc->order == 4) {
         lpc_filter_4(run, lpc);
     } else if (lpc->order == 8) {
@@ -358,18 +429,29 @@ static void lpc_filter(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t 
     }
 }
 
-static void unfix(int32_t *samples, uint32_t count, AlacLpc *lpc, uint32_t sample_bits)
+static bool restore_with_hook(AlacRun run, const AlacLpc *lpc, const AlacLpcHook *hook)
 {
-    uint32_t shift = 32u - sample_bits;
+    AlacLpcJob job = {.coefficients = lpc->coefs,
+                      .count = run.count,
+                      .order = lpc->order,
+                      .quant = lpc->shift,
+                      .sample_bits = (uint8_t)(32u - run.shift)};
+    return hook->restore != NULL && hook->restore(hook->context, run.samples, job);
+}
+
+static void unfix(AlacRun run, AlacLpc *lpc, const AlacLpcHook *hook)
+{
     if (lpc->mode != 0) {
-        lpc_simple(samples, count, shift);
+        lpc_simple(run.samples, run.count, run.shift);
     }
     if (lpc->order == ALAC_ORDER_SIMPLE) {
-        lpc_simple(samples, count, shift);
+        lpc_simple(run.samples, run.count, run.shift);
     } else if (lpc->order > 0) {
-        uint32_t warm = lpc->order + 1u < count ? lpc->order + 1u : count;
-        lpc_simple(samples, warm, shift);
-        lpc_filter(samples, count, lpc, shift);
+        uint32_t warm = lpc->order + 1u < run.count ? lpc->order + 1u : run.count;
+        lpc_simple(run.samples, warm, run.shift);
+        if (warm < run.count && !restore_with_hook(run, lpc, hook)) {
+            lpc_filter(run, lpc);
+        }
     }
 }
 
@@ -432,7 +514,9 @@ static AlacResult read_channel(AlacDecoder *decoder, AlacBits *bits, AlacElement
     if (!read_residuals(bits, samples, element->count, &golomb)) {
         return ALAC_BAD_DATA;
     }
-    unfix(samples, element->count, lpc, element->sample_bits);
+    AlacRun run = {
+        .samples = samples, .count = element->count, .shift = 32u - element->sample_bits};
+    unfix(run, lpc, &decoder->lpc_hook);
     return ALAC_OK;
 }
 

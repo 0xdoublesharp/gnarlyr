@@ -5,6 +5,11 @@ foreach(device_test audio_math backlight board_pins clock_governor core1_pace lo
     )
 endforeach()
 
+echo_add_unit_test(NAME test_alac_accel
+    SOURCES device/test_alac_accel.c
+    LIBRARIES echo_device_logic
+)
+
 echo_add_unit_test(NAME test_emmc_layout
     SOURCES device/test_emmc_layout.c device/fake_disk.c
     LIBRARIES echo_device_logic

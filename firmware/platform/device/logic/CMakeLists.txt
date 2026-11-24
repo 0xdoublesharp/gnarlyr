@@ -147,6 +147,7 @@ add_library(echo_device_logic STATIC
     fat_names.c
     fat_utf8.c
     fat_reserve.c
+    alac_accel.c
     flac_accel.c
     image_crc.c
     jack_sense.c
@@ -296,4 +297,15 @@ if(CMAKE_CROSSCOMPILING)
     target_compile_options(echo_libmad PRIVATE -O3)
     target_compile_options(echo_faad PRIVATE -O3 -flto -ffat-lto-objects)
     target_compile_options(echo_opus PRIVATE -flto -ffat-lto-objects)
+    target_compile_options(echo_tremor PRIVATE -O3)
+    set_source_files_properties(
+        ${ECHO_WMA_DIR}/codecs/libwma/wmadeci.c
+        ${ECHO_WMA_DIR}/codecs/lib/mdct.c
+        PROPERTIES COMPILE_OPTIONS -O3
+    )
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/codec/alac.c
+        DIRECTORY ${PROJECT_SOURCE_DIR}/src/codec
+        PROPERTIES COMPILE_OPTIONS -O3
+    )
 endif()

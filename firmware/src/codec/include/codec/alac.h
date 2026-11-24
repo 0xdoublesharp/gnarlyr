@@ -36,14 +36,30 @@ typedef enum AlacResult {
     ALAC_UNSUPPORTED
 } AlacResult;
 
+typedef struct AlacLpcJob {
+    const int16_t *coefficients;
+    uint32_t count;
+    uint8_t order;
+    uint8_t quant;
+    uint8_t sample_bits;
+} AlacLpcJob;
+
+typedef struct AlacLpcHook {
+    bool (*restore)(void *context, int32_t *samples, AlacLpcJob job);
+    void *context;
+} AlacLpcHook;
+
 typedef struct AlacDecoder {
     AlacConfig config;
     uint32_t sample_count;
+    AlacLpcHook lpc_hook;
     int32_t samples[ALAC_MAX_CHANNELS][ALAC_MAX_FRAME_SAMPLES];
 } AlacDecoder;
 
 bool alac_parse_cookie(const uint8_t *bytes, uint32_t length, AlacConfig *config);
 void alac_start(AlacDecoder *decoder, const AlacConfig *config);
+void alac_set_default_lpc_hook(AlacLpcHook hook);
+void alac_set_lpc_hook(AlacDecoder *decoder, AlacLpcHook hook);
 AlacResult alac_decode_packet(AlacDecoder *decoder, const uint8_t *packet, uint32_t length);
 uint32_t alac_samples(const AlacDecoder *decoder);
 const int32_t *alac_channel(const AlacDecoder *decoder, int channel);
