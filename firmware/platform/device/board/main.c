@@ -130,20 +130,16 @@ static void run_usb_session(void)
     board_stall_pause(false);
 }
 
-static void run_dac_session(void)
+CORE_COLD static void run_dac_session(void)
 {
     board_stall_pause(true);
     raise_clock_for_usb();
-    bool bluetooth_on = board_bluetooth_powered();
     app_release_audio();
     hal_audio_release();
     hal_bluetooth_set_power(false);
     const UsbOverlayEntry *usb = load_usb_code();
     if (usb != NULL) {
         usb->dac(usb_session_shared());
-    }
-    if (bluetooth_on) {
-        hal_bluetooth_set_power(true);
     }
     app_set_usb_renderer(NULL);
     app_resume_after_usb();
@@ -267,15 +263,15 @@ static void draw_empty_notice(void *context, Canvas *canvas)
     message_draw(canvas, &NOTICE_THEME, content, "Charge the player to turn it on");
 }
 
-static void switch_off_when_empty(uint32_t boot_millivolts)
+CORE_COLD static void switch_off_when_empty(uint32_t boot_millivolts)
 {
     if (!battery_boot_cutoff(boot_millivolts, usb_vbus_present())) {
         return;
     }
-    StripRenderer renderer = {.strip_pixels = (Color *)board_scratch,
+    Color strip[HAL_DISPLAY_WIDTH];
+    StripRenderer renderer = {.strip_pixels = strip,
                               .area = {0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT},
-                              .strip_height =
-                                  (int)(sizeof board_scratch / sizeof(Color)) / HAL_DISPLAY_WIDTH,
+                              .strip_height = 1,
                               .background = NOTICE_THEME.colors.background};
     strip_renderer_render(&renderer, (FrameDrawer){.draw = draw_empty_notice},
                           (FrameSink){.write = write_empty_strip});

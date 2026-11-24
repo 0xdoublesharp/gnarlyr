@@ -33,19 +33,22 @@ typedef struct DebugLoop {
 
 static DebugLoop loop;
 _Static_assert(offsetof(DebugLoop, player_state) == 776, "the emulator follows the player state");
-static DebugBootMark boot_marks[DEBUG_BOOT_COUNT];
+_Static_assert(DEBUG_BOOT_COUNT <= 8, "boot mark bitmask fits one byte");
+static DebugBootMarks boot_marks;
 
 void debug_loop_boot(DebugBootStep step)
 {
-    if (boot_marks[step].ms_plus_one == 0) {
-        boot_marks[step].ms_plus_one = hal_clock_milliseconds() + 1u;
-        boot_marks[step].us = hal_clock_microseconds();
+    uint8_t bit = (uint8_t)(1u << step);
+    if ((boot_marks.recorded & bit) == 0) {
+        boot_marks.recorded |= bit;
+        boot_marks.ms[step] = hal_clock_milliseconds();
+        boot_marks.us[step] = hal_clock_microseconds();
     }
 }
 
-const DebugBootMark *debug_loop_boot_times(void)
+const DebugBootMarks *debug_loop_boot_times(void)
 {
-    return boot_marks;
+    return &boot_marks;
 }
 
 static void record(DebugEventKind kind, uint32_t value, const char *text)

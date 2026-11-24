@@ -2,6 +2,7 @@
 
 #include "board.h"
 #include "core/deadline.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "device/panel.h"
 #include "device/vop.h"
@@ -162,6 +163,22 @@ static bool push_blocks(const uint16_t *pixels, uint32_t words)
     return true;
 }
 
+CORE_COLD static void reset_vop(void)
+{
+    vop()[VOP_SOFT_RESET] = 1;
+    vop_start(vop(), hal_system_clock_mhz());
+}
+
+CORE_COLD void board_panel_panic_reset(void)
+{
+    if (dmac_push_busy()) {
+        dmac_push_cancel();
+    }
+    if (controller_running) {
+        reset_vop();
+    }
+}
+
 static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t count)
 {
     if (board_panic_active() || push_failed || count < PUSH_MIN_PIXELS ||
@@ -178,8 +195,7 @@ static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t cou
         return true;
     }
     dmac_push_cancel();
-    vop()[VOP_SOFT_RESET] = 1;
-    vop_start(vop(), hal_system_clock_mhz());
+    reset_vop();
     push_failed = true;
     push_fallbacks++;
     return false;

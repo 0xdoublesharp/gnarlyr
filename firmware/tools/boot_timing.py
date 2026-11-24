@@ -133,8 +133,24 @@ def measure(image_path, tracks):
     hold = next((cycle for cycle, port, _, _, data, direction, _ in machine.gpio_log
                  if port == 2 and data & direction & (1 << 6)), None)
     marker_names = ('clock', 'display', 'glyphs', 'app', 'frame', 'extension', 'interactive', 'audio')
-    markers = (struct.unpack('<8I', machine.read_memory(machine.symbols['boot_us'], 32))
-               if 'boot_us' in machine.symbols else (0,) * 8)
+    if 'boot_marks' in machine.symbols:
+        raw = struct.unpack('<8I8IB', machine.read_memory(machine.symbols['boot_marks'], 65))
+        ms_vals, us_vals, recorded = raw[:8], raw[8:16], raw[16]
+        boot_markers = {}
+        for index, name in enumerate(marker_names):
+            if recorded & (1 << index):
+                base = ms_vals[index] * 1000
+                offset = (us_vals[index] - (base & 0xFFFFFFFF)) & 0xFFFFFFFF
+                if offset >= 0x80000000:
+                    offset -= 0x100000000
+                boot_markers[name] = max(0, base + offset)
+            else:
+                boot_markers[name] = None
+    elif 'boot_us' in machine.symbols:
+        markers = struct.unpack('<8I', machine.read_memory(machine.symbols['boot_us'], 32))
+        boot_markers = {name: value - 1 if value else None for name, value in zip(marker_names, markers)}
+    else:
+        boot_markers = {name: None for name in marker_names}
     return {'tracks': tracks, 'first_frame_us': first_us, 'interactive_us': ready_us,
             'power_hold_cycles_24mhz': hold, 'power_hold_us': hold / 24 if hold is not None else None,
             'rom_load_bytes': loaded, 'image_bytes': len(image), 'scatter_rows': parts.rows,
@@ -143,8 +159,7 @@ def measure(image_path, tracks):
             'first_frame_result': first_reason, 'interactive_result': reason,
             'faults': machine.faults, 'panics': machine.panics,
             'watchdog_resets': machine.watchdog_resets, 'phases': phases,
-            'boot_markers_us': {name: value - 1 if value else None
-                                for name, value in zip(marker_names, markers)},
+            'boot_markers_us': boot_markers,
             'module_reads': {overlay.name: sum(count for _, lba, count in session.card.reads
                                               if overlay.image_offset // 512 <= lba - session.layout['slot_1']
                                               < overlay.image_offset // 512 + (len(overlay.stored) + 511) // 512)

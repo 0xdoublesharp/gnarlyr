@@ -92,10 +92,10 @@ static uint64_t wide_clock_us(uint32_t uptime_ms, uint32_t low_us)
 
 static void expand_boot_times(uint64_t *boot_us)
 {
-    const DebugBootMark *marks = debug_loop_boot_times();
+    const DebugBootMarks *marks = debug_loop_boot_times();
     for (int index = 0; index < DEBUG_BOOT_COUNT; index++) {
-        boot_us[index] = marks[index].ms_plus_one != 0
-                             ? wide_clock_us(marks[index].ms_plus_one - 1u, marks[index].us) + 1u
+        boot_us[index] = (marks->recorded & (1u << index)) != 0
+                             ? wide_clock_us(marks->ms[index], marks->us[index]) + 1u
                              : 0;
     }
 }

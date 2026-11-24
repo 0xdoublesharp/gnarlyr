@@ -456,18 +456,14 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
 )
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
-        board/audio_dsp.c
-        board/audio_effects.c
-        board/audio_process.c
         board/bluetooth.c
         board/clock_switch.c
         board/cru.c
         board/core1.c
         board/dac.c
-        board/dmac.c
+        board/display.c
         board/emmc.c
-        board/gpio.c
-        board/panel_vop.c
+        board/mmc.c
         board/sd.c
         board/storage.c
         board/usb.c
@@ -482,7 +478,6 @@ if(CMAKE_CROSSCOMPILING)
         board/extension.c
         board/glyphs.c
         board/high_ram.c
-        board/input.c
         board/internal_volume.c
         board/jack.c
         board/language.c
@@ -504,6 +499,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_listen.c
         board/usb_report.c
         board/usb_session.c
+        ${PROJECT_SOURCE_DIR}/src/app/debug_loop.c
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
         ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
         ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c

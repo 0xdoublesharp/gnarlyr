@@ -34,6 +34,10 @@ CARD_TYPE_52_MHZ = 0x03
 CRU_MMC_DIVIDERS = 0x30
 SD_FIELD = 0x00FF
 SD_PLL_QUARTER = 0x0003
+SD_BASE = 0x60020000
+EMMC_BASE = 0x60030000
+FSINFO_FREE_OFFSET = 488
+FSINFO_DROP_CLUSTERS = 256
 
 
 def bluetooth_store(on_bluetooth):
@@ -237,12 +241,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(scsi.until_ready(CARD_LUN, tries=3))
         in_speed_down = [False]
         sd_clocks_on_exit = []
-        sd_host_addr = machine.symbols["SD_MMC_HOST"]
+        emmc_clocks_on_exit = []
         machine.hook_symbol("usb_card_speed_down", lambda: in_speed_down.__setitem__(0, True))
 
         def on_set_clock():
-            if in_speed_down[0] and machine.reg(UC_ARM_REG_R0) == sd_host_addr:
+            if not in_speed_down[0]:
+                return
+            host_base = struct.unpack("<I", machine.read_memory(machine.reg(UC_ARM_REG_R0), 4))[0]
+            if host_base == SD_BASE:
                 sd_clocks_on_exit.append(machine.milliseconds())
+            elif host_base == EMMC_BASE:
+                emmc_clocks_on_exit.append(machine.milliseconds())
 
         machine.hook_symbol("mmc_set_clock", on_set_clock)
         machine.answer_waits_for_key(2)
@@ -252,6 +261,72 @@ class EchoImageTest(EchoImageHarness):
         self.assertTrue(in_speed_down[0])
         machine.run(until_ms=machine.milliseconds() + 200)
         self.assertEqual(sd_clocks_on_exit, [])
+        self.assertGreaterEqual(len(emmc_clocks_on_exit), 1)
+        self.assert_healthy(session)
+
+    def test_usb_storage_refreshes_free_space_after_host_writes(self):
+        session = self.session(vbus=True)
+        machine = session.machine
+        disk = SparseDisk(1024 * 1024)
+        Fat32Volume(fsinfo=True).write_to(disk, 0)
+        card = SdCard(disk, machine)
+        machine.card_present = True
+        machine.sd_controller.card = card
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda m: 0)
+        host = StorageHost(machine, SECTOR, 40)
+        machine.usb.host = host
+        machine.note("usb_activity_start")
+        reads = []
+        pending = [False]
+        return_hooks = set()
+
+        def on_space_enter():
+            pending[0] = True
+            ret = machine.reg(UC_ARM_REG_LR) & ~1
+            if ret not in return_hooks:
+                return_hooks.add(ret)
+
+                def on_space_return():
+                    if pending[0]:
+                        pending[0] = False
+                        reads.append(machine.reg(UC_ARM_REG_R0))
+
+                machine.add_address_hook(ret, on_space_return)
+
+        machine.hook_symbol("volume_space_free_sectors", on_space_enter)
+        redraws = machine.trace("usb_screen_column")
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: machine.usb_reset_ack,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        host.enumerate()
+        self.assertEqual(machine.run(until=host.configured,
+                                     until_ms=machine.milliseconds() + 2000), "condition met")
+        self.assertEqual(machine.run(until=lambda: "usb_activity_start" in machine.reached,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        machine.run(until_ms=machine.milliseconds() + 300)
+        scsi = ScsiHost(machine, host)
+        self.assertTrue(scsi.until_ready(CARD_LUN))
+        boot, (status, _) = scsi.read(CARD_LUN, 0, 1)
+        self.assertEqual(status, 0)
+        sectors_per_cluster = boot[13]
+        fsinfo, (status, _) = scsi.read(CARD_LUN, 1, 1)
+        self.assertEqual(status, 0)
+        before_clusters = struct.unpack_from("<I", fsinfo, FSINFO_FREE_OFFSET)[0]
+        self.assertGreater(before_clusters, FSINFO_DROP_CLUSTERS)
+        updated = bytearray(fsinfo)
+        expected_clusters = before_clusters - FSINFO_DROP_CLUSTERS
+        struct.pack_into("<I", updated, FSINFO_FREE_OFFSET, expected_clusters)
+        expected_free = expected_clusters * sectors_per_cluster
+        draws_before = len(redraws)
+        reads_before = len(reads)
+        status, residue = scsi.write(CARD_LUN, 1, bytes(updated))
+        self.assertEqual((status, residue), (0, 0))
+        reason = machine.run(
+            until=lambda: len(reads) > reads_before and expected_free in reads[reads_before:]
+            and len(redraws) > draws_before,
+            until_ms=machine.milliseconds() + 5000)
+        self.assertEqual(reason, "condition met")
         self.assert_healthy(session)
 
     def test_usb_audio_stalled_deferred_setup_drops_control_data(self):
