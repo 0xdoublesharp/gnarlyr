@@ -172,24 +172,54 @@ if(ARM_GCC)
                         ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
                         ${scenario_args} EchoImageTest.${case_name}
                 )
+                set(echo_test_cost 100)
+                if(case_name MATCHES "^test_(dsd128|opus_2_5ms)_resume_at_[0-9]+_ms_in_core_1s_load_window_stays_fed$"
+                        OR case_name MATCHES "^test_(192|176)_khz_small_block_flac_stays_fed_at_start_phases_"
+                        OR case_name STREQUAL "test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns"
+                        OR case_name STREQUAL "test_playback_resumed_with_the_screen_off_after_a_pause_stays_fed"
+                        OR case_name STREQUAL "test_opus_started_after_the_screen_timeout_stays_fed_after_the_screen_wakes"
+                        OR case_name STREQUAL "test_battery_playback_matrix_has_no_underruns")
+                    set(echo_test_cost 1000)
+                endif()
                 set_tests_properties(${test_name} PROPERTIES
                     FIXTURES_REQUIRED device_image
                     SKIP_RETURN_CODE 77
                     LABELS echo_image
                     PROCESSORS 1
+                    COST ${echo_test_cost}
                     TIMEOUT ${echo_scenario_timeout}
                 )
             endforeach()
+        endforeach()
+        foreach(mode IN ITEMS native python)
+            set(test_name emulator_snapshot_parity_${mode})
+            if(mode STREQUAL "native")
+                set(native_enabled 1)
+            else()
+                set(native_enabled 0)
+            endif()
+            add_test(NAME ${test_name}
+                COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python
+                    ${CMAKE_CURRENT_SOURCE_DIR}/emulator/test_snapshot_parity.py
+                    --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
+                    --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
+                    --usb-overlay-elf
+                    ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
+            )
+            set_tests_properties(${test_name} PROPERTIES
+                ENVIRONMENT "ECHO_EMU_NATIVE=${native_enabled}"
+                FIXTURES_REQUIRED device_image
+                SKIP_RETURN_CODE 77
+                LABELS echo_image
+                PROCESSORS 1
+                COST 100
+                TIMEOUT ${echo_scenario_timeout}
+            )
         endforeach()
         echo_emulator_timeout(echo_parametric_timeout 1500)
         set_tests_properties(
             device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns
             PROPERTIES TIMEOUT ${echo_parametric_timeout}
-        )
-        echo_emulator_timeout(echo_resume_timeout 1800)
-        set_tests_properties(
-            device_image_boot_test_a_resume_anywhere_in_core_1s_load_window_keeps_heavy_streams_fed
-            PROPERTIES TIMEOUT ${echo_resume_timeout}
         )
         echo_emulator_timeout_hundredths(echo_timeout_hundredths)
         add_test(NAME emulator_timeouts_follow_the_scale
@@ -207,6 +237,7 @@ if(ARM_GCC)
         set_tests_properties(core1_mp3_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
+            COST 300
             TIMEOUT ${echo_core1_mp3_timeout}
         )
         add_test(NAME core1_vorbis_decodes_in_emulator
@@ -219,6 +250,7 @@ if(ARM_GCC)
         set_tests_properties(core1_vorbis_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
+            COST 300
             TIMEOUT ${echo_core1_vorbis_timeout}
         )
         add_test(NAME core1_opus_decodes_in_emulator
@@ -231,6 +263,7 @@ if(ARM_GCC)
         set_tests_properties(core1_opus_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
+            COST 300
             TIMEOUT ${echo_core1_opus_timeout}
         )
         add_test(NAME core1_dsd_decodes_in_emulator
@@ -242,6 +275,7 @@ if(ARM_GCC)
         echo_emulator_timeout(echo_core1_dsd_timeout 600)
         set_tests_properties(core1_dsd_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
+            COST 300
             TIMEOUT ${echo_core1_dsd_timeout}
         )
         add_test(NAME core1_wma_decodes_in_emulator
@@ -254,6 +288,7 @@ if(ARM_GCC)
         echo_emulator_timeout(echo_core1_wma_timeout 600)
         set_tests_properties(core1_wma_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
+            COST 300
             TIMEOUT ${echo_core1_wma_timeout}
         )
         add_test(NAME core1_ape_decodes_in_emulator
@@ -266,6 +301,7 @@ if(ARM_GCC)
         echo_emulator_timeout(echo_core1_ape_timeout 600)
         set_tests_properties(core1_ape_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
+            COST 300
             TIMEOUT ${echo_core1_ape_timeout}
         )
         add_test(NAME core1_m4a_decodes_in_emulator
@@ -278,6 +314,7 @@ if(ARM_GCC)
         set_tests_properties(core1_m4a_decodes_in_emulator PROPERTIES
             FIXTURES_REQUIRED device_image
             SKIP_RETURN_CODE 77
+            COST 300
             TIMEOUT ${echo_core1_m4a_timeout}
         )
     endif()
@@ -309,7 +346,7 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
             --tool $<TARGET_FILE:cover_decode_tool>
             --work ${CMAKE_CURRENT_BINARY_DIR}/cover_decode
     )
-    set_tests_properties(cover_decode_matches_pillow PROPERTIES TIMEOUT 1200)
+    set_tests_properties(cover_decode_matches_pillow PROPERTIES COST 300 TIMEOUT 1200)
     add_test(NAME fonts_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/font_build.py
             --config ${PROJECT_SOURCE_DIR}/assets/fonts/fonts.json

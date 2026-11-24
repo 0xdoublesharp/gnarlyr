@@ -82,34 +82,184 @@ class DecoderLoad:
         self.core = None
         self.program = None
         self.active = False
-        self.instructions = 0
-        self.wakes = 0
-        self.busy_us = 0.0
-        self.clock_us = Counter()
-        self.next_wake_us = 0.0
-        self.awake = False
+        self._native_lib = None
+        self._native = None
+        self._hdr = None
+        self._instructions = 0
+        self._wakes = 0
+        self._busy_us = 0.0
+        self._clock_us = Counter()
+        self._next_wake_us = 0.0
+        self._awake = False
+        self._mhz = 100
+        self._reload = 0
+        self._period_start = 0.0
+        self._time_us = 0.0
+        self._resting = False
+        self.wfi = 0
+        self.counter = 0
+        self.in_units = False
         self.ring_bytes = 0
         self.copied = None
         self.stored = set()
         audio.core1 = self
         self.machine.hook_symbol("core1_source_fill", self.step)
 
+    def _detach_native(self):
+        if self._native is not None:
+            hdr = self._hdr
+            self._instructions = hdr.instructions
+            self._wakes = hdr.wakes
+            self._busy_us = hdr.busy_us
+            self._clock_us = Counter(self.clock_us)
+            self._next_wake_us = hdr.next_wake_us
+            self._awake = bool(hdr.awake)
+            self._mhz = hdr.mhz
+            self._reload = hdr.reload
+            self._period_start = hdr.period_start
+            self._time_us = hdr.time_us
+            self._resting = bool(hdr.resting)
+            self._native = None
+            self._hdr = None
+
+    @property
+    def instructions(self):
+        return self._hdr.instructions if self._hdr is not None else self._instructions
+
+    @instructions.setter
+    def instructions(self, value):
+        if self._hdr is not None:
+            self._hdr.instructions = value
+        else:
+            self._instructions = value
+
+    @property
+    def wakes(self):
+        return self._hdr.wakes if self._hdr is not None else self._wakes
+
+    @wakes.setter
+    def wakes(self, value):
+        if self._hdr is not None:
+            self._hdr.wakes = value
+        else:
+            self._wakes = value
+
+    @property
+    def busy_us(self):
+        return self._hdr.busy_us if self._hdr is not None else self._busy_us
+
+    @busy_us.setter
+    def busy_us(self, value):
+        if self._hdr is not None:
+            self._hdr.busy_us = value
+        else:
+            self._busy_us = value
+
+    @property
+    def time_us(self):
+        return self._hdr.time_us if self._hdr is not None else self._time_us
+
+    @time_us.setter
+    def time_us(self, value):
+        if self._hdr is not None:
+            self._hdr.time_us = value
+        else:
+            self._time_us = value
+
+    @property
+    def period_start(self):
+        return self._hdr.period_start if self._hdr is not None else self._period_start
+
+    @period_start.setter
+    def period_start(self, value):
+        if self._hdr is not None:
+            self._hdr.period_start = value
+        else:
+            self._period_start = value
+
+    @property
+    def next_wake_us(self):
+        return self._hdr.next_wake_us if self._hdr is not None else self._next_wake_us
+
+    @next_wake_us.setter
+    def next_wake_us(self, value):
+        if self._hdr is not None:
+            self._hdr.next_wake_us = value
+        else:
+            self._next_wake_us = value
+
+    @property
+    def mhz(self):
+        return self._hdr.mhz if self._hdr is not None else self._mhz
+
+    @mhz.setter
+    def mhz(self, value):
+        if self._hdr is not None:
+            self._hdr.mhz = value
+        else:
+            self._mhz = value
+
+    @property
+    def reload(self):
+        return self._hdr.reload if self._hdr is not None else self._reload
+
+    @reload.setter
+    def reload(self, value):
+        if self._hdr is not None:
+            self._hdr.reload = value
+        else:
+            self._reload = value
+
+    @property
+    def resting(self):
+        return bool(self._hdr.resting) if self._hdr is not None else self._resting
+
+    @resting.setter
+    def resting(self, value):
+        if self._hdr is not None:
+            self._hdr.resting = 1 if value else 0
+        else:
+            self._resting = bool(value)
+
+    @property
+    def awake(self):
+        return bool(self._hdr.awake) if self._hdr is not None else self._awake
+
+    @awake.setter
+    def awake(self, value):
+        if self._hdr is not None:
+            self._hdr.awake = 1 if value else 0
+        else:
+            self._awake = bool(value)
+
+    @property
+    def clock_us(self):
+        if self._hdr is None:
+            return self._clock_us
+        hdr = self._hdr
+        result = Counter()
+        for index in range(hdr.clock_count):
+            result[hdr.clock_mhz[index]] = hdr.clock_us[index]
+        return result
+
     def start(self, program):
         if self.active and program == self.program:
             return 1
+        self._detach_native()
         self.program = program
         name = PROGRAMS[program]
         self.ring_bytes = RING_BYTES.get(program, 65536)
         self.core = Core1((self.directory / (name + ".bin")).read_bytes(), self.ring_bytes)
         symbols = load_symbols(self.directory / ("echo_" + name + ".elf"))
         if "hal_system_loop_cycles" in symbols:
-            self.core.uc.mem_write(symbols["hal_system_loop_cycles"], b"\x00\x21\x01\x60\x41\x60\x70\x47")
+            self.core.uc.mem_write(symbols["hal_system_loop_cycles"],
+                                   b"\x00\x21\x01\x60\x41\x60\x70\x47")
         self.counter, self.in_units = self.elapsed_counter(symbols)
         self.wfi = self.find_wfi(symbols["core1_idle"])
-        self.mhz, self.reload, self.period_start = 100, 0, 0.0
-        self.time_us = self.machine.microseconds()
-        self.resting = False
-        self.awake = False
+        self._mhz, self._reload, self._period_start = 100, 0, 0.0
+        self._time_us = self.machine.microseconds()
+        self._resting = False
+        self._awake = False
         self.copied = None
         self.watch()
         self.active = self.core.boot()
@@ -132,16 +282,49 @@ class DecoderLoad:
         raise RuntimeError("core1_idle has no WFI")
 
     def watch(self):
+        self._detach_native()
+        if self.core._native is not None:
+            lib = self.core._native_lib
+            host_ram_getter = getattr(self.machine, "core1_ram_ptr", None)
+            host_ram = host_ram_getter() if host_ram_getter is not None else None
+            native = lib.emu_decoder_attach(
+                self.core._native, self.machine.uc._uch, host_ram, self.wfi,
+                self.counter, 1 if self.in_units else 0, self.ring_bytes)
+            if native:
+                self.core.uc._native_decoder_host = self.machine.uc
+                self._native_lib = lib
+                self._native = native
+                hdr = lib.emu_decoder_header(native).contents
+                hdr.instructions = self._instructions
+                hdr.wakes = self._wakes
+                hdr.busy_us = self._busy_us
+                hdr.time_us = self._time_us
+                hdr.period_start = self._period_start
+                hdr.next_wake_us = self._next_wake_us
+                hdr.mhz = self._mhz
+                hdr.reload = self._reload
+                hdr.resting = 1 if self._resting else 0
+                hdr.awake = 1 if self._awake else 0
+                hdr.has_copied = 0
+                hdr.clock_count = 0
+                for mhz, us in self._clock_us.items():
+                    if hdr.clock_count < 16:
+                        idx = hdr.clock_count
+                        hdr.clock_mhz[idx] = mhz
+                        hdr.clock_us[idx] = us
+                        hdr.clock_count = idx + 1
+                self._hdr = hdr
+                return
         uc, cache = self.core.uc, {}
 
         def block(uc, address, size, user):
             if address not in cache:
                 cache[address] = thumb_instructions(bytes(uc.mem_read(address, size)))
-            self.instructions += cache[address]
-            self.advance(cache[address] / self.mhz)
+            self._instructions += cache[address]
+            self.advance(cache[address] / self._mhz)
 
         def wfi(uc, address, size, user):
-            self.resting = True
+            self._resting = True
             uc.emu_stop()
 
         def read_current(uc, access, address, size, value, user):
@@ -154,11 +337,11 @@ class DecoderLoad:
         def write(uc, access, address, size, value, user):
             self.deliver()
             if address == SYSTICK_RELOAD:
-                self.reload = value & 0xFFFFFF
+                self._reload = value & 0xFFFFFF
             elif address == SYSTICK_CURRENT:
-                self.period_start = self.time_us
+                self._period_start = self._time_us
             elif value & 0x70000000:
-                self.mhz = PLL_MHZ // ((value >> 12 & 7) + 1)
+                self._mhz = PLL_MHZ // ((value >> 12 & 7) + 1)
 
         direct.hook_add(uc, UC_HOOK_BLOCK, block)
         direct.hook_add(uc, UC_HOOK_CODE, wfi, None, self.wfi, self.wfi)
@@ -171,8 +354,8 @@ class DecoderLoad:
         return (self.reload + 1) / self.mhz
 
     def advance(self, microseconds):
-        self.time_us += microseconds
-        self.clock_us[self.mhz] += microseconds
+        self._time_us += microseconds
+        self._clock_us[self._mhz] += microseconds
 
     def current(self):
         if self.reload == 0:
@@ -181,14 +364,17 @@ class DecoderLoad:
         return self.reload - into
 
     def deliver(self):
-        period = self.period_us()
-        if self.reload == 0 or period <= 0:
+        if self._native is not None:
+            self._native_lib.emu_decoder_deliver(self._native)
             return
-        while self.time_us - self.period_start >= period:
-            self.period_start += period
-            add = self.reload + 1
-            if self.in_units and self.mhz != 100:
-                add = add * 100 // self.mhz
+        period = self.period_us()
+        if self._reload == 0 or period <= 0:
+            return
+        while self._time_us - self._period_start >= period:
+            self._period_start += period
+            add = self._reload + 1
+            if self.in_units and self._mhz != 100:
+                add = add * 100 // self._mhz
             elapsed = (self.core.word(self.counter) + add) & 0xFFFFFFFF
             self.core.put(self.counter, elapsed)
             self.core.put(SHARED_CYCLES, elapsed)
@@ -200,19 +386,27 @@ class DecoderLoad:
         return self.period_start + period * (int((self.time_us - self.period_start) // period) + 1)
 
     def run_until(self, limit_us):
-        self.resting = False
-        started = self.time_us
+        if self._native is not None:
+            rc = self._native_lib.emu_decoder_run_until(self._native, float(limit_us))
+            if rc != 0:
+                raise RuntimeError("decoder did not reach WFI")
+            return
+        self._resting = False
+        started = self._time_us
         for _ in range(100000):
-            if self.resting or self.time_us >= limit_us:
+            if self._resting or self._time_us >= limit_us:
                 break
             self.core.run_slice()
         else:
             raise RuntimeError("decoder did not reach WFI")
-        self.busy_us += self.time_us - started
-        if self.resting:
+        self._busy_us += self._time_us - started
+        if self._resting:
             self.core.pc = (self.wfi + 2) | 1
 
     def publish(self):
+        if self._native is not None:
+            self._native_lib.emu_decoder_publish(self._native)
+            return
         machine, core = self.machine, self.core
         if self.stored:
             machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
@@ -221,6 +415,9 @@ class DecoderLoad:
         self.stored.clear()
 
     def copy_input(self):
+        if self._native is not None:
+            self._native_lib.emu_decoder_copy_input(self._native)
+            return
         machine, core = self.machine, self.core
         control = machine.read_memory(CONTROL, CONTROL_BYTES)
         generation, written = struct.unpack_from("<I", control, 0)[0], \
@@ -238,33 +435,46 @@ class DecoderLoad:
         self.copied = (generation, written)
 
     def wake(self):
-        rest_until = self.next_wake_us
-        self.clock_us[self.mhz] += rest_until - self.time_us
-        self.time_us = rest_until
+        if self._native is not None:
+            self._native_lib.emu_decoder_wake(self._native)
+            return
+        rest_until = self._next_wake_us
+        self._clock_us[self._mhz] += rest_until - self._time_us
+        self._time_us = rest_until
         self.deliver()
-        self.wakes += 1
+        self._wakes += 1
         self.stored.clear()
-        self.awake = True
+        self._awake = True
 
     def advance_to(self, now):
+        if self._native is not None:
+            rc = self._native_lib.emu_decoder_advance_to(self._native, float(now))
+            if rc != 0:
+                raise RuntimeError("decoder did not reach WFI")
+            return
         self.run_until(now)
         self.deliver()
         self.publish()
-        if self.resting:
-            self.awake = False
-            self.next_wake_us = self.wake_at()
+        if self._resting:
+            self._awake = False
+            self._next_wake_us = self.wake_at()
 
     def step(self):
         if not self.active:
             return
         now = self.machine.microseconds()
+        if self._native is not None:
+            rc = self._native_lib.emu_decoder_step(self._native, float(now))
+            if rc != 0:
+                raise RuntimeError("decoder did not reach WFI")
+            return
         for _ in range(WAKES_PER_STEP):
-            if not self.awake:
-                if now < self.next_wake_us:
+            if not self._awake:
+                if now < self._next_wake_us:
                     break
                 self.wake()
             self.advance_to(now)
-            if self.awake:
+            if self._awake:
                 break
         self.copy_input()
 

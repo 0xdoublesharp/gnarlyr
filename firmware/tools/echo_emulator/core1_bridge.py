@@ -38,7 +38,7 @@ class Core1Bridge:
             return 0
         self.ring_bytes = RING_BYTES[program]
         self.core = Core1(self.machine.read_memory(0x01000000, len(self.programs[program])),
-                          self.ring_bytes)
+                          self.ring_bytes, shared_with=self.machine)
         self.active = self.core.boot()
         self.starts += int(self.active)
         if self.active:
@@ -51,10 +51,15 @@ class Core1Bridge:
         if not self.active:
             return
         machine, core = self.machine, self.core
+        due = self.slices_due()
+        if core._shared:
+            if due:
+                core.run_budget(due * SLICE)
+            return
         core.uc.mem_write(CONTROL, machine.read_memory(CONTROL, CONTROL_BYTES))
         core.uc.mem_write(RING, machine.read_memory(RING, self.ring_bytes))
-        for _ in range(self.slices_due()):
-            core.run_slice()
+        if due:
+            core.run_budget(due * SLICE)
         machine.uc.mem_write(SAMPLES, bytes(core.uc.mem_read(SAMPLES, SAMPLE_BYTES)))
         for offset, count in DECODER_OWNED:
             machine.uc.mem_write(CONTROL + offset, bytes(core.uc.mem_read(CONTROL + offset, count)))

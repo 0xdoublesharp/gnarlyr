@@ -31,9 +31,26 @@ class RegisterReader:
         return self.value.value
 
 
+class RegisterWriter:
+    def __init__(self, uc):
+        self.uc = uc
+        self.handle = uc._uch
+        self.value = ctypes.c_uint64()
+        self.pointer = ctypes.byref(self.value)
+
+    def __call__(self, register, value):
+        self.value.value = value & 0xFFFFFFFFFFFFFFFF
+        status = binding.uclib.uc_reg_write(self.handle, register, self.pointer)
+        if status != binding.uc.UC_ERR_OK:
+            raise UcError(status, register)
+
+
 def callback_failed(uc, error):
     if uc._hook_exception is None:
         uc._hook_exception = error
+    stop = getattr(uc, "_native_python_exit", None)
+    if stop is not None:
+        stop()
     uc.emu_stop()
 
 
@@ -89,12 +106,60 @@ def access_function(uc, callback, user_data):
     return binding.HOOK_MEM_ACCESS_CFUNC(access)
 
 
+def _install_ring_write_gate(uc, callback, begin, end):
+    audio = getattr(callback, "__self__", None)
+    machine = getattr(audio, "machine", None)
+    if (getattr(callback, "__name__", None) != "ring_write"
+            or not hasattr(audio, "plays")
+            or not hasattr(audio, "audible")
+            or getattr(machine, "_native", None) is None):
+        return None
+    active = [None]
+
+    def on_write(handle, kind, address, size, value, key):
+        try:
+            if not value:
+                return
+            callback(uc, kind, address, size, value, None)
+            if audio.audible and audio.plays and audio.audible[-1] >= audio.plays[-1]:
+                current = active[0]
+                if current is not None:
+                    active[0] = None
+                    uc.hook_del(current)
+        except BaseException as error:
+            callback_failed(uc, error)
+
+    cfunc = binding.HOOK_MEM_ACCESS_CFUNC(on_write)
+
+    def arm():
+        if active[0] is not None:
+            return
+        handle = binding.uc_hook_h()
+        status = binding.uclib.uc_hook_add(uc._uch, ctypes.byref(handle),
+                                           binding.uc.UC_HOOK_MEM_WRITE, cfunc,
+                                           ctypes.c_void_p(0), ctypes.c_uint64(begin),
+                                           ctypes.c_uint64(end))
+        if status != binding.uc.UC_ERR_OK:
+            raise UcError(status)
+        uc._callbacks[handle.value] = cfunc
+        active[0] = handle.value
+
+    machine.hook_symbol("hal_audio_play", arm)
+    if audio.plays and not (audio.audible and audio.audible[-1] >= audio.plays[-1]):
+        arm()
+    return 0
+
+
 def hook_add(uc, kind, callback, user_data=None, begin=1, end=0):
     """`Uc.hook_add` for code, block and memory access hooks, one wrapper frame shorter.
 
     The callback gets the binding's arguments, and the handle works with `Uc.hook_del`. Other
     hook kinds go to the binding.
     """
+    if kind == binding.uc.UC_HOOK_MEM_WRITE and user_data is None:
+        gated = _install_ring_write_gate(uc, callback, begin, end)
+        if gated is not None:
+            return gated
     if kind in CODE_HOOKS:
         function = code_function(uc, callback, user_data)
     elif kind and not kind & ~ACCESS_HOOKS:
