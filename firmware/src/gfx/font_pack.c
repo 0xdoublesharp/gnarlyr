@@ -12,8 +12,8 @@ enum {
     EXTRA_SIZE_FIELD = 8
 };
 
-static const uint8_t MAGIC[4] = {'E', 'G', 'L', 'F'};
-static const uint8_t EXTRA_MAGIC[4] = {'E', 'G', 'X', 'F'};
+#define FACE_MAGIC 0x464C4745u
+#define EXTRA_MAGIC 0x46584745u
 
 typedef struct PackFace {
     uint8_t state;
@@ -61,6 +61,17 @@ static uint32_t slot_count;
 static size_t cache_bytes;
 static FontPackHold hold;
 static uint32_t held_bytes;
+
+static inline uint32_t pack_word(const uint8_t *bytes)
+{
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    uint32_t word;
+    __builtin_memcpy(&word, bytes, sizeof word);
+    return word;
+#else
+    return bytes_le32(bytes);
+#endif
+}
 
 uint32_t font_pack_attach(FontPackReader reader, void *memory, size_t bytes)
 {
@@ -131,20 +142,15 @@ static bool row_fits(uint32_t start, uint32_t size, uint32_t file_size)
 
 static bool extra_header_valid(const uint8_t *header, uint32_t file_size)
 {
-    for (int byte = 0; byte < 4; byte++) {
-        if (header[byte] != EXTRA_MAGIC[byte]) {
-            return false;
-        }
-    }
-    bool valid = header[4] == FONT_PACK_VERSION &&
+    bool valid = pack_word(header) == EXTRA_MAGIC && header[4] == FONT_PACK_VERSION &&
                  header[EXTRA_COUNT_FIELD] == FONT_PACK_EXTRA_FACES &&
                  header[EXTRA_LANGUAGES_FIELD] <= FONT_PACK_EXTRA_LANGUAGES &&
-                 bytes_le32(header + EXTRA_SIZE_FIELD) == file_size &&
+                 pack_word(header + EXTRA_SIZE_FIELD) == file_size &&
                  hash_update(HASH_START, header, FONT_PACK_SECTOR_CHECK) ==
-                     bytes_le32(header + FONT_PACK_SECTOR_CHECK);
+                     pack_word(header + FONT_PACK_SECTOR_CHECK);
     for (uint32_t face = 0; valid && face < FONT_PACK_EXTRA_FACES; face++) {
         const uint8_t *row = header + FONT_PACK_EXTRA_TABLE + 8 * face;
-        valid = row_fits(bytes_le32(row), bytes_le32(row + 4), file_size);
+        valid = row_fits(pack_word(row), pack_word(row + 4), file_size);
     }
     return valid;
 }
@@ -152,8 +158,8 @@ static bool extra_header_valid(const uint8_t *header, uint32_t file_size)
 static void keep_extra_header(const uint8_t *header)
 {
     for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
-        extra_source.start[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face);
-        extra_source.size[face] = bytes_le32(header + FONT_PACK_EXTRA_TABLE + 8 * face + 4);
+        extra_source.start[face] = pack_word(header + FONT_PACK_EXTRA_TABLE + 8 * face);
+        extra_source.size[face] = pack_word(header + FONT_PACK_EXTRA_TABLE + 8 * face + 4);
     }
     extra_source.language_count = header[EXTRA_LANGUAGES_FIELD];
     for (uint32_t byte = 0; byte < sizeof extra_source.languages; byte++) {
@@ -224,22 +230,19 @@ static uint32_t index_sectors(const PackFace *face)
     return sectors_for(face->count, FONT_PACK_ENTRIES_PER_SECTOR);
 }
 
-static bool header_valid(const uint8_t *header)
+bool font_pack_header_valid(const uint8_t *header)
 {
-    uint32_t count = bytes_le32(header + 8);
-    uint32_t roots =
-        sectors_for(sectors_for(count, FONT_PACK_ENTRIES_PER_SECTOR), FONT_PACK_DIRECTORY_ENTRIES);
-    for (int byte = 0; byte < 4; byte++) {
-        if (header[byte] != MAGIC[byte]) {
-            return false;
-        }
-    }
-    return header[4] == FONT_PACK_VERSION && header[5] == FONT_PACK_ENTRY_BYTES &&
-           bytes_le16(header + 6) == FONT_PACK_ENTRIES_PER_SECTOR &&
+    const uint32_t format =
+        FONT_PACK_VERSION | FONT_PACK_ENTRY_BYTES << 8 | FONT_PACK_ENTRIES_PER_SECTOR << 16;
+    uint32_t count = pack_word(header + 8);
+    uint32_t sectors = sectors_for(count, FONT_PACK_ENTRIES_PER_SECTOR);
+    uint32_t roots = sectors_for(sectors, FONT_PACK_DIRECTORY_ENTRIES);
+    return pack_word(header) == FACE_MAGIC && pack_word(header + 4) == format &&
            count - 1u < FONT_PACK_MAX_GLYPHS && bytes_le16(header + 20) == roots &&
            roots <= FONT_PACK_MAX_ROOT && bytes_le16(header + 16) <= bytes_le16(header + 18) &&
+           (1u + roots + sectors) * FONT_PACK_SECTOR_BYTES <= pack_word(header + 12) &&
            hash_update(HASH_START, header, FONT_PACK_HEADER_CHECK) ==
-               bytes_le32(header + FONT_PACK_HEADER_CHECK);
+               pack_word(header + FONT_PACK_HEADER_CHECK);
 }
 
 static uint32_t data_offset(const PackFace *face)
@@ -250,19 +253,20 @@ static uint32_t data_offset(const PackFace *face)
 static bool open_face(uint32_t index, PackFace *face)
 {
     const uint8_t *header = state->sector;
-    if (!read_face(index, 0, state->sector, FONT_PACK_HEADER_BYTES) || !header_valid(header)) {
+    if (!read_face(index, 0, state->sector, FONT_PACK_HEADER_BYTES) ||
+        !font_pack_header_valid(header)) {
         return false;
     }
-    face->count = bytes_le32(header + 8);
-    face->size = bytes_le32(header + 12);
+    face->count = pack_word(header + 8);
+    face->size = pack_word(header + 12);
     face->first = (uint16_t)bytes_le16(header + 16);
     face->last = (uint16_t)bytes_le16(header + 18);
     face->roots = (uint8_t)bytes_le16(header + 20);
     for (uint32_t byte = 0; byte < sizeof face->root; byte++) {
         face->root[byte] = header[FONT_PACK_ROOT_OFFSET + byte];
     }
-    face->seed = bytes_le32(header + FONT_PACK_HEADER_CHECK);
-    return data_offset(face) <= face->size;
+    face->seed = pack_word(header + FONT_PACK_HEADER_CHECK);
+    return true;
 }
 
 static PackFace *ready_face(uint32_t index)
@@ -279,7 +283,7 @@ static bool read_sector(uint32_t index, const PackFace *face, uint32_t number)
     return read_face(index, number * FONT_PACK_SECTOR_BYTES, state->sector,
                      FONT_PACK_SECTOR_BYTES) &&
            hash_update(face->seed, state->sector, FONT_PACK_SECTOR_CHECK) ==
-               bytes_le32(state->sector + FONT_PACK_SECTOR_CHECK);
+               pack_word(state->sector + FONT_PACK_SECTOR_CHECK);
 }
 
 static int32_t last_at_or_below(const uint8_t *base, uint32_t count, uint32_t stride,
@@ -343,7 +347,7 @@ static bool load_glyph(uint32_t index, const PackFace *face, uint32_t codepoint,
         return false;
     }
     uint32_t bytes = ((uint32_t)entry[2] * entry[3] + 1) / 2;
-    uint32_t offset = bytes_le32(entry + 8);
+    uint32_t offset = pack_word(entry + 8);
     slot->glyph = (Glyph){.codepoint = (uint16_t)codepoint,
                           .bitmap_offset = 0,
                           .width = entry[2],

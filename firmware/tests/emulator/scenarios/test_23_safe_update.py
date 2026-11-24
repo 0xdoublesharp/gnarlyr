@@ -294,6 +294,77 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(listen[2] & 0xFF, 1)
         self.assertEqual(listen[6] & 0x100, 0x100)
 
+    def test_a_trial_never_writes_diagnostics_into_a_replaced_record_sector(self):
+        newer = self.newer_image()
+        installed = self.install_on_trial(newer)
+        for prefix in (b"data", b"DSUT\x01\x02\x00\x01"):
+            with self.subTest(prefix=prefix):
+                trial = self.start(installed, newer, vbus=True)
+                machine = trial.machine
+                machine.host_ejects()
+                steps = machine.trace("app_step")
+                self.assertEqual(trial.run_to_first_frame(), "condition met")
+                self.assertEqual(trial.run_through_update_check(),
+                                 "reached usb_session_storage_changed")
+                lba = next(iter(trial.file_sectors(self.trial_path())))
+                record = trial.disk.read(lba, 1)
+                foreign = prefix.ljust(512, b"\xa5")
+                trial.disk.write(lba, foreign)
+                count = len(steps)
+                machine.continue_past_stop()
+                self.assertEqual(machine.run(until=lambda: len(steps) > count,
+                                             until_ms=machine.milliseconds() + LIMIT_MS),
+                                 "condition met")
+                after = trial.disk.read(lba, 1)
+                trial.disk.write(lba, record)
+                self.assertEqual(after, foreign)
+                self.assert_healthy(trial)
+
+    def test_trial_diagnostics_follow_a_moved_record_even_if_usb_counted_no_writes(self):
+        volume = self.debug_volume()
+        folder = IDENTITY.data_directory
+        header = b"DSUT" + bytes((TRIAL_RUNNING, 0, TRIAL_RUNNING ^ 0x5A, 1))
+        volume.add_file("trial.bin", header.ljust(512, b"\0"), directory=folder)
+        volume.add_file("moved.bin", bytes(512), directory=folder)
+        trial = self.session(volume=volume, vbus=True)
+        machine = trial.machine
+        machine.host_ejects()
+        steps = machine.trace("app_step")
+        self.assertEqual(trial.run_to_first_frame(), "condition met")
+        self.assertEqual(trial.run_through_update_check(), "reached usb_session_storage_changed")
+        old = next(iter(trial.file_sectors(self.trial_path())))
+        new = next(iter(trial.file_sectors(f"/{folder}/moved.bin")))
+        original = trial.disk.read(old, 1)
+        trial.disk.write(new, original)
+        self.swap_trial_locations(trial)
+        self.assertEqual(new, next(iter(trial.file_sectors(self.trial_path()))))
+        count = len(steps)
+        machine.continue_past_stop()
+        self.assertEqual(machine.run(until=lambda: len(steps) > count,
+                                     until_ms=machine.milliseconds() + LIMIT_MS), "condition met")
+        self.assertEqual(original, trial.disk.read(old, 1))
+        _, ended = self.diagnostics(trial.disk.read(new, 1))
+        self.assertEqual(USB_END_EJECTED, ended[11])
+        self.assertEqual(0, ended[12])
+        self.assert_healthy(trial)
+
+    def swap_trial_locations(self, session):
+        reader = session.fat()
+        folder = IDENTITY.data_directory
+        _, first, _ = reader.find(folder)
+        _, old, _ = reader.find(f"/{folder}/trial.bin")
+        _, new, _ = reader.find(f"/{folder}/moved.bin")
+        lba = reader.data_start + (first - 2) * reader.sectors_per_cluster
+        sector = bytearray(session.disk.read(lba, 1))
+        targets = {old: new, new: old}
+        for at in range(0, 512, 32):
+            start = struct.unpack_from("<H", sector, at + 20)[0] << 16
+            start |= struct.unpack_from("<H", sector, at + 26)[0]
+            if sector[at + 11] == 0x20 and start in targets:
+                struct.pack_into("<H", sector, at + 20, targets[start] >> 16)
+                struct.pack_into("<H", sector, at + 26, targets[start] & 0xFFFF)
+        session.disk.write(lba, bytes(sector))
+
     def diagnostics(self, record):
         words = struct.unpack_from("<%dI" % (2 + 1 + 2 * DIAG_SNAPSHOT_WORDS), record)
         self.assertEqual(words[2], DIAG_MAGIC)

@@ -532,13 +532,16 @@ static ScanResult visit_entry(ScanState *state, const ScanJob *job, ScanStats *s
         }
     }
     ScanResult result = read_listing(state, &job->files, child, 0);
+    if (result == SCAN_NO_MUSIC_ROOT) {
+        scan_truncate_path(state, state->levels[state->depth - 1].path_length);
+        return SCAN_OK;
+    }
     uint32_t first = first_placed(state);
-    bool unplace = result == SCAN_OK && child->partial && first < state->depth;
-    if (unplace) {
+    if (result == SCAN_OK && child->partial && first < state->depth) {
         result = unplace_path(state, &job->files, first);
     }
     state->depth += result == SCAN_OK;
-    return result == SCAN_NO_MUSIC_ROOT && !unplace ? SCAN_OK : result;
+    return result;
 }
 
 static ScanResult walk(ScanState *state, const ScanJob *job, ScanStats *stats)

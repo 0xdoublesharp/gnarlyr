@@ -1,8 +1,10 @@
 #include "trial.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "app/app.h"
+#include "audio_process.h"
 #include "board.h"
 #include "core/deadline.h"
 #include "core/i18n.h"
@@ -34,30 +36,41 @@ enum {
     ESCAPE_HOLD_MS = 3000,
     DIAG_SNAPSHOT_WORDS = 18,
     DIAG_REPORT_WORDS = 4,
-    DIAG_WORDS = 2 * DIAG_SNAPSHOT_WORDS,
+    DIAG_SPARE_WORDS = DIAG_SNAPSHOT_WORDS - DIAG_REPORT_WORDS - sizeof(MmcFailure) / 4 - 5,
     DIAG_AT = 2,
     KEEP_ATTEMPTS = 0xFF
 };
 
 #define RECORD_MAGIC 0x54555344u
-#define RECORD_RUNNING 0x01000001u
-#define RECORD_FIXED 0xFF0000FFu
-#define RECORD_CHECK 0x5Bu
+#define RECORD_RUNNING 0x015B0001u
 #define DIAG_MAGIC 0x47414944u
+
+typedef struct TrialSnapshot {
+    uint32_t uptime;
+    uint32_t clock;
+    uint32_t report[DIAG_REPORT_WORDS];
+    uint32_t link;
+    MmcFailure failure;
+    uint32_t session;
+    uint32_t written;
+    uint32_t spare[DIAG_SPARE_WORDS];
+} TrialSnapshot;
 
 typedef struct TrialDiag {
     uint32_t magic;
-    uint32_t words[DIAG_WORDS];
+    TrialSnapshot snapshots[2];
 } TrialDiag;
 
-_Static_assert(sizeof(MmcFailure) % 4 == 0 &&
-                   DIAG_REPORT_WORDS + sizeof(MmcFailure) / 4 + 5 <= DIAG_SNAPSHOT_WORDS,
-               "a trial snapshot holds whole words and fits its slot");
+_Static_assert(sizeof(UsbReport) >= DIAG_REPORT_WORDS * 4 &&
+                   sizeof(TrialSnapshot) == DIAG_SNAPSHOT_WORDS * 4,
+               "trial diagnostics preserve the sector format");
 
 static uint32_t power_since_ms;
 static uint32_t escape_since_ms;
 static bool power_released;
 __attribute__((section(".noinit"))) static TrialDiag diag;
+
+void board_slot_cache_invalidate(void);
 
 static uint32_t *copy_buffer(void)
 {
@@ -70,36 +83,38 @@ static const TrialBootModuleEntry *boot_module(void)
     return hal_system_load_module(TRIAL_BOOT_MODULE_NUMBER);
 }
 
-static bool record_locate(UsbTrial *trial)
+static uint32_t record_locate(FatVolume *volume)
 {
     FatFile record;
-    FatVolume *volume = internal_volume_mount();
-    return volume != NULL && fat_open(volume, UPDATE_TRIAL_PATH, &record) &&
-           fat_file_sector(volume, &record, 0, &trial->record_lba);
+    uint32_t lba;
+    if (volume != NULL && fat_open(volume, UPDATE_TRIAL_PATH, &record) &&
+        record.size >= UPDATE_TRIAL_FILE_BYTES && fat_file_sector(volume, &record, 0, &lba)) {
+        return lba;
+    }
+    return 0;
 }
 
-static void record_image(uint32_t *words, uint32_t attempts)
+static uint32_t record_header(uint32_t attempts)
 {
-    words[0] = RECORD_MAGIC;
-    words[1] = RECORD_RUNNING | attempts << 8 | (RECORD_CHECK ^ attempts) << 16;
+    return RECORD_RUNNING ^ (attempts << 16 | attempts << 8);
 }
 
 static bool record_running(const uint32_t *words)
 {
-    uint32_t attempts = words[1] >> 8 & 0xFFu;
-    return words[0] == RECORD_MAGIC && (words[1] & RECORD_FIXED) == RECORD_RUNNING &&
-           (words[1] >> 16 & 0xFFu) == (RECORD_CHECK ^ attempts);
+    return words[0] == RECORD_MAGIC && words[1] == record_header(words[1] >> 8 & 0xFFu);
 }
 
-static void diag_keep(uint32_t *sector)
+__attribute__((noinline)) static bool record_commit(uint32_t lba, uint32_t *sector,
+                                                    uint32_t attempts)
 {
+    if (attempts <= UPDATE_TRIAL_LIMIT + 1) {
+        sector[1] = record_header(attempts);
+    }
     if (diag.magic == DIAG_MAGIC) {
-        sector[DIAG_AT] = DIAG_MAGIC;
-        for (uint32_t index = 0; index < DIAG_WORDS; index++) {
-            sector[DIAG_AT + 1 + index] = diag.words[index];
-        }
+        memcpy(sector + DIAG_AT, &diag, sizeof diag);
         diag.magic = 0;
     }
+    return emmc_volume_write(NULL, lba, 1, sector);
 }
 
 static bool count_start(UsbTrial *trial, uint32_t *sector)
@@ -109,11 +124,9 @@ static bool count_start(UsbTrial *trial, uint32_t *sector)
         return false;
     }
     trial->attempts = (uint8_t)(attempts + 1);
-    record_image(sector, trial->attempts);
-    diag_keep(sector);
     trial->running = true;
     trial->settle = USB_SETTLE_CHANGED;
-    trial->charged = emmc_volume_write(NULL, trial->record_lba, 1, sector);
+    trial->charged = record_commit(trial->record_lba, sector, trial->attempts);
     trial->session_due = trial->charged;
     return true;
 }
@@ -122,7 +135,8 @@ void board_trial_boot(void)
 {
     UsbTrial *trial = &usb_session_shared()->trial;
     uint32_t sector[SECTOR_WORDS];
-    if (!record_locate(trial) || !emmc_volume_read(NULL, trial->record_lba, 1, sector) ||
+    trial->record_lba = record_locate(internal_volume_mount());
+    if (trial->record_lba == 0 || !emmc_volume_read(NULL, trial->record_lba, 1, sector) ||
         count_start(trial, sector)) {
         return;
     }
@@ -183,7 +197,12 @@ bool hal_system_settle_user_state(bool requested)
     UsbShared *shared = usb_session_shared();
     const TrialBootModuleEntry *entry =
         requested || shared->trial.settle != 0 ? boot_module() : NULL;
-    return entry == NULL || entry->settle(shared);
+    if (entry == NULL) {
+        return true;
+    }
+    board_audio_shut_down();
+    board_audio_process_forget();
+    return entry->settle(shared);
 }
 
 void board_trial_report(void)
@@ -196,47 +215,44 @@ void board_trial_report(void)
     }
 }
 
-__attribute__((noinline, noclone)) static void write_record(const UsbTrial *trial,
-                                                            uint32_t attempts)
+__attribute__((noinline, noclone)) static void write_record(uint32_t lba, uint32_t attempts)
 {
     uint32_t sector[SECTOR_WORDS];
-    if (trial->record_lba != 0 && emmc_volume_read(NULL, trial->record_lba, 1, sector)) {
-        if (attempts <= UPDATE_TRIAL_LIMIT + 1) {
-            record_image(sector, attempts);
-        }
-        diag_keep(sector);
-        emmc_volume_write(NULL, trial->record_lba, 1, sector);
+    if (lba != 0 && emmc_volume_read(NULL, lba, 1, sector) && record_running(sector)) {
+        record_commit(lba, sector, attempts);
     }
 }
 
-static uint32_t *diag_copy(uint32_t *to, const void *from, uint32_t words)
+static void diag_snapshot(TrialSnapshot *snapshot, const UsbShared *shared)
 {
-    const uint32_t *source = from;
-    for (uint32_t index = 0; index < words; index++) {
-        to[index] = source[index];
-    }
-    return to + words;
+    snapshot->failure = mmc_last_failure();
+    snapshot->uptime = hal_clock_milliseconds();
+    snapshot->clock = hal_system_clock_mhz() | (uint32_t)shared->high_speed_failed << 16;
+    memcpy(snapshot->report, &shared->report, sizeof snapshot->report);
+    snapshot->link = (uint32_t)shared->link.step | (uint32_t)shared->link.high_speed_allowed << 8 |
+                     (uint32_t)shared->link.dedicated_fifos << 16;
+    snapshot->session =
+        (uint32_t)shared->last_session.end | (uint32_t)shared->last_session.internal_write_ok << 8;
+    snapshot->written = shared->last_session.internal_written;
 }
 
 void board_trial_snapshot(uint32_t kind)
 {
     UsbShared *shared = usb_session_shared();
-    uint32_t *words = diag.words + kind * DIAG_SNAPSHOT_WORDS;
+    if (hal_system_restart_pending()) {
+        shared->trial.record_lba = 0;
+        board_slot_cache_invalidate();
+        return;
+    }
     if (!shared->trial.running) {
         return;
     }
-    MmcFailure failure = mmc_last_failure();
-    words[0] = hal_clock_milliseconds();
-    words[1] = hal_system_clock_mhz() | (uint32_t)shared->high_speed_failed << 16;
-    words = diag_copy(words + 2, &shared->report, DIAG_REPORT_WORDS);
-    *words++ = (uint32_t)shared->link.step | (uint32_t)shared->link.high_speed_allowed << 8 |
-               (uint32_t)shared->link.dedicated_fifos << 16;
-    words = diag_copy(words, &failure, sizeof failure / 4);
-    *words++ = (uint32_t)shared->last_session.end | (uint32_t)shared->last_session.internal_write_ok
-                                                        << 8;
-    *words = shared->last_session.internal_written;
+    diag_snapshot(&diag.snapshots[kind], shared);
+    if (kind != 0) {
+        shared->trial.record_lba = record_locate(internal_volume_remount());
+    }
     diag.magic = DIAG_MAGIC;
-    write_record(&shared->trial, KEEP_ATTEMPTS);
+    write_record(shared->trial.record_lba, KEEP_ATTEMPTS);
 }
 
 void board_trial_settle(void)
@@ -244,7 +260,7 @@ void board_trial_settle(void)
     UsbTrial *trial = &usb_session_shared()->trial;
     if (trial->charged && i18n_attached() && hal_clock_milliseconds() >= UPDATE_TRIAL_SETTLE_MS) {
         trial->charged = false;
-        write_record(trial, trial->attempts - 1u);
+        write_record(trial->record_lba, trial->attempts - 1u);
     }
 }
 
@@ -252,7 +268,7 @@ void board_trial_fail(void)
 {
     UsbTrial *trial = &usb_session_shared()->trial;
     if (trial->charged) {
-        write_record(trial, UPDATE_TRIAL_LIMIT);
+        write_record(trial->record_lba, UPDATE_TRIAL_LIMIT);
         board_restart_clean();
     }
 }
@@ -267,7 +283,7 @@ void board_trial_session_starting(void)
     UsbTrial *trial = &usb_session_shared()->trial;
     if (trial->session_due) {
         trial->session_due = false;
-        write_record(trial, trial->charged ? trial->attempts + 1u : trial->attempts);
+        write_record(trial->record_lba, trial->charged ? trial->attempts + 1u : trial->attempts);
     }
     trial->charged = false;
 }
@@ -282,6 +298,7 @@ bool board_trial_session_ended(void)
         return false;
     }
     entry->session_end(shared, copy_buffer());
+    board_slot_cache_invalidate();
     return !shared->trial.running && !shared->trial.promoting;
 }
 

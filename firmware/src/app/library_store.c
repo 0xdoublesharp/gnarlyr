@@ -15,13 +15,14 @@ static bool read_file(void *context, uint32_t offset, void *buffer, uint32_t len
 
 static void attach_hidden(LibraryStore *store)
 {
-    HiddenTracksHead head = {.magic = 0};
+    HiddenTracksHead head;
     HalFile file;
-    if (hal_file_open(&file, HIDDEN_TRACKS_PATH)) {
-        (void)hal_file_read(file, 0, &head, sizeof head);
-        hal_file_close(&file);
+    if (!hal_file_open(&file, HIDDEN_TRACKS_PATH)) {
+        return;
     }
-    if (head.magic == HIDDEN_TRACKS_MAGIC &&
+    bool read = hal_file_read(file, 0, &head, sizeof head);
+    hal_file_close(&file);
+    if (read && head.magic == HIDDEN_TRACKS_MAGIC &&
         head.fingerprint == library_fingerprint(&store->library) &&
         head.set.count <= LIBRARY_HIDDEN_CAPACITY) {
         store->hidden = head.set;
@@ -31,21 +32,23 @@ static void attach_hidden(LibraryStore *store)
 
 bool library_store_open(LibraryStore *store)
 {
+    if (store->available) {
+        hal_file_close(&store->file);
+    }
     store->available = false;
-    store->library = (Library){.source = {.read = NULL, .context = NULL}};
     if (!hal_file_open(&store->file, LIBRARY_STORE_PATH)) {
+        store->library = (Library){0};
         return false;
     }
     ByteSource file_source = {.read = read_file, .context = store};
     block_cache_init(&store->cache, file_source, store->file.size);
-    LibraryStatus status =
-        library_open(&store->library, block_cache_source(&store->cache), store->file.size);
-    store->available = status == LIBRARY_OK;
-    if (!store->available) {
+    if (library_open(&store->library, block_cache_source(&store->cache), store->file.size) !=
+        LIBRARY_OK) {
         hal_file_close(&store->file);
         return false;
     }
+    store->available = true;
     favorite_playlist_attach(&store->library);
     attach_hidden(store);
-    return store->available;
+    return true;
 }

@@ -49,5 +49,6 @@ bool font_pack_extra_attached(void);
 const char *font_pack_extra_language(uint32_t index);
 void font_pack_hold(FontPackHold hold);
 uint32_t font_pack_held_bytes(void);
+bool font_pack_header_valid(const uint8_t *header);
 const Glyph *font_pack_find(uint32_t face, uint32_t codepoint);
 const uint8_t *font_pack_bitmap(const Glyph *glyph);

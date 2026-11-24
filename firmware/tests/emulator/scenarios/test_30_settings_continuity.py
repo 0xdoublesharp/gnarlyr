@@ -159,6 +159,60 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(english("STR_SETTINGS_RESTORED"), toasts[-1])
         self.assert_healthy(rig.session)
 
+    def test_playback_loads_processing_code_again_after_restoring_a_backup(self):
+        from echo_emulator.playback import KEYS, Rig
+        from unicorn.arm_const import UC_ARM_REG_LR
+        saved = self.custom_settings()
+        hidden = b"\xa5" * 8192
+        volume = self.player_volume(
+            [("settings.bin", self.saved_settings(0, 20, 0)), ("backup/1/settings.bin", saved),
+             ("backup/1/hidden.bin", hidden),
+             ("backup/list.bin", backup_list([f"{IDENTITY.version}-aaaa1111", ""], 0)),
+             ("continuity.bin", mark(build_of(self.image)))], folders=["backup", "backup/1"])
+        volume.add_file("Track.wav", self.tagged_wav("Track", "Album", 8000, 60, 4000))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        machine = rig.machine
+        process = next(module for module in machine.modules
+                       if module.number == make_image.PROCESS_MODULE_NUMBER)
+        toasts = self.collect_toasts(machine)
+        rig.open_songs()
+        self.assertIsNotNone(rig.first_audio_after(rig.play_song(1)))
+        self.assertTrue(process.loaded(machine))
+        rig.press_many("back", 3)
+        for key in ("previous", "play", "previous", "previous", "play"):
+            rig.press(key)
+        machine.hook_symbol("user_state_module_settle", lambda: machine.add_address_hook(
+            machine.reg(UC_ARM_REG_LR) & ~1, lambda: machine.stop("restore returned")))
+        machine.press_key(KEYS["play"], hold_ms=150)
+        self.assertEqual("restore returned", machine.run(until_ms=machine.milliseconds() + 5000))
+        self.assertFalse(process.loaded(machine))
+        self.assert_sleep_dispatch_is_safe(machine)
+        rig.settle()
+        self.assert_healthy(rig.session)
+        self.assertEqual([english("STR_SETTINGS_RESTORED")], toasts[-1:])
+        self.assertEqual(hidden, self.read(rig.session, "hidden.bin"))
+        rig.open_songs()
+        self.assertIsNotNone(rig.first_audio_after(rig.play_song(1)))
+        self.assertTrue(process.loaded(machine))
+        self.assertEqual(0, machine.watchdog_resets)
+        self.assert_healthy(rig.session)
+
+    def assert_sleep_dispatch_is_safe(self, machine):
+        from echo_emulator.machine import TRAMPOLINE
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
+
+        context = machine.uc.context_save()
+        returned = TRAMPOLINE + 0x900
+        machine.add_address_hook(returned, lambda: machine.stop("sleep dispatch returned"))
+        machine.uc.reg_write(UC_ARM_REG_R0, 0)
+        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols["hal_audio_set_sleep_remaining"] | 1)
+        self.assertEqual("sleep dispatch returned",
+                         machine.run(until_ms=machine.milliseconds() + 1000))
+        machine.uc.context_restore(context)
+        machine.continue_past_stop()
+
 
 if __name__ == "__main__":
     main(EchoImageTest)

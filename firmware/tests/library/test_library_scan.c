@@ -397,6 +397,7 @@ typedef struct Tree {
     uint32_t placed_opens;
     uint32_t misplaced_opens;
     char open_path[TREE_PATH];
+    const char *unreadable;
     bool files_open;
     uint8_t blob[FRAMES * FRAME_BYTES];
 } Tree;
@@ -443,6 +444,9 @@ static bool tree_open_dir(void *context, const char *path, const ScanPlace *plac
     tree.cursor = 0;
     tree.opens++;
     note_place(path, place);
+    if (tree.unreadable != NULL && strcmp(path, tree.unreadable) == 0) {
+        return false;
+    }
     snprintf(tree.open_path, sizeof tree.open_path, "%s", path);
     for (uint32_t index = 0; index < tree.count; index++) {
         const char *file = tree.paths[index];
@@ -537,6 +541,7 @@ static void start_tree(void)
     tree.opens = 0;
     tree.placed_opens = 0;
     tree.misplaced_opens = 0;
+    tree.unreadable = NULL;
     tree.files_open = true;
     memset(tree.blob, 0, sizeof tree.blob);
     for (uint32_t frame = 0; frame < FRAMES; frame++) {
@@ -588,6 +593,20 @@ static void a_file_that_disappears_during_the_scan_is_skipped(void)
     CHECK_EQUAL(1u, stats.files);
     CHECK_EQUAL(0u, stats.tracks);
     CHECK_EQUAL(1u, stats.skipped);
+}
+
+static void an_unreadable_folder_leaves_its_siblings_scannable(void)
+{
+    static Output output;
+    start_tree();
+    tree_add("/A/Missing.mp3");
+    tree_add("/B/First.mp3");
+    tree_add("/C/Second.mp3");
+    tree.unreadable = "/A/";
+    ScanStats stats;
+    CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &output, &stats));
+    CHECK_EQUAL(2u, stats.tracks);
+    CHECK_EQUAL(0u, tree.misplaced_opens);
 }
 
 static void an_unreadable_audio_header_is_skipped(void)
@@ -1246,6 +1265,7 @@ int main(int argc, char **argv)
         TEST_CASE(a_missing_music_root_says_so),
         TEST_CASE(too_little_scan_memory_is_reported_before_the_filesystem_is_used),
         TEST_CASE(a_file_that_disappears_during_the_scan_is_skipped),
+        TEST_CASE(an_unreadable_folder_leaves_its_siblings_scannable),
         TEST_CASE(an_unreadable_audio_header_is_skipped),
         TEST_CASE(each_build_phase_after_the_walk_reports_its_progress),
         TEST_CASE(a_separate_listing_leaves_the_memory_to_the_builder),

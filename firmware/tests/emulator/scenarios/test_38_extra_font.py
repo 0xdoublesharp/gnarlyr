@@ -10,6 +10,7 @@ from echo_image_harness import (
     EchoImageHarness,
     lang_pack,
     main,
+    make_image,
 )
 
 import font_build
@@ -78,6 +79,55 @@ def chinese_translations(catalogue):
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_an_invalid_slot_1_glyph_table_uses_slot_2_glyphs(self):
+        expected = self.render_image_face(None)
+        for damage in ("table magic", "table count"):
+            with self.subTest(damage=damage):
+                self.assertEqual(expected, self.render_image_face(damage))
+
+    def test_a_damaged_slot_1_face_renders_the_slot_2_glyphs(self):
+        expected = self.render_image_face(None)
+        for damage in ("row", "header"):
+            with self.subTest(damage=damage):
+                self.assertEqual(expected, self.render_image_face(damage))
+
+    def render_image_face(self, damage):
+        face = 2
+        row = 8 + face * 8
+        at = make_image.GLYPH_TABLE_OFFSET
+        offset, size = struct.unpack_from("<II", self.image, at + row)
+        glyphs = hangul_face(9)
+        self.assertLessEqual(len(glyphs), size)
+
+        def prepare(session):
+            for slot in ("slot_1", "slot_2"):
+                base = session.layout[slot]
+                first = base + offset // 512
+                payload = bytearray(glyphs + bytes(-len(glyphs) % 512))
+                table_lba = base + at // 512
+                table = bytearray(session.disk.read(table_lba, 1))
+                struct.pack_into("<I", table, row + 4, len(glyphs))
+                if slot == "slot_1":
+                    if damage == "header":
+                        payload[glyph_pack.HEADER_CHECK] ^= 0xFF
+                    elif damage == "row":
+                        struct.pack_into("<I", table, row + 4, 1)
+                    elif damage == "table magic":
+                        table[0] ^= 0xFF
+                    elif damage == "table count":
+                        struct.pack_into("<I", table, 4, make_image.GLYPH_FACE_LIMIT + 1)
+                session.disk.write(first, bytes(payload))
+                session.disk.write(table_lba, bytes(table))
+
+        session, machine = self.started_session(prepare=prepare, volume=self.korean_volume(None))
+        self.assertTrue(any(index == face and present
+                            for (index, _), present in self.hangul_lookups(machine).items()))
+        if damage is not None:
+            backup = session.layout["slot_2"] + offset // 512
+            self.assertTrue(any(lba == backup for _, lba, _ in session.card.reads))
+        self.assert_healthy(session)
+        return machine.panel.frame
+
     def player_volume(self, code, translations, font, text_size=None):
         from echo_emulator.fat_volume import Fat32Volume
         catalogue = lang_pack.read_catalogue()
