@@ -1,11 +1,13 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/deadline.h"
 #include "core/seam.h"
 #include "cru.h"
 #include "debug_probe.h"
 #include "device/backlight.h"
 #include "gpio.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/display.h"
 #include "panel_port.h"
@@ -76,7 +78,10 @@ CORE_COLD static void start_pwm(void)
 {
     cru_gate(PWM_GATE, true);
     cru_reset(PWM_RESET, true);
-    board_delay_ms(PWM_RESET_MS);
+    uint32_t start = hal_clock_milliseconds();
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, PWM_RESET_MS)) {
+        hal_audio_service();
+    }
     cru_reset(PWM_RESET, false);
     pwm_running = true;
 }

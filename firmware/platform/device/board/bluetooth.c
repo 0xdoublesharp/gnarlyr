@@ -7,6 +7,7 @@
 #include "device/bt_module.h"
 #include "dmac.h"
 #include "gpio.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "registers.h"
 
@@ -35,6 +36,7 @@ enum {
     UART1_RESET = 0x08,
     UART1_GATE = 0x1D,
     UART1_BUS_GATE = 0x89,
+    UART_RESET_MS = 1,
     RESET_ALL = 7,
     RESET_FIFOS = 6,
     LINE_8N1 = 3,
@@ -93,7 +95,10 @@ CORE_COLD void board_bluetooth_off(void)
 CORE_COLD static void uart_clock_on(void)
 {
     cru_reset(UART1_RESET, true);
-    board_delay_ms(1);
+    uint32_t start = hal_clock_milliseconds();
+    while (!deadline_elapsed(hal_clock_milliseconds(), start, UART_RESET_MS)) {
+        hal_audio_service();
+    }
     cru_reset(UART1_RESET, false);
     cru_gate(UART1_GATE, true);
     cru_gate(UART1_BUS_GATE, true);

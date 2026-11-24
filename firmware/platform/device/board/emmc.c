@@ -50,6 +50,7 @@ enum {
     CMD_READ_SINGLE_BLOCK = 17,
     OCR_TRIES = 8000,
     OCR_WAIT_MS = 1000,
+    OCR_RETRY_MS = 1,
     START_TRIES = 3,
     STARTED_MAGIC = 0x454D4D43,
     SPENT_MASK = 0xFFFF,
@@ -99,7 +100,10 @@ static bool wait_for_ocr(void)
             (words[0] & OCR_READY) != 0) {
             return (words[0] & OCR_SECTOR_MODE) != 0;
         }
-        board_delay_ms(1);
+        uint32_t retry_since = hal_clock_milliseconds();
+        while (!deadline_elapsed(hal_clock_milliseconds(), retry_since, OCR_RETRY_MS)) {
+            board_audio_stream_service();
+        }
     }
     return false;
 }

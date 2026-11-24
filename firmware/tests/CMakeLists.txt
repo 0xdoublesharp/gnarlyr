@@ -85,6 +85,10 @@ endif()
 add_test(NAME no_comments
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_no_comments.py ${PROJECT_SOURCE_DIR}
 )
+add_test(NAME no_unserviced_delays
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_no_unserviced_delays.py
+        ${PROJECT_SOURCE_DIR}
+)
 add_test(NAME no_text_literals
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/check_literals.py ${PROJECT_SOURCE_DIR}
 )
