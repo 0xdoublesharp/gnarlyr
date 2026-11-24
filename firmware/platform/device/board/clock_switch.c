@@ -2,11 +2,9 @@
 #include <stdint.h>
 
 #include "board.h"
-#include "core/deadline.h"
 #include "core/seam.h"
 #include "device/pll.h"
 #include "dmac.h"
-#include "hal/clock.h"
 #include "hal/system.h"
 #include "irq.h"
 #include "registers.h"
@@ -39,9 +37,8 @@
 enum {
     CRYSTAL_MHZ = 24,
     HZ_PER_MHZ = 1000000,
-    LOCK_TIMEOUT_MS = 200,
+    LOCK_POLL_LIMIT = 1 << 19,
     DIVIDER_SETTLE_US = 10,
-    USB_LOWEST_MHZ = 96,
     COAST_FROM_MHZ = 200,
     COAST_DIVIDER = 2,
     IDLE_FROM_MHZ = 96,
@@ -99,9 +96,9 @@ static void program_pll(const PllSetting *setting)
 
 static bool wait_for_lock(void)
 {
-    uint32_t start = hal_clock_milliseconds();
+    uint32_t polls = LOCK_POLL_LIMIT;
     while ((register_read(PLL_CON1) & CON1_LOCKED) == 0) {
-        if (deadline_elapsed(hal_clock_milliseconds(), start, LOCK_TIMEOUT_MS)) {
+        if (--polls == 0) {
             return false;
         }
     }
@@ -119,8 +116,7 @@ static bool run_from_pll(uint32_t mhz)
     }
     program_pll(&setting);
     if (!wait_for_lock()) {
-        power_down_pll();
-        use_slow_speed_bits();
+        run_from_crystal();
         return false;
     }
     register_write(CRU_CLOCK_SELECT, setting.clock_select);
@@ -244,10 +240,8 @@ void board_clock_raise(uint32_t mhz)
 CORE_SEAM bool hal_system_set_clock_mhz(uint32_t mhz)
 {
     hal_system_coast(false);
-    if (board_usb_listening() && mhz < USB_LOWEST_MHZ) {
-        mhz = USB_LOWEST_MHZ;
-    }
-    if (mhz == hal_system_clock_mhz()) {
+    uint32_t current = hal_system_clock_mhz();
+    if (mhz == current || (mhz < current && board_usb_core_powered())) {
         return true;
     }
     board_audio_before_clock_change();

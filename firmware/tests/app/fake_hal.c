@@ -829,6 +829,7 @@ int fake_hal_write_count(void)
 bool hal_audio_play(const HalAudioTrack *track, uint32_t offset_ms, const HalAudioTrack *next,
                     bool paused)
 {
+    hal_system_set_clock_mhz(200);
     fake.audio.repeat_state = 0;
     uint32_t start_ms = track->start_ms + offset_ms;
     uint32_t token = track->token;
@@ -2010,6 +2011,8 @@ int fake_hal_rescan_loads(void)
 
 const void *hal_system_load_rescan_code(void)
 {
+    fake.audio.status.state = HAL_AUDIO_STOPPED;
+    fake.audio.status.idle = true;
     fake.loaded_module = 0;
     fake.rescan_loads++;
     module_guard_evict("the rescan overlay");

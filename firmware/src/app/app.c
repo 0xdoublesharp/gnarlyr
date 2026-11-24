@@ -215,7 +215,8 @@ static AppState app;
 
 static const FadeTiming SPLASH_TIMINGS[] = {{.fade_ms = 300, .hold_ms = 200, .rising = true},
                                             {.fade_ms = WIRE_BOOT_OPEN_MS, .rising = true}};
-static const uint32_t SCREEN_ON_CLOCK_MHZ = 200;
+static const uint32_t WORK_CLOCK_MHZ = 200;
+static const uint32_t SCREEN_ON_CLOCK_MHZ = 96;
 static const uint32_t IDLE_CLOCK_MHZ = 24;
 static const FadeTiming GOODBYE_TIMINGS[] = {{.fade_ms = 600, .hold_ms = 400, .rising = false},
                                              {.fade_ms = WIRE_BOOT_CLOSE_MS, .rising = false}};
@@ -483,21 +484,11 @@ static void read_input(void)
     settle_crossing(hal_clock_milliseconds());
 }
 
-static uint32_t wanted_clock_mhz(void)
-{
-    if (app.power.standby_active) {
-        return 24;
-    }
-    if (app.display_on || !hal_audio_status().idle) {
-        return SCREEN_ON_CLOCK_MHZ;
-    }
-    return IDLE_CLOCK_MHZ;
-}
-
 static void use_wanted_clock(void)
 {
-    uint32_t wanted = wanted_clock_mhz();
-    if (hal_system_clock_mhz() != wanted) {
+    bool standby = app.power.standby_active;
+    uint32_t wanted = !standby && app.display_on ? SCREEN_ON_CLOCK_MHZ : IDLE_CLOCK_MHZ;
+    if (hal_system_clock_mhz() != wanted && (standby || hal_audio_status().idle)) {
         hal_system_set_clock_mhz(wanted);
     }
 }
@@ -1216,6 +1207,17 @@ static void keep_awake_while_busy(uint32_t now_ms)
     }
 }
 
+static void follow_bluetooth_browsing(Screen *visible, uint32_t now_ms)
+{
+    if (visible == &app.screens.modules.settings.bluetooth.screen) {
+        app.bluetooth.browsing = true;
+    } else if (app.bluetooth.browsing) {
+        app.bluetooth.browsing = false;
+        app.bluetooth.search_now = false;
+        app.bluetooth.unlinked_ms = now_ms;
+    }
+}
+
 static void update_power(uint32_t now_ms)
 {
     if (!app.saying_goodbye && battery_empty(now_ms)) {
@@ -1253,7 +1255,15 @@ static void update_power(uint32_t now_ms)
         return;
     }
     standby_follow(&app.standby, &app.power, &app.settings.settings);
+    Screen *visible = app.power.display_on ? top_screen() : NULL;
+    follow_bluetooth_browsing(visible, now_ms);
     if (app.power.display_on == app.display_on) {
+#ifdef ECHO_DEBUG_LOOP
+        if (visible == &app_screens_about(&app.screens)->diagnostics.screen) {
+            return;
+        }
+#endif
+        use_wanted_clock();
         return;
     }
     set_display(app.power.display_on);
@@ -1973,7 +1983,7 @@ static void continue_covers(uint32_t now_ms)
     if (app.player.loaded) {
         app_release_audio();
     }
-    hal_system_set_clock_mhz(SCREEN_ON_CLOCK_MHZ);
+    hal_system_set_clock_mhz(WORK_CLOCK_MHZ);
     debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_COVERS, app.covers_album));
     RescanOutcome outcome = library_rescan_covers(app.covers_album);
     use_wanted_clock();
@@ -1990,7 +2000,8 @@ static void continue_covers(uint32_t now_ms)
 
 CORE_COLD static void run_rescan(void)
 {
-    save_session();
+    app_release_audio();
+    hal_audio_release();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
     RescanProgress progress = {show_rescan_progress, show_build_progress};
     debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_START, 0));
@@ -2543,9 +2554,6 @@ CORE_SEAM void app_step(void)
     follow_scrub(now_ms);
     if (app.powered_off || app.charging) {
         return;
-    }
-    if (!app.display_on) {
-        use_wanted_clock();
     }
     toast_update(&app.toast, now_ms);
     explain_lowered_volume(now_ms);

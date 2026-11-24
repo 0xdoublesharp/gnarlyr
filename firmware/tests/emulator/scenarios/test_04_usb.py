@@ -33,6 +33,8 @@ from echo_image_harness import (
     LEAVE_GRACE_MS,
     LEAVE_HOLD_MS,
     KEY_MENU,
+    KEY_PLAY,
+    KEY_PREVIOUS,
     TRAFFIC_MEASURE_MS,
     lang_pack,
 )
@@ -51,6 +53,7 @@ CARD_FOLLOW_SLACK_MS = 100
 CARD_SETTLE_SLACK_MS = 150
 CARD_LATER_MS = 2000
 DETECT_GLITCH_MS = 20
+LISTEN_TIMEOUT_MS = 15000
 
 
 def string_id(name):
@@ -216,7 +219,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertLess(listens[0], plugged_ms + CABLE_STEADY_MS + CABLE_NOTICED_LIMIT_MS)
         self.assert_healthy(session)
 
-    def test_on_a_charger_usb_keeps_listening_until_a_host_appears_or_the_cable_leaves(self):
+    def test_on_a_charger_usb_times_out_and_the_menu_reconnects_without_unplugging(self):
         session = self.session()
         machine = session.machine
         for name in ("usb_session_storage_changed", "usb_power_down"):
@@ -228,22 +231,25 @@ class EchoImageTest(EchoImageHarness):
         machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
         self.assertEqual([event for _, event in machine.usb_log], ["soft disconnect", "pull-up on"])
         self.assertNotIn("usb_power_down", machine.reached)
-        machine.vbus = False
-        machine.run(until=lambda: "usb_power_down" in machine.reached,
-                    until_ms=machine.milliseconds() + 1000)
+        self.assertEqual(machine.run(until=lambda: "usb_power_down" in machine.reached,
+                                     until_ms=machine.milliseconds() + LISTEN_TIMEOUT_MS),
+                         "condition met")
+        machine.run(until_ms=machine.milliseconds() + 1000)
         self.assertEqual(machine.reached["usb_power_down"], 1)
         self.assertEqual(machine.usb_log[-1][1], "soft disconnect")
-        machine.vbus = True
-        machine.run(until_ms=machine.milliseconds() + CHARGER_MS)
-        self.assertEqual(machine.usb_connect_count, 2)
-        self.assertEqual(machine.reached["usb_power_down"], 1)
+        self.assertEqual(machine.usb_connect_count, 1)
         self.assertNotIn("usb_session_storage_changed", machine.reached)
         machine.host_arrives()
+        self.press(machine, KEY_PREVIOUS)
+        self.press(machine, KEY_PREVIOUS)
+        self.press(machine, KEY_PLAY)
+        self.press(machine, KEY_PREVIOUS)
+        self.press(machine, KEY_PLAY)
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         self.assertEqual(machine.usb_connect_count, 2)
         self.assert_only_the_user_volume_changed(session)
         self.assert_healthy(session)
-        self.print_usb_log("charger, then a host", machine)
+        self.print_usb_log("charger timeout, then menu connect", machine)
 
     def test_usb_power_up_writes_the_words_stock_writes(self):
         session = self.session(vbus=True)

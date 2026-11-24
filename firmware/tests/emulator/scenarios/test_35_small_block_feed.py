@@ -371,6 +371,22 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual([], rig.audio.underruns(changed_ms)[:5])
         self.assert_healthy(rig.session)
 
+    def test_a_pll_that_never_locks_returns_to_the_crystal(self):
+        from echo_emulator.devices import CRU_PLL_CON1, PLL_LOCKED
+
+        session = self.session()
+        session.run_to_home_screen()
+        machine = session.machine
+        read_word = machine.cru.read_word
+        machine.cru.read_word = lambda offset: (read_word(offset) & ~PLL_LOCKED
+                                                if offset == CRU_PLL_CON1 else read_word(offset))
+        self.assertEqual(0, self.call_clock_change(machine, AUDIO_CLOCK_MHZ))
+        self.assertEqual(24_000_000, machine.core_hz)
+        machine.cru.read_word = read_word
+        self.assertEqual(1, self.call_clock_change(machine, CLOCK_CHANGE_MHZ))
+        self.assertEqual(96_000_000, machine.core_hz)
+        self.assert_healthy(session)
+
     def panel_asleep(self, rig):
         return bool(rig.machine.read_memory(rig.machine.symbols["panel_asleep"], 1)[0])
 
