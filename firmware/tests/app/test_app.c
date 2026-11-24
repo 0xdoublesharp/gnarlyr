@@ -137,6 +137,7 @@ static const char SHOOTS_PATH[] = "/acloudyskye/This Won't Be The Last Time/01 -
 static uint32_t now_ms;
 
 static const DebugScriptRun *run_script(const char *text, uint32_t duration_ms);
+static bool nothing_drawn_cut_off(void);
 
 static const Theme *expected_theme(void)
 {
@@ -280,7 +281,7 @@ static bool title_is(const char *expected)
 
 static bool overlay_visible(void)
 {
-    Rect area = frame_overlay_area();
+    Rect area = frame_overlay_area(app_theme());
     return fake_hal_pixel(area.x, area.y) == frame_overlay_background();
 }
 
@@ -492,6 +493,25 @@ static void the_frame_overlay_splits_the_frame_time(void)
         .total_us = 190400, .update_us = 12000, .draw_us = 119600, .send_us = 58200};
     frame_overlay_format(breakdown, text, sizeof text);
     CHECK(strcmp("190 u12 d120 s58", text) == 0);
+}
+
+static void the_frame_overlay_stays_inside_the_portrait_panel(void)
+{
+    static Color pixels[222 * 480];
+    Theme theme = BOARD_THEME;
+    default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
+    Rect area = frame_overlay_area(&theme);
+    CHECK(area.x > 0 && area.y > 0 && area.width > 0 && area.height > 0);
+    CHECK(area.x + area.width < 222);
+    CHECK(area.y + area.height < 480);
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 222, 480});
+    canvas_fill_rect(&canvas, canvas.bounds, theme.colors.background);
+    text_spy_reset();
+    frame_overlay_draw(&canvas, &theme, (FrameBreakdown){0}, (HalAudioStats){0});
+    CHECK_EQUAL(frame_overlay_background(), canvas_pixel_at(&canvas, area.x, area.y));
+    CHECK_EQUAL(theme.colors.background, canvas_pixel_at(&canvas, area.x - 1, area.y));
+    CHECK(nothing_drawn_cut_off());
+    screen_snapshot_write(&canvas, "frame-overlay-portrait", 0);
 }
 
 static void the_frame_overlay_splits_the_drawing(void)
@@ -9187,6 +9207,7 @@ int main(void)
         TEST_CASE(a_long_back_returns_home_from_deep_screens),
         TEST_CASE(the_frame_overlay_is_off_until_enabled_in_diagnostics),
         TEST_CASE(the_frame_overlay_splits_the_frame_time),
+        TEST_CASE(the_frame_overlay_stays_inside_the_portrait_panel),
         TEST_CASE(the_frame_overlay_splits_the_drawing),
         TEST_CASE(the_frame_overlay_shows_the_audio_numbers),
         TEST_CASE(the_frame_overlay_shows_average_and_longest_block_times),

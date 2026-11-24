@@ -1,11 +1,10 @@
 #include "frame_overlay.h"
 
 #include "core/string_builder.h"
-#include "hal/display.h"
 #include "ui/label.h"
 
 enum {
-    OVERLAY_WIDTH = 120,
+    OVERLAY_WIDTH = 192,
     OVERLAY_LINE_HEIGHT = 18,
     OVERLAY_LINES = 4,
     OVERLAY_HEIGHT = OVERLAY_LINE_HEIGHT * OVERLAY_LINES,
@@ -16,10 +15,10 @@ enum {
 
 static const Color OVERLAY_TEXT = COLOR_RGB(124, 252, 0);
 
-Rect frame_overlay_area(void)
+Rect frame_overlay_area(const Theme *theme)
 {
-    return (Rect){HAL_DISPLAY_WIDTH - OVERLAY_WIDTH - OVERLAY_MARGIN,
-                  HAL_DISPLAY_HEIGHT - OVERLAY_HEIGHT - OVERLAY_MARGIN, OVERLAY_WIDTH,
+    return (Rect){theme->metrics.screen_width - OVERLAY_WIDTH - OVERLAY_MARGIN,
+                  theme->metrics.screen_height - OVERLAY_HEIGHT - OVERLAY_MARGIN, OVERLAY_WIDTH,
                   OVERLAY_HEIGHT};
 }
 
@@ -88,36 +87,37 @@ void frame_overlay_format_block_times(HalAudioStats stats, char *text, size_t ca
                                stats.read_max_us);
 }
 
-static void draw_line(Canvas *canvas, const Theme *theme, Rect area, const char *text)
+__attribute__((noinline)) static void draw_line(Canvas *canvas, const Font *font, Point line,
+                                                const char *text)
 {
-    TextStyle style = {.font = theme->fonts.small, .color = OVERLAY_TEXT};
-    label_draw(canvas, style,
-               (Label){.area = label_centered_area(style.font, area, text), .text = text});
+    TextStyle style = {.font = font, .color = OVERLAY_TEXT};
+    Rect area = {line.x, line.y, OVERLAY_WIDTH, OVERLAY_LINE_HEIGHT};
+    label_draw(canvas, style, (Label){.area = label_centered_area(font, area, text), .text = text});
 }
 
 void frame_overlay_draw(Canvas *canvas, const Theme *theme, FrameBreakdown breakdown,
                         HalAudioStats stats)
 {
-    Rect area = frame_overlay_area();
+    Rect area = frame_overlay_area(theme);
     if (rect_is_empty(rect_intersection(area, canvas->clip))) {
         return;
     }
     char text[FRAME_OVERLAY_TEXT_CAPACITY];
     canvas_fill_rect(canvas, area, frame_overlay_background());
-    Rect line = {area.x, area.y, area.width, OVERLAY_LINE_HEIGHT};
+    Point line = {area.x, area.y};
     frame_overlay_format(breakdown, text, sizeof text);
-    draw_line(canvas, theme, line, text);
+    draw_line(canvas, theme->fonts.small, line, text);
     line.y += OVERLAY_LINE_HEIGHT;
     frame_overlay_format_audio(stats, text, sizeof text);
-    draw_line(canvas, theme, line, text);
+    draw_line(canvas, theme->fonts.small, line, text);
     line.y += OVERLAY_LINE_HEIGHT;
     frame_overlay_format_block_times(stats, text, sizeof text);
-    draw_line(canvas, theme, line, text);
+    draw_line(canvas, theme->fonts.small, line, text);
     line.y += OVERLAY_LINE_HEIGHT;
     uint32_t parts[DRAW_PART_COUNT];
     for (int part = 0; part < DRAW_PART_COUNT; part++) {
         parts[part] = draw_profile_average_us((DrawPart)part);
     }
     frame_overlay_format_parts(parts, text, sizeof text);
-    draw_line(canvas, theme, line, text);
+    draw_line(canvas, theme->fonts.small, line, text);
 }
