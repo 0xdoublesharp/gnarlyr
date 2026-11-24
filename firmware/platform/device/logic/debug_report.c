@@ -12,7 +12,7 @@ enum {
     HEX_DIGITS = 8,
     PERCENT = 100,
     PERMILLE = 1000,
-    WRAP_FREE_UPTIME_MS = 4294967,
+    U64_DECIMAL_DIGITS = 20,
     KEY_MASK = 0xFF,
     LADDER_PRESSED = 1u << 8,
     LADDER_CHORD = 1u << 9,
@@ -155,6 +155,35 @@ static void put_text(Writer *writer, const char *key, const char *value)
     finish(writer);
 }
 
+static void append_u64(StringBuilder *text, uint64_t value)
+{
+    char digits[U64_DECIMAL_DIGITS];
+    int count = 0;
+    do {
+        digits[count++] = (char)('0' + value % 10u);
+        value /= 10u;
+    } while (value != 0);
+    while (count > 0) {
+        string_builder_append_char(text, digits[--count]);
+    }
+}
+
+static void put_u64(Writer *writer, const char *key, uint64_t value)
+{
+    begin(writer, key);
+    append_u64(&writer->text, value);
+    finish(writer);
+}
+
+static void put_known_u64(Writer *writer, const char *key, bool known, uint64_t value)
+{
+    if (known) {
+        put_u64(writer, key, value);
+    } else {
+        put_text(writer, key, UNKNOWN);
+    }
+}
+
 static void put_unsigned(Writer *writer, const char *key, uint32_t value)
 {
     begin(writer, key);
@@ -211,6 +240,12 @@ static void put_share(Writer *writer, const char *key, uint32_t part, uint32_t w
     put_known(writer, key, known, known ? share_percent(part, whole) : 0);
 }
 
+static void put_share_u64(Writer *writer, const char *key, uint64_t part, uint64_t whole)
+{
+    bool known = whole >= PERCENT && part <= whole;
+    put_known(writer, key, known, known ? (uint32_t)(part / (whole / PERCENT)) : 0);
+}
+
 static void put_build(Writer *writer, const char *version)
 {
     const char *tag = version;
@@ -253,11 +288,11 @@ static void put_system(Writer *writer, const DebugReportInput *input)
     put_unsigned(writer, "uptime_ms", input->uptime_ms);
     put_unsigned(writer, "clock_mhz", input->clock_mhz);
     put_standby(writer, &input->standby);
-    put_unsigned(writer, "core0.clock_us", input->clock_us);
-    put_unsigned(writer, "core0.idle_us", input->idle_us);
-    bool unwrapped = input->uptime_ms < WRAP_FREE_UPTIME_MS;
-    put_share(writer, "core0.busy_percent", input->clock_us - input->idle_us,
-              unwrapped ? input->clock_us : 0);
+    put_u64(writer, "core0.clock_us", input->clock_us);
+    put_u64(writer, "core0.idle_us", input->idle_us);
+    bool valid = input->clock_us >= input->idle_us;
+    put_share_u64(writer, "core0.busy_percent", valid ? input->clock_us - input->idle_us : 0,
+                  valid ? input->clock_us : 0);
 }
 
 static const char *reading_source(bool from_gauge, bool known)
@@ -1114,14 +1149,14 @@ static uint32_t put_tail(Writer *writer, uint32_t capacity)
     return (uint32_t)writer->text.length;
 }
 
-static void put_boot(Writer *writer, const uint32_t *times)
+static void put_boot(Writer *writer, const uint64_t *times)
 {
     static const char *const KEYS[DEBUG_BOOT_COUNT] = {
         "boot.clock_us", "boot.display_us",   "boot.glyphs_us",      "boot.app_us",
         "boot.frame_us", "boot.extension_us", "boot.interactive_us", "boot.audio_us"};
     for (int index = 0; index < DEBUG_BOOT_COUNT; index++) {
-        uint32_t value = times != NULL ? times[index] : 0;
-        put_known(writer, KEYS[index], value != 0, value - 1);
+        uint64_t value = times != NULL ? times[index] : 0;
+        put_known_u64(writer, KEYS[index], value != 0, value - 1);
     }
 }
 

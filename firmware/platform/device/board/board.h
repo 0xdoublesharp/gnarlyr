@@ -73,6 +73,8 @@ void board_wall_time_forget_file(void);
 void board_stall_pause(bool paused);
 void board_panic_stall(uint32_t pc, uint32_t lr);
 void board_panic_fault(const uint32_t *frame, uint32_t status);
+bool board_panic_active(void);
+void board_panic_delay_ms(uint32_t milliseconds);
 void board_watchdog_start(void);
 void board_watchdog_kick(void);
 void board_watchdog_after_clock_change(void);

@@ -20,6 +20,7 @@
 
 void board_profile_sample(uint32_t pc);
 void board_profile_wait(void);
+uint64_t board_idle_microseconds(void);
 extern PcProfile board_pc_profile;
 extern bool board_profile_held;
 extern uint32_t board_debug_grf[DEBUG_REPORT_GRF_WORDS];

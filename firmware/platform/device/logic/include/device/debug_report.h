@@ -99,9 +99,9 @@ typedef struct DebugReportInput {
     const char *version;
     uint32_t uptime_ms;
     uint32_t clock_mhz;
-    uint32_t clock_us;
-    uint32_t idle_us;
-    const uint32_t *boot_us;
+    uint64_t clock_us;
+    uint64_t idle_us;
+    const uint64_t *boot_us;
     Standby standby;
     HalBattery battery;
     DebugReportPower power;

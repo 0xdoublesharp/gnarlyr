@@ -16,7 +16,8 @@
 #include "usb_session.h"
 
 enum {
-    SLOT_DIGIT = sizeof "/" FIRMWARE_DATA_DIRECTORY "/debug/report" - 1
+    SLOT_DIGIT = sizeof "/" FIRMWARE_DATA_DIRECTORY "/debug/report" - 1,
+    MICROSECONDS_PER_MILLISECOND = 1000
 };
 
 static const char REPORT_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/debug/report0.txt";
@@ -82,17 +83,37 @@ static DebugReportUsbWords usb_words_now(void)
     return words;
 }
 
-static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
+static uint64_t wide_clock_us(uint32_t uptime_ms, uint32_t low_us)
+{
+    uint64_t base = (uint64_t)uptime_ms * MICROSECONDS_PER_MILLISECOND;
+    int64_t offset = (int32_t)(low_us - (uint32_t)base);
+    return offset < 0 && (uint64_t)(-offset) > base ? 0 : (uint64_t)((int64_t)base + offset);
+}
+
+static void expand_boot_times(uint64_t *boot_us)
+{
+    const DebugBootMarks *marks = debug_loop_boot_times();
+    for (int index = 0; index < DEBUG_BOOT_COUNT; index++) {
+        boot_us[index] = (marks->recorded & (1u << index)) != 0
+                             ? wide_clock_us(marks->ms[index], marks->us[index]) + 1u
+                             : 0;
+    }
+}
+
+static DebugReportInput gather(const UsbShared *shared, uint32_t reason, uint64_t *boot_us)
 {
     HalBattery battery = hal_power_battery();
+    uint32_t uptime_ms = hal_clock_milliseconds();
+    uint32_t low_us = hal_clock_microseconds();
+    expand_boot_times(boot_us);
     return (DebugReportInput){.reason = (DebugReportReason)reason,
                               .name = FIRMWARE_NAME,
                               .version = hal_system_version(),
-                              .uptime_ms = hal_clock_milliseconds(),
+                              .uptime_ms = uptime_ms,
                               .standby = *app_standby(),
                               .clock_mhz = hal_system_clock_mhz(),
-                              .clock_us = hal_clock_microseconds(),
-                              .idle_us = hal_system_idle_microseconds(),
+                              .clock_us = wide_clock_us(uptime_ms, low_us),
+                              .idle_us = board_idle_microseconds(),
                               .battery = battery,
                               .power = power_now(battery.charging),
                               .start = hal_system_start_info(),
@@ -108,7 +129,7 @@ static DebugReportInput gather(const UsbShared *shared, uint32_t reason)
                               .interrupted_line = board_debug_interrupted_line(),
                               .log = debug_loop_log(),
                               .refusals = *debug_loop_refusals(),
-                              .boot_us = debug_loop_boot_times(),
+                              .boot_us = boot_us,
                               .profile = board_profile()};
 }
 
@@ -121,7 +142,8 @@ static bool reserved(const char *path)
 CORE_SEAM void debug_report_write(const UsbShared *shared, uint32_t reason)
 {
     char *text = (char *)usb_session_buffer();
-    DebugReportInput input = gather(shared, reason);
+    uint64_t boot_us[DEBUG_BOOT_COUNT];
+    DebugReportInput input = gather(shared, reason, boot_us);
     bool cold_start = debug_report_cold_start(&input.start, input.uptime_ms);
     DebugReportPlace place = place_for(text, cold_start);
     ReportPath path = slot_path(place.slot);

@@ -2,6 +2,7 @@
 
 #include "board.h"
 #include "core/deadline.h"
+#include "core/seam.h"
 #include "cru.h"
 #include "device/panel.h"
 #include "device/vop.h"
@@ -68,6 +69,10 @@ static void bus_delay(void *context, uint32_t milliseconds)
 static void bus_serviced_delay(void *context, uint32_t milliseconds)
 {
     (void)context;
+    if (board_panic_active()) {
+        board_panic_delay_ms(milliseconds);
+        return;
+    }
     uint32_t start = hal_clock_milliseconds();
     while (!deadline_elapsed(hal_clock_milliseconds(), start, milliseconds)) {
         hal_audio_service();
@@ -158,10 +163,26 @@ static bool push_blocks(const uint16_t *pixels, uint32_t words)
     return true;
 }
 
+CORE_COLD static void reset_vop(void)
+{
+    vop()[VOP_SOFT_RESET] = 1;
+    vop_start(vop(), hal_system_clock_mhz());
+}
+
+CORE_COLD void board_panel_panic_reset(void)
+{
+    if (dmac_push_busy()) {
+        dmac_push_cancel();
+    }
+    if (controller_running) {
+        reset_vop();
+    }
+}
+
 static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t count)
 {
-    if (push_failed || count < PUSH_MIN_PIXELS || ((uintptr_t)pixels & 3u) != 0 ||
-        !dmac_present()) {
+    if (board_panic_active() || push_failed || count < PUSH_MIN_PIXELS ||
+        ((uintptr_t)pixels & 3u) != 0 || !dmac_present()) {
         return false;
     }
     panel_begin_write(&BUS, window);
@@ -174,8 +195,7 @@ static bool push_by_dma(PanelWindow window, const uint16_t *pixels, uint32_t cou
         return true;
     }
     dmac_push_cancel();
-    vop()[VOP_SOFT_RESET] = 1;
-    vop_start(vop(), hal_system_clock_mhz());
+    reset_vop();
     push_failed = true;
     push_fallbacks++;
     return false;

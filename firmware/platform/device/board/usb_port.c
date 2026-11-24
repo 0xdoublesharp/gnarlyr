@@ -664,9 +664,11 @@ CORE_SEAM void usb_poll(UsbPort *port)
     if (!port->defer_control && port->setup_pending && port->setup_ready) {
         process_setup(port);
     }
-    if (!port->defer_control && port->control_data_pending) {
+    if (!port->defer_control && !port->setup_pending && port->control_data_pending) {
         port->control_data_pending = false;
-        finish_control_out(port, port->control_data_length, port->control_data);
+        if (port->control_out_pending) {
+            finish_control_out(port, port->control_data_length, port->control_data);
+        }
     }
     if ((events & GINT_RX_LEVEL) != 0) {
         handle_receive(port);

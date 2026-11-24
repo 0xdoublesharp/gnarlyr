@@ -417,6 +417,7 @@ if(NOT ECHO_RELEASE)
         board_debug_history
         board_debug_usb_is_powered
         board_debug_usb_kept_on
+        board_idle_microseconds
         board_power_charge_pin
         board_power_display
         board_pc_profile
@@ -460,7 +461,9 @@ if(CMAKE_CROSSCOMPILING)
         board/cru.c
         board/core1.c
         board/dac.c
+        board/display.c
         board/emmc.c
+        board/mmc.c
         board/sd.c
         board/storage.c
         board/usb.c
@@ -496,6 +499,7 @@ if(CMAKE_CROSSCOMPILING)
         board/usb_listen.c
         board/usb_report.c
         board/usb_session.c
+        ${PROJECT_SOURCE_DIR}/src/app/debug_loop.c
         ${PROJECT_SOURCE_DIR}/src/app/library_rescan_job.c
         ${PROJECT_SOURCE_DIR}/src/app/hidden_scan.c
         ${PROJECT_SOURCE_DIR}/src/app/scan_guard.c

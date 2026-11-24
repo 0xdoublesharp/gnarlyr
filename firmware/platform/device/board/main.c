@@ -8,12 +8,16 @@
 #include "core/seam.h"
 #include "cru.h"
 #include "debug_probe.h"
+#include "default_theme.h"
 #include "device/battery_gauge.h"
 #include "device/clock_governor.h"
 #include "device/usb_plug.h"
 #include "emmc.h"
+#include "gfx/strip_renderer.h"
 #include "hal/audio.h"
+#include "hal/bluetooth.h"
 #include "hal/clock.h"
+#include "hal/display.h"
 #include "hal/power.h"
 #include "hal/system.h"
 #include "overlay.h"
@@ -21,6 +25,8 @@
 #include "storage_reset.h"
 #include "trial.h"
 #include "trial_module.h"
+#include "ui/header.h"
+#include "ui/message_screen.h"
 #include "update.h"
 #include "usb.h"
 #include "usb_report.h"
@@ -124,10 +130,13 @@ static void run_usb_session(void)
     board_stall_pause(false);
 }
 
-static void run_dac_session(void)
+CORE_COLD static void run_dac_session(void)
 {
     board_stall_pause(true);
     raise_clock_for_usb();
+    app_release_audio();
+    hal_audio_release();
+    hal_bluetooth_set_power(false);
     const UsbOverlayEntry *usb = load_usb_code();
     if (usb != NULL) {
         usb->dac(usb_session_shared());
@@ -240,12 +249,33 @@ static void check_usb(void)
     }
 }
 
-static void switch_off_when_empty(uint32_t boot_millivolts)
+static void write_empty_strip(void *context, Rect area, const Color *pixels)
+{
+    (void)context;
+    hal_display_write(area.x, area.y, area.width, area.height, pixels);
+}
+
+static void draw_empty_notice(void *context, Canvas *canvas)
+{
+    (void)context;
+    Rect content = theme_content_area(&NOTICE_THEME);
+    header_draw(canvas, &NOTICE_THEME, "Battery low");
+    message_draw(canvas, &NOTICE_THEME, content, "Charge the player to turn it on");
+}
+
+CORE_COLD static void switch_off_when_empty(uint32_t boot_millivolts)
 {
     if (!battery_boot_cutoff(boot_millivolts, usb_vbus_present())) {
         return;
     }
-    app_show_notice("Battery low", "Charge the player to turn it on");
+    Color strip[HAL_DISPLAY_WIDTH];
+    StripRenderer renderer = {.strip_pixels = strip,
+                              .area = {0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT},
+                              .strip_height = 1,
+                              .background = NOTICE_THEME.colors.background};
+    strip_renderer_render(&renderer, (FrameDrawer){.draw = draw_empty_notice},
+                          (FrameSink){.write = write_empty_strip});
+    board_backlight_full();
     board_delay_ms(EMPTY_NOTICE_MS);
     hal_power_off();
 }
@@ -260,11 +290,20 @@ static void explain_missing_text(void)
     board_wait_for_key();
 }
 
+#ifdef ECHO_DEBUG_LOOP
+static uint64_t idle_us;
+
+uint64_t board_idle_microseconds(void)
+{
+    return idle_us;
+}
+#else
 static uint32_t idle_us;
+#endif
 
 uint32_t hal_system_idle_microseconds(void)
 {
-    return idle_us;
+    return (uint32_t)idle_us;
 }
 
 void board_note_idle_us(uint32_t microseconds)
@@ -294,7 +333,7 @@ static void govern_coast(void)
         board_clock_coast_divider(COAST_LIMITS.lowest_divider);
         return;
     }
-    ClockGovernorReading reading = {.now_us = hal_clock_microseconds(), .idle = idle_us};
+    ClockGovernorReading reading = {.now_us = hal_clock_microseconds(), .idle = (uint32_t)idle_us};
     if (!governing_coast) {
         governing_coast = true;
         clock_governor_start(&coast_governor, &COAST_LIMITS, reading);
@@ -347,8 +386,10 @@ static void follow_card(uint32_t *generation)
     app_start_after_storage();
     app_request_rescan_if_music_changed();
     if (sd_ejected()) {
+        board_stall_pause(true);
         app_show_notice(i18n_text(STR_CARD_EJECT), i18n_text(STR_CARD_SAFE));
         board_wait_for_key();
+        board_stall_pause(false);
     }
 }
 

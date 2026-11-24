@@ -47,6 +47,7 @@ enum {
     US_PER_PERCENT_MS = 10,
     FULL_PERCENT = 100,
     LIGHT_FRAME_MS = 40,
+    SPACE_REFRESH_MS = 2000,
     GLOW_STEP = 32
 };
 
@@ -72,6 +73,8 @@ typedef struct SessionClock {
     uint32_t ui_us;
     uint32_t back_pressed_ms;
     uint32_t nudged_ms;
+    uint32_t space_written[USB_SCENE_DRIVES];
+    uint32_t space_ms;
     bool moving;
 } SessionClock;
 
@@ -613,6 +616,31 @@ static void show_sample(bool changed, bool ticked)
     }
 }
 
+static bool refresh_free_space(const MscStats *stats, uint32_t now_ms)
+{
+    if (msc.phase != MSC_PHASE_COMMAND) {
+        return false;
+    }
+    if (!deadline_elapsed(now_ms, session_clock.space_ms, SPACE_REFRESH_MS) &&
+        !usb_activity_quiet(&activity, now_ms)) {
+        return false;
+    }
+    bool changed = false;
+    for (uint8_t lun = 0; lun < USB_SCENE_DRIVES; lun++) {
+        uint32_t written = stats->traffic[lun].sectors_written;
+        if (written == session_clock.space_written[lun]) {
+            continue;
+        }
+        bool ready = lun == INTERNAL_LUN ? shared->report.internal_ready : card_present;
+        uint32_t free_sectors = free_at_connect(ready, lun);
+        session_clock.space_written[lun] = written;
+        session_clock.space_ms = now_ms;
+        changed = changed || free_sectors != scene->usage[lun].free_sectors;
+        scene->usage[lun].free_sectors = free_sectors;
+    }
+    return changed;
+}
+
 static void sample_traffic(uint32_t now_ms)
 {
     if (!usb_meter_due(&scene->meter, now_ms) || !traffic(scene->state)) {
@@ -620,6 +648,9 @@ static void sample_traffic(uint32_t now_ms)
     }
     MscStats stats = msc_stats(&msc);
     bool changed = drives_changed(&stats);
+    if (refresh_free_space(&stats, now_ms)) {
+        changed = true;
+    }
     uint32_t totals[USB_METER_DIRECTIONS] = {msc_sectors_moved(&msc, false),
                                              msc_sectors_moved(&msc, true)};
     usb_meter_sample(&scene->meter, totals, now_ms);
@@ -645,15 +676,21 @@ static bool follow_card(void)
         return false;
     }
     if (eject_card) {
+        usb_card_clear_fast(USB_CARD_SD);
         sd_eject(true);
         eject_card = false;
+    }
+    if (!sd_card_ready()) {
+        usb_card_clear_fast(USB_CARD_SD);
     }
     BlockDevice device;
     bool ready = sd_start(&device);
     bool changed = ready != card_present;
     if (changed) {
+        usb_card_clear_fast(USB_CARD_SD);
         msc_set_media(&msc, CARD_LUN, ready, ready ? sd_sector_count() : 0);
         scene->usage[CARD_LUN].free_sectors = free_at_connect(ready, CARD_LUN);
+        session_clock.space_written[CARD_LUN] = msc_stats(&msc).traffic[CARD_LUN].sectors_written;
     }
     card_present = ready;
     return changed;

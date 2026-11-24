@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/deadline.h"
+#include "core/seam.h"
 #include "device/block_device.h"
 #include "device/card_write.h"
 #include "device/emmc_layout.h"
@@ -250,6 +251,9 @@ static const CardStreamOps EMMC_OPS = {
 static bool locate_sd(UsbCard *card, uint32_t lba, uint32_t count, uint32_t *address)
 {
     BlockDevice device;
+    if (!sd_card_ready()) {
+        card->fast = false;
+    }
     uint32_t sectors = sd_sector_count();
     if (!sd_start(&device) || lba >= sectors || count > sectors - lba) {
         return false;
@@ -296,7 +300,7 @@ static bool close_stream(void *context, bool complete)
 
 const MscStream USB_CARD_STREAM = {open_stream, feed_stream, close_stream};
 
-void usb_card_prepare(const EmmcLayout *internal)
+CORE_COLD void usb_card_prepare(const EmmcLayout *internal)
 {
     layout = internal;
     cards[USB_CARD_INTERNAL] = (UsbCard){.host = &EMMC_HOST, .rca = EMMC_RCA_ARGUMENT};
@@ -357,7 +361,7 @@ static void describe(uint8_t lun, bool running)
     speed.fifo_words[lun] = running ? (uint16_t)*card->host->fifo_depth : 0u;
 }
 
-void usb_card_speed_up(bool internal_ready, uint32_t *scratch)
+CORE_COLD void usb_card_speed_up(bool internal_ready, uint32_t *scratch)
 {
     speed = (UsbCardSpeed){0};
     describe(USB_CARD_INTERNAL, internal_ready);
@@ -375,10 +379,21 @@ void usb_card_speed_up(bool internal_ready, uint32_t *scratch)
     }
 }
 
-bool usb_card_slow_down(uint8_t lun)
+CORE_SEAM CORE_COLD void usb_card_clear_fast(uint8_t lun)
+{
+    if (lun < USB_CARD_COUNT) {
+        cards[lun].fast = false;
+    }
+}
+
+CORE_COLD bool usb_card_slow_down(uint8_t lun)
 {
     UsbCard *card = &cards[lun];
     if (!card->fast) {
+        return false;
+    }
+    if (card->sd && !sd_card_ready()) {
+        card->fast = false;
         return false;
     }
     set_speed(card, false);
@@ -386,16 +401,21 @@ bool usb_card_slow_down(uint8_t lun)
     return true;
 }
 
-void usb_card_speed_down(void)
+CORE_SEAM CORE_COLD void usb_card_speed_down(void)
 {
     for (uint8_t lun = 0; lun < USB_CARD_COUNT; lun++) {
-        if (cards[lun].fast) {
+        if (!cards[lun].fast) {
+            continue;
+        }
+        if (cards[lun].sd && !sd_card_ready()) {
+            cards[lun].fast = false;
+        } else {
             set_speed(&cards[lun], false);
         }
     }
 }
 
-UsbCardSpeed usb_card_speed(void)
+CORE_COLD UsbCardSpeed usb_card_speed(void)
 {
     UsbCardSpeed now = speed;
     now.fast =

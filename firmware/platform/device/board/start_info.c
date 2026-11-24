@@ -12,7 +12,8 @@
 
 enum {
     STACKED_LR_WORD = 5,
-    STACKED_PC_WORD = 6
+    STACKED_PC_WORD = 6,
+    FAULT_POLL_MS = 10
 };
 
 __attribute__((section(".noinit"))) static StartRecord record;
@@ -61,15 +62,25 @@ BoardRunSnapshot board_start_record_snapshot(void)
                               .millivolts = record.millivolts};
 }
 
+static void kick_watchdog(void)
+{
+    if (!board_trial_running()) {
+        board_watchdog_kick();
+    }
+}
+
 __attribute__((used)) void device_fault_handler(const uint32_t *frame)
 {
+    kick_watchdog();
     start_record_fault(&record, register_read(SCB_CFSR), register_read(SCB_HFSR),
                        frame[STACKED_PC_WORD]);
     board_panic_fault(frame, register_read(SCB_CFSR));
+    uint32_t now_ms = 0;
     for (;;) {
-        if (!board_trial_running()) {
-            board_watchdog_kick();
-        }
+        kick_watchdog();
+        board_panic_poll_power(now_ms);
+        board_panic_delay_ms(FAULT_POLL_MS);
+        now_ms += FAULT_POLL_MS;
     }
 }
 
