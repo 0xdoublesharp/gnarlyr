@@ -110,8 +110,22 @@ static void the_product_string_names_the_firmware_and_the_manufacturer_string_it
 static void unknown_descriptors_stall(void)
 {
     UsbDevice device = ready_device();
-    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x80, 6, 0x0600, 0, 10)).kind);
-    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x80, 6, 0x0304, 0, 10)).kind);
+    static const uint16_t unknown[] = {0x0101, 0x0201, 0x0304, 0x03EE, 0x0400,
+                                       0x0500, 0x0600, 0x0700, 0x0A00, 0x0F00};
+    for (size_t index = 0; index < sizeof unknown / sizeof unknown[0]; index++) {
+        CHECK_EQUAL(USB_REPLY_STALL,
+                    usb_device_setup(&device, setup(0x80, 6, unknown[index], 0, 255)).kind);
+    }
+    CHECK_EQUAL(USB_REPLY_STALL,
+                usb_device_setup(&device, setup(0x80, 6, 0x0302, 0x0411, 255)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x81, 6, 0x0400, 0, 255)).kind);
+}
+
+static void a_zero_length_descriptor_request_has_only_a_status_stage(void)
+{
+    UsbDevice device = ready_device();
+    CHECK_EQUAL(USB_REPLY_STATUS, usb_device_setup(&device, setup(0x80, 6, 0x0100, 0, 0)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x80, 6, 0x0F00, 0, 0)).kind);
 }
 
 static void set_address_acknowledges_and_asks_for_the_address(void)
@@ -138,10 +152,27 @@ static void set_configuration_activates_the_endpoints_and_is_reported_back(void)
 static void get_status_answers_two_zero_bytes(void)
 {
     UsbDevice device = ready_device();
-    UsbReply reply = usb_device_setup(&device, setup(0x80, 0, 0, 0, 2));
-    CHECK_EQUAL(2, reply.length);
-    CHECK_EQUAL(0, reply.data[0]);
-    CHECK_EQUAL(0, reply.data[1]);
+    static const UsbSetup requests[] = {
+        {0x80, 0, 0, 0, 2}, {0x81, 0, 0, 0, 2}, {0x82, 0, 0, USB_ENDPOINT_BULK_IN, 2}};
+    for (size_t index = 0; index < sizeof requests / sizeof requests[0]; index++) {
+        UsbReply reply = usb_device_setup(&device, requests[index]);
+        CHECK_EQUAL(USB_REPLY_DATA, reply.kind);
+        CHECK_EQUAL(2, reply.length);
+        CHECK_EQUAL(0, reply.data[0]);
+        CHECK_EQUAL(0, reply.data[1]);
+    }
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x80, 0, 0, 1, 2)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x82, 0, 0, 0x83, 2)).kind);
+}
+
+static void configuration_and_interface_requests_use_their_own_recipients(void)
+{
+    UsbDevice device = ready_device();
+    UsbReply interface = usb_device_setup(&device, setup(0x81, 10, 0, 0, 1));
+    CHECK_EQUAL(1, interface.length);
+    CHECK_EQUAL(0, interface.data[0]);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x80, 10, 0, 0, 1)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x81, 8, 0, 0, 1)).kind);
 }
 
 static void clearing_an_endpoint_halt_names_the_endpoint(void)
@@ -162,11 +193,13 @@ static void standard_output_requests_reject_unsupported_values_and_recipients(vo
     CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x01, 11, 1, 0, 0)).kind);
 
     UsbReply wrong_recipient = usb_device_setup(&device, setup(0x00, 1, 0, 0, 0));
-    CHECK_EQUAL(USB_REPLY_STATUS, wrong_recipient.kind);
-    CHECK_EQUAL(USB_ACTION_NONE, wrong_recipient.action);
+    CHECK_EQUAL(USB_REPLY_STALL, wrong_recipient.kind);
     UsbReply wrong_feature = usb_device_setup(&device, setup(0x02, 1, 1, 0, 0));
-    CHECK_EQUAL(USB_REPLY_STATUS, wrong_feature.kind);
-    CHECK_EQUAL(USB_ACTION_NONE, wrong_feature.action);
+    CHECK_EQUAL(USB_REPLY_STALL, wrong_feature.kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x02, 1, 0, 0x101, 0)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x02, 1, 0, 0x81, 1)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x02, 5, 23, 0, 0)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x00, 5, 128, 0, 0)).kind);
     CHECK_EQUAL(USB_REPLY_STALL, usb_device_setup(&device, setup(0x00, 0x7f, 0, 0, 0)).kind);
 }
 
@@ -294,9 +327,11 @@ int main(void)
         TEST_CASE(string_descriptors_are_utf16),
         TEST_CASE(the_product_string_names_the_firmware_and_the_manufacturer_string_its_maker),
         TEST_CASE(unknown_descriptors_stall),
+        TEST_CASE(a_zero_length_descriptor_request_has_only_a_status_stage),
         TEST_CASE(set_address_acknowledges_and_asks_for_the_address),
         TEST_CASE(set_configuration_activates_the_endpoints_and_is_reported_back),
         TEST_CASE(get_status_answers_two_zero_bytes),
+        TEST_CASE(configuration_and_interface_requests_use_their_own_recipients),
         TEST_CASE(clearing_an_endpoint_halt_names_the_endpoint),
         TEST_CASE(standard_output_requests_reject_unsupported_values_and_recipients),
         TEST_CASE(get_max_lun_reports_the_last_lun),

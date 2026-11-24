@@ -52,12 +52,13 @@ static int larger(int first, int second)
 
 const UsbScene *usb_screen_scene(AppUsbStatus status)
 {
+    _Static_assert(USB_SCENE_STARTING == 0, "a zeroed USB scene is starting");
     static const UsbScene PLAIN = {.state = USB_SCENE_CONNECTED};
-    static const UsbScene STARTING = {.state = USB_SCENE_STARTING};
+    static UsbScene starting;
     if (status.scene != NULL) {
         return status.scene;
     }
-    return status.view == APP_USB_CONNECTING ? &STARTING : &PLAIN;
+    return status.view == APP_USB_CONNECTING ? &starting : &PLAIN;
 }
 
 void usb_screen_service(const UsbScene *scene)

@@ -354,26 +354,17 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
     }
 }
 
-static void wrapped_storage_footer_rows_start_at_the_left_margin(void)
+static void the_landscape_storage_footer_fits_all_three_hints_on_one_line(void)
 {
-    Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_LANDSCAPE, TEXT_SIZE_LARGE);
     UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
     scene.hints = STORAGE_PAGES[USB_PAGE_OVERVIEW];
     scene.hint_count = 3;
-    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
-    status.scene = &scene;
-    Canvas canvas = canvas_for(&theme);
-    FooterHints hints = {.items = scene.hints, .count = scene.hint_count};
-    int pad = theme.metrics.padding;
-    int width = theme.metrics.screen_width - 2 * pad;
-    CHECK_EQUAL(2, footer_hints_lines(&theme, hints, width));
-    usb_screen_draw(&canvas, &theme, (HalBattery){0}, status);
-    int line = font_line_height(theme.fonts.small) + FOOTER_LINE_SPACE;
-    int top = theme.metrics.screen_height - 2 * line + FOOTER_LINE_SPACE / 2;
-    Color outline =
-        color_blend(theme.colors.header_background, theme.colors.header_text, FOOTER_VERB_ALPHA);
-    CHECK_EQUAL(outline, canvas_pixel_at(&canvas, pad, top));
-    CHECK_EQUAL(outline, canvas_pixel_at(&canvas, pad, top + line));
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_LANDSCAPE, size);
+        int width = theme.metrics.screen_width - 2 * theme.metrics.padding;
+        FooterHints hints = {.items = scene.hints, .count = scene.hint_count};
+        CHECK_EQUAL(1, footer_hints_lines(&theme, hints, width));
+    }
 }
 
 static void the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts(void)
@@ -1621,13 +1612,16 @@ static int unheld_glyphs_drawn(void)
     return unheld;
 }
 
-static void draw_storage_variants(const Theme *theme, Variant *list, int count)
+static void draw_language_variants(const Theme *theme, Variant *list, int count, bool dac)
 {
+    if (dac) {
+        usb_dac_menu_open(&menu, (UsbDacMenuConfig){.theme = theme}, 0);
+    }
     Canvas canvas = canvas_for(theme);
     for (int index = 0; index < count; index++) {
         AppUsbStatus status = list[index].status;
         status.scene = &list[index].scene;
-        if (status.view == APP_USB_DAC ||
+        if ((status.view == APP_USB_DAC) != dac ||
             list[index].scene.page >= usb_screen_pages(theme, status)) {
             continue;
         }
@@ -1653,7 +1647,7 @@ static void storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared(void)
             Theme theme = theme_for(0, orientation, text_size);
             extra_font_hold_for_usb(&theme);
             uint32_t reads = extra_file.reads;
-            draw_storage_variants(&theme, list, count);
+            draw_language_variants(&theme, list, count, false);
             CHECK_EQUAL(reads, extra_file.reads);
             font_pack_hold(FONT_PACK_HOLD_NONE);
         }
@@ -1734,25 +1728,57 @@ static void han_text(const char *english, char *text, size_t capacity)
     text[length] = '\0';
 }
 
-static void a_chinese_menu_at_the_largest_text_size_draws_storage_pages_from_held_glyphs(void)
+static void check_held_text(const Font *font, const StringId *ids, size_t count)
+{
+    for (size_t index = 0; index < count; index++) {
+        const char *text = i18n_text(ids[index]);
+        for (uint32_t codepoint = utf8_next(&text); codepoint != 0; codepoint = utf8_next(&text)) {
+            const Glyph *glyph = font_find_glyph(font, codepoint);
+            CHECK(glyph != NULL && glyph->codepoint == codepoint);
+        }
+    }
+}
+
+static void all_chinese_storage_text_is_held(const Theme *theme)
+{
+    static const StringId details[] = {
+        STR_USB_STAT_INTERNAL,    STR_USB_STAT_CARD,   STR_USB_STAT_READ, STR_USB_STAT_WRITTEN,
+        STR_USB_STAT_COMMANDS,    STR_USB_STAT_FREE,   STR_USB_STAT_PEAK, STR_USB_STAT_AVERAGE,
+        STR_USB_STAT_BUSY,        STR_USB_STAT_ERRORS, STR_USB_STAT_LINK, STR_USB_DAC_TIME,
+        STR_USB_ERRORS_VALUE,     STR_USB_LINK_HIGH,   STR_USB_LINK_FULL, STR_USB_UNKNOWN,
+        STR_USB_STAT_PER_COMMAND, STR_USB_KB,          STR_USB_MB_S,      STR_USB_KB_S,
+        STR_HINT_MORE_STATS,      STR_HINT_RETURN,     STR_POWER_UNKNOWN,
+    };
+    check_held_text(theme->fonts.small, details, sizeof details / sizeof details[0]);
+}
+
+static void a_chinese_menu_draws_all_storage_pages_from_held_glyphs(void)
 {
     static uint8_t pack[TEST_PACK_CAPACITY];
-    uint32_t size = test_pack_build(pack, (TestPackLanguage){"zh-CN", "Chinese", han_text});
-    CHECK(i18n_attach(pack, size));
+    uint32_t bytes = test_pack_build(pack, (TestPackLanguage){"zh-CN", "Chinese", han_text});
+    CHECK(i18n_attach(pack, bytes));
     sim_glyphs_attach();
     attach_chinese_extra_font();
-    Theme theme = theme_for(0, 0, TEXT_SIZE_COUNT - 1);
-    CHECK(theme.fonts.title == &FONT_INTER_SEMIBOLD_26);
-    extra_font_hold_for_usb(&theme);
-    uint32_t held_bytes = font_pack_held_bytes();
-    printf("  Chinese USB text held at the largest size: %u bytes\n", (unsigned)held_bytes);
-    CHECK(held_bytes > 0 && held_bytes <= SIM_GLYPHS_CACHE_BYTES);
-    uint32_t reads = extra_file.reads;
     Variant list[VARIANTS];
     int count = variants(list);
-    draw_storage_variants(&theme, list, count);
-    CHECK_EQUAL(reads, extra_file.reads);
-    font_pack_hold(FONT_PACK_HOLD_NONE);
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_for(0, 0, size);
+        extra_font_hold_for_usb(&theme);
+        uint32_t reads = extra_file.reads;
+        all_chinese_storage_text_is_held(&theme);
+        printf("  Chinese USB text held at size %d: %u bytes\n", size,
+               (unsigned)font_pack_held_bytes());
+        for (int orientation = 0; orientation < 2; orientation++) {
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            draw_language_variants(&theme, list, count, false);
+        }
+        CHECK_EQUAL(reads, extra_file.reads);
+        font_pack_hold(FONT_PACK_HOLD_NONE);
+        for (int orientation = 0; orientation < 2; orientation++) {
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            draw_language_variants(&theme, list, count, true);
+        }
+    }
     font_pack_detach_extra();
     i18n_detach();
 }
@@ -1787,11 +1813,11 @@ int main(void)
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
 #ifdef ECHO_TEST_GLYPHS
         TEST_CASE(storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared),
-        TEST_CASE(a_chinese_menu_at_the_largest_text_size_draws_storage_pages_from_held_glyphs),
+        TEST_CASE(a_chinese_menu_draws_all_storage_pages_from_held_glyphs),
         TEST_CASE(the_translated_usb_titles_fit_the_portrait_header_with_the_mark),
 #endif
         TEST_CASE(the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts),
-        TEST_CASE(wrapped_storage_footer_rows_start_at_the_left_margin),
+        TEST_CASE(the_landscape_storage_footer_fits_all_three_hints_on_one_line),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),
         TEST_CASE(a_pack_closed_while_bands_draw_repaints_the_whole_screen_at_once),

@@ -38,6 +38,12 @@ from echo_image_harness import (
     TRAFFIC_MEASURE_MS,
     lang_pack,
 )
+from echo_emulator.usb_storage_host import (
+    EP_ENABLE,
+    PACKET_SETUP_DATA,
+    PACKET_SETUP_DONE,
+    StorageHost,
+)
 
 TRAFFIC_SAMPLE_MS = 500
 COMMAND_GAPS_MS = (35, 180, 60, 250, 20, 140, 90, 210)
@@ -54,6 +60,8 @@ CARD_SETTLE_SLACK_MS = 150
 CARD_LATER_MS = 2000
 DETECT_GLITCH_MS = 20
 LISTEN_TIMEOUT_MS = 15000
+EP_STALL = 1 << 21
+EP_CLEAR_NAK = 1 << 26
 
 
 def string_id(name):
@@ -61,7 +69,111 @@ def string_id(name):
     return [entry for _, names in segments for entry in names].index(name)
 
 
+class ControlProbeHost(StorageHost):
+    def __init__(self, machine):
+        super().__init__(machine)
+        self.control_replies = []
+        self.stall_cleared_nak = False
+
+    def control_write(self, is_in, number, endpoint, value):
+        if is_in and number == 0 and value & EP_STALL:
+            self.stall_cleared_nak = bool(value & EP_CLEAR_NAK)
+        super().control_write(is_in, number, endpoint, value)
+        endpoint.control &= ~EP_CLEAR_NAK
+
+    def finish_in(self, number, endpoint):
+        if number == 0:
+            data = struct.pack("<%dI" % len(endpoint.words), *endpoint.words)
+            self.control_replies.append(data[:endpoint.bytes])
+        super().finish_in(number, endpoint)
+
+    def probe(self, descriptor, length, language=0):
+        self.request(0x80, 6, descriptor, language, length)
+
+    def request(self, *fields):
+        request = struct.pack("<BBHHH", *fields)
+        self.rx.extend(((0, PACKET_SETUP_DATA, request), (0, PACKET_SETUP_DONE, b"")))
+
+    def control_stalled(self):
+        return bool(self.inputs[0].control & self.outputs[0].control & EP_STALL)
+
+
 class EchoImageTest(EchoImageHarness):
+    def test_usb_control_recovers_after_unsupported_descriptor_probes(self):
+        session, machine, host = self.control_probe_host()
+        for descriptor in (0x0F00, 0x0A00, 0x03EE, 0x0304, 0x0400, 0x0500):
+            with self.subTest(descriptor=hex(descriptor)):
+                host.control_replies.clear()
+                host.probe(descriptor, 255)
+                self.run_control_probe(machine, host.control_stalled)
+                self.assertTrue(host.stall_cleared_nak)
+                self.assertTrue(host.outputs[0].control & EP_ENABLE)
+                self.assertEqual([], host.control_replies)
+                host.probe(0x0300, 255)
+                self.run_control_probe(machine, lambda: bool(host.control_replies))
+                self.assertEqual([bytes((4, 3, 9, 4))], host.control_replies)
+                self.assertFalse((host.inputs[0].control | host.outputs[0].control) & EP_STALL)
+        self.assert_control_reply(machine, host, (0x80, 6, 0x0100, 0, 0), b"")
+        self.assert_healthy(session)
+
+    def test_usb_endpoint_status_tracks_setting_and_clearing_halt(self):
+        session, machine, host = self.control_probe_host()
+        get_status = (0x82, 0, 0, 0x81, 2)
+        self.assert_control_reply(machine, host, get_status, b"\x00\x00")
+        self.assert_control_reply(machine, host, (0x02, 3, 0, 0x81, 0), b"")
+        self.assert_control_reply(machine, host, get_status, b"\x01\x00")
+        self.assert_control_reply(machine, host, (0x02, 1, 0, 0x81, 0), b"")
+        self.assert_control_reply(machine, host, get_status, b"\x00\x00")
+        self.assert_control_reply(machine, host, (0x00, 9, 0, 0, 0), b"")
+        self.assertFalse(host.outputs[1].control & EP_ENABLE)
+        self.assert_control_reply(machine, host, (0x80, 8, 0, 0, 1), b"\x00")
+        self.assert_healthy(session)
+
+    def test_usb_control_terminates_a_short_full_packet_with_a_zlp(self):
+        from unicorn.arm_const import UC_ARM_REG_R0
+
+        session, machine, host = self.control_probe_host()
+        payload = bytes((64, 3)) + bytes(62)
+        address = 0x21000000
+        machine.uc.mem_map(address, 4096)
+        machine.uc.mem_write(address, payload)
+
+        def full_packet_reply(core):
+            reply = struct.pack("<B3xIH6x", 1, address, len(payload))
+            core.uc.mem_write(core.reg(UC_ARM_REG_R0), reply)
+
+        machine.stub_symbol("usb_device_setup", full_packet_reply)
+        self.assert_control_reply(machine, host, (0x80, 6, 0x0303, 0x0409, 64), payload)
+        host.control_replies.clear()
+        host.probe(0x0303, 65, 0x0409)
+        self.run_control_probe(machine, lambda: len(host.control_replies) >= 2)
+        self.assertEqual([payload, b""], host.control_replies)
+        self.assert_healthy(session)
+
+    def control_probe_host(self):
+        session = self.session(vbus=True)
+        machine = session.machine
+        machine.host_stays = True
+        machine.stub_symbol("msc_finished", lambda machine: 0)
+        host = ControlProbeHost(machine)
+        machine.usb.host = host
+        session.run_to_first_frame()
+        self.assertEqual(machine.run(until=lambda: machine.usb_reset_ack,
+                                     until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        host.enumerate()
+        self.run_control_probe(machine, host.configured)
+        return session, machine, host
+
+    def assert_control_reply(self, machine, host, fields, expected):
+        host.control_replies.clear()
+        host.request(*fields)
+        self.run_control_probe(machine, lambda: bool(host.control_replies))
+        self.assertEqual([expected], host.control_replies)
+
+    def run_control_probe(self, machine, complete):
+        self.assertEqual(machine.run(until=complete, until_ms=machine.milliseconds() + 250),
+                         "condition met")
+
     def test_the_usb_session_and_the_update_check_run_from_the_usb_overlay(self):
         from unicorn.arm_const import UC_ARM_REG_R0
         session = self.session(files=[(IDENTITY.update_file, self.image, None)], vbus=True)

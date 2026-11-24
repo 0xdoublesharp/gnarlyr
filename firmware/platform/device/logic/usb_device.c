@@ -15,6 +15,7 @@ enum {
     TYPE_CLASS_INTERFACE_OUT = 0x21,
     REQUEST_GET_STATUS = 0,
     REQUEST_CLEAR_FEATURE = 1,
+    REQUEST_SET_FEATURE = 3,
     REQUEST_SET_ADDRESS = 5,
     REQUEST_GET_DESCRIPTOR = 6,
     REQUEST_GET_CONFIGURATION = 8,
@@ -32,6 +33,7 @@ enum {
     BULK_IN_PACKET_OFFSET = 22,
     BULK_OUT_PACKET_OFFSET = 29,
     FEATURE_ENDPOINT_HALT = 0,
+    ENGLISH_LANGID = 0x0409,
     STRING_SERIAL = 3,
     PRODUCT_BYTES = 2 + 2 * (sizeof FIRMWARE_NAME - 1),
     MANUFACTURER_BYTES = 2 + 2 * (sizeof FIRMWARE_MANUFACTURER - 1)
@@ -106,7 +108,7 @@ void usb_device_init(UsbDevice *device, const char *serial, uint8_t lun_count)
 {
     *device = (UsbDevice){.configuration = 0, .lun_count = lun_count};
     size_t length = 0;
-    while (serial[length] != '\0' && length < USB_SERIAL_CAPACITY) {
+    while (length < USB_SERIAL_CAPACITY && serial[length] != '\0') {
         device->serial[2 + 2 * length] = (uint8_t)serial[length];
         length++;
     }
@@ -119,14 +121,18 @@ static UsbReply stall(void)
     return (UsbReply){USB_REPLY_STALL, NULL, 0, USB_ACTION_NONE, 0};
 }
 
-static UsbReply status(UsbAction action, uint16_t value)
+__attribute__((noinline)) static UsbReply status(UsbAction action, uint16_t value)
 {
     return (UsbReply){USB_REPLY_STATUS, NULL, 0, action, value};
 }
 
-static UsbReply data(const uint8_t *bytes, size_t length, UsbSetup setup)
+__attribute__((noinline)) static UsbReply data(const uint8_t *bytes, uint16_t length,
+                                               uint16_t requested)
 {
-    uint16_t sent = (uint16_t)(length < setup.length ? length : setup.length);
+    if (requested == 0) {
+        return status(USB_ACTION_NONE, 0);
+    }
+    uint16_t sent = length < requested ? length : requested;
     return (UsbReply){USB_REPLY_DATA, bytes, sent, USB_ACTION_NONE, 0};
 }
 
@@ -134,13 +140,16 @@ static UsbReply string_descriptor(const UsbDevice *device, uint8_t index, UsbSet
 {
     static const uint8_t *const STRINGS[] = {LANGUAGES, (const uint8_t *)&MANUFACTURER,
                                              (const uint8_t *)&PRODUCT};
+    if (setup.index != 0 && (index == 0 || setup.index != ENGLISH_LANGID)) {
+        return stall();
+    }
     if (index == STRING_SERIAL) {
-        return data(device->serial, device->serial[0], setup);
+        return data(device->serial, device->serial[0], setup.length);
     }
     if (index >= sizeof STRINGS / sizeof STRINGS[0]) {
         return stall();
     }
-    return data(STRINGS[index], STRINGS[index][0], setup);
+    return data(STRINGS[index], STRINGS[index][0], setup.length);
 }
 
 static uint16_t packet_size(UsbSpeed speed)
@@ -157,7 +166,7 @@ static UsbReply configuration(UsbDevice *device, uint8_t type, UsbSpeed speed, U
     reply[CONFIGURATION_TYPE_OFFSET] = type;
     bytes_put_le16(reply + BULK_IN_PACKET_OFFSET, packet_size(speed));
     bytes_put_le16(reply + BULK_OUT_PACKET_OFFSET, packet_size(speed));
-    return data(reply, sizeof CONFIGURATION_DESCRIPTOR, setup);
+    return data(reply, sizeof CONFIGURATION_DESCRIPTOR, setup.length);
 }
 
 static UsbSpeed other_speed(UsbSpeed speed)
@@ -169,16 +178,20 @@ static UsbReply descriptor(UsbDevice *device, UsbSetup setup)
 {
     uint8_t type = (uint8_t)(setup.value >> 8);
     uint8_t index = (uint8_t)setup.value;
+    if (type != DESCRIPTOR_STRING && (index != 0 || setup.index != 0)) {
+        return stall();
+    }
     switch (type) {
     case DESCRIPTOR_DEVICE:
-        return data(DEVICE_DESCRIPTOR, sizeof DEVICE_DESCRIPTOR, setup);
+        return data(DEVICE_DESCRIPTOR, sizeof DEVICE_DESCRIPTOR, setup.length);
     case DESCRIPTOR_CONFIGURATION:
         return configuration(device, DESCRIPTOR_CONFIGURATION, device->speed, setup);
     case DESCRIPTOR_STRING:
         return string_descriptor(device, index, setup);
     case DESCRIPTOR_DEVICE_QUALIFIER:
-        return device->high_speed_allowed ? data(DEVICE_QUALIFIER, sizeof DEVICE_QUALIFIER, setup)
-                                          : stall();
+        return device->high_speed_allowed
+                   ? data(DEVICE_QUALIFIER, sizeof DEVICE_QUALIFIER, setup.length)
+                   : stall();
     case DESCRIPTOR_OTHER_SPEED_CONFIGURATION:
         return device->high_speed_allowed
                    ? configuration(device, DESCRIPTOR_OTHER_SPEED_CONFIGURATION,
@@ -192,14 +205,14 @@ static UsbReply descriptor(UsbDevice *device, UsbSetup setup)
 static UsbReply one_byte(UsbDevice *device, uint8_t value, UsbSetup setup)
 {
     device->scratch[0] = value;
-    return data(device->scratch, 1, setup);
+    return data(device->scratch, 1, setup.length);
 }
 
 static UsbReply two_zero_bytes(UsbDevice *device, UsbSetup setup)
 {
     device->scratch[0] = 0;
     device->scratch[1] = 0;
-    return data(device->scratch, 2, setup);
+    return data(device->scratch, 2, setup.length);
 }
 
 static UsbReply set_configuration(UsbDevice *device, uint16_t value)
@@ -211,17 +224,39 @@ static UsbReply set_configuration(UsbDevice *device, uint16_t value)
     return status(USB_ACTION_CONFIGURE, value);
 }
 
+static bool halt_endpoint(uint16_t index)
+{
+    return index == USB_ENDPOINT_BULK_IN || index == USB_ENDPOINT_BULK_OUT || index == 0x82;
+}
+
+static bool status_target(UsbSetup setup)
+{
+    if (setup.request_type == TYPE_STANDARD_ENDPOINT_IN) {
+        return setup.index == 0 || setup.index == 0x80 || halt_endpoint(setup.index);
+    }
+    return setup.index == 0 ||
+           (setup.request_type == TYPE_STANDARD_INTERFACE_IN && setup.index <= 2);
+}
+
 static UsbReply standard_in(UsbDevice *device, UsbSetup setup)
 {
     switch (setup.request) {
     case REQUEST_GET_DESCRIPTOR:
         return setup.request_type == TYPE_STANDARD_DEVICE_IN ? descriptor(device, setup) : stall();
     case REQUEST_GET_CONFIGURATION:
-        return one_byte(device, device->configuration, setup);
+        return setup.request_type == TYPE_STANDARD_DEVICE_IN && setup.index == 0 &&
+                       setup.value == 0 && setup.length == 1
+                   ? one_byte(device, device->configuration, setup)
+                   : stall();
     case REQUEST_GET_INTERFACE:
-        return one_byte(device, 0, setup);
+        return setup.request_type == TYPE_STANDARD_INTERFACE_IN && setup.index == 0 &&
+                       setup.value == 0 && setup.length == 1
+                   ? one_byte(device, 0, setup)
+                   : stall();
     case REQUEST_GET_STATUS:
-        return two_zero_bytes(device, setup);
+        return setup.value == 0 && setup.length == 2 && status_target(setup)
+                   ? two_zero_bytes(device, setup)
+                   : stall();
     default:
         return stall();
     }
@@ -229,18 +264,32 @@ static UsbReply standard_in(UsbDevice *device, UsbSetup setup)
 
 static UsbReply standard_out(UsbDevice *device, UsbSetup setup)
 {
+    if (setup.length != 0) {
+        return stall();
+    }
     switch (setup.request) {
     case REQUEST_SET_ADDRESS:
-        return status(USB_ACTION_SET_ADDRESS, setup.value);
+        return setup.request_type == TYPE_STANDARD_DEVICE_OUT && setup.index == 0 &&
+                       setup.value < 128 && device->configuration == 0
+                   ? status(USB_ACTION_SET_ADDRESS, setup.value)
+                   : stall();
     case REQUEST_SET_CONFIGURATION:
-        return set_configuration(device, setup.value);
+        return setup.request_type == TYPE_STANDARD_DEVICE_OUT && setup.index == 0
+                   ? set_configuration(device, setup.value)
+                   : stall();
     case REQUEST_SET_INTERFACE:
-        return setup.value == 0 ? status(USB_ACTION_NONE, 0) : stall();
+        return setup.request_type == TYPE_STANDARD_INTERFACE_OUT && setup.index == 0 &&
+                       setup.value == 0
+                   ? status(USB_ACTION_NONE, 0)
+                   : stall();
     case REQUEST_CLEAR_FEATURE:
+    case REQUEST_SET_FEATURE:
         return setup.request_type == TYPE_STANDARD_ENDPOINT_OUT &&
-                       setup.value == FEATURE_ENDPOINT_HALT
-                   ? status(USB_ACTION_CLEAR_HALT, setup.index)
-                   : status(USB_ACTION_NONE, 0);
+                       setup.value == FEATURE_ENDPOINT_HALT && halt_endpoint(setup.index)
+                   ? status(setup.request == REQUEST_CLEAR_FEATURE ? USB_ACTION_CLEAR_HALT
+                                                                   : USB_ACTION_NONE,
+                            setup.index)
+                   : stall();
     default:
         return stall();
     }
@@ -258,11 +307,15 @@ UsbReply usb_device_setup(UsbDevice *device, UsbSetup setup)
     case TYPE_STANDARD_ENDPOINT_OUT:
         return standard_out(device, setup);
     case TYPE_CLASS_INTERFACE_IN:
-        return setup.request == REQUEST_MSC_GET_MAX_LUN
+        return setup.request == REQUEST_MSC_GET_MAX_LUN && setup.value == 0 && setup.index == 0 &&
+                       setup.length == 1 && device->lun_count != 0
                    ? one_byte(device, (uint8_t)(device->lun_count - 1), setup)
                    : stall();
     case TYPE_CLASS_INTERFACE_OUT:
-        return setup.request == REQUEST_MSC_RESET ? status(USB_ACTION_MSC_RESET, 0) : stall();
+        return setup.request == REQUEST_MSC_RESET && setup.value == 0 && setup.index == 0 &&
+                       setup.length == 0 && device->lun_count != 0
+                   ? status(USB_ACTION_MSC_RESET, 0)
+                   : stall();
     default:
         return stall();
     }
