@@ -258,7 +258,7 @@ static void read_item(TagReader *reader, const Mp4Atom *item_atom, const Mp4Atom
     }
     const Mp4Item *item = item_for(item_atom->type);
     bool cover = tag_same_text(item_atom->type, 4, "covr");
-    if (item == NULL && !cover && genre_fallback == NULL) {
+    if (cover ? reader->skip_pictures : (item == NULL && genre_fallback == NULL)) {
         return;
     }
     uint32_t cursor = item_atom->body;

@@ -10,10 +10,9 @@ enum {
 typedef struct TickClock {
     uint32_t ticks_per_microsecond;
     uint32_t period;
-    uint32_t microsecond_ticks;
     uint32_t millisecond_ticks;
-    uint32_t microseconds;
     uint32_t milliseconds;
+    uint32_t observed_ticks;
 } TickClock;
 
 typedef struct TickReading {
@@ -25,5 +24,5 @@ void tick_clock_init(TickClock *clock, uint32_t ticks_per_microsecond, uint32_t 
 void tick_clock_reload(TickClock *clock);
 void tick_clock_set_rate(TickClock *clock, TickReading reading, uint32_t ticks_per_microsecond,
                          uint32_t period);
-uint32_t tick_clock_milliseconds(const TickClock *clock, TickReading reading);
-uint32_t tick_clock_microseconds(const TickClock *clock, TickReading reading);
+uint32_t tick_clock_milliseconds(TickClock *clock, TickReading reading);
+uint32_t tick_clock_microseconds(TickClock *clock, TickReading reading);

@@ -145,7 +145,7 @@ static uint32_t read_item(TagReader *reader, uint32_t cursor, uint32_t end)
                 offer_values(reader, (TagField)field, text, wanted);
             }
         }
-    } else if (type == TYPE_BINARY && is_cover_key(key, key_length)) {
+    } else if (type == TYPE_BINARY && !reader->skip_pictures && is_cover_key(key, key_length)) {
         read_cover(reader, value, size, tag_same_text_folded(key, key_length, "cover art (front)"));
     }
     return value + size;

@@ -178,7 +178,7 @@ static bool read_audio_tags(ScanState *state, const ScanJob *job)
         return false;
     }
     TagFormat format = track_tags_format_for_name(state->audio_path);
-    bool read = track_tags_read(source, size, format, &state->tags);
+    bool read = track_tags_read_index(source, size, format, &state->tags);
     job->files.close_file(job->files.context);
     track_fields_from_tags(state->audio_path + 1, &state->tags, &state->fields);
     return read;

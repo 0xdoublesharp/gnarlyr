@@ -89,6 +89,20 @@ static void check_picture(const char *name, const TrackTags *tags, TagPictureKin
     free(fixture.bytes);
 }
 
+static void check_index_tags(const Expected *expected, const TrackTags *full)
+{
+    Fixture fixture;
+    static TrackTags index;
+    CHECK(load(&fixture, expected->name));
+    CHECK(track_tags_read_index(memory_source(&fixture.memory), fixture.size, expected->format,
+                                &index));
+    CHECK_EQUAL(0, memcmp(full->text, index.text, sizeof index.text));
+    CHECK_EQUAL(full->duration_ms, index.duration_ms);
+    CHECK_EQUAL(0, memcmp(&full->replay_gain, &index.replay_gain, sizeof index.replay_gain));
+    CHECK_EQUAL(TAG_PICTURE_NONE, index.picture.kind);
+    free(fixture.bytes);
+}
+
 static void every_tagged_format_reads_its_fields_duration_and_cover(void)
 {
     for (size_t index = 0; index < sizeof TAGGED / sizeof TAGGED[0]; index++) {
@@ -106,6 +120,7 @@ static void every_tagged_format_reads_its_fields_duration_and_cover(void)
         CHECK_EQUAL(4, leading_number(tags.text[TAG_TRACK]));
         CHECK_EQUAL(expected->duration_ms, tags.duration_ms);
         check_picture(expected->name, &tags, expected->picture);
+        check_index_tags(expected, &tags);
     }
 }
 
@@ -914,23 +929,36 @@ static void unsynchronised_id3_pictures_read_back_without_escape_bytes(void)
     CHECK_EQUAL(0, memcmp(expected, out, sizeof out));
 }
 
-static void ogg_pictures_read_back_as_the_embedded_image(void)
+static void check_ogg_image(const char *name, const uint8_t *expected, uint32_t length)
 {
     Fixture fixture;
     static TrackTags tags;
-    CHECK(load(&fixture, "tagged.ogg"));
+    CHECK(load(&fixture, name));
     ByteSource source = memory_source(&fixture.memory);
     CHECK(track_tags_read(source, fixture.size, TAG_FORMAT_OGG, &tags));
     TagPictureReader reader;
     ImageSource image;
     CHECK(tag_picture_open(&reader, source, fixture.size, &tags.picture, &image));
+    uint8_t bytes[1024];
+    CHECK_EQUAL(length, image.length);
+    CHECK(length <= sizeof bytes && image.read(image.context, image.offset, bytes, length));
+    CHECK(length <= sizeof bytes && memcmp(expected, bytes, length) == 0);
     uint8_t head[2];
-    uint8_t tail[2];
     CHECK(image.read(image.context, image.offset, head, 2));
-    CHECK(image.read(image.context, image.offset + image.length - 2, tail, 2));
-    CHECK(head[0] == 0xFF && head[1] == 0xD8 && tail[0] == 0xFF && tail[1] == 0xD9);
-    CHECK(image.read(image.context, image.offset, head, 2));
-    CHECK(head[0] == 0xFF && head[1] == 0xD8);
+    CHECK_EQUAL(0, memcmp(expected, head, sizeof head));
+    free(fixture.bytes);
+}
+
+static void ogg_pictures_read_back_as_the_embedded_image(void)
+{
+    Fixture fixture;
+    static TrackTags tags;
+    CHECK(load(&fixture, "tagged.flac"));
+    CHECK(track_tags_read(memory_source(&fixture.memory), fixture.size, TAG_FORMAT_FLAC, &tags));
+    CHECK_EQUAL(TAG_PICTURE_RAW, tags.picture.kind);
+    const uint8_t *expected = fixture.bytes + tags.picture.offset;
+    check_ogg_image("tagged.ogg", expected, tags.picture.length);
+    check_ogg_image("tagged.opus", expected, tags.picture.length);
     free(fixture.bytes);
 }
 
@@ -986,6 +1014,109 @@ static void put_le32(uint8_t *bytes, uint32_t value)
     for (int index = 0; index < 4; index++) {
         bytes[index] = (uint8_t)(value >> (8 * index));
     }
+}
+
+static uint32_t add_picture_comment(OggBuild *build, bool opus)
+{
+    static uint8_t packet[61000];
+    static const char KEY[] = "METADATA_BLOCK_PICTURE=";
+    static const char HEAD[] = "AAAAAwAAAAAAAK/I";
+    static const char TAIL[] = "AAAAAQAAAAEAAAAYAAAAAAAAAAT/2P/Z";
+    static const char TITLE_FIELD[] = "TITLE=After art";
+    uint32_t prefix = opus ? 8 : 7;
+    uint32_t body = prefix + 12 + sizeof KEY - 1;
+    uint32_t picture_length = sizeof HEAD - 1 + 60000 + sizeof TAIL - 1;
+    memcpy(packet, opus ? "OpusTags" : "\3vorbis", prefix);
+    put_le32(packet + prefix, 0);
+    put_le32(packet + prefix + 4, 2);
+    put_le32(packet + prefix + 8, sizeof KEY - 1 + picture_length);
+    memcpy(packet + prefix + 12, KEY, sizeof KEY - 1);
+    memcpy(packet + body, HEAD, sizeof HEAD - 1);
+    memset(packet + body + sizeof HEAD - 1, 'A', 60000);
+    memcpy(packet + body + picture_length - (sizeof TAIL - 1), TAIL, sizeof TAIL - 1);
+    uint32_t next = body + picture_length;
+    put_le32(packet + next, sizeof TITLE_FIELD - 1);
+    memcpy(packet + next + 4, TITLE_FIELD, sizeof TITLE_FIELD);
+    uint32_t first_page = build->size;
+    ogg_add_packet(build, packet, next + 4 + sizeof TITLE_FIELD);
+    return first_page + 27 + build->bytes[first_page + 26] + body;
+}
+
+typedef struct PictureReads {
+    MemorySource memory;
+    uint32_t picture;
+    uint32_t picture_bytes;
+} PictureReads;
+
+static bool measure_picture_reads(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    PictureReads *reads = context;
+    uint32_t start = offset > reads->picture ? offset : reads->picture;
+    uint32_t end = offset + length;
+    uint32_t limit = reads->picture + 64;
+    end = end < limit ? end : limit;
+    if (end > start) {
+        reads->picture_bytes += end - start;
+    }
+    return memory_source(&reads->memory).read(&reads->memory, offset, buffer, length);
+}
+
+static uint32_t make_large_picture_file(OggBuild *build, bool opus)
+{
+    uint8_t head[30] = {1, 'v', 'o', 'r', 'b', 'i', 's'};
+    const uint8_t opus_head[] = {'O', 'p', 'u', 's', 'H', 'e', 'a', 'd', 1, 2};
+    if (opus) {
+        memcpy(head, opus_head, sizeof opus_head);
+    } else {
+        put_le32(head + 12, 48000);
+    }
+    build->size = 0;
+    build->sequence = 0;
+    ogg_add_page(build, 2, 0, (OggBody){head, opus ? 19 : sizeof head, false});
+    uint32_t first_picture = add_picture_comment(build, opus);
+    static const uint8_t audio[1024];
+    ogg_add_page(build, 4, 48000, (OggBody){audio, sizeof audio, false});
+    return first_picture;
+}
+
+static void check_decoded_picture(ByteSource source, uint32_t size, const TagPicture *picture)
+{
+    CHECK_EQUAL(TAG_PICTURE_BASE64_FLAC_BLOCK, picture->kind);
+    CHECK(picture->front);
+    TagPictureReader reader;
+    ImageSource image;
+    CHECK(tag_picture_open(&reader, source, size, picture, &image));
+    const uint8_t expected[] = {0xff, 0xd8, 0xff, 0xd9};
+    uint8_t decoded[sizeof expected];
+    CHECK_EQUAL(sizeof expected, image.length);
+    CHECK(image.read(image.context, image.offset, decoded, sizeof decoded));
+    CHECK_EQUAL(0, memcmp(expected, decoded, sizeof decoded));
+}
+
+static void check_large_picture_comment(bool opus)
+{
+    static OggBuild build;
+    static TrackTags tags;
+    uint32_t first_picture = make_large_picture_file(&build, opus);
+    PictureReads reads = {{.bytes = build.bytes, .size = build.size}, first_picture, 0};
+    ByteSource source = {measure_picture_reads, &reads};
+    CHECK(track_tags_read_index(source, build.size, TAG_FORMAT_OGG, &tags));
+    CHECK_EQUAL(0, reads.picture_bytes);
+    CHECK_EQUAL(TAG_PICTURE_NONE, tags.picture.kind);
+    CHECK_EQUAL(0, strcmp("After art", tags.text[TAG_TITLE]));
+    CHECK_EQUAL(1000, tags.duration_ms);
+    int index_reads = reads.memory.reads;
+
+    CHECK(track_tags_read(source, build.size, TAG_FORMAT_OGG, &tags));
+    CHECK(reads.picture_bytes > 0);
+    CHECK_EQUAL(index_reads + 1, reads.memory.reads - index_reads);
+    check_decoded_picture(source, build.size, &tags.picture);
+}
+
+static void ogg_and_opus_index_scans_skip_large_picture_comments(void)
+{
+    check_large_picture_comment(false);
+    check_large_picture_comment(true);
 }
 
 static void add_opus_link(OggBuild *build, uint8_t serial, uint32_t art_bytes, int audio_pages)
@@ -1804,6 +1935,43 @@ static void put_id3_header(uint8_t *bytes, uint32_t size)
     put_synchsafe(bytes + 6, size);
 }
 
+static bool read_at_end_of_large_file(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    const MemorySource *memory = context;
+    uint32_t start = UINT32_MAX - memory->size;
+    if (offset < start || length > UINT32_MAX - offset) {
+        return false;
+    }
+    memcpy(buffer, memory->bytes + (offset - start), length);
+    return true;
+}
+
+static void a_truncated_id3_tag_near_the_offset_limit_keeps_its_complete_frames(void)
+{
+    uint8_t bytes[22];
+    put_id3_header(bytes, 127);
+    memcpy(bytes + 10, "TIT2\x00\x00\x00\x02\x00\x00\x03R", 12);
+    MemorySource memory = {.bytes = bytes, .size = sizeof bytes};
+    TrackTags tags = {0};
+    TagReader reader = {
+        .source = {read_at_end_of_large_file, &memory}, .size = UINT32_MAX, .tags = &tags};
+    uint32_t tag_size = 0;
+    CHECK(tags_read_id3v2(&reader, UINT32_MAX - sizeof bytes, &tag_size));
+    CHECK_EQUAL(137u, tag_size);
+    CHECK_EQUAL(0, strcmp("R", tags.text[TAG_TITLE]));
+}
+
+static void flac_id3_skip_stops_after_eight_consecutive_empty_headers(void)
+{
+    uint8_t bytes[200] = {0};
+    for (uint32_t offset = 0; offset < sizeof bytes; offset += 10) {
+        put_id3_header(bytes + offset, 0);
+    }
+    CHECK_EQUAL(80u, skip_in(bytes, sizeof bytes, false));
+    put_id3_header(bytes + 80, 10);
+    CHECK_EQUAL(180u, skip_in(bytes, sizeof bytes, false));
+}
+
 static void id3_skip_stops_at_the_file_end_and_on_empty_mp3_headers(void)
 {
     uint8_t bytes[64] = {0};
@@ -1869,9 +2037,12 @@ int main(void)
         TEST_CASE(vorbis_comments_read_case_insensitive_fields_and_leave_pictures_to_ogg),
         TEST_CASE(unsynchronised_id3_pictures_read_back_without_escape_bytes),
         TEST_CASE(ogg_pictures_read_back_as_the_embedded_image),
+        TEST_CASE(ogg_and_opus_index_scans_skip_large_picture_comments),
         TEST_CASE(malformed_vorbis_entries_do_not_read_the_next_block),
         TEST_CASE(replay_gain_text_decoding_handles_every_encoding_boundary),
         TEST_CASE(chained_id3_headers_past_4_gib_stop_without_wrapping),
+        TEST_CASE(a_truncated_id3_tag_near_the_offset_limit_keeps_its_complete_frames),
+        TEST_CASE(flac_id3_skip_stops_after_eight_consecutive_empty_headers),
         TEST_CASE(files_after_one_or_two_id3_headers_read_as_before),
         TEST_CASE(id3_skip_stops_at_the_file_end_and_on_empty_mp3_headers),
     };

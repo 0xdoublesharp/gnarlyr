@@ -16,6 +16,7 @@ MUSIC_CHECK_PATH = "/" + IDENTITY.data_directory + "/scan.bin"
 MUSIC_GENERATION_PATH = "/" + IDENTITY.data_directory + "/music_gen.bin"
 FAVORITE_ROW = 2
 RESCAN_TIMES_PATH = "/" + IDENTITY.data_directory + "/rescan_times.bin"
+TAG_CACHE_PATH = "/" + IDENTITY.data_directory + "/tagcache.bin"
 SECTOR = 512
 INTERNAL_LUN = 0
 ENTRY_BYTES = 32
@@ -27,6 +28,53 @@ TRACK = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_128_44k_stereo_tagged.mp3"
 
 
 class EchoImageTest(EchoImageHarness):
+    def run_track_rescan(self, session, slot):
+        card = slot.insert(session.machine)
+        session.machine.stop_at("hal_system_return_scratch")
+        reason = session.machine.run(until_ms=self.session_module.FRAME_LIMIT_MS)
+        self.assertEqual(reason, "reached hal_system_return_scratch")
+        times = slot.fat().read(RESCAN_TIMES_PATH)
+        self.assertIsNotNone(times)
+        return scan_measurement(times, card)
+
+    def test_incremental_rescan_reads_only_the_added_track(self):
+        from echo_emulator.bench import LIBRARY_PATH
+        from echo_emulator.fat_volume import Fat32Volume
+        tracks = PROJECT / "tests" / "fixtures" / "tags"
+        opus = (tracks / "tagged.opus").read_bytes()
+        mp3 = (tracks / "id3v1_no_xing.mp3").read_bytes()
+        volume = Fat32Volume()
+        volume.add_directory(IDENTITY.data_directory)
+        slot = self.with_card(volume=volume, files=[
+            (f"{index:03d}.{'MP3' if index % 5 == 0 else 'opus'}",
+             mp3 if index % 5 == 0 else opus, None)
+            for index in range(201)
+        ])
+        lba, entry, at = find_root_entry(slot, b"200     MP3")
+        deleted = bytearray(entry)
+        deleted[at] = 0xE5
+        slot.disk.write(lba, bytes(deleted))
+        first = self.session()
+        cold = self.run_track_rescan(first, slot)
+        self.assertEqual(cold["opens"], 200)
+        self.assertTrue(slot.fat().exists(TAG_CACHE_PATH))
+        first.machine.continue_past_stop()
+        self.assertEqual(self.wait_for_record(
+            first.machine, lambda: slot.fat().read(MUSIC_CHECK_PATH))[:4], b"DSS2")
+        updated = bytearray(slot.disk.read(lba, 1))
+        self.assertEqual(updated[at], 0xE5)
+        updated[at] = entry[at]
+        slot.disk.write(lba, bytes(updated))
+        generation_lba = first.file_sectors(MUSIC_GENERATION_PATH).start
+        generation = bytearray(first.disk.read(generation_lba, 1))
+        generation[0] ^= 1
+        first.disk.write(generation_lba, bytes(generation))
+        warm = self.run_track_rescan(first.reboot(), slot)
+        self.assertEqual(warm["opens"], 1)
+        library = slot.fat().read(LIBRARY_PATH)
+        self.assertEqual(int.from_bytes(library[12:16], "little"), 201)
+        print(f"200-track cold rescan: {cold}; incremental rescan after add: {warm}")
+
     def test_card_and_internal_music_build_one_library_on_the_card(self):
         from echo_emulator.bench import LIBRARY_PATH
         track = TRACK.read_bytes()
@@ -290,14 +338,29 @@ def long_wav():
 
 
 def entry_sector(session, short_name):
-    reader = session.fat()
-    first = reader.data_start + (reader.root - 2) * reader.sectors_per_cluster
-    for lba in range(first, first + reader.sectors_per_cluster):
-        sector = bytearray(session.disk.read(lba, 1))
-        at = sector.find(short_name)
-        if at >= 0 and at % ENTRY_BYTES == 0:
-            return lba - session.layout["volume_start"], sector, at
+    lba, sector, at = find_root_entry(session, short_name)
+    return lba - session.layout["volume_start"], bytearray(sector), at
+
+
+def find_root_entry(slot, short_name):
+    reader = slot.fat()
+    for cluster in reader.chain(reader.root):
+        first = reader.data_start + (cluster - 2) * reader.sectors_per_cluster
+        for lba in range(first, first + reader.sectors_per_cluster):
+            sector = slot.disk.read(lba, 1)
+            at = sector.find(short_name)
+            if at >= 0 and at % ENTRY_BYTES == 0:
+                return lba, sector, at
     raise AssertionError("no directory entry for %r" % short_name)
+
+
+def scan_measurement(times, card):
+    return {
+        "ms": int.from_bytes(times[16:20], "little") / 1000,
+        "opens": int.from_bytes(times[44:48], "little"),
+        "reads": int.from_bytes(times[48:52], "little"),
+        "sd_reads": len(card.reads),
+    }
 
 
 def host_rewrites_internal_entry(test, session, short_name, changed):

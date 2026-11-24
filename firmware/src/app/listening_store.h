@@ -18,6 +18,12 @@ typedef struct ListeningObservation {
     ListeningOutput output;
 } ListeningObservation;
 
+typedef struct ListeningBoot {
+    uint32_t expected;
+    bool pending;
+    bool uncertain;
+} ListeningBoot;
+
 typedef struct ListeningStore {
     ListeningLog log;
     PathFile file;
@@ -28,6 +34,7 @@ typedef struct ListeningStore {
     uint32_t pending_sequence;
     uint32_t last_ms;
     uint32_t retry_ms;
+    ListeningBoot boot;
     bool observed;
     bool following;
     bool waiting;

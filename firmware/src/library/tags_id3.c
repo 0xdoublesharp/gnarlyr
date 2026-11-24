@@ -4,6 +4,7 @@
 
 enum {
     HEADER_SIZE = 10,
+    MAX_EMPTY_HEADERS = 8,
     FRAME_CAPACITY = 1024,
     V1_SIZE = 128,
     V1_TEXT = 30,
@@ -396,7 +397,9 @@ static void read_frame(TagReader *reader, const Frame *frame, Id3Tag *tag)
     if (name->kind == FRAME_REPLAY_GAIN) {
         read_replay_gain_frame(reader, frame);
     } else if (name->kind == FRAME_PICTURE || name->kind == FRAME_OLD_PICTURE) {
-        read_picture_frame(reader, frame, name->kind == FRAME_OLD_PICTURE);
+        if (!reader->skip_pictures) {
+            read_picture_frame(reader, frame, name->kind == FRAME_OLD_PICTURE);
+        }
     } else {
         read_text_frame(reader, frame, name, tag);
     }
@@ -470,11 +473,14 @@ static uint32_t extended_header_size(const TagReader *reader, const Id3Tag *tag,
 uint32_t tags_skip_id3v2(const TagReader *reader, bool stop_at_empty)
 {
     uint32_t offset = 0;
+    uint32_t empty = 0;
     uint8_t header[HEADER_SIZE];
     while (tag_read(reader, offset, header, sizeof header) &&
            tag_same_text((const char *)header, 3, "ID3")) {
         uint32_t size = bytes_synchsafe(header + 6);
-        if ((stop_at_empty && size == 0) || size > reader->size - offset - HEADER_SIZE) {
+        empty = size == 0 ? empty + 1 : 0;
+        if (empty > (stop_at_empty ? 0u : MAX_EMPTY_HEADERS) ||
+            size > reader->size - offset - HEADER_SIZE) {
             break;
         }
         offset += HEADER_SIZE + size;
@@ -492,11 +498,9 @@ bool tags_read_id3v2(TagReader *reader, uint32_t offset, uint32_t *tag_size)
     Id3Tag tag = {.start = offset, .version = header[3], .unsync = (header[5] & FLAG_UNSYNC) != 0};
     uint32_t size = bytes_synchsafe(header + 6);
     *tag_size = HEADER_SIZE + size + ((header[5] & FLAG_FOOTER) != 0 ? HEADER_SIZE : 0);
-    tag.end = offset + HEADER_SIZE + size;
-    if (tag.end > reader->size) {
-        tag.end = reader->size;
-    }
     uint32_t cursor = offset + HEADER_SIZE;
+    uint32_t available = reader->size - cursor;
+    tag.end = cursor + (size < available ? size : available);
     TagUnsync view;
     ByteSource raw = reader->source;
     if (tag.version < 4 && tag.unsync) {

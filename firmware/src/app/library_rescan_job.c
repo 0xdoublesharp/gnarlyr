@@ -35,6 +35,10 @@ static uint32_t pass;
 static ScanGuard guard;
 static HalFile guard_file;
 
+#ifdef __arm__
+bool rescan_overlay_next_entry(HalDir *dir, ScanEntry *entry);
+#endif
+
 static void spend(uint32_t kind, uint32_t since)
 {
     uint32_t slot = pass * TIME_KINDS + kind;
@@ -84,21 +88,19 @@ static bool list_internal_root(RescanFiles *files, ScanEntry *entry)
     return true;
 }
 
-static bool next_entry(void *context, ScanEntry *entry)
+#ifndef __arm__
+static bool rescan_overlay_next_entry(HalDir *dir, ScanEntry *entry)
 {
-    RescanFiles *files = context;
-    hal_system_keep_alive();
-    uint32_t since = hal_clock_microseconds();
     HalDirEntry listed_entry;
-    bool listed = hal_dir_next(&files->dir, &listed_entry);
-    spend(TIME_LIST, since);
-    if (!listed) {
-        return list_internal_root(files, entry);
+    if (!hal_dir_next(dir, &listed_entry)) {
+        return false;
     }
     entry->directory = listed_entry.directory;
     entry->modified = listed_entry.modified;
+    entry->size = listed_entry.size;
+    entry->cluster = 0;
     if (entry->directory) {
-        HalDirPlace at = hal_dir_place(&files->dir);
+        HalDirPlace at = hal_dir_place(dir);
         entry->place = (ScanPlace){.start = at.start, .size = at.size, .flags = at.flags};
     }
     size_t index = 0;
@@ -108,6 +110,17 @@ static bool next_entry(void *context, ScanEntry *entry)
     }
     entry->name[index] = '\0';
     return true;
+}
+#endif
+
+static bool next_entry(void *context, ScanEntry *entry)
+{
+    RescanFiles *files = context;
+    hal_system_keep_alive();
+    uint32_t since = hal_clock_microseconds();
+    bool listed = rescan_overlay_next_entry(&files->dir, entry);
+    spend(TIME_LIST, since);
+    return listed || list_internal_root(files, entry);
 }
 
 static void close_dir(void *context)
@@ -286,10 +299,21 @@ static void run_passes(const ScanJob *job, RescanOutcome *outcome)
     (void)hal_file_write(RESCAN_TIMES_PATH, spent, sizeof spent);
 }
 
+static BuilderScratch open_tag_cache(HalFile *file)
+{
+    if (!hal_file_open(file, SCAN_TAG_CACHE_PATH) &&
+        hal_file_reserve(SCAN_TAG_CACHE_PATH, SCAN_TAG_CACHE_BYTES) == HAL_RESERVE_CREATED) {
+        (void)hal_file_open(file, SCAN_TAG_CACHE_PATH);
+    }
+    return (BuilderScratch){read_handle, write_handle, file, file->size};
+}
+
 static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgress progress,
                                 uint32_t stops)
 {
     RescanOutcome outcome = {.result = SCAN_NO_MUSIC_ROOT, .cover_result = SCAN_OK};
+    bool full = (stops & SCAN_FULL_REQUEST) != 0;
+    stops &= ~SCAN_FULL_REQUEST;
     start_guard(stops);
     rescan_files.scratch = scratch;
     rescan_files.progress = progress;
@@ -300,6 +324,7 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
     void *listing = memory != NULL ? hal_system_borrow_listing(&listing_size) : NULL;
     HiddenScan hidden;
     hidden_scan_load(&hidden);
+    HalFile cache;
     ScanJob job = {
         .files = {open_dir, next_entry, close_dir, open_file, close_file, &rescan_files},
         .memory = memory,
@@ -311,8 +336,11 @@ static RescanOutcome rescan_run(uint32_t capacity, HalFile scratch, RescanProgre
         .capacity = capacity,
         .progress = {report, &rescan_files, report_phase},
         .filter = {hidden_scan_skips, &hidden, on_card},
+        .tag_cache = open_tag_cache(&cache),
+        .full = full || stops != 0 || guard.next_skip != 0,
     };
     run_passes(&job, &outcome);
+    hal_file_close(&cache);
     if (outcome.result == SCAN_OK) {
         hidden_scan_forget_runtime();
         missing_fonts_record(memory, size, app_theme()->fonts.body);

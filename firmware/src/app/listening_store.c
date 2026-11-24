@@ -46,13 +46,28 @@ void listening_store_detach(ListeningStore *store)
     store->following = false;
 }
 
+static bool note_boot(ListeningStore *store)
+{
+    ListeningBoot *boot = &store->boot;
+    uint32_t boots = store->log.root.counters.boots;
+    if (boot->pending && (!boot->uncertain || boots != boot->expected)) {
+        boot->expected = boots + 1;
+        StoreResult result = listening_log_note(&store->log, LISTENING_BOOT);
+        boot->uncertain = result == STORE_UNCERTAIN;
+        boot->pending = result != STORE_DONE && result != STORE_IDLE;
+    } else {
+        boot->pending = false;
+    }
+    return !boot->pending;
+}
+
 void listening_store_load(ListeningStore *store, const Library *library)
 {
-    *store = (ListeningStore){.library = library};
+    *store = (ListeningStore){.library = library, .boot = store->boot};
     StoreFile file =
         listening_store_file(&store->file, LISTENING_LOG_PATH, LISTENING_LOG_FILE_BYTES);
     StoreLoad load = listening_log_open(&store->log, (ListeningLogConfig){file, true});
-    store->failed = store_blocking(load);
+    store->failed = store_blocking(load) || !note_boot(store);
 }
 
 static bool reload_pending(ListeningStore *store)
@@ -83,6 +98,10 @@ static void save_pending(ListeningStore *store, uint32_t now_ms)
     }
     if (!store->waiting) {
         store->failed = false;
+        return;
+    }
+    if (!note_boot(store)) {
+        store->failed = true;
         return;
     }
     StoreResult result = listening_log_append(&store->log, &store->pending);

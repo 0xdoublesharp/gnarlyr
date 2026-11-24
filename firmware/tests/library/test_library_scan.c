@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "check.h"
 #include "hal/storage.h"
@@ -399,6 +400,13 @@ typedef struct Tree {
     char open_path[TREE_PATH];
     const char *unreadable;
     bool files_open;
+    uint32_t file_opens;
+    uint32_t file_reads;
+    char file_name[TREE_PATH];
+    const char *edited;
+    uint32_t edit_stamp;
+    const uint8_t *tagged_media;
+    uint32_t tagged_size;
     uint8_t blob[FRAMES * FRAME_BYTES];
 } Tree;
 
@@ -478,6 +486,11 @@ static bool tree_next_entry(void *context, ScanEntry *entry)
     }
     const TreeEntry *next = &tree.listing[tree.listed - 1 - tree.cursor++];
     entry->directory = next->directory;
+    entry->modified =
+        1 + (tree.edited != NULL && strcmp(next->name, tree.edited) == 0 ? tree.edit_stamp : 0);
+    bool tagged = strstr(next->name, ".opus") != NULL || strstr(next->name, ".m4b") != NULL;
+    entry->size = tagged ? tree.tagged_size : sizeof tree.blob;
+    entry->cluster = 2;
     snprintf(entry->name, sizeof entry->name, "%s", next->name);
     char folder[TREE_PATH * 2];
     snprintf(folder, sizeof folder, "%s%s/", tree.open_path, next->name);
@@ -496,10 +509,30 @@ static void tree_close_dir(void *context)
 static bool tree_read(void *context, uint32_t offset, void *buffer, uint32_t length)
 {
     (void)context;
+    tree.file_reads++;
     if (offset > sizeof tree.blob || length > sizeof tree.blob - offset) {
         return false;
     }
     memcpy(buffer, tree.blob + offset, length);
+    uint32_t year = sizeof tree.blob - 128 + 93;
+    if (offset <= year + 3 && year + 3 - offset < length) {
+        char *text = buffer;
+        text[year + 3 - offset] = tree.edited != NULL && strcmp(tree.file_name, tree.edited) == 0
+                                      ? '1'
+                                  : tree.file_name[0] == '1' ? '5'
+                                                             : '8';
+    }
+    return true;
+}
+
+static bool tree_read_tagged(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    tree.file_reads++;
+    if (offset > tree.tagged_size || length > tree.tagged_size - offset) {
+        return false;
+    }
+    memcpy(buffer, tree.tagged_media + offset, length);
     return true;
 }
 
@@ -523,8 +556,15 @@ static bool tree_open_file(void *context, const char *path, ByteSource *source, 
     if (!tree.files_open) {
         return false;
     }
+    tree.file_opens++;
+    snprintf(tree.file_name, sizeof tree.file_name, "%s", strrchr(path, '/') + 1);
     size_t length = strlen(path);
     bool cue = length > 4 && strcmp(path + length - 4, ".cue") == 0;
+    if (strstr(tree.file_name, ".opus") != NULL || strstr(tree.file_name, ".m4b") != NULL) {
+        *source = (ByteSource){tree_read_tagged, NULL};
+        *size = tree.tagged_size;
+        return true;
+    }
     *source = (ByteSource){.read = cue ? tree_read_cue : tree_read, .context = NULL};
     *size = cue ? (uint32_t)(sizeof TREE_CUE - 1) : (uint32_t)sizeof tree.blob;
     return true;
@@ -543,6 +583,12 @@ static void start_tree(void)
     tree.misplaced_opens = 0;
     tree.unreadable = NULL;
     tree.files_open = true;
+    tree.file_opens = 0;
+    tree.file_reads = 0;
+    tree.edited = NULL;
+    tree.edit_stamp = 0;
+    tree.tagged_media = NULL;
+    tree.tagged_size = 0;
     memset(tree.blob, 0, sizeof tree.blob);
     for (uint32_t frame = 0; frame < FRAMES; frame++) {
         uint8_t *header = tree.blob + frame * FRAME_BYTES;
@@ -553,7 +599,8 @@ static void start_tree(void)
     }
 }
 
-static ScanResult scan_tree(uint32_t listing_size, Output *output, ScanStats *stats)
+static ScanResult scan_tree_job(uint32_t listing_size, Output *output, ScanStats *stats,
+                                const ScanJob *options)
 {
     static uint8_t memory[MEMORY_SIZE];
     static uint8_t listing[96 * 1024];
@@ -567,8 +614,182 @@ static ScanResult scan_tree(uint32_t listing_size, Output *output, ScanStats *st
         .listing_size = listing_size,
         .scratch = SCRATCH,
         .sink = {write_output, output},
+        .tag_cache = options->tag_cache,
+        .full = options->full,
     };
     return library_scan(&job, stats);
+}
+
+static ScanResult scan_tree(uint32_t listing_size, Output *output, ScanStats *stats)
+{
+    return scan_tree_job(listing_size, output, stats, &(ScanJob){0});
+}
+
+static uint8_t tag_cache_disk[SCAN_TAG_CACHE_BYTES];
+static bool tag_cache_writable;
+
+static bool tag_disk_read(void *context, uint32_t offset, void *buffer, uint32_t length)
+{
+    (void)context;
+    CHECK(offset <= sizeof tag_cache_disk && length <= sizeof tag_cache_disk - offset);
+    memcpy(buffer, tag_cache_disk + offset, length);
+    return true;
+}
+
+static bool tag_disk_write(void *context, uint32_t offset, const void *buffer, uint32_t length)
+{
+    (void)context;
+    if (!tag_cache_writable) {
+        return false;
+    }
+    CHECK(offset <= sizeof tag_cache_disk && length <= sizeof tag_cache_disk - offset);
+    memcpy(tag_cache_disk + offset, buffer, length);
+    return true;
+}
+
+static ScanJob cache_options(void)
+{
+    return (ScanJob){.tag_cache = {tag_disk_read, tag_disk_write, NULL, sizeof tag_cache_disk}};
+}
+
+static void start_cache_tree(void)
+{
+    start_tree();
+    memset(tag_cache_disk, 0, sizeof tag_cache_disk);
+    tag_cache_writable = true;
+    uint8_t *tag = tree.blob + sizeof tree.blob - 128;
+    memcpy(tag, "TAG", 3);
+    memcpy(tag + 33, "Artist", 6);
+    memcpy(tag + 63, "Album", 5);
+    memcpy(tag + 93, "2000", 4);
+    tree_add("/Music/2.mp3");
+    tree_add("/Music/1.mp3");
+}
+
+static void compare_cached_tree(const ScanJob *options, uint32_t expected_opens)
+{
+    static Output cached;
+    static Output fresh;
+    ScanStats stats;
+    tree.file_opens = 0;
+    tree.file_reads = 0;
+    CHECK_EQUAL(SCAN_OK, scan_tree_job(16 * 1024, &cached, &stats, options));
+    CHECK_EQUAL(expected_opens, tree.file_opens);
+    if (expected_opens == 0) {
+        CHECK_EQUAL(0u, tree.file_reads);
+    }
+    CHECK_EQUAL(SCAN_OK, scan_tree(16 * 1024, &fresh, &stats));
+    CHECK_EQUAL(fresh.length, cached.length);
+    CHECK(memcmp(fresh.bytes, cached.bytes, fresh.length) == 0);
+}
+
+static void incremental_edits_match_fresh_libraries_byte_for_byte(void)
+{
+    start_cache_tree();
+    ScanJob options = cache_options();
+    compare_cached_tree(&options, 2);
+    compare_cached_tree(&options, 0);
+    tree_add("/Music/0.mp3");
+    compare_cached_tree(&options, 1);
+    memmove(tree.paths, tree.paths + 1, 2 * sizeof tree.paths[0]);
+    tree.count--;
+    compare_cached_tree(&options, 0);
+    snprintf(tree.paths[0], TREE_PATH, "/Music/3.mp3");
+    compare_cached_tree(&options, 1);
+    tree.edited = "0.mp3";
+    tree.edit_stamp++;
+    compare_cached_tree(&options, 1);
+}
+
+static void a_full_rescan_recovers_a_retag_that_preserved_identity(void)
+{
+    start_cache_tree();
+    ScanJob options = cache_options();
+    compare_cached_tree(&options, 2);
+    tree.edited = "1.mp3";
+    options.full = true;
+    compare_cached_tree(&options, 2);
+    options.full = false;
+    compare_cached_tree(&options, 0);
+}
+
+static void cue_sheets_and_their_audio_are_read_on_every_rescan(void)
+{
+    start_cache_tree();
+    tree_add("/Music/Z.mp3");
+    tree_add("/Music/Z.cue");
+    ScanJob options = cache_options();
+    compare_cached_tree(&options, 6);
+    compare_cached_tree(&options, 4);
+}
+
+static void chaptered_books_are_read_on_every_rescan(void)
+{
+    start_cache_tree();
+    uint8_t *book = read_fixture("m4b_music/Audiobooks/Chpl Book.m4b", &tree.tagged_size);
+    tree.tagged_media = book;
+    tree_add("/Books/Chpl Book.m4b");
+    ScanJob options = cache_options();
+    compare_cached_tree(&options, 3);
+    compare_cached_tree(&options, 1);
+    free(book);
+}
+
+static void unreadable_tag_caches_fall_back_to_a_full_scan(void)
+{
+    start_cache_tree();
+    ScanJob options = cache_options();
+    compare_cached_tree(&options, 2);
+    tag_cache_disk[sizeof tag_cache_disk / 2 + 512] ^= 1;
+    compare_cached_tree(&options, 2);
+    tag_cache_disk[3] ^= 1;
+    compare_cached_tree(&options, 2);
+    options.tag_cache.size--;
+    compare_cached_tree(&options, 2);
+    compare_cached_tree(&(ScanJob){0}, 2);
+    options.tag_cache.size++;
+    start_cache_tree();
+    tag_cache_writable = false;
+    compare_cached_tree(&options, 2);
+}
+
+static double test_seconds(void)
+{
+    struct timespec now;
+    timespec_get(&now, TIME_UTC);
+    return (double)now.tv_sec + (double)now.tv_nsec / 1e9;
+}
+
+static uint32_t timed_cache_tree(const ScanJob *options)
+{
+    static Output output;
+    ScanStats stats;
+    tree.file_reads = 0;
+    tree.file_opens = 0;
+    double start = test_seconds();
+    CHECK_EQUAL(SCAN_OK, scan_tree_job(16 * 1024, &output, &stats, options));
+    printf("%u tracks in %.2f ms, %u file opens, %u file reads\n", stats.tracks,
+           (test_seconds() - start) * 1000, tree.file_opens, tree.file_reads);
+    return tree.file_reads;
+}
+
+static void mixed_opus_benchmark_reads_only_the_added_track(void)
+{
+    start_cache_tree();
+    uint8_t *opus = read_fixture("tags/tagged.opus", &tree.tagged_size);
+    tree.tagged_media = opus;
+    for (int index = 2; index < 200; index++) {
+        char path[TREE_PATH];
+        snprintf(path, sizeof path, "/Music/%03d.%s", index, index % 5 == 0 ? "mp3" : "opus");
+        tree_add(path);
+    }
+    ScanJob options = cache_options();
+    uint32_t cold = timed_cache_tree(&options);
+    tree_add("/Music/200.opus");
+    uint32_t warm = timed_cache_tree(&options);
+    CHECK_EQUAL(1u, tree.file_opens);
+    CHECK(warm * 8 < cold);
+    free(opus);
 }
 
 static void too_little_scan_memory_is_reported_before_the_filesystem_is_used(void)
@@ -1265,6 +1486,12 @@ int main(int argc, char **argv)
         TEST_CASE(a_missing_music_root_says_so),
         TEST_CASE(too_little_scan_memory_is_reported_before_the_filesystem_is_used),
         TEST_CASE(a_file_that_disappears_during_the_scan_is_skipped),
+        TEST_CASE(incremental_edits_match_fresh_libraries_byte_for_byte),
+        TEST_CASE(a_full_rescan_recovers_a_retag_that_preserved_identity),
+        TEST_CASE(cue_sheets_and_their_audio_are_read_on_every_rescan),
+        TEST_CASE(chaptered_books_are_read_on_every_rescan),
+        TEST_CASE(unreadable_tag_caches_fall_back_to_a_full_scan),
+        TEST_CASE(mixed_opus_benchmark_reads_only_the_added_track),
         TEST_CASE(an_unreadable_folder_leaves_its_siblings_scannable),
         TEST_CASE(an_unreadable_audio_header_is_skipped),
         TEST_CASE(each_build_phase_after_the_walk_reports_its_progress),

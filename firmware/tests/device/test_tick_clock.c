@@ -64,9 +64,38 @@ static void a_pending_reload_counts_before_its_interrupt_runs(void)
 {
     TickClock clock = started_clock();
     CHECK_EQUAL(1001, tick_clock_microseconds(&clock, pending_at(PERIOD - 24)));
-    CHECK_EQUAL(1000, tick_clock_microseconds(&clock, pending_at(0)));
+    CHECK_EQUAL(1001, tick_clock_microseconds(&clock, pending_at(0)));
     tick_clock_reload(&clock);
     CHECK_EQUAL(1001, tick_clock_microseconds(&clock, counter_at(PERIOD - 24)));
+}
+
+static void missed_reloads_never_move_either_clock_backwards(void)
+{
+    TickClock clock;
+    uint32_t period = 5 * PERIOD;
+    tick_clock_init(&clock, TICKS_PER_MICROSECOND, period);
+    TickReading late = pending_at(period / 5);
+    CHECK_EQUAL(9, tick_clock_milliseconds(&clock, late));
+    CHECK_EQUAL(9000, tick_clock_microseconds(&clock, late));
+    CHECK_EQUAL(9000, tick_clock_microseconds(&clock, pending_at(period - 1)));
+    tick_clock_reload(&clock);
+    CHECK_EQUAL(9, tick_clock_milliseconds(&clock, counter_at(period - 1)));
+    CHECK_EQUAL(9000, tick_clock_microseconds(&clock, counter_at(period - 1)));
+    CHECK_EQUAL(9500, tick_clock_microseconds(&clock, counter_at(period / 10)));
+    tick_clock_reload(&clock);
+    CHECK_EQUAL(10, tick_clock_milliseconds(&clock, counter_at(0)));
+}
+
+static void monotonic_readings_still_wrap_at_their_32_bit_limits(void)
+{
+    TickClock clock = started_clock();
+    clock.milliseconds = UINT32_MAX - 1;
+    CHECK_EQUAL(UINT32_MAX, tick_clock_milliseconds(&clock, pending_at(PERIOD / 2)));
+    CHECK_EQUAL(UINT32_MAX - 499, tick_clock_microseconds(&clock, pending_at(PERIOD / 2)));
+    tick_clock_reload(&clock);
+    tick_clock_reload(&clock);
+    CHECK_EQUAL(0, tick_clock_milliseconds(&clock, counter_at(0)));
+    CHECK_EQUAL(0, tick_clock_microseconds(&clock, counter_at(0)));
 }
 
 static void partial_ticks_carry_across_a_new_rate(void)
@@ -104,6 +133,8 @@ int main(void)
         TEST_CASE(each_reload_adds_a_full_period),
         TEST_CASE(reloads_with_no_reads_between_still_count_a_millisecond_each),
         TEST_CASE(a_pending_reload_counts_before_its_interrupt_runs),
+        TEST_CASE(missed_reloads_never_move_either_clock_backwards),
+        TEST_CASE(monotonic_readings_still_wrap_at_their_32_bit_limits),
         TEST_CASE(partial_ticks_carry_across_a_new_rate),
         TEST_CASE(a_new_rate_keeps_the_time_counted_so_far),
         TEST_CASE(a_new_rate_folds_in_a_pending_reload),

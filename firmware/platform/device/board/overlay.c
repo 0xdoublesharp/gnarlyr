@@ -8,6 +8,7 @@
 #include "board.h"
 #include "core/bytes.h"
 #include "core/seam.h"
+#include "device/audio_dsp.h"
 #include "device/audio_effects_module.h"
 #include "device/audio_process.h"
 #include "device/image_crc.h"
@@ -34,6 +35,8 @@ _Static_assert(AUDIO_EFFECTS_BASE + AUDIO_EFFECTS_BYTES == GLYPH_WINDOW_BASE,
 static const BoardImageTable MODULE_TABLE = {MODULE_TABLE_OFFSET, MODULE_TABLE_MAGIC,
                                              MODULE_TABLE_ROWS};
 static uint8_t loaded_module;
+static uint8_t loaded_dsp;
+static uint8_t loaded_effects;
 
 extern const uint8_t device_code_end[];
 
@@ -131,19 +134,41 @@ static void clear(const BoardOverlay *overlay, uint32_t from)
     }
 }
 
+static uint8_t *audio_slot(const BoardOverlay *overlay)
+{
+    switch ((uintptr_t)overlay->base) {
+    case AUDIO_DSP_BASE:
+        return &loaded_dsp;
+    case AUDIO_EFFECTS_BASE:
+        return &loaded_effects;
+    default:
+        return NULL;
+    }
+}
+
 CORE_SEAM bool board_overlay_is_loaded(const BoardOverlay *overlay)
 {
-    return already_loaded(overlay) != 0;
+    bool intact = already_loaded(overlay) != 0;
+    uint8_t *loaded = audio_slot(overlay);
+    if (!intact && loaded != NULL) {
+        *loaded = 0;
+    }
+    return intact;
 }
 
 bool board_overlay_load(const BoardOverlay *overlay)
 {
-    uint32_t size = already_loaded(overlay);
-    if (size == 0) {
+    uint8_t *loaded = audio_slot(overlay);
+    bool cached = loaded != NULL && *loaded != 0 && *loaded == overlay->module;
+    uint32_t size = header_size(overlay);
+    if (size == 0 || (!cached && !body_intact(overlay, size))) {
         size = load_from_storage(overlay);
     }
     clear(overlay, size);
     __asm__ volatile("dsb\n\tisb" ::: "memory");
+    if (loaded != NULL) {
+        *loaded = size != 0 ? (uint8_t)overlay->module : 0;
+    }
     return size != 0;
 }
 
@@ -173,6 +198,8 @@ void board_module_forget(void)
 {
     app_set_usb_renderer(NULL);
     loaded_module = 0;
+    loaded_dsp = 0;
+    loaded_effects = 0;
     board_audio_process_forget();
 }
 

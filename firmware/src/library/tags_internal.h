@@ -32,6 +32,7 @@ typedef struct TagReader {
     ReplayGainTags replay_gain;
     bool opus;
     bool comment_pictures;
+    bool skip_pictures;
     uint32_t comment_page;
     const TagUnsync *unsync;
 } TagReader;

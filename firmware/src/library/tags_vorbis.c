@@ -100,7 +100,8 @@ static ReplayGainField r128_field(const uint8_t *key, uint32_t length)
 static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, uint32_t length)
 {
     uint8_t value[VALUE_CAPACITY];
-    uint32_t prefix = length < KEY_CAPACITY ? length : KEY_CAPACITY;
+    uint32_t capacity = reader->skip_pictures ? sizeof PICTURE_KEY : KEY_CAPACITY;
+    uint32_t prefix = length < capacity ? length : capacity;
     if (!source_read(source, offset, value, prefix)) {
         return;
     }
@@ -110,9 +111,9 @@ static void offer_entry(TagReader *reader, ByteSource source, uint32_t offset, u
     }
     uint32_t value_offset = offset + key + 1;
     uint32_t value_length = length - key - 1;
-    if (tag_same_text_folded((const char *)value, key, PICTURE_KEY)) {
+    if (reader->comment_pictures && tag_same_text_folded((const char *)value, key, PICTURE_KEY)) {
         uint32_t head = value_length < 8 ? value_length : 8;
-        if (reader->comment_pictures && source_read(source, value_offset, value, head)) {
+        if (source_read(source, value_offset, value, head)) {
             tag_offer_picture(reader, (TagPicture){.kind = TAG_PICTURE_BASE64_FLAC_BLOCK,
                                                    .front = base64_picture_is_front(value, head),
                                                    .offset = value_offset,
@@ -243,7 +244,7 @@ bool tags_read_flac(TagReader *reader)
             found_info = true;
         } else if (type == BLOCK_VORBIS_COMMENT) {
             tags_read_vorbis_comment(reader, file_source(reader), body, body + length);
-        } else if (type == BLOCK_PICTURE) {
+        } else if (type == BLOCK_PICTURE && !reader->skip_pictures) {
             read_flac_picture(reader, body, body + length);
         }
         offset = body + length;
@@ -460,7 +461,7 @@ bool tags_read_ogg(TagReader *reader)
         return false;
     }
     ByteSource source = {.read = tags_ogg_stream_read, .context = &stream};
-    reader->comment_pictures = true;
+    reader->comment_pictures = !reader->skip_pictures;
     reader->comment_page = stream.page.offset;
     uint8_t prefix[OPUS_PACKET_PREFIX];
     if (source_read(source, 0, prefix, codec.prefix) &&
