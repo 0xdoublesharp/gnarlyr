@@ -1025,7 +1025,7 @@ static ScreenAction open_group(void *context)
 static ScreenAction open_language(void *context)
 {
     SettingsScreens *screens = context;
-    language_list(&screens->languages);
+    language_list_for_picker(&screens->languages, screens->theme);
     LanguagePickerConfig config = {.languages = &screens->languages,
                                    .choose = choose_language,
                                    .context = &screens->context,

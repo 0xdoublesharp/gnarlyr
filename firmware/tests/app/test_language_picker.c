@@ -60,11 +60,11 @@ static uint32_t flagged(uint8_t *pack, TestPackLanguage language)
     return size;
 }
 
-static void add_extra_font(void)
+static void add_extra_font(uint32_t glyphs, bool advertise_korean)
 {
-    TestExtraFont font = {.languages = COVERED, .language_count = 1};
+    TestExtraFont font = {.languages = COVERED, .language_count = advertise_korean ? 1 : 0};
     for (uint32_t face = 0; face < FONT_PACK_EXTRA_FACES; face++) {
-        font.faces[face] = (TestGlyphFace){8, 0xAC00, 1, 0, 0};
+        font.faces[face] = (TestGlyphFace){glyphs, 0xAC00, 1, 0, 0};
     }
     fake_hal_add_file(PATH, extra, test_extra_font_build(extra, FILE_CAPACITY, &font));
     extra_font_open(&handle);
@@ -87,11 +87,11 @@ static void open_picker(bool with_extra_font)
     fake_hal_add_language_file("xx.pack", unknown,
                                flagged(unknown, (TestPackLanguage){"xx", "Xyz", NULL}));
     if (with_extra_font) {
-        add_extra_font();
+        add_extra_font(1, true);
     }
     theme = BOARD_THEME;
     CHECK(language_load("en"));
-    language_list(&languages);
+    language_list_for_picker(&languages, &theme);
     chosen = -1;
     LanguagePickerConfig config = {&languages, choose, &chosen, &theme};
     Screen *screen = language_picker_init(&picker, config);
@@ -171,6 +171,55 @@ static void a_language_the_extra_font_covers_is_an_ordinary_row(void)
     extra_font_close(&handle);
 }
 
+static void translate_one_module_label(const char *original, char *text, size_t capacity)
+{
+    if (strcmp(original, i18n_text(STR_ABOUT_FRAME_TIME)) == 0) {
+        static const char label[] = "\xEA\xB0\x81";
+        CHECK(capacity >= sizeof label);
+        memcpy(text, label, sizeof label);
+    } else {
+        text[0] = 'A';
+        text[1] = '\0';
+    }
+}
+
+static void check_unlisted_pack_fonts(bool built_in)
+{
+    open_picker(false);
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    const char *name = "\xEA\xB0\x80";
+    TestPackLanguage language = {"zz", name, translate_one_module_label};
+    uint32_t size = flagged(pack, language);
+    if (built_in) {
+        fake_hal_add_language_pack(0, pack, size);
+    } else {
+        fake_hal_add_language_file("zz.pack", pack, size);
+    }
+    CHECK(language_load("en"));
+    add_extra_font(1, false);
+    language_list_for_picker(&languages, &theme);
+    int index = language_list_find(&languages, "zz");
+    CHECK(index >= 0 && language_list_needs_fonts(&languages, index));
+    extra_font_close(&handle);
+    CHECK(hal_file_remove(PATH));
+    add_extra_font(2, false);
+    language_list_for_picker(&languages, &theme);
+    picker.screen.enter(&picker, 0);
+    CHECK(index >= 0 && !language_list_needs_fonts(&languages, index));
+    CHECK(strcmp(name, label(index)) == 0);
+    extra_font_close(&handle);
+}
+
+static void a_built_in_pack_clears_when_its_menu_glyphs_are_available(void)
+{
+    check_unlisted_pack_fonts(true);
+}
+
+static void an_external_pack_clears_when_its_menu_glyphs_are_available(void)
+{
+    check_unlisted_pack_fonts(false);
+}
+
 static void the_exonym_matches_the_primary_language_code(void)
 {
     i18n_detach();
@@ -188,6 +237,8 @@ int main(void)
         TEST_CASE(a_language_that_needs_fonts_shows_a_drawable_name_and_a_note),
         TEST_CASE(play_on_a_language_that_needs_fonts_explains_and_chooses_nothing),
         TEST_CASE(a_language_the_extra_font_covers_is_an_ordinary_row),
+        TEST_CASE(a_built_in_pack_clears_when_its_menu_glyphs_are_available),
+        TEST_CASE(an_external_pack_clears_when_its_menu_glyphs_are_available),
         TEST_CASE(the_exonym_matches_the_primary_language_code),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

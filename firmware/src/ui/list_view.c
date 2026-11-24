@@ -46,6 +46,15 @@ static int max_of(int first, int second)
     return first > second ? first : second;
 }
 
+static int row_padding(const ListView *view)
+{
+    const Theme *theme = view->theme;
+    bool compact_home = view->background == THEME_ART_HOME && view->model->icon != NULL &&
+                        theme->metrics.text_size == LARGE_TEXT && theme_is_portrait(theme);
+    int padding = theme->metrics.padding;
+    return compact_home ? padding / 2 : padding;
+}
+
 static bool details_below(const ListView *view)
 {
     return view->model->detail_below && theme_is_portrait(view->theme);
@@ -68,11 +77,14 @@ int list_view_row_height(const ListView *view)
                                             : 0);
 }
 
-static int icon_room(const ListView *view)
+static int icon_gap(int padding)
 {
-    return view->model->icon != NULL
-               ? ICON_BOX + max_of(ICON_MIN_GAP, view->theme->metrics.padding - ICON_MIN_GAP)
-               : 0;
+    return max_of(ICON_MIN_GAP, padding - ICON_MIN_GAP);
+}
+
+static int icon_room(const ListView *view, int padding)
+{
+    return view->model->icon != NULL ? ICON_BOX + icon_gap(padding) : 0;
 }
 
 static int lines_needed(const ListView *view, int index, int room)
@@ -96,7 +108,8 @@ void list_view_measure(ListView *view, int width)
 {
     const ThemeMetrics *metrics = &view->theme->metrics;
     int count = item_count(view);
-    int room = width - 2 * metrics->padding - icon_room(view);
+    int padding = row_padding(view);
+    int room = width - 2 * padding - icon_room(view, padding);
     if (count > view->visible_rows) {
         room -= metrics->scrollbar_width + metrics->scrollbar_inset;
     }
@@ -325,7 +338,7 @@ static Row draw_icon(const ListView *view, Canvas *canvas, Row row)
         return row;
     }
     int size = min_of(ICON_BOX, min_of(row.text.width, row.text.height));
-    int gap = max_of(ICON_MIN_GAP, view->theme->metrics.padding - ICON_MIN_GAP);
+    int gap = icon_gap(row.text.x - row.area.x);
     Rect box = {row.text.x, row.text.y + (row.text.height - size) / 2, size, size};
     Color main =
         row.selected ? view->theme->colors.selection_text : view->theme->colors.text_secondary;
@@ -491,7 +504,8 @@ static void draw_row(const ListView *view, Canvas *canvas, Row row, uint32_t now
     }
     int lines = view->lines == LIST_LINES_ONE
                     ? LIST_LINES_ONE
-                    : lines_needed(view, row.index, row.text.width - icon_room(view));
+                    : lines_needed(view, row.index,
+                                   row.text.width - icon_room(view, row.text.x - row.area.x));
     if (view->lines != LIST_LINES_ONE && lines == LIST_LINES_ONE) {
         row.text.y = row.area.y + (row.area.height - row.text.height) / 2;
     }
@@ -525,8 +539,8 @@ void list_view_draw_scrollbar(const ListView *view, Canvas *canvas, Rect area, i
 static Row row_at(const ListView *view, int index, Rect area)
 {
     const ThemeMetrics *metrics = &view->theme->metrics;
-    Rect text = {area.x + metrics->padding, area.y, area.width - 2 * metrics->padding,
-                 metrics->row_height};
+    int padding = row_padding(view);
+    Rect text = {area.x + padding, area.y, area.width - 2 * padding, metrics->row_height};
     return (Row){.index = index,
                  .area = area,
                  .text = text,

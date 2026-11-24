@@ -6,26 +6,33 @@
 #include "core/utf8.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "library/library.h"
 #include "library_store.h"
 
 enum {
     MAP_BYTES = 0x10000 / 8,
     CHUNK_BYTES = 1024,
-    LIBRARY_HEADER = 128,
-    STRINGS_ENTRY = 8 + 9 * 12,
+    ROW_BYTES = 768,
+    SECTION_TABLE = 8,
+    SECTION_ENTRY_BYTES = 12,
     MAGIC = 0x42445344,
-    VERSION = 2,
-    WORK_BYTES = 2 * MAP_BYTES + CHUNK_BYTES + 1 + MISSING_FONTS_FILE_BYTES
+    WORK_BYTES = 2 * MAP_BYTES + ROW_BYTES + CHUNK_BYTES + 1 + MISSING_FONTS_FILE_BYTES
 };
 
 typedef struct MissingScan {
     uint8_t *checked;
     uint8_t *missing;
+    uint8_t *rows;
     char *chunk;
     uint8_t *text;
     const Font *font;
+    HalFile file;
+    uint32_t strings_offset;
+    uint32_t strings_size;
+    uint32_t cached_start;
+    uint32_t cached_size;
     uint32_t names;
-    uint32_t characters;
+    bool found;
 } MissingScan;
 
 static bool bit_of(const uint8_t *map, uint32_t codepoint)
@@ -47,7 +54,7 @@ static bool undrawable(MissingScan *scan, uint32_t codepoint)
         set_bit(scan->checked, codepoint);
         if (missing_fonts_undrawable(scan->font, codepoint)) {
             set_bit(scan->missing, codepoint);
-            scan->characters++;
+            scan->found = true;
         }
     }
     return bit_of(scan->missing, codepoint);
@@ -56,63 +63,102 @@ static bool undrawable(MissingScan *scan, uint32_t codepoint)
 static void check_name(MissingScan *scan, const char *name)
 {
     bool affected = false;
-    bool path = false;
     for (uint32_t codepoint = utf8_next(&name); codepoint != 0; codepoint = utf8_next(&name)) {
-        path |= codepoint == '/';
         affected |= undrawable(scan, codepoint);
     }
-    scan->names += affected && !path ? 1u : 0u;
+    scan->names += affected;
 }
 
-static uint32_t check_names(MissingScan *scan, uint32_t length)
+static const char *cached_name(const MissingScan *scan, uint32_t offset)
 {
-    uint32_t start = 0;
-    for (uint32_t at = 0; at < length; at++) {
+    uint32_t start = offset - scan->cached_start;
+    for (uint32_t at = start; at < scan->cached_size; at++) {
         if (scan->chunk[at] == '\0') {
-            check_name(scan, scan->chunk + start);
-            start = at + 1;
+            return scan->chunk + start;
         }
     }
-    return start;
+    return NULL;
 }
 
-static void read_names(MissingScan *scan, HalFile file, uint32_t offset, uint32_t length)
+static const char *read_name(MissingScan *scan, uint32_t offset)
 {
-    uint32_t carry = 0;
-    for (uint32_t done = 0; done < length;) {
-        hal_system_keep_alive();
-        uint32_t take = length - done < CHUNK_BYTES - carry ? length - done : CHUNK_BYTES - carry;
-        if (!hal_file_read(file, offset + done, scan->chunk + carry, take)) {
-            return;
-        }
-        done += take;
-        uint32_t used = check_names(scan, carry + take);
-        carry = carry + take - used;
-        for (uint32_t index = 0; index < carry; index++) {
-            scan->chunk[index] = scan->chunk[used + index];
-        }
-        carry = carry == CHUNK_BYTES ? 0 : carry;
+    const char *name = cached_name(scan, offset);
+    if (name != NULL) {
+        return name;
     }
+    if (offset >= scan->strings_size) {
+        return NULL;
+    }
+    uint32_t left = scan->strings_size - offset;
+    uint32_t take = left < CHUNK_BYTES ? left : CHUNK_BYTES;
+    if (!hal_file_read(scan->file, scan->strings_offset + offset, scan->chunk, take)) {
+        return NULL;
+    }
+    scan->cached_start = offset;
+    scan->cached_size = (uint32_t)utf8_complete_length(scan->chunk, take);
+    scan->chunk[scan->cached_size] = '\0';
+    return scan->chunk;
+}
+
+static bool check_rows(MissingScan *scan, uint32_t bytes, uint32_t stride)
+{
+    for (uint32_t at = 0; at < bytes; at += stride) {
+        uint32_t offset = bytes_le32(scan->rows + at);
+        if (offset != 0) {
+            const char *name = read_name(scan, offset);
+            if (name == NULL) {
+                return false;
+            }
+            check_name(scan, name);
+        }
+    }
+    return true;
+}
+
+static bool scan_section(MissingScan *scan, const uint8_t *entry, uint32_t stride)
+{
+    uint32_t offset = bytes_le32(entry);
+    uint32_t count = bytes_le32(entry + 4);
+    if (bytes_le16(entry + 8) != stride || offset < LIBRARY_HEADER_SIZE ||
+        offset > scan->file.size || count > (scan->file.size - offset) / stride) {
+        return false;
+    }
+    for (uint32_t left = count * stride; left > 0;) {
+        hal_system_keep_alive();
+        uint32_t take = left < ROW_BYTES ? left : ROW_BYTES;
+        if (!hal_file_read(scan->file, offset, scan->rows, take) ||
+            !check_rows(scan, take, stride)) {
+            return false;
+        }
+        offset += take;
+        left -= take;
+    }
+    return true;
 }
 
 static bool scan_library(MissingScan *scan)
 {
-    uint8_t header[LIBRARY_HEADER];
-    HalFile file;
-    if (!hal_file_open(&file, LIBRARY_STORE_PATH)) {
+    uint8_t header[LIBRARY_HEADER_SIZE];
+    if (!hal_file_read(scan->file, 0, header, sizeof header) || bytes_le32(header) != MAGIC ||
+        bytes_le16(header + 4) != LIBRARY_VERSION ||
+        bytes_le16(header + 6) != LIBRARY_SECTION_COUNT) {
         return false;
     }
-    bool sound = hal_file_read(file, 0, header, sizeof header) && bytes_le32(header) == MAGIC &&
-                 bytes_le16(header + 4) == VERSION;
-    uint32_t offset = bytes_le32(header + STRINGS_ENTRY);
-    uint32_t length = bytes_le32(header + STRINGS_ENTRY + 4);
-    sound =
-        sound && offset >= LIBRARY_HEADER && offset <= file.size && length <= file.size - offset;
-    if (sound) {
-        read_names(scan, file, offset, length);
+    const uint8_t *table = header + SECTION_TABLE;
+    const uint8_t *strings = table + LIBRARY_STRINGS * SECTION_ENTRY_BYTES;
+    scan->strings_offset = bytes_le32(strings);
+    scan->strings_size = bytes_le32(strings + 4);
+    if (scan->strings_offset < sizeof header || scan->strings_offset > scan->file.size ||
+        scan->strings_size > scan->file.size - scan->strings_offset) {
+        return false;
     }
-    hal_file_close(&file);
-    return sound;
+    static const uint8_t NAME_STRIDES[] = {32, 16, 12, 12, 12};
+    for (uint32_t section = LIBRARY_TRACKS; section <= LIBRARY_GENRES; section++) {
+        if (!scan_section(scan, table + section * SECTION_ENTRY_BYTES, NAME_STRIDES[section])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static uint32_t encode(uint8_t *out, uint32_t codepoint)
@@ -167,19 +213,23 @@ void missing_fonts_record(void *memory, uint32_t size, const Font *font)
     for (uint32_t index = 0; index < 2 * MAP_BYTES; index++) {
         work[index] = 0;
     }
-    MissingScan scan = {work,
-                        work + MAP_BYTES,
-                        (char *)work + 2 * MAP_BYTES,
-                        work + 2 * MAP_BYTES + CHUNK_BYTES + 1,
-                        font,
-                        0,
-                        0};
-    if (!scan_library(&scan)) {
+    MissingScan scan = {.checked = work,
+                        .missing = work + MAP_BYTES,
+                        .rows = work + 2 * MAP_BYTES,
+                        .chunk = (char *)work + 2 * MAP_BYTES + ROW_BYTES,
+                        .text = work + 2 * MAP_BYTES + ROW_BYTES + CHUNK_BYTES + 1,
+                        .font = font};
+    if (!hal_file_open(&scan.file, LIBRARY_STORE_PATH)) {
+        return;
+    }
+    bool sound = scan_library(&scan);
+    hal_file_close(&scan.file);
+    if (!sound) {
         return;
     }
     write_text(&scan);
     uint8_t count[MISSING_FONTS_COUNT_BYTES];
     bytes_put_le32(count, scan.names);
-    store(MISSING_FONTS_PATH, scan.text, MISSING_FONTS_FILE_BYTES, scan.characters > 0);
-    store(MISSING_FONTS_COUNT_PATH, count, sizeof count, scan.characters > 0);
+    store(MISSING_FONTS_PATH, scan.text, MISSING_FONTS_FILE_BYTES, scan.found);
+    store(MISSING_FONTS_COUNT_PATH, count, sizeof count, scan.found);
 }

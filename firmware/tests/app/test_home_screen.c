@@ -15,6 +15,7 @@
 #include "modules/modules.h"
 #include "music_check.h"
 #include "music_record.h"
+#include "screen_snapshot.h"
 #include "settings_store.h"
 #include "spoken_library.h"
 #include "ui/slide.h"
@@ -122,6 +123,28 @@ static void the_default_home_has_six_rows_and_a_track_adds_the_first_row(void)
     player.has_track = false;
     CHECK_EQUAL(6, home_rows());
     CHECK(home_row_is(0, MUSIC));
+}
+
+static void selected_now_playing_fits_one_row_in_large_portrait(void)
+{
+    static Color pixels[222 * 480];
+    settings.settings = settings_defaults();
+    build();
+    default_theme_set_orientation(&styled, ORIENTATION_PORTRAIT);
+    default_theme_set_text_size(&styled, TEXT_SIZE_LARGE);
+    MenuScreen *home = &screens.home;
+    home->config.theme = &styled;
+    home->list.theme = &styled;
+    player.has_track = true;
+    home->screen.enter(home, START_MS);
+    list_view_select(&home->list, 0, START_MS);
+    CHECK(selected_home_item_is(NOW_PLAYING));
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, 222, 480});
+    marquee_watch_start();
+    home->screen.draw(home, &canvas);
+    CHECK_EQUAL(LIST_LINES_ONE, home->list.lines);
+    CHECK_EQUAL(MARQUEE_STILL, marquee_watch_wait_ms());
+    screen_snapshot_write(&canvas, "home-large-portrait", 0);
 }
 
 static void now_playing_ignores_a_saved_hide_bit_and_opens_the_existing_screen(void)
@@ -590,6 +613,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_default_home_has_six_rows_and_a_track_adds_the_first_row),
+        TEST_CASE(selected_now_playing_fits_one_row_in_large_portrait),
         TEST_CASE(now_playing_ignores_a_saved_hide_bit_and_opens_the_existing_screen),
         TEST_CASE(spoken_shelves_are_reachable_from_music_when_present),
         TEST_CASE(the_editor_omits_now_playing_and_marks_the_default_hidden_items),

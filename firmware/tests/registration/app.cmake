@@ -48,7 +48,7 @@ add_test(NAME card_format_layout_captures
     COMMAND test_card_format_ui --captures ${CMAKE_CURRENT_BINARY_DIR}/card_format_captures
 )
 echo_add_unit_test(NAME test_home_screen
-    SOURCES app/test_home_screen.c app/fake_hal.c
+    SOURCES app/test_home_screen.c app/fake_hal.c support/screen_snapshot.c
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )

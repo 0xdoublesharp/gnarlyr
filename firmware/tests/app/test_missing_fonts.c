@@ -16,8 +16,10 @@
 
 enum {
     LIBRARY_BYTES = 1024,
-    STRINGS_AT = 128,
-    STRINGS_ENTRY = 8 + 9 * 12,
+    TRACKS_AT = 128,
+    FOLDERS_AT = 512,
+    STRINGS_AT = 640,
+    TRACK_BYTES = 32,
     WORK_BYTES = 40960,
     FONT_FILE_BYTES = 64 * 1024,
     MEMORY_BYTES = 0x6800 - 1024
@@ -44,21 +46,58 @@ static bool read_nothing(void *context, uint32_t face, uint32_t offset, void *bu
     return false;
 }
 
-static void add_library(const char *const *names, uint32_t count)
+static void section(LibrarySection section, uint32_t offset, uint32_t count, uint16_t stride)
+{
+    uint8_t *row = library + 8 + 12 * section;
+    bytes_put_le32(row, offset);
+    bytes_put_le32(row + 4, count);
+    bytes_put_le16(row + 8, stride);
+}
+
+static uint32_t add_text(uint32_t *at, const char *text)
+{
+    uint32_t offset = *at - STRINGS_AT;
+    size_t length = strlen(text) + 1;
+    memcpy(library + *at, text, length);
+    *at += (uint32_t)length;
+    return offset;
+}
+
+static void add_track(uint32_t *at, uint32_t index, const char *title, const char *path)
+{
+    uint8_t *row = library + TRACKS_AT + index * TRACK_BYTES;
+    bytes_put_le32(row, add_text(at, title));
+    bytes_put_le32(row + 4, add_text(at, path));
+}
+
+static void add_library_with_path(const char *const *titles, uint32_t count, const char *path,
+                                  const char *folder)
 {
     memset(library, 0, sizeof library);
     memcpy(library, "DSDB", 4);
-    bytes_put_le16(library + 4, 2);
-    bytes_put_le16(library + 6, 10);
+    bytes_put_le16(library + 4, LIBRARY_VERSION);
+    bytes_put_le16(library + 6, LIBRARY_SECTION_COUNT);
+    section(LIBRARY_TRACKS, TRACKS_AT, count, TRACK_BYTES);
+    section(LIBRARY_ALBUMS, FOLDERS_AT, 0, 16);
+    for (LibrarySection group = LIBRARY_ARTISTS; group <= LIBRARY_GENRES; group++) {
+        section(group, FOLDERS_AT, 0, 12);
+    }
     uint32_t at = STRINGS_AT + 1;
     for (uint32_t index = 0; index < count; index++) {
-        size_t length = strlen(names[index]) + 1;
-        memcpy(library + at, names[index], length);
-        at += (uint32_t)length;
+        add_track(&at, index, titles[index], path);
     }
-    bytes_put_le32(library + STRINGS_ENTRY, STRINGS_AT);
-    bytes_put_le32(library + STRINGS_ENTRY + 4, at - STRINGS_AT);
+    bytes_put_le32(library + FOLDERS_AT, add_text(&at, folder));
+    section(LIBRARY_FOLDERS, FOLDERS_AT, 1, 16);
+    section(LIBRARY_TITLE_ORDER, STRINGS_AT, 0, 2);
+    section(LIBRARY_PLAYLISTS, STRINGS_AT, 0, 12);
+    section(LIBRARY_LINKS, STRINGS_AT, 0, 2);
+    section(LIBRARY_STRINGS, STRINGS_AT, at - STRINGS_AT, 1);
     fake_hal_add_file(LIBRARY_STORE_PATH, library, at);
+}
+
+static void add_library(const char *const *titles, uint32_t count)
+{
+    add_library_with_path(titles, count, "Music/Abba/01.flac", "Abba");
 }
 
 static void start(void)
@@ -82,11 +121,10 @@ static void attach_hangul(void)
 
 static void a_scan_records_each_undrawable_character_once_in_code_point_order(void)
 {
-    static const char *const names[] = {"Busker \xEB\xB2\x84\xEC\x8A\xA4\xEC\xBB\xA4",
-                                        "\xED\x95\x9C\xEA\xB5\xAD", "Abba",
-                                        "Music/\xED\x95\x9C\xEA\xB5\xAD/song.flac"};
+    static const char *const names[] = {"Busker / \xEB\xB2\x84\xEC\x8A\xA4\xEC\xBB\xA4",
+                                        "\xED\x95\x9C\xEA\xB5\xAD", "Abba"};
     start();
-    add_library(names, 4);
+    add_library_with_path(names, 3, "Music/\xEA\xB0\x80/\xEA\xB0\x81.flac", "\xEA\xB0\x80");
     missing_fonts_record(work, sizeof work, theme.fonts.body);
     uint32_t size = 0;
     const uint8_t *text = fake_hal_file_bytes(MISSING_FONTS_PATH, &size);
@@ -102,14 +140,15 @@ static void a_scan_records_each_undrawable_character_once_in_code_point_order(vo
     CHECK_EQUAL(2, missing_fonts_names(theme.fonts.body));
 }
 
-static void a_library_the_fonts_draw_writes_no_file(void)
+static void non_ascii_paths_and_folders_do_not_count_when_track_tags_are_drawable(void)
 {
-    static const char *const names[] = {"Abba", "Caf\xC3\xA9", "Music/Abba/01.flac"};
+    static const char *const titles[] = {"Abba", "Song"};
     start();
-    add_library(names, 3);
+    add_library_with_path(titles, 2, "Music/\xEA\xB0\x80/\xEA\xB0\x81.flac", "\xEA\xB0\x80");
     missing_fonts_record(work, sizeof work, theme.fonts.body);
     uint32_t size = 0;
     CHECK(fake_hal_file_bytes(MISSING_FONTS_PATH, &size) == NULL);
+    CHECK(fake_hal_file_bytes(MISSING_FONTS_COUNT_PATH, &size) == NULL);
     CHECK_EQUAL(0, missing_fonts_names(theme.fonts.body));
 }
 
@@ -211,7 +250,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_scan_records_each_undrawable_character_once_in_code_point_order),
-        TEST_CASE(a_library_the_fonts_draw_writes_no_file),
+        TEST_CASE(non_ascii_paths_and_folders_do_not_count_when_track_tags_are_drawable),
         TEST_CASE(the_notice_goes_away_once_extra_fonts_draw_the_characters),
         TEST_CASE(too_little_memory_or_a_damaged_library_records_nothing),
         TEST_CASE(choosing_about_in_settings_counts_the_names_for_its_notice),
