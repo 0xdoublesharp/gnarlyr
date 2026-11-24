@@ -122,11 +122,10 @@ static void curves_controls_and_hints_fit_all_six_native_layouts(void)
                                       {FOOTER_KEY_PLAY, STR_HINT_KEEP}};
     static const FooterHint SLOT[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
                                       {FOOTER_KEY_PLAY, STR_HINT_SAVE}};
-    const FooterHints hints[] = {
-        {.items = BROWSE, .count = 1, .align = FOOTER_ALIGN_END},
-        {.items = GAIN, .count = 2, .align = FOOTER_ALIGN_END},
-        {.items = SLOT, .count = 2, .align = FOOTER_ALIGN_END},
-        {.items = NULL, .count = 0, .align = FOOTER_ALIGN_END}};
+    const FooterHints hints[] = {{.items = BROWSE, .count = 1, .align = FOOTER_ALIGN_END},
+                                 {.items = GAIN, .count = 2, .align = FOOTER_ALIGN_END},
+                                 {.items = SLOT, .count = 2, .align = FOOTER_ALIGN_END},
+                                 {.items = NULL, .count = 0, .align = FOOTER_ALIGN_END}};
     for (int orientation = 0; orientation < 2; orientation++) {
         for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
             Theme theme = BOARD_THEME;
