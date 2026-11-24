@@ -85,6 +85,13 @@ void bluetooth_link_sleep(BluetoothLink *link)
     link->paired_seen = false;
 }
 
+void bluetooth_link_power_off(BluetoothLink *link)
+{
+    link->restarting = false;
+    link->search_now = false;
+    hal_bluetooth_set_power(false);
+}
+
 static void toggle(BluetoothLink *link, Player *player)
 {
     player_toggle_pause(player);

@@ -166,6 +166,22 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(host.feedback, [])
         self.assert_healthy(session)
 
+    def test_usb_audio_full_speed_drains_before_replaying_stale_frames(self):
+        session, audio, host = self.dac_session(48000, 3, False)
+        machine = session.machine
+        machine.run(until_ms=machine.milliseconds() + 150)
+        self.assertTrue(audio.running)
+        self.assertGreater(len(host.expected), audio.ring_words())
+        host.pause_until = machine.microseconds() + 100000
+        self.assertEqual(machine.run(until=lambda: not audio.running,
+                                     until_ms=machine.milliseconds() + 30), "condition met")
+        consumed = audio.elapsed_us(machine) * audio.rate // 1000000
+        self.assertGreaterEqual(consumed, len(host.expected) // 2)
+        machine.run(until_ms=machine.milliseconds() + 65)
+        self.assertFalse(audio.running)
+        self.assertEqual(audio.output_underruns(), 0)
+        self.assert_healthy(session)
+
     def test_usb_audio_stops_at_an_empty_ring_and_reprimes_on_return(self):
         session, audio, host = self.dac_session(192000)
         machine = session.machine

@@ -79,9 +79,8 @@ HalUsbSense hal_system_usb_sense(void)
     return (HalUsbSense){.kept_on = usb_kept_on,
                          .cable = usb_vbus_present(),
                          .powered = usb_powered,
-                         .session =
-                             usb_powered && (read_register(GOTGCTL) & GOTGCTL_B_SESSION_VALID) != 0,
-                         .connecting = usb_session_shared()->reconnect.manual};
+                         .session = usb_powered &&
+                                    (read_register(GOTGCTL) & GOTGCTL_B_SESSION_VALID) != 0};
 }
 
 void board_debug_read_grf(uint32_t *words)
@@ -224,17 +223,12 @@ bool board_debug_usb_forced(void)
     return usb_session_forced();
 }
 
-void board_debug_connect_cancelled(void)
-{
-    note_connect(DEBUG_LOOP_CONNECT_CANCELLED);
-}
-
 DebugReportLoop board_debug_loop(void)
 {
     return reconnect.loop;
 }
 
-void board_debug_after_start(void)
+CORE_COLD void board_debug_after_start(void)
 {
     char text[sizeof RESTART_DONE - 1];
     if (!hal_internal_file_read(DEBUG_RESTART_PATH, text, sizeof text)) {
@@ -258,7 +252,7 @@ static void note_audio(void)
     audio.running = audio.stats.elapsed_us != 0;
 }
 
-void hal_system_save_report(uint32_t reason)
+CORE_COLD void hal_system_save_report(uint32_t reason)
 {
     if (usb_session_shared()->reconnect.in_session || hal_system_restart_pending()) {
         return;
@@ -278,7 +272,7 @@ void board_debug_keep_usb_on(bool kept_on)
     usb_kept_on = kept_on;
 }
 
-void board_debug_listen_stopped(void)
+CORE_COLD void board_debug_listen_stopped(void)
 {
     if (!usb_session_reconnect_stopped()) {
         return;

@@ -28,7 +28,6 @@ typedef struct UsbReport {
 typedef struct UsbReconnect {
     bool requested;
     bool forced;
-    bool manual;
     bool in_session;
     uint32_t ended_ms;
     uint32_t forced_ms;
@@ -87,8 +86,7 @@ bool usb_session_reconnect_stopped(void);
 void usb_session_reconnect_started(void);
 void usb_session_reconnect_ended(void);
 bool usb_session_present(UsbShared *state, UsbForced *forced, uint32_t commands);
-bool usb_session_listen(void);
-bool usb_dac_session_listen(void);
+bool usb_session_listen(bool storage);
 bool usb_session_host_seen(void);
 void usb_session_stop_listening(void);
 const UsbReport *usb_session_report(void);

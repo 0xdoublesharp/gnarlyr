@@ -68,6 +68,7 @@ void bluetooth_link_pair(BluetoothLink *link, const HalBluetoothDevice *device, 
 void bluetooth_link_search(BluetoothLink *link, uint32_t now_ms);
 void bluetooth_link_forget(BluetoothLink *link, int index);
 void bluetooth_link_sleep(BluetoothLink *link);
+void bluetooth_link_power_off(BluetoothLink *link);
 bool bluetooth_link_reconnect(BluetoothLink *link, uint32_t now_ms);
 void bluetooth_link_step(BluetoothLink *link, Player *player, uint32_t now_ms);
 BluetoothDeviceState bluetooth_link_device_state(const BluetoothLink *link, int index);

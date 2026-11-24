@@ -12,6 +12,7 @@
 #include "panel_port.h"
 #include "registers.h"
 #include "usb.h"
+#include "usb_report.h"
 
 #define CRU_CLOCK_SELECT (CRU_BASE + 0x14u)
 
@@ -99,25 +100,17 @@ static void draw_line(const char *text)
     line++;
 }
 
-static void append_hex(StringBuilder *builder, uint32_t value)
-{
-    static const char DIGITS[] = "0123456789ABCDEF";
-    for (int digit = HEX_DIGITS - 1; digit >= 0; digit--) {
-        string_builder_append_char(builder, DIGITS[(value >> (4 * digit)) & 0xFu]);
-    }
-}
-
 static void draw_pair_line(const char *first_label, uint32_t first, const char *second_label,
                            uint32_t second)
 {
     char text[LINE_CAPACITY];
     StringBuilder builder = string_builder_make(text, sizeof text);
     string_builder_append(&builder, first_label);
-    append_hex(&builder, first);
+    usb_report_append_hex(&builder, first, HEX_DIGITS);
     if (second_label != NULL) {
         string_builder_append_char(&builder, ' ');
         string_builder_append(&builder, second_label);
-        append_hex(&builder, second);
+        usb_report_append_hex(&builder, second, HEX_DIGITS);
     }
     draw_line(text);
 }
@@ -165,7 +158,7 @@ static void draw_words_line(const uint32_t *words)
         if (index > 0) {
             string_builder_append_char(&builder, ' ');
         }
-        append_hex(&builder, words[index]);
+        usb_report_append_hex(&builder, words[index], HEX_DIGITS);
     }
     draw_line(text);
 }

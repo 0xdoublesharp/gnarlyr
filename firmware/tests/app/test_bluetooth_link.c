@@ -320,6 +320,24 @@ static void nothing_is_retried_while_connecting(void)
     CHECK_EQUAL(1, fake_hal_bluetooth_connect_count());
 }
 
+static void powering_off_for_usb_cancels_a_pending_scan_restart(void)
+{
+    fresh();
+    save(true, &BUDS);
+    start();
+    bluetooth_link_browse(&link, true, START_MS);
+    ready();
+    step(START_MS + 100);
+    fake_hal_bluetooth()->pairing = HAL_BLUETOOTH_PAIRING_FAILED;
+    step(START_MS + 200);
+    CHECK(link.restarting);
+    bluetooth_link_power_off(&link);
+    step(START_MS + 200 + BLUETOOTH_LINK_RESTART_MS);
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(!link.search_now);
+    CHECK(stored().enabled);
+}
+
 static void connecting_saves_the_device_and_says_so(void)
 {
     fresh();
@@ -1269,6 +1287,7 @@ int main(void)
         TEST_CASE(a_device_chosen_during_a_restart_connects_once_the_module_is_ready),
         TEST_CASE(leaving_the_screen_during_a_restart_drops_the_search),
         TEST_CASE(turning_bluetooth_off_during_a_restart_keeps_it_off),
+        TEST_CASE(powering_off_for_usb_cancels_a_pending_scan_restart),
         TEST_CASE(connecting_saves_the_device_and_says_so),
         TEST_CASE(playing_with_nothing_plugged_in_streams),
         TEST_CASE(headphones_take_the_sound_back),

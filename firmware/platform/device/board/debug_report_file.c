@@ -86,8 +86,8 @@ static DebugReportUsbWords usb_words_now(void)
 static uint64_t wide_clock_us(uint32_t uptime_ms, uint32_t low_us)
 {
     uint64_t base = (uint64_t)uptime_ms * MICROSECONDS_PER_MILLISECOND;
-    int64_t offset = (int32_t)(low_us - (uint32_t)base);
-    return offset < 0 && (uint64_t)(-offset) > base ? 0 : (uint64_t)((int64_t)base + offset);
+    int64_t absolute = (int64_t)base + (int32_t)(low_us - (uint32_t)base);
+    return absolute < 0 ? 0 : (uint64_t)absolute;
 }
 
 static void expand_boot_times(uint64_t *boot_us)
@@ -100,37 +100,38 @@ static void expand_boot_times(uint64_t *boot_us)
     }
 }
 
-static DebugReportInput gather(const UsbShared *shared, uint32_t reason, uint64_t *boot_us)
+static void gather(DebugReportInput *input, const UsbShared *shared, uint32_t reason,
+                   uint64_t *boot_us)
 {
     HalBattery battery = hal_power_battery();
     uint32_t uptime_ms = hal_clock_milliseconds();
     uint32_t low_us = hal_clock_microseconds();
     expand_boot_times(boot_us);
-    return (DebugReportInput){.reason = (DebugReportReason)reason,
-                              .name = FIRMWARE_NAME,
-                              .version = hal_system_version(),
-                              .uptime_ms = uptime_ms,
-                              .standby = *app_standby(),
-                              .clock_mhz = hal_system_clock_mhz(),
-                              .clock_us = wide_clock_us(uptime_ms, low_us),
-                              .idle_us = board_idle_microseconds(),
-                              .battery = battery,
-                              .power = power_now(battery.charging),
-                              .start = hal_system_start_info(),
-                              .usb = shared->last_session,
-                              .usb_words = usb_words_now(),
-                              .audio = *board_debug_audio(),
-                              .bluetooth = &hal_bluetooth_status()->link,
-                              .dac = dac_path_diagnostics(),
-                              .frames = app_debug_frames(),
-                              .loop = board_debug_loop(),
-                              .card = sd_start_log(),
-                              .script = debug_runner_script(),
-                              .interrupted_line = board_debug_interrupted_line(),
-                              .log = debug_loop_log(),
-                              .refusals = *debug_loop_refusals(),
-                              .boot_us = boot_us,
-                              .profile = board_profile()};
+    input->reason = (DebugReportReason)reason;
+    input->name = FIRMWARE_NAME;
+    input->version = hal_system_version();
+    input->uptime_ms = uptime_ms;
+    input->standby = *app_standby();
+    input->clock_mhz = hal_system_clock_mhz();
+    input->clock_us = wide_clock_us(uptime_ms, low_us);
+    input->idle_us = board_idle_microseconds();
+    input->battery = battery;
+    input->power = power_now(battery.charging);
+    input->start = hal_system_start_info();
+    input->usb = shared->last_session;
+    input->usb_words = usb_words_now();
+    input->audio = *board_debug_audio();
+    input->bluetooth = &hal_bluetooth_status()->link;
+    input->dac = dac_path_diagnostics();
+    input->frames = app_debug_frames();
+    input->loop = board_debug_loop();
+    input->card = sd_start_log();
+    input->script = debug_runner_script();
+    input->interrupted_line = board_debug_interrupted_line();
+    input->log = debug_loop_log();
+    input->refusals = *debug_loop_refusals();
+    input->boot_us = boot_us;
+    input->profile = board_profile();
 }
 
 static bool reserved(const char *path)
@@ -143,7 +144,8 @@ CORE_SEAM void debug_report_write(const UsbShared *shared, uint32_t reason)
 {
     char *text = (char *)usb_session_buffer();
     uint64_t boot_us[DEBUG_BOOT_COUNT];
-    DebugReportInput input = gather(shared, reason, boot_us);
+    DebugReportInput input;
+    gather(&input, shared, reason, boot_us);
     bool cold_start = debug_report_cold_start(&input.start, input.uptime_ms);
     DebugReportPlace place = place_for(text, cold_start);
     ReportPath path = slot_path(place.slot);

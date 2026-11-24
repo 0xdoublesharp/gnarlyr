@@ -453,24 +453,24 @@ static void put_writes(Writer *writer, const HalUsbWrites *writes)
     finish(writer);
 }
 
-static void put_usb(Writer *writer, HalUsbLast usb, bool kept_on)
+static void put_usb(Writer *writer, const HalUsbLast *usb, bool kept_on)
 {
-    bool known = usb.end != HAL_USB_END_NONE;
+    bool known = usb->end != HAL_USB_END_NONE;
     put_text(writer, "usb.sense_mode", kept_on ? "kept_on" : "normal");
-    put_text(writer, "usb.last_end", NAME_IN(USB_END_NAMES, usb.end));
-    put_known(writer, "usb.left_mounted", known, usb.left_mounted);
-    put_known(writer, "usb.internal_sectors_written", known, usb.internal_written);
-    put_known(writer, "usb.card_sectors_written", known, usb.card_written);
-    put_known(writer, "usb.writes_after_eject", known, usb.writes_after_eject);
+    put_text(writer, "usb.last_end", NAME_IN(USB_END_NAMES, usb->end));
+    put_known(writer, "usb.left_mounted", known, usb->left_mounted);
+    put_known(writer, "usb.internal_sectors_written", known, usb->internal_written);
+    put_known(writer, "usb.card_sectors_written", known, usb->card_written);
+    put_known(writer, "usb.writes_after_eject", known, usb->writes_after_eject);
     if (known) {
-        put_writes(writer, &usb.writes);
+        put_writes(writer, &usb->writes);
     }
-    if (usb.speed_fallback != 0) {
+    if (usb->speed_fallback != 0) {
         begin(writer, "usb.speed_fallback");
-        string_builder_append(&writer->text, NAME_IN(SPEED_FALLBACK_NAMES, usb.speed_fallback));
+        string_builder_append(&writer->text, NAME_IN(SPEED_FALLBACK_NAMES, usb->speed_fallback));
         string_builder_append(&writer->text, " commands=");
-        string_builder_append_unsigned(&writer->text, usb.fallback_commands);
-        put_setup_trace(&writer->text, &usb.fallback_setups);
+        string_builder_append_unsigned(&writer->text, usb->fallback_commands);
+        put_setup_trace(&writer->text, &usb->fallback_setups);
         finish(writer);
     }
 }
@@ -1171,7 +1171,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_power(&writer, input);
     put_start(&writer, &input->start);
     put_boot(&writer, input->boot_us);
-    put_usb(&writer, input->usb, input->power.usb_kept_on);
+    put_usb(&writer, &input->usb, input->power.usb_kept_on);
     put_usb_words(&writer, &input->usb_words);
     put_loop(&writer, input);
     put_card(&writer, &input->card);

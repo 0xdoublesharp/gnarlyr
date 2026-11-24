@@ -282,6 +282,10 @@ if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(${ECHO_DEVICE_LOGIC_LTO_SOURCES}
         PROPERTIES COMPILE_OPTIONS "-Os;-flto;-ffat-lto-objects;-g"
     )
+    if(NOT ECHO_RELEASE)
+        set_source_files_properties(debug_report.c
+            PROPERTIES COMPILE_OPTIONS "-Os;-fno-inline-functions-called-once")
+    endif()
 endif()
 target_include_directories(echo_device_logic PUBLIC include)
 target_link_libraries(echo_device_logic

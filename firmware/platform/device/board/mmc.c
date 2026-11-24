@@ -33,7 +33,7 @@ static uint32_t read_register(const MmcHost *host, uint32_t offset)
     return register_read(host->base + offset);
 }
 
-void mmc_note_failure(const MmcHost *host, MmcStep step)
+CORE_COLD void mmc_note_failure(const MmcHost *host, MmcStep step)
 {
     last_failure = (MmcFailure){step, read_register(host, MMC_RINTSTS),
                                 read_register(host, MMC_STATUS), last_failure.count + 1};
@@ -49,7 +49,8 @@ static void write_register(const MmcHost *host, uint32_t offset, uint32_t value)
     register_write(host->base + offset, value);
 }
 
-static bool wait_clear(const MmcHost *host, uint32_t offset, uint32_t bits, uint32_t timeout_ms)
+__attribute__((noinline)) static bool wait_clear(const MmcHost *host, uint32_t offset,
+                                                 uint32_t bits, uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((read_register(host, offset) & bits) != 0) {
@@ -61,7 +62,8 @@ static bool wait_clear(const MmcHost *host, uint32_t offset, uint32_t bits, uint
     return true;
 }
 
-static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits, uint32_t timeout_ms)
+__attribute__((noinline)) static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits,
+                                               uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((read_register(host, offset) & bits) == 0) {
@@ -73,7 +75,7 @@ static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits, uint32
     return true;
 }
 
-static bool update_clock(const MmcHost *host)
+CORE_COLD static bool update_clock(const MmcHost *host)
 {
     write_register(host, MMC_CMD, CMD_UPDATE_CLOCK);
     return wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS);
@@ -117,7 +119,7 @@ bool mmc_wait_not_busy(const MmcHost *host)
     return wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS);
 }
 
-void mmc_set_power(const MmcHost *host, bool on)
+CORE_COLD void mmc_set_power(const MmcHost *host, bool on)
 {
     write_register(host, MMC_PWREN, on ? 1u : 0u);
 }
@@ -132,7 +134,7 @@ bool mmc_powered(const MmcHost *host)
     return (read_register(host, MMC_PWREN) & 1u) != 0;
 }
 
-void mmc_power_cycle(const MmcHost *host)
+CORE_COLD void mmc_power_cycle(const MmcHost *host)
 {
     write_register(host, MMC_PWREN, 0);
     board_delay_us(POWER_OFF_US);
@@ -140,13 +142,13 @@ void mmc_power_cycle(const MmcHost *host)
     board_delay_us(POWER_ON_US);
 }
 
-void mmc_set_bus_width(const MmcHost *host, uint8_t bits)
+CORE_COLD void mmc_set_bus_width(const MmcHost *host, uint8_t bits)
 {
     uint32_t type = bits == 8 ? CTYPE_8_BIT : bits == 4 ? CTYPE_4_BIT : 0;
     write_register(host, MMC_CTYPE, type);
 }
 
-void mmc_stop_clock(const MmcHost *host)
+CORE_COLD void mmc_stop_clock(const MmcHost *host)
 {
     write_register(host, MMC_CLKENA, 0);
     update_clock(host);
@@ -167,10 +169,10 @@ static uint32_t command_flags(SdCommand command)
     return flags;
 }
 
-static bool command_failed(SdCommand command, uint32_t status)
+static bool command_failed(uint32_t flags, uint32_t status)
 {
     uint32_t errors = INT_RESPONSE_ERROR | INT_RESPONSE_TIMEOUT | INT_HARDWARE_LOCKED;
-    if ((command_flags(command) & CMD_CHECK_CRC) != 0) {
+    if ((flags & CMD_CHECK_CRC) != 0) {
         errors |= INT_RESPONSE_CRC;
     }
     return (status & errors) != 0;
@@ -190,10 +192,11 @@ bool mmc_command(const MmcHost *host, SdCommand command, uint32_t response[4])
     }
     write_register(host, MMC_RINTSTS, INT_ALL);
     write_register(host, MMC_CMDARG, command.argument);
-    write_register(host, MMC_CMD, CMD_BASE | command_flags(command) | command.index);
+    uint32_t flags = command_flags(command);
+    write_register(host, MMC_CMD, CMD_BASE | flags | command.index);
     if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) ||
         !wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) ||
-        command_failed(command, read_register(host, MMC_RINTSTS))) {
+        command_failed(flags, read_register(host, MMC_RINTSTS))) {
         return false;
     }
     read_response(host, response);
@@ -215,6 +218,7 @@ static bool prepare_data(const MmcHost *host)
 
 static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
 {
+    uint32_t fifo = host->base + MMC_FIFO;
     uint32_t received = 0;
     uint32_t start = hal_clock_milliseconds();
     while (received < total) {
@@ -227,14 +231,16 @@ static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
         if (count == 0) {
             board_audio_stream_service();
         }
-        while (count-- > 0 && received < total) {
-            words[received++] = read_register(host, MMC_FIFO);
+        uint32_t left = total - received;
+        uint32_t end = received + (count < left ? count : left);
+        for (; received < end; received++) {
+            words[received] = register_read(fifo);
         }
     }
     return true;
 }
 
-static bool failed(const MmcHost *host, MmcStep step);
+static CORE_COLD bool failed(const MmcHost *host, MmcStep step);
 
 static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t bytes,
                       uint32_t *words)
@@ -280,10 +286,9 @@ static bool stop_transmission(const MmcHost *host, uint32_t argument)
     write_register(host, MMC_CMD,
                    CMD_BASE | CMD_STOP_ABORT | CMD_RESPONSE | CMD_CHECK_CRC |
                        CMD_STOP_TRANSMISSION);
-    SdCommand stop = {CMD_STOP_TRANSMISSION, argument, SD_RESPONSE_SHORT_BUSY, false};
     if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) ||
         !wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) ||
-        command_failed(stop, read_register(host, MMC_RINTSTS))) {
+        command_failed(CMD_CHECK_CRC, read_register(host, MMC_RINTSTS))) {
         return failed(host, MMC_STEP_STOP);
     }
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
@@ -305,6 +310,7 @@ bool mmc_read_blocks(const MmcHost *host, uint32_t address, uint32_t count, uint
 
 static bool fill_fifo(const MmcHost *host, const uint32_t *words, uint32_t total)
 {
+    uint32_t fifo = host->base + MMC_FIFO;
     uint32_t sent = 0;
     uint32_t start = hal_clock_milliseconds();
     while (sent < total) {
@@ -319,8 +325,10 @@ static bool fill_fifo(const MmcHost *host, const uint32_t *words, uint32_t total
         if (space > 0) {
             start = hal_clock_milliseconds();
         }
-        while (space-- > 0 && sent < total) {
-            write_register(host, MMC_FIFO, words[sent++]);
+        uint32_t left = total - sent;
+        uint32_t end = sent + (space < left ? space : left);
+        for (; sent < end; sent++) {
+            register_write(fifo, words[sent]);
         }
     }
     return true;

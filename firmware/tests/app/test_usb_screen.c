@@ -354,6 +354,28 @@ static void check_texts(const Variant *variant, AppUsbStatus status)
     }
 }
 
+static void wrapped_storage_footer_rows_start_at_the_left_margin(void)
+{
+    Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_LANDSCAPE, TEXT_SIZE_LARGE);
+    UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
+    scene.hints = STORAGE_PAGES[USB_PAGE_OVERVIEW];
+    scene.hint_count = 3;
+    AppUsbStatus status = storage_status(STR_USB_EJECT_DRIVES);
+    status.scene = &scene;
+    Canvas canvas = canvas_for(&theme);
+    FooterHints hints = {.items = scene.hints, .count = scene.hint_count};
+    int pad = theme.metrics.padding;
+    int width = theme.metrics.screen_width - 2 * pad;
+    CHECK_EQUAL(2, footer_hints_lines(&theme, hints, width));
+    usb_screen_draw(&canvas, &theme, (HalBattery){0}, status);
+    int line = font_line_height(theme.fonts.small) + FOOTER_LINE_SPACE;
+    int top = theme.metrics.screen_height - 2 * line + FOOTER_LINE_SPACE / 2;
+    Color outline =
+        color_blend(theme.colors.header_background, theme.colors.header_text, FOOTER_VERB_ALPHA);
+    CHECK_EQUAL(outline, canvas_pixel_at(&canvas, pad, top));
+    CHECK_EQUAL(outline, canvas_pixel_at(&canvas, pad, top + line));
+}
+
 static void the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts(void)
 {
     for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
@@ -1751,6 +1773,7 @@ int main(void)
         TEST_CASE(the_translated_usb_titles_fit_the_portrait_header_with_the_mark),
 #endif
         TEST_CASE(the_usb_header_leads_the_title_with_the_mark_in_all_six_layouts),
+        TEST_CASE(wrapped_storage_footer_rows_start_at_the_left_margin),
         TEST_CASE(connecting_uses_the_overlay_and_a_cleared_renderer_the_resident_fallback),
         TEST_CASE(partial_redraws_are_split_into_bounded_horizontal_bands),
         TEST_CASE(a_pack_closed_while_bands_draw_repaints_the_whole_screen_at_once),

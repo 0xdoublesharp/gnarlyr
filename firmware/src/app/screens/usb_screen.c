@@ -115,7 +115,7 @@ static FooterHints footer_of(const UsbScene *scene)
 {
     return (FooterHints){.items = scene->hints,
                          .count = scene->hint_count,
-                         .align = FOOTER_ALIGN_END,
+                         .align = FOOTER_ALIGN_START,
                          .service = scene->service};
 }
 
@@ -184,39 +184,28 @@ static Rect figure_in(Rect art)
                   height};
 }
 
-static UsbScreenLayout portrait_layout(const Theme *theme, UsbScreenLayout layout)
+static void position_content(const Theme *theme, UsbScreenLayout *layout)
 {
     int pad = theme->metrics.padding;
-    int top = layout.header.y + layout.header.height + pad;
-    int height = layout.header.width * ART_TALL_PARTS / ART_WIDE_PARTS;
-    int bottom = layout.detail.y - pad;
-    Rect art = {layout.header.x, top, layout.header.width, height};
-    layout.art = art;
-    layout.figure = figure_in(art);
-    layout.meter = meter_in(theme, art);
-    int below = top + height + pad;
+    Rect header = layout->header;
+    int top = header.y + header.height + pad;
+    int bottom = layout->detail.y - pad;
     int state = STATE_LINES * font_line_height(theme->fonts.title);
-    layout.state = (Rect){layout.header.x, below, layout.header.width, state};
-    layout.lines = (Rect){layout.header.x, below + state + pad / 2, layout.header.width,
-                          bottom - below - state - pad / 2};
-    return layout;
-}
-
-static UsbScreenLayout landscape_layout(const Theme *theme, UsbScreenLayout layout)
-{
-    int pad = theme->metrics.padding;
-    int top = layout.header.y + layout.header.height + pad;
-    int bottom = layout.detail.y - pad;
-    int column = layout.header.width * ART_COLUMN_FIFTHS / FIFTHS;
-    layout.art = (Rect){layout.header.x, top, column, bottom - top};
-    layout.figure = figure_in(layout.art);
-    layout.meter = meter_in(theme, layout.art);
-    int right = layout.header.x + column + pad;
-    int width = layout.header.x + layout.header.width - right;
-    int state = STATE_LINES * font_line_height(theme->fonts.title);
-    layout.state = (Rect){right, top, width, state};
-    layout.lines = (Rect){right, top + state + pad / 2, width, bottom - top - state - pad / 2};
-    return layout;
+    if (theme_is_portrait(theme)) {
+        int height = header.width * ART_TALL_PARTS / ART_WIDE_PARTS;
+        layout->art = (Rect){header.x, top, header.width, height};
+        layout->state = (Rect){header.x, top + height + pad, header.width, state};
+    } else {
+        int width = header.width * ART_COLUMN_FIFTHS / FIFTHS;
+        layout->art = (Rect){header.x, top, width, bottom - top};
+        layout->state = (Rect){header.x + width + pad, top, header.width - width - pad, state};
+    }
+    Rect lines = layout->state;
+    lines.y += state + pad / 2;
+    lines.height = bottom - lines.y;
+    layout->lines = lines;
+    layout->figure = figure_in(layout->art);
+    layout->meter = meter_in(theme, layout->art);
 }
 
 int usb_screen_header_height(const Theme *theme)
@@ -234,8 +223,8 @@ UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
         .detail = detail_area(theme, status.detail, footer, scene)};
-    return theme_is_portrait(theme) ? portrait_layout(theme, layout)
-                                    : landscape_layout(theme, layout);
+    position_content(theme, &layout);
+    return layout;
 }
 
 Color usb_screen_tint(Color color, Color toward)

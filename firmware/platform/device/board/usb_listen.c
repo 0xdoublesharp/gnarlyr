@@ -33,31 +33,28 @@ UsbShared *usb_session_shared(void)
     return &shared;
 }
 
-CORE_SEAM bool usb_session_listen(void)
+CORE_SEAM bool usb_session_listen(bool storage)
 {
-    shared.report = (UsbReport){.internal_ready = emmc_start(&shared.internal)};
-    shared.high_speed_failed = false;
+    if (storage) {
+        shared.report = (UsbReport){.internal_ready = emmc_start(&shared.internal)};
+        shared.high_speed_failed = false;
+    }
     shared.link = (UsbLink){.high_speed_allowed = true};
     usb_power_up();
-    shared.report.after_power_up = usb_probe();
+    if (storage) {
+        shared.report.after_power_up = usb_probe();
+    }
     bool connected = usb_connect(&shared.link);
-    shared.report.connect_step = shared.link.step;
+    if (storage) {
+        shared.report.connect_step = shared.link.step;
+    }
     if (!connected) {
         usb_power_down();
     }
-    board_trial_snapshot(0);
-    return connected;
-}
-
-bool usb_dac_session_listen(void)
-{
-    shared.link = (UsbLink){.high_speed_allowed = true};
-    usb_power_up();
-    if (usb_connect(&shared.link)) {
-        return true;
+    if (storage) {
+        board_trial_snapshot(0);
     }
-    usb_power_down();
-    return false;
+    return connected;
 }
 
 bool usb_session_host_seen(void)
@@ -97,7 +94,6 @@ void hal_system_set_dac_volume(uint8_t level)
 void usb_session_request_reconnect(bool on)
 {
     shared.reconnect.requested = on;
-    shared.reconnect.manual = false;
     if (!on) {
         shared.reconnect.forced = false;
     }
@@ -106,22 +102,6 @@ void usb_session_request_reconnect(bool on)
 CORE_SEAM void hal_system_usb_reconnect(void)
 {
     usb_session_request_reconnect(true);
-}
-
-void hal_system_usb_connect(bool on)
-{
-    UsbReconnect *connect = &shared.reconnect;
-    if (on == connect->manual) {
-        return;
-    }
-    connect->manual = on;
-    connect->requested = on;
-    if (!on && connect->forced && !connect->in_session) {
-        connect->forced = false;
-#ifdef ECHO_DEBUG_LOOP
-        board_debug_connect_cancelled();
-#endif
-    }
 }
 
 bool usb_session_take_reconnect(void)
@@ -147,22 +127,19 @@ bool usb_session_forced(void)
 {
     const UsbReconnect *connect = &shared.reconnect;
     return connect->forced &&
-           (connect->manual ||
-            !deadline_elapsed(hal_clock_milliseconds(), connect->forced_ms, RECONNECT_WAIT_MS));
+           !deadline_elapsed(hal_clock_milliseconds(), connect->forced_ms, RECONNECT_WAIT_MS);
 }
 
 bool usb_session_reconnect_stopped(void)
 {
     bool forced = shared.reconnect.forced;
     shared.reconnect.forced = false;
-    shared.reconnect.manual = false;
     return forced;
 }
 
 void usb_session_reconnect_started(void)
 {
     shared.reconnect.requested = false;
-    shared.reconnect.manual = false;
     shared.reconnect.in_session = true;
     shared.show_modes = false;
 }

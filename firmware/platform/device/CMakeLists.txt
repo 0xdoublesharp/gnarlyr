@@ -455,6 +455,7 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
     COMPILE_OPTIONS "-fno-builtin;-fno-tree-loop-distribute-patterns;-fno-lto"
 )
 if(CMAKE_CROSSCOMPILING)
+    set_property(SOURCE board/startup.c APPEND PROPERTY COMPILE_OPTIONS -Os)
     set_source_files_properties(
         board/bluetooth.c
         board/clock_switch.c
@@ -463,7 +464,6 @@ if(CMAKE_CROSSCOMPILING)
         board/dac.c
         board/display.c
         board/emmc.c
-        board/mmc.c
         board/sd.c
         board/storage.c
         board/usb.c
@@ -507,6 +507,11 @@ if(CMAKE_CROSSCOMPILING)
         ${PROJECT_SOURCE_DIR}/src/app/missing_fonts_record.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
+    if(NOT ECHO_RELEASE)
+        set_source_files_properties(board/debug_report_file.c board/debug_session.c
+            board/panic.c board/usb_report.c
+            PROPERTIES COMPILE_OPTIONS "-Os;-fno-inline-functions-called-once")
+    endif()
 endif()
 target_link_libraries(echo_device PRIVATE echo_app echo_device_logic echo_options echo_lto)
 list(TRANSFORM ECHO_OVERLAY_IMPORTS PREPEND "-Wl,--require-defined=" OUTPUT_VARIABLE

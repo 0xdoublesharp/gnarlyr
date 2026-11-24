@@ -79,7 +79,6 @@ void debug_loop_ladder(HalKeyTransition transition, bool chord)
 
 void debug_loop_screen(const char *title, int depth)
 {
-    hal_system_usb_connect(false);
     record(DEBUG_EVENT_SCREEN, (uint32_t)depth, title);
 }
 

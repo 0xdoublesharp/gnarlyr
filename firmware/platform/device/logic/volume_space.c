@@ -4,6 +4,7 @@
 #include <stddef.h>
 
 #include "core/bytes.h"
+#include "core/seam.h"
 
 enum {
     PARTITION_START = 446 + 8,
@@ -269,7 +270,7 @@ static uint32_t exfat_free(Reader *reader, uint32_t start)
     return sectors_of(volume.clusters - used, volume.shift);
 }
 
-uint32_t volume_space_free_sectors(BlockDevice device, VolumeSpaceBuffer buffer)
+CORE_SEAM uint32_t volume_space_free_sectors(BlockDevice device, VolumeSpaceBuffer buffer)
 {
     Reader reader = {device, buffer, (const uint8_t *)buffer.words};
     uint32_t start = 0;

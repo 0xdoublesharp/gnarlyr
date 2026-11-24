@@ -192,11 +192,6 @@ bool hal_system_usb_connect_pending(void)
     return false;
 }
 
-void hal_system_usb_connect(bool on)
-{
-    (void)on;
-}
-
 uint8_t hal_system_power_levels(void)
 {
     return 0;

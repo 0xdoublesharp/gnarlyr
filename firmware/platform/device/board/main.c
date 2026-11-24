@@ -73,7 +73,6 @@ static void raise_clock_for_usb(void)
 
 static const UsbOverlayEntry *load_usb_code(void)
 {
-    app_release_audio();
     const UsbOverlayEntry *entry = board_usb_overlay_load();
     if (entry != NULL && entry->magic == USB_OVERLAY_MAGIC) {
         app_set_usb_renderer(entry->draw);
@@ -102,11 +101,10 @@ static void store_synced_clock_offset(void)
     }
 }
 
-static void run_usb_session(void)
+CORE_COLD static void run_usb_session(void)
 {
-    board_stall_pause(true);
-    raise_clock_for_usb();
     board_trial_session_starting();
+    app_release_audio();
     const UsbOverlayEntry *usb = load_usb_code();
     bool storage_changed = usb != NULL && usb->storage(usb_session_shared());
     app_set_usb_renderer(NULL);
@@ -126,34 +124,32 @@ static void run_usb_session(void)
         app_request_rescan_if_music_changed();
     }
     app_release_usb_glyphs();
-    app_resume_after_usb();
-    board_stall_pause(false);
 }
 
 CORE_COLD static void run_dac_session(void)
 {
-    board_stall_pause(true);
-    raise_clock_for_usb();
     app_release_audio();
     hal_audio_release();
-    hal_bluetooth_set_power(false);
+    app_bluetooth_off();
     const UsbOverlayEntry *usb = load_usb_code();
     if (usb != NULL) {
         usb->dac(usb_session_shared());
     }
     app_set_usb_renderer(NULL);
-    app_resume_after_usb();
-    board_stall_pause(false);
 }
 
-static void run_session(void)
+CORE_COLD static void run_session(void)
 {
     board_debug_usb_starting(dac_session);
+    board_stall_pause(true);
+    raise_clock_for_usb();
     if (dac_session) {
         run_dac_session();
     } else {
         run_usb_session();
     }
+    app_resume_after_usb();
+    board_stall_pause(false);
     board_debug_usb_ended();
     if (usb_session_shared()->show_modes) {
         app_open_usb_modes();
@@ -169,7 +165,7 @@ static void stop_listening(void)
     }
 }
 
-static void report_failed_start(void)
+CORE_COLD static void report_failed_start(void)
 {
     if (!dac_session) {
         board_stall_pause(true);
@@ -179,7 +175,7 @@ static void report_failed_start(void)
     }
 }
 
-static void start_listening(void)
+CORE_COLD static void start_listening(void)
 {
     bool requested = usb_session_connect_requested();
     if (!usb_plug_listens(usb_answer, requested)) {
@@ -191,7 +187,7 @@ static void start_listening(void)
     }
     raise_clock_for_usb();
     dac_session = usb_mode == HAL_USB_MODE_DAC;
-    bool listening = dac_session ? usb_dac_session_listen() : usb_session_listen();
+    bool listening = usb_session_listen(!dac_session);
     if (!listening) {
         report_failed_start();
         board_debug_listen_stopped();

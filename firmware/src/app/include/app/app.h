@@ -63,6 +63,7 @@ void app_resume_after_usb(void);
 void app_open_usb_modes(void);
 void app_ask_usb_mode(void);
 void app_release_audio(void);
+void app_bluetooth_off(void);
 AppDacSettings app_dac_settings(void);
 void app_remember_dac(AppDacSettings settings);
 const struct HeadphoneProfiles *app_headphone_profiles(void);

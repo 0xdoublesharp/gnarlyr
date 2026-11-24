@@ -1058,11 +1058,6 @@ void hal_system_usb_reconnect(void)
     fake.usb_reconnects++;
 }
 
-void hal_system_usb_connect(bool on)
-{
-    fake.usb_sense.connecting = on;
-}
-
 uint8_t hal_system_power_levels(void)
 {
     return (uint8_t)(fake.power_levels | (fake.supply_held_off ? HAL_PROBE_SUPPLY_OFF : 0));

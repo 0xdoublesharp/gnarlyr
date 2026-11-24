@@ -18,7 +18,7 @@ from echo_emulator.emmc import SdCard, SparseDisk
 from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.playback import ALBUM_COUNT, Rig
 from echo_emulator.real_volume import real_volume
-from echo_emulator.usb_storage_host import ScsiHost, StorageHost
+from echo_emulator.usb_storage_host import ScsiHost, StorageHost, command_block
 from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_MSP, UC_ARM_REG_PC, UC_ARM_REG_R0
 from usb_audio_host import UsbAudioHost
 
@@ -322,11 +322,22 @@ class EchoImageTest(EchoImageHarness):
         reads_before = len(reads)
         status, residue = scsi.write(CARD_LUN, 1, bytes(updated))
         self.assertEqual((status, residue), (0, 0))
+        machine.run(until_ms=machine.milliseconds() + 2300)
+        self.assertEqual(len(reads), reads_before)
         reason = machine.run(
             until=lambda: len(reads) > reads_before and expected_free in reads[reads_before:]
             and len(redraws) > draws_before,
             until_ms=machine.milliseconds() + 5000)
         self.assertEqual(reason, "condition met")
+
+        reads_before = len(reads)
+        self.assertEqual(scsi.write(CARD_LUN, 1, fsinfo), (0, 0))
+        scsi.tag += 1
+        host.send(command_block(scsi.tag, 0, False, CARD_LUN, bytes([0x1B, 0, 0, 0, 2, 0])))
+        self.assertEqual(scsi.status(), (0, 0))
+        self.assertEqual(scsi.test_unit_ready(CARD_LUN)[0], 1)
+        machine.run(until_ms=machine.milliseconds() + 3500)
+        self.assertEqual(len(reads), reads_before)
         self.assert_healthy(session)
 
     def test_usb_audio_stalled_deferred_setup_drops_control_data(self):

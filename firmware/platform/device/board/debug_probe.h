@@ -57,7 +57,6 @@ bool board_debug_take_reconnect(void);
 bool board_debug_usb_forced(void);
 void board_debug_listen_stopped(void);
 DebugReportLoop board_debug_loop(void);
-void board_debug_connect_cancelled(void);
 void board_debug_usb_starting(bool dac);
 void board_debug_usb_ended(void);
 const DebugReportAudio *board_debug_audio(void);
