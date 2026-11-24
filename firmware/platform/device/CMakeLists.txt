@@ -456,12 +456,18 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
 )
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
+        board/audio.c
+        board/audio_dsp.c
+        board/audio_effects.c
+        board/audio_process.c
         board/bluetooth.c
+        board/clock.c
         board/clock_switch.c
         board/cru.c
         board/core1.c
         board/dac.c
         board/display.c
+        board/dmac.c
         board/emmc.c
         board/sd.c
         board/storage.c
@@ -477,6 +483,7 @@ if(CMAKE_CROSSCOMPILING)
         board/extension.c
         board/glyphs.c
         board/high_ram.c
+        board/input.c
         board/internal_volume.c
         board/jack.c
         board/language.c
@@ -506,6 +513,13 @@ if(CMAKE_CROSSCOMPILING)
         ${PROJECT_SOURCE_DIR}/src/app/missing_fonts_record.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
+    set_source_files_properties(
+        logic/usb_audio_descriptors.c
+        logic/usb_audio_hid.c
+        logic/usb_audio_sink.c
+        TARGET_DIRECTORY echo_device_logic
+        PROPERTIES COMPILE_OPTIONS -Os
+    )
     if(NOT ECHO_RELEASE)
         set_source_files_properties(board/debug_report_file.c board/debug_session.c
             board/panic.c board/usb_report.c
@@ -523,7 +537,7 @@ if(NOT ECHO_RELEASE)
         -Wl,--defsym=device_profile_bucket_shift=${ECHO_PROFILE_BUCKET_SHIFT})
 endif()
 target_link_options(echo_device PRIVATE
-    -flto -flto-partition=one
+    -Os -flto -flto-partition=one
     ${ECHO_OVERLAY_IMPORT_OPTIONS}
     ${ECHO_EMULATOR_ENTRY_OPTIONS}
     -T${ECHO_DEVICE_LINKER_SCRIPT}
@@ -595,6 +609,8 @@ add_executable(echo_usb_overlay
     board/usb_port.c
     board/usb_session.c
 )
+set_source_files_properties(board/usb_card.c board/usb_port.c
+    ${PROJECT_SOURCE_DIR}/src/gfx/text_style.c PROPERTIES COMPILE_OPTIONS -Os)
 if(NOT ECHO_RELEASE)
     target_sources(echo_usb_overlay PRIVATE board/debug_report_file.c board/debug_script_file.c
         board/profiler_prepare.c
@@ -619,7 +635,6 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
-        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_span.c
         ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
         ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
@@ -631,6 +646,8 @@ if(NOT ECHO_RELEASE)
         logic/slot_copy.c
         logic/updater_install.c
         PROPERTIES COMPILE_OPTIONS -Os)
+    set_source_files_properties(${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
+        PROPERTIES COMPILE_OPTIONS "-Os;-fno-inline-functions-called-once")
     if(ECHO_USB_SCREEN_CAPTURES)
         target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)
     endif()
