@@ -105,6 +105,67 @@ else()
     message(STATUS "clang-format not found: the format test is skipped")
 endif()
 
+function(echo_add_image_test scenario name cost base_timeout)
+    set(scenario_args)
+    set(selectors)
+    foreach(case_name IN LISTS ARGN)
+        list(APPEND selectors EchoImageTest.${case_name})
+        if(case_name STREQUAL "test_integer_tempo_matches_native_pcm_in_the_processing_slot")
+            list(APPEND scenario_args --tempo-tool $<TARGET_FILE:audio_tempo_tool>)
+        endif()
+    endforeach()
+    list(LENGTH selectors count)
+    if(count GREATER 1)
+        list(APPEND scenario_args --reuse-boots)
+    endif()
+    echo_emulator_timeout(timeout ${base_timeout})
+    add_test(NAME ${name}
+        COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${scenario}
+            --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
+            --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
+            --usb-overlay-elf
+            ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
+            ${scenario_args} ${selectors}
+    )
+    set_tests_properties(${name} PROPERTIES
+        FIXTURES_REQUIRED device_image
+        SKIP_RETURN_CODE 77
+        LABELS echo_image
+        PROCESSORS 1
+        COST ${cost}
+        TIMEOUT ${timeout}
+    )
+endfunction()
+
+function(echo_add_image_batches scenario)
+    list(LENGTH ARGN count)
+    if(count EQUAL 0)
+        return()
+    endif()
+    if(count EQUAL 1)
+        echo_add_image_test("${scenario}" device_image_boot_${ARGN} 100 900 ${ARGN})
+        return()
+    endif()
+    get_filename_component(scenario_name "${scenario}" NAME_WE)
+    set(batch_limit 10)
+    if(scenario_name MATCHES "^test_(19_core_load|21_bluetooth|22_meter_styles|28_usb_audio|34_gestures)$")
+        set(batch_limit 4)
+    endif()
+    math(EXPR batches "(${count} + ${batch_limit} - 1) / ${batch_limit}")
+    foreach(batch RANGE 1 ${batches})
+        math(EXPR offset "(${batch} - 1) * ${count} / ${batches}")
+        math(EXPR length "${batch} * ${count} / ${batches} - ${offset}")
+        list(SUBLIST ARGN ${offset} ${length} cases)
+        math(EXPR timeout "900 * ${length}")
+        math(EXPR cost "100 * ${length}")
+        if(cost GREATER_EQUAL 1000)
+            set(cost 900)
+        endif()
+        echo_add_image_test("${scenario}" device_image_boot_${scenario_name}_batch_${batch}
+            ${cost} ${timeout} ${cases})
+    endforeach()
+endfunction()
+
 find_program(ARM_GCC arm-none-eabi-gcc)
 if(ARM_GCC)
     set(target_audit_definitions --define ECHO_FONTS_PACKED --define ECHO_DEBUG_LOOP)
@@ -157,39 +218,27 @@ if(ARM_GCC)
         foreach(echo_image_tests IN LISTS echo_image_scenarios)
             set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${echo_image_tests})
             file(STRINGS ${echo_image_tests} echo_image_cases REGEX "^    def test_")
+            set(batch_cases)
             foreach(case_line IN LISTS echo_image_cases)
                 string(REGEX REPLACE "^    def (test_[A-Za-z0-9_]+).*" "\\1" case_name "${case_line}")
                 set(test_name device_image_boot_${case_name})
-                set(scenario_args)
-                if(case_name STREQUAL "test_integer_tempo_matches_native_pcm_in_the_processing_slot")
-                    list(APPEND scenario_args --tempo-tool $<TARGET_FILE:audio_tempo_tool>)
-                endif()
-                add_test(NAME ${test_name}
-                    COMMAND ${PROJECT_SOURCE_DIR}/.venv/bin/python ${echo_image_tests}
-                        --image ${PROJECT_SOURCE_DIR}/build/device/${FIRMWARE_UPDATE_FILE}
-                        --elf ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_device.elf
-                        --usb-overlay-elf
-                        ${PROJECT_SOURCE_DIR}/build/device/platform/device/echo_usb_overlay.elf
-                        ${scenario_args} EchoImageTest.${case_name}
-                )
-                set(echo_test_cost 100)
-                if(case_name MATCHES "^test_(dsd128|opus_2_5ms)_resume_at_[0-9]+_ms_in_core_1s_load_window_stays_fed$"
+                if(case_name STREQUAL "test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns")
+                    echo_add_image_test("${echo_image_tests}" ${test_name} 1000 1500 ${case_name})
+                elseif(case_name MATCHES "^test_(dsd128|opus_2_5ms)_resume_at_[0-9]+_ms_in_core_1s_load_window_stays_fed$"
                         OR case_name MATCHES "^test_(192|176)_khz_small_block_flac_stays_fed_at_start_phases_"
-                        OR case_name STREQUAL "test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns"
                         OR case_name STREQUAL "test_playback_resumed_with_the_screen_off_after_a_pause_stays_fed"
                         OR case_name STREQUAL "test_opus_started_after_the_screen_timeout_stays_fed_after_the_screen_wakes"
-                        OR case_name STREQUAL "test_battery_playback_matrix_has_no_underruns")
-                    set(echo_test_cost 1000)
+                        OR case_name STREQUAL "test_battery_playback_matrix_has_no_underruns"
+                        OR case_name STREQUAL "test_usb_audio_streams_192000_asynchronous_bit_exact")
+                    echo_add_image_test("${echo_image_tests}" ${test_name} 1000 900 ${case_name})
+                elseif(case_name STREQUAL "test_normal_boot_reaches_the_home_screen_using_only_the_user_volume"
+                        OR case_name STREQUAL "test_a_damaged_module_in_slot_1_is_replaced_by_the_copy_in_slot_2")
+                    echo_add_image_test("${echo_image_tests}" ${test_name} 100 900 ${case_name})
+                else()
+                    list(APPEND batch_cases ${case_name})
                 endif()
-                set_tests_properties(${test_name} PROPERTIES
-                    FIXTURES_REQUIRED device_image
-                    SKIP_RETURN_CODE 77
-                    LABELS echo_image
-                    PROCESSORS 1
-                    COST ${echo_test_cost}
-                    TIMEOUT ${echo_scenario_timeout}
-                )
             endforeach()
+            echo_add_image_batches("${echo_image_tests}" ${batch_cases})
         endforeach()
         foreach(mode IN ITEMS native python)
             set(test_name emulator_snapshot_parity_${mode})
@@ -216,11 +265,6 @@ if(ARM_GCC)
                 TIMEOUT ${echo_scenario_timeout}
             )
         endforeach()
-        echo_emulator_timeout(echo_parametric_timeout 1500)
-        set_tests_properties(
-            device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns
-            PROPERTIES TIMEOUT ${echo_parametric_timeout}
-        )
         echo_emulator_timeout_hundredths(echo_timeout_hundredths)
         add_test(NAME emulator_timeouts_follow_the_scale
             COMMAND ${CMAKE_COMMAND} -DMODE=registered -DHUNDREDTHS=${echo_timeout_hundredths}

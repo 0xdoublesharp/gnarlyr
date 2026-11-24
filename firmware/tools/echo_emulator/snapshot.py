@@ -98,6 +98,9 @@ class _EngineState:
 
     def validate(self):
         uc = self.uc
+        native = self.native.engine if self.native is not None else None
+        if not uc._Uc__finalizer.alive or getattr(uc, "_native_engine", None) is not native:
+            raise ValueError("the Unicorn engine registered at capture has changed")
         if any(uc._callbacks.get(handle) is not cb for handle, cb in self.hooks.items()):
             raise ValueError("a Unicorn hook registered at capture has been removed")
         if any(uc._mmio_callbacks.get(region) is not cb for region, cb in self.mmio.items()):

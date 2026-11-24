@@ -12,7 +12,7 @@ ALBUM_COUNT = 2
 
 class Rig:
     def __init__(self, session_module, image, elf, usb_overlay_elf=None, volume=None,
-                 module_elfs=(), prepare=None):
+                 module_elfs=(), prepare=None, *, boot=True):
         volume = volume or real_volume(playable=True, album_count=ALBUM_COUNT)
         self.session = session_module.Session(image, elf, usb_overlay_elf=usb_overlay_elf,
                                               volume=volume, module_elfs=module_elfs)
@@ -21,6 +21,10 @@ class Rig:
         self.steps = self.machine.trace("app_step")
         if prepare is not None:
             prepare(self.machine)
+        if boot:
+            self.boot()
+
+    def boot(self):
         self.session.run_to_first_frame()
         self.session.run_to_home_screen()
         self.settle(1000)

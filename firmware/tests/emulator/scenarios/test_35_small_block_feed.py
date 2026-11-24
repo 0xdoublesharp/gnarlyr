@@ -163,11 +163,7 @@ def position_frames(drawn):
 
 class EchoImageTest(EchoImageHarness):
     def boot_feed_rig(self, case):
-        name, data = encoded(case)
-        volume = Fat32Volume()
-        volume.add_file(name, data)
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
-                  module_elfs=self.module_elfs)
+        rig = self.playback_rig(files=(encoded(case),))
         DecoderLoad(rig.audio, self.elf.parent)
         meter = PowerMeter(rig.machine)
         frames = []
