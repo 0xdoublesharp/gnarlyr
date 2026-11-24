@@ -314,8 +314,9 @@ FooterHints parametric_screen_hints(bool adjusting)
                                             {FOOTER_KEY_PLAY, STR_HINT_KEEP},
                                             {FOOTER_KEY_BACK, STR_CANCEL}};
     static const FooterHint BROWSE_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_ADJUST}};
-    return (FooterHints){adjusting ? EDIT_HINTS : BROWSE_HINTS, (uint8_t)(adjusting ? 3 : 1),
-                         FOOTER_ALIGN_END};
+    return (FooterHints){.items = adjusting ? EDIT_HINTS : BROWSE_HINTS,
+                         .count = (uint8_t)(adjusting ? 3 : 1),
+                         .align = FOOTER_ALIGN_END};
 }
 
 static void draw(void *context, Canvas *canvas)

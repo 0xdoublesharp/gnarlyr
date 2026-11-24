@@ -569,7 +569,8 @@ static void all_rows_fit_every_theme_orientation_and_text_size(void)
                 default_theme_set_appearance(&theme, (AppearanceTheme)appearance);
                 panel.screen.enter(&panel, 100);
                 CHECK(panel.list.visible_rows > 0);
-                FooterHints footer = {QUICK_SETTINGS_HINTS, 2, FOOTER_ALIGN_END};
+                FooterHints footer = {
+                    .items = QUICK_SETTINGS_HINTS, .count = 2, .align = FOOTER_ALIGN_END};
                 CHECK_EQUAL(theme_is_portrait(&theme) ? 48 : 24,
                             footer_hints_height(&theme, footer));
                 for (int row = 0; row < panel.model.count(&panel); row++) {

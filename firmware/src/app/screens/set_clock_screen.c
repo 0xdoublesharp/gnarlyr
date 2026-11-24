@@ -175,7 +175,8 @@ static const FooterHint SET_CLOCK_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHANGE},
                                              {FOOTER_KEY_PLAY, STR_HINT_SAVE},
                                              {FOOTER_KEY_MENU, STR_HINT_NEXT},
                                              {FOOTER_KEY_BACK, STR_CANCEL}};
-static const FooterHints SET_CLOCK_FOOTER = {SET_CLOCK_HINTS, 4, FOOTER_ALIGN_END};
+static const FooterHints SET_CLOCK_FOOTER = {
+    .items = SET_CLOCK_HINTS, .count = 4, .align = FOOTER_ALIGN_END};
 
 static void draw(void *context, Canvas *canvas)
 {

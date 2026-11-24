@@ -1351,6 +1351,128 @@ static void count_service(void)
     registered_draws++;
 }
 
+static int draw_dac_band(const Theme *theme, AppUsbStatus status, Rect band)
+{
+    Canvas canvas = canvas_for(theme);
+    Canvas clipped = canvas_clipped(&canvas, band);
+    text_spy_reset();
+    registered_draws = 0;
+    usb_screen_draw(&clipped, theme, (HalBattery){.known = true, .percent = 64}, status);
+    return registered_draws;
+}
+
+static void check_rect(Rect expected, Rect actual)
+{
+    CHECK_EQUAL(expected.x, actual.x);
+    CHECK_EQUAL(expected.y, actual.y);
+    CHECK_EQUAL(expected.width, actual.width);
+    CHECK_EQUAL(expected.height, actual.height);
+}
+
+static void meter_deltas_cover_only_the_segments_that_change(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    const Font *font = theme.fonts.small;
+    int left = text_width(font, i18n_text(STR_USB_DAC_LEFT));
+    int right = text_width(font, i18n_text(STR_USB_DAC_RIGHT));
+    int gap = theme.metrics.padding / 2;
+    int lead = (left > right ? left : right) + gap;
+    UsbScreenLayout layout = {.meter = {25, 40, lead + 63, 30 + gap}};
+    Rect right_bar = usb_screen_meter_bar(&theme, &layout, 1);
+    Rect expected = {right_bar.x + lead + 8, right_bar.y, 10, 15};
+    check_rect(expected, usb_screen_meter_change(&theme, &layout, (UsbMeterDelta){1, 26, 77}));
+    check_rect(expected, usb_screen_meter_change(&theme, &layout, (UsbMeterDelta){1, 77, 26}));
+    check_rect((Rect){0}, usb_screen_meter_change(&theme, &layout, (UsbMeterDelta){0, 0, 25}));
+    layout.meter.width = lead + 5;
+    check_rect((Rect){0}, usb_screen_meter_change(&theme, &layout, (UsbMeterDelta){0, 0, 255}));
+}
+
+static void check_meter_redraw(const Theme *theme, AppUsbStatus status, UsbMeterDelta delta)
+{
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    Rect dirty = usb_screen_meter_change(theme, &layout, delta);
+    CHECK(!rect_is_empty(dirty));
+    for (int row = 0; row < dirty.height; row++) {
+        Rect band = {dirty.x, dirty.y + row, dirty.width, 1};
+        int calls = draw_dac_band(theme, status, band);
+        CHECK(calls >= 5);
+        CHECK_EQUAL(0, text_spy_count());
+    }
+    memcpy(before, pixels, sizeof pixels);
+    draw_dac_band(theme, status,
+                  (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height});
+    CHECK(!changed(theme));
+}
+
+static void a_dirty_meter_redraw_matches_a_full_frame(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        Theme theme = medium(orientation);
+        UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+        scene.high_speed = true;
+        scene.service = count_service;
+        AppUsbStatus status = {.view = APP_USB_DAC, .scene = &scene};
+        Rect full = {0, 0, theme.metrics.screen_width, theme.metrics.screen_height};
+        draw_dac_band(&theme, status, full);
+        UsbMeterDelta rising = {0, scene.dac.level[0], 217};
+        scene.dac.level[rising.side] = rising.after;
+        check_meter_redraw(&theme, status, rising);
+        UsbMeterDelta falling = {1, scene.dac.level[1], 10};
+        scene.dac.level[falling.side] = falling.after;
+        check_meter_redraw(&theme, status, falling);
+    }
+}
+
+static void check_rows_redraw(const Theme *theme, UsbScene scene)
+{
+    AppUsbStatus status = with_page_hint(theme, (AppUsbStatus){.view = APP_USB_DAC}, &scene);
+    UsbScreenLayout layout = usb_screen_layout(theme, status);
+    Rect full = {0, 0, theme->metrics.screen_width, theme->metrics.screen_height};
+    Rect rows = usb_screen_dac_rows_area(theme, &layout, &scene);
+    CHECK_EQUAL(layout.lines.x, rows.x);
+    CHECK_EQUAL(layout.lines.width, rows.width);
+    CHECK_EQUAL(layout.lines.y + layout.lines.height, rows.y + rows.height);
+    CHECK(rows.y > layout.state.y + font_line_height(theme->fonts.title));
+    draw_dac_band(theme, status, full);
+    scene.dac.volume = 71;
+    draw_dac_band(theme, status, rows);
+    CHECK(!saw(i18n_text(STR_PLAYING)));
+    memcpy(before, pixels, sizeof pixels);
+    draw_dac_band(theme, status, full);
+    CHECK(!changed(theme));
+}
+
+static void dac_rows_match_the_overview_in_each_layout(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(APPEARANCE_GRAPHITE, orientation, size);
+            UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+            check_rows_redraw(&theme, scene);
+            scene.dac.bits = 0;
+            check_rows_redraw(&theme, scene);
+        }
+    }
+}
+
+static void a_dac_band_draws_the_state_only_when_visible(void)
+{
+    Theme theme = medium(ORIENTATION_LANDSCAPE);
+    UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+    scene.high_speed = true;
+    scene.service = count_service;
+    AppUsbStatus status = {.view = APP_USB_DAC, .scene = &scene};
+    UsbScreenLayout layout = usb_screen_layout(&theme, status);
+    Rect column = usb_screen_column(&layout);
+    Rect bottom = {column.x, column.y + column.height - 1, column.width, 1};
+    draw_dac_band(&theme, status, bottom);
+    CHECK(!saw(i18n_text(STR_PLAYING)));
+    int y = layout.state.y + font_line_height(theme.fonts.title) / 2;
+    int calls = draw_dac_band(&theme, status, (Rect){column.x, y, column.width, 1});
+    CHECK(saw(i18n_text(STR_PLAYING)));
+    CHECK(calls >= 8);
+}
+
 static void rendering_service_preserves_the_complete_dac_frame(void)
 {
     Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
@@ -1618,6 +1740,10 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(rendering_service_preserves_the_complete_dac_frame),
+        TEST_CASE(a_dac_band_draws_the_state_only_when_visible),
+        TEST_CASE(meter_deltas_cover_only_the_segments_that_change),
+        TEST_CASE(a_dirty_meter_redraw_matches_a_full_frame),
+        TEST_CASE(dac_rows_match_the_overview_in_each_layout),
         TEST_CASE(every_usb_state_fits_every_theme_size_and_orientation),
 #ifdef ECHO_TEST_GLYPHS
         TEST_CASE(storage_scenes_draw_only_held_glyphs_while_the_drive_is_shared),

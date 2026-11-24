@@ -253,7 +253,8 @@ static ScreenAction select_row(void *context, int index)
 
 static const FooterHint PANEL_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_CHANGE},
                                          {FOOTER_KEY_BACK, STR_HINT_CLOSE}};
-static const FooterHints PANEL_FOOTER = {PANEL_HINTS, 2, FOOTER_ALIGN_END};
+static const FooterHints PANEL_FOOTER = {
+    .items = PANEL_HINTS, .count = 2, .align = FOOTER_ALIGN_END};
 
 static Rect rows_area(const Theme *theme)
 {

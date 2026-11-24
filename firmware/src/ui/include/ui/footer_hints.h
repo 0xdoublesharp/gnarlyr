@@ -38,6 +38,7 @@ typedef struct FooterHints {
     const FooterHint *items;
     uint8_t count;
     uint8_t align;
+    void (*service)(void);
 } FooterHints;
 
 const char *footer_hints_key_name(FooterKey key);

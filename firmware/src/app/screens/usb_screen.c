@@ -66,17 +66,29 @@ void usb_screen_service(const UsbScene *scene)
     }
 }
 
-typedef struct DetailMemo {
-    const Theme *theme;
+typedef struct WrappedMemo {
+    const Font *font;
     const char *text;
     uint32_t sum;
     int width;
     int lines;
-} DetailMemo;
+} WrappedMemo;
 
-static DetailMemo detail_memo;
+typedef struct FooterMemo {
+    const Font *font;
+    const FooterHint *items;
+    int width;
+    int padding;
+    int count;
+    int band;
+    bool portrait;
+} FooterMemo;
 
-static uint32_t text_sum(const char *text)
+static WrappedMemo detail_memo;
+static WrappedMemo state_memo;
+static FooterMemo *footer_memo;
+
+uint32_t usb_screen_text_sum(const char *text)
 {
     uint32_t sum = 0;
     for (const char *cursor = text; *cursor != '\0'; cursor++) {
@@ -85,21 +97,52 @@ static uint32_t text_sum(const char *text)
     return sum;
 }
 
-static int detail_lines(const Theme *theme, const char *detail, int width)
+static int wrapped_lines(WrappedMemo *memo, const Font *font, Label label, const UsbScene *scene)
 {
-    uint32_t sum = text_sum(detail);
-    DetailMemo *memo = &detail_memo;
-    if (memo->theme != theme || memo->text != detail || memo->sum != sum || memo->width != width) {
-        *memo = (DetailMemo){theme, detail, sum, width,
-                             label_wrap_count(theme->fonts.small, detail, width)};
+    uint32_t sum = usb_screen_text_sum(label.text);
+    int width = label.area.width;
+    if (memo->font != font || memo->text != label.text || memo->sum != sum ||
+        memo->width != width) {
+        usb_screen_service(scene);
+        int lines = label_wrap_count(font, label.text, width);
+        usb_screen_service(scene);
+        *memo = (WrappedMemo){font, label.text, sum, width, lines};
     }
     return memo->lines;
 }
 
-static FooterHints footer_of(AppUsbStatus status)
+static FooterHints footer_of(const UsbScene *scene)
 {
-    const UsbScene *scene = usb_screen_scene(status);
-    return (FooterHints){scene->hints, scene->hint_count, FOOTER_ALIGN_END};
+    return (FooterHints){.items = scene->hints,
+                         .count = scene->hint_count,
+                         .align = FOOTER_ALIGN_END,
+                         .service = scene->service};
+}
+
+static int footer_height(const Theme *theme, const UsbScene *scene)
+{
+    if (scene->hint_count == 0) {
+        return 0;
+    }
+    const ThemeMetrics *metrics = &theme->metrics;
+    FooterMemo *memo = footer_memo;
+    if (memo == NULL) {
+        return footer_hints_height(theme, footer_of(scene));
+    }
+    bool portrait = theme_is_portrait(theme);
+    if (memo->font != theme->fonts.small || memo->items != scene->hints ||
+        memo->width != metrics->screen_width || memo->padding != metrics->padding ||
+        memo->count != scene->hint_count || memo->portrait != portrait) {
+        int band = footer_hints_height(theme, footer_of(scene));
+        *memo = (FooterMemo){theme->fonts.small,
+                             scene->hints,
+                             metrics->screen_width,
+                             metrics->padding,
+                             scene->hint_count,
+                             band,
+                             portrait};
+    }
+    return memo->band;
 }
 
 int usb_screen_page_kind(const UsbScene *scene, int pages)
@@ -113,11 +156,12 @@ int usb_screen_page_kind(const UsbScene *scene, int pages)
     return scene->page + 1 >= pages ? USB_PAGE_LAST : USB_PAGE_MIDDLE;
 }
 
-static Rect detail_area(const Theme *theme, const char *detail, Rect footer)
+static Rect detail_area(const Theme *theme, const char *detail, Rect footer, const UsbScene *scene)
 {
     int pad = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * pad;
-    int lines = detail == NULL ? 0 : detail_lines(theme, detail, width);
+    Label label = {{0, 0, width, 0}, detail};
+    int lines = detail == NULL ? 0 : wrapped_lines(&detail_memo, theme->fonts.small, label, scene);
     int height = lines * font_line_height(theme->fonts.small);
     int bottom = footer.height > 0 ? footer.y - pad / 2 : footer.y - pad;
     return (Rect){pad, bottom - height, width, height};
@@ -183,12 +227,13 @@ int usb_screen_header_height(const Theme *theme)
 
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status)
 {
+    const UsbScene *scene = usb_screen_scene(status);
     int pad = theme->metrics.padding;
-    int band = footer_hints_height(theme, footer_of(status));
+    int band = footer_height(theme, scene);
     Rect footer = {0, theme->metrics.screen_height - band, theme->metrics.screen_width, band};
     UsbScreenLayout layout = {
         .header = {pad, 0, theme->metrics.screen_width - 2 * pad, usb_screen_header_height(theme)},
-        .detail = detail_area(theme, status.detail, footer)};
+        .detail = detail_area(theme, status.detail, footer, scene)};
     return theme_is_portrait(theme) ? portrait_layout(theme, layout)
                                     : landscape_layout(theme, layout);
 }
@@ -355,9 +400,11 @@ static void draw_header(const UsbPainter *painter, const char *mode_title)
         status.height -= row.height;
     }
     int room = draw_battery(painter, status, !theme_is_portrait(theme));
+    usb_screen_service(painter->scene);
     SpeedTag tag = speed_tag(painter);
     int tag_x = status.x + room - tag.width - theme->metrics.padding;
     draw_tag(painter, status, tag_x, tag);
+    usb_screen_service(painter->scene);
     bool connected = linked(painter) && painter->status.view == APP_USB_STORAGE;
     const char *state = connected ? i18n_text(STR_USB_STATE_CONNECTED) : "";
     Rect words = {status.x, status.y, tag_x - status.x, status.height};
@@ -464,19 +511,27 @@ static StringId state_text(const UsbScene *scene)
 int usb_screen_draw_state(const UsbPainter *painter, const char *text)
 {
     const Theme *theme = painter->theme;
-    const Font *font = theme->fonts.title;
+    const UsbScene *scene = painter->scene;
     Rect area = painter->layout.state;
+    const Font *font = theme->fonts.title;
     int line = font_line_height(font);
     int lamp = larger(4, line / LAMP_DIVISOR);
     int indent = lamp + theme->metrics.padding / 2;
-    int width = area.width - indent;
-    int lines = smaller(STATE_LINES, label_wrap_count(font, text, width));
-    Rect words = {area.x + indent, area.y, width, lines * line};
+    Rect words = {area.x + indent, area.y, area.width - indent, 0};
+    int lines = wrapped_lines(&state_memo, font, (Label){words, text}, scene);
+    words.height = smaller(STATE_LINES, lines) * line;
+    if (painter->canvas == NULL || !usb_screen_touches(painter, area)) {
+        return words.y + words.height;
+    }
     Rect dot = {area.x, area.y + (line - lamp) / 2, lamp, lamp};
-    canvas_fill_rect(painter->canvas, dot, usb_screen_lamp_color(theme, painter->scene));
-    Color ink = warning(painter->scene) ? usb_screen_tint(theme->colors.danger, theme->colors.text)
-                                        : theme->colors.text;
-    label_draw_paragraph(painter->canvas, (TextStyle){font, ink, false}, (Label){words, text});
+    canvas_fill_rect(painter->canvas, dot, usb_screen_lamp_color(theme, scene));
+    if (usb_screen_touches(painter, words)) {
+        Color ink = warning(scene) ? usb_screen_tint(theme->colors.danger, theme->colors.text)
+                                   : theme->colors.text;
+        usb_screen_service(scene);
+        label_draw_paragraph(painter->canvas, (TextStyle){font, ink, false}, (Label){words, text});
+        usb_screen_service(scene);
+    }
     return words.y + words.height;
 }
 
@@ -619,15 +674,22 @@ static void show_row(AppUsbStatus status, Rect row, int piece)
 
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
 {
+    if (rect_is_empty(area)) {
+        return;
+    }
     bool themed = app_theme_pack_active();
     bool streaming = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed;
     int band = streaming ? 1 : USB_SCREEN_BAND_HEIGHT;
     int piece = streaming ? USB_SCREEN_BAND_WIDTH : area.width;
+    FooterMemo footer = {0};
+    FooterMemo *previous = footer_memo;
+    footer_memo = &footer;
     for (int top = area.y; top < area.y + area.height; top += band) {
         int height = area.y + area.height - top;
         height = height < band ? height : band;
-        show_row(status, (Rect){area.x, top, area.width, height}, piece > 0 ? piece : 1);
+        show_row(status, (Rect){area.x, top, area.width, height}, piece);
     }
+    footer_memo = previous;
     if (themed && !app_theme_pack_active()) {
         app_show_usb_status(status);
     }
@@ -647,19 +709,58 @@ Rect usb_screen_content(const Theme *theme, const UsbScreenLayout *layout)
     return (Rect){layout->header.x, top, layout->header.width, bottom - top};
 }
 
+typedef struct PageMemo {
+    int height;
+    int line;
+    unsigned flags;
+    int pages;
+} PageMemo;
+
+enum {
+    PAGE_DAC = 1,
+    PAGE_PORTRAIT = 2,
+    PAGE_INTERNAL = 4,
+    PAGE_CARD = 8
+};
+
+static PageMemo page_memo;
+
+static bool has_details(AppUsbStatus status, const UsbScene *scene)
+{
+    bool storage = status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
+    bool dac = status.view == APP_USB_DAC && scene->menu == NULL;
+    return status.scene != NULL && (storage || dac);
+}
+
+static int pages_of(const UsbPainter *painter)
+{
+    const Theme *theme = painter->theme;
+    const UsbScene *scene = painter->scene;
+    int height = usb_screen_content(theme, &painter->layout).height;
+    int line = font_line_height(theme->fonts.small);
+    unsigned flags = (painter->status.view == APP_USB_DAC ? PAGE_DAC : 0u) |
+                     (theme_is_portrait(theme) ? PAGE_PORTRAIT : 0u) |
+                     (scene->drives[0].state != USB_SCENE_DRIVE_ABSENT ? PAGE_INTERNAL : 0u) |
+                     (scene->drives[1].state != USB_SCENE_DRIVE_ABSENT ? PAGE_CARD : 0u);
+    PageMemo *memo = &page_memo;
+    if (memo->height != height || memo->line != line || memo->flags != flags) {
+        int pages = 1 + usb_screen_stats_pages(painter);
+        *memo = (PageMemo){height, line, flags, pages};
+    }
+    return memo->pages;
+}
+
 int usb_screen_pages(const Theme *theme, AppUsbStatus status)
 {
     const UsbScene *scene = usb_screen_scene(status);
-    bool storage = status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
-    bool dac = status.view == APP_USB_DAC && scene->menu == NULL;
-    if (status.scene == NULL || !(storage || dac)) {
+    if (!has_details(status, scene)) {
         return 1;
     }
     UsbPainter painter = {.theme = theme,
                           .status = status,
                           .scene = scene,
                           .layout = usb_screen_layout(theme, status)};
-    return 1 + usb_screen_stats_pages(&painter);
+    return pages_of(&painter);
 }
 
 Rect usb_screen_column(const UsbScreenLayout *layout)
@@ -691,8 +792,7 @@ void usb_screen_draw_frame(const UsbPainter *painter, const char *title)
     int top = detail.y + detail.height + theme->metrics.padding / 2;
     Rect band = {0, top, theme->metrics.screen_width, theme->metrics.screen_height - top};
     if (painter->scene->hint_count > 0 && usb_screen_touches(painter, band)) {
-        FooterHints hints = {painter->scene->hints, painter->scene->hint_count, FOOTER_ALIGN_END};
-        footer_hints_draw(painter->canvas, theme, band, hints);
+        footer_hints_draw(painter->canvas, theme, band, footer_of(painter->scene));
     }
 }
 
@@ -751,7 +851,8 @@ void usb_screen_draw(Canvas *canvas, const Theme *theme, HalBattery battery, App
                           .layout = usb_screen_layout(theme, status)};
     usb_screen_service(painter.scene);
     painter.details = painter.scene->page != USB_SCENE_OVERVIEW &&
-                      painter.scene->page < usb_screen_pages(theme, status);
+                      has_details(status, painter.scene) &&
+                      painter.scene->page < pages_of(&painter);
     usb_screen_service(painter.scene);
     if (status.view == APP_USB_DAC) {
         usb_screen_draw_dac(&painter);

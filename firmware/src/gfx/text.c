@@ -65,14 +65,7 @@ static void draw_missing_box(Canvas *canvas, Color color, const Glyph *glyph, Re
         return;
     }
     Color ink = half(color) + half(canvas_pixel_at(canvas, box.x + 1, box.y + 1));
-    for (int side = 0; side < 4; side++) {
-        Rect edge = box;
-        edge.x += side == 1 ? box.width - 1 : 0;
-        edge.y += side == 3 ? box.height - 1 : 0;
-        edge.width = side == 1 || side == 0 ? 1 : box.width;
-        edge.height = side < 2 ? box.height : 1;
-        canvas_fill_rect(canvas, edge, ink);
-    }
+    canvas_outline_rect(canvas, box, ink);
 }
 
 int text_width(const Font *font, const char *text)

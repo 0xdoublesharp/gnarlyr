@@ -206,10 +206,11 @@ static void draw(void *context, Canvas *canvas)
     static const FooterHint SLOT_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
                                             {FOOTER_KEY_PLAY, STR_HINT_SAVE}};
     static const FooterHint BROWSE_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_ADJUST}};
-    FooterHints hints = {!equalizer->adjusting                  ? BROWSE_HINTS
-                         : equalizer->list.selected == SAVE_ROW ? SLOT_HINTS
-                                                                : GAIN_HINTS,
-                         equalizer->adjusting ? 2 : 1, FOOTER_ALIGN_END};
+    FooterHints hints = {.items = !equalizer->adjusting                  ? BROWSE_HINTS
+                                  : equalizer->list.selected == SAVE_ROW ? SLOT_HINTS
+                                                                         : GAIN_HINTS,
+                         .count = equalizer->adjusting ? 2 : 1,
+                         .align = FOOTER_ALIGN_END};
     EqualizerPlotLayout layout = equalizer_plot_layout(theme, hints, false);
     canvas_fill_rect(canvas,
                      (Rect){0, 0, theme->metrics.screen_width, theme->metrics.screen_height},

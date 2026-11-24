@@ -67,6 +67,20 @@ static void fill_rect_outside_the_canvas_changes_nothing(void)
     CHECK_EQUAL(0, count_pixels_of(PAINT));
 }
 
+static void an_outline_leaves_the_inside_clear_and_respects_the_clip(void)
+{
+    Canvas canvas = make_strip_canvas();
+    Canvas clipped = canvas_clipped(&canvas, (Rect){1, 10, 3, 2});
+    canvas_outline_rect(&clipped, (Rect){0, 10, 4, 3}, PAINT);
+    CHECK_EQUAL(4, count_pixels_of(PAINT));
+    CHECK_EQUAL(PAINT, canvas_pixel_at(&canvas, 3, 11));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 2, 11));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 0, 10));
+    CHECK_EQUAL(BACKGROUND, canvas_pixel_at(&canvas, 3, 12));
+    canvas_outline_rect(&canvas, (Rect){0, 10, 0, 3}, PAINT);
+    CHECK_EQUAL(4, count_pixels_of(PAINT));
+}
+
 static void pixels_outside_the_canvas_read_as_black(void)
 {
     Canvas canvas = make_strip_canvas();
@@ -166,6 +180,7 @@ int main(void)
         TEST_CASE(fill_rect_uses_screen_coordinates),
         TEST_CASE(fill_rect_is_clipped_to_the_canvas),
         TEST_CASE(fill_rect_outside_the_canvas_changes_nothing),
+        TEST_CASE(an_outline_leaves_the_inside_clear_and_respects_the_clip),
         TEST_CASE(pixels_outside_the_canvas_read_as_black),
         TEST_CASE(a_clipped_canvas_only_paints_inside_its_clip),
         TEST_CASE(clipping_can_only_shrink_the_drawable_area),

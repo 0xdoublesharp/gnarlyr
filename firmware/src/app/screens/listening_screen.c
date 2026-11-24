@@ -524,7 +524,8 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
 }
 
 static const FooterHint OPTIONS_HINTS[] = {{FOOTER_KEY_HOLD_PLAY, STR_CLEAR_HISTORY}};
-static const FooterHints OPTIONS_FOOTER = {OPTIONS_HINTS, 1, FOOTER_ALIGN_START};
+static const FooterHints OPTIONS_FOOTER = {
+    .items = OPTIONS_HINTS, .count = 1, .align = FOOTER_ALIGN_START};
 
 static void draw_menu(ListeningScreen *screen, Canvas *canvas, Rect content)
 {

@@ -263,7 +263,7 @@ static void every_line_fits_its_rows(const PlugChooser *chooser)
     }
     CHECK(rows * font_line_height(theme.fonts.small) <= layout->line.height);
     static const FooterHint ALWAYS[] = {{FOOTER_KEY_HOLD_PLAY, STR_HINT_ALWAYS}};
-    FooterHints footer = {ALWAYS, 1, FOOTER_ALIGN_END};
+    FooterHints footer = {.items = ALWAYS, .count = 1, .align = FOOTER_ALIGN_END};
     CHECK(!plug_chooser_has_footer(chooser) ||
           footer_hints_lines(&theme, footer, layout->footer.width - 2 * theme.metrics.padding) ==
               1);

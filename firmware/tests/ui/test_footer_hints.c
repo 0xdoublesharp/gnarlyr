@@ -44,7 +44,7 @@ static Canvas blank(const Theme *theme)
 
 static FooterHints hints_of(const FooterHint *items, int count, FooterAlign align)
 {
-    return (FooterHints){items, (uint8_t)count, (uint8_t)align};
+    return (FooterHints){.items = items, .count = (uint8_t)count, .align = (uint8_t)align};
 }
 
 static int hint_width(const Theme *theme, const FooterHint *hint)
@@ -214,6 +214,32 @@ static void an_inline_cue_draws_on_the_screen_without_a_band(void)
     CHECK_EQUAL(20, first_column_with(&canvas, area, theme.colors.text_secondary));
 }
 
+static int service_calls;
+
+static void count_service(void)
+{
+    service_calls++;
+}
+
+static void drawing_services_the_visible_hints_and_separator(void)
+{
+    Theme theme = footer_theme(false);
+    Canvas canvas = blank(&theme);
+    Rect area = {0, TALL - LINE, WIDE, LINE};
+    FooterHints hints = hints_of(FOUR, 2, FOOTER_ALIGN_START);
+    hints.service = count_service;
+    service_calls = 0;
+    Canvas clipped = canvas_clipped(&canvas, (Rect){0, area.y - 1, WIDE, 1});
+    footer_hints_draw(&clipped, &theme, area, hints);
+    CHECK_EQUAL(0, service_calls);
+    clipped = canvas_clipped(&canvas, (Rect){PADDING, area.y + LINE / 2, 1, 1});
+    footer_hints_draw(&clipped, &theme, area, hints);
+    CHECK_EQUAL(2, service_calls);
+    service_calls = 0;
+    footer_hints_draw(&canvas, &theme, area, hints);
+    CHECK_EQUAL(4, service_calls);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -228,6 +254,7 @@ int main(void)
         TEST_CASE(the_band_sits_on_the_header_colour_under_a_divider),
         TEST_CASE(hints_follow_their_given_order),
         TEST_CASE(an_inline_cue_draws_on_the_screen_without_a_band),
+        TEST_CASE(drawing_services_the_visible_hints_and_separator),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

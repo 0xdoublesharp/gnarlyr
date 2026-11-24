@@ -605,6 +605,7 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
+        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_dac.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c

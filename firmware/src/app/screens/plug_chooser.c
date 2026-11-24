@@ -25,7 +25,8 @@ enum {
 
 static const char CHECK_MARK[] = "\xE2\x9C\x93";
 static const FooterHint ALWAYS_HINT[] = {{FOOTER_KEY_HOLD_PLAY, STR_HINT_ALWAYS}};
-static const FooterHints ALWAYS_FOOTER = {ALWAYS_HINT, 1, FOOTER_ALIGN_END};
+static const FooterHints ALWAYS_FOOTER = {
+    .items = ALWAYS_HINT, .count = 1, .align = FOOTER_ALIGN_END};
 
 typedef struct RowRoom {
     int all;

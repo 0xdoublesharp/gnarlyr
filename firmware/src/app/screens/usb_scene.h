@@ -134,10 +134,21 @@ typedef struct UsbScreenLayout {
     Rect detail;
 } UsbScreenLayout;
 
+typedef struct UsbMeterDelta {
+    int side;
+    uint8_t before;
+    uint8_t after;
+} UsbMeterDelta;
+
 UsbScreenLayout usb_screen_layout(const Theme *theme, AppUsbStatus status);
 Rect usb_screen_column(const UsbScreenLayout *layout);
 void usb_screen_show_in_bands(AppUsbStatus status, Rect area);
 Rect usb_screen_meter_bar(const Theme *theme, const UsbScreenLayout *layout, int side);
+Rect usb_screen_meter_change(const Theme *theme, const UsbScreenLayout *layout,
+                             UsbMeterDelta delta);
+Rect usb_screen_dac_rows_area(const Theme *theme, const UsbScreenLayout *layout,
+                              const UsbScene *scene);
+uint32_t usb_screen_text_sum(const char *text);
 int usb_screen_pages(const Theme *theme, AppUsbStatus status);
 int usb_screen_page_kind(const UsbScene *scene, int pages);
 Rect usb_screen_graph(const Theme *theme, const UsbScreenLayout *layout);

@@ -473,7 +473,7 @@ static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(v
                                         {FOOTER_KEY_MENU, STR_HINT_ERASE},
                                         {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
                                         {FOOTER_KEY_HOLD_PLAY, STR_HINT_SHOW_RESULTS}};
-            FooterHints footer = {hints, 5, FOOTER_ALIGN_START};
+            FooterHints footer = {.items = hints, .count = 5, .align = FOOTER_ALIGN_START};
             int bottom = theme.metrics.header_height + theme.metrics.padding +
                          2 * theme.metrics.row_height + footer_hints_height(&theme, footer);
             CHECK(bottom <= theme.metrics.screen_height);

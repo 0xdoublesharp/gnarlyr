@@ -78,6 +78,21 @@ void canvas_fill_rect(Canvas *canvas, Rect area, Color color)
     }
 }
 
+__attribute__((noinline)) void canvas_outline_rect(Canvas *canvas, Rect area, Color color)
+{
+    if (rect_is_empty(area)) {
+        return;
+    }
+    for (int side = 0; side < 4; side++) {
+        Rect edge = area;
+        edge.x += side == 1 ? area.width - 1 : 0;
+        edge.y += side == 3 ? area.height - 1 : 0;
+        edge.width = side < 2 ? 1 : area.width;
+        edge.height = side < 2 ? area.height : 1;
+        canvas_fill_rect(canvas, edge, color);
+    }
+}
+
 void canvas_fill_gradient(Canvas *canvas, Rect area, Color top, Color bottom)
 {
     Rect visible = rect_intersection(canvas->clip, area);

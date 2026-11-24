@@ -10,7 +10,7 @@
 #include "ui/navigation.h"
 
 static const FooterHint BACK_CANCELS[] = {{FOOTER_KEY_BACK, STR_CANCEL}};
-static const FooterHints FOOTER = {BACK_CANCELS, 1, FOOTER_ALIGN_END};
+static const FooterHints FOOTER = {.items = BACK_CANCELS, .count = 1, .align = FOOTER_ALIGN_END};
 
 typedef struct ConfirmLayout {
     Rect notes;

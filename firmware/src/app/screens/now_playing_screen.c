@@ -735,7 +735,8 @@ static void status_text(const NowPlayingScreen *now_playing, char *buffer, size_
 }
 
 static const FooterHint LYRICS_HINT[] = {{FOOTER_KEY_HOLD_MENU, STR_HINT_SHOW_LYRICS}};
-static const FooterHints LYRICS_CUE = {LYRICS_HINT, 1, FOOTER_ALIGN_START};
+static const FooterHints LYRICS_CUE = {
+    .items = LYRICS_HINT, .count = 1, .align = FOOTER_ALIGN_START};
 
 static bool lyrics_cued(const NowPlayingScreen *now_playing)
 {

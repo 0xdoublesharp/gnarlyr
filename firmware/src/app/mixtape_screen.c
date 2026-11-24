@@ -394,7 +394,8 @@ static void draw_name(const MixtapeUi *ui, Canvas *canvas)
                                        {FOOTER_KEY_MENU, STR_HINT_ERASE},
                                        {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
                                        {FOOTER_KEY_HOLD_PLAY, STR_HINT_SAVE}};
-    FooterHints footer = {hints, sizeof hints / sizeof *hints, FOOTER_ALIGN_START};
+    FooterHints footer = {
+        .items = hints, .count = sizeof hints / sizeof *hints, .align = FOOTER_ALIGN_START};
     footer_hints_draw(canvas, theme, footer_hints_area(theme, theme_content_area(theme), footer),
                       footer);
 }

@@ -394,7 +394,8 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 
 static const FooterHint UP_NEXT_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_OPEN},
                                            {FOOTER_KEY_HOLD_PLAY, STR_EDIT_UP_NEXT}};
-static const FooterHints UP_NEXT_FOOTER = {UP_NEXT_HINTS, 2, FOOTER_ALIGN_START};
+static const FooterHints UP_NEXT_FOOTER = {
+    .items = UP_NEXT_HINTS, .count = 2, .align = FOOTER_ALIGN_START};
 
 static Rect rows_area(const Theme *theme)
 {
