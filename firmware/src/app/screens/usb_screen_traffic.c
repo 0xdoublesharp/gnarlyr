@@ -105,21 +105,22 @@ static TrafficLayout traffic_layout(const UsbPainter *painter)
     const Theme *theme = painter->theme;
     Rect column = usb_screen_column(&painter->layout);
     int small = font_line_height(theme->fonts.small);
-    int line = font_line_height(theme->fonts.title);
     int gap = theme->metrics.padding / 2;
     TrafficLayout layout = {.inline_bars = column.width >= INLINE_WIDTH};
-    int drive = layout.inline_bars ? small : 2 * small + BAR_HEIGHT + gap;
+    int drive = layout.inline_bars ? small : small + BAR_HEIGHT;
+    int drive_gap = layout.inline_bars ? gap : gap / 2;
     int caption = layout.inline_bars ? small : 2 * small;
-    int room = column.height - caption - 2 * drive - 2 * gap;
+    int room = column.height - caption - 2 * drive - gap - drive_gap;
     int ascent = theme->fonts.title->ascent;
     bool tall = room >= HERO_SCALE * ascent + gap;
     layout.scale = tall && hero_fits(theme, column, HERO_SCALE) ? HERO_SCALE : 1;
-    int hero = layout.scale == 1 ? line : layout.scale * ascent + gap;
+    int hero = layout.scale * ascent + (layout.scale == 1 ? theme->fonts.small->descent : gap);
     layout.hero = (Rect){column.x, column.y, column.width, hero};
     layout.caption = (Rect){column.x, column.y + hero, column.width, caption};
     int bottom = column.y + column.height;
     for (int lun = 0; lun < USB_SCENE_DRIVES; lun++) {
-        int top = bottom - (USB_SCENE_DRIVES - lun) * drive - (USB_SCENE_DRIVES - 1 - lun) * gap;
+        int top =
+            bottom - (USB_SCENE_DRIVES - lun) * drive - (USB_SCENE_DRIVES - 1 - lun) * drive_gap;
         layout.drives[lun] = (Rect){column.x, top, column.width, drive};
     }
     return layout;
@@ -257,7 +258,7 @@ static DriveRow drive_row(const UsbPainter *painter, const TrafficLayout *layout
     const Theme *theme = painter->theme;
     Rect area = layout->drives[lun];
     int line = font_line_height(theme->fonts.small);
-    int gap = theme->metrics.padding / 2;
+    int gap = theme->metrics.padding / (layout->inline_bars ? 2 : 4);
     int led = line / LED_SHARE;
     int name = widest_name(theme);
     int note = note_width(theme);
@@ -270,9 +271,11 @@ static DriveRow drive_row(const UsbPainter *painter, const TrafficLayout *layout
     int left = row.arrows.x + row.arrows.width + gap;
     row.bar = (Rect){left, area.y + (line - BAR_HEIGHT) / 2, row.note.x - gap - left, BAR_HEIGHT};
     if (!layout->inline_bars) {
-        int below = area.y + line + gap / 2;
-        row.bar = (Rect){row.name.x, below, area.x + area.width - row.name.x, BAR_HEIGHT};
-        row.note.y = below + BAR_HEIGHT + gap / 2;
+        row.bar = (Rect){row.name.x, area.y + line, area.x + area.width - row.name.x, BAR_HEIGHT};
+        if (row.note.x < left) {
+            row.note.x = left;
+            row.note.width = area.x + area.width - left;
+        }
     }
     return row;
 }

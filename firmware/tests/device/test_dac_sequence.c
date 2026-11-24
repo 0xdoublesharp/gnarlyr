@@ -485,7 +485,6 @@ static void output_on_unmutes_and_restores_the_channel_values(void)
     CHECK(next_pin(DAC_PIN_AMP, true));
     CHECK(next_one(LEFT, 0x05000A, 0x07) && next_one(LEFT, 0x05000B, 0x07));
     CHECK(next_one(RIGHT, 0x05000A, 0x0F) && next_one(RIGHT, 0x05000B, 0x0F));
-    CHECK(next_both(0x090001, 0x5E));
     CHECK(next_both(0x090002, 0x5E));
     CHECK(next_delay_ms(10));
     CHECK(next_pin(DAC_PIN_MUTE, false));
@@ -517,7 +516,7 @@ static bool next_power_down(uint8_t address, uint8_t before, uint8_t bit)
 static bool next_muted_output(void)
 {
     return next_pin(DAC_PIN_MUTE, true) && next_pin(DAC_PIN_ENABLE_A, true) &&
-           next_both(0x090001, 0xFF) && next_both(0x090002, 0xFF);
+           next_both(0x090002, 0xFF);
 }
 
 static bool next_supplies_off(void)
@@ -584,21 +583,18 @@ static void muting_holds_the_pin_and_mutes_both_chips(void)
     cursor = 0;
     dac_set_muted(&bus, true, 0x5E);
     CHECK(next_pin(DAC_PIN_MUTE, true));
-    CHECK(next_both(0x090001, 0xFF));
     CHECK(next_both(0x090002, 0xFF));
     dac_set_muted(&bus, false, 0x5E);
-    CHECK(next_both(0x090001, 0x5E));
     CHECK(next_both(0x090002, 0x5E));
     CHECK(next_pin(DAC_PIN_MUTE, false));
     CHECK_EQUAL(cursor, fake.count);
 }
 
-static void setting_the_volume_writes_both_pcm_volume_registers(void)
+static void setting_the_volume_writes_pcm_volume_a_on_both_chips(void)
 {
     DacBus bus = fresh_bus();
     cursor = 0;
     dac_set_volume(&bus, 0x30);
-    CHECK(next_both(0x090001, 0x30));
     CHECK(next_both(0x090002, 0x30));
     CHECK_EQUAL(cursor, fake.count);
 }
@@ -896,7 +892,7 @@ static void a_dropped_final_volume_write_keeps_the_last_level_and_rewrites_it(vo
 {
     DacBus bus = fresh_bus();
     DacLevel level = {.applied = 200};
-    fake.fail_transfer = 3 * 4 + 1;
+    fake.fail_transfer = 3 * 2 + 1;
     CHECK(!dac_fade_volume(&bus, &level, 176, 50));
     CHECK(level.stale);
     CHECK_EQUAL(182, level.applied);
@@ -948,7 +944,7 @@ int main(void)
         TEST_CASE(output_off_waits_for_both_chips_to_finish_their_output_ramp),
         TEST_CASE(a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms),
         TEST_CASE(muting_holds_the_pin_and_mutes_both_chips),
-        TEST_CASE(setting_the_volume_writes_both_pcm_volume_registers),
+        TEST_CASE(setting_the_volume_writes_pcm_volume_a_on_both_chips),
         TEST_CASE(start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down),
         TEST_CASE(an_unknown_filter_starts_with_stock_default_filter),
         TEST_CASE(a_gain_change_powers_the_outputs_down_around_the_register_write),

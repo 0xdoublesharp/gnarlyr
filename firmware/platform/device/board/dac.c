@@ -129,6 +129,8 @@ DacDiagnostics board_dac_diagnostics;
 static DacLevel chip_volume;
 static uint32_t retried_ms;
 static void (*fade_service)(void);
+static uint32_t acodec_row;
+static bool acodec_running;
 
 CORE_COLD static void note_failure(I2cStage stage)
 {
@@ -303,8 +305,18 @@ CORE_COLD static void set_bits(uint32_t address, uint32_t mask, uint32_t bits)
     register_write(address, (register_read(address) & ~mask) | bits);
 }
 
+CORE_COLD static uint32_t acodec_key(const uint8_t *row)
+{
+    return (uint32_t)row[0] | (uint32_t)row[1] << 8 | (uint32_t)row[2] << 16 |
+           (uint32_t)row[3] << 24;
+}
+
 CORE_COLD static void start_acodec(const uint8_t *row)
 {
+    uint32_t key = acodec_key(row);
+    if (acodec_running && acodec_row == key) {
+        return;
+    }
     cru_write(0x10, CRU_ACODEC_SELECT);
     set_bits(ACODEC_MUX_CONTROL, 1u << 2, 0);
     set_bits(ACODEC_MUX_ENABLE, 1u << 2, 1u << 2);
@@ -317,10 +329,13 @@ CORE_COLD static void start_acodec(const uint8_t *row)
     set_bits(ACODEC_MUX_ENABLE, 1u << 2, 0);
     board_delay_ms(ACODEC_SETTLE_MS);
     set_bits(ACODEC_MUX_CONTROL, 1u << 2, 1u << 2);
+    acodec_row = key;
+    acodec_running = true;
 }
 
 CORE_COLD static void stop_acodec(void)
 {
+    acodec_running = false;
     set_bits(ACODEC_MUX_CONTROL, 1u << 2, 0);
     set_bits(ACODEC_MUX_ENABLE, (1u << 2) | (1u << 0), (1u << 2) | (1u << 0));
 }
@@ -354,19 +369,19 @@ CORE_COLD static void start_i2s(uint32_t divider, uint32_t format, uint32_t inte
     }
 }
 
-static void set_i2s_divider(uint32_t divider)
+CORE_COLD static void set_i2s_divider(uint32_t divider)
 {
     register_write(I2S_XFER, 0);
     register_write(I2S_CKR, i2s_clock_register(divider));
     register_write(I2S_XFER, 1);
 }
 
-static bool fifo_full(void)
+CORE_COLD static bool fifo_full(void)
 {
     return (register_read(I2S_FIFOLR) & FIFO_LEVEL_MASK) >= FIFO_FULL_LEVEL;
 }
 
-static bool feed(int16_t left, int16_t right)
+CORE_COLD static bool feed(int16_t left, int16_t right)
 {
     if (fifo_full()) {
         uint32_t start = hal_clock_milliseconds();
@@ -380,7 +395,7 @@ static bool feed(int16_t left, int16_t right)
     return true;
 }
 
-static bool play_for(const int16_t *samples, int count, uint32_t duration_ms)
+CORE_COLD static bool play_for(const int16_t *samples, int count, uint32_t duration_ms)
 {
     uint32_t start = hal_clock_milliseconds();
     int index = 0;

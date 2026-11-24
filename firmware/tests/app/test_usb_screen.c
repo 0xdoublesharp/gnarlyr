@@ -1254,6 +1254,24 @@ static void drive_shot(const Theme *theme, UsbScene *scene, uint32_t free_sector
     screen_snapshot_write(&canvas, "drives", shot);
 }
 
+static void portrait_traffic_keeps_totals_above_drive_rows_at_every_text_size(void)
+{
+    for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+        Theme theme = theme_for(APPEARANCE_GRAPHITE, ORIENTATION_PORTRAIT, size);
+        UsbScene scene = storage_scene(USB_SCENE_CONNECTED);
+        AppUsbStatus status = with_page_hint(&theme, storage_status(STR_USB_EJECT_DRIVES), &scene);
+        int small = font_line_height(theme.fonts.small);
+        Rect hero = usb_screen_activity(&theme, status);
+        Rect first = usb_screen_drive_lights(&theme, status, 0);
+        Rect second = usb_screen_drive_lights(&theme, status, 1);
+        CHECK(hero.y + hero.height + 2 * small <= first.y);
+        CHECK(first.y + small < second.y);
+        draw_text_of(&theme, status, &scene);
+        CHECK(saw("1.2 GB free"));
+        CHECK(saw("41.1 GB free"));
+    }
+}
+
 static void drive_rows_keep_their_places_and_show_a_long_free_size_whole(void)
 {
     static const int APPEARANCES[] = {APPEARANCE_GRAPHITE, APPEARANCE_CLASSIC};
@@ -1787,6 +1805,7 @@ int main(void)
         TEST_CASE(landscape_details_put_the_drives_side_by_side),
         TEST_CASE(a_missing_card_drops_its_rows),
         TEST_CASE(a_page_past_the_last_shows_the_overview),
+        TEST_CASE(portrait_traffic_keeps_totals_above_drive_rows_at_every_text_size),
         TEST_CASE(drive_rows_keep_their_places_and_show_a_long_free_size_whole),
         TEST_CASE(portrait_line_two_puts_the_status_left_and_the_level_at_the_right_margin),
         TEST_CASE(the_rate_keeps_its_decimal_point_in_one_place),

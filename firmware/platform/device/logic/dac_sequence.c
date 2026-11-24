@@ -94,7 +94,7 @@ static bool write_both(const DacBus *bus, uint32_t map, uint8_t value)
     return true;
 }
 
-static bool write_all(const DacBus *bus, const uint32_t *writes, size_t count)
+CORE_COLD static bool write_all(const DacBus *bus, const uint32_t *writes, size_t count)
 {
     for (size_t index = 0; index < count; index++) {
         if (!write_both(bus, writes[index] >> 8, (uint8_t)writes[index])) {
@@ -104,7 +104,7 @@ static bool write_all(const DacBus *bus, const uint32_t *writes, size_t count)
     return true;
 }
 
-static bool write_channel_values(const DacBus *bus)
+CORE_COLD static bool write_channel_values(const DacBus *bus)
 {
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         uint8_t value = CHANNEL_VALUES[chip];
@@ -116,7 +116,7 @@ static bool write_channel_values(const DacBus *bus)
     return true;
 }
 
-static bool write_mono_table(const DacBus *bus)
+CORE_COLD static bool write_mono_table(const DacBus *bus)
 {
     for (uint32_t group = 0; group < MONO_GROUPS; group++) {
         for (int item = 0; item < MONO_ITEMS; item++) {
@@ -129,7 +129,7 @@ static bool write_mono_table(const DacBus *bus)
     return true;
 }
 
-static bool change_power_bit(const DacBus *bus, uint8_t bit, bool down)
+CORE_COLD static bool change_power_bit(const DacBus *bus, uint8_t bit, bool down)
 {
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         uint8_t value = 0;
@@ -161,7 +161,7 @@ static DacResult read_status(const DacBus *bus)
     return not_ready == CHIP_COUNT ? DAC_NOT_READY : DAC_READY;
 }
 
-void dac_power_pins(const DacBus *bus)
+CORE_COLD void dac_power_pins(const DacBus *bus)
 {
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_ENABLE_A, true);
@@ -175,7 +175,7 @@ void dac_power_pins(const DacBus *bus)
     wait_ms(bus, 2);
 }
 
-static void read_chip_identity(const DacBus *bus, uint8_t address, DacIdentity *chip)
+CORE_COLD static void read_chip_identity(const DacBus *bus, uint8_t address, DacIdentity *chip)
 {
     *chip = (DacIdentity){.source = DAC_IDENTITY_READ};
     for (int index = 0; index < DAC_IDENTITY_BYTES; index++) {
@@ -187,19 +187,19 @@ static void read_chip_identity(const DacBus *bus, uint8_t address, DacIdentity *
     }
 }
 
-void dac_read_identity(const DacBus *bus, DacIdentity *chips)
+CORE_COLD void dac_read_identity(const DacBus *bus, DacIdentity *chips)
 {
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
         read_chip_identity(bus, CHIPS[chip], &chips[chip]);
     }
 }
 
-bool dac_probe(const DacBus *bus)
+CORE_COLD bool dac_probe(const DacBus *bus)
 {
     return write_both(bus, 0x000000, 0x00);
 }
 
-static bool start_up(const DacBus *bus)
+CORE_COLD static bool start_up(const DacBus *bus)
 {
     if (!write_both(bus, 0x0B0000, 0x1F)) {
         return false;
@@ -219,7 +219,7 @@ static uint8_t gain_value(bool high)
     return high ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE;
 }
 
-static bool set_up_blocks(const DacBus *bus, DacAnalog analog)
+CORE_COLD static bool set_up_blocks(const DacBus *bus, DacAnalog analog)
 {
     if (!write_all(bus, AFTER_STATUS, sizeof AFTER_STATUS / sizeof AFTER_STATUS[0]) ||
         !write_channel_values(bus) || !write_both(bus, PCM_FILTER, filter_value(analog.filter)) ||
@@ -232,7 +232,7 @@ static bool set_up_blocks(const DacBus *bus, DacAnalog analog)
            write_all(bus, AFTER_MONO, sizeof AFTER_MONO / sizeof AFTER_MONO[0]);
 }
 
-bool dac_sequence_power_up(const DacBus *bus)
+CORE_COLD bool dac_sequence_power_up(const DacBus *bus)
 {
     if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080032, 0x20) ||
         !release_power_bit(bus, SERIAL_PORT_BIT) || !release_power_bit(bus, HEADPHONE_BIT)) {
@@ -242,12 +242,12 @@ bool dac_sequence_power_up(const DacBus *bus)
     return write_both(bus, 0x080032, 0x00) && write_both(bus, 0x010010, 0x00);
 }
 
-static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
+CORE_COLD static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
 {
     return dac_sequence_power_up(bus) && write_both(bus, 0x01000B, rate_byte);
 }
 
-DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog)
+CORE_COLD DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog)
 {
     if (!start_up(bus)) {
         return DAC_NO_REPLY;
@@ -261,10 +261,10 @@ DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog)
 
 CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
 {
-    return write_both(bus, PCM_VOLUME_B, volume) && write_both(bus, PCM_VOLUME_A, volume);
+    return write_both(bus, PCM_VOLUME_A, volume);
 }
 
-static bool change_analog(const DacBus *bus, DacAnalog after)
+CORE_COLD static bool change_analog(const DacBus *bus, DacAnalog after)
 {
     return dac_sequence_power_down(bus) &&
            write_both(bus, HEADPHONE_GAIN, gain_value(after.gain_high)) &&
@@ -272,7 +272,7 @@ static bool change_analog(const DacBus *bus, DacAnalog after)
            write_both(bus, 0x0F0010, 0x87) && write_both(bus, PCM_MUTE, 0xEC);
 }
 
-static bool change_filter(const DacBus *bus, uint8_t filter)
+CORE_COLD static bool change_filter(const DacBus *bus, uint8_t filter)
 {
     if (!write_both(bus, PCM_MUTE, 0xEF)) {
         return false;
@@ -282,7 +282,7 @@ static bool change_filter(const DacBus *bus, uint8_t filter)
     return write_both(bus, PCM_MUTE, 0xEC) && written;
 }
 
-CORE_SEAM bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
+CORE_SEAM CORE_COLD bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
 {
     if (after.filter >= DAC_ANALOG_FILTERS) {
         return false;
@@ -314,7 +314,7 @@ CORE_SEAM void dac_output_on(const DacBus *bus, uint8_t volume)
     set_pin(bus, DAC_PIN_MUTE, false);
 }
 
-static bool wait_for_power_down(const DacBus *bus)
+CORE_COLD static bool wait_for_power_down(const DacBus *bus)
 {
     uint32_t waited_ms = 0;
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
@@ -336,7 +336,7 @@ static bool wait_for_power_down(const DacBus *bus)
     return true;
 }
 
-bool dac_sequence_power_down(const DacBus *bus)
+CORE_COLD bool dac_sequence_power_down(const DacBus *bus)
 {
     if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080046, 0x21) ||
         !write_both(bus, 0x090003, 0xEF)) {
@@ -348,7 +348,7 @@ bool dac_sequence_power_down(const DacBus *bus)
            change_power_bit(bus, SERIAL_PORT_BIT, true) && write_both(bus, 0x080046, 0x20);
 }
 
-void dac_output_off(const DacBus *bus)
+CORE_COLD void dac_output_off(const DacBus *bus)
 {
     set_pin(bus, DAC_PIN_MUTE, true);
     set_pin(bus, DAC_PIN_ENABLE_A, true);
