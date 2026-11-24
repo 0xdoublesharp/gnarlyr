@@ -60,14 +60,14 @@ elseif(MODE STREQUAL "arithmetic")
     expect(2.555 900 refused)
 elseif(MODE STREQUAL "registered")
     set(cases
-        "device_image_boot_test_a_resume_anywhere_in_core_1s_load_window_keeps_heavy_streams_fed=1800"
+        "device_image_boot_test_dsd128_resume_at_0_ms_in_core_1s_load_window_stays_fed=900"
         "device_image_boot_test_parametric_slot_matches_graphic_core_load_and_switches_without_underruns=1500"
         "device_image_boot_test_normal_boot_reaches_the_home_screen_using_only_the_user_volume=900"
         "core1_mp3_decodes_in_emulator=180"
         "core1_opus_decodes_in_emulator=600")
     execute_process(
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${BUILD_DIR} --show-only=json-v1
-            -R "^(device_image_boot_test_a_resume_anywhere|device_image_boot_test_parametric_slot|device_image_boot_test_normal_boot_reaches|core1_(mp3|opus)_decodes_in_emulator)"
+            -R "^(device_image_boot_test_dsd128_resume_at_0_ms|device_image_boot_test_parametric_slot|device_image_boot_test_normal_boot_reaches|core1_(mp3|opus)_decodes_in_emulator)"
         RESULT_VARIABLE result
         OUTPUT_VARIABLE listing
     )
