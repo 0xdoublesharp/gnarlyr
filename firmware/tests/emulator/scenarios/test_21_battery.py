@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from echo_image_harness import EchoImageHarness, main, IDENTITY
 from echo_emulator.emmc import SdCard, SparseDisk
 from echo_emulator.fat_volume import Fat32Volume
-from echo_emulator.playback import Rig
+from echo_emulator.playback import PlaybackSnapshot, Rig
 from echo_emulator.bluetooth import Headphones
 from echo_emulator.power import DecoderLoad, PowerMeter
 
@@ -58,7 +58,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(0, result["underruns"], result)
         self.assert_healthy(rig.session)
 
-    def battery_case(self, codec, output):
+    def battery_case(self, codec, output, rig):
         volume = Fat32Volume()
         rate, channels = (16000, 1) if codec == "speech" else (44100, 2)
         extension = "wav" if codec == "speech" else codec
@@ -102,8 +102,8 @@ class EchoImageTest(EchoImageHarness):
                 return value
             machine.external_pin_levels = pins
 
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  volume=Fat32Volume(), module_elfs=self.module_elfs, prepare=prepare)
+        prepare(rig.machine)
+        rig.boot()
         if codec != "speech":
             DecoderLoad(rig.audio, self.elf.parent)
         rig.open_songs()
@@ -130,10 +130,13 @@ class EchoImageTest(EchoImageHarness):
         return result
 
     def test_battery_playback_matrix_has_no_underruns(self):
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=Fat32Volume(), module_elfs=self.module_elfs, boot=False)
+        snapshot = PlaybackSnapshot(rig)
         figures = []
         for codec in os.environ.get("ECHO_BATTERY_CODECS", "flac,mp3,speech").split(","):
             for output in (1, 2, 0):
-                figures.append(self.battery_case(codec, output))
+                figures.append(self.battery_case(codec, output, snapshot.restore()))
                 destination = os.environ.get("ECHO_BATTERY_REPORT")
                 if destination:
                     Path(destination).write_text(json.dumps(figures, indent=2) + "\n")

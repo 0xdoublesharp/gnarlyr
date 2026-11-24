@@ -68,13 +68,16 @@ class EchoImageTest(EchoImageHarness):
 
     def install_on_trial(self, update, system_mib=None):
         session = self.session(files=[(IDENTITY.update_file, update, None)], vbus=True,
-                               system_mib=system_mib)
-        session.machine.note("updater_install")
-        self.assertEqual(self.boot_until_waiting_for_key(session), "reached board_wait_for_power_hold")
+                               system_mib=system_mib, checkpoint=self.boot_trial_install)
+        self.assertEqual(session.machine.stop_reason, "reached board_wait_for_power_hold")
         self.assertEqual(session.machine.reached["trial_module_install"], 1)
         self.assertNotIn("updater_install", session.machine.reached)
         self.assert_healthy(session)
         return session
+
+    def boot_trial_install(self, session):
+        session.machine.note("updater_install")
+        self.boot_until_waiting_for_key(session)
 
     def start(self, previous, image, vbus=False):
         session = previous.reboot(image=image, vbus_after_first_frame=vbus)
@@ -567,11 +570,14 @@ class EchoImageTest(EchoImageHarness):
                                      until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
         self.assert_loader_reboot(session, self.hold_escape_keys(machine))
 
-    def test_the_escape_keys_on_home_beat_the_power_long_press(self):
-        session = self.session(usb_answer=CHARGE_ANSWER)
-        machine = session.machine
+    def boot_home_before_charging(self, session):
         session.run_to_home_screen()
+        machine = session.machine
         machine.run(until_ms=machine.milliseconds() + SETTLE_ON_CABLE_MS)
+
+    def test_the_escape_keys_on_home_beat_the_power_long_press(self):
+        session = self.session(usb_answer=CHARGE_ANSWER, checkpoint=self.boot_home_before_charging)
+        machine = session.machine
         self.plug_in_charging(machine)
         longs = self.watch_power_long(machine)
         self.reach_loader_reboot(session, self.hold_escape_keys(machine))
@@ -579,10 +585,8 @@ class EchoImageTest(EchoImageHarness):
         self.assert_dark(machine)
 
     def test_a_brushed_volume_up_leaves_a_held_power_switching_off(self):
-        session = self.session(usb_answer=CHARGE_ANSWER)
+        session = self.session(usb_answer=CHARGE_ANSWER, checkpoint=self.boot_home_before_charging)
         machine = session.machine
-        session.run_to_home_screen()
-        machine.run(until_ms=machine.milliseconds() + SETTLE_ON_CABLE_MS)
         self.plug_in_charging(machine)
         longs = self.watch_power_long(machine)
         pressed = machine.milliseconds()
@@ -597,14 +601,16 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
 
     def test_the_escape_keys_on_now_playing_neither_switch_off_nor_skip(self):
-        from echo_emulator.playback import Rig
+        from echo_emulator.playback import PlaybackSnapshot, Rig
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  module_elfs=self.module_elfs,
+                  prepare=lambda machine: setattr(machine, "usb_answer", CHARGE_ANSWER))
+        rig.open_songs()
+        rig.play_song(1)
+        snapshot = PlaybackSnapshot(rig)
         for hold in (self.hold_escape_keys, self.hold_escape_keys_power_first):
-            rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                      module_elfs=self.module_elfs,
-                      prepare=lambda machine: setattr(machine, "usb_answer", CHARGE_ANSWER))
+            rig = snapshot.restore()
             machine = rig.machine
-            rig.open_songs()
-            rig.play_song(1)
             self.plug_in_charging(machine)
             longs = self.watch_power_long(machine)
             skips = self.watch_skips(machine)

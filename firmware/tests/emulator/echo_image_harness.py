@@ -1,10 +1,13 @@
 import argparse
 import importlib.util
 import math
+import os
 import struct
 import sys
 import tempfile
 import unittest
+from collections import OrderedDict
+from functools import partial
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -19,6 +22,7 @@ from fnv import FNV_PRIME, fnv1a
 from identity import IDENTITY
 
 SKIP_EXIT_CODE = 77
+BOOT_CACHE_LIMIT = 4
 DEFAULT_IMAGE = PROJECT / "build" / "device" / IDENTITY.update_file
 DEFAULT_ELF = PROJECT / "build" / "device" / "platform" / "device" / "echo_device.elf"
 DEFAULT_USB_OVERLAY_ELF = DEFAULT_ELF.with_name("echo_usb_overlay.elf")
@@ -282,6 +286,34 @@ class CardSlot:
         return FatReader(self.disk, 0)
 
 
+class BootSnapshot:
+    def __init__(self, boot):
+        from echo_emulator.playback import PlaybackSnapshot, Rig
+
+        self.boot = boot
+        if isinstance(boot, Rig):
+            self.session = boot.session
+            self.restore_state = PlaybackSnapshot(boot).restore
+        else:
+            self.session = boot
+            self.restore_state = partial(boot.restore, boot.snapshot())
+        self.machine = self.session.machine
+        self.uc = self.machine.uc
+
+    def restore(self):
+        from unicorn import UcError
+
+        if (self.session.machine is not self.machine or self.machine.uc is not self.uc
+                or self.boot.machine is not self.machine
+                or getattr(self.boot, "session", self.session) is not self.session):
+            return None
+        try:
+            self.restore_state()
+        except (ValueError, UcError):
+            return None
+        return self.boot
+
+
 class EchoImageHarness(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -291,15 +323,50 @@ class EchoImageHarness(unittest.TestCase):
         cls.elf = CONFIG["elf"]
         cls.usb_overlay_elf = CONFIG["usb_overlay_elf"]
         cls.module_elfs = image_artifacts.module_elfs(Path(cls.elf).parents[2])
+        cls.boot_cache = OrderedDict()
+        cls.addClassCleanup(cls.boot_cache.clear)
+        cls.boot_inputs = (Path(CONFIG["image"]).resolve(), Path(cls.elf).resolve(),
+                           Path(cls.usb_overlay_elf).resolve())
+
+    def cached_boot(self, mode, media, factory):
+        if not CONFIG.get("reuse_boots"):
+            return factory()
+        key = (self.boot_inputs, os.environ.get("ECHO_EMU_NATIVE", "1"), mode, media)
+        saved = self.boot_cache.pop(key, None)
+        boot = saved.restore() if saved is not None else None
+        if boot is None:
+            boot = factory()
+            saved = BootSnapshot(boot)
+        self.addCleanup(self.return_boot, key, saved)
+        return boot
+
+    def return_boot(self, key, saved):
+        self.boot_cache[key] = saved
+        self.boot_cache.move_to_end(key)
+        if len(self.boot_cache) > BOOT_CACHE_LIMIT:
+            self.boot_cache.popitem(last=False)
 
     def session(self, files=(), image=None, vbus=False, volume=None, rest_in_waits=True,
-                usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False, system_mib=None):
-        return self.session_module.Session(image or self.image, self.elf, files=files,
-                                           vbus_after_first_frame=vbus, volume=volume,
-                                           usb_overlay_elf=self.usb_overlay_elf,
-                                           rest_in_waits=rest_in_waits,
-                                           module_elfs=self.module_elfs, usb_answer=usb_answer,
-                                           vbus_at_start=vbus_at_start, system_mib=system_mib)
+                usb_answer=USB_ANSWER_FILE_TRANSFER, vbus_at_start=False, system_mib=None, *,
+                checkpoint=None):
+        def create():
+            session = self.session_module.Session(
+                image or self.image, self.elf, files=files, vbus_after_first_frame=vbus,
+                volume=volume, usb_overlay_elf=self.usb_overlay_elf, rest_in_waits=rest_in_waits,
+                module_elfs=self.module_elfs, usb_answer=usb_answer, vbus_at_start=vbus_at_start,
+                system_mib=system_mib)
+            if checkpoint is not None:
+                checkpoint(session)
+            return session
+
+        if image is not None or volume is not None or not CONFIG.get("reuse_boots"):
+            return create()
+        files = tuple(tuple(file) for file in files)
+        if any(data is not None and type(data) is not bytes for _, data, _ in files):
+            return create()
+        mode = ("session", vbus, rest_in_waits, usb_answer, vbus_at_start, system_mib,
+                checkpoint.__func__ if checkpoint is not None else None)
+        return self.cached_boot(mode, files, create)
 
     def with_card(self, files=(), volume=None):
         return CardSlot(files, volume)
@@ -846,23 +913,31 @@ class EchoImageHarness(unittest.TestCase):
         self.assert_healthy(session)
         summary("realistic %d sectors per cluster" % sectors_per_cluster, session)
 
-    def playback_rig(self, prepare=None):
+    def playback_rig(self, prepare=None, *, files=None):
+        from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
-        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   module_elfs=self.module_elfs, prepare=prepare)
 
+        def create():
+            volume = None
+            if files is not None:
+                volume = Fat32Volume()
+                for name, data in files:
+                    volume.add_file(name, data)
+            return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                       volume=volume, module_elfs=self.module_elfs, prepare=prepare)
+
+        if files is not None:
+            files = tuple((name, data) for name, data in files)
+        if prepare is not None or any(type(data) is not bytes for _, data in files or ()):
+            return create()
+        return self.cached_boot("playback", files, create)
 
     def speech_rig(self, rate=8000):
-        from echo_emulator.playback import Rig
-        from echo_emulator.fat_volume import Fat32Volume
         pattern = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828)
         pcm = pattern * (rate * 30 // 8)
         wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
                           16, 1, 1, rate, rate * 2, 2, 16, b"data", len(pcm)) + pcm
-        volume = Fat32Volume()
-        volume.add_file("Speech.wav", wav)
-        return Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                   volume=volume, module_elfs=self.module_elfs)
+        return self.playback_rig(files=(("Speech.wav", wav),))
 
     def replay_gain_rig(self, mode, clipping=True, equalizer=0, gains=None, extra_files=()):
         from echo_emulator.playback import Rig
@@ -906,6 +981,9 @@ class EchoImageHarness(unittest.TestCase):
                 "<II", rig.machine.read_memory(offset, 8)), frame)
 
     def standby_rig(self):
+        return self.cached_boot("standby", (), self.boot_standby_rig)
+
+    def boot_standby_rig(self):
         from echo_emulator.fat_volume import Fat32Volume
         from echo_emulator.playback import Rig
         block = bytearray(65536 * 4)
@@ -946,30 +1024,23 @@ class EchoImageHarness(unittest.TestCase):
 
     def vorbis_rig(self, mixed=False):
         from echo_emulator.core1_bridge import CORE1_VORBIS, Core1Bridge
-        from echo_emulator.fat_volume import Fat32Volume
-        from echo_emulator.playback import Rig
-        volume = Fat32Volume()
+        files = []
         if mixed:
             rate = 8000
             pcm = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828) * (rate * 30 // 8)
             wav = struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ",
                               16, 1, 1, rate, rate * 2, 2, 16, b"data", len(pcm)) + pcm
-            volume.add_file("A.wav", wav)
-        volume.add_file("B.ogg", (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes())
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  volume=volume, module_elfs=self.module_elfs)
+            files.append(("A.wav", wav))
+        files.append(("B.ogg", (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes()))
+        rig = self.playback_rig(files=files)
         program = self.elf.with_name("core1_vorbis.bin").read_bytes()
         return rig, Core1Bridge(rig.audio, {CORE1_VORBIS: program})
 
     def opus_rig(self):
         from echo_emulator.core1_bridge import CORE1_OPUS, CORE1_VORBIS, Core1Bridge
-        from echo_emulator.fat_volume import Fat32Volume
-        from echo_emulator.playback import Rig
-        volume = Fat32Volume()
-        volume.add_file("B.ogg", (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes())
-        volume.add_file("C.opus", (PROJECT / "tests/fixtures/opus/stereo48.opus").read_bytes())
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  volume=volume, module_elfs=self.module_elfs)
+        files = (("B.ogg", (PROJECT / "tests/fixtures/vorbis/seek44.ogg").read_bytes()),
+                 ("C.opus", (PROJECT / "tests/fixtures/opus/stereo48.opus").read_bytes()))
+        rig = self.playback_rig(files=files)
         programs = {CORE1_VORBIS: self.elf.with_name("core1_vorbis.bin").read_bytes(),
                     CORE1_OPUS: self.elf.with_name("core1_opus.bin").read_bytes()}
         return rig, Core1Bridge(rig.audio, programs)
@@ -1217,16 +1288,21 @@ class EchoImageHarness(unittest.TestCase):
 
     def started_session(self, prepare=None, **options):
         """A player that has finished its first start (files made, library scanned) and rests."""
-        session = self.session(**options)
-        machine = session.machine
-        if prepare is not None:
+        if prepare is None:
+            session = self.session(checkpoint=self.boot_started_session, **options)
+        else:
+            session = self.session(**options)
             prepare(session)
+            self.boot_started_session(session)
+        return session, session.machine
+
+    def boot_started_session(self, session):
+        machine = session.machine
         machine.note("hal_system_return_scratch")
         machine.answer_waits_for_key(4)
         machine.run(until=lambda: "hal_system_return_scratch" in machine.reached,
                     until_ms=self.session_module.FRAME_LIMIT_MS)
         machine.run(until_ms=machine.milliseconds() + 1500)
-        return session, machine
 
     def release_to_first_draw_ms(self, machine, key):
         """Tap a key and return how long after its release the panel got its next pixels."""
@@ -1270,6 +1346,7 @@ def parse_arguments(argv):
     parser.add_argument("--elf", type=Path, default=DEFAULT_ELF)
     parser.add_argument("--usb-overlay-elf", type=Path, default=DEFAULT_USB_OVERLAY_ELF)
     parser.add_argument("--tempo-tool", type=Path, default=PROJECT / "build/dev/tests/audio_tempo_tool")
+    parser.add_argument("--reuse-boots", action="store_true")
     parser.add_argument("tests", nargs="*")
     return parser.parse_args(argv)
 
@@ -1280,6 +1357,7 @@ def main(test_case, argv=None):
     CONFIG["elf"] = arguments.elf
     CONFIG["usb_overlay_elf"] = arguments.usb_overlay_elf
     CONFIG["tempo_tool"] = arguments.tempo_tool
+    CONFIG["reuse_boots"] = arguments.reuse_boots
     reason = prerequisites_missing()
     if reason:
         print("SKIP: " + reason)
