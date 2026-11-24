@@ -2047,7 +2047,7 @@ void app_release_audio(void)
     player_release_output(&app.player);
 }
 
-CORE_COLD void app_bluetooth_off(void)
+void app_bluetooth_off(void)
 {
     bluetooth_link_power_off(&app.bluetooth);
 }

@@ -72,23 +72,25 @@ void bluetooth_link_resume(BluetoothLink *link, Toast *toast, uint32_t now_ms)
     }
 }
 
-void bluetooth_link_sleep(BluetoothLink *link)
+__attribute__((noinline)) void bluetooth_link_sleep(BluetoothLink *link)
 {
+    link->restarting = false;
+    link->search_now = false;
+    link->awaiting = false;
     if (!link->saved.enabled || link->dozing) {
         return;
     }
-    hal_bluetooth_set_power(false);
     link->dozing = true;
     link->connected = false;
     link->streamed = false;
     link->attempting = false;
     link->paired_seen = false;
+    hal_bluetooth_set_power(false);
 }
 
 void bluetooth_link_power_off(BluetoothLink *link)
 {
-    link->restarting = false;
-    link->search_now = false;
+    bluetooth_link_sleep(link);
     hal_bluetooth_set_power(false);
 }
 
@@ -333,10 +335,7 @@ static void doze(BluetoothLink *link, uint32_t now_ms)
         return;
     }
     if (deadline_elapsed(now_ms, link->unlinked_ms, BLUETOOTH_LINK_IDLE_OFF_MS)) {
-        hal_bluetooth_set_power(false);
-        link->dozing = true;
-        link->attempting = false;
-        link->paired_seen = false;
+        bluetooth_link_sleep(link);
     }
 }
 

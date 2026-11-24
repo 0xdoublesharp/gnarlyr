@@ -335,6 +335,7 @@ static void powering_off_for_usb_cancels_a_pending_scan_restart(void)
     step(START_MS + 200 + BLUETOOTH_LINK_RESTART_MS);
     CHECK(!fake_hal_bluetooth_powered());
     CHECK(!link.search_now);
+    CHECK(link.dozing);
     CHECK(stored().enabled);
 }
 
@@ -1052,6 +1053,36 @@ static void play_after_bluetooth_switched_itself_off_reconnects_and_then_plays(v
     CHECK(fake_hal_bluetooth()->streaming);
 }
 
+static void powering_off_for_usb_allows_waking_on_play_and_reconnect(void)
+{
+    fresh();
+    save_on_bluetooth(&BUDS);
+    start();
+    connect_to(&BUDS);
+    step(START_MS + 100);
+    bluetooth_link_power_off(&link);
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(link.dozing);
+    CHECK(!link.connected);
+    step(START_MS + 200);
+    CHECK(!fake_hal_bluetooth_powered());
+    play();
+    step(START_MS + 300);
+    CHECK_EQUAL(PLAYER_PAUSED, player.state);
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK(!link.dozing);
+    connect_to(&BUDS);
+    step(START_MS + 2000);
+    CHECK_EQUAL(PLAYER_PLAYING, player.state);
+    CHECK(fake_hal_bluetooth()->streaming);
+    bluetooth_link_power_off(&link);
+    CHECK(link.dozing);
+    CHECK(!fake_hal_bluetooth_powered());
+    CHECK(bluetooth_link_reconnect(&link, START_MS + 2500));
+    CHECK(fake_hal_bluetooth_powered());
+    CHECK(!link.dozing);
+}
+
 static void play_right_after_power_on_waits_for_the_last_headphones(void)
 {
     fresh();
@@ -1288,6 +1319,7 @@ int main(void)
         TEST_CASE(leaving_the_screen_during_a_restart_drops_the_search),
         TEST_CASE(turning_bluetooth_off_during_a_restart_keeps_it_off),
         TEST_CASE(powering_off_for_usb_cancels_a_pending_scan_restart),
+        TEST_CASE(powering_off_for_usb_allows_waking_on_play_and_reconnect),
         TEST_CASE(connecting_saves_the_device_and_says_so),
         TEST_CASE(playing_with_nothing_plugged_in_streams),
         TEST_CASE(headphones_take_the_sound_back),
