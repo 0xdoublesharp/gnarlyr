@@ -396,7 +396,9 @@ static void read_frame(TagReader *reader, const Frame *frame, Id3Tag *tag)
     if (name->kind == FRAME_REPLAY_GAIN) {
         read_replay_gain_frame(reader, frame);
     } else if (name->kind == FRAME_PICTURE || name->kind == FRAME_OLD_PICTURE) {
-        read_picture_frame(reader, frame, name->kind == FRAME_OLD_PICTURE);
+        if (!reader->skip_pictures) {
+            read_picture_frame(reader, frame, name->kind == FRAME_OLD_PICTURE);
+        }
     } else {
         read_text_frame(reader, frame, name, tag);
     }

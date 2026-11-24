@@ -2,7 +2,12 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "tags_internal.h"
+
+enum {
+    INDEX_ONLY = 1u << 7
+};
 
 typedef struct FormatName {
     const char *extension;
@@ -329,13 +334,20 @@ void tag_offer_replay_gain(TagReader *reader, ReplayGainField field, const char 
     (void)replay_gain_offer(&reader->replay_gain, field, text, length);
 }
 
-bool track_tags_read(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags)
+CORE_SEAM bool track_tags_read(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags)
 {
     *tags = (TrackTags){.duration_ms = 0, .picture = {.kind = TAG_PICTURE_NONE}};
-    TagReader reader = {.source = source, .size = size, .tags = tags};
-    bool read = read_format(&reader, format);
+    uint32_t options = (uint32_t)format;
+    TagReader reader = {
+        .source = source, .size = size, .tags = tags, .skip_pictures = (options & INDEX_ONLY) != 0};
+    bool read = read_format(&reader, (TagFormat)(options & ~(uint32_t)INDEX_ONLY));
     if (read) {
         tags->replay_gain = replay_gain_finish(&reader.replay_gain);
     }
     return read;
+}
+
+bool track_tags_read_index(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags)
+{
+    return track_tags_read(source, size, (TagFormat)((uint32_t)format | INDEX_ONLY), tags);
 }

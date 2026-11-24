@@ -371,7 +371,7 @@ static ScanResult add_read_file(ScanState *state, const ScanJob *job, ScanStats 
                                 ByteSource source, uint32_t size)
 {
     TagFormat format = track_tags_format_for_name(state->path);
-    if (!track_tags_read(source, size, format, &state->tags)) {
+    if (!track_tags_read_index(source, size, format, &state->tags)) {
         stats->skipped++;
         return SCAN_OK;
     }

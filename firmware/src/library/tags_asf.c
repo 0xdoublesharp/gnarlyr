@@ -147,7 +147,7 @@ static void read_picture(TagReader *reader, const Attribute *attribute)
 static void offer_attribute(TagReader *reader, const Attribute *attribute)
 {
     if (tag_same_text(attribute->name, length_of(attribute->name), "WM/Picture")) {
-        if (attribute->type == TYPE_BYTES) {
+        if (attribute->type == TYPE_BYTES && !reader->skip_pictures) {
             read_picture(reader, attribute);
         }
         return;

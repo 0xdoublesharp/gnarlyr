@@ -61,3 +61,4 @@ typedef struct TrackTags {
 
 TagFormat track_tags_format_for_name(const char *name);
 bool track_tags_read(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags);
+bool track_tags_read_index(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags);
