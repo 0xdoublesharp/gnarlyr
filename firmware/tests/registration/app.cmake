@@ -78,6 +78,7 @@ echo_add_unit_test(NAME test_pseudo_language
 )
 target_compile_definitions(test_pseudo_language PRIVATE ECHO_PSEUDO_PACK="${ECHO_PSEUDO_PACK}")
 add_dependencies(test_pseudo_language echo_test_language_packs)
+set_tests_properties(test_pseudo_language PROPERTIES COST 1000)
 
 echo_add_unit_test(NAME test_equalizer_browser
     SOURCES app/test_equalizer_browser.c app/fake_hal.c
@@ -129,6 +130,7 @@ echo_add_unit_test(NAME test_app
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+set_tests_properties(test_app PROPERTIES COST 1000)
 echo_add_unit_test(NAME test_release_diagnostics
     SOURCES app/test_release_diagnostics.c ${PROJECT_SOURCE_DIR}/src/app/diagnostics_menu_release.c
         app/fake_hal.c

@@ -8,6 +8,28 @@ from echo_image_harness import EchoImageHarness, main
 
 
 class EchoImageTest(EchoImageHarness):
+    def assert_dsd_waveform(self, tracks, data, rate):
+        from dsd_filter import cic_coefficients, compensation
+
+        ratio = rate // 2822400
+        step = 16 * ratio
+        cic = cic_coefficients(ratio)
+        fir = compensation(ratio)
+        weights = [0.0] * ((len(fir) - 1) * step + len(cic))
+        for stage, coefficient in enumerate(fir):
+            for tap, value in enumerate(cic):
+                weights[stage * step + tap] += coefficient * value
+        for channel, encoded in enumerate(data):
+            bits = [2 * ((byte >> bit) & 1) - 1 for byte in encoded for bit in range(8)]
+            for frame in range(256, len(tracks[0]) - 256, 29):
+                end = (34 + 2 * frame) * step - 1
+                expected = 2 * sum(weight * bits[end - tap] for tap, weight in enumerate(weights))
+                for pcm in tracks:
+                    word = pcm[frame][channel]
+                    signed = word - 2 ** 32 if word & 0x80000000 else word
+                    self.assertAlmostEqual(expected, signed / 2 ** 31, delta=32 / 2 ** 23,
+                                           msg=f"frame {frame}, channel {channel}")
+
     def test_dsf_and_dff_play_on_core1_and_queue_without_restarting_dma(self):
         from dsd_fixture import signal, dsf, dff
         from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
@@ -17,7 +39,6 @@ class EchoImageTest(EchoImageHarness):
         frames = 8820
         data, _ = signal(5644800, frames)
         volume.add_file("A.dsf", dsf(data, 5644800))
-        data, _ = signal(5644800, frames)
         volume.add_file("B.dff", dff(data, 5644800))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
@@ -31,16 +52,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(2 * frames, len(pcm))
         self.assertEqual(1, len(starts))
         self.assertEqual({CORE1_DSD}, set(bridge.started))
-        for frame in range(256, 2 * frames - 256, 37):
-            index = frame % frames
-            if index < 256 or frames - index < 256:
-                continue
-            for channel, frequency in enumerate((1000, 1321)):
-                word = pcm[frame][channel]
-                signed = word - 2 ** 32 if word & 0x80000000 else word
-                actual = signed / 2 ** 31
-                expected = 0.7 * math.sin(2 * math.pi * frequency * index / 88200)
-                self.assertAlmostEqual(expected, actual, delta=0.005)
+        self.assert_dsd_waveform((pcm[:frames], pcm[frames:]), data, 5644800)
         self.assert_healthy(rig.session)
 
     def test_dsd64_stereo_dsf_plays_the_reference_sine_across_blocks(self):
@@ -61,13 +73,10 @@ class EchoImageTest(EchoImageHarness):
         rig.run_for(400)
         self.assertEqual(frames, len(pcm))
         self.assertEqual([CORE1_DSD], bridge.started)
+        self.assert_dsd_waveform((pcm,), data, 2822400)
         for channel, frequency in enumerate((1000, 1321)):
-            values = [(word - 2 ** 32 if word & 0x80000000 else word) / 2 ** 31
-                      for word in (pcm[index][channel] for index in range(256, frames - 256))]
-            self.assertAlmostEqual(0.7, max(abs(value) for value in values), delta=0.01)
-            for index, actual in enumerate(values[::29]):
-                expected = 0.7 * math.sin(2 * math.pi * frequency * (256 + 29 * index) / 88200)
-                self.assertAlmostEqual(expected, actual, delta=0.005)
+            words = [frame[channel] for frame in pcm[256:-256]]
+            self.assertAlmostEqual(0.7, 2 * self.tone_level(words, 88200, frequency), delta=0.01)
         self.assert_healthy(rig.session)
 
     def test_dsd64_stereo_keeps_up_with_the_players_audio_service_cadence(self):
@@ -149,4 +158,4 @@ class EchoImageTest(EchoImageHarness):
 
 
 if __name__ == "__main__":
-    main(EchoImageTest)
+    sys.exit(main(EchoImageTest))

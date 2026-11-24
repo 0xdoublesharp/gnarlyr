@@ -381,16 +381,17 @@ if(EXISTS ${ECHO_TOOLS_PYTHON})
         COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
             -p "test_*font*.py"
     )
+    set_tests_properties(font_recipe_tests PROPERTIES COST 1000)
     add_test(NAME tools_unit_tests
         COMMAND ${ECHO_TOOLS_PYTHON} -m unittest discover -s ${PROJECT_SOURCE_DIR}/tools/tests
     )
-    set_tests_properties(tools_unit_tests PROPERTIES RESOURCE_LOCK firmware_images)
+    set_tests_properties(tools_unit_tests PROPERTIES COST 1000 RESOURCE_LOCK firmware_images)
     add_test(NAME cover_decode_matches_pillow
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/check_cover_decode.py
             --tool $<TARGET_FILE:cover_decode_tool>
             --work ${CMAKE_CURRENT_BINARY_DIR}/cover_decode
     )
-    set_tests_properties(cover_decode_matches_pillow PROPERTIES COST 300 TIMEOUT 1200)
+    set_tests_properties(cover_decode_matches_pillow PROPERTIES COST 1000 TIMEOUT 1200)
     add_test(NAME fonts_up_to_date
         COMMAND ${ECHO_TOOLS_PYTHON} ${PROJECT_SOURCE_DIR}/tools/font_build.py
             --config ${PROJECT_SOURCE_DIR}/assets/fonts/fonts.json

@@ -82,6 +82,10 @@ class EchoImageTest(EchoImageHarness):
         data = self.read(session, "backup/list.bin")
         self.assertEqual(backup_list(builds, newest), data[:len(backup_list(builds, newest))])
 
+    def open_backup_picker(self, rig):
+        for key in ("previous", "play", "previous", "previous", "play", "previous", "play"):
+            rig.press(key)
+
     def test_an_update_backs_up_what_the_old_build_left_before_the_new_build_reads_it(self):
         old = build_of(self.image)
         newer = with_tag(self.newer_image(), "c0ffee01")
@@ -152,8 +156,8 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         toasts = self.collect_toasts(rig.machine)
-        for key in ("previous", "play", "previous", "previous", "play", "play"):
-            rig.press(key)
+        self.open_backup_picker(rig)
+        rig.press("play")
         self.assertEqual(0, rig.machine.watchdog_resets)
         self.assertEqual(saved, self.read(rig.session, "settings.bin"))
         self.assertEqual(english("STR_SETTINGS_RESTORED"), toasts[-1])
@@ -180,10 +184,17 @@ class EchoImageTest(EchoImageHarness):
         self.assertIsNotNone(rig.first_audio_after(rig.play_song(1)))
         self.assertTrue(process.loaded(machine))
         rig.press_many("back", 3)
-        for key in ("previous", "play", "previous", "previous", "play"):
-            rig.press(key)
+        self.open_backup_picker(rig)
+        returned = False
+
+        def stop_on_restore_return():
+            nonlocal returned
+            if not returned:
+                returned = True
+                machine.stop("restore returned")
+
         machine.hook_symbol("user_state_module_settle", lambda: machine.add_address_hook(
-            machine.reg(UC_ARM_REG_LR) & ~1, lambda: machine.stop("restore returned")))
+            machine.reg(UC_ARM_REG_LR) & ~1, stop_on_restore_return))
         machine.press_key(KEYS["play"], hold_ms=150)
         self.assertEqual("restore returned", machine.run(until_ms=machine.milliseconds() + 5000))
         self.assertFalse(process.loaded(machine))
@@ -192,8 +203,9 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
         self.assertEqual([english("STR_SETTINGS_RESTORED")], toasts[-1:])
         self.assertEqual(hidden, self.read(rig.session, "hidden.bin"))
-        rig.open_songs()
-        self.assertIsNotNone(rig.first_audio_after(rig.play_song(1)))
+        self.assertFalse(rig.audio.running)
+        rig.press("play")
+        self.assertIsNotNone(rig.first_audio_after(rig.press("play")))
         self.assertTrue(process.loaded(machine))
         self.assertEqual(0, machine.watchdog_resets)
         self.assert_healthy(rig.session)
@@ -215,4 +227,4 @@ class EchoImageTest(EchoImageHarness):
 
 
 if __name__ == "__main__":
-    main(EchoImageTest)
+    sys.exit(main(EchoImageTest))

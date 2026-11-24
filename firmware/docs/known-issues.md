@@ -6,7 +6,7 @@ Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-s
 
 These apply to 1.0.0-beta.1, the public beta. It is the `device` build, which writes debug reports.
 
-- **macOS System Information can hang.** With the player connected, System Information (`system_profiler`) can stop responding. Finder, copying and ejecting are not affected. The `echo_debug.py` USB discovery command times out after 12 seconds.
+- **macOS System Information.** The beta candidate fixes the USB control transfers that could hang `system_profiler`. Emulator tests cover the fix. The `echo_debug.py` USB discovery command still times out after 12 seconds.
 - **Copy speed is still being improved.** On the developer's player, copies run at about 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
 - **Battery life hasn't been measured.**
 - **Two safety nets haven't been tried on a player since their latest fixes:** entering recovery mode by holding Power and Vol+ with the cable in a computer, and the automatic rollback of an update that doesn't start properly. The paperclip route to recovery mode ([`device-recovery.md`](device-recovery.md)) has been used on the player.
