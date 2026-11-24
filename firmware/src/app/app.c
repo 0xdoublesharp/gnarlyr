@@ -996,9 +996,8 @@ static void dispatch_to_screen(KeyEvent event, uint32_t now_ms)
 
 static bool may_show_now_playing(void)
 {
-    PlayerStatus status = player_status(&app.player);
     Screen *top = top_screen();
-    return status.has_track && status.state == PLAYER_PLAYING &&
+    return app.player.has_track && app.player.state == PLAYER_PLAYING &&
            top != &app.screens.now_playing.screen && !top->stays_on_wake;
 }
 
@@ -1201,8 +1200,8 @@ static bool battery_empty(uint32_t now_ms)
 
 static void keep_awake_while_busy(uint32_t now_ms)
 {
-    if (app.usb_power || player_status(&app.player).state == PLAYER_PLAYING ||
-        debug_runner_active() || player_queue_busy(&app.player) || mixtape_busy()) {
+    if (app.usb_power || app.player.state == PLAYER_PLAYING || debug_runner_active() ||
+        player_queue_busy(&app.player) || mixtape_busy()) {
         power_policy_stay_awake(&app.power, now_ms);
     }
 }
@@ -1965,9 +1964,10 @@ CORE_COLD static bool walk_music(uint32_t files)
     return module != NULL && module->music_walk(files);
 }
 
-static uint32_t scan_event(DebugScanPhase phase, uint32_t number)
+__attribute__((noinline)) static void log_scan(DebugScanPhase phase, uint32_t number)
 {
-    return (uint32_t)phase << DEBUG_SCAN_PHASE_SHIFT | (number & DEBUG_SCAN_NUMBER_MASK);
+    debug_loop_event(DEBUG_EVENT_SCAN,
+                     (uint32_t)phase << DEBUG_SCAN_PHASE_SHIFT | (number & DEBUG_SCAN_NUMBER_MASK));
 }
 
 static void continue_covers(uint32_t now_ms)
@@ -1984,15 +1984,14 @@ static void continue_covers(uint32_t now_ms)
         app_release_audio();
     }
     hal_system_set_clock_mhz(WORK_CLOCK_MHZ);
-    debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_COVERS, app.covers_album));
+    log_scan(DEBUG_SCAN_COVERS, app.covers_album);
     RescanOutcome outcome = library_rescan_covers(app.covers_album);
     use_wanted_clock();
     app.covers_album = (uint16_t)outcome.covers.next_album;
     bool stopped = outcome.cover_result == SCAN_STOPPED;
     app.covers_pending = stopped;
-    debug_loop_event(DEBUG_EVENT_SCAN,
-                     stopped ? scan_event(DEBUG_SCAN_COVERS_STOPPED, app.covers_album)
-                             : scan_event(DEBUG_SCAN_COVERS_DONE, outcome.covers.covers));
+    log_scan(stopped ? DEBUG_SCAN_COVERS_STOPPED : DEBUG_SCAN_COVERS_DONE,
+             stopped ? app.covers_album : outcome.covers.covers);
     cover_cache_open(&app.covers, &app.library.library);
     settle_screens(now_ms);
     app.render_wanted = true;
@@ -2000,12 +1999,18 @@ static void continue_covers(uint32_t now_ms)
 
 CORE_COLD static void run_rescan(void)
 {
+    bool loaded = app.player.loaded;
     app_release_audio();
+    if (!loaded) {
+        player_save(&app.player);
+    }
     hal_audio_release();
     show_working_notice(STR_SCANNING, i18n_text(STR_SCAN_STARTING), WIRE_SHAPE_DISC);
     RescanProgress progress = {show_rescan_progress, show_build_progress};
-    debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_START, 0));
+    log_scan(DEBUG_SCAN_START, 0);
+    hal_system_set_clock_mhz(WORK_CLOCK_MHZ);
     RescanOutcome outcome = library_rescan_run(progress, app.rescan_stops);
+    use_wanted_clock();
     app.rescan_stops = 0;
     static char message[TOAST_TEXT_CAPACITY];
     const char *text = library_rescan_message(outcome, message, sizeof message);
@@ -2019,7 +2024,7 @@ CORE_COLD static void run_rescan(void)
         }
         app.covers_pending = true;
         app.covers_album = 0;
-        debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_LIBRARY, outcome.stats.tracks));
+        log_scan(DEBUG_SCAN_LIBRARY, outcome.stats.tracks);
     } else {
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_SCAN_FAILED + (uint32_t)outcome.result);
     }
@@ -2459,7 +2464,7 @@ CORE_SEAM void app_step(void)
                 changed = walk_music(MUSIC_WALK_CHECK) || !library_store_open(&app.library);
             }
             if (!changed && app.rescan_manual) {
-                debug_loop_event(DEBUG_EVENT_SCAN, scan_event(DEBUG_SCAN_UP_TO_DATE, 0));
+                log_scan(DEBUG_SCAN_UP_TO_DATE, 0);
                 toast_show(
                     &app.toast,
                     i18n_text(app.music_unchecked ? STR_SCREEN_MISSING : STR_LIBRARY_UP_TO_DATE),

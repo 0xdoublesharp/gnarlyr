@@ -157,6 +157,7 @@ typedef struct FakeHal {
     int stall_test_count;
     int watchdog_test_count;
     bool scratch_refused;
+    uint32_t scratch_clock_mhz;
     int listing_borrows;
     int keep_alive_count;
     uint32_t idle_us;
@@ -199,6 +200,7 @@ typedef struct FakeHal {
     int reserve_count;
     int scratch_borrows;
     bool empty_card;
+    bool preserve_library_on_rescan;
     bool combined;
     bool internal_volume;
     int dir_opens;
@@ -1726,6 +1728,11 @@ void fake_hal_set_empty_card(bool empty)
     fake.empty_card = empty;
 }
 
+void fake_hal_preserve_library_on_rescan(void)
+{
+    fake.preserve_library_on_rescan = true;
+}
+
 int fake_hal_dir_open_count(void)
 {
     return fake.dir_opens;
@@ -1782,6 +1789,7 @@ void *hal_system_borrow_scratch(uint32_t *size)
 {
     static uint8_t scratch[384 * 1024];
     fake.scratch_borrows++;
+    fake.scratch_clock_mhz = hal_system_clock_mhz();
     if (fake.scratch_refused) {
         *size = 0;
         return NULL;
@@ -1789,6 +1797,11 @@ void *hal_system_borrow_scratch(uint32_t *size)
     fake.scratch_outstanding++;
     *size = sizeof scratch;
     return scratch;
+}
+
+uint32_t fake_hal_scratch_clock_mhz(void)
+{
+    return fake.scratch_clock_mhz;
 }
 
 void hal_system_return_scratch(void)
@@ -2009,6 +2022,18 @@ int fake_hal_rescan_loads(void)
     return fake.rescan_loads;
 }
 
+static RescanOutcome rescan_existing_library(uint32_t capacity, HalFile scratch,
+                                             RescanProgress progress, uint32_t stops)
+{
+    (void)capacity;
+    (void)progress;
+    (void)stops;
+    hal_file_close(&scratch);
+    uint32_t size;
+    (void)hal_system_borrow_scratch(&size);
+    return (RescanOutcome){.result = SCAN_OK};
+}
+
 const void *hal_system_load_rescan_code(void)
 {
     fake.audio.status.state = HAL_AUDIO_STOPPED;
@@ -2016,7 +2041,11 @@ const void *hal_system_load_rescan_code(void)
     fake.loaded_module = 0;
     fake.rescan_loads++;
     module_guard_evict("the rescan overlay");
-    return &RESCAN_MODULE_ENTRY;
+    static const RescanModuleEntry unchanged = {
+        .magic = RESCAN_MODULE_MAGIC,
+        .run = rescan_existing_library,
+    };
+    return fake.preserve_library_on_rescan ? &unchanged : &RESCAN_MODULE_ENTRY;
 }
 
 const void *hal_system_load_module(uint32_t module)

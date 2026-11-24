@@ -183,7 +183,7 @@ static bool switch_clock(uint32_t mhz)
 
 static uint32_t wanted_divider(bool coast)
 {
-    if (!coast || board_usb_listening() || board_usb_core_powered()) {
+    if (!coast || board_usb_core_powered()) {
         return 1;
     }
     if (current_mhz == COAST_FROM_MHZ) {

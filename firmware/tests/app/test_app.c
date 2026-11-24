@@ -4822,6 +4822,8 @@ static void a_rescan_of_an_empty_card_writes_an_empty_library(void)
     CHECK_EQUAL(0, fake_hal_scratch_borrow_count());
     step();
     CHECK_EQUAL(1, fake_hal_scratch_borrow_count());
+    CHECK_EQUAL(200, fake_hal_scratch_clock_mhz());
+    CHECK_EQUAL(96, hal_system_clock_mhz());
     CHECK_EQUAL(0, fake_hal_scratch_outstanding());
     CHECK(fake_hal_library_writes() > 0);
     CHECK(toast_is("Library: 0 tracks"));
@@ -5474,6 +5476,27 @@ static void a_failed_rescan_keeps_the_playback_position(void)
     CHECK_EQUAL(position, app_player_status().position_ms);
     app_start_after_storage();
     CHECK_EQUAL(position, app_player_status().position_ms);
+}
+
+static void a_successful_rescan_keeps_an_unloaded_players_seek(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    fake_hal_audio_set_position(10000);
+    tap(KEY_PLAY);
+    wait_ms(PLAYER_PAUSE_RELEASE_MS);
+    CHECK_EQUAL(HAL_AUDIO_STOPPED, hal_audio_status().state);
+    CHECK(app_player_status().position_ms > 0);
+    headset(HAL_HEADSET_PREVIOUS);
+    CHECK_EQUAL(0, app_player_status().position_ms);
+    fake_hal_set_empty_card(true);
+    fake_hal_preserve_library_on_rescan();
+    app_request_rescan();
+    step();
+    CHECK_EQUAL(1, fake_hal_rescan_loads());
+    CHECK(app_player_status().has_track);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    CHECK_EQUAL(0, app_player_status().position_ms);
 }
 
 static bool rescan_message_is(ScanResult result, const char *expected)
@@ -9388,6 +9411,7 @@ int main(void)
         TEST_CASE(after_an_installed_update_screens_use_the_resident_font),
         TEST_CASE(a_rescan_without_scratch_memory_says_so),
         TEST_CASE(a_failed_rescan_keeps_the_playback_position),
+        TEST_CASE(a_successful_rescan_keeps_an_unloaded_players_seek),
         TEST_CASE(a_rescan_borrows_the_idle_audio_buffer_for_its_listing),
         TEST_CASE(each_way_a_scan_runs_out_has_its_own_message),
         TEST_CASE(the_music_check_after_an_installed_update_skips_the_walk),
