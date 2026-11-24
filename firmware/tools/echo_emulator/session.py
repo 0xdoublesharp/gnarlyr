@@ -6,6 +6,7 @@ from .emmc import SYSTEM_MIB, EmmcCard, synthetic_emmc
 from .fat_reader import FatReader
 from .fat_volume import Fat32Volume, short_name
 from .machine import USB_ANSWER_FILE_TRANSFER, Machine
+from .snapshot import capture_session_snapshot, restore_session_snapshot
 
 LOADER_REQUEST_NAME = "MASKROM.REQ"
 LOADER_REQUEST_TEXT = b"MASKROM REQ"
@@ -97,6 +98,12 @@ class Session:
         self.vbus_after_first_frame = vbus_after_first_frame
         self.machine.vbus = vbus_at_start
         self.machine.usb_answer = usb_answer
+
+    def snapshot(self):
+        return capture_session_snapshot(self)
+
+    def restore(self, snapshot):
+        restore_session_snapshot(self, snapshot)
 
     def reboot(self, image=None, vbus_after_first_frame=False,
                usb_answer=USB_ANSWER_FILE_TRANSFER):
