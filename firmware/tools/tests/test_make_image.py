@@ -1304,5 +1304,6 @@ class LanguagePackTest(unittest.TestCase):
         self.assertEqual(0x0309F000, int(region.group(1), 16) + int(region.group(2), 16))
         self.assertIn(f"GLYPH_WINDOW_BYTES 0x{int(glyphs.group(2), 16):X}u",
                       (board / "overlay.h").read_text())
-        self.assertIn("CACHE_WORDS = (GLYPH_WINDOW_BYTES - 2 * SECTOR_BYTES) / 4",
-                      (board / "glyphs.c").read_text())
+        glyph_source = " ".join((board / "glyphs.c").read_text().split())
+        self.assertIn("CACHE_WORDS = (GLYPH_WINDOW_BYTES - SECTOR_BYTES - "
+                      "FONT_PACK_IMAGE_FACES * sizeof(GlyphFace)) / 4", glyph_source)
