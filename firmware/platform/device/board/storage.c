@@ -15,10 +15,12 @@
 
 enum {
     OPEN_FILE_CAPACITY = 9,
+    FILE_EPOCH_STEP = 16,
     OPEN_DIR_CAPACITY = HAL_OPEN_DIRS
 };
 
 _Static_assert((int)HAL_NAME_CAPACITY == (int)FAT_NAME_CAPACITY, "listed names fit the HAL entry");
+_Static_assert(OPEN_FILE_CAPACITY <= FILE_EPOCH_STEP, "each slot fits the handle");
 
 static bool mount_tried;
 static StorageKind mounted_kind;
@@ -26,7 +28,7 @@ static FatVolume volume;
 static FatFile files[OPEN_FILE_CAPACITY];
 static FatExtents extents[OPEN_FILE_CAPACITY];
 static FatVolume *file_volumes[OPEN_FILE_CAPACITY];
-static bool in_use[OPEN_FILE_CAPACITY];
+static uint32_t file_epoch;
 static FatDirCursor dirs[OPEN_DIR_CAPACITY];
 static FatVolume *dir_volumes[OPEN_DIR_CAPACITY];
 static bool dir_in_use[OPEN_DIR_CAPACITY];
@@ -58,19 +60,16 @@ CORE_COLD bool hal_file_combined(void)
 static int free_slot(void)
 {
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {
-        if (!in_use[slot]) {
+        if (file_volumes[slot] == NULL) {
             return slot;
         }
     }
     return -1;
 }
 
-static FatFile *file_of(HalFile file)
+static uint32_t file_slot(HalFile file)
 {
-    if (file.handle < 0 || file.handle >= OPEN_FILE_CAPACITY || !in_use[file.handle]) {
-        return NULL;
-    }
-    return &files[file.handle];
+    return (uint32_t)file.handle ^ file_epoch;
 }
 
 static FatVolume *player_volume(void)
@@ -101,21 +100,23 @@ bool hal_file_open(HalFile *file, const char *path)
     }
     fat_attach_extents(&files[slot], &extents[slot]);
     file_volumes[slot] = target;
-    in_use[slot] = true;
-    *file = (HalFile){.handle = slot, .size = files[slot].size};
+    uint32_t handle = file_epoch | (uint32_t)slot;
+    *file = (HalFile){.handle = (int32_t)handle, .size = files[slot].size};
     return true;
 }
 
 bool hal_file_read(HalFile file, uint32_t offset, void *buffer, uint32_t length)
 {
-    FatFile *open = file_of(file);
-    return open != NULL && fat_read(file_volumes[file.handle], open, offset, buffer, length);
+    uint32_t slot = file_slot(file);
+    return slot < OPEN_FILE_CAPACITY && file_volumes[slot] != NULL &&
+           fat_read(file_volumes[slot], &files[slot], offset, buffer, length);
 }
 
 void hal_file_close(HalFile *file)
 {
-    if (file_of(*file) != NULL) {
-        in_use[file->handle] = false;
+    uint32_t slot = file_slot(*file);
+    if (slot < OPEN_FILE_CAPACITY) {
+        file_volumes[slot] = NULL;
     }
     file->handle = -1;
 }
@@ -153,8 +154,9 @@ CORE_COLD bool hal_file_write_at(const char *path, uint32_t offset, const void *
 
 bool hal_file_write_open(HalFile file, uint32_t offset, const void *bytes, uint32_t length)
 {
-    FatFile *open = file_of(file);
-    return open != NULL && write_open_file(file_volumes[file.handle], open, offset, bytes, length);
+    uint32_t slot = file_slot(file);
+    return slot < OPEN_FILE_CAPACITY && file_volumes[slot] != NULL &&
+           write_open_file(file_volumes[slot], &files[slot], offset, bytes, length);
 }
 
 static BlockDevice card_device;
@@ -224,13 +226,14 @@ CORE_COLD HalReserveResult hal_internal_file_reserve(const char *path, uint32_t 
     return reserve_in(player_volume(), path, size);
 }
 
-CORE_COLD void storage_reset(void)
+CORE_SEAM CORE_COLD void storage_reset(void)
 {
     font_pack_detach_extra();
     mount_tried = false;
     internal_volume_reset();
+    file_epoch = (file_epoch + FILE_EPOCH_STEP) & INT32_MAX;
     for (int slot = 0; slot < OPEN_FILE_CAPACITY; slot++) {
-        in_use[slot] = false;
+        file_volumes[slot] = NULL;
     }
     for (int slot = 0; slot < OPEN_DIR_CAPACITY; slot++) {
         dir_in_use[slot] = false;

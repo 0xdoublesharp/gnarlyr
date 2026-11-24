@@ -294,6 +294,32 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(listen[2] & 0xFF, 1)
         self.assertEqual(listen[6] & 0x100, 0x100)
 
+    def test_a_trial_never_writes_diagnostics_into_a_replaced_record_sector(self):
+        newer = self.newer_image()
+        installed = self.install_on_trial(newer)
+        for prefix in (b"data", b"DSUT\x01\x02\x00\x01"):
+            with self.subTest(prefix=prefix):
+                trial = self.start(installed, newer, vbus=True)
+                machine = trial.machine
+                machine.host_ejects()
+                steps = machine.trace("app_step")
+                self.assertEqual(trial.run_to_first_frame(), "condition met")
+                self.assertEqual(trial.run_through_update_check(),
+                                 "reached usb_session_storage_changed")
+                lba = next(iter(trial.file_sectors(self.trial_path())))
+                record = trial.disk.read(lba, 1)
+                foreign = prefix.ljust(512, b"\xa5")
+                trial.disk.write(lba, foreign)
+                count = len(steps)
+                machine.continue_past_stop()
+                self.assertEqual(machine.run(until=lambda: len(steps) > count,
+                                             until_ms=machine.milliseconds() + LIMIT_MS),
+                                 "condition met")
+                after = trial.disk.read(lba, 1)
+                trial.disk.write(lba, record)
+                self.assertEqual(after, foreign)
+                self.assert_healthy(trial)
+
     def diagnostics(self, record):
         words = struct.unpack_from("<%dI" % (2 + 1 + 2 * DIAG_SNAPSHOT_WORDS), record)
         self.assertEqual(words[2], DIAG_MAGIC)

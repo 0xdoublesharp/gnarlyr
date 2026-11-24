@@ -10,6 +10,7 @@ from echo_image_harness import (
     EchoImageHarness,
     lang_pack,
     main,
+    make_image,
 )
 
 import font_build
@@ -78,6 +79,21 @@ def chinese_translations(catalogue):
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_an_invalid_slot_1_glyph_table_uses_slot_2_glyphs(self):
+        table_sector = make_image.GLYPH_TABLE_OFFSET // 512
+        bad_count = make_image.GLYPH_TABLE_MAGIC + struct.pack("<I", make_image.GLYPH_FACE_LIMIT + 1)
+        for header in (bytes(4), bad_count):
+            with self.subTest(header=header):
+                session = self.session()
+                lba = session.layout["slot_1"] + table_sector
+                sector = session.disk.read(lba, 1)
+                session.disk.write(lba, header + sector[len(header):])
+                self.assertEqual(session.run_to_first_frame(), "condition met")
+                self.assertLess(0, self.word(session.machine, "slot_count"))
+                first = session.layout["slot_2"] + table_sector
+                self.assertTrue(any(lba == first for _, lba, _ in session.card.reads))
+                self.assert_healthy(session)
+
     def player_volume(self, code, translations, font, text_size=None):
         from echo_emulator.fat_volume import Fat32Volume
         catalogue = lang_pack.read_catalogue()

@@ -7,6 +7,7 @@ from echo_image_harness import (
     IDENTITY,
     EchoImageHarness,
     main,
+    struct,
 )
 
 LUN_PRESENT_OFFSET = 17
@@ -16,6 +17,49 @@ STOCK_LABEL = "ECHO"
 
 
 class EchoImageTest(EchoImageHarness):
+    def test_a_storage_reset_rejects_handles_from_the_previous_mount(self):
+        from echo_emulator.machine import PAGE, TRAMPOLINE
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_SP
+        from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2, UC_ARM_REG_R3
+
+        session = self.session(files=[("A.bin", b"old", None), ("B.bin", b"new", None)])
+        self.assertEqual(session.run_to_first_frame(), "condition met")
+        machine = session.machine
+        scratch, returned = TRAMPOLINE + PAGE, TRAMPOLINE + 0x900
+        machine.uc.mem_map(scratch, PAGE)
+        machine.add_address_hook(returned, lambda: machine.stop("storage API returned"))
+
+        def call(name, *args):
+            stack = machine.reg(UC_ARM_REG_SP)
+            if len(args) > 4:
+                machine.uc.mem_write(stack - 8, struct.pack("<I", args[4]))
+                machine.uc.reg_write(UC_ARM_REG_SP, stack - 8)
+            for register, value in zip((UC_ARM_REG_R0, UC_ARM_REG_R1, UC_ARM_REG_R2,
+                                        UC_ARM_REG_R3), args):
+                machine.uc.reg_write(register, value)
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
+            self.assertEqual(machine.run(until_ms=machine.milliseconds() + 1000),
+                             "storage API returned")
+            machine.uc.reg_write(UC_ARM_REG_SP, stack)
+            return machine.reg(UC_ARM_REG_R0)
+
+        path, old, new = scratch, scratch + 32, scratch + 40
+        machine.uc.mem_write(path, b"/A.bin\0")
+        call("storage_reset")
+        self.assertEqual(1, call("hal_file_open", old, path))
+        call("storage_reset")
+        machine.uc.mem_write(path, b"/B.bin\0")
+        self.assertEqual(1, call("hal_file_open", new, path))
+        stale = struct.unpack("<II", machine.read_memory(old, 8))
+        current = struct.unpack("<II", machine.read_memory(new, 8))
+        self.assertEqual(0, call("hal_file_read", *stale, 0, path, 3))
+        self.assertEqual(0, call("hal_file_write_open", *stale, 0, path, 3))
+        call("hal_file_close", old)
+        self.assertEqual(1, call("hal_file_read", *current, 0, path, 3))
+        self.assertEqual(b"new", machine.read_memory(path, 3))
+        self.assert_healthy(session)
+
     def label_sectors(self, session, volume):
         start = session.layout["volume_start"]
         return start + volume.cluster_lba(volume.root.first), start, start + BACKUP_BOOT_SECTOR
