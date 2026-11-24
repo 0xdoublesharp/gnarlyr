@@ -13,20 +13,26 @@
 #define GLYPH_TABLE_MAGIC 0x54504745u
 #define NO_SECTOR 0xFFFFFFFFu
 
+typedef struct GlyphFace {
+    uint32_t lba;
+    uint32_t size;
+} GlyphFace;
+
 enum {
     SECTOR_BYTES = 512,
     SECTOR_WORDS = SECTOR_BYTES / 4,
     TABLE_HEADER_BYTES = 8,
     TABLE_ROW_BYTES = 8,
     GLYPH_TABLE_ROWS = (SECTOR_BYTES / 2 - TABLE_HEADER_BYTES) / TABLE_ROW_BYTES,
-    CACHE_WORDS = (GLYPH_WINDOW_BYTES - 2 * SECTOR_BYTES) / 4
+    CACHE_WORDS = (GLYPH_WINDOW_BYTES - SECTOR_BYTES - FONT_PACK_IMAGE_FACES * sizeof(GlyphFace)) /
+        4
 };
 
-static uint32_t table[SECTOR_WORDS] __attribute__((section(".glyph_ram")));
+static GlyphFace faces[FONT_PACK_IMAGE_FACES] __attribute__((section(".glyph_ram")));
 static uint32_t sector[SECTOR_WORDS] __attribute__((section(".glyph_ram")));
 static uint32_t cache[CACHE_WORDS] __attribute__((section(".glyph_ram")));
 static uint32_t sector_lba;
-static uint32_t glyph_slot;
+static EmmcInfo glyph_image;
 
 void board_slot_cache_invalidate(void);
 
@@ -75,35 +81,52 @@ bool board_slot_table_row(uint32_t slot, const BoardImageTable *listing, uint32_
                            row, TABLE_ROW_BYTES);
 }
 
+static bool glyph_table_read(uint32_t slot)
+{
+    return read_sector(slot + GLYPH_TABLE_OFFSET / SECTOR_BYTES) &&
+           sector[0] == GLYPH_TABLE_MAGIC && sector[1] - 1 < GLYPH_TABLE_ROWS;
+}
+
+static bool open_face(uint32_t slot, uint32_t face, void *buffer)
+{
+    if (!glyph_table_read(slot) || face >= sector[1]) {
+        return false;
+    }
+    uint32_t start = sector[2 + 2 * face];
+    uint32_t size = sector[3 + 2 * face];
+    uint32_t slot_bytes = glyph_image.layout.slot_sectors * SECTOR_BYTES;
+    if (start % SECTOR_BYTES != 0 || start >= slot_bytes || size > slot_bytes - start) {
+        return false;
+    }
+    uint32_t lba = slot + start / SECTOR_BYTES;
+    if (!read_sector(lba) || sector[3] > size || !font_pack_header_valid((const uint8_t *)sector)) {
+        return false;
+    }
+    faces[face] = (GlyphFace){lba, sector[3]};
+    memcpy(buffer, sector, FONT_PACK_HEADER_BYTES);
+    return true;
+}
+
 static bool read_face(void *context, uint32_t face, uint32_t offset, void *buffer, uint32_t length)
 {
     (void)context;
-    if (hal_system_restart_pending() || face >= table[1]) {
+    if (hal_system_restart_pending()) {
         return false;
     }
-    uint32_t start = table[2 + 2 * face];
-    uint32_t size = table[3 + 2 * face];
-    if (offset > size || length > size - offset) {
-        return false;
+    if (offset == 0) {
+        return length == FONT_PACK_HEADER_BYTES &&
+               (open_face(glyph_image.layout.slot_1, face, buffer) ||
+                open_face(glyph_image.layout.slot_2, face, buffer));
     }
-    return board_slot_read(glyph_slot, start + offset, buffer, length);
-}
-
-static bool load_table(uint32_t slot)
-{
-    if (!emmc_read(NULL, slot + GLYPH_TABLE_OFFSET / SECTOR_BYTES, 1, table) ||
-        table[0] != GLYPH_TABLE_MAGIC || table[1] - 1 >= GLYPH_TABLE_ROWS) {
-        return false;
-    }
-    glyph_slot = slot;
-    return true;
+    GlyphFace source = faces[face];
+    return offset <= source.size && length <= source.size - offset &&
+           board_slot_read(source.lba, offset, buffer, length);
 }
 
 __attribute__((noinline)) void board_glyphs_start(void)
 {
-    EmmcInfo info;
     board_slot_cache_invalidate();
-    if (emmc_start(&info) && (load_table(info.layout.slot_1) || load_table(info.layout.slot_2))) {
+    if (emmc_start(&glyph_image)) {
         font_pack_attach((FontPackReader){read_face, NULL}, cache, sizeof cache);
     } else {
         font_pack_detach();

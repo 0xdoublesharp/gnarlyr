@@ -36,7 +36,7 @@ enum {
     ESCAPE_HOLD_MS = 3000,
     DIAG_SNAPSHOT_WORDS = 18,
     DIAG_REPORT_WORDS = 4,
-    DIAG_WORDS = 2 * DIAG_SNAPSHOT_WORDS,
+    DIAG_SPARE_WORDS = DIAG_SNAPSHOT_WORDS - DIAG_REPORT_WORDS - sizeof(MmcFailure) / 4 - 5,
     DIAG_AT = 2,
     KEEP_ATTEMPTS = 0xFF
 };
@@ -45,14 +45,25 @@ enum {
 #define RECORD_RUNNING 0x015B0001u
 #define DIAG_MAGIC 0x47414944u
 
+typedef struct TrialSnapshot {
+    uint32_t uptime;
+    uint32_t clock;
+    uint32_t report[DIAG_REPORT_WORDS];
+    uint32_t link;
+    MmcFailure failure;
+    uint32_t session;
+    uint32_t written;
+    uint32_t spare[DIAG_SPARE_WORDS];
+} TrialSnapshot;
+
 typedef struct TrialDiag {
     uint32_t magic;
-    uint32_t words[DIAG_WORDS];
+    TrialSnapshot snapshots[2];
 } TrialDiag;
 
-_Static_assert(sizeof(MmcFailure) % 4 == 0 &&
-                   DIAG_REPORT_WORDS + sizeof(MmcFailure) / 4 + 5 <= DIAG_SNAPSHOT_WORDS,
-               "a trial snapshot holds whole words and fits its slot");
+_Static_assert(sizeof(UsbReport) >= DIAG_REPORT_WORDS * 4 &&
+                   sizeof(TrialSnapshot) == DIAG_SNAPSHOT_WORDS * 4,
+               "trial diagnostics preserve the sector format");
 
 static uint32_t power_since_ms;
 static uint32_t escape_since_ms;
@@ -212,39 +223,34 @@ __attribute__((noinline, noclone)) static void write_record(uint32_t lba, uint32
     }
 }
 
-static uint32_t *diag_copy(uint32_t *to, const void *from, uint32_t words)
+static void diag_snapshot(TrialSnapshot *snapshot, const UsbShared *shared)
 {
-    const uint32_t *source = from;
-    for (uint32_t index = 0; index < words; index++) {
-        to[index] = source[index];
-    }
-    return to + words;
+    snapshot->failure = mmc_last_failure();
+    snapshot->uptime = hal_clock_milliseconds();
+    snapshot->clock = hal_system_clock_mhz() | (uint32_t)shared->high_speed_failed << 16;
+    memcpy(snapshot->report, &shared->report, sizeof snapshot->report);
+    snapshot->link = (uint32_t)shared->link.step | (uint32_t)shared->link.high_speed_allowed << 8 |
+                     (uint32_t)shared->link.dedicated_fifos << 16;
+    snapshot->session =
+        (uint32_t)shared->last_session.end | (uint32_t)shared->last_session.internal_write_ok << 8;
+    snapshot->written = shared->last_session.internal_written;
 }
 
 void board_trial_snapshot(uint32_t kind)
 {
     UsbShared *shared = usb_session_shared();
-    uint32_t *words = diag.words + kind * DIAG_SNAPSHOT_WORDS;
     if (hal_system_restart_pending()) {
+        shared->trial.record_lba = 0;
         board_slot_cache_invalidate();
         return;
     }
     if (!shared->trial.running) {
         return;
     }
-    if (kind != 0 && shared->last_session.internal_written != 0) {
+    diag_snapshot(&diag.snapshots[kind], shared);
+    if (kind != 0) {
         shared->trial.record_lba = record_locate(internal_volume_remount());
     }
-    MmcFailure failure = mmc_last_failure();
-    words[0] = hal_clock_milliseconds();
-    words[1] = hal_system_clock_mhz() | (uint32_t)shared->high_speed_failed << 16;
-    words = diag_copy(words + 2, &shared->report, DIAG_REPORT_WORDS);
-    *words++ = (uint32_t)shared->link.step | (uint32_t)shared->link.high_speed_allowed << 8 |
-               (uint32_t)shared->link.dedicated_fifos << 16;
-    words = diag_copy(words, &failure, sizeof failure / 4);
-    *words++ = (uint32_t)shared->last_session.end | (uint32_t)shared->last_session.internal_write_ok
-                                                        << 8;
-    *words = shared->last_session.internal_written;
     diag.magic = DIAG_MAGIC;
     write_record(shared->trial.record_lba, KEEP_ATTEMPTS);
 }
