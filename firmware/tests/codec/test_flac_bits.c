@@ -259,6 +259,26 @@ static void a_storage_failure_propagates_for_fast_and_wide_rice_parameters(void)
     }
 }
 
+static void short_reads_preserve_values_across_word_and_tail_boundaries(void)
+{
+    start_writing();
+    uint32_t widths[] = {1, 3, 5, 7, 8, 9, 13, 16, 19, 24};
+    uint32_t expected[200];
+    uint32_t count = sizeof expected / sizeof expected[0];
+    for (uint32_t index = 0; index < count; index++) {
+        uint32_t width = widths[index % (sizeof widths / sizeof widths[0])];
+        uint32_t mask = (1u << width) - 1u;
+        expected[index] = next_random() & mask;
+        put_bits(expected[index], width);
+    }
+    start_reading();
+    for (uint32_t index = 0; index < count; index++) {
+        uint32_t width = widths[index % (sizeof widths / sizeof widths[0])];
+        CHECK_EQUAL(expected[index], flac_bits_read(&bits, width));
+    }
+    CHECK(!bits.failed);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -273,6 +293,7 @@ int main(void)
         TEST_CASE(running_out_of_input_fails),
         TEST_CASE(signed_and_wide_reads_preserve_bit_boundaries),
         TEST_CASE(a_storage_failure_propagates_for_fast_and_wide_rice_parameters),
+        TEST_CASE(short_reads_preserve_values_across_word_and_tail_boundaries),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

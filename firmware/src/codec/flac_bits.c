@@ -55,9 +55,11 @@ enum {
 static void fold_crc16(FlacBits *bits, uint32_t end)
 {
     uint32_t crc16 = bits->crc16;
-    for (uint32_t index = bits->crc_index; index < end; index++) {
-        uint32_t value = bits->buffer[index];
-        crc16 = (crc16 << BITS_PER_BYTE ^ CRC16_TABLE[(crc16 >> BITS_PER_BYTE) ^ value]) & 0xFFFFu;
+    const uint8_t *current = bits->buffer + bits->crc_index;
+    const uint8_t *stop = bits->buffer + end;
+    while (current < stop) {
+        crc16 =
+            (crc16 << BITS_PER_BYTE) ^ CRC16_TABLE[((crc16 >> BITS_PER_BYTE) ^ *current++) & 0xFFu];
     }
     bits->crc16 = (uint16_t)crc16;
 }
@@ -123,14 +125,43 @@ uint32_t flac_bits_offset(const FlacBits *bits)
     return bits->buffer_offset + bits->index - bits->bits / BITS_PER_BYTE;
 }
 
+static inline __attribute__((always_inline)) uint32_t load_big_endian(const uint8_t *bytes)
+{
+    uint32_t value;
+    __builtin_memcpy(&value, bytes, sizeof value);
+    return __builtin_bswap32(value);
+}
+
+static void refill_short(FlacBits *bits, uint32_t count)
+{
+    if (bits->index + sizeof(uint32_t) <= bits->buffer_length) {
+        uint32_t value = load_big_endian(&bits->buffer[bits->index]);
+        if (bits->bits == 0) {
+            bits->word = value;
+            bits->index += sizeof(uint32_t);
+            bits->bits = WORD_BITS;
+            return;
+        }
+        uint32_t kept = (WORD_BITS - bits->bits) & ~7u;
+        uint32_t drop = WORD_BITS - kept;
+        bits->word |= (value >> drop) << (drop - bits->bits);
+        bits->index += kept >> 3;
+        bits->bits += kept;
+        return;
+    }
+    while (bits->bits < count) {
+        bits->word |= next_byte(bits) << (FETCH_LIMIT - bits->bits);
+        bits->bits += BITS_PER_BYTE;
+    }
+}
+
 static uint32_t read_short(FlacBits *bits, uint32_t count)
 {
     if (count == 0) {
         return 0;
     }
-    while (bits->bits < count) {
-        bits->word |= next_byte(bits) << (FETCH_LIMIT - bits->bits);
-        bits->bits += BITS_PER_BYTE;
+    if (bits->bits < count) {
+        refill_short(bits, count);
     }
     uint32_t value = bits->word >> (WORD_BITS - count);
     bits->word = count < WORD_BITS ? bits->word << count : 0;
@@ -193,65 +224,98 @@ static bool read_rice_wide(FlacBits *bits, int32_t *out, uint32_t count, uint32_
     return !bits->failed;
 }
 
-static inline __attribute__((always_inline)) uint32_t load_big_endian(const uint8_t *bytes)
+typedef struct RiceCursor {
+    FlacBits *bits;
+    const uint8_t *current;
+    const uint8_t *fast_end;
+    uint32_t word;
+    uint32_t available;
+} RiceCursor;
+
+static const uint8_t *fast_limit(const FlacBits *bits)
 {
-    uint32_t value;
-    __builtin_memcpy(&value, bytes, sizeof value);
-    return __builtin_bswap32(value);
+    return bits->buffer_length >= sizeof(uint32_t)
+               ? bits->buffer + bits->buffer_length - (sizeof(uint32_t) - 1u)
+               : bits->buffer;
 }
 
-static inline __attribute__((always_inline)) void prefetch(FlacBits *bits, uint32_t *word,
-                                                           uint32_t *available)
+static __attribute__((noinline)) uint32_t rice_slow_byte(RiceCursor *cursor)
 {
-    uint32_t have = *available;
-    if (have > FETCH_LIMIT || bits->index + sizeof(uint32_t) > bits->buffer_length) {
+    FlacBits *bits = cursor->bits;
+    bits->index = (uint32_t)(cursor->current - bits->buffer);
+    uint32_t byte = next_byte(bits);
+    cursor->current = bits->buffer + bits->index;
+    cursor->fast_end = fast_limit(bits);
+    return byte;
+}
+
+static inline __attribute__((always_inline)) void rice_refill(RiceCursor *cursor, uint32_t needed)
+{
+    if (cursor->current < cursor->fast_end) {
+        uint32_t value = load_big_endian(cursor->current);
+        uint32_t have = cursor->available;
+        if (have == 0) {
+            cursor->word = value;
+            cursor->current += sizeof(uint32_t);
+            cursor->available = WORD_BITS;
+            return;
+        }
+        uint32_t kept = (WORD_BITS - have) & ~7u;
+        uint32_t drop = WORD_BITS - kept;
+        cursor->word |= (value >> drop) << (drop - have);
+        cursor->current += kept >> 3;
+        cursor->available = have + kept;
         return;
     }
-    uint32_t count = (WORD_BITS - have) / BITS_PER_BYTE;
-    uint32_t kept = count * BITS_PER_BYTE;
-    uint32_t value = load_big_endian(&bits->buffer[bits->index]);
-    value = kept == WORD_BITS ? value : value & ~(0xFFFFFFFFu >> kept);
-    *word |= value >> have;
-    bits->index += count;
-    *available = have + kept;
+    while (cursor->available < needed) {
+        cursor->word |= rice_slow_byte(cursor) << (FETCH_LIMIT - cursor->available);
+        cursor->available += BITS_PER_BYTE;
+    }
 }
 
-static inline __attribute__((always_inline)) uint32_t read_quotient(FlacBits *bits, uint32_t *word,
-                                                                    uint32_t *available)
+static inline __attribute__((always_inline)) uint32_t rice_quotient(RiceCursor *cursor)
 {
     uint32_t quotient = 0;
-    prefetch(bits, word, available);
-    while (*word == 0) {
-        quotient += *available;
-        *available = 0;
-        prefetch(bits, word, available);
-        if (*available == 0) {
-            *word = next_byte(bits) << FETCH_LIMIT;
-            *available = BITS_PER_BYTE;
+    while (cursor->word == 0) {
+        quotient += cursor->available;
+        if (cursor->current < cursor->fast_end) {
+            cursor->word = load_big_endian(cursor->current);
+            cursor->current += sizeof(uint32_t);
+            cursor->available = WORD_BITS;
+        } else {
+            cursor->word = rice_slow_byte(cursor) << FETCH_LIMIT;
+            cursor->available = BITS_PER_BYTE;
         }
     }
-    uint32_t zeros = (uint32_t)__builtin_clz(*word);
-    *word <<= zeros;
-    *word <<= 1;
-    *available -= zeros + 1;
+    uint32_t zeros = (uint32_t)__builtin_clz(cursor->word);
+    cursor->word <<= zeros;
+    cursor->word <<= 1;
+    cursor->available -= zeros + 1;
     return quotient + zeros;
 }
 
-static inline __attribute__((always_inline)) uint32_t read_remainder(FlacBits *bits, uint32_t *word,
-                                                                     uint32_t *available,
-                                                                     uint32_t parameter)
+static void read_rice_zero(RiceCursor *cursor, int32_t *out, uint32_t count)
 {
-    if (*available < parameter) {
-        prefetch(bits, word, available);
-        while (*available < parameter) {
-            *word |= next_byte(bits) << (FETCH_LIMIT - *available);
-            *available += BITS_PER_BYTE;
-        }
+    int32_t *end = out + count;
+    while (out < end) {
+        *out++ = unfold(rice_quotient(cursor));
     }
-    uint32_t low = *word >> (WORD_BITS - parameter);
-    *word <<= parameter;
-    *available -= parameter;
-    return low;
+}
+
+static void read_rice_narrow(RiceCursor *cursor, int32_t *out, uint32_t count, uint32_t parameter)
+{
+    uint32_t shift = WORD_BITS - parameter;
+    int32_t *end = out + count;
+    while (out < end) {
+        uint32_t quotient = rice_quotient(cursor);
+        if (cursor->available < parameter) {
+            rice_refill(cursor, parameter);
+        }
+        uint32_t low = cursor->word >> shift;
+        cursor->word <<= parameter;
+        cursor->available -= parameter;
+        *out++ = unfold(quotient << parameter | low);
+    }
 }
 
 bool flac_bits_read_rice(FlacBits *bits, int32_t *out, uint32_t count, uint32_t parameter)
@@ -259,15 +323,21 @@ bool flac_bits_read_rice(FlacBits *bits, int32_t *out, uint32_t count, uint32_t 
     if (parameter > FETCH_LIMIT) {
         return read_rice_wide(bits, out, count, parameter);
     }
-    uint32_t word = bits->word;
-    uint32_t available = bits->bits;
-    for (uint32_t index = 0; index < count; index++) {
-        uint32_t quotient = read_quotient(bits, &word, &available);
-        uint32_t low = parameter > 0 ? read_remainder(bits, &word, &available, parameter) : 0;
-        out[index] = unfold(quotient << parameter | low);
+    RiceCursor cursor = {
+        .bits = bits,
+        .current = bits->buffer + bits->index,
+        .fast_end = fast_limit(bits),
+        .word = bits->word,
+        .available = bits->bits,
+    };
+    if (parameter == 0) {
+        read_rice_zero(&cursor, out, count);
+    } else {
+        read_rice_narrow(&cursor, out, count, parameter);
     }
-    bits->word = word;
-    bits->bits = available;
+    bits->index = (uint32_t)(cursor.current - bits->buffer);
+    bits->word = cursor.word;
+    bits->bits = cursor.available;
     return !bits->failed;
 }
 

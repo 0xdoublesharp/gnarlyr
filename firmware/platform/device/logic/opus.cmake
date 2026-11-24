@@ -83,7 +83,18 @@ target_compile_definitions(echo_opus PRIVATE
     PACKAGE_VERSION="1.6.1"
 )
 if(CMAKE_CROSSCOMPILING)
-    target_compile_definitions(echo_opus PRIVATE OPUS_ARM_INLINE_ASM)
+    target_compile_definitions(echo_opus PRIVATE OPUS_ARM_INLINE_ASM OPUS_FAST_INT64=1)
+    set_source_files_properties(
+        ${ECHO_OPUS_DIR}/celt/bands.c
+        ${ECHO_OPUS_DIR}/celt/celt_decoder.c
+        ${ECHO_OPUS_DIR}/celt/entdec.c
+        ${ECHO_OPUS_DIR}/celt/kiss_fft.c
+        ${ECHO_OPUS_DIR}/celt/mdct.c
+        ${ECHO_OPUS_DIR}/celt/pitch.c
+        ${ECHO_OPUS_DIR}/celt/vq.c
+        ${ECHO_OPUS_DIR}/silk/decode_core.c
+        PROPERTIES COMPILE_OPTIONS -O3
+    )
 endif()
 target_compile_options(echo_opus PRIVATE -w -fno-strict-aliasing -include ${ECHO_OPUS_DIR}/port/opus_support.h)
 target_link_libraries(echo_opus PRIVATE echo_options)
