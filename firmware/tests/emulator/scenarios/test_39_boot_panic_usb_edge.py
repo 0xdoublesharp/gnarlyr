@@ -12,7 +12,6 @@ from echo_image_harness import (
     main,
     pin_high_index,
 )
-from echo_emulator.audio import AudioPath
 from echo_emulator.bluetooth import Headphones
 from echo_emulator.emmc import SdCard, SparseDisk
 from echo_emulator.fat_volume import Fat32Volume
@@ -341,9 +340,9 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
 
     def test_usb_audio_stalled_deferred_setup_drops_control_data(self):
-        session, machine, asked = self.asked_session()
+        session, machine, asked = self.asked_session(checkpoint=self.install_audio_path)
         machine.host_stays = True
-        audio = AudioPath(machine)
+        audio = machine.audio
         host = UsbAudioHost(machine, 48000, 4, True)
         host.enumerate()
         receives = []

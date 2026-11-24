@@ -74,6 +74,8 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
 
     def test_a_failed_gain_change_stays_muted_unsaved_and_rechecks_before_unmuting(self):
+        from echo_emulator.dac_hardware import DAC_GAIN_REGISTER
+
         rig = self.playback_rig()
         machine, session = rig.machine, rig.session
         toasts = self.collect_toasts(machine)
@@ -81,11 +83,10 @@ class EchoImageTest(EchoImageHarness):
         rig.open_songs()
         rig.play_song(1)
         rig.run_for(500)
-        machine.uc.mem_write(machine.symbols["dac_up"], b"\x01")
         rig.press_many("back", 3)
         rig.press("previous")
         rig.press("play")
-        rig.audio.analog_fault = True
+        rig.audio.dac_bus.fail_register = DAC_GAIN_REGISTER
         events.clear()
         rig.press("play")
         rig.press_many("next", SOUND_GAIN_ROW)
@@ -103,7 +104,7 @@ class EchoImageTest(EchoImageHarness):
         saved = session.fat().read(SETTINGS_PATH)
         if saved:
             self.assertEqual(0, saved[SETTINGS_GAIN_FIELD])
-        rig.audio.analog_fault = False
+        rig.audio.dac_bus.fail_register = None
         events.clear()
         rig.press("menu")
         rig.press("play")
@@ -124,12 +125,12 @@ class EchoImageTest(EchoImageHarness):
             DAC_LEFT_ADDRESS,
             DAC_RIGHT_ADDRESS,
         )
-        from echo_emulator.playback import Rig
-        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
-                  module_elfs=self.module_elfs, real_dac=True, real_dmac=True)
+        rig = self.playback_rig()
         machine, session = rig.machine, rig.session
         dac_bus = rig.audio.dac_bus
         real_dmac = rig.audio.real_dmac
+        self.assertIsNotNone(dac_bus)
+        self.assertIsNotNone(real_dmac)
         toasts = self.collect_toasts(machine)
         rig.open_songs()
         mark = rig.play_song(1)

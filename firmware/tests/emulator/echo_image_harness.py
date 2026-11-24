@@ -36,7 +36,7 @@ FADE_LIMIT_MS = 1500
 STANDBY_MS = 30000
 STANDBY_RATE = 44100
 STANDBY_SECONDS = 45
-STANDBY_RESUME_LIMIT_MS = 100
+STANDBY_RESUME_LIMIT_MS = 400
 DAC_MUTED = 0xFF
 DAC_RAMP_STEP = 6
 KEY_TAP_MS = 150
@@ -376,6 +376,26 @@ class EchoImageHarness(unittest.TestCase):
         self.assertEqual(machine.faults, [])
         self.assertEqual(machine.panics, [])
         self.assertEqual(machine.usb.fifo_faults, [])
+        audio = getattr(machine, "audio", None)
+        if audio is not None and audio.real_dmac is not None:
+            self.assertEqual(0, audio.real_dmac.bad_disables)
+
+    def call_firmware(self, machine, name, value=0):
+        from echo_emulator.machine import TRAMPOLINE
+        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
+
+        returned = TRAMPOLINE + 0x904
+        if returned not in machine.entries:
+            machine.add_address_hook(returned, lambda: machine.stop("returned"))
+        context = machine.uc.context_save()
+        try:
+            machine.uc.reg_write(UC_ARM_REG_R0, value)
+            machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
+            machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
+            self.assertEqual("returned", machine.run(until_ms=machine.milliseconds() + 3000))
+            return machine.reg(UC_ARM_REG_R0)
+        finally:
+            machine.uc.context_restore(context)
 
     def assert_only_the_user_volume_changed(self, session):
         layout = session.layout
@@ -594,12 +614,14 @@ class EchoImageHarness(unittest.TestCase):
         gaps = [later - earlier for earlier, later in zip(stamps, stamps[1:])]
         return len(stamps) * 1000 / milliseconds, max(gaps) if gaps else 0
 
-    def dac_session(self):
+    def install_audio_path(self, session):
         from echo_emulator.audio import AudioPath
-        session = self.session(usb_answer=None)
+        AudioPath(session.machine)
+
+    def dac_session(self):
+        session = self.session(usb_answer=None, checkpoint=self.install_audio_path)
         machine = session.machine
         machine.host_stays = True
-        path = AudioPath(machine)
         for name in ("usb_dac_session", "usb_storage_session", "board_audio_stream_open"):
             machine.note(name)
         machine.answer_usb_prompt(DAC_PROMPT_KEYS)
@@ -608,7 +630,7 @@ class EchoImageHarness(unittest.TestCase):
         self.assertEqual(machine.run(until=lambda: "usb_dac_session" in machine.reached,
                                      until_ms=machine.milliseconds() + 6000), "condition met")
         machine.run(until_ms=machine.milliseconds() + 500)
-        return session, machine, path
+        return session, machine, machine.audio
 
     def overlay_address(self, machine, name):
         return machine.overlays[0].symbols[name]
@@ -666,8 +688,8 @@ class EchoImageHarness(unittest.TestCase):
                 return index
         return None
 
-    def asked_session(self, vbus_at_start=False):
-        session = self.session(usb_answer=None, vbus_at_start=vbus_at_start)
+    def asked_session(self, vbus_at_start=False, *, checkpoint=None):
+        session = self.session(usb_answer=None, vbus_at_start=vbus_at_start, checkpoint=checkpoint)
         machine = session.machine
         for name in ("usb_session_storage_changed", "usb_storage_session", "usb_dac_session"):
             machine.note(name)

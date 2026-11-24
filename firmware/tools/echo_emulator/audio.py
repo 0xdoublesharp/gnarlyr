@@ -19,26 +19,23 @@ SILENT_RETURNS = ("dac_set_muted", "dac_output_on", "dac_path_start_transfer", "
 
 
 class AudioPath:
-    def __init__(self, machine, *, real_dac=False, real_dmac=False):
+    def __init__(self, machine, *, real_dac=True, real_dmac=True):
         self.machine = machine
+        machine.audio = self
         self.real_dac = real_dac
         self.real_dmac_enabled = real_dmac
         self.dac_bus = None
+        self.i2s = None
         self.real_dmac = None
         self.core1 = None
         self.rate = 44100
         self.ring = machine.symbols["music_ring"]
-        self.dma_ring = self.ring
+        self._dma_ring = self.ring
         self._running = False
         self._suspend_depth = 0
         self.paused_us = 0
-        self.output_fault = False
-        self.resume_fault = False
-        self.start_fault = False
-        self.mute_fault = False
-        self.analog_fault = False
         self.dac_events = []
-        self.started_us = 0
+        self._started_us = 0
         self.items = 0
         self.plays = []
         self.audible = []
@@ -70,6 +67,14 @@ class AudioPath:
     def suspend_depth(self, value):
         self._suspend_depth = value
 
+    @property
+    def dma_ring(self):
+        return self.real_dmac.dma_ring if self.real_dmac is not None else self._dma_ring
+
+    @property
+    def started_us(self):
+        return self.real_dmac.started_us if self.real_dmac is not None else self._started_us
+
     def install(self):
         machine = self.machine
         self.volumes = []
@@ -77,8 +82,9 @@ class AudioPath:
             from .dac_hardware import RealCs43198Bus, RealI2sRegs
             from .devices import RegisterFile
             self.dac_bus = RealCs43198Bus(machine)
+            self.i2s = RealI2sRegs()
             machine.map_device(self.dac_bus, 0x40040000, 0x1000)
-            machine.map_device(RealI2sRegs(), 0x40030000, 0x1000)
+            machine.map_device(self.i2s, 0x40030000, 0x1000)
             machine.map_device(RegisterFile(), 0x40090000, 0x1000)
             machine.hook_symbol("dac_path_start", self.note_rate)
             machine.hook_symbol("dac_set_volume", self.note_volume)
@@ -89,7 +95,7 @@ class AudioPath:
             for name in SILENT_RETURNS:
                 machine.stub_symbol(name, lambda machine: None)
             machine.stub_symbol("dac_apply_analog", self.apply_analog)
-            machine.stub_symbol("dac_path_take_underrun", self.take_output_fault)
+            machine.stub_symbol("dac_path_take_underrun", lambda machine: 0)
         if self.real_dmac_enabled:
             from .dac_hardware import RealDmac
             self.real_dmac = RealDmac(machine, lambda: self.rate)
@@ -107,7 +113,6 @@ class AudioPath:
             machine.stub_symbol(name, lambda machine: 0)
         machine.stub_symbol("core1_run", self.start_core1)
         machine.stub_symbol("core1_stop", self.stop_core1)
-        machine.hook_symbol("dac_path_start_transfer", self.note_start)
         machine.hook_symbol("dac_set_muted", self.note_mute)
         machine.hook_symbol("hal_audio_play", self.note_play)
         machine.hook_symbol("audio_engine_pump", self.sample_level)
@@ -144,8 +149,8 @@ class AudioPath:
 
     def start_loop(self, machine):
         self.items = machine.reg(UC_ARM_REG_R0)
-        self.dma_ring = struct.unpack("<I", machine.read_memory(self.items, 4))[0]
-        self.started_us = machine.microseconds()
+        self._dma_ring = struct.unpack("<I", machine.read_memory(self.items, 4))[0]
+        self._started_us = machine.microseconds()
         self.running = True
         self.suspend_depth = 0
         return 1
@@ -164,28 +169,14 @@ class AudioPath:
         if self.suspend_depth:
             self.suspend_depth -= 1
             if self.suspend_depth == 0:
-                self.started_us += machine.microseconds() - self.paused_us
-                self.output_fault |= self.resume_fault
-                self.resume_fault = False
-
-    def note_start(self):
-        self.output_fault |= self.start_fault
-        self.start_fault = False
+                self._started_us += machine.microseconds() - self.paused_us
 
     def apply_analog(self, machine):
         self.dac_events.append("apply")
-        return 0 if self.analog_fault else 1
+        return 1
 
     def note_mute(self):
         self.dac_events.append("mute" if self.machine.reg(UC_ARM_REG_R1) else "unmute")
-        if self.machine.reg(UC_ARM_REG_R1):
-            self.output_fault |= self.mute_fault
-            self.mute_fault = False
-
-    def take_output_fault(self, machine):
-        latched = self.output_fault
-        self.output_fault = False
-        return int(latched)
 
     def output_underruns(self):
         return struct.unpack("<I", self.machine.read_memory(self.machine.symbols["stats"] + 8, 4))[0]

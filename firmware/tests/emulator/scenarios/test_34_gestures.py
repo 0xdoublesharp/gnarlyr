@@ -37,7 +37,7 @@ EVENT_NAMES = ("key", "screen", "player", "underrun", "output_underrun", "refusa
 ENGINE_STOPPED = 0
 SETTLE_MS = 600
 CHECKS = 3
-CHECK_GAP_MS = 150
+CHECK_GAP_MS = 250
 MP3 = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_192_48k_stereo_bare.mp3"
 MP3_REPEATS = 24
 LISTEN_MS = 2500
@@ -63,12 +63,6 @@ def wav_file(rate, tenths):
     pcm = struct.pack("<%dh" % len(samples), *samples)
     return struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", len(pcm) + 36, b"WAVE", b"fmt ", 16, 1, 2,
                        rate, rate * 4, 4, 16, b"data", len(pcm)) + pcm
-
-
-def follow_dac_power(machine):
-    address = machine.symbols["dac_up"]
-    machine.hook_symbol("dac_path_start", lambda: machine.uc.mem_write(address, b"\x01"))
-    machine.hook_symbol("dac_path_stop", lambda: machine.uc.mem_write(address, b"\x00"))
 
 
 def small_block_flac(rate_code, rate, block_code, block, seconds):
@@ -205,7 +199,6 @@ class EchoImageTest(EchoImageHarness):
             volume.add_file(name, wav_file(rate, tenths))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
-        follow_dac_power(rig.machine)
         return rig
 
     def lasting_problem(self, rig, layers):
@@ -307,9 +300,14 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(PLAYER_PAUSED, state["app"], "%s\n%s" % (state, layers.events()))
         self.assertEqual(0, self.track_of(layers), layers.events())
         self.assertFalse(Layers.audible(state), state)
-        self.assert_playing_cleanly(rig, layers, rig.press("play"), LAST_SECOND_LISTEN_MS)
+        resumed = rig.press("play")
+        rig.machine.run(until_ms=resumed + LAST_SECOND_LISTEN_MS)
+        self.assertEqual(0, self.track_of(layers), layers.events())
+        self.assertIsNone(Layers.problem(layers.snapshot()), layers.events())
+        self.assertEqual([], rig.audio.underruns(resumed))
         rig.run_for(END_PLAY_MS)
         self.assertEqual(1, self.track_of(layers), layers.events())
+        self.assertEqual(48000, rig.audio.rate)
         self.assert_playing_cleanly(rig, layers, rig.machine.milliseconds(), RESUMED_LISTEN_MS)
         self.assert_healthy(rig.session)
 
@@ -359,19 +357,6 @@ class EchoImageTest(EchoImageHarness):
         self.assert_playing_cleanly(rig, layers, released, RESUMED_LISTEN_MS)
         self.assert_healthy(rig.session)
 
-    def call(self, machine, name):
-        from echo_emulator.machine import TRAMPOLINE
-        from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_R0
-        returned = TRAMPOLINE + 0x904
-        machine.add_address_hook(returned, lambda: machine.stop("returned"))
-        context = machine.uc.context_save()
-        machine.uc.reg_write(UC_ARM_REG_LR, returned | 1)
-        machine.uc.reg_write(UC_ARM_REG_PC, machine.symbols[name] | 1)
-        self.assertEqual("returned", machine.run(until_ms=machine.milliseconds() + 3000))
-        result = machine.reg(UC_ARM_REG_R0)
-        machine.uc.context_restore(context)
-        return result
-
     def test_a_bluetooth_restart_whose_transfer_fails_stops_the_track(self):
         rig = self.gesture_rig()
         layers = Layers(rig)
@@ -379,13 +364,23 @@ class EchoImageTest(EchoImageHarness):
         rig.play_song(1)
         rig.run_for(SETTLE_MS)
         self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
-        rig.machine.stub_symbol("dmac_start_loop", lambda machine: 0)
-        self.assertEqual(0, self.call(rig.machine, "board_audio_bluetooth_start"))
+        dmac = rig.audio.real_dmac
+        starts = dmac.starts
+
+        def occupy_channel():
+            dmac.audio_channel_busy = True
+
+        rig.machine.hook_symbol("dmac_start_loop", occupy_channel)
+        self.assertEqual(0, self.call_firmware(rig.machine, "board_audio_bluetooth_start"))
+        self.assertTrue(dmac.audio_channel_busy)
+        dmac.audio_channel_busy = False
+        self.assertEqual(starts, dmac.starts)
         rig.run_for(SETTLE_MS)
         state = layers.snapshot()
         self.assertEqual(ENGINE_STOPPED, state["engine"], state)
         self.assertNotEqual(PLAYER_PLAYING, state["app"], "%s\n%s" % (state, layers.events()))
         self.assertIsNone(Layers.problem(state), state)
+        self.assert_healthy(rig.session)
 
     def test_screen_off_playback_keeps_a_96_khz_flac_with_512_sample_blocks_fed(self):
         from echo_emulator.fat_volume import Fat32Volume
@@ -394,7 +389,6 @@ class EchoImageTest(EchoImageHarness):
         volume.add_file("Small blocks.flac", small_block_flac(0xB, 96000, 0x9, 512, 12))
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
-        follow_dac_power(rig.machine)
         rig.audio.core1.instructions_per_us = CORE1_INSTRUCTIONS_PER_US
         layers = Layers(rig)
         rig.open_songs()
@@ -427,7 +421,6 @@ class EchoImageTest(EchoImageHarness):
         volume.add_file("02 Opus.opus", (fixtures / "opus" / "stereo48.opus").read_bytes())
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
-        follow_dac_power(rig.machine)
         programs = {program: self.elf.with_name("core1_%s.bin" % name).read_bytes()
                     for program, name in ((CORE1_VORBIS, "vorbis"), (CORE1_OPUS, "opus"))}
         programs[CORE1_FLAC] = rig.audio.core1.programs[CORE1_FLAC]
@@ -463,7 +456,6 @@ class EchoImageTest(EchoImageHarness):
         volume.add_file("INSIDE.MP3", song)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs, prepare=slot.insert)
-        follow_dac_power(rig.machine)
         return rig, slot
 
     def assert_playing_cleanly(self, rig, layers, since, listen=LISTEN_MS):

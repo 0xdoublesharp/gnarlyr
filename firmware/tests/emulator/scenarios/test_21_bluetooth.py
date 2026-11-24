@@ -35,8 +35,7 @@ def said(pattern, name=BUDS):
 
 
 class EchoImageTest(EchoImageHarness):
-    def bluetooth_rig(self, on_bluetooth=False, in_range=True, pauses_new_streams=False,
-                      *, real_dac=False, real_dmac=False):
+    def bluetooth_rig(self, on_bluetooth=False, in_range=True, pauses_new_streams=False):
         from echo_emulator.bluetooth import Headphones
         from echo_emulator.playback import Rig, ALBUM_COUNT
         from echo_emulator.real_volume import real_volume
@@ -54,8 +53,7 @@ class EchoImageTest(EchoImageHarness):
             toasts.append(self.collect_toasts(machine))
 
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
-                  module_elfs=self.module_elfs, prepare=prepare,
-                  real_dac=real_dac, real_dmac=real_dmac)
+                  module_elfs=self.module_elfs, prepare=prepare)
         return rig, rig.machine.bluetooth, toasts[0]
 
     def run_until(self, rig, condition, limit_ms):
@@ -121,7 +119,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertFalse(module.connected)
         rig.open_songs()
         mark = rig.play_song(1)
-        self.assertIn(said("STR_BT_RECONNECTING"), toasts)
+        self.run_until(rig, lambda: said("STR_BT_RECONNECTING") in toasts, 1000)
         rig.run_for(500)
         self.assertNotIn("on", module.stream_frames(mark))
         self.assertFalse(self.playing(rig))
@@ -220,12 +218,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(1, machine.read_memory(machine.symbols["guarded"], 1)[0])
         rig.open_songs()
         rig.play_song(1)
-        machine.uc.mem_write(machine.symbols["dac_up"], b"\x01")
-        machine.uc.mem_write(machine.symbols["muted"], b"\x00")
         before = len(rig.audio.volumes)
         rig.press("next")
         self.assertEqual(before, len(rig.audio.volumes))
-        machine.uc.mem_write(machine.symbols["muted"], b"\x01")
         module.come_back()
         self.run_until(rig, lambda: module.streaming, RETRY_MS + 4000)
         self.assertEqual(0, machine.read_memory(machine.symbols["guarded"], 1)[0])
@@ -237,7 +232,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_bluetooth_stream_and_pause_resume_through_real_cs43198_and_dmac(self):
-        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, real_dac=True, real_dmac=True)
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
         dac_bus = rig.audio.dac_bus
         real_dmac = rig.audio.real_dmac
         rig.open_songs()

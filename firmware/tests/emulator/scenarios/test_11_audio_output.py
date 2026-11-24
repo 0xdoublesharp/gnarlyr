@@ -14,6 +14,17 @@ from echo_image_harness import (
 
 
 class EchoImageTest(EchoImageHarness):
+    def latch_underrun_at(self, rig, symbol):
+        injected = []
+
+        def latch():
+            if not injected:
+                rig.audio.i2s.latch_underrun()
+                injected.append(True)
+
+        rig.machine.hook_symbol(symbol, latch)
+        self.addCleanup(self.assertEqual, [True], injected)
+
     def test_processing_capacity_grows_while_the_glyph_cache_keeps_64_slots(self):
         self.assertEqual(0x3000, make_image.PROCESS_MODULE_CAPACITY)
         self.assertEqual(0x2000, make_image.EFFECTS_MODULE_CAPACITY)
@@ -37,17 +48,17 @@ class EchoImageTest(EchoImageHarness):
         rig.play_song(1)
         self.assertEqual(0, rig.audio.output_underruns())
         for expected in (1, 2):
-            rig.audio.output_fault = True
+            rig.audio.i2s.latch_underrun()
             rig.run_for(50)
             self.assertEqual(expected, rig.audio.output_underruns())
-        rig.audio.mute_fault = True
+        self.latch_underrun_at(rig, "dac_set_muted")
         rig.press("play")
         self.assertGreater(rig.audio.suspend_depth, 0)
         self.assertEqual(3, rig.audio.output_underruns())
         for _ in range(3):
-            rig.audio.output_fault = True
+            rig.audio.i2s.latch_underrun()
             rig.run_for(50)
-            self.assertFalse(rig.audio.output_fault)
+            self.assertFalse(rig.audio.i2s.underrun)
             self.assertEqual(3, rig.audio.output_underruns())
         self.assert_healthy(rig.session)
 
@@ -57,11 +68,12 @@ class EchoImageTest(EchoImageHarness):
         rig.play_song(1)
         rig.press("play")
         self.assertGreater(rig.audio.suspend_depth, 0)
-        rig.audio.resume_fault = True
+        self.latch_underrun_at(rig, "dmac_resume")
         rig.press("play")
         self.assertEqual(0, rig.audio.suspend_depth)
         self.assertEqual(0, rig.audio.output_underruns())
-        rig.audio.output_fault = True
+        self.assertFalse(rig.audio.i2s.underrun)
+        rig.audio.i2s.latch_underrun()
         rig.run_for(50)
         self.assertEqual(1, rig.audio.output_underruns())
         self.assert_healthy(rig.session)
@@ -69,10 +81,11 @@ class EchoImageTest(EchoImageHarness):
     def test_starting_output_discards_old_flags_without_hiding_later_faults(self):
         rig = self.speech_rig(44100)
         rig.open_songs()
-        rig.audio.start_fault = True
+        self.latch_underrun_at(rig, "dac_path_start_transfer")
         rig.play_song(1)
         self.assertEqual(0, rig.audio.output_underruns())
-        rig.audio.output_fault = True
+        self.assertFalse(rig.audio.i2s.underrun)
+        rig.audio.i2s.latch_underrun()
         rig.run_for(50)
         self.assertEqual(1, rig.audio.output_underruns())
         self.assert_healthy(rig.session)
@@ -81,12 +94,12 @@ class EchoImageTest(EchoImageHarness):
         rig = self.speech_rig(44100)
         rig.open_songs()
         rig.play_song(1)
-        rig.audio.suspend(rig.machine)
+        self.call_firmware(rig.machine, "dmac_suspend")
         self.assertGreater(rig.audio.suspend_depth, 0)
-        rig.audio.output_fault = True
+        rig.audio.i2s.latch_underrun()
         rig.run_for(50)
         self.assertEqual(1, rig.audio.output_underruns())
-        rig.audio.resume(rig.machine)
+        self.call_firmware(rig.machine, "dmac_resume")
         self.assert_healthy(rig.session)
 
     def test_usb_handoff_does_not_charge_a_muted_paused_output_flag(self):
@@ -98,7 +111,7 @@ class EchoImageTest(EchoImageHarness):
         machine = rig.machine
         machine.note("usb_session_storage_changed")
         machine.note("usb_storage_session")
-        rig.audio.mute_fault = True
+        self.latch_underrun_at(rig, "dac_set_muted")
         machine.host_ejects()
         machine.vbus = True
         self.assertEqual("condition met", self.run_usb_sessions(rig.session, 1),
@@ -106,7 +119,7 @@ class EchoImageTest(EchoImageHarness):
                           "pc": hex(machine.current_pc())})
         self.assertEqual(1, machine.reached["usb_storage_session"])
         self.assertEqual(0, rig.audio.output_underruns())
-        self.assertFalse(rig.audio.output_fault)
+        self.assertFalse(rig.audio.i2s.underrun)
         self.assert_healthy(rig.session)
 
     def test_native_rate_wav_playback_does_not_load_the_optional_audio_module(self):

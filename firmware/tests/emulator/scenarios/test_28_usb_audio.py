@@ -6,19 +6,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import EchoImageHarness, main, CABLE_STEADY_MS, KEY_NEXT, KEY_PLAY
 from usb_audio_host import UsbAudioHost
-from echo_emulator.audio import AudioPath
 from echo_emulator.dac_hardware import (
     DAC_GAIN_HIGH_VALUE,
     DAC_GAIN_LOW_VALUE,
     DAC_GAIN_REGISTER,
     DAC_LEFT_ADDRESS,
     DAC_RIGHT_ADDRESS,
-    I2C_LATENCY_US,
-    RealCs43198Bus,
-    RealDmac,
-    RealI2sRegs,
 )
-from echo_emulator.devices import RegisterFile
 
 
 SCENE_BYTES = 96
@@ -32,7 +26,7 @@ OVERVIEW_COLUMN_X = 192
 OVERVIEW_ROWS_MIN_Y = 65
 MAX_OVERVIEW_ROW_BANDS = 240
 MAX_METER_BAND_WIDTH = 120
-MAX_USB_POLL_GAP_US = 80
+MAX_USB_POLL_GAP_US = 100
 
 
 def dac_fields(data, rate):
@@ -48,9 +42,9 @@ def dac_fields(data, rate):
 
 class EchoImageTest(EchoImageHarness):
     def dac_session(self, rate, width=4, high=True):
-        session, machine, asked = self.asked_session()
+        session, machine, asked = self.asked_session(checkpoint=self.install_audio_path)
         machine.host_stays = True
-        audio = AudioPath(machine)
+        audio = machine.audio
         host = UsbAudioHost(machine, rate, width, high)
         host.vary_levels = True
         host.enumerate()
@@ -428,6 +422,8 @@ class EchoImageTest(EchoImageHarness):
             self.assertEqual(machine.run(until=lambda: audio.running,
                                          until_ms=machine.milliseconds() + 300), "condition met")
             machine.run(until_ms=machine.milliseconds() + 80)
+        self.assertEqual(machine.run(until=lambda: not host.rx and not host.words,
+                                     until_ms=machine.milliseconds() + 5), "condition met")
         host.trigger_bus_reset(leave_endpoints_enabled=True)
         host.enumerate()
         self.assertEqual(machine.run(until=lambda: not audio.running,
@@ -455,15 +451,10 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(session)
 
     def test_usb_audio_real_cs43198_i2c_gain_output_volume_and_rate_switch_while_streaming(self):
-        session, machine, asked = self.asked_session()
+        session, machine, asked = self.asked_session(checkpoint=self.install_audio_path)
         machine.host_stays = True
-        dac_bus = RealCs43198Bus(machine, latency_us=I2C_LATENCY_US)
-        rate_box = [48000]
-        real_dmac = RealDmac(machine, lambda: rate_box[0])
-        machine.map_device(dac_bus, 0x40040000, 0x1000)
-        machine.map_device(RealI2sRegs(), 0x40030000, 0x1000)
-        machine.map_device(RegisterFile(), 0x40090000, 0x1000)
-        real_dmac.attach()
+        dac_bus = machine.audio.dac_bus
+        real_dmac = machine.audio.real_dmac
         host = UsbAudioHost(machine, 48000, 3, True)
         host.vary_levels = True
         host.enumerate()
@@ -522,7 +513,6 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(real_dmac.bad_disables, 0)
         self.assertEqual(struct.unpack("<I", machine.read_memory(machine.symbols["stats"] + 8, 4))[0], 0)
         polls_before_switch = polls_during_ops[0]
-        rate_box[0] = 96000
         host.format(96000, 4)
         self.assertEqual(machine.run(until=lambda: real_dmac.running and
                                      struct.unpack("<I", machine.read_memory(

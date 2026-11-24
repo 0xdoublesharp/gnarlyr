@@ -32,10 +32,25 @@ ITEM_WORDS = 16
 
 
 class RealI2sRegs(RegisterFile):
+    INTCR = 0x14
+    INTSR = 0x18
+    CLR = 0x20
+    UNDERRUN = 0x02
+    CLEAR_UNDERRUN = 0x04
+
+    @property
+    def underrun(self):
+        return bool(self.read_word(self.INTSR) & self.UNDERRUN)
+
+    def latch_underrun(self):
+        self.regs[self.INTSR] = self.read_word(self.INTSR) | self.UNDERRUN
+
     def write_word(self, offset, value):
-        if offset == 0x20:
-            self.regs[offset] = 0
-            return
+        if offset == self.CLR:
+            value = 0
+        elif offset == self.INTCR and value & self.CLEAR_UNDERRUN:
+            self.regs[self.INTSR] = self.read_word(self.INTSR) & ~self.UNDERRUN
+            value &= ~self.CLEAR_UNDERRUN
         super().write_word(offset, value)
 
 
@@ -152,6 +167,7 @@ class RealDmac(RegisterFile):
         self.paused_us = 0
         self.items = 0
         self.dma_ring = 0
+        self.audio_channel_busy = False
         self.starts = 0
         self.stops = 0
         self.suspends = 0
@@ -191,7 +207,7 @@ class RealDmac(RegisterFile):
             return self.current_sar()
         if offset == DMAC_CHANNEL_ENABLE:
             push = self.base.read_word(DMAC_CHANNEL_ENABLE) & PUSH_BIT
-            return push | (AUDIO_BIT if self.running else 0)
+            return push | (AUDIO_BIT if self.running or self.audio_channel_busy else 0)
         if offset < AUDIO_BASE:
             return self.base.read_word(offset)
         return super().read_word(offset)

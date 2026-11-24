@@ -49,7 +49,7 @@ def aiff_file(rate):
 
 
 class PlayedOutput:
-    def __init__(self, test, machine_audio_class):
+    def __init__(self):
         from echo_emulator.audio import RING_BYTES
         self.slots = RING_BYTES // 8
         self.audio = None
@@ -59,18 +59,12 @@ class PlayedOutput:
         self.written = {}
         self.starts = 0
         self.openings = []
-        original = machine_audio_class.start_loop
 
-        def start_loop(audio, machine):
-            self.flush(machine)
-            result = original(audio, machine)
-            self.last = 0
-            self.starts += 1
-            self.openings.append([])
-            return result
-
-        machine_audio_class.start_loop = start_loop
-        test.addCleanup(setattr, machine_audio_class, "start_loop", original)
+    def start(self, machine):
+        self.flush(machine)
+        self.last = 0
+        self.starts += 1
+        self.openings.append([])
 
     def attach(self, rig):
         from echo_emulator.audio import PRODUCED_OFFSET
@@ -90,6 +84,7 @@ class PlayedOutput:
 
         machine.uc.hook_add(UC_HOOK_MEM_WRITE, write, None, ring, ring + self.slots * 8 - 1)
         machine.hook_symbol("audio_engine_pump", lambda: self.flush(machine))
+        machine.hook_symbol("dmac_start_loop", lambda: self.start(machine))
 
     def flush(self, machine):
         audio = self.audio
@@ -116,7 +111,6 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(list(expected[:OPENING_FRAMES]), got)
 
     def test_each_format_starts_with_its_own_first_samples_and_ends_in_silence(self):
-        from echo_emulator.audio import AudioPath
         from echo_emulator.core1_bridge import (CORE1_M4A, CORE1_MP3, CORE1_VORBIS,
                                                 Core1Bridge)
         from echo_emulator.fat_volume import Fat32Volume
@@ -132,7 +126,7 @@ class EchoImageTest(EchoImageHarness):
         volume.add_file("06 Vorbis 48k.ogg", (fixtures / "vorbis/stereo48.ogg").read_bytes())
         volume.add_file("07 AAC 44k.m4a",
                         (fixtures / "m4a_music/Aac Artist/Aac Album/02 Tail.m4a").read_bytes())
-        output = PlayedOutput(self, AudioPath)
+        output = PlayedOutput()
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         programs = {program: self.elf.with_name("core1_%s.bin" % name).read_bytes()

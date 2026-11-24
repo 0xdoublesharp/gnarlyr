@@ -12,7 +12,7 @@ ALBUM_COUNT = 2
 
 class Rig:
     def __init__(self, session_module, image, elf, usb_overlay_elf=None, volume=None,
-                 module_elfs=(), prepare=None, *, boot=True, real_dac=False, real_dmac=False):
+                 module_elfs=(), prepare=None, *, boot=True, real_dac=True, real_dmac=True):
         volume = volume or real_volume(playable=True, album_count=ALBUM_COUNT)
         self.session = session_module.Session(image, elf, usb_overlay_elf=usb_overlay_elf,
                                               volume=volume, module_elfs=module_elfs)
