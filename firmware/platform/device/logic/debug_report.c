@@ -604,11 +604,6 @@ static void put_card(Writer *writer, const CardStartLog *card)
     finish(writer);
 }
 
-static void put_average(Writer *writer, const char *key, uint32_t total, uint32_t count)
-{
-    put_known(writer, key, count != 0, count != 0 ? total / count : 0);
-}
-
 static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
 {
     static const char *const KEYS[] = {
@@ -632,25 +627,52 @@ static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
     writer->prefix = NULL;
 }
 
+typedef struct AudioReportField {
+    const char *key;
+    uint16_t offset;
+    uint8_t kind;
+} AudioReportField;
+
+enum {
+    AUDIO_ALWAYS,
+    AUDIO_RUNNING,
+    AUDIO_DECODED,
+    AUDIO_AVERAGE
+};
+
+#define AUDIO_FIELD(name, member, mode) {name, offsetof(HalAudioStats, member), mode}
+
 static void put_audio(Writer *writer, const DebugReportAudio *audio)
 {
+    static const AudioReportField FIELDS[] = {
+        AUDIO_FIELD("buffered_ms", buffered_ms, AUDIO_RUNNING),
+        AUDIO_FIELD("underruns", underruns, AUDIO_RUNNING),
+        AUDIO_FIELD("output_underruns", output_underruns, AUDIO_ALWAYS),
+        AUDIO_FIELD("blocks", blocks, AUDIO_ALWAYS),
+        AUDIO_FIELD("handoff_avg_us", decode_total_us, AUDIO_AVERAGE),
+        AUDIO_FIELD("handoff_max_us", decode_max_us, AUDIO_DECODED),
+        AUDIO_FIELD("read_avg_us", read_total_us, AUDIO_AVERAGE),
+        AUDIO_FIELD("read_max_us", read_max_us, AUDIO_DECODED),
+        AUDIO_FIELD("busy_us", busy_us, AUDIO_ALWAYS),
+        AUDIO_FIELD("elapsed_us", elapsed_us, AUDIO_RUNNING),
+    };
     const HalAudioStats *stats = &audio->stats;
-    bool running = audio->running;
-    bool decoded = stats->blocks != 0;
+    const uint8_t *bytes = (const uint8_t *)stats;
     writer->prefix = "audio.";
     put_text(writer, "state", NAME_IN(AUDIO_NAMES, audio->state));
-    put_unsigned(writer, "running", running);
-    put_known(writer, "buffered_ms", running, stats->buffered_ms);
-    put_known(writer, "underruns", running, stats->underruns);
-    put_unsigned(writer, "output_underruns", stats->output_underruns);
-    put_unsigned(writer, "blocks", stats->blocks);
-    put_average(writer, "handoff_avg_us", stats->decode_total_us, stats->blocks);
-    put_known(writer, "handoff_max_us", decoded, stats->decode_max_us);
-    put_average(writer, "read_avg_us", stats->read_total_us, stats->blocks);
-    put_known(writer, "read_max_us", decoded, stats->read_max_us);
-    put_unsigned(writer, "busy_us", stats->busy_us);
-    put_known(writer, "elapsed_us", running, stats->elapsed_us);
-    put_share(writer, "busy_percent", stats->busy_us, running ? stats->elapsed_us : 0);
+    put_unsigned(writer, "running", audio->running);
+    for (size_t index = 0; index < sizeof FIELDS / sizeof FIELDS[0]; index++) {
+        const AudioReportField *field = &FIELDS[index];
+        uint32_t value = *(const uint32_t *)(const void *)(bytes + field->offset);
+        bool decoded = stats->blocks != 0;
+        bool known = field->kind == AUDIO_ALWAYS ||
+                     (field->kind == AUDIO_RUNNING ? audio->running : decoded);
+        if (field->kind == AUDIO_AVERAGE && decoded) {
+            value /= stats->blocks;
+        }
+        put_known(writer, field->key, known, value);
+    }
+    put_share(writer, "busy_percent", stats->busy_us, audio->running ? stats->elapsed_us : 0);
     writer->prefix = NULL;
 }
 
@@ -1212,6 +1234,21 @@ static void put_boot(Writer *writer, const uint64_t *times)
     }
 }
 
+static void put_dac(Writer *writer, const DacDiagnostics *dac)
+{
+    static const char *const KEYS[] = {"start_us", "stop_us", "gain_us"};
+    const uint32_t values[] = {dac->start_us, dac->stop_us, dac->gain_us};
+    writer->prefix = "dac.";
+    put_unsigned(writer, "up", dac->up);
+    put_known(writer, "power_left", (dac->valid & 1) != 0, dac->power[0]);
+    put_known(writer, "power_right", (dac->valid & 2) != 0, dac->power[1]);
+    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    if (dac->overflow != 0) {
+        put_unsigned(writer, "overflow", dac->overflow);
+    }
+    writer->prefix = NULL;
+}
+
 uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t capacity)
 {
     if (capacity <= DEBUG_REPORT_TAIL_BYTES) {
@@ -1230,12 +1267,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_audio(&writer, &input->audio);
     put_refusals(&writer, &input->refusals);
     put_bluetooth(&writer, input->bluetooth);
-    put_unsigned(&writer, "dac.up", input->dac.up);
-    put_known(&writer, "dac.power_left", (input->dac.valid & 1) != 0, input->dac.power[0]);
-    put_known(&writer, "dac.power_right", (input->dac.valid & 2) != 0, input->dac.power[1]);
-    put_unsigned(&writer, "dac.start_us", input->dac.start_us);
-    put_unsigned(&writer, "dac.stop_us", input->dac.stop_us);
-    put_unsigned(&writer, "dac.gain_us", input->dac.gain_us);
+    put_dac(&writer, &input->dac);
     put_frames(&writer, &input->frames);
     put_script(&writer, input);
     put_events(&writer, input->log);

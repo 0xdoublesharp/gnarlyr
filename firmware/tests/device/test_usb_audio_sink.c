@@ -380,9 +380,24 @@ static void the_meter_measures_trimmed_samples_at_every_usb_width(void)
     }
 }
 
+static void hardware_balance_keeps_usb_samples_at_the_software_trim(void)
+{
+    UsbAudioSink sink = started_sink(2);
+    HeadphoneAudio profile = {
+        .left = REPLAY_GAIN_UNITY / 4, .right = REPLAY_GAIN_UNITY / 2, .ceiling = 60};
+    usb_audio_sink_set_headphones(&sink, headphone_audio_without_balance(profile));
+    const uint8_t samples[] = {0x00, 0x40, 0x00, 0x40};
+    usb_audio_sink_write(&sink, samples, sizeof samples, 0);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(8192, peaks[0]);
+    CHECK_EQUAL(8192, peaks[1]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(hardware_balance_keeps_usb_samples_at_the_software_trim),
         TEST_CASE(the_meter_measures_trimmed_samples_at_every_usb_width),
         TEST_CASE(a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer),
         TEST_CASE(every_rate_and_width_streams_bit_exact_with_fast_and_slow_device_clocks),

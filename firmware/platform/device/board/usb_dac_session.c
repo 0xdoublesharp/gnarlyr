@@ -57,6 +57,11 @@ static UsbShared *shared;
 static UsbPort *const port = &usb_session_screen.port;
 static UsbAudio audio;
 static UsbAudioSink sink;
+
+static __attribute__((noinline)) void set_sink_headphones(HeadphoneAudio profile)
+{
+    usb_audio_sink_set_headphones(&sink, headphone_audio_without_balance(profile));
+}
 #define USB_DAC_RING_FRAMES 3000u
 
 _Static_assert(USB_DAC_RING_FRAMES > 192000 / 200 + 192000 / 1000 + 25,
@@ -515,7 +520,7 @@ static void switch_headphones(void)
     HeadphoneAudio after = headphone_store_parameters(&chosen);
     set_volume(headphone_audio_switch_volume(hal_audio_headphones(), after, shared->dac_volume));
     hal_audio_set_headphones(after);
-    usb_audio_sink_set_headphones(&sink, after);
+    set_sink_headphones(after);
 }
 
 static void step_volume(int step)
@@ -807,7 +812,7 @@ static void start_session(void)
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
-    usb_audio_sink_set_headphones(&sink, hal_audio_headphones());
+    set_sink_headphones(hal_audio_headphones());
     open_rate = 0;
     received_packets = 0;
     forced = (UsbForced){0};

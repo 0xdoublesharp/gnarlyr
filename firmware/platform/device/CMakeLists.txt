@@ -516,6 +516,9 @@ if(CMAKE_CROSSCOMPILING)
         ${PROJECT_SOURCE_DIR}/src/app/missing_fonts_record.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/logic/debug_report.c
+        TARGET_DIRECTORY echo_device_logic
+        PROPERTIES COMPILE_OPTIONS "-Os;-fno-reorder-blocks")
     set_source_files_properties(
         logic/usb_audio_descriptors.c
         logic/usb_audio_hid.c
@@ -782,7 +785,9 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             settings_store_read=trial_settings_store_read
             player_restore=trial_player_restore
             favorites_store_read=trial_favorites_store_read
-            spoken_store_read=trial_spoken_store_read)
+            spoken_store_read=trial_spoken_store_read
+            bluetooth_store_load=trial_bluetooth_store_load
+            card_files_prepare_step=trial_card_files_prepare_step)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

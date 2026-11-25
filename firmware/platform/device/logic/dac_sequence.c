@@ -75,6 +75,62 @@ static const uint32_t AFTER_MONO[] = {
     WRITE(0x010010, 0x99), WRITE(0x180000, 0x45), WRITE(0x010010, 0x00),
 };
 
+static const uint32_t POWER_UP_PRE[] = {
+    WRITE(0x010010, 0x99),
+    WRITE(0x080032, 0x20),
+};
+
+static const uint32_t POWER_UP_POST[] = {
+    WRITE(0x080032, 0x00),
+    WRITE(0x010010, 0x00),
+};
+
+static const uint32_t POWER_DOWN_PRE[] = {
+    WRITE(0x010010, 0x99),
+    WRITE(0x080046, 0x21),
+    WRITE(0x010010, 0x00),
+    WRITE(0x090003, 0xEF),
+};
+
+static const uint32_t POWER_DOWN_POST[] = {
+    WRITE(0x010010, 0x99),
+    WRITE(0x080046, 0x20),
+    WRITE(0x010010, 0x00),
+};
+
+static const uint32_t ANALOG_POST[] = {
+    WRITE(0x0F0010, 0x87),
+    WRITE(PCM_MUTE, 0xEC),
+};
+
+typedef struct PinStep {
+    uint8_t pin;
+    uint8_t level;
+    uint8_t delay_ms;
+} PinStep;
+
+static const PinStep POWER_PIN_STEPS[] = {
+    {DAC_PIN_MUTE, 1, 0},  {DAC_PIN_ENABLE_A, 1, 0}, {DAC_PIN_ENABLE_B, 1, 2},
+    {DAC_PIN_RESET, 0, 1}, {DAC_PIN_RESET, 1, 8},    {DAC_PIN_RESET, 0, 2},
+};
+
+static const PinStep OUTPUT_ON_PINS[] = {
+    {DAC_PIN_ENABLE_A, 1, 0},
+    {DAC_PIN_MUTE, 1, 0},
+    {DAC_PIN_AMP, 1, 0},
+};
+
+static const PinStep OUTPUT_OFF_PRE_PINS[] = {
+    {DAC_PIN_MUTE, 1, 0},
+    {DAC_PIN_ENABLE_A, 1, 0},
+};
+
+static const PinStep OUTPUT_OFF_POST_PINS[] = {
+    {DAC_PIN_AMP, 0, 0},
+    {DAC_PIN_RESET, 1, 0},
+    {DAC_PIN_ENABLE_B, 0, 0},
+};
+
 static void wait_ms(const DacBus *bus, uint32_t milliseconds)
 {
     bus->delay_us(bus->context, milliseconds * MICROSECONDS_PER_MILLISECOND);
@@ -83,6 +139,16 @@ static void wait_ms(const DacBus *bus, uint32_t milliseconds)
 static void set_pin(const DacBus *bus, DacPin pin, bool level)
 {
     bus->set_pin(bus->context, pin, level);
+}
+
+CORE_COLD static void run_pin_steps(const DacBus *bus, const PinStep *steps, size_t count)
+{
+    for (size_t index = 0; index < count; index++) {
+        set_pin(bus, (DacPin)steps[index].pin, steps[index].level != 0);
+        if (steps[index].delay_ms != 0) {
+            wait_ms(bus, steps[index].delay_ms);
+        }
+    }
 }
 
 static bool write_both(const DacBus *bus, uint32_t map, uint8_t value)
@@ -177,16 +243,7 @@ static DacResult read_status(const DacBus *bus)
 
 CORE_COLD void dac_power_pins(const DacBus *bus)
 {
-    set_pin(bus, DAC_PIN_MUTE, true);
-    set_pin(bus, DAC_PIN_ENABLE_A, true);
-    set_pin(bus, DAC_PIN_ENABLE_B, true);
-    wait_ms(bus, 2);
-    set_pin(bus, DAC_PIN_RESET, false);
-    wait_ms(bus, 1);
-    set_pin(bus, DAC_PIN_RESET, true);
-    wait_ms(bus, 8);
-    set_pin(bus, DAC_PIN_RESET, false);
-    wait_ms(bus, 2);
+    run_pin_steps(bus, POWER_PIN_STEPS, sizeof POWER_PIN_STEPS / sizeof POWER_PIN_STEPS[0]);
 }
 
 CORE_COLD static void read_chip_identity(const DacBus *bus, uint8_t address, DacIdentity *chip)
@@ -248,12 +305,12 @@ CORE_COLD static bool set_up_blocks(const DacBus *bus, DacAnalog analog)
 
 CORE_COLD bool dac_sequence_power_up(const DacBus *bus)
 {
-    if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080032, 0x20) ||
+    if (!write_all(bus, POWER_UP_PRE, sizeof POWER_UP_PRE / sizeof POWER_UP_PRE[0]) ||
         !release_power_bit(bus, SERIAL_PORT_BIT) || !release_power_bit(bus, HEADPHONE_BIT)) {
         return false;
     }
     wait_ms(bus, OUTPUT_POWER_UP_MS);
-    return write_both(bus, 0x080032, 0x00) && write_both(bus, 0x010010, 0x00);
+    return write_all(bus, POWER_UP_POST, sizeof POWER_UP_POST / sizeof POWER_UP_POST[0]);
 }
 
 CORE_COLD static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
@@ -281,7 +338,7 @@ CORE_COLD bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right)
 
 CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
 {
-    return write_both(bus, PCM_VOLUME_A, volume);
+    return dac_set_volume_lr(bus, volume, volume);
 }
 
 CORE_COLD static bool set_volume_with_retry(const DacBus *bus, uint8_t volume)
@@ -309,7 +366,7 @@ CORE_COLD static bool change_analog(const DacBus *bus, DacAnalog after)
     return dac_sequence_power_down(bus) &&
            write_both(bus, HEADPHONE_GAIN, gain_value(after.gain_high)) &&
            write_both(bus, PCM_FILTER, filter_value(after.filter)) && dac_sequence_power_up(bus) &&
-           write_both(bus, 0x0F0010, 0x87) && write_both(bus, PCM_MUTE, 0xEC);
+           write_all(bus, ANALOG_POST, sizeof ANALOG_POST / sizeof ANALOG_POST[0]);
 }
 
 CORE_COLD static bool change_filter(const DacBus *bus, uint8_t filter)
@@ -347,9 +404,7 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
 
 CORE_SEAM void dac_output_on(const DacBus *bus, uint8_t volume)
 {
-    set_pin(bus, DAC_PIN_ENABLE_A, true);
-    set_pin(bus, DAC_PIN_MUTE, true);
-    set_pin(bus, DAC_PIN_AMP, true);
+    run_pin_steps(bus, OUTPUT_ON_PINS, sizeof OUTPUT_ON_PINS / sizeof OUTPUT_ON_PINS[0]);
     if (!write_channel_values_with_retry(bus) || !set_volume_with_retry(bus, volume)) {
         return;
     }
@@ -381,8 +436,7 @@ CORE_COLD static bool wait_for_power_down(const DacBus *bus)
 
 CORE_COLD bool dac_sequence_power_down(const DacBus *bus)
 {
-    if (!write_both(bus, 0x010010, 0x99) || !write_both(bus, 0x080046, 0x21) ||
-        !write_both(bus, 0x010010, 0x00) || !write_both(bus, 0x090003, 0xEF)) {
+    if (!write_all(bus, POWER_DOWN_PRE, sizeof POWER_DOWN_PRE / sizeof POWER_DOWN_PRE[0])) {
         return false;
     }
     wait_ms(bus, 150);
@@ -390,21 +444,20 @@ CORE_COLD bool dac_sequence_power_down(const DacBus *bus)
     return read_status(bus) != DAC_NO_REPLY && write_both(bus, 0x0F0010, 0x86) &&
            change_power_bit_checked(bus, HEADPHONE_BIT, true, &powered_down) &&
            (!powered_down || wait_for_power_down(bus)) &&
-           change_power_bit(bus, SERIAL_PORT_BIT, true) && write_both(bus, 0x010010, 0x99) &&
-           write_both(bus, 0x080046, 0x20) && write_both(bus, 0x010010, 0x00);
+           change_power_bit(bus, SERIAL_PORT_BIT, true) &&
+           write_all(bus, POWER_DOWN_POST, sizeof POWER_DOWN_POST / sizeof POWER_DOWN_POST[0]);
 }
 
 CORE_COLD void dac_output_off(const DacBus *bus)
 {
-    set_pin(bus, DAC_PIN_MUTE, true);
-    set_pin(bus, DAC_PIN_ENABLE_A, true);
+    run_pin_steps(bus, OUTPUT_OFF_PRE_PINS,
+                  sizeof OUTPUT_OFF_PRE_PINS / sizeof OUTPUT_OFF_PRE_PINS[0]);
     dac_set_volume(bus, DAC_VOLUME_MUTED);
     (void)dac_sequence_power_down(bus);
     write_both(bus, 0x0B0000, 0x00);
     wait_ms(bus, 10);
-    set_pin(bus, DAC_PIN_AMP, false);
-    set_pin(bus, DAC_PIN_RESET, true);
-    set_pin(bus, DAC_PIN_ENABLE_B, false);
+    run_pin_steps(bus, OUTPUT_OFF_POST_PINS,
+                  sizeof OUTPUT_OFF_POST_PINS / sizeof OUTPUT_OFF_POST_PINS[0]);
 }
 
 CORE_SEAM void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume)
@@ -427,17 +480,58 @@ uint8_t dac_ramp_next(uint8_t current, uint8_t target)
 
 bool dac_fade_volume(const DacBus *bus, DacLevel *level, uint8_t target, uint32_t step_us)
 {
-    if (level->stale && !dac_set_volume(bus, level->applied)) {
+    DacStereoLevel stereo = {level->applied, level->applied, level->stale};
+    bool ok = dac_fade_volume_lr(bus, &stereo, (DacStereoLevel){target, target, false}, step_us);
+    level->applied = stereo.left;
+    level->stale = stereo.stale;
+    return ok;
+}
+
+static const uint8_t BALANCE_LOW[] = {255, 80, 68, 61, 56, 52, 49, 46, 44, 42, 40};
+static const uint8_t BALANCE_TENS[] = {40, 28, 21, 16, 12, 9, 6, 4, 2, 0};
+
+CORE_COLD uint8_t dac_balance_attenuation(uint32_t gain, uint32_t trim)
+{
+    if (trim == 0 || gain >= trim) {
+        return 0;
+    }
+    uint32_t percent = (gain * 100 + trim / 2) / trim;
+    if (percent <= 10) {
+        return BALANCE_LOW[percent];
+    }
+    if (percent >= 100) {
+        return 0;
+    }
+    uint32_t ten = percent / 10 - 1;
+    uint32_t rem = percent % 10;
+    return (uint8_t)((BALANCE_TENS[ten] * (10 - rem) + BALANCE_TENS[ten + 1] * rem + 5) / 10);
+}
+
+CORE_COLD uint8_t dac_balance_volume(uint8_t volume, uint8_t attenuation)
+{
+    if (volume == DAC_VOLUME_MUTED || attenuation == DAC_VOLUME_MUTED) {
+        return DAC_VOLUME_MUTED;
+    }
+    unsigned sum = volume + attenuation;
+    return sum < DAC_VOLUME_MUTED ? (uint8_t)sum : DAC_VOLUME_MUTED - 1;
+}
+
+CORE_COLD bool dac_fade_volume_lr(const DacBus *bus, DacStereoLevel *level, DacStereoLevel target,
+                                  uint32_t step_us)
+{
+    if (level->stale && !dac_set_volume_lr(bus, level->left, level->right)) {
         return false;
     }
     level->stale = false;
-    while (level->applied != target) {
-        uint8_t next = dac_ramp_next(level->applied, target);
-        if (!dac_set_volume(bus, next)) {
+    while (level->left != target.left || level->right != target.right) {
+        uint8_t left = dac_ramp_next(level->left, target.left);
+        uint8_t right = dac_ramp_next(level->right, target.right);
+        if (!dac_set_volume_lr(bus, left, right)) {
             level->stale = true;
             return false;
         }
-        level->applied = next;
+        level->left = left;
+        level->right = right;
         bus->delay_us(bus->context, step_us);
     }
     return true;

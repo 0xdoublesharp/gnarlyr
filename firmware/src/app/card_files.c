@@ -3,7 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/app.h"
 #include "bluetooth_store.h"
+#include "core/i18n.h"
+#include "core/string_builder.h"
 #include "cover_cache.h"
 #include "equalizer_presets.h"
 #include "favorite_playlist.h"
@@ -21,10 +24,8 @@
 #include "settings_store.h"
 #include "spoken_store.h"
 
-const char PARAMETRIC_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/parametric.bin";
-const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
-
 enum {
+    PREPARE_NOTICE_CAPACITY = 96,
     SMALL_FILE_BYTES = 4096,
     LIBRARY_FILE_BYTES = 4 * 1024 * 1024,
     COVERS_FILE_BYTES = 80 * 1024 * 1024,
@@ -110,4 +111,35 @@ void card_files_reserve(CardFilesReport *report, size_t index)
         result == HAL_RESERVE_CREATED && CARD_FILES[index].path == LIBRARY_STORE_PATH;
     report->headphones_created |=
         result == HAL_RESERVE_CREATED && CARD_FILES[index].path == HEADPHONE_STORE_PATH;
+}
+
+static void show_prepare_progress(size_t index)
+{
+    char text[PREPARE_NOTICE_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    i18n_format_counts(&builder, STR_PREPARING_FILE, (uint32_t)index + 1,
+                       (uint32_t)card_files_count());
+    app_show_notice(i18n_text(STR_PREPARING_STORAGE), text);
+}
+
+bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *report, bool charging,
+                             bool *finished)
+{
+    while (*prepare_index < card_files_count()) {
+        size_t index = (*prepare_index)++;
+        if (!card_files_missing(index)) {
+            continue;
+        }
+        bool slow = card_files_slow(index);
+        if (slow && !charging) {
+            show_prepare_progress(index);
+        }
+        card_files_reserve(report, index);
+        if (slow) {
+            *finished = false;
+            return !charging;
+        }
+    }
+    *finished = true;
+    return false;
 }

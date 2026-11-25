@@ -2273,34 +2273,16 @@ static void charge_step(uint32_t now_ms)
     }
 }
 
-static void show_prepare_progress(size_t index)
-{
-    char text[NOTICE_TEXT_CAPACITY];
-    StringBuilder builder = string_builder_make(text, sizeof text);
-    i18n_format_counts(&builder, STR_PREPARING_FILE, (uint32_t)index + 1,
-                       (uint32_t)card_files_count());
-    app_show_notice(i18n_text(STR_PREPARING_STORAGE), text);
-}
-
 static bool prepare_step(void)
 {
-    while (app.prepare_index < card_files_count()) {
-        size_t index = app.prepare_index++;
-        if (!card_files_missing(index)) {
-            continue;
-        }
-        bool slow = card_files_slow(index);
-        if (slow && !app.charging) {
-            show_prepare_progress(index);
-        }
-        card_files_reserve(&app.prepare_report, index);
-        if (slow) {
-            return !app.charging;
-        }
+    bool finished = false;
+    bool pause =
+        card_files_prepare_step(&app.prepare_index, &app.prepare_report, app.charging, &finished);
+    if (finished) {
+        app.prepare_pending = false;
+        report_card_files(app.prepare_report, hal_clock_milliseconds());
     }
-    app.prepare_pending = false;
-    report_card_files(app.prepare_report, hal_clock_milliseconds());
-    return false;
+    return pause;
 }
 
 bool app_preparing(void)

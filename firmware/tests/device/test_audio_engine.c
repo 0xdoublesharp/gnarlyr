@@ -1656,9 +1656,30 @@ static void paused_double_mark_and_stopped_clear_never_restart_or_underflow(void
     CHECK_EQUAL(AUDIO_ENGINE_STOPPED, engine.state);
 }
 
+static void hardware_balance_keeps_unity_and_software_fallback_scales_samples(void)
+{
+    HeadphoneAudio profile = {.left = 32768, .right = 65536, .ceiling = 60};
+    start_scripted_engine(0, 1);
+    audio_engine_set_headphones(&engine, headphone_audio_without_balance(profile));
+    CHECK_EQUAL(REPLAY_GAIN_UNITY, engine.left_gain);
+    CHECK_EQUAL(REPLAY_GAIN_UNITY, engine.right_gain);
+    CHECK(play_file("first", 0, 1));
+    pump_until_full(0);
+    CHECK(frame_is(1, 2, -2, 16));
+
+    start_scripted_engine(0, 1);
+    audio_engine_set_headphones(&engine, profile);
+    CHECK_EQUAL(32768, engine.left_gain);
+    CHECK_EQUAL(REPLAY_GAIN_UNITY, engine.right_gain);
+    CHECK(play_file("first", 0, 1));
+    pump_until_full(0);
+    CHECK(frame_is(1, 1, -2, 16));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(hardware_balance_keeps_unity_and_software_fallback_scales_samples),
         TEST_CASE(a_zero_sleep_deadline_and_rearming_stay_bounded),
         TEST_CASE(arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level),
         TEST_CASE(ab_repeat_keeps_exact_submillisecond_samples_and_loops_without_advancing),

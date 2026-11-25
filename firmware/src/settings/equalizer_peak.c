@@ -86,14 +86,17 @@ static uint64_t cascade_power(const int8_t *gains, uint32_t grid)
     return equalizer_peak_cascade(gains, BAND_TANGENT, SETTINGS_EQUALIZER_BANDS, grid);
 }
 
-static uint64_t peak_power(const int8_t *gains)
+static void peak_and_trough(const int8_t *gains, uint64_t *peak, uint64_t *trough)
 {
-    uint64_t peak = one(RATIO_BITS);
+    uint64_t high = one(RATIO_BITS);
+    uint64_t low = one(RATIO_BITS);
     for (int point = 0; point < GRID_POINTS; point++) {
         uint64_t power = cascade_power(gains, GRID_TANGENT[point]);
-        peak = power > peak ? power : peak;
+        high = power > high ? power : high;
+        low = power < low ? power : low;
     }
-    return peak;
+    *peak = high;
+    *trough = low;
 }
 
 static uint32_t square_root(uint64_t value)
@@ -115,19 +118,8 @@ static uint32_t square_root(uint64_t value)
     return (uint32_t)root;
 }
 
-static uint64_t trough_power(const int8_t *gains)
+static int deepest_cut(uint64_t trough)
 {
-    uint64_t trough = one(RATIO_BITS);
-    for (int point = 0; point < GRID_POINTS; point++) {
-        uint64_t power = cascade_power(gains, GRID_TANGENT[point]);
-        trough = power < trough ? power : trough;
-    }
-    return trough;
-}
-
-static int deepest_cut(const int8_t *gains)
-{
-    uint64_t trough = trough_power(gains);
     uint64_t level = one(RATIO_BITS);
     int cut = 0;
     trough += trough >> TROUGH_MARGIN_BITS;
@@ -140,6 +132,9 @@ static int deepest_cut(const int8_t *gains)
 
 uint16_t equalizer_peak_pre_gain(const int8_t gains[SETTINGS_EQUALIZER_BANDS])
 {
-    uint32_t pre_gain = (UINT32_C(1) << ROOT_TO_PRE_GAIN_BITS) / square_root(peak_power(gains));
-    return (uint16_t)(pre_gain * HEADROOM[deepest_cut(gains)] >> PRE_GAIN_BITS);
+    uint64_t peak = 0;
+    uint64_t trough = 0;
+    peak_and_trough(gains, &peak, &trough);
+    uint32_t pre_gain = (UINT32_C(1) << ROOT_TO_PRE_GAIN_BITS) / square_root(peak);
+    return (uint16_t)(pre_gain * HEADROOM[deepest_cut(trough)] >> PRE_GAIN_BITS);
 }

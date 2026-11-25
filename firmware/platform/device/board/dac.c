@@ -125,8 +125,11 @@ static bool dac_up;
 static DacAnalog chip_analog;
 static bool muted;
 static bool guarded;
+static bool output_blocked;
 DacDiagnostics board_dac_diagnostics;
-static DacLevel chip_volume;
+static DacStereoLevel chip_volume;
+static uint8_t balance_left;
+static uint8_t balance_right;
 static uint32_t retried_ms;
 static void (*fade_service)(void);
 static uint32_t acodec_row;
@@ -444,7 +447,8 @@ CORE_COLD static bool play_tone_segments(void)
     static int16_t samples[TONE_PERIOD_SAMPLES];
     tone_fill(samples, TONE_PERIOD_SAMPLES, TONE_AMPLITUDE);
     dac_output_on(&BUS, current_volume());
-    chip_volume.applied = current_volume();
+    chip_volume.left = current_volume();
+    chip_volume.right = current_volume();
     if (!play_for(samples, TONE_PERIOD_SAMPLES, TONE_SEGMENT_MS) ||
         !play_for(NULL, 1, TONE_GAP_MS)) {
         return false;
@@ -481,6 +485,11 @@ CORE_COLD static void stop_soc_audio(void)
     set_soc_clocks(false);
 }
 
+CORE_COLD static void reset_chip_volume(void)
+{
+    chip_volume = (DacStereoLevel){.left = DAC_VOLUME_MUTED, .right = DAC_VOLUME_MUTED};
+}
+
 CORE_COLD static HalToneResult start_audio_path(const AudioRate *rate, uint32_t divider,
                                                 uint32_t format, uint32_t interrupts, bool transfer)
 {
@@ -509,7 +518,7 @@ CORE_COLD static HalToneResult start_audio_path(const AudioRate *rate, uint32_t 
     dac_up = true;
     chip_analog = analog;
     muted = true;
-    chip_volume = (DacLevel){.applied = DAC_VOLUME_MUTED};
+    reset_chip_volume();
     return HAL_TONE_PLAYED;
 }
 
@@ -519,7 +528,7 @@ CORE_COLD static void stop_audio_path(void)
     dac_up = false;
     dac_output_off(&BUS);
     board_dac_diagnostics.stop_us = hal_clock_microseconds() - started;
-    chip_volume = (DacLevel){.applied = DAC_VOLUME_MUTED};
+    reset_chip_volume();
     stop_soc_audio();
 }
 
@@ -570,7 +579,7 @@ static void wait_serving(uint32_t microseconds)
 CORE_SEAM CORE_COLD void dac_path_output_on(void)
 {
     dac_output_on(&BUS, DAC_VOLUME_MUTED);
-    chip_volume.applied = DAC_VOLUME_MUTED;
+    reset_chip_volume();
     muted = true;
 }
 
@@ -582,9 +591,11 @@ static void serving_delay(void *context, uint32_t microseconds)
 
 static const DacBus SERVING_BUS = {dac_write, dac_read, dac_set_pin, serving_delay, NULL};
 
-CORE_COLD static void fade_to(uint8_t target)
+CORE_COLD static __attribute__((noinline)) void fade_to(uint8_t target)
 {
-    if (!dac_fade_volume(&SERVING_BUS, &chip_volume, target, FADE_STEP_US)) {
+    DacStereoLevel next = {.left = dac_balance_volume(target, balance_left),
+                           .right = dac_balance_volume(target, balance_right)};
+    if (!dac_fade_volume_lr(&SERVING_BUS, &chip_volume, next, FADE_STEP_US)) {
         retried_ms = hal_clock_milliseconds();
     }
 }
@@ -599,6 +610,7 @@ CORE_COLD static bool apply_analog(DacAnalog next)
 CORE_COLD void dac_path_set_muted(bool mute)
 {
     muted = mute;
+    output_blocked = false;
     if (mute) {
         fade_to(DAC_VOLUME_MUTED);
         dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
@@ -607,18 +619,30 @@ CORE_COLD void dac_path_set_muted(bool mute)
     if (guarded || (chip_analog.filter == DAC_ANALOG_UNKNOWN && !apply_analog(analog))) {
         return;
     }
+    dac_set_pin(NULL, DAC_PIN_MUTE, true);
     uint8_t target = current_volume();
-    if (chip_volume.applied == DAC_VOLUME_MUTED && target < DAC_VOLUME_MUTED - FADE_IN_FLOOR) {
-        chip_volume.applied = (uint8_t)(target + FADE_IN_FLOOR);
+    uint8_t start = target < DAC_VOLUME_MUTED - FADE_IN_FLOOR ? (uint8_t)(target + FADE_IN_FLOOR)
+                                                              : DAC_VOLUME_MUTED;
+    chip_volume.left = dac_balance_volume(start, balance_left);
+    chip_volume.right = dac_balance_volume(start, balance_right);
+    bool written = false;
+    for (int attempt = 0; attempt < 2 && !written; attempt++) {
+        written = dac_set_volume_lr(&BUS, chip_volume.left, chip_volume.right);
     }
-    dac_set_muted(&BUS, false, chip_volume.applied);
+    if (!written) {
+        chip_volume.stale = true;
+        output_blocked = true;
+        retried_ms = hal_clock_milliseconds();
+        return;
+    }
+    dac_set_pin(NULL, DAC_PIN_MUTE, false);
     fade_to(target);
 }
 
 CORE_COLD void dac_path_stream_quiet(void)
 {
     muted = true;
-    chip_volume.applied = DAC_VOLUME_MUTED;
+    reset_chip_volume();
     dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
 }
 
@@ -628,22 +652,36 @@ CORE_COLD void dac_path_fade_out(void)
     fade_to(DAC_VOLUME_MUTED);
 }
 
-void dac_path_service(void)
+CORE_COLD static void apply_live_volume(uint8_t value)
 {
-    if (chip_volume.stale && dac_up && !muted && !guarded &&
-        chip_analog.filter != DAC_ANALOG_UNKNOWN &&
-        hal_clock_milliseconds() - retried_ms >= VOLUME_RETRY_MS) {
-        fade_to(current_volume());
+    if (dac_up && !muted && !guarded && chip_analog.filter != DAC_ANALOG_UNKNOWN) {
+        if (output_blocked) {
+            dac_path_set_muted(false);
+        } else {
+            fade_to(value);
+        }
     }
 }
 
-CORE_COLD void dac_path_set_volume(uint8_t value)
+void dac_path_service(void)
 {
+    if (chip_volume.stale && hal_clock_milliseconds() - retried_ms >= VOLUME_RETRY_MS) {
+        apply_live_volume(current_volume());
+    }
+}
+
+CORE_COLD void dac_path_set_volume(uint8_t value, uint8_t left, uint8_t right)
+{
+    balance_left = left;
+    balance_right = right;
     volume_value = value;
     volume_known = true;
-    if (dac_up && !muted && !guarded && chip_analog.filter != DAC_ANALOG_UNKNOWN) {
-        fade_to(value);
-    }
+    apply_live_volume(value);
+}
+
+uint8_t dac_overflow_flags(void)
+{
+    return board_dac_diagnostics.overflow;
 }
 
 CORE_COLD static bool set_analog(DacAnalog next)
@@ -722,7 +760,7 @@ CORE_SEAM CORE_COLD void dac_path_guard(bool held)
     guarded = held;
     if (dac_up && held) {
         dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
-        chip_volume.applied = DAC_VOLUME_MUTED;
+        reset_chip_volume();
     } else if (dac_up && !muted) {
         dac_path_set_muted(false);
     }

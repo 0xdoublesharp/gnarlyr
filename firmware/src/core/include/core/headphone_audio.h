@@ -22,3 +22,11 @@ uint8_t headphone_audio_rise_volume(HeadphoneAudio active, uint8_t level, uint8_
 uint32_t headphone_audio_gain(uint32_t profile_gain, uint32_t input_gain);
 int32_t headphone_audio_sample(int32_t sample, uint8_t bits, uint32_t gain);
 uint32_t headphone_audio_word(uint32_t word, uint32_t gain);
+
+static inline HeadphoneAudio headphone_audio_without_balance(HeadphoneAudio profile)
+{
+    uint32_t trim = profile.left > profile.right ? profile.left : profile.right;
+    profile.left = trim;
+    profile.right = trim;
+    return profile;
+}

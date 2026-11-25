@@ -13,6 +13,8 @@ const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT] = {
 
 const char SETTINGS_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/settings.bin";
 const char SETTINGS_BUTTONS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/buttons.bin";
+const char PARAMETRIC_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/parametric.bin";
+const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
 
 static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL_AUDIO_GAIN_HIGH};
 static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {

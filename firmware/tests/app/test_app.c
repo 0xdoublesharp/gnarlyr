@@ -1252,6 +1252,19 @@ static void selecting_a_track_plays_it_and_shows_now_playing(void)
     CHECK(playing_path_is(HELLS_BELLS_PATH));
 }
 
+static void selecting_the_paused_album_track_resumes_it(void)
+{
+    start_app_with_library();
+    play_first_album_track();
+    tap(KEY_PLAY);
+    CHECK_EQUAL(PLAYER_PAUSED, app_player_status().state);
+    tap(KEY_BACK);
+    tap(KEY_PLAY);
+    CHECK(title_is("Now Playing"));
+    CHECK_EQUAL(PLAYER_PLAYING, app_player_status().state);
+    CHECK(playing_path_is(HELLS_BELLS_PATH));
+}
+
 static bool text_shown(const char *text)
 {
     for (int index = 0; index < text_spy_count(); index++) {
@@ -9303,6 +9316,7 @@ int main(void)
         TEST_CASE(a_quick_mixtape_save_never_shows_its_motion),
         TEST_CASE(a_song_actions_menu_opens_its_metadata_and_personal_tags),
         TEST_CASE(selecting_a_track_plays_it_and_shows_now_playing),
+        TEST_CASE(selecting_the_paused_album_track_resumes_it),
         TEST_CASE(play_on_the_playing_track_opens_now_playing_without_restarting),
         TEST_CASE(play_on_another_track_starts_it),
         TEST_CASE(menu_opens_now_playing_from_anywhere_while_playing),

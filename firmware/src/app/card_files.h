@@ -14,3 +14,5 @@ const char *card_files_path(size_t index);
 bool card_files_slow(size_t index);
 bool card_files_missing(size_t index);
 void card_files_reserve(CardFilesReport *report, size_t index);
+bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *report, bool charging,
+                             bool *finished);

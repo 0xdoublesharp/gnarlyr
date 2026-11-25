@@ -79,6 +79,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/settings/settings_decode.c
     src/app/player_restore.c
     src/app/start_stores.c
+    src/app/bluetooth_store_read.c
+    src/app/card_files.c
     src/library/favorites_decode.c
     src/playback/bookmarks_decode.c
 )

@@ -233,8 +233,7 @@ static ScreenAction start_list(BrowseScreen *browse, BrowseQuery source, uint32_
 static ScreenAction play_from(BrowseScreen *browse, int index)
 {
     if (is_loaded_track(browse, index)) {
-        if (browse->shelf_root &&
-            player_status(browse->pool->config.player).state == PLAYER_PAUSED) {
+        if (player_status(browse->pool->config.player).state == PLAYER_PAUSED) {
             player_toggle_pause(browse->pool->config.player);
         }
         return screen_action_push(browse->pool->config.now_playing);

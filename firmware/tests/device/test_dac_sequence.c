@@ -934,9 +934,41 @@ static void a_silent_bus_leaves_the_level_stale_until_a_request_gets_through(voi
     CHECK_EQUAL(255, last_volume_written());
 }
 
+static void balance_quantizes_and_preserves_the_mute_code(void)
+{
+    CHECK_EQUAL(0, dac_balance_attenuation(65536, 65536));
+    CHECK_EQUAL(12, dac_balance_attenuation(32768, 65536));
+    CHECK_EQUAL(40, dac_balance_attenuation(6554, 65536));
+    CHECK_EQUAL(80, dac_balance_attenuation(655, 65536));
+    CHECK_EQUAL(DAC_VOLUME_MUTED, dac_balance_attenuation(0, 65536));
+    CHECK_EQUAL(254, dac_balance_volume(250, 12));
+    CHECK_EQUAL(DAC_VOLUME_MUTED, dac_balance_volume(255, 0));
+    CHECK_EQUAL(DAC_VOLUME_MUTED, dac_balance_volume(0, 255));
+}
+
+static void stereo_ramps_preserve_targets_and_retry_partial_writes(void)
+{
+    DacBus bus = fresh_bus();
+    DacStereoLevel level = {.left = 100, .right = 112};
+    DacStereoLevel target = {.left = 112, .right = 130};
+    fake.fail_transfer = 4;
+    CHECK(!dac_fade_volume_lr(&bus, &level, target, 50));
+    CHECK(level.stale);
+    CHECK_EQUAL(106, level.left);
+    CHECK_EQUAL(118, level.right);
+    fake.fail_transfer = 0;
+    CHECK(dac_fade_volume_lr(&bus, &level, target, 50));
+    CHECK_EQUAL(112, level.left);
+    CHECK_EQUAL(130, level.right);
+    CHECK(!level.stale);
+    CHECK_EQUAL(150, fake.elapsed_us);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(balance_quantizes_and_preserves_the_mute_code),
+        TEST_CASE(stereo_ramps_preserve_targets_and_retry_partial_writes),
         TEST_CASE(the_power_pins_pulse_reset_as_in_the_facts),
         TEST_CASE(the_probe_writes_map_zero_to_both_chips),
         TEST_CASE(a_silent_bus_fails_the_probe),

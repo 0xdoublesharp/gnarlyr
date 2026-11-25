@@ -72,6 +72,17 @@ typedef struct DacLevel {
 
 bool dac_fade_volume(const DacBus *bus, DacLevel *level, uint8_t target, uint32_t step_us);
 
+typedef struct DacStereoLevel {
+    uint8_t left;
+    uint8_t right;
+    bool stale;
+} DacStereoLevel;
+
+uint8_t dac_balance_attenuation(uint32_t gain, uint32_t trim);
+uint8_t dac_balance_volume(uint8_t volume, uint8_t attenuation);
+bool dac_fade_volume_lr(const DacBus *bus, DacStereoLevel *level, DacStereoLevel target,
+                        uint32_t step_us);
+
 bool dac_sequence_power_down(const DacBus *bus);
 bool dac_sequence_power_up(const DacBus *bus);
 

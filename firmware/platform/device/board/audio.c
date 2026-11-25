@@ -703,20 +703,25 @@ static DacCurve output_curve(void)
                                                        : DAC_CURVE_SINGLE_ENDED;
 }
 
-static uint8_t routed_level(void)
-{
-    if (board_bluetooth_routed()) {
-        return bluetooth_level;
-    }
-    return headphone_audio_limit(hal_audio_headphones(), volume_level);
-}
-
 static void apply_volume(void)
 {
-    if (volume_set) {
-        uint32_t value = dac_volume_value(routed_level(), output_curve()) + extra_attenuation;
-        dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED);
+    if (!volume_set) {
+        return;
     }
+    bool bluetooth = board_bluetooth_routed();
+    HeadphoneAudio profile = bluetooth ? (HeadphoneAudio){0} : hal_audio_headphones();
+    uint8_t level = bluetooth ? bluetooth_level : headphone_audio_limit(profile, volume_level);
+    uint32_t value = dac_volume_value(level, output_curve()) + extra_attenuation;
+    uint8_t left = 0;
+    uint8_t right = 0;
+    if (!bluetooth && profile.left != profile.right) {
+        bool cut_left = profile.left < profile.right;
+        uint8_t cut = dac_balance_attenuation(cut_left ? profile.left : profile.right,
+                                              cut_left ? profile.right : profile.left);
+        left = cut_left ? cut : 0;
+        right = cut_left ? 0 : cut;
+    }
+    dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED, left, right);
 }
 
 CORE_COLD void hal_audio_set_volume(uint8_t level)
@@ -734,7 +739,8 @@ CORE_COLD void hal_audio_set_bluetooth_volume(uint8_t level)
 
 static HeadphoneAudio engine_headphones(void)
 {
-    return board_bluetooth_routed() ? headphone_audio_defaults() : hal_audio_headphones();
+    return board_bluetooth_routed() ? headphone_audio_defaults()
+                                    : headphone_audio_without_balance(hal_audio_headphones());
 }
 
 CORE_COLD HeadphoneAudio hal_audio_headphones(void)
