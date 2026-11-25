@@ -1019,7 +1019,7 @@ def build_codec_plan(catalog):
         ("15 AIFF", "AIFF 44.1k/16 stereo", 700, 2000, False, True, (280, 345)),
         ("16 WMA", "WMA v2 128k stereo", 700, 2000, False, True, (280, 345)),
         ("17 APE", "APE 16-bit stereo", 700, 1800, False, True, (255, 465)),
-        ("19 DSD64", "DSD64 DSF 2.8MHz", 500, 1800, False, True, (115, 195)),
+        ("19 DSD64", "DSD64 DSF 2.8MHz", 500, 1800, False, True, (40, 195)),
     ])
     return batches
 
