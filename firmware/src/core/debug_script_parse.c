@@ -301,6 +301,16 @@ static bool arguments_fit(DebugCommand *command)
     case DEBUG_COMMAND_SOAK:
         return parse_word(command->argument, &command->number) && command->number >= 1 &&
                command->number <= DEBUG_SOAK_MAX_MINUTES;
+    case DEBUG_COMMAND_RECONNECT:
+        command->number = 0;
+        if (command->argument.length == 0) {
+            return true;
+        }
+        if (debug_span_matches(command->argument, "dac")) {
+            command->number = 1;
+            return true;
+        }
+        return false;
     default:
         return command->argument.length == 0;
     }

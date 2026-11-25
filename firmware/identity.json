@@ -1,6 +1,8 @@
 {
     "name": "Gnarlyr",
     "short_name": "Gnarlyr",
+    "usb_name": "Gnarlyr Echo",
+    "usb_dac_name": "Gnarlyr Echo DAC",
     "manufacturer": "Doublesharp",
     "id": "GNARLYR",
     "version": "1.0.0",

@@ -102,7 +102,7 @@ static void the_product_string_names_the_firmware_and_the_manufacturer_string_it
     UsbDevice device = ready_device();
     UsbReply product = usb_device_setup(&device, setup(0x80, 6, 0x0302, 0x0409, 255));
     CHECK_EQUAL(USB_REPLY_DATA, product.kind);
-    CHECK(utf16_is(FIRMWARE_NAME, product));
+    CHECK(utf16_is(FIRMWARE_USB_NAME, product));
     UsbReply maker = usb_device_setup(&device, setup(0x80, 6, 0x0301, 0x0409, 255));
     CHECK(utf16_is(FIRMWARE_MANUFACTURER, maker));
 }

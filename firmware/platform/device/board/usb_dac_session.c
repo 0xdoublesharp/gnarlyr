@@ -12,6 +12,7 @@
 #include "device/usb_audio.h"
 #include "device/usb_audio_sink.h"
 #include "device/usb_level.h"
+#include "gfx/font_pack.h"
 #include "gfx/text.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
@@ -77,6 +78,8 @@ static uint32_t received_packets;
 static uint32_t connected_ms;
 static uint32_t meter_ms;
 static uint32_t underruns_before;
+static uint32_t last_poll_us;
+static uint32_t max_poll_gap_us;
 static UsbForced forced;
 static uint32_t back_pressed_ms;
 static bool back_armed;
@@ -92,7 +95,23 @@ static void start_output(void)
         usb_audio_sink_set_playing(&sink, true);
         playing = board_audio_stream_play();
         usb_audio_sink_set_playing(&sink, playing);
+        last_poll_us = playing ? hal_clock_microseconds() : 0;
     }
+}
+
+static void note_poll_gap(void)
+{
+    if (!playing) {
+        return;
+    }
+    uint32_t now = hal_clock_microseconds();
+    if (last_poll_us != 0) {
+        uint32_t gap = now - last_poll_us;
+        if (gap > max_poll_gap_us) {
+            max_poll_gap_us = gap;
+        }
+    }
+    last_poll_us = now;
 }
 
 static void receive_stream(const uint8_t *bytes, uint32_t length)
@@ -115,6 +134,7 @@ static uint32_t feedback(uint16_t tick)
 
 static void serve_usb(void)
 {
+    note_poll_gap();
     for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
         usb_poll(port);
     }
@@ -122,6 +142,7 @@ static void serve_usb(void)
 
 static void serve_audio_usb(void)
 {
+    note_poll_gap();
     for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
         usb_poll_audio(port);
     }
@@ -411,6 +432,7 @@ static void stop_output(void)
 {
     if (playing) {
         playing = false;
+        last_poll_us = 0;
         usb_audio_sink_set_playing(&sink, false);
         board_audio_stream_pause();
     }
@@ -637,7 +659,7 @@ static void follow_back(HalKeyTransition key)
     }
 }
 
-static void follow_key(HalKeyTransition key)
+static __attribute__((noinline)) void follow_key(HalKeyTransition key)
 {
     if (key.key == KEY_BACK) {
         follow_back(key);
@@ -678,6 +700,43 @@ static void refresh(uint32_t now_ms, uint32_t *refreshed)
     usb_screen_show_in_bands(status, info_area(status));
 }
 
+#ifdef ECHO_DEBUG_LOOP
+static const uint8_t DAC_TEST_KEYS[] = {
+    KEY_MENU, KEY_VOLUME_UP, KEY_VOLUME_UP, KEY_VOLUME_UP, KEY_VOLUME_DOWN, KEY_VOLUME_DOWN,
+    KEY_PLAY, KEY_PLAY,      KEY_BACK,      KEY_BACK,      KEY_BACK,        KEY_BACK};
+static uint32_t dac_test_ms;
+static uint8_t dac_test_step;
+
+static void step_dac_test(uint32_t now_ms)
+{
+    if (!shared->dac_test) {
+        return;
+    }
+    if (deadline_elapsed(now_ms, connected_ms, 15000)) {
+        next = DAC_NEXT_STORAGE;
+        return;
+    }
+    if (!playing) {
+        return;
+    }
+    if (dac_test_ms == 0) {
+        dac_test_ms = now_ms == 0 ? 1 : now_ms;
+        return;
+    }
+    if (!deadline_elapsed(now_ms, dac_test_ms, 450)) {
+        return;
+    }
+    dac_test_ms = now_ms == 0 ? 1 : now_ms;
+    if (dac_test_step < sizeof DAC_TEST_KEYS) {
+        uint8_t key = DAC_TEST_KEYS[dac_test_step++];
+        follow_key((HalKeyTransition){.key = key, .pressed = true, .time_ms = now_ms});
+        follow_key((HalKeyTransition){.key = key, .pressed = false, .time_ms = now_ms + 50});
+    } else {
+        next = DAC_NEXT_STORAGE;
+    }
+}
+#endif
+
 static void serve(void)
 {
     back_armed = false;
@@ -693,6 +752,9 @@ static void serve(void)
             usb_audio_hid_tick(&port->hid, hal_clock_milliseconds());
         }
         uint32_t now = hal_clock_milliseconds();
+#ifdef ECHO_DEBUG_LOOP
+        step_dac_test(now);
+#endif
         step_meter(now);
         refresh(now, &refreshed);
     }
@@ -700,21 +762,26 @@ static void serve(void)
 
 static void warm_menu_glyphs(void)
 {
+    static const uint16_t EXTRAS[] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_OUTPUT_AUTO,
+                                      STR_JACK_35,  STR_JACK_44,   STR_OFF};
     const Theme *theme = app_theme();
+    const Font *detail = theme_is_portrait(theme) ? theme->fonts.small : theme->fonts.body;
     load_menu(0);
-    const ListModel *model = &menu.model;
     for (int index = 0; index < USB_DAC_ROW_COUNT; index++) {
-        const char *label = model->label(model->context, index);
-        const char *detail = model->detail(model->context, index);
+        const char *label = menu.model.label(&menu, index);
         (void)text_width(theme->fonts.title, label);
         (void)text_width(theme->fonts.body, label);
-        if (detail != NULL) {
-            (void)text_width(theme->fonts.body, detail);
-        }
     }
-    (void)text_width(theme->fonts.body, "0123456789");
-    (void)text_width(theme->fonts.body, i18n_text(STR_GAIN_HIGH));
-    (void)text_width(theme->fonts.body, i18n_text(STR_JACK_35));
+    (void)text_width(detail, "0123456789");
+    (void)text_width(detail, menu.profile);
+    for (size_t index = 0; index < sizeof EXTRAS / sizeof EXTRAS[0]; index++) {
+        (void)text_width(detail, i18n_text((StringId)EXTRAS[index]));
+    }
+    (void)font_find_glyph(theme->fonts.title, 0x2026u);
+    (void)font_find_glyph(theme->fonts.body, 0x2026u);
+    (void)footer_hints_height(theme, (FooterHints){.items = DAC_HINTS + DAC_MENU_HINTS,
+                                                   .count = 4,
+                                                   .align = FOOTER_ALIGN_START});
 }
 
 static void start_session(void)
@@ -750,6 +817,13 @@ static void start_session(void)
     }
     shared->dac_volume = headphone_audio_limit(hal_audio_headphones(), shared->dac_volume);
     hal_audio_set_volume(shared->dac_volume);
+    last_poll_us = 0;
+    max_poll_gap_us = 0;
+#ifdef ECHO_DEBUG_LOOP
+    dac_test_ms = 0;
+    dac_test_step = 0;
+#endif
+    font_pack_hold(FONT_PACK_HOLD_PIN);
     warm_menu_glyphs();
 }
 
@@ -791,6 +865,20 @@ void usb_dac_session(UsbShared *state)
     }
     receiving = false;
     stop_output();
+    shared->last_session.dac = (HalUsbDacStats){
+        .rate = open_rate,
+        .packets = sink.stats.packets,
+        .underruns = hal_audio_stats().output_underruns - underruns_before + sink.stats.underruns,
+        .overflows = sink.stats.overflows,
+        .realigned = sink.stats.realigned,
+        .max_gap_us = max_poll_gap_us,
+        .bits = scene->dac.bits,
+        .high_speed = port->device.speed == USB_SPEED_HIGH,
+        .active = true};
+#ifdef ECHO_DEBUG_LOOP
+    shared->dac_test = false;
+#endif
+    font_pack_hold(FONT_PACK_HOLD_NONE);
     board_audio_stream_close();
     menu_open = false;
     usb_screen_capture(dac_status(), scene, CAPTURE_DAC, CAPTURE_DAC_SLOT);

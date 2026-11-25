@@ -9,6 +9,8 @@ IDENTITY_FILE = Path(__file__).resolve().parents[1] / "identity.json"
 class Identity:
     name: str
     short_name: str
+    usb_name: str
+    usb_dac_name: str
     manufacturer: str
     id: str
     version: str

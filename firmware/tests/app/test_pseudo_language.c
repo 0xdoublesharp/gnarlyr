@@ -68,7 +68,8 @@ static const char *const ABOUT_WORDS[] = {
 };
 
 static const char *const KNOWN_TEXTS[] = {
-    FIRMWARE_NAME, FIRMWARE_SHORT_NAME, "English", "test", "OnePlus Buds 3", "Kitchen",
+    FIRMWARE_NAME,    FIRMWARE_SHORT_NAME, FIRMWARE_USB_DAC_NAME, "English", "test",
+    "OnePlus Buds 3", "Kitchen",
 };
 
 static const char STAR[] = "\xE2\x98\x85 ";

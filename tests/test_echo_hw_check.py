@@ -197,6 +197,70 @@ class ReportChecks(unittest.TestCase):
         self.assertEqual(list(self.debug.iterdir()), [path])
         self.assertEqual(path.read_bytes(), original)
 
+    def test_usb_dac_stats_pass_when_clean_and_fail_on_underruns_or_missing(self):
+        self.write_report(**{
+            "usb.dac.rate": 96000,
+            "usb.dac.bits": 32,
+            "usb.dac.high_speed": 1,
+            "usb.dac.packets": 48000,
+            "usb.dac.underruns": 0,
+            "usb.dac.overflows": 0,
+            "usb.dac.realigned": 0,
+            "usb.dac.max_gap_us": 58,
+        })
+        status, result = self.check("--require-dac", "--max-dac-gap-us", "100")
+        self.assertEqual(status, 0, result)
+        self.assertTrue(result["ok"])
+
+        self.write_report(**{
+            "usb.dac.rate": 96000,
+            "usb.dac.packets": 48000,
+            "usb.dac.underruns": 3,
+            "usb.dac.overflows": 0,
+            "usb.dac.realigned": 0,
+            "usb.dac.max_gap_us": 140,
+        })
+        self.assert_failed_check("usb.dac.underruns", 3, "--require-dac", "--max-dac-gap-us", "100")
+        self.assert_failed_check("usb.dac.max_gap_us", 140, "--require-dac", "--max-dac-gap-us", "100")
+
+        self.write_report()
+        self.assert_failed_check("usb.dac.packets", None, "--require-dac")
+
+    def test_dac_test_writes_reconnect_dac_streams_and_scores_report(self):
+        self.write_report(**{
+            "usb.dac.rate": 96000,
+            "usb.dac.bits": 32,
+            "usb.dac.high_speed": 1,
+            "usb.dac.packets": 48000,
+            "usb.dac.underruns": 0,
+            "usb.dac.overflows": 0,
+            "usb.dac.realigned": 0,
+            "usb.dac.max_gap_us": 62,
+        })
+        medium = fixtures.medium("Internal storage", "ECHO", self.volume)
+        host = fixtures.FakeHost(fixtures.usb_tree(fixtures.player([medium])))
+        streamed = []
+
+        def fake_streamer(rate, amplitude, connect_timeout, stream_timeout):
+            streamed.append((rate, amplitude))
+            return {"ok": True, "device": "Gnarlyr Echo DAC", "rate": rate, "frames": 576000}
+
+        output = io.StringIO()
+        with patch.object(echo_debug.Tool, "wait_for_return", return_value=None):
+            with contextlib.redirect_stdout(output):
+                status = echo_hw_check.main(
+                    ["dac-test", "--rate", "96000", "--silent", "--build", BUILD, "--json"],
+                    host=host,
+                    streamer=fake_streamer,
+                )
+        result = json.loads(output.getvalue())
+        self.assertEqual(status, 0, result)
+        self.assertTrue(result["ok"])
+        self.assertEqual(streamed, [(96000, 0.0)])
+        self.assertEqual(host.ejected, [str(self.volume)])
+        script_file = self.debug / echo_debug.RUN_FILE
+        self.assertIn("reconnect dac", script_file.read_text(encoding="ascii"))
+
 
 class ScriptAndChecklist(unittest.TestCase):
     @patch.object(echo_debug.MacHost, "usb_tree", side_effect=AssertionError("unexpected USB discovery"))

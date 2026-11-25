@@ -74,6 +74,18 @@ typedef struct HalUsbWrites {
     uint32_t hcon[2];
 } HalUsbWrites;
 
+typedef struct HalUsbDacStats {
+    uint32_t rate;
+    uint32_t packets;
+    uint32_t underruns;
+    uint32_t overflows;
+    uint32_t realigned;
+    uint32_t max_gap_us;
+    uint8_t bits;
+    uint8_t high_speed;
+    bool active;
+} HalUsbDacStats;
+
 typedef struct HalUsbLast {
     HalUsbEnd end;
     uint8_t left_mounted;
@@ -85,6 +97,7 @@ typedef struct HalUsbLast {
     uint32_t writes_after_eject;
     HalUsbSetupTrace fallback_setups;
     HalUsbWrites writes;
+    HalUsbDacStats dac;
 } HalUsbLast;
 
 HalUsbLast hal_system_usb_last(void);
@@ -92,7 +105,8 @@ HalUsbLast hal_system_usb_last(void);
 typedef enum HalUsbMode {
     HAL_USB_MODE_STORAGE,
     HAL_USB_MODE_DAC,
-    HAL_USB_MODE_PLAYER
+    HAL_USB_MODE_PLAYER,
+    HAL_USB_MODE_DAC_TEST
 } HalUsbMode;
 
 typedef enum HalUsbAnswer {

@@ -41,8 +41,8 @@ def dac_fields(data, rate):
 
 
 class EchoImageTest(EchoImageHarness):
-    def dac_session(self, rate, width=4, high=True):
-        session, machine, asked = self.asked_session(checkpoint=self.install_audio_path)
+    def dac_session(self, rate, width=4, high=True, volume=None):
+        session, machine, asked = self.asked_session(volume=volume, checkpoint=self.install_audio_path)
         machine.host_stays = True
         audio = machine.audio
         host = UsbAudioHost(machine, rate, width, high)
@@ -446,6 +446,57 @@ class EchoImageTest(EchoImageHarness):
         for _ in range(4):
             self.press(machine, KEY_BACK)
             machine.run(until_ms=machine.milliseconds() + 120)
+        self.assertLessEqual(self.max_poll_gap_us, MAX_USB_POLL_GAP_US)
+        self.assert_stream_clean(audio, host)
+        self.assert_healthy(session)
+
+    def test_usb_audio_menu_with_active_list_theme_art_stays_within_budget(self):
+        import json
+        import tempfile
+        from PIL import Image
+        import theme_pack
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_image_harness import IDENTITY, fnv1a
+
+        root = Path(__file__).resolve().parents[4]
+        manifest = json.loads((root / "examples/themes/pocket-scope/theme.json").read_text())
+        manifest["assets"] = [{"slot": "list", "file": "art.png", "orientation": "landscape",
+                               "codec": "indexed"}]
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            image = Image.new("RGB", (480, 222))
+            image.putdata([((x * 7) & 255, (y * 5) & 255, ((x + y) * 3) & 255)
+                           for y in range(222) for x in range(480)])
+            image.save(folder / "art.png")
+            (folder / "theme.json").write_text(json.dumps(manifest))
+            pack_bytes = theme_pack.build(folder)
+        selection = bytearray(1024)
+        selection[28:45] = pack_bytes[20:36] + b"\0"
+        struct.pack_into("<4sHHIIII", selection, 0, b"DSTS", 1, 0, 1, 17,
+                         fnv1a(selection[28:45]), 0)
+        struct.pack_into("<I", selection, 24, fnv1a(selection[:24]))
+        vol = Fat32Volume()
+        vol.add_directory(IDENTITY.data_directory)
+        vol.add_directory("themes", IDENTITY.data_directory)
+        vol.add_file("scope.gtheme", pack_bytes, directory=IDENTITY.data_directory + "/themes")
+        vol.add_file("theme.bin", bytes(selection), directory=IDENTITY.data_directory)
+
+        session, audio, host = self.dac_session(96000, volume=vol)
+        machine = session.machine
+        self.watch_overview(machine)
+        emmc_reads = []
+        machine.hook_symbol("emmc_read", lambda: emmc_reads.append(machine.microseconds()))
+        art_draws = []
+        for symbol in ("theme_art_draw", "theme_background_draw"):
+            if symbol in machine.symbols:
+                machine.hook_symbol(symbol, lambda: art_draws.append(machine.microseconds()))
+        for key in (KEY_MENU, KEY_VOLUME_UP, KEY_VOLUME_UP, KEY_PLAY, KEY_PLAY, KEY_BACK):
+            self.press(machine, key)
+            machine.run(until_ms=machine.milliseconds() + 120)
+        print(f"\n[USB DAC Menu + Theme Art] max USB poll gap {self.max_poll_gap_us} us, "
+              f"emmc_reads={len(emmc_reads)}, art_draws={len(art_draws)}")
+        self.assertEqual(len(emmc_reads), 0)
+        self.assertEqual(len(art_draws), 0)
         self.assertLessEqual(self.max_poll_gap_us, MAX_USB_POLL_GAP_US)
         self.assert_stream_clean(audio, host)
         self.assert_healthy(session)

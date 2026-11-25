@@ -48,6 +48,7 @@ static const uint32_t RATES[] = {44100, 48000, 88200, 96000, 176400, 192000};
 void usb_audio_init(UsbAudio *audio, UsbDevice *device)
 {
     usb_device_init(device, "", 1);
+    device->product = usb_audio_product_descriptor();
     usb_device_allow_high_speed(device, true);
     *audio = (UsbAudio){.device = device, .rate = USB_AUDIO_DEFAULT_RATE};
 }

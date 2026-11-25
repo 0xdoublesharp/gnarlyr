@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <string.h>
 
 #include "check.h"
 #include "device/usb_audio.h"
@@ -407,9 +408,40 @@ static void changing_the_rate_while_streaming_requests_a_stream_reset(void)
     CHECK_EQUAL(48000, audio.rate);
 }
 
+static bool utf16_is(const char *text, UsbReply reply)
+{
+    uint32_t length = (uint32_t)strlen(text);
+    if (reply.length != 2 + 2 * length || reply.data[0] != reply.length || reply.data[1] != 3) {
+        return false;
+    }
+    for (uint32_t index = 0; index < length; index++) {
+        if (reply.data[2 + 2 * index] != (uint8_t)text[index] || reply.data[3 + 2 * index] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static void the_dac_product_string_and_audio_descriptors_use_the_dac_name(void)
+{
+    UsbAudio audio = ready_audio();
+    UsbReply product = usb_audio_setup(&audio, setup(0x80, 6, 0x0302, 0x0409, 255));
+    CHECK_EQUAL(USB_REPLY_DATA, product.kind);
+    CHECK(utf16_is(FIRMWARE_USB_DAC_NAME, product));
+    CHECK_EQUAL(USB_REPLY_STATUS, usb_audio_setup(&audio, setup(0x80, 6, 0x0302, 0x0409, 0)).kind);
+    CHECK_EQUAL(USB_REPLY_STALL, usb_audio_setup(&audio, setup(0x80, 6, 0x0302, 0x0411, 255)).kind);
+    UsbReply full = configuration(&audio);
+    CHECK_EQUAL(2, full.data[17]);
+    usb_device_set_speed(&device, USB_SPEED_HIGH);
+    UsbReply high = usb_audio_setup(&audio, setup(0x80, 6, 0x0200, 0, 512));
+    CHECK_EQUAL(2, high.data[16]);
+    CHECK_EQUAL(2, high.data[25]);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(the_dac_product_string_and_audio_descriptors_use_the_dac_name),
         TEST_CASE(changing_the_rate_while_streaming_requests_a_stream_reset),
         TEST_CASE(other_speed_descriptors_and_clock_controls_do_not_cross_protocols),
         TEST_CASE(hid_enumeration_and_idle_requests_use_the_consumer_interface),

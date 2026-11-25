@@ -210,6 +210,13 @@ static void serve_host(void)
 
 void hal_system_request_usb_mode(HalUsbMode mode)
 {
+#ifdef ECHO_DEBUG_LOOP
+    bool dac_test = mode == HAL_USB_MODE_DAC_TEST;
+    if (dac_test) {
+        mode = HAL_USB_MODE_DAC;
+    }
+    usb_session_shared()->dac_test = dac_test;
+#endif
     bool connect = mode != HAL_USB_MODE_PLAYER;
     usb_session_request_reconnect(connect);
     if (usb_plug_request(&usb_plug, connect) == USB_PLUG_STOP) {

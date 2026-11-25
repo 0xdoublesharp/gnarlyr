@@ -491,6 +491,7 @@ if(CMAKE_CROSSCOMPILING)
         board/loader_reboot.c
         board/main.c
         board/overlay.c
+        board/panel_vop.c
         board/panic.c
         board/power.c
         board/profiler.c
@@ -622,7 +623,6 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/app/debug_frames.c
         ${PROJECT_SOURCE_DIR}/src/app/debug_runner_begin.c
         ${PROJECT_SOURCE_DIR}/src/app/headphone_parameters.c
-        ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_dac_menu.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
@@ -631,6 +631,7 @@ if(NOT ECHO_RELEASE)
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
         ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_traffic.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
+        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
         ${PROJECT_SOURCE_DIR}/src/core/debug_span.c
         ${PROJECT_SOURCE_DIR}/src/core/headphone_audio_switch.c
         ${PROJECT_SOURCE_DIR}/src/gfx/wireframe.c
@@ -643,20 +644,19 @@ if(NOT ECHO_RELEASE)
         board/trial_module.c
         board/trial_record.c
         board/update.c
-        board/usb_figure.c
+        board/usb_card.c
+        board/usb_dac_session.c
+        board/usb_port.c
         board/usb_session.c
         logic/fat_delete.c
+        logic/rtc_registers.c
         logic/slot_copy.c
         logic/updater_install.c
-        PROPERTIES COMPILE_OPTIONS -Os)
+        PROPERTIES COMPILE_OPTIONS "-Os;-flto;-ffat-lto-objects")
     set_source_files_properties(
-        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_stats.c
-        ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen_terrain.c
-        ${PROJECT_SOURCE_DIR}/src/core/debug_script.c
-        ${PROJECT_SOURCE_DIR}/src/core/debug_script_parse.c
-        board/debug_report_file.c
-        logic/rtc_registers.c
-        PROPERTIES COMPILE_OPTIONS "-Os;-fno-inline-functions-called-once")
+        ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c
+        board/usb_figure.c
+        PROPERTIES COMPILE_OPTIONS -Os)
     if(ECHO_USB_SCREEN_CAPTURES)
         target_sources(echo_usb_overlay PRIVATE board/usb_screen_capture.c)
     endif()
@@ -674,8 +674,13 @@ target_include_directories(echo_usb_overlay PRIVATE
     $<TARGET_PROPERTY:echo_settings,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_link_libraries(echo_usb_overlay PRIVATE echo_device_logic echo_options gcc)
+if(NOT ECHO_RELEASE)
+    set(ECHO_USB_OVERLAY_LTO_OPTIONS -Os -flto -flto-partition=one)
+else()
+    set(ECHO_USB_OVERLAY_LTO_OPTIONS -fno-lto)
+endif()
 target_link_options(echo_usb_overlay PRIVATE
-    -fno-lto
+    ${ECHO_USB_OVERLAY_LTO_OPTIONS}
     -T${ECHO_USB_OVERLAY_LINKER_SCRIPT}
     -Wl,--just-symbols=$<TARGET_FILE:echo_device>
     -Wl,--allow-multiple-definition

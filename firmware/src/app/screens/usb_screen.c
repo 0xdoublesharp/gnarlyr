@@ -677,7 +677,7 @@ CORE_SEAM void usb_screen_show_in_bands(AppUsbStatus status, Rect area)
     }
     bool themed = app_theme_pack_active();
     bool streaming = status.view == APP_USB_DAC && usb_screen_scene(status)->high_speed;
-    int band = streaming ? 1 : USB_SCREEN_BAND_HEIGHT;
+    int band = streaming ? USB_SCREEN_STREAM_BAND_HEIGHT : USB_SCREEN_BAND_HEIGHT;
     int piece = streaming ? USB_SCREEN_BAND_WIDTH : area.width;
     FooterMemo footer = {0};
     FooterMemo *previous = footer_memo;
@@ -761,7 +761,7 @@ int usb_screen_pages(const Theme *theme, AppUsbStatus status)
     return pages_of(&painter);
 }
 
-Rect usb_screen_column(const UsbScreenLayout *layout)
+CORE_SEAM Rect usb_screen_column(const UsbScreenLayout *layout)
 {
     return (Rect){layout->lines.x, layout->state.y, layout->lines.width,
                   layout->lines.y + layout->lines.height - layout->state.y};

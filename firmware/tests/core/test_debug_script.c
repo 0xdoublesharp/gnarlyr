@@ -341,7 +341,17 @@ static void a_script_with_more_words_than_it_can_keep_is_refused(void)
 static void reconnect_takes_nothing(void)
 {
     CHECK_EQUAL(DEBUG_COMMAND_RECONNECT, parse("reconnect").kind);
+    CHECK_EQUAL(0, parse("reconnect").number);
+    CHECK_EQUAL(DEBUG_COMMAND_RECONNECT, parse("reconnect dac").kind);
+    CHECK_EQUAL(1, parse("reconnect DAC").number);
     CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("reconnect now").kind);
+    CHECK_EQUAL(DEBUG_COMMAND_BAD_ARGUMENT, parse("reconnect dac extra").kind);
+    const DebugScriptRun *loaded = load("build any\nreconnect\nreconnect dac\n");
+    CHECK_EQUAL(2, loaded->op_count);
+    CHECK_EQUAL(DEBUG_OP_RECONNECT, loaded->ops[0].kind);
+    CHECK_EQUAL(0, loaded->ops[0].first);
+    CHECK_EQUAL(DEBUG_OP_RECONNECT, loaded->ops[1].kind);
+    CHECK_EQUAL(1, loaded->ops[1].first);
 }
 
 static void build_names_one_tag_or_any(void)

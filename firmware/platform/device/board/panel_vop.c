@@ -29,7 +29,8 @@ enum {
     PUSH_MIN_PIXELS = 256,
     PUSH_BLOCK_WORDS = 2048,
     PUSH_TIMEOUT_US = 8000,
-    PUSH_DRAIN_US = 20
+    PUSH_DRAIN_US = 20,
+    PIO_BURST_PIXELS = 64
 };
 
 static const GpioPin PANEL_RESET = {2, 15};
@@ -216,7 +217,13 @@ void board_panel_write(PanelWindow window, const uint16_t *pixels)
     uint32_t count = (uint32_t)(window.width * window.height);
     if (!push_by_dma(window, pixels, count)) {
         panel_begin_write(&BUS, window);
-        vop_pixels(vop(), pixels, count);
+        while (count > 0) {
+            uint32_t chunk = count < PIO_BURST_PIXELS ? count : PIO_BURST_PIXELS;
+            vop_pixels(vop(), pixels, chunk);
+            board_audio_stream_service();
+            pixels += chunk;
+            count -= chunk;
+        }
     }
 }
 

@@ -795,6 +795,7 @@ __attribute__((optimize("Os"))) static void remember_session(UsbSessionEnd end)
 {
     msc_reset(&msc);
     const MscStats *stats = &msc.stats;
+    HalUsbDacStats dac = shared->last_session.dac;
     shared->last_session = (HalUsbLast){
         .end = hal_end(end),
         .left_mounted = msc_left_mounted(&msc),
@@ -805,7 +806,8 @@ __attribute__((optimize("Os"))) static void remember_session(UsbSessionEnd end)
         .speed_fallback = (uint8_t)fallback.cause,
         .fallback_commands = fallback.commands < UINT8_MAX ? (uint8_t)fallback.commands : UINT8_MAX,
         .fallback_setups = fallback_setups,
-        .writes = write_split(stats)};
+        .writes = write_split(stats),
+        .dac = dac};
 }
 
 static UsbSessionEnd run(void)

@@ -688,8 +688,9 @@ class EchoImageHarness(unittest.TestCase):
                 return index
         return None
 
-    def asked_session(self, vbus_at_start=False, *, checkpoint=None):
-        session = self.session(usb_answer=None, vbus_at_start=vbus_at_start, checkpoint=checkpoint)
+    def asked_session(self, vbus_at_start=False, *, volume=None, checkpoint=None):
+        session = self.session(volume=volume, usb_answer=None, vbus_at_start=vbus_at_start,
+                               checkpoint=checkpoint)
         machine = session.machine
         for name in ("usb_session_storage_changed", "usb_storage_session", "usb_dac_session"):
             machine.note(name)

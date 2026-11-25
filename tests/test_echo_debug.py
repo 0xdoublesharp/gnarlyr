@@ -334,6 +334,14 @@ class FindingThePlayer(VolumeCase):
         self.assertEqual([volume["mount_point"] for volume in status["usb"]["card_volumes"]], [str(self.card)])
         self.assertFalse(status["report_present"])
 
+    def test_the_player_is_found_under_either_legacy_or_usb_product_name(self):
+        for usb_name in (echo_debug.IDENTITY["name"], echo_debug.IDENTITY["usb_name"]):
+            media = [medium("Internal storage", "ECHO", self.root)]
+            host = FakeHost(usb_tree(player(media, name=usb_name)))
+            status = echo_debug.Tool(host).status()
+            self.assertTrue(status["connected"], usb_name)
+            self.assertEqual(status["usb"]["serial"], "1A2B3C4D")
+
     def test_no_player_on_usb_is_a_status_not_an_error(self):
         status = echo_debug.Tool(FakeHost(usb_tree())).status()
         self.assertEqual((status["ok"], status["connected"], status["volume"]), (True, False, None))

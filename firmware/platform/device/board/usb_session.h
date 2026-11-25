@@ -65,6 +65,7 @@ typedef struct UsbShared {
     uint8_t usb_page;
     bool clock_chip_pending;
     bool clock_offset_pending;
+    bool dac_test;
     int16_t clock_offset;
 } UsbShared;
 

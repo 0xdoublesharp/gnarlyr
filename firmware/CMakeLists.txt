@@ -4,7 +4,7 @@ set(FIRMWARE_IDENTITY_FILE ${CMAKE_CURRENT_SOURCE_DIR}/identity.json)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${FIRMWARE_IDENTITY_FILE})
 file(READ ${FIRMWARE_IDENTITY_FILE} FIRMWARE_IDENTITY)
 set(FIRMWARE_DEFINITIONS "")
-foreach(field name short_name manufacturer id version data_directory update_file
+foreach(field name short_name usb_name usb_dac_name manufacturer id version data_directory update_file
         playlist_start_directive)
     string(TOUPPER ${field} variable)
     string(JSON FIRMWARE_${variable} GET "${FIRMWARE_IDENTITY}" ${field})

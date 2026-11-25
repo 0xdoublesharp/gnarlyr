@@ -4,10 +4,187 @@
 import argparse
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 import echo_debug
+
+
+DAC_TEST_SCRIPT = """\
+reconnect dac
+"""
+
+COREAUDIO_STREAM_SWIFT = r"""
+import AudioToolbox
+import CoreAudio
+import Foundation
+
+let args = CommandLine.arguments
+let names = args.count > 1 ? args[1].split(separator: "|").map(String.init) : ["Gnarlyr Echo DAC"]
+let rate = args.count > 2 ? (Double(args[2]) ?? 96000.0) : 96000.0
+let amplitude: Float = args.count > 3 ? (Float(args[3]) ?? 0.008) : 0.008
+let connectTimeout = args.count > 4 ? (Double(args[4]) ?? 15.0) : 15.0
+let streamTimeout = args.count > 5 ? (Double(args[5]) ?? 20.0) : 20.0
+
+func allDevices() -> [AudioDeviceID] {
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDevices,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var size: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size) == noErr else {
+        return []
+    }
+    let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+    var ids = [AudioDeviceID](repeating: 0, count: count)
+    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr else {
+        return []
+    }
+    return ids
+}
+
+func deviceName(_ id: AudioDeviceID) -> String {
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioObjectPropertyName,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+    var name: CFString = "" as CFString
+    var size = UInt32(MemoryLayout<CFString>.size)
+    let status = withUnsafeMutablePointer(to: &name) { ptr in
+        AudioObjectGetPropertyData(id, &addr, 0, nil, &size, ptr)
+    }
+    return status == noErr ? (name as String) : ""
+}
+
+func hasOutput(_ id: AudioDeviceID) -> Bool {
+    var addr = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyStreams,
+        mScope: kAudioDevicePropertyScopeOutput,
+        mElement: kAudioObjectPropertyElementMain)
+    var size: UInt32 = 0
+    return AudioObjectGetPropertyDataSize(id, &addr, 0, nil, &size) == noErr && size > 0
+}
+
+func findTarget() -> (AudioDeviceID, String)? {
+    for id in allDevices() {
+        let name = deviceName(id)
+        if names.contains(name) && hasOutput(id) {
+            return (id, name)
+        }
+    }
+    return nil
+}
+
+let waitStart = Date()
+var found: (AudioDeviceID, String)? = nil
+while Date().timeIntervalSince(waitStart) < connectTimeout {
+    if let hit = findTarget() {
+        found = hit
+        break
+    }
+    Thread.sleep(forTimeInterval: 0.1)
+}
+guard let (deviceID, matchedName) = found else {
+    fputs("{\"ok\": false, \"error\": \"dac_not_found\", \"searched\": \"\(names.joined(separator: "|"))\"}\n", stderr)
+    exit(2)
+}
+
+var targetRate = rate
+var rateAddr = AudioObjectPropertyAddress(
+    mSelector: kAudioDevicePropertyNominalSampleRate,
+    mScope: kAudioObjectPropertyScopeGlobal,
+    mElement: kAudioObjectPropertyElementMain)
+let rateStatus = AudioObjectSetPropertyData(deviceID, &rateAddr, 0, nil, UInt32(MemoryLayout<Float64>.size), &targetRate)
+Thread.sleep(forTimeInterval: 0.15)
+
+var desc = AudioComponentDescription(
+    componentType: kAudioUnitType_Output,
+    componentSubType: kAudioUnitSubType_HALOutput,
+    componentManufacturer: kAudioUnitManufacturer_Apple,
+    componentFlags: 0,
+    componentFlagsMask: 0)
+guard let comp = AudioComponentFindNext(nil, &desc) else {
+    fputs("{\"ok\": false, \"error\": \"no_hal_output\"}\n", stderr)
+    exit(3)
+}
+var unit: AudioUnit?
+guard AudioComponentInstanceNew(comp, &unit) == noErr, let audioUnit = unit else {
+    fputs("{\"ok\": false, \"error\": \"unit_new_failed\"}\n", stderr)
+    exit(3)
+}
+var dev = deviceID
+let devStatus = AudioUnitSetProperty(audioUnit, kAudioOutputUnitProperty_CurrentDevice,
+    kAudioUnitScope_Global, 0, &dev, UInt32(MemoryLayout<AudioDeviceID>.size))
+guard devStatus == noErr else {
+    fputs("{\"ok\": false, \"error\": \"set_device_failed\", \"status\": \(devStatus)}\n", stderr)
+    exit(4)
+}
+
+var streamFormat = AudioStreamBasicDescription(
+    mSampleRate: rate,
+    mFormatID: kAudioFormatLinearPCM,
+    mFormatFlags: kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
+    mBytesPerPacket: 8,
+    mFramesPerPacket: 1,
+    mBytesPerFrame: 8,
+    mChannelsPerFrame: 2,
+    mBitsPerChannel: 32,
+    mReserved: 0)
+_ = AudioUnitSetProperty(audioUnit, kAudioUnitProperty_StreamFormat,
+    kAudioUnitScope_Input, 0, &streamFormat, UInt32(MemoryLayout<AudioStreamBasicDescription>.size))
+
+final class ToneState {
+    var phase: Double = 0.0
+    let step: Double
+    let amp: Float
+    var frames: UInt64 = 0
+    init(rate: Double, amp: Float) {
+        self.step = 2.0 * Double.pi * 440.0 / rate
+        self.amp = amp
+    }
+}
+let state = ToneState(rate: rate, amp: amplitude)
+var cb = AURenderCallbackStruct(
+    inputProc: { inRefCon, _, _, _, inNumberFrames, ioData in
+        let s = Unmanaged<ToneState>.fromOpaque(inRefCon).takeUnretainedValue()
+        guard let ioData = ioData else { return noErr }
+        let buffers = UnsafeMutableAudioBufferListPointer(ioData)
+        if let buf = buffers.first, let ptr = buf.mData?.assumingMemoryBound(to: Float.self) {
+            let count = Int(inNumberFrames)
+            for i in 0..<count {
+                let sample = s.amp == 0 ? Float(0) : Float(sin(s.phase)) * s.amp
+                s.phase += s.step
+                if s.phase >= 2.0 * Double.pi { s.phase -= 2.0 * Double.pi }
+                ptr[i * 2] = sample
+                ptr[i * 2 + 1] = sample
+            }
+            s.frames += UInt64(count)
+        }
+        return noErr
+    },
+    inputProcRefCon: Unmanaged.passUnretained(state).toOpaque()
+)
+_ = AudioUnitSetProperty(audioUnit, kAudioUnitProperty_SetRenderCallback,
+    kAudioUnitScope_Input, 0, &cb, UInt32(MemoryLayout<AURenderCallbackStruct>.size))
+guard AudioUnitInitialize(audioUnit) == noErr, AudioOutputUnitStart(audioUnit) == noErr else {
+    fputs("{\"ok\": false, \"error\": \"unit_start_failed\"}\n", stderr)
+    exit(5)
+}
+
+let streamStart = Date()
+while Date().timeIntervalSince(streamStart) < streamTimeout {
+    Thread.sleep(forTimeInterval: 0.1)
+    if !allDevices().contains(deviceID) {
+        break
+    }
+}
+AudioOutputUnitStop(audioUnit)
+AudioUnitUninitialize(audioUnit)
+AudioComponentInstanceDispose(audioUnit)
+let elapsed = Date().timeIntervalSince(streamStart)
+print("{\"ok\": true, \"device\": \"\(matchedName)\", \"rate\": \(Int(rate)), \"rate_set_status\": \(rateStatus), \"frames\": \(state.frames), \"seconds\": \(String(format: "%.2f", elapsed))}")
+"""
 
 
 SOAK_SCRIPT = """\
@@ -44,7 +221,7 @@ On-player pre-release checklist
 """
 
 
-def check_report(tool, build, max_underruns):
+def check_report(tool, build, max_underruns, require_dac=False, max_dac_gap_us=None):
     checks = []
 
     def check(name, value, expected, ok):
@@ -93,6 +270,22 @@ def check_report(tool, build, max_underruns):
         check("events.dropped", values.get("events.dropped"), "absent or 0",
               values.get("events.dropped", 0) == 0)
 
+        if require_dac or "usb.dac.packets" in values:
+            packets = values.get("usb.dac.packets")
+            check("usb.dac.packets", packets, "> 0", isinstance(packets, int) and packets > 0)
+            dac_underruns = values.get("usb.dac.underruns")
+            check("usb.dac.underruns", dac_underruns, f"0..{max_underruns}",
+                  isinstance(dac_underruns, int) and 0 <= dac_underruns <= max_underruns)
+            for name in ("usb.dac.overflows", "usb.dac.realigned"):
+                value = values.get(name)
+                check(name, value, 0, value == 0)
+            gap = values.get("usb.dac.max_gap_us")
+            if max_dac_gap_us is not None:
+                check("usb.dac.max_gap_us", gap, f"0..{max_dac_gap_us}",
+                      isinstance(gap, int) and 0 <= gap <= max_dac_gap_us)
+            elif gap is not None:
+                check("usb.dac.max_gap_us", gap, "recorded", isinstance(gap, int) and gap >= 0)
+
     recent = [{key: value for key, value in item.items() if key != "report"} for item in reports]
     return {"ok": all(item["ok"] for item in checks), "path": path, "checks": checks, "reports": recent}
 
@@ -127,6 +320,41 @@ def nonnegative_int(value):
     return count
 
 
+def stream_to_dac(rate, amplitude, connect_timeout, stream_timeout):
+    names = "|".join([echo_debug.IDENTITY.get("usb_dac_name", "Gnarlyr Echo DAC"),
+                      echo_debug.IDENTITY["name"]])
+    result = subprocess.run(
+        ["swift", "-", names, str(rate), str(amplitude), str(connect_timeout), str(stream_timeout)],
+        input=COREAUDIO_STREAM_SWIFT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        return {"ok": False, "returncode": result.returncode, "detail": detail}
+    for line in reversed(result.stdout.splitlines()):
+        line = line.strip()
+        if line.startswith("{"):
+            return json.loads(line)
+    return {"ok": False, "returncode": result.returncode, "detail": result.stdout.strip()}
+
+
+def run_dac_test(tool, build, rate, silent, max_underruns, max_dac_gap_us, timeout, streamer=stream_to_dac):
+    found = tool.locate()
+    root = tool.root()
+    target_build = build or tool.read_report()[1]["values"].get("firmware.build") or "any"
+    data = echo_debug.prepare_script(DAC_TEST_SCRIPT, target_build)
+    tool.write(root, root / echo_debug.DATA_DIRECTORY / echo_debug.DEBUG_DIRECTORY / echo_debug.RUN_FILE, data)
+    ejected = tool.eject(found)
+    amplitude = 0.0 if silent else 0.008
+    stream = streamer(rate, amplitude, min(timeout, 20), min(timeout, 25))
+    tool.wait_for_return(timeout)
+    scorecard = check_report(tool, build, max_underruns, require_dac=True, max_dac_gap_us=max_dac_gap_us)
+    ok = bool(stream.get("ok")) and scorecard["ok"]
+    return {"ok": ok, "ejected": ejected, "stream": stream, "scorecard": scorecard}
+
+
 def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -135,7 +363,22 @@ def build_parser():
     check.add_argument("--build", metavar="SHA7", type=sha7, help="expected firmware commit")
     check.add_argument("--max-underruns", type=nonnegative_int, default=0,
                        help="highest passing output underrun count (default %(default)s)")
+    check.add_argument("--require-dac", action="store_true",
+                       help="require usb.dac.* stats from a completed USB DAC session")
+    check.add_argument("--max-dac-gap-us", type=nonnegative_int,
+                       help="optional upper bound on usb.dac.max_gap_us")
     check.add_argument("--json", action="store_true", help="emit the scorecard as JSON")
+    dac = commands.add_parser("dac-test", help="trigger automated USB DAC menu test, stream audio, and score report")
+    dac.add_argument("--rate", type=int, default=96000, choices=(44100, 48000, 88200, 96000, 176400, 192000),
+                     help="host sample rate to stream to Gnarlyr Echo DAC (default %(default)s)")
+    dac.add_argument("--silent", action="store_true", help="stream digital silence instead of a quiet -42 dBFS tone")
+    dac.add_argument("--build", metavar="SHA7", type=sha7, help="expected firmware commit")
+    dac.add_argument("--max-underruns", type=nonnegative_int, default=0,
+                     help="highest passing underrun count (default %(default)s)")
+    dac.add_argument("--max-dac-gap-us", type=nonnegative_int,
+                     help="optional upper bound on usb.dac.max_gap_us")
+    dac.add_argument("--timeout", type=int, default=45, help="seconds to wait for reconnect (default %(default)s)")
+    dac.add_argument("--json", action="store_true", help="emit the result as JSON")
     script = commands.add_parser("soak-script", help="generate a script for a paused track on an English UI")
     script.add_argument("--output", type=Path, help="save to this computer instead of printing the script")
     script.add_argument("--build", metavar="SHA7", type=sha7,
@@ -144,14 +387,26 @@ def build_parser():
     return parser
 
 
-def main(argv=None, host=None):
+def main(argv=None, host=None, streamer=stream_to_dac):
     args = build_parser().parse_args(argv)
     if args.command == "check":
-        result = check_report(echo_debug.Tool(host=host, volume=args.volume), args.build, args.max_underruns)
+        result = check_report(echo_debug.Tool(host=host, volume=args.volume), args.build,
+                              args.max_underruns, require_dac=args.require_dac,
+                              max_dac_gap_us=args.max_dac_gap_us)
         if args.json:
             print(json.dumps(result, indent=2))
         else:
             print_scorecard(result)
+        return 0 if result["ok"] else 1
+    if args.command == "dac-test":
+        result = run_dac_test(echo_debug.Tool(host=host), args.build, args.rate, args.silent,
+                              args.max_underruns, args.max_dac_gap_us, args.timeout, streamer=streamer)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            stream = result["stream"]
+            print(f"STREAM {'OK' if stream.get('ok') else 'FAIL'} {json.dumps(stream)}")
+            print_scorecard(result["scorecard"])
         return 0 if result["ok"] else 1
     if args.command == "soak-script":
         try:

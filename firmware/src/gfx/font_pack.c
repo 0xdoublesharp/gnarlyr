@@ -9,7 +9,9 @@ enum {
     FACE_MISSING = 2,
     EXTRA_COUNT_FIELD = 5,
     EXTRA_LANGUAGES_FIELD = 6,
-    EXTRA_SIZE_FIELD = 8
+    EXTRA_SIZE_FIELD = 8,
+    HELD_BUCKETS = 1024,
+    HELD_INDEX_BYTES = HELD_BUCKETS * sizeof(uint16_t)
 };
 
 #define FACE_MAGIC 0x464C4745u
@@ -102,6 +104,16 @@ void font_pack_detach(void)
     slot_count = 0;
 }
 
+static size_t held_limit(void)
+{
+    return cache_bytes > HELD_INDEX_BYTES ? (cache_bytes - HELD_INDEX_BYTES) & ~3u : 0;
+}
+
+static uint16_t *held_table(void)
+{
+    return (uint16_t *)((uint8_t *)slots + held_limit());
+}
+
 void font_pack_forget(void)
 {
     held_bytes = 0;
@@ -115,6 +127,9 @@ void font_pack_forget(void)
         slots[index].key = 0;
     }
     __builtin_memset(cache_index, 0, slot_count * (2 * sizeof(*cache_index) + sizeof(uint32_t)));
+    if (cache_bytes > HELD_INDEX_BYTES) {
+        __builtin_memset(held_table(), 0, HELD_INDEX_BYTES);
+    }
     state->used = 0;
     state->victim = 0;
 }
@@ -427,16 +442,27 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
 {
     uint32_t key = (face + 1) << 16 | codepoint;
     uint8_t *base = (uint8_t *)slots;
-    for (uint32_t at = 0; at < held_bytes; at += held_entry_bytes((PackSlot *)(base + at))) {
-        PackSlot *slot = (PackSlot *)(base + at);
+    size_t limit = held_limit();
+    if (limit < sizeof(PackSlot)) {
+        return NULL;
+    }
+    uint16_t *table = held_table();
+    uint32_t bucket = key_hash(key) & (HELD_BUCKETS - 1);
+    for (uint32_t probe = 0; probe < HELD_BUCKETS; probe++) {
+        uint16_t entry_word = table[bucket];
+        if (entry_word == 0) {
+            break;
+        }
+        PackSlot *slot = (PackSlot *)(base + ((uint32_t)(entry_word - 1) << 2));
         if (slot->key == key) {
             return slot->present ? &slot->glyph : NULL;
         }
+        bucket = (bucket + 1) & (HELD_BUCKETS - 1);
     }
-    PackSlot *slot = (PackSlot *)(base + held_bytes);
-    if (held_bytes + sizeof(PackSlot) > cache_bytes) {
+    if (table[bucket] != 0 || held_bytes + sizeof(PackSlot) > limit) {
         return NULL;
     }
+    PackSlot *slot = (PackSlot *)(base + held_bytes);
     const uint8_t *entry = find_entry(face, ready, codepoint, NULL);
     slot->present = entry != NULL && load_glyph(face, ready, entry, slot);
     if (!slot->present && face >= FONT_PACK_IMAGE_FACES && hold == FONT_PACK_HOLD_FREEZE) {
@@ -446,6 +472,7 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
         slot->glyph = (Glyph){0};
     }
     slot->key = key;
+    table[bucket] = (uint16_t)((held_bytes >> 2) + 1);
     held_bytes += held_entry_bytes(slot);
     return slot->present ? &slot->glyph : NULL;
 }

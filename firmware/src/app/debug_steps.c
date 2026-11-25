@@ -212,11 +212,15 @@ static void press_key(const DebugOp *op, uint32_t now_ms)
     send_key(true, now_ms);
 }
 
-static void reconnect_now(uint32_t now_ms)
+static void reconnect_now(const DebugOp *op, uint32_t now_ms)
 {
     debug_runner_set_status(DEBUG_LINE_OK);
     debug_steps_stop(now_ms, DEBUG_SCRIPT_FINISHED);
-    hal_system_usb_reconnect();
+    if (op->first != 0) {
+        hal_system_request_usb_mode(HAL_USB_MODE_DAC_TEST);
+    } else {
+        hal_system_usb_reconnect();
+    }
 }
 
 _Static_assert(DEBUG_OP_POKE - DEBUG_OP_PEEK == HAL_PROBE_POKE &&
@@ -312,7 +316,7 @@ static DebugRequest run_op(const DebugOp *op, uint32_t now_ms)
         debug_runner_set_status(DEBUG_LINE_FAILED);
         break;
     case DEBUG_OP_RECONNECT:
-        reconnect_now(now_ms);
+        reconnect_now(op, now_ms);
         break;
     case DEBUG_OP_SUPPLY:
         hal_system_hold_usb_supply_off(op->first == 0);

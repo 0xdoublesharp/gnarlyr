@@ -1003,6 +1003,31 @@ static void the_last_usb_session_is_reported_once_there_was_one(void)
     CHECK(strstr(text, "usb.speed_fallback") == NULL);
 }
 
+static void the_last_usb_dac_session_reports_its_counters(void)
+{
+    DebugReportInput input = plain_input();
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(strstr(text, "usb.dac.") == NULL);
+    input.usb.dac = (HalUsbDacStats){.rate = 96000,
+                                     .packets = 48000,
+                                     .underruns = 0,
+                                     .overflows = 1,
+                                     .realigned = 2,
+                                     .max_gap_us = 64,
+                                     .bits = 32,
+                                     .high_speed = true,
+                                     .active = true};
+    format(&input, DEBUG_REPORT_BYTES);
+    CHECK(has_line("usb.dac.rate: 96000"));
+    CHECK(has_line("usb.dac.bits: 32"));
+    CHECK(has_line("usb.dac.high_speed: 1"));
+    CHECK(has_line("usb.dac.packets: 48000"));
+    CHECK(has_line("usb.dac.underruns: 0"));
+    CHECK(has_line("usb.dac.overflows: 1"));
+    CHECK(has_line("usb.dac.realigned: 2"));
+    CHECK(has_line("usb.dac.max_gap_us: 64"));
+}
+
 static void the_last_usb_session_splits_its_write_time(void)
 {
     DebugReportInput input = plain_input();
@@ -1555,6 +1580,7 @@ int main(void)
         TEST_CASE(the_usb_words_read_at_start_up_and_at_the_report_are_printed_whole),
         TEST_CASE(the_cores_session_bit_is_reported_only_while_the_controller_can_be_read),
         TEST_CASE(the_last_usb_session_is_reported_once_there_was_one),
+        TEST_CASE(the_last_usb_dac_session_reports_its_counters),
         TEST_CASE(the_last_usb_session_splits_its_write_time),
         TEST_CASE(a_full_speed_fallback_reports_why_it_fired),
         TEST_CASE(stopped_audio_reports_its_running_figures_as_unknown),

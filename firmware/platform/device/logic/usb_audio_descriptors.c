@@ -2,6 +2,24 @@
 
 #include <stddef.h>
 
+enum {
+    DESCRIPTOR_STRING = 3,
+    DAC_PRODUCT_BYTES = 2 + 2 * (sizeof FIRMWARE_USB_DAC_NAME - 1)
+};
+
+static const struct {
+    uint8_t length;
+    uint8_t type;
+    uint_least16_t text[sizeof FIRMWARE_USB_DAC_NAME];
+} DAC_PRODUCT = {DAC_PRODUCT_BYTES, DESCRIPTOR_STRING, u"" FIRMWARE_USB_DAC_NAME};
+
+_Static_assert(DAC_PRODUCT_BYTES <= UINT8_MAX, "the DAC product name fits a string descriptor");
+
+const uint8_t *usb_audio_product_descriptor(void)
+{
+    return (const uint8_t *)&DAC_PRODUCT;
+}
+
 static const uint8_t DEVICE_DESCRIPTOR[] = {18,   1,    0, 2, 0, 0, 0, 64, 0x09,
                                             0x12, 0x02, 0, 0, 2, 1, 2, 0,  1};
 
@@ -13,7 +31,7 @@ static const uint8_t HID_REPORT[] = {0x05, 0x0C, 0x09, 0x01, 0xA1, 0x01, 0x15, 0
 
 static const uint8_t FULL_CONFIGURATION[] = {
     9,    2,    184,  0,    3,    1,    0,    0x80, 50,   9,    4,    0,    0,    0,    1,    1,
-    0,    0,    9,    0x24, 1,    0x00, 0x01, 40,   0,    1,    1,    12,   0x24, 2,    1,    0x01,
+    0,    2,    9,    0x24, 1,    0x00, 0x01, 40,   0,    1,    1,    12,   0x24, 2,    1,    0x01,
     0x01, 0,    2,    0x03, 0x00, 0,    0,    10,   0x24, 6,    2,    1,    1,    0x03, 0x00, 0x00,
     0,    9,    0x24, 3,    3,    0x02, 0x03, 0,    2,    0,    9,    4,    1,    0,    0,    1,
     2,    0,    0,    9,    4,    1,    1,    1,    1,    2,    0,    0,    7,    0x24, 1,    1,
@@ -46,7 +64,7 @@ static const uint8_t HIGH_CONFIGURATION[] = {9,
                                              1,
                                              0,
                                              0x20,
-                                             0,
+                                             2,
                                              9,
                                              4,
                                              0,
@@ -55,7 +73,7 @@ static const uint8_t HIGH_CONFIGURATION[] = {9,
                                              1,
                                              1,
                                              0x20,
-                                             0,
+                                             2,
                                              9,
                                              0x24,
                                              1,

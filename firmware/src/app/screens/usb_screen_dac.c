@@ -430,8 +430,7 @@ static void draw_menu(const UsbPainter *painter)
     if (!usb_screen_touches(painter, area)) {
         return;
     }
-    theme_background_draw(theme, painter->canvas,
-                          view->background == 0 ? THEME_ART_LIST : view->background, area);
+    canvas_fill_rect(painter->canvas, area, theme->colors.background);
     usb_screen_service(painter->scene);
     if (count > view->visible_rows) {
         list_view_draw_scrollbar(view, painter->canvas, area, count - view->visible_rows);
@@ -451,7 +450,7 @@ static int state_bottom(const UsbPainter *painter)
     const char *state = i18n_text(dac_state_text(painter->scene));
     char named[USB_SCREEN_TEXT_CAPACITY];
     if (painter->scene->state == USB_SCENE_DAC_CHOOSE) {
-        usb_screen_format_one(named, STR_USB_DAC_PICK, FIRMWARE_SHORT_NAME);
+        usb_screen_format_one(named, STR_USB_DAC_PICK, FIRMWARE_USB_DAC_NAME);
         state = named;
     }
     return usb_screen_draw_state(painter, state);

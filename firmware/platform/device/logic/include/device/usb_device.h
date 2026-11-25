@@ -56,6 +56,7 @@ typedef struct UsbDevice {
     uint8_t serial[2 + 2 * USB_SERIAL_CAPACITY];
     bool high_speed_allowed;
     UsbSpeed speed;
+    const uint8_t *product;
     uint8_t configuration_reply[USB_CONFIGURATION_LENGTH];
 } UsbDevice;
 

@@ -12,7 +12,8 @@ SKIPPED_NAMES = {"LICENSE", IDENTITY_FILE.name}
 
 
 def forbidden_words(identity=IDENTITY):
-    names = [identity.name, identity.short_name, identity.manufacturer, identity.id,
+    names = [identity.name, identity.short_name, identity.usb_name, identity.usb_dac_name,
+             identity.manufacturer, identity.id,
              identity.data_directory.lstrip("."), Path(identity.update_file).stem,
              identity.playlist_start_directive, *identity.former_ids]
     return sorted({name.casefold() for name in names})

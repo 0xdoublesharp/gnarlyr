@@ -412,18 +412,21 @@ static void put_history(Writer *writer, const PowerHistory *history)
 static void put_start(Writer *writer, const HalStartInfo *start)
 {
     bool warm = start->warm;
-    put_unsigned(writer, "start.count", start->starts);
-    put_unsigned(writer, "start.warm", warm);
-    put_known(writer, "start.previous_uptime_ms", warm, start->previous_uptime_ms);
-    put_known(writer, "start.previous_power_off", warm, start->previous_power_off);
-    put_text(writer, "start.last_step", warm ? NAME_IN(STEP_NAMES, start->last_step) : UNKNOWN);
-    put_known(writer, "start.last_step_finished", warm, start->last_step_finished);
-    put_known(writer, "start.last_step_ms", warm, start->last_step_ms);
-    put_known(writer, "start.last_millivolts", warm && start->last_millivolts != 0,
+    writer->prefix = "start.";
+    put_unsigned(writer, "count", start->starts);
+    put_unsigned(writer, "warm", warm);
+    put_known(writer, "previous_uptime_ms", warm, start->previous_uptime_ms);
+    put_known(writer, "previous_power_off", warm, start->previous_power_off);
+    put_text(writer, "last_step", warm ? NAME_IN(STEP_NAMES, start->last_step) : UNKNOWN);
+    put_known(writer, "last_step_finished", warm, start->last_step_finished);
+    put_known(writer, "last_step_ms", warm, start->last_step_ms);
+    put_known(writer, "last_millivolts", warm && start->last_millivolts != 0,
               start->last_millivolts);
-    put_address(writer, "fault.cfsr", warm, start->fault_status);
-    put_address(writer, "fault.hfsr", warm, start->hard_fault_status);
-    put_address(writer, "fault.pc", warm, start->fault_pc);
+    writer->prefix = "fault.";
+    put_address(writer, "cfsr", warm, start->fault_status);
+    put_address(writer, "hfsr", warm, start->hard_fault_status);
+    put_address(writer, "pc", warm, start->fault_pc);
+    writer->prefix = NULL;
 }
 
 static void put_setup(StringBuilder *text, const HalUsbSetup *setup)
@@ -476,19 +479,34 @@ static void put_writes(Writer *writer, const HalUsbWrites *writes)
     finish(writer);
 }
 
+static void put_usb_dac(Writer *writer, const HalUsbDacStats *dac)
+{
+    static const char *const KEYS[] = {"rate",      "bits",      "high_speed", "packets",
+                                       "underruns", "overflows", "realigned",  "max_gap_us"};
+    const uint32_t values[] = {dac->rate,      dac->bits,      dac->high_speed, dac->packets,
+                               dac->underruns, dac->overflows, dac->realigned,  dac->max_gap_us};
+    writer->prefix = "usb.dac.";
+    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    writer->prefix = NULL;
+}
+
 static void put_usb(Writer *writer, const HalUsbLast *usb, bool kept_on)
 {
+    static const char *const KEYS[] = {"left_mounted", "internal_sectors_written",
+                                       "card_sectors_written", "writes_after_eject"};
+    const uint32_t values[] = {usb->left_mounted, usb->internal_written, usb->card_written,
+                               usb->writes_after_eject};
     bool known = usb->end != HAL_USB_END_NONE;
     writer->prefix = "usb.";
     put_text(writer, "sense_mode", kept_on ? "kept_on" : "normal");
     put_text(writer, "last_end", NAME_IN(USB_END_NAMES, usb->end));
-    put_known(writer, "left_mounted", known, usb->left_mounted);
-    put_known(writer, "internal_sectors_written", known, usb->internal_written);
-    put_known(writer, "card_sectors_written", known, usb->card_written);
-    put_known(writer, "writes_after_eject", known, usb->writes_after_eject);
+    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], known);
     writer->prefix = NULL;
     if (known) {
         put_writes(writer, &usb->writes);
+    }
+    if (usb->dac.active) {
+        put_usb_dac(writer, &usb->dac);
     }
     if (usb->speed_fallback != 0) {
         begin(writer, "usb.speed_fallback");
@@ -537,13 +555,16 @@ static const char *boot_kind(const DebugReportInput *input)
 
 static void put_loop(Writer *writer, const DebugReportInput *input)
 {
+    static const char *const KEYS[] = {"connect_attempts", "connect_answered",
+                                       "connect_unanswered"};
     const DebugReportLoop *loop = &input->loop;
-    put_text(writer, "loop.boot", boot_kind(input));
-    put_unsigned(writer, "loop.connect_attempts", loop->attempts);
-    put_unsigned(writer, "loop.connect_answered", loop->answered);
-    put_unsigned(writer, "loop.connect_unanswered", loop->unanswered);
-    put_text(writer, "loop.last_connect", NAME_IN(CONNECT_NAMES, loop->last_connect));
-    put_known(writer, "loop.cable_bit_at_connect", loop->attempts != 0, loop->cable_at_connect);
+    const uint32_t values[] = {loop->attempts, loop->answered, loop->unanswered};
+    writer->prefix = "loop.";
+    put_text(writer, "boot", boot_kind(input));
+    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    put_text(writer, "last_connect", NAME_IN(CONNECT_NAMES, loop->last_connect));
+    put_known(writer, "cable_bit_at_connect", loop->attempts != 0, loop->cable_at_connect);
+    writer->prefix = NULL;
 }
 
 static void append_card_field(StringBuilder *text, const char *name, uint32_t value)
@@ -561,20 +582,20 @@ static void append_card_command(StringBuilder *text, const char *name, uint8_t i
 
 static void put_card(Writer *writer, const CardStartLog *card)
 {
+    static const char *const FIELDS[] = {"raw",       " present", " ejected", " ready",
+                                         " detected", " powered", " tries",   " ms"};
     bool clean = card->ready && card->failures == 0 && card->attempts <= 1;
     if (card->attempts == 0 || clean) {
         return;
     }
+    const uint32_t values[] = {card->raw_now,  card->present_now, card->ejected_now,
+                               card->ready,    card->detected,    card->powered_before,
+                               card->attempts, card->init_ms};
     begin(writer, "card.start");
     StringBuilder *text = &writer->text;
-    append_card_field(text, "raw", card->raw_now);
-    append_card_field(text, " present", card->present_now);
-    append_card_field(text, " ejected", card->ejected_now);
-    append_card_field(text, " ready", card->ready);
-    append_card_field(text, " detected", card->detected);
-    append_card_field(text, " powered", card->powered_before);
-    append_card_field(text, " tries", card->attempts);
-    append_card_field(text, " ms", card->init_ms);
+    for (uint32_t index = 0; index < sizeof values / sizeof values[0]; index++) {
+        append_card_field(text, FIELDS[index], values[index]);
+    }
     append_card_command(text, " last", card->last_command, card->last_response);
     append_card_command(text, " failed", card->failed_command, card->failed_interrupts);
     append_card_field(text, " errors", card->failures);

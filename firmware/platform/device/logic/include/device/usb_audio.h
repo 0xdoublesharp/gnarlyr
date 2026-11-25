@@ -40,5 +40,6 @@ uint8_t usb_audio_sample_bytes(const UsbAudio *audio);
 uint8_t usb_audio_attenuation(const UsbAudio *audio);
 
 UsbReply usb_audio_descriptor(UsbAudio *audio, UsbSetup setup);
+const uint8_t *usb_audio_product_descriptor(void);
 bool usb_audio_asynchronous(const UsbAudio *audio);
 uint16_t usb_audio_packet_size(const UsbAudio *audio);

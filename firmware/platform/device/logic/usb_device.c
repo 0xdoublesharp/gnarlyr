@@ -35,7 +35,7 @@ enum {
     FEATURE_ENDPOINT_HALT = 0,
     ENGLISH_LANGID = 0x0409,
     STRING_SERIAL = 3,
-    PRODUCT_BYTES = 2 + 2 * (sizeof FIRMWARE_NAME - 1),
+    PRODUCT_BYTES = 2 + 2 * (sizeof FIRMWARE_USB_NAME - 1),
     MANUFACTURER_BYTES = 2 + 2 * (sizeof FIRMWARE_MANUFACTURER - 1)
 };
 
@@ -86,8 +86,8 @@ static const uint8_t LANGUAGES[] = {4, 3, 0x09, 0x04};
 static const struct {
     uint8_t length;
     uint8_t type;
-    uint_least16_t text[sizeof FIRMWARE_NAME];
-} PRODUCT = {PRODUCT_BYTES, DESCRIPTOR_STRING, u"" FIRMWARE_NAME};
+    uint_least16_t text[sizeof FIRMWARE_USB_NAME];
+} PRODUCT = {PRODUCT_BYTES, DESCRIPTOR_STRING, u"" FIRMWARE_USB_NAME};
 static const struct {
     uint8_t length;
     uint8_t type;
@@ -149,7 +149,8 @@ static UsbReply string_descriptor(const UsbDevice *device, uint8_t index, UsbSet
     if (index >= sizeof STRINGS / sizeof STRINGS[0]) {
         return stall();
     }
-    return data(STRINGS[index], STRINGS[index][0], setup.length);
+    const uint8_t *text = index == 2 && device->product != NULL ? device->product : STRINGS[index];
+    return data(text, text[0], setup.length);
 }
 
 static uint16_t packet_size(UsbSpeed speed)

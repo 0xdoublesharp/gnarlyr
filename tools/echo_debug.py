@@ -168,7 +168,10 @@ def is_player(entry):
         product = number(str(entry.get("product_id", "0")).split()[0])
     except ValueError:
         return False
-    return (vendor, product) == (USB_VENDOR_ID, USB_PRODUCT_ID) and entry.get("_name") == IDENTITY["name"]
+    return (vendor, product) == (USB_VENDOR_ID, USB_PRODUCT_ID) and entry.get("_name") in {
+        IDENTITY["name"],
+        IDENTITY["usb_name"],
+    }
 
 
 def medium_volumes(medium):
