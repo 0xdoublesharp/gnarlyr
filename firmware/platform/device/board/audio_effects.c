@@ -32,6 +32,12 @@ void board_audio_effects_forget(void)
     ready = false;
 }
 
+CORE_COLD bool board_audio_encode_eq(const Equalizer *equalizer, uint32_t rate,
+                                     DacEqProgram *program)
+{
+    return ready && entry()->encode_eq(equalizer, rate, program);
+}
+
 void audio_fade_in(AudioFadeBlock block, AudioFadeRamp *ramp)
 {
     if (ready) {

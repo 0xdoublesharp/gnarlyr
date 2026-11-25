@@ -31,6 +31,7 @@ typedef struct DacBus {
     void (*delay_us)(void *context, uint32_t microseconds);
     void *context;
     const bool *dop;
+    const bool *wideband;
 } DacBus;
 
 typedef enum DacCurve {

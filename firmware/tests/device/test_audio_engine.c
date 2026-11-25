@@ -1251,15 +1251,16 @@ static void an_equalizer_shapes_sixteen_and_twenty_four_bit_audio(void)
     CHECK(engine.equalizing);
 }
 
-static void the_equalizer_stands_aside_above_96_khz(void)
+static void hardware_equalizer_bypasses_the_software_equalizer_at_192_khz(void)
 {
     start_scripted_engine(0, 1);
     scripted.rate = 192000;
     engine.config.equalizer = &equalizer;
     audio_engine_set_equalizer(&engine, &POP);
     CHECK(play_file("scripted", 0, 1));
+    CHECK(engine.equalizing);
+    engine.hw_equalizing = true;
     pump_until_full(0);
-    CHECK(!engine.equalizing);
     CHECK(frame_is(0, 1, -1, 16));
     CHECK(frame_is(15, 16, -16, 16));
 }
@@ -1769,7 +1770,7 @@ int main(void)
         TEST_CASE(equalizer_off_leaves_sixteen_bit_samples_bit_identical),
         TEST_CASE(equalizer_off_leaves_twenty_four_bit_samples_bit_identical),
         TEST_CASE(an_equalizer_shapes_sixteen_and_twenty_four_bit_audio),
-        TEST_CASE(the_equalizer_stands_aside_above_96_khz),
+        TEST_CASE(hardware_equalizer_bypasses_the_software_equalizer_at_192_khz),
         TEST_CASE(the_current_path_is_the_track_being_played),
         TEST_CASE(pumping_before_the_first_track_leaves_the_engine_stopped),
         TEST_CASE(a_source_that_is_not_ready_leaves_the_ring_alone),

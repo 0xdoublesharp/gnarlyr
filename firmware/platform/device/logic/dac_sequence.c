@@ -1,6 +1,7 @@
 #include "device/dac_sequence.h"
 
 #include "core/seam.h"
+#include "device/dac_eq.h"
 #include <stddef.h>
 
 enum {
@@ -12,6 +13,11 @@ enum {
     POWER_DOWN_POLL_MS = 5,
     POWER_DOWN_LIMIT_MS = 200,
     POWER_CONTROL_MAP = 0x020000,
+    SYSTEM_CLOCK_MAP = 0x010006,
+    MCLK_44K_FAMILY = 0x04,
+    RATE_192K = 6,
+    PCM_WIDEBAND = 0x04,
+    PCM_NOS = 0x20,
     SERIAL_PORT_BIT = 0x40,
     HEADPHONE_BIT = 0x10,
     OUTPUT_POWER_UP_MS = 12,
@@ -84,9 +90,17 @@ static const uint8_t MONO_VALUES[MONO_GROUPS][MONO_ITEMS] = {
 };
 
 static const uint32_t AFTER_MONO[] = {
-    WRITE(0x0D0000, 0x04), WRITE(0x0D0001, 0x00), WRITE(0x0F0010, 0x87),
-    WRITE(0x0F0011, 0x07), WRITE(0x010006, 0x04), WRITE(0x01000D, 0x02),
-    WRITE(0x010010, 0x99), WRITE(0x180000, 0x45), WRITE(0x010010, 0x00),
+    WRITE(0x0D0000, 0x04),
+    WRITE(0x0D0001, 0x00),
+    WRITE(0x0F0010, 0x87),
+    WRITE(0x0F0011, 0x07),
+};
+
+static const uint32_t AFTER_CLOCK[] = {
+    WRITE(0x01000D, 0x02),
+    WRITE(0x010010, 0x99),
+    WRITE(0x180000, 0x45),
+    WRITE(0x010010, 0x00),
 };
 
 static const uint32_t POWER_UP_PRE[] = {
@@ -299,9 +313,10 @@ CORE_COLD static bool start_up(const DacBus *bus)
     return write_both(bus, 0x020052, 0x02);
 }
 
-static uint8_t filter_value(uint8_t filter)
+static uint8_t filter_value(uint8_t filter, bool wideband)
 {
-    return FILTER_VALUES[filter < DAC_ANALOG_FILTERS ? filter : 0];
+    uint8_t value = FILTER_VALUES[filter < DAC_ANALOG_FILTERS ? filter : 0];
+    return value | (wideband && (value & PCM_NOS) == 0 ? PCM_WIDEBAND : 0);
 }
 
 static uint8_t gain_value(bool high)
@@ -309,17 +324,21 @@ static uint8_t gain_value(bool high)
     return high ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE;
 }
 
-CORE_COLD static bool set_up_blocks(const DacBus *bus, DacAnalog analog)
+CORE_COLD static bool set_up_blocks(const DacBus *bus, DacAnalog analog, uint8_t rate_byte)
 {
+    bool wideband = rate_byte == RATE_192K && !dop_mode(bus);
     if (!write_all(bus, AFTER_STATUS, sizeof AFTER_STATUS / sizeof AFTER_STATUS[0]) ||
-        !write_channel_values(bus) || !write_both(bus, PCM_FILTER, filter_value(analog.filter)) ||
+        !write_channel_values(bus) ||
+        !write_both(bus, PCM_FILTER, filter_value(analog.filter, wideband)) ||
         !write_all(bus, BEFORE_MONO, sizeof BEFORE_MONO / sizeof BEFORE_MONO[0]) ||
         !write_mono_table(bus) || !write_both(bus, 0x0B0000, 0x1F)) {
         return false;
     }
     wait_ms(bus, 80);
     return write_both(bus, HEADPHONE_GAIN, gain_value(analog.gain_high)) &&
-           write_all(bus, AFTER_MONO, sizeof AFTER_MONO / sizeof AFTER_MONO[0]);
+           write_all(bus, AFTER_MONO, sizeof AFTER_MONO / sizeof AFTER_MONO[0]) &&
+           write_both(bus, SYSTEM_CLOCK_MAP, rate_byte & 1u ? MCLK_44K_FAMILY : 0) &&
+           write_all(bus, AFTER_CLOCK, sizeof AFTER_CLOCK / sizeof AFTER_CLOCK[0]);
 }
 
 CORE_COLD bool dac_sequence_power_up(const DacBus *bus)
@@ -351,7 +370,8 @@ CORE_COLD DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalo
     if (status != DAC_READY) {
         return status;
     }
-    return set_up_blocks(bus, analog) && release_outputs(bus, rate_byte) ? DAC_READY : DAC_NO_REPLY;
+    return set_up_blocks(bus, analog, rate_byte) && release_outputs(bus, rate_byte) ? DAC_READY
+                                                                                    : DAC_NO_REPLY;
 }
 
 CORE_COLD bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right)
@@ -386,12 +406,35 @@ CORE_COLD static bool write_channel_values_with_retry(const DacBus *bus)
     return false;
 }
 
-CORE_COLD static bool change_analog(const DacBus *bus, DacAnalog after)
+CORE_COLD static bool restore_analog(const DacBus *bus)
+{
+    return dac_sequence_power_up(bus) &&
+           write_all(bus, ANALOG_POST, sizeof ANALOG_POST / sizeof ANALOG_POST[0]);
+}
+
+CORE_COLD DacEqResult dac_sequence_equalizer(const DacBus *bus, const DacEqProgram *program,
+                                             uint8_t filter, bool wideband_rate)
+{
+    if (!dac_sequence_power_down(bus)) {
+        return DAC_EQ_FAILED;
+    }
+    bool enabled = program != NULL && program->enabled &&
+                   (!wideband_rate || write_both(bus, PCM_FILTER, filter_value(filter, false))) &&
+                   dac_eq_write(bus, program);
+    if ((!enabled &&
+         (!dac_eq_disable(bus) ||
+          (wideband_rate && !write_both(bus, PCM_FILTER, filter_value(filter, true))))) ||
+        !restore_analog(bus)) {
+        return DAC_EQ_FAILED;
+    }
+    return enabled ? DAC_EQ_ON : DAC_EQ_OFF;
+}
+
+CORE_COLD static bool change_analog(const DacBus *bus, DacAnalog after, uint8_t filter)
 {
     return dac_sequence_power_down(bus) &&
            write_both(bus, HEADPHONE_GAIN, gain_value(after.gain_high)) &&
-           write_both(bus, PCM_FILTER, filter_value(after.filter)) && dac_sequence_power_up(bus) &&
-           write_all(bus, ANALOG_POST, sizeof ANALOG_POST / sizeof ANALOG_POST[0]);
+           write_both(bus, PCM_FILTER, filter) && restore_analog(bus);
 }
 
 CORE_COLD static bool change_filter(const DacBus *bus, uint8_t filter)
@@ -400,7 +443,7 @@ CORE_COLD static bool change_filter(const DacBus *bus, uint8_t filter)
         return false;
     }
     wait_ms(bus, 150);
-    return write_both(bus, PCM_FILTER, filter_value(filter)) && write_both(bus, PCM_MUTE, 0xEC);
+    return write_both(bus, PCM_FILTER, filter) && write_both(bus, PCM_MUTE, 0xEC);
 }
 
 CORE_SEAM CORE_COLD bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after)
@@ -408,9 +451,12 @@ CORE_SEAM CORE_COLD bool dac_apply_analog(const DacBus *bus, DacAnalog before, D
     if (after.filter >= DAC_ANALOG_FILTERS) {
         return false;
     }
-    bool gain = before.gain_high != after.gain_high || before.filter == DAC_ANALOG_UNKNOWN;
-    bool applied = gain ? change_analog(bus, after)
-                        : before.filter == after.filter || change_filter(bus, after.filter);
+    bool wideband = bus->wideband != NULL && *bus->wideband;
+    uint8_t filter = filter_value(after.filter, wideband);
+    bool power_down = before.gain_high != after.gain_high || before.filter == DAC_ANALOG_UNKNOWN ||
+                      ((filter ^ filter_value(before.filter, wideband)) & PCM_WIDEBAND);
+    bool applied = power_down ? change_analog(bus, after, filter)
+                              : before.filter == after.filter || change_filter(bus, filter);
     if (!applied) {
         set_pin(bus, DAC_PIN_MUTE, true);
     }

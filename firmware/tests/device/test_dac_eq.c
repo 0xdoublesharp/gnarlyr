@@ -140,15 +140,47 @@ static void excessive_dc_gain_error_falls_back(void)
 
 static void only_compatible_echo_rates_allow_hardware_eq(void)
 {
-    const uint32_t supported[] = {32000, 44100, 48000, 88200, 96000, 176400};
+    const uint32_t supported[] = {32000, 44100, 48000, 88200, 96000, 176400, 192000};
     Equalizer eq = {.section_count = 1, .sections = {{.b0 = SOFTWARE_SCALE}}};
     DacEqProgram out;
     for (size_t i = 0; i < sizeof supported / sizeof supported[0]; i++) {
         CHECK(dac_eq_from_equalizer(&eq, supported[i], &out));
     }
-    const uint32_t unavailable[] = {0, 16000, 192000, 384000};
+    const uint32_t unavailable[] = {0, 16000, 384000};
     for (size_t i = 0; i < sizeof unavailable / sizeof unavailable[0]; i++) {
         CHECK(!dac_eq_from_equalizer(&eq, unavailable[i], &out));
+        CHECK(!out.enabled);
+    }
+}
+
+static void high_rate_pcm_can_offload_three_designed_biquads(void)
+{
+    HalAudioEqualizer curve = {.band_hz = {4000, 8000, 12000},
+                               .gain_half_db = {8, -6, -4},
+                               .band_count = 3,
+                               .pre_gain = HAL_AUDIO_UNITY_PRE_GAIN * 3 / 4};
+    const uint32_t rates[] = {176400, 192000};
+    for (size_t index = 0; index < sizeof rates / sizeof rates[0]; index++) {
+        Equalizer eq;
+        DacEqProgram out;
+        CHECK(equalizer_design(&eq, &curve, rates[index]));
+        CHECK(dac_eq_from_equalizer(&eq, rates[index], &out));
+        CHECK_EQUAL(0xF2, out.control1);
+        CHECK_EQUAL(0x0C, out.control2);
+    }
+}
+
+static void the_bass_preset_can_fall_back_at_the_dac_coefficient_resolution(void)
+{
+    HalAudioEqualizer curve = {
+        .band_hz = {63, 125}, .gain_half_db = {10, 6}, .band_count = 2, .pre_gain = 14336};
+    const uint32_t rates[] = {44100, 48000, 96000, 176400, 192000};
+    for (size_t index = 0; index < sizeof rates / sizeof rates[0]; index++) {
+        Equalizer eq;
+        DacEqProgram out;
+        CHECK(equalizer_design(&eq, &curve, rates[index]));
+        CHECK_EQUAL(2, eq.section_count);
+        CHECK(!dac_eq_from_equalizer(&eq, rates[index], &out));
         CHECK(!out.enabled);
     }
 }
@@ -310,6 +342,8 @@ int main(void)
         TEST_CASE(rounding_a_pole_onto_the_unit_circle_falls_back),
         TEST_CASE(excessive_dc_gain_error_falls_back),
         TEST_CASE(only_compatible_echo_rates_allow_hardware_eq),
+        TEST_CASE(high_rate_pcm_can_offload_three_designed_biquads),
+        TEST_CASE(the_bass_preset_can_fall_back_at_the_dac_coefficient_resolution),
         TEST_CASE(quantized_response_matches_the_software_cascade),
         TEST_CASE(program_writes_every_coefficient_before_enabling_both_chips),
         TEST_CASE(disable_clears_both_controls_on_both_chips),

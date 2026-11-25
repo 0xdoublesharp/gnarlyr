@@ -96,7 +96,7 @@ static void delay(void *context, uint32_t us)
 
 static DacBus bus_for(FakeDac *dac)
 {
-    return (DacBus){write_register, read_register, set_pin, delay, dac, NULL};
+    return (DacBus){write_register, read_register, set_pin, delay, dac, NULL, NULL};
 }
 
 static void both(FakeDac *dac, uint32_t map, uint8_t value)

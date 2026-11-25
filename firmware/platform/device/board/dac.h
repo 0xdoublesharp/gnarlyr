@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "device/dac_sequence.h"
+#include "device/dac_eq.h"
 #include "hal/audio.h"
 
 HalToneResult dac_path_start(uint32_t sample_rate, bool dop);
@@ -18,6 +18,7 @@ uint8_t dac_overflow_flags(void);
 void dac_path_service(void);
 bool dac_path_set_gain(bool high);
 bool dac_path_set_filter(uint8_t filter);
+bool dac_path_set_equalizer(const DacEqProgram *program);
 bool dac_path_take_underrun(void);
 bool dac_path_is_muted(void);
 bool dac_path_is_guarded(void);

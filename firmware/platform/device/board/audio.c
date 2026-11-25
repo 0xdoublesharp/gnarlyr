@@ -5,6 +5,7 @@
 #include "app/debug_loop.h"
 
 #include "audio_dsp.h"
+#include "audio_effects.h"
 #include "audio_process.h"
 #include "board.h"
 #include "core/bytes.h"
@@ -129,6 +130,7 @@ static bool engine_ready;
 static bool path_up;
 static uint32_t path_rate;
 static bool path_dop;
+static bool eq_pending;
 static bool transferring;
 static uint32_t consumed;
 static uint32_t last_position;
@@ -491,6 +493,46 @@ CORE_COLD static void stop_path(void)
         dac_path_stop();
         path_up = false;
     }
+    engine.hw_equalizing = false;
+    eq_pending = true;
+}
+
+CORE_COLD static void apply_equalizer(void)
+{
+    eq_pending = false;
+    DacEqProgram program;
+    bool hardware = !path_dop && !board_bluetooth_routed() && engine.equalizing &&
+                    board_audio_encode_eq(&equalizer, path_rate, &program);
+    if (engine.equalizing && !hardware) {
+        (void)ensure_audio_clock();
+    }
+    if (!hardware && !engine.hw_equalizing) {
+        return;
+    }
+    bool restore = !dac_path_is_muted();
+    if (restore) {
+        dac_path_set_muted(true);
+    }
+    bool switching = hardware != engine.hw_equalizing;
+    uint32_t first = engine.produced;
+    engine.hw_equalizing = hardware;
+    bool applied = dac_path_set_equalizer(hardware ? &program : NULL);
+    if (applied != hardware) {
+        (void)ensure_audio_clock();
+        first = engine.produced;
+        switching = true;
+    }
+    engine.hw_equalizing = applied;
+    if (switching && transferring) {
+        uint32_t started = hal_clock_milliseconds();
+        while ((int32_t)(consumed - first) < 0 &&
+               hal_clock_milliseconds() - started < PREFILL_TIMEOUT_MS) {
+            serve_fade();
+        }
+    }
+    if (restore) {
+        dac_path_set_muted(false);
+    }
 }
 
 CORE_COLD static bool ensure_path(uint32_t rate, bool dop)
@@ -543,6 +585,9 @@ CORE_COLD static bool start_output(bool audible)
 {
     if (!ensure_path(audio_engine_rate(&engine), engine.output_dop)) {
         return false;
+    }
+    if (eq_pending) {
+        apply_equalizer();
     }
     uint32_t started_ms = hal_clock_milliseconds();
     uint32_t prefill = audio_engine_rate(&engine) / PREFILL_DIVISOR;
@@ -647,6 +692,7 @@ void hal_audio_release(void)
 CORE_COLD void hal_audio_resume(void)
 {
     ensure_engine();
+    audio_engine_resume(&engine);
     if (using_core1) {
         core1_source_hurry(&core1_source);
     }
@@ -656,9 +702,11 @@ CORE_COLD void hal_audio_resume(void)
         if (quiet) {
             (void)dac_path_take_underrun();
         }
+        if (eq_pending) {
+            apply_equalizer();
+        }
         dac_path_set_muted(false);
     }
-    audio_engine_resume(&engine);
 }
 
 CORE_COLD static void seek_at_audio_clock(uint32_t position_ms, bool paused)
@@ -792,10 +840,7 @@ CORE_SEAM CORE_COLD void hal_audio_set_output(HalAudioOutput output)
 CORE_COLD void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
 {
     ensure_engine();
-    audio_engine_set_equalizer(&engine, curve);
-    if (engine.equalizing && transferring) {
-        (void)ensure_audio_clock();
-    }
+    eq_pending |= audio_engine_set_equalizer(&engine, curve);
 }
 
 void hal_audio_set_effects(HalAudioEffects effects)
@@ -970,6 +1015,9 @@ void hal_audio_service(void)
         return;
     }
     if (transferring) {
+        if (eq_pending && !dmac_suspended()) {
+            apply_equalizer();
+        }
         if (engine.output_dop) {
             recheck_dop();
         }
@@ -1135,8 +1183,8 @@ static uint32_t input_ms(void)
 static bool light_stream(uint32_t rate)
 {
     if (rate > LIGHT_RATE_HZ || engine.state != AUDIO_ENGINE_PLAYING || !engine.decoding ||
-        engine.rate_pending || engine.draining || engine.equalizing || engine.stretching ||
-        engine.resample.factor != 1) {
+        engine.rate_pending || engine.draining || (engine.equalizing && !engine.hw_equalizing) ||
+        engine.stretching || engine.resample.factor != 1) {
         return false;
     }
     AudioCodec codec = engine.decode_track.codec;
@@ -1316,6 +1364,7 @@ CORE_SEAM CORE_COLD bool board_audio_bluetooth_start(void)
     }
     uint32_t position = hal_audio_status().position_ms;
     restart_transfer();
+    eq_pending = true;
     clear_ring();
     if (!audio_engine_seek(&engine, position)) {
         return false;
@@ -1336,6 +1385,7 @@ void board_audio_output_changed(void)
 {
     if (engine_ready) {
         audio_engine_set_headphones(&engine, engine_headphones());
+        eq_pending |= board_bluetooth_routed() == engine.hw_equalizing;
     }
     apply_volume();
 }

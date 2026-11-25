@@ -2,6 +2,7 @@
 
 #include "device/audio_effects.h"
 #include "device/audio_fade.h"
+#include "device/dac_eq.h"
 #include "device/power_history.h"
 
 #define AUDIO_EFFECTS_BASE 0x03092000u
@@ -23,6 +24,7 @@ typedef struct AudioEffectsEntry {
     void (*effects_design)(AudioEffects *effects, uint32_t rate);
     uint32_t (*effects_run)(AudioEffects *effects, const AudioEffectsBlock *block);
     void (*settle)(struct AudioEngine *engine, uint32_t previous);
+    bool (*encode_eq)(const Equalizer *equalizer, uint32_t rate, DacEqProgram *program);
 #ifdef ECHO_DEBUG_LOOP
     const void *debug;
     void (*battery_trace)(DebugBatteryTrace *trace, uint32_t now_ms, PowerSample sample);

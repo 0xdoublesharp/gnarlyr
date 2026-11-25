@@ -118,14 +118,14 @@ CORE_COLD void audio_engine_set_effects(AudioEngine *engine, HalAudioEffects eff
     engine->effects.settings = effects;
 }
 
-CORE_COLD void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
+CORE_COLD bool audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve)
 {
     if (same_curve(&engine->equalizer_curve, curve)) {
-        return;
+        return false;
     }
     HalAudioEqualizer before = engine->equalizer_curve;
     engine->equalizer_curve = *curve;
-    if (engine->equalizing && engine->config.equalizer != NULL) {
+    if (engine->equalizing && !engine->hw_equalizing) {
         engine->equalizing = equalizer_retune(
             engine->config.equalizer,
             (EqualizerChange){.before = &before, .after = &engine->equalizer_curve},
@@ -133,6 +133,7 @@ CORE_COLD void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqu
     } else {
         design_equalizer(engine);
     }
+    return true;
 }
 
 static void release_frame(AudioEngine *engine)
@@ -523,7 +524,7 @@ static bool at_limit(const AudioEngine *engine)
 static void equalize(AudioEngine *engine, uint32_t first)
 {
     uint32_t frames = engine->produced - first;
-    if (!engine->equalizing || frames == 0) {
+    if (!engine->equalizing || engine->hw_equalizing || frames == 0) {
         return;
     }
     uint32_t start = first % audio_engine_ring_frames(engine);

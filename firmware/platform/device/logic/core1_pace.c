@@ -22,6 +22,10 @@ static const ClockGovernorLimits FROM_96 = {.window_us = 50000000,
                                             .deepen_percent = 50,
                                             .raise_percent = 60,
                                             .hurry_percent = 90};
+static const ClockGovernorLimits DOP_200 = {
+    .window_us = 50000000, .lowest_divider = 4, .highest_divider = 4};
+static const ClockGovernorLimits DOP_96 = {
+    .window_us = 50000000, .lowest_divider = 2, .highest_divider = 2};
 
 uint32_t core1_pace_units(uint32_t cycles, uint32_t mhz)
 {
@@ -60,6 +64,9 @@ uint32_t core1_pace_divider_field(uint32_t pll_mhz, uint32_t mhz)
 
 const ClockGovernorLimits *core1_pace_limits(uint32_t pll_mhz, uint32_t ceiling_mhz)
 {
+    if (ceiling_mhz == 50) {
+        return pll_mhz == CORE1_PACE_PLL_MHZ ? &DOP_200 : &DOP_96;
+    }
     if (pll_mhz != CORE1_PACE_PLL_MHZ) {
         return &FROM_96;
     }

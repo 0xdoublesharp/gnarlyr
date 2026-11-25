@@ -1,5 +1,7 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial stage format)
-set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
+set(ECHO_SCREEN_MODULE_SHARED_SOURCES
+    src/codec/flac.c src/codec/flac_bits.c platform/device/logic/dac_eq.c
+)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
     src/core/parametric_curve.c
@@ -21,6 +23,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_effects
     platform/device/logic/audio_effects.c
     platform/device/logic/audio_engine_settle.c
     platform/device/logic/audio_skip.c
+    platform/device/logic/dac_eq.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_source
     platform/device/logic/audio_source_entry.c

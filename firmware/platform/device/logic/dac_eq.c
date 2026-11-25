@@ -1,5 +1,6 @@
 #include "device/dac_eq.h"
 
+#include "core/seam.h"
 #include "device/audio_math.h"
 
 enum {
@@ -82,11 +83,11 @@ static bool encode_section(const EqualizerSection *section, int section_count, u
     return true;
 }
 
-bool dac_eq_from_equalizer(const Equalizer *eq, uint32_t sample_rate, DacEqProgram *out)
+CORE_COLD bool dac_eq_from_equalizer(const Equalizer *eq, uint32_t sample_rate, DacEqProgram *out)
 {
     *out = (DacEqProgram){0};
     if (!eq || eq->section_count < 1 || eq->section_count > SOS_COUNT ||
-        sample_rate == WIDEBAND_RATE || !audio_clock_rate(sample_rate)) {
+        !audio_clock_rate(sample_rate)) {
         return false;
     }
     for (int index = 0; index < eq->section_count; index++) {

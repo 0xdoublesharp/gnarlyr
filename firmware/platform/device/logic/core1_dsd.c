@@ -111,7 +111,7 @@ static Core1DecodeResult configure(Core1Dsd *dsd)
     dsd->lane_start = 0u - DSD_LANE_HISTORY;
     dsd->configured = true;
     if (dsd->dop) {
-        core1_stream_clock(dsd->region, 100);
+        core1_stream_clock(dsd->region, 50);
         return CORE1_DECODED;
     }
     dsd->raise = dsd->ratio == 1 ? 8u : dsd->ratio == 2 ? 3u : 0u;

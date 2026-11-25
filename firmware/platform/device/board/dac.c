@@ -126,6 +126,9 @@ static DacAnalog chip_analog;
 static bool muted;
 static bool guarded;
 static bool output_blocked;
+static bool wideband_rate;
+static bool wideband;
+static DacEqResult eq_result;
 DacDiagnostics board_dac_diagnostics;
 static DacStereoLevel chip_volume;
 static uint8_t balance_left;
@@ -288,7 +291,7 @@ static void dac_delay(void *context, uint32_t microseconds)
 }
 
 static bool dop_mode;
-static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL, &dop_mode};
+static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL, &dop_mode, &wideband};
 
 CORE_COLD static void set_soc_clocks(bool on)
 {
@@ -519,6 +522,8 @@ CORE_COLD static HalToneResult start_audio_path(const AudioRate *rate, uint32_t 
     dac_up = true;
     chip_analog = analog;
     muted = true;
+    wideband = wideband_rate = rate->rate == 192000 && !dop_mode;
+    eq_result = DAC_EQ_OFF;
     reset_chip_volume();
     return HAL_TONE_PLAYED;
 }
@@ -592,8 +597,21 @@ static void serving_delay(void *context, uint32_t microseconds)
     wait_serving(microseconds);
 }
 
-static const DacBus SERVING_BUS = {dac_write,     dac_read, dac_set_pin,
-                                   serving_delay, NULL,     &dop_mode};
+static const DacBus SERVING_BUS = {dac_write, dac_read,  dac_set_pin, serving_delay,
+                                   NULL,      &dop_mode, &wideband};
+
+CORE_COLD bool dac_path_set_equalizer(const DacEqProgram *program)
+{
+    if (!dac_up || !muted || dop_mode || (program == NULL && eq_result == DAC_EQ_OFF)) {
+        return false;
+    }
+    eq_result = dac_sequence_equalizer(&SERVING_BUS, program, analog.filter, wideband_rate);
+    if (eq_result == DAC_EQ_FAILED) {
+        eq_result = dac_sequence_equalizer(&SERVING_BUS, NULL, analog.filter, wideband_rate);
+    }
+    wideband = wideband_rate && eq_result == DAC_EQ_OFF;
+    return eq_result == DAC_EQ_ON;
+}
 
 CORE_COLD static __attribute__((noinline)) void fade_to(uint8_t target)
 {
@@ -613,14 +631,14 @@ CORE_COLD static bool apply_analog(DacAnalog next)
 
 CORE_COLD void dac_path_set_muted(bool mute)
 {
-    muted = mute;
+    muted = mute || eq_result == DAC_EQ_FAILED;
     output_blocked = false;
     if (mute) {
         fade_to(DAC_VOLUME_MUTED);
         dac_set_muted(&BUS, true, DAC_VOLUME_MUTED);
         return;
     }
-    if (guarded || (chip_analog.filter == DAC_ANALOG_UNKNOWN && !apply_analog(analog))) {
+    if (muted || guarded || (chip_analog.filter == DAC_ANALOG_UNKNOWN && !apply_analog(analog))) {
         return;
     }
     uint8_t target = current_volume();

@@ -71,6 +71,17 @@ static void the_requested_clock_is_the_ceiling(void)
     CHECK_EQUAL(100u, core1_pace_mhz(200, governor.divider));
 }
 
+static void the_native_dop_ceiling_follows_both_pll_rates(void)
+{
+    ClockGovernor governor;
+    clock_governor_start(&governor, core1_pace_limits(200, 50), at(0, 0));
+    CHECK_EQUAL(50u, core1_pace_mhz(200, governor.divider));
+    CHECK(!clock_governor_update(&governor, at(50000000, 50000000)));
+    clock_governor_start(&governor, core1_pace_limits(96, 50), at(0, 0));
+    CHECK_EQUAL(48u, core1_pace_mhz(96, governor.divider));
+    CHECK(!clock_governor_update(&governor, at(50000000, 50000000)));
+}
+
 static void a_light_load_steps_down_to_25_megahertz_and_hurrying_restores_the_ceiling(void)
 {
     ClockGovernor governor;
@@ -131,6 +142,7 @@ int main(void)
         TEST_CASE(each_clock_maps_to_its_divider_field),
         TEST_CASE(the_divider_and_timer_follow_the_96_mhz_pll),
         TEST_CASE(the_requested_clock_is_the_ceiling),
+        TEST_CASE(the_native_dop_ceiling_follows_both_pll_rates),
         TEST_CASE(a_light_load_steps_down_to_25_megahertz_and_hurrying_restores_the_ceiling),
         TEST_CASE(a_core_1_that_never_rests_returns_to_its_ceiling_after_one_window),
         TEST_CASE(a_boosted_core_1_settles_at_the_lowest_clock_that_keeps_up),

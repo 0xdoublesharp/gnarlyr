@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 #include "check.h"
-#include "device/dac_sequence.h"
+#include "device/dac_eq.h"
 
 enum {
     LEFT = 0x60,
@@ -140,7 +140,7 @@ static void fake_delay(void *context, uint32_t microseconds)
 static DacBus fresh_bus(void)
 {
     fake = (FakeBus){.count = 0};
-    return (DacBus){fake_write, fake_read, fake_pin, fake_delay, NULL, NULL};
+    return (DacBus){fake_write, fake_read, fake_pin, fake_delay, NULL, NULL, NULL};
 }
 
 static int cursor;
@@ -686,7 +686,7 @@ static int analog_writes_while_powered_up;
 
 static bool counting_write(void *context, uint8_t address, uint32_t map, uint8_t value)
 {
-    if (map == 0x080000 || map == 0x090000) {
+    if (map == 0x080000 || map == 0x090000 || (map >= 0x09000A && map <= 0x090041)) {
         if (powered_down_on_both_chips()) {
             analog_writes_while_powered_down++;
         } else {
@@ -746,12 +746,83 @@ static void start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_
     }
 }
 
+static void start_up_selects_the_clock_family_and_wideband_filter(void)
+{
+    const uint8_t clocks[] = {0, 4, 0, 4, 0, 4, 0};
+    for (uint8_t rate = 0; rate < sizeof clocks; rate++) {
+        DacBus bus = fresh_bus();
+        CHECK_EQUAL(DAC_READY, dac_configure(&bus, rate, STOCK_START));
+        CHECK_EQUAL(clocks[rate], last_write(LEFT, 0x010006));
+        CHECK_EQUAL(clocks[rate], last_write(RIGHT, 0x010006));
+        CHECK_EQUAL(rate == 6 ? 0x06 : 0x02, last_write(LEFT, 0x090000));
+        CHECK_EQUAL(rate == 6 ? 0x06 : 0x02, last_write(RIGHT, 0x090000));
+    }
+    DacBus bus = fresh_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, (DacAnalog){.filter = 4}));
+    CHECK_EQUAL(0x22, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0x22, last_write(RIGHT, 0x090000));
+}
+
 static void an_unknown_filter_starts_with_stock_default_filter(void)
 {
     DacBus bus = fresh_bus();
     CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1, (DacAnalog){.filter = DAC_ANALOG_FILTERS}));
     CHECK_EQUAL(0x02, last_write(LEFT, 0x090000));
     CHECK_EQUAL(0x02, last_write(RIGHT, 0x090000));
+}
+
+static void hardware_eq_and_wideband_switch_with_both_outputs_powered_down(void)
+{
+    DacBus bus = counting_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, STOCK_START));
+    const DacEqProgram eq = {.enabled = true, .control1 = 0xC0, .control2 = 8};
+    CHECK_EQUAL(DAC_EQ_ON, dac_sequence_equalizer(&bus, &eq, 0, true));
+    CHECK_EQUAL(0x02, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0xC0, last_write(LEFT, 0x09000A));
+    CHECK_EQUAL(0xC0, last_write(RIGHT, 0x09000A));
+    CHECK_EQUAL(DAC_EQ_OFF, dac_sequence_equalizer(&bus, NULL, 0, true));
+    CHECK_EQUAL(0x06, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0x06, last_write(RIGHT, 0x090000));
+    CHECK_EQUAL(0, last_write(LEFT, 0x09000A));
+    CHECK_EQUAL(0, last_write(RIGHT, 0x09000A));
+    CHECK_EQUAL(0, analog_writes_while_powered_up);
+    CHECK_EQUAL(0xA6, fake.power_control[0]);
+    CHECK_EQUAL(0xA6, fake.power_control[1]);
+}
+
+static bool reject_a_coefficient(void *context, uint8_t address, uint32_t map, uint8_t value)
+{
+    return (map != 0x09000D || address != RIGHT) && counting_write(context, address, map, value);
+}
+
+static void failed_hardware_eq_restores_both_chips_to_wideband_pcm(void)
+{
+    DacBus bus = counting_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, STOCK_START));
+    bus.write = reject_a_coefficient;
+    const DacEqProgram eq = {.enabled = true, .control1 = 0xC0, .control2 = 8};
+    CHECK_EQUAL(DAC_EQ_OFF, dac_sequence_equalizer(&bus, &eq, 0, true));
+    CHECK_EQUAL(0x06, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0x06, last_write(RIGHT, 0x090000));
+    CHECK_EQUAL(0, last_write(LEFT, 0x09000A));
+    CHECK_EQUAL(0, last_write(RIGHT, 0x09000A));
+    CHECK_EQUAL(0, analog_writes_while_powered_up);
+    CHECK_EQUAL(0xA6, fake.power_control[0]);
+    CHECK_EQUAL(0xA6, fake.power_control[1]);
+}
+
+static void wideband_filter_switching_via_nos_powers_the_outputs_down(void)
+{
+    DacBus bus = counting_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, STOCK_START));
+    bool wideband = true;
+    bus.wideband = &wideband;
+    DacAnalog nos = {.filter = 4};
+    CHECK(dac_apply_analog(&bus, STOCK_START, nos));
+    CHECK_EQUAL(0x22, last_write(LEFT, 0x090000));
+    CHECK(dac_apply_analog(&bus, nos, STOCK_START));
+    CHECK_EQUAL(0x06, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0, analog_writes_while_powered_up);
 }
 
 static bool next_read_modify_write(uint8_t address, uint8_t after)
@@ -1059,6 +1130,10 @@ int main(void)
         TEST_CASE(setting_independent_volumes_writes_each_chip),
         TEST_CASE(dop64_configures_and_clears_the_dsd_path_with_the_port_down),
         TEST_CASE(start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down),
+        TEST_CASE(start_up_selects_the_clock_family_and_wideband_filter),
+        TEST_CASE(hardware_eq_and_wideband_switch_with_both_outputs_powered_down),
+        TEST_CASE(failed_hardware_eq_restores_both_chips_to_wideband_pcm),
+        TEST_CASE(wideband_filter_switching_via_nos_powers_the_outputs_down),
         TEST_CASE(an_unknown_filter_starts_with_stock_default_filter),
         TEST_CASE(a_gain_change_powers_the_outputs_down_around_the_register_write),
         TEST_CASE(gain_registers_are_written_only_after_both_chips_report_power_down_done),
