@@ -863,7 +863,35 @@ static void blocks_larger_than_the_buffer_are_refused(void)
 {
     Buffer flac = load("big_blocks_16", "flac");
     CHECK(flac.size > 0);
+    flac_set_sample_buffers(&decoder, NULL, NULL, 0);
     CHECK_EQUAL(FLAC_UNSUPPORTED, flac_open(&decoder, input_of(&flac)));
+    free(flac.bytes);
+}
+
+static void large_block_buffers_decode_big_blocks_and_protect_without_buffers(void)
+{
+    static int32_t left[FLAC_MAX_LARGE_BLOCK];
+    static int32_t right[FLAC_MAX_LARGE_BLOCK];
+    Buffer flac = load("big_blocks_16", "flac");
+    CHECK(flac.size > 0);
+    flac_set_sample_buffers(&decoder, NULL, NULL, 0);
+    flac_set_max_block(&decoder, FLAC_MAX_LARGE_BLOCK);
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&flac)));
+    CHECK(decoder.info.max_block > FLAC_MAX_BLOCK);
+    CHECK_EQUAL(FLAC_ERROR, flac_decode_frame(&decoder));
+    flac_set_sample_buffers(&decoder, left, right, FLAC_MAX_LARGE_BLOCK);
+    CHECK_EQUAL(FLAC_OK, flac_open(&decoder, input_of(&flac)));
+    uint32_t total = 0;
+    FlacResult result;
+    while ((result = flac_decode_frame(&decoder)) == FLAC_OK) {
+        CHECK(decoder.block_samples > 0);
+        CHECK(decoder.block_samples <= FLAC_MAX_LARGE_BLOCK);
+        CHECK(flac_channel(&decoder, 0) == left);
+        total += decoder.block_samples;
+    }
+    CHECK_EQUAL(FLAC_END, result);
+    CHECK_EQUAL(decoder.info.total_samples, total);
+    flac_set_sample_buffers(&decoder, NULL, NULL, 0);
     free(flac.bytes);
 }
 
@@ -1424,6 +1452,7 @@ int main(void)
         TEST_CASE(a_frame_crossing_the_sample_position_limit_is_rejected),
         TEST_CASE(a_frame_ending_at_the_sample_position_limit_decodes_and_seeks),
         TEST_CASE(blocks_larger_than_the_buffer_are_refused),
+        TEST_CASE(large_block_buffers_decode_big_blocks_and_protect_without_buffers),
         TEST_CASE(unsupported_streaminfo_limits_are_rejected),
         TEST_CASE(metadata_offsets_never_wrap_to_the_start_of_a_large_file),
         TEST_CASE(streaminfo_must_be_first_and_unique),

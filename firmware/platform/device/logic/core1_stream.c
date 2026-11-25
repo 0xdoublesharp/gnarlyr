@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/seam.h"
+#include "device/core1_control.h"
 #include "device/core1_source_private.h"
 
 void core1_publish(void)
@@ -26,6 +27,21 @@ static void start_flac(void *context, FlacInput input, FlacInfo info, uint32_t f
     Core1Flac *flac = context;
     (void)first_sample;
     flac->starved = starved;
+    flac->staged = 0;
+    flac->taken = 0;
+    flac->staged_first = 0;
+    flac->staged_position = 0;
+    bool large = info.max_block > FLAC_MAX_BLOCK && flac->large_channels[0] != NULL &&
+                 flac->large_channels[1] != NULL;
+    if (large) {
+        flac_set_sample_buffers(flac->decoder, flac->large_channels[0], flac->large_channels[1],
+                                FLAC_MAX_LARGE_BLOCK);
+    } else {
+        flac_set_sample_buffers(flac->decoder, NULL, NULL, 0);
+    }
+    if (flac->ring_bytes != NULL) {
+        *flac->ring_bytes = large ? CORE1_FLAC_LARGE_RING_BYTES : flac->full_ring_bytes;
+    }
     flac_start(flac->decoder, input, info);
 }
 
@@ -33,25 +49,34 @@ static Core1DecodeResult decode_flac(void *context, Core1Block *block)
 {
     Core1Flac *flac = context;
     FlacDecoder *decoder = flac->decoder;
-    uint32_t frame_start = flac_position(decoder);
-    FlacResult result = flac_decode_frame(decoder);
-    if (*flac->starved) {
-        flac_rewind(decoder, frame_start);
-        return CORE1_STARVED;
+    if (flac->taken == flac->staged) {
+        uint32_t frame_start = flac_position(decoder);
+        FlacResult result = flac_decode_frame(decoder);
+        if (*flac->starved) {
+            flac_rewind(decoder, frame_start);
+            return CORE1_STARVED;
+        }
+        if (result == FLAC_END) {
+            return CORE1_FINISHED;
+        }
+        if (result != FLAC_OK) {
+            return CORE1_FAILED;
+        }
+        flac->staged = decoder->block_samples;
+        flac->taken = 0;
+        flac->staged_first = decoder->frame_first_sample;
+        flac->staged_position = flac_position(decoder);
     }
-    if (result == FLAC_END) {
-        return CORE1_FINISHED;
-    }
-    if (result != FLAC_OK) {
-        return CORE1_FAILED;
-    }
+    uint32_t remaining = flac->staged - flac->taken;
+    uint32_t count = core1_smaller(remaining, block->room);
     for (int channel = 0; channel < FLAC_MAX_CHANNELS; channel++) {
         block->channels[channel] =
-            flac_channel(decoder, channel < decoder->info.channels ? channel : 0);
+            flac_channel(decoder, channel < decoder->info.channels ? channel : 0) + flac->taken;
     }
-    block->first_sample = decoder->frame_first_sample;
-    block->samples = decoder->block_samples;
-    block->position = flac_position(decoder);
+    block->first_sample = flac->staged_first + flac->taken;
+    block->samples = count;
+    block->position = flac->staged_position;
+    flac->taken += count;
     return CORE1_DECODED;
 }
 
@@ -59,6 +84,15 @@ Core1Decoder core1_flac_decoder(Core1Flac *flac, FlacDecoder *decoder)
 {
     *flac = (Core1Flac){.decoder = decoder, .starved = NULL};
     return (Core1Decoder){start_flac, decode_flac, flac, false};
+}
+
+void core1_flac_set_large_buffers(Core1Flac *flac, int32_t *left, int32_t *right,
+                                  uint32_t *ring_bytes, uint32_t full_ring_bytes)
+{
+    flac->large_channels[0] = left;
+    flac->large_channels[1] = right;
+    flac->ring_bytes = ring_bytes;
+    flac->full_ring_bytes = full_ring_bytes;
 }
 
 void core1_stream_init(Core1Stream *stream, StreamRegion region, Core1Decoder decoder)
@@ -95,7 +129,10 @@ static bool read_ring(void *context, uint32_t offset, void *buffer, uint32_t len
     }
     uint32_t position = stream->start_offset + offset;
     if (position + length > control->written) {
-        stream->starved = true;
+        if (control->written - control->released < stream->region.ring_bytes &&
+            control->written < stream->end_offset) {
+            stream->starved = true;
+        }
         return false;
     }
     core1_observe();
@@ -113,8 +150,9 @@ static uint32_t largest_block(uint32_t max_block, bool fits_any_room)
 
 uint32_t core1_stream_handoff_frames(uint32_t min_block, uint32_t max_block, bool fits_any_room)
 {
+    uint32_t capped_min = min_block > FLAC_MAX_BLOCK ? FLAC_MAX_BLOCK : min_block;
     uint32_t least = FLAC_MAX_BLOCK + 1 - largest_block(max_block, fits_any_room);
-    return min_block > least ? min_block : least;
+    return capped_min > least ? capped_min : least;
 }
 
 uint32_t core1_stream_input_ms(uint32_t ring_bytes, AudioTrackInfo track)

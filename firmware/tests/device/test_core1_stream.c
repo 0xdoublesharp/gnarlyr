@@ -781,6 +781,34 @@ static void a_full_hand_off_holds_at_least_the_bound_core_0_rests_on(void)
     CHECK_EQUAL(3457u, core1_stream_handoff_frames(1152, 1152, false));
     CHECK_EQUAL((uint32_t)FLAC_MAX_BLOCK, core1_stream_handoff_frames(120, 4608, true));
     CHECK_EQUAL(1152u, core1_stream_handoff_frames(1152, 4608, false));
+    CHECK_EQUAL((uint32_t)FLAC_MAX_BLOCK, core1_stream_handoff_frames(16384, 16384, false));
+}
+
+static void large_block_flac_streams_across_multiple_slots(void)
+{
+    static int32_t large_left[FLAC_MAX_LARGE_BLOCK];
+    static int32_t large_right[FLAC_MAX_LARGE_BLOCK];
+    start(BIG_RING_BYTES);
+    core1_flac_set_large_buffers(&core1_flac, large_left, large_right, &stream.region.ring_bytes,
+                                 BIG_RING_BYTES);
+    AudioTrackInfo track;
+    CHECK(interface.open(interface.context, "big_blocks_16", 0, &track));
+    CHECK(track.stream.max_block > FLAC_MAX_BLOCK);
+    uint32_t total = 0;
+    uint32_t handoffs = 0;
+    AudioFrame frame;
+    AudioFrameResult result;
+    while ((result = next_frame(&frame)) == AUDIO_FRAME_READY) {
+        CHECK_EQUAL(total, frame.first_sample);
+        CHECK(frame.samples > 0 && frame.samples <= FLAC_MAX_BLOCK);
+        total += frame.samples;
+        handoffs++;
+        interface.release(interface.context);
+    }
+    CHECK_EQUAL(AUDIO_FRAME_END, result);
+    CHECK_EQUAL(track.stream.total_samples, total);
+    CHECK(handoffs >= 2);
+    interface.close(interface.context);
 }
 
 int main(void)
@@ -816,6 +844,7 @@ int main(void)
         TEST_CASE(the_end_after_a_gathered_slot_waits_for_a_free_slot),
         TEST_CASE(large_blocks_keep_one_block_per_hand_off),
         TEST_CASE(a_full_hand_off_holds_at_least_the_bound_core_0_rests_on),
+        TEST_CASE(large_block_flac_streams_across_multiple_slots),
         TEST_CASE(the_input_ring_lasts_as_long_as_the_stream_takes_to_read_it),
     };
     int failures = test_run_all(cases, TEST_CASE_COUNT(cases));

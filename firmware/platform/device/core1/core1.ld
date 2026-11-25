@@ -41,5 +41,6 @@ SECTIONS
 }
 
 ASSERT(ADDR(.text) == 0, "core 1 code must start at its address 0")
+ASSERT(ADDR(.text) + SIZEOF(.text) <= 0x8000, "core 1 code must stay below 0x8000 for large FLAC buffers")
 ASSERT(SIZEOF(.data) == 0, "core 1 has no initialised data: make globals const")
 ASSERT(core1_bss_end <= 0x0102D000, "core 1 .bss must stay below its stack at 0x0102D000-0x0102E000")

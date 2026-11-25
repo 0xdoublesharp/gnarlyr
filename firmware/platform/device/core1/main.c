@@ -172,6 +172,9 @@ void core1_main(void)
     }
     use_accelerator(register_read(CORE1_SHARED_ACCEL_CLASSES));
     core1_stream_init(&stream, core1_region(), core1_flac_decoder(&flac, &decoder));
+    core1_flac_set_large_buffers(&flac, (int32_t *)(uintptr_t)CORE1_FLAC_LARGE_CH0,
+                                 (int32_t *)(uintptr_t)CORE1_FLAC_LARGE_CH1,
+                                 &stream.region.ring_bytes, CORE1_STREAM_RING_BYTES);
     core1_idle_start();
     core1_serve(&stream);
 }

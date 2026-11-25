@@ -250,7 +250,7 @@ class ReportChecks(unittest.TestCase):
 
         def fake_streamer(rate, amplitude, connect_timeout, stream_timeout):
             streamed.append((rate, amplitude))
-            return {"ok": True, "device": "Gnarlyr Echo DAC", "rate": rate, "frames": 576000}
+            return {"ok": True, "device": echo_debug.IDENTITY["usb_dac_name"], "rate": rate, "frames": 576000}
 
         output = io.StringIO()
         with patch.object(echo_debug.Tool, "wait_for_return", return_value=None):
@@ -297,7 +297,7 @@ class ReportChecks(unittest.TestCase):
                 "usb.dac.max_gap_us": 115,
                 "usb.dac.max_gap_pc": "0x03081234",
             })
-            return {"ok": True, "device": "Gnarlyr Echo DAC", "rate": rate, "bits": bits, "frames": 576000}
+            return {"ok": True, "device": echo_debug.IDENTITY["usb_dac_name"], "rate": rate, "bits": bits, "frames": 576000}
 
         output = io.StringIO()
         with patch.object(echo_debug.Tool, "wait_for_return", return_value=None), \
@@ -333,7 +333,7 @@ class ReportChecks(unittest.TestCase):
                 "usb.dac.realigned": 0,
                 "usb.dac.max_gap_us": 110,
             })
-            return {"ok": True, "device": "Gnarlyr Echo DAC", "rate": rate, "bits": bits, "frames": 576000}
+            return {"ok": True, "device": echo_debug.IDENTITY["usb_dac_name"], "rate": rate, "bits": bits, "frames": 576000}
 
         output = io.StringIO()
         with patch.object(echo_debug.Tool, "wait_for_return", return_value=None), \
@@ -425,6 +425,95 @@ class ReportChecks(unittest.TestCase):
             self.assertTrue(ui_res["ok"])
             self.assertTrue(ui_res["rtc_ok"])
             self.assertEqual(ui_res["bad_lines"], [])
+
+    def test_codec_and_settings_playbook_scripts_fit_firmware_limits(self):
+        catalog = {
+            "internal_has_music": True,
+            "folders": {
+                "Batch 4 Checks": {
+                    "row": 1,
+                    "tracks": [
+                        "01 FLAC 96k 24-bit small blocks 3 min.flac",
+                        "02 FLAC 44.1k 20 s (then 48k).flac",
+                        "03 FLAC 48k 20 s.flac",
+                        "04 MP3 60 min.mp3",
+                        "05 FLAC 1 min (before damaged).flac",
+                        "06 Damaged (cannot be read).flac",
+                        "07 FLAC 20 s (after damaged).flac",
+                        "08 Opus 48k 20 ms frames 1 min.opus",
+                        "09 Vorbis 44.1k 1 min.ogg",
+                    ],
+                },
+                "Beta Checks": {
+                    "row": 3,
+                    "tracks": [
+                        "15 AIFF 44k 16-bit stereo.aiff",
+                        "16 WMA v2 128k stereo.wma",
+                        "17 APE 16-bit stereo (short).ape",
+                        "19 DSD64 sine 5s.dsf",
+                    ],
+                },
+                "Codec Checks": {
+                    "row": 4,
+                    "tracks": [
+                        "01 WAV 44k 16-bit stereo.wav",
+                        "02 WAV 96k 24-bit stereo.wav",
+                        "03 WAV 8k 16-bit mono.wav",
+                        "04 FLAC 44k 24-bit stereo.flac",
+                        "05 FLAC 192k 24-bit stereo.flac",
+                        "06 MP3 CBR 320k stereo.mp3",
+                        "07 MP3 VBR stereo.mp3",
+                        "08 AAC-LC 44k stereo.m4a",
+                        "09 AAC-LC 16k mono.m4a",
+                        "10 ALAC 44k 24-bit stereo.m4a",
+                        "11 Vorbis 44k stereo.ogg",
+                        "12 Vorbis 48k stereo.ogg",
+                        "13 Opus 48k stereo.opus",
+                        "14 Ogg Opus 48k stereo.ogg",
+                    ],
+                },
+            },
+        }
+
+        def count_ops(script_text):
+            ops = 0
+            measures = 0
+            for raw in script_text.splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or line.startswith("build "):
+                    continue
+                if line.startswith("measure "):
+                    measures += 1
+                    ops += 1
+                elif any(line.startswith(cmd) for cmd in ("open ", "wait ", "set ", "screen ", "reconnect", "profile ", "rtc ", "rescan ", "screenshot ")):
+                    ops += 1
+                else:
+                    ops += len(line.split(","))
+            return ops, measures
+
+        codec_plan = echo_hw_check.build_codec_plan(catalog)
+        self.assertEqual(len(codec_plan), 7)
+        for batch in codec_plan:
+            data = echo_debug.prepare_script(batch["script"], BUILD)
+            self.assertLessEqual(len(data), echo_debug.SCRIPT_BYTES, batch["name"])
+            ops, measures = count_ops(batch["script"])
+            self.assertLessEqual(ops, 48, f"{batch['name']} ops={ops}")
+            self.assertLessEqual(measures, 4, f"{batch['name']} measures={measures}")
+
+        settings_plan = echo_hw_check.build_settings_plan(1, track_idx=0)
+        self.assertEqual(len(settings_plan), 4)
+        for batch in settings_plan:
+            data = echo_debug.prepare_script(batch["script"], BUILD)
+            self.assertLessEqual(len(data), echo_debug.SCRIPT_BYTES, batch["name"])
+            ops, measures = count_ops(batch["script"])
+            self.assertLessEqual(ops, 48, f"{batch['name']} ops={ops}")
+            self.assertLessEqual(measures, 4, f"{batch['name']} measures={measures}")
+
+        owner = echo_hw_check.decode_owner_settings(self.volume)
+        restore = echo_hw_check.build_settings_restore_script(owner)
+        restore_bytes = echo_debug.prepare_script(restore, BUILD)
+        self.assertLessEqual(len(restore_bytes), echo_debug.SCRIPT_BYTES)
+        self.assertEqual(echo_hw_check.parse_bits_list("16,24,32"), [16, 24, 32])
 
 
 class ScriptAndChecklist(unittest.TestCase):

@@ -1,15 +1,19 @@
+#include "device/core1_control.h"
 #include "device/core1_source_private.h"
 
 bool core1_open_flac(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track)
 {
     Core1Source *source = context;
     core1_source_stop(source);
-    source->region.ring_bytes = source->ring_capacity;
+    FlacDecoder *decoder = source->flac.decoder;
+    flac_set_max_block(decoder, FLAC_MAX_LARGE_BLOCK);
     if (!flac_source_open_at(&source->flac, path, start_ms, track)) {
+        flac_set_max_block(decoder, 0);
         return false;
     }
     const FlacInfo *info = &track->stream;
-    FlacDecoder *decoder = source->flac.decoder;
+    source->region.ring_bytes =
+        info->max_block > FLAC_MAX_BLOCK ? CORE1_FLAC_LARGE_RING_BYTES : source->ring_capacity;
     source->input = decoder->bits.input;
     source->start_offset = flac_position(decoder);
     source->end_offset = source->input.size;

@@ -74,7 +74,23 @@ static bool id3_start(FlacBits *bits, uint32_t *start)
     return true;
 }
 
-static FlacResult read_streaminfo(FlacBits *bits, FlacInfo *info)
+static uint32_t header_block_limit(const FlacDecoder *decoder)
+{
+    return decoder->max_block_limit != 0 ? decoder->max_block_limit : FLAC_MAX_BLOCK;
+}
+
+static uint32_t decode_block_limit(const FlacDecoder *decoder)
+{
+    return decoder->sample_capacity != 0 ? decoder->sample_capacity : FLAC_MAX_BLOCK;
+}
+
+static int32_t *channel_samples(FlacDecoder *decoder, int channel)
+{
+    return decoder->sample_channels[channel] != NULL ? decoder->sample_channels[channel]
+                                                     : decoder->samples[channel];
+}
+
+static FlacResult read_streaminfo(FlacBits *bits, FlacInfo *info, uint32_t max_block)
 {
     info->min_block = (uint16_t)flac_bits_read(bits, 16);
     info->max_block = (uint16_t)flac_bits_read(bits, 16);
@@ -93,12 +109,13 @@ static FlacResult read_streaminfo(FlacBits *bits, FlacInfo *info)
         (min_frame != 0 && max_frame != 0 && max_frame < min_frame) || info->bits_per_sample < 4) {
         return FLAC_ERROR;
     }
-    bool supported = high == 0 && info->max_block <= FLAC_MAX_BLOCK &&
+    bool supported = high == 0 && info->max_block <= max_block &&
                      info->channels <= FLAC_MAX_CHANNELS && info->bits_per_sample <= FLAC_MAX_BITS;
     return supported ? FLAC_OK : FLAC_UNSUPPORTED;
 }
 
-static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_offset)
+static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_offset,
+                                uint32_t max_block)
 {
     bool last = false;
     bool found = false;
@@ -119,7 +136,7 @@ static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_
             if (length != STREAMINFO_BYTES) {
                 return FLAC_ERROR;
             }
-            FlacResult result = read_streaminfo(bits, info);
+            FlacResult result = read_streaminfo(bits, info, max_block);
             if (result != FLAC_OK) {
                 return result;
             }
@@ -131,7 +148,8 @@ static FlacResult read_metadata(FlacBits *bits, FlacInfo *info, uint32_t *audio_
     return found ? FLAC_OK : FLAC_ERROR;
 }
 
-FlacResult flac_read_header(FlacBits *bits, FlacInput input, FlacInfo *info, uint32_t *audio_offset)
+static FlacResult read_header(FlacBits *bits, FlacInput input, FlacInfo *info,
+                              uint32_t *audio_offset, uint32_t max_block)
 {
     *info = (FlacInfo){0};
     flac_bits_start(bits, input, 0);
@@ -143,7 +161,12 @@ FlacResult flac_read_header(FlacBits *bits, FlacInput input, FlacInfo *info, uin
     if (flac_bits_read(bits, 32) != MAGIC || bits->failed) {
         return FLAC_ERROR;
     }
-    return read_metadata(bits, info, audio_offset);
+    return read_metadata(bits, info, audio_offset, max_block);
+}
+
+FlacResult flac_read_header(FlacBits *bits, FlacInput input, FlacInfo *info, uint32_t *audio_offset)
+{
+    return read_header(bits, input, info, audio_offset, FLAC_MAX_BLOCK);
 }
 
 static void reset_counters(FlacDecoder *decoder)
@@ -157,7 +180,8 @@ FlacResult flac_open(FlacDecoder *decoder, FlacInput input)
 {
     reset_counters(decoder);
     decoder->audio_offset = 0;
-    return flac_read_header(&decoder->bits, input, &decoder->info, &decoder->audio_offset);
+    return read_header(&decoder->bits, input, &decoder->info, &decoder->audio_offset,
+                       header_block_limit(decoder));
 }
 
 void flac_start(FlacDecoder *decoder, FlacInput input, FlacInfo info)
@@ -270,7 +294,8 @@ static bool read_frame_header(FlacDecoder *decoder, FrameHeader *header)
     header->channels =
         header->channel_assignment < CHANNEL_LEFT_SIDE ? header->channel_assignment + 1 : 2;
     return sample_rate == decoder->info.sample_rate && header->block_size > 0 &&
-           header->block_size <= FLAC_MAX_BLOCK && header->block_size <= decoder->info.max_block &&
+           header->block_size <= header_block_limit(decoder) &&
+           header->block_size <= decoder->info.max_block &&
            header->block_size <= UINT32_MAX - header->first_sample && header->bits_per_sample > 0 &&
            header->bits_per_sample <= FLAC_MAX_BITS &&
            header->bits_per_sample == decoder->info.bits_per_sample &&
@@ -627,8 +652,8 @@ static void undo_mid_side(int32_t *first, int32_t *second, uint32_t block_size)
 
 static void decorrelate(FlacDecoder *decoder, const FrameHeader *header)
 {
-    int32_t *first = decoder->samples[0];
-    int32_t *second = decoder->samples[1];
+    int32_t *first = channel_samples(decoder, 0);
+    int32_t *second = channel_samples(decoder, 1);
     uint32_t block_size = header->block_size;
     switch (header->channel_assignment) {
     case CHANNEL_LEFT_SIDE:
@@ -665,7 +690,7 @@ FlacResult flac_decode_frame(FlacDecoder *decoder)
         return FLAC_END;
     }
     FrameHeader header;
-    if (!read_frame_header(decoder, &header)) {
+    if (!read_frame_header(decoder, &header) || header.block_size > decode_block_limit(decoder)) {
         return FLAC_ERROR;
     }
     if (known_total && (header.first_sample >= decoder->info.total_samples ||
@@ -674,7 +699,8 @@ FlacResult flac_decode_frame(FlacDecoder *decoder)
     }
     for (uint32_t channel = 0; channel < header.channels; channel++) {
         uint32_t width = channel_width(&header, (int)channel);
-        if (!read_subframe(decoder, decoder->samples[channel], header.block_size, width)) {
+        if (!read_subframe(decoder, channel_samples(decoder, (int)channel), header.block_size,
+                           width)) {
             return FLAC_ERROR;
         }
     }
@@ -690,7 +716,8 @@ FlacResult flac_decode_frame(FlacDecoder *decoder)
 
 const int32_t *flac_channel(const FlacDecoder *decoder, int channel)
 {
-    return decoder->samples[channel];
+    return decoder->sample_channels[channel] != NULL ? decoder->sample_channels[channel]
+                                                     : decoder->samples[channel];
 }
 
 static bool frame_at(FlacDecoder *decoder, uint32_t offset, FrameHeader *header)
@@ -791,4 +818,21 @@ void flac_rewind(FlacDecoder *decoder, uint32_t position)
 void flac_set_lpc_hook(FlacDecoder *decoder, FlacLpcHook hook)
 {
     decoder->lpc_hook = hook;
+}
+
+void flac_set_max_block(FlacDecoder *decoder, uint32_t max_block)
+{
+    decoder->max_block_limit =
+        (uint16_t)(max_block <= FLAC_MAX_LARGE_BLOCK ? max_block : FLAC_MAX_LARGE_BLOCK);
+}
+
+void flac_set_sample_buffers(FlacDecoder *decoder, int32_t *left, int32_t *right, uint32_t capacity)
+{
+    bool attached = left != NULL && right != NULL && capacity > 0;
+    uint16_t clamped =
+        (uint16_t)(capacity <= FLAC_MAX_LARGE_BLOCK ? capacity : FLAC_MAX_LARGE_BLOCK);
+    decoder->sample_channels[0] = attached ? left : NULL;
+    decoder->sample_channels[1] = attached ? right : NULL;
+    decoder->sample_capacity = attached ? clamped : 0;
+    decoder->max_block_limit = decoder->sample_capacity;
 }

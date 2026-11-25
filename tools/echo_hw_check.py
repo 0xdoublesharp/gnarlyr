@@ -99,7 +99,50 @@ profile off
 reconnect
 """
 
-PLAYBOOK_NAMES = ("storage", "ui", "playback", "rescan", "dac", "all")
+PLAYBOOK_NAMES = ("storage", "codecs", "settings", "ui", "playback", "rescan", "dac", "all", "certify")
+
+AUDIO_EXTENSIONS = {
+    ".wav", ".flac", ".mp3", ".m4a", ".aac", ".ogg", ".opus", ".aiff", ".aif",
+    ".wma", ".ape", ".dsf", ".dff",
+}
+
+SETTINGS_LABELS = {
+    "gain": ("Low", "High"),
+    "dac_filter": (
+        "Fast, low latency",
+        "Fast, phase compensated",
+        "Slow, low latency",
+        "Slow, phase compensated",
+        "Non-oversampling",
+    ),
+    "equalizer": ("Off", "Retro", "Bass", "Heavy", "Pop", "Jazz", "Unique", "Custom"),
+    "crossfeed": ("Off", "Low", "Medium", "High"),
+    "replay_gain": ("Off", "Track", "Album", "Auto"),
+    "prevent_clipping": ("Off", "On"),
+    "skip_silence": ("Off", "On"),
+    "speech_boost": ("Off", "On"),
+    "playback_speed": (
+        "0.5×", "0.75×", "Normal (1×)", "1.25×", "1.5×", "1.75×", "2×", "2.5×", "3×",
+    ),
+    "now_playing_style": ("Cover", "Cassette", "VU meters", "Spectrum"),
+    "orientation": ("Landscape", "Portrait", "Portrait, flipped"),
+    "text_size": ("Small", "Medium", "Large"),
+}
+
+SETTINGS_DISPLAY_NAMES = {
+    "gain": "Gain",
+    "dac_filter": "DAC filter",
+    "equalizer": "Equalizer",
+    "crossfeed": "Crossfeed",
+    "replay_gain": "ReplayGain",
+    "prevent_clipping": "Prevent clipping",
+    "skip_silence": "Skip silence",
+    "speech_boost": "Speech boost",
+    "playback_speed": "Playback speed",
+    "now_playing_style": "Now Playing style",
+    "orientation": "Orientation",
+    "text_size": "Text size",
+}
 
 COREAUDIO_STREAM_SWIFT = r"""
 import AudioToolbox
@@ -107,7 +150,7 @@ import CoreAudio
 import Foundation
 
 let args = CommandLine.arguments
-let names = args.count > 1 ? args[1].split(separator: "|").map(String.init) : ["Gnarlyr Echo DAC"]
+let names = args.count > 1 ? args[1].split(separator: "|").map(String.init) : []
 let rate = args.count > 2 ? (Double(args[2]) ?? 96000.0) : 96000.0
 let wantedBits: UInt32 = args.count > 3 ? (UInt32(args[3]) ?? 0) : 0
 let amplitude: Float = args.count > 4 ? (Float(args[4]) ?? 0.008) : 0.008
@@ -571,8 +614,23 @@ def parse_rates(value):
     return rates
 
 
+def parse_bits_list(value):
+    bits_list = []
+    for part in value.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        bits = int(part)
+        if bits not in VALID_BITS or bits == 0:
+            raise argparse.ArgumentTypeError(f"unsupported bit depth {bits}; choose from (16, 24, 32)")
+        bits_list.append(bits)
+    if not bits_list:
+        raise argparse.ArgumentTypeError("at least one bit depth is required")
+    return bits_list
+
+
 def stream_to_dac(rate, amplitude, connect_timeout, stream_timeout, bits=0):
-    names = "|".join([echo_debug.IDENTITY.get("usb_dac_name", "Gnarlyr Echo DAC"),
+    names = "|".join([echo_debug.IDENTITY.get("usb_dac_name", echo_debug.IDENTITY["name"] + " DAC"),
                       echo_debug.IDENTITY["name"]])
     result = subprocess.run(
         ["swift", "-", names, str(rate), str(bits), str(amplitude),
@@ -779,14 +837,591 @@ def extract_scan_timings(events):
     return {"events": scans, "duration_ms": duration}
 
 
+def _folder_has_audio(path):
+    try:
+        for child in path.iterdir():
+            if child.name.startswith("."):
+                continue
+            if child.is_file() and child.suffix.lower() in AUDIO_EXTENSIONS:
+                return True
+            if child.is_dir() and _folder_has_audio(child):
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def discover_folder_catalog(found):
+    internal_root = Path(found["volume"]) if found.get("volume") else None
+    internal_has_music = False
+    if internal_root is not None and internal_root.is_dir():
+        for child in internal_root.iterdir():
+            if child.name.startswith("."):
+                continue
+            if child.is_dir() and _folder_has_audio(child):
+                internal_has_music = True
+                break
+            if child.is_file() and child.suffix.lower() in AUDIO_EXTENSIONS:
+                internal_has_music = True
+                break
+    usb = found.get("usb") or {}
+    card_volumes = usb.get("card_volumes") or []
+    if not card_volumes:
+        return {"internal_has_music": internal_has_music, "card_root": None, "folders": {}}
+    card_root = Path(card_volumes[0]["mount_point"])
+    dirs = sorted(
+        (p for p in card_root.iterdir()
+         if p.is_dir() and not p.name.startswith(".") and p.name != "System Volume Information"),
+        key=lambda p: p.name.casefold(),
+    )
+    offset = 1 if internal_has_music else 0
+    db_path = card_root / echo_debug.DATA_DIRECTORY / "library.db"
+    db_bytes = None
+    try:
+        if db_path.is_file():
+            db_bytes = db_path.read_bytes()
+    except OSError:
+        db_bytes = None
+    folders = {}
+    for row_idx, folder in enumerate(dirs, start=offset):
+        raw_tracks = sorted(
+            (p.name for p in folder.iterdir()
+             if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in AUDIO_EXTENSIONS),
+            key=str.casefold,
+        )
+        if db_bytes is not None:
+            tracks = [
+                name for name in raw_tracks
+                if f"{folder.name}/{name}".encode("utf-8") in db_bytes
+            ]
+        else:
+            tracks = raw_tracks
+        folders[folder.name] = {"row": row_idx, "tracks": tracks}
+    return {"internal_has_music": internal_has_music, "card_root": str(card_root), "folders": folders}
+
+
+def folder_enter_lines(folder_row):
+    down_folder = ["down"] * folder_row + ["play"]
+    return [
+        "open coverflow",
+        "wait 200",
+        "back,down,down,down,down,down,play",
+        "wait 350",
+        ",".join(down_folder),
+        "wait 300",
+    ]
+
+
+def build_codec_batch_script(folder_row, items):
+    """Build a script playing up to 4 tracks/windows inside one folder."""
+    lines = folder_enter_lines(folder_row)
+    prev_idx = None
+    for track_idx, _label, wait_ms, measure_ms, screen_off, _expect_audio in items:
+        if prev_idx is None:
+            lines.append(",".join(["down"] * track_idx + ["play"]))
+        elif track_idx != prev_idx:
+            step = "down" if track_idx > prev_idx else "up"
+            lines.append(",".join(["back"] + [step] * abs(track_idx - prev_idx) + ["play"]))
+        if screen_off:
+            lines.extend(["screen off", "wait 400", f"measure {measure_ms}", "screen on", "wait 200"])
+        else:
+            lines.extend([f"wait {wait_ms}", f"measure {measure_ms}"])
+        prev_idx = track_idx
+    if items and items[-1][5]:
+        lines.append("play")
+    lines.extend(["open home", "reconnect"])
+    return "\n".join(lines) + "\n"
+
+
+def _find_track_index(tracks, prefix):
+    for idx, name in enumerate(tracks):
+        if name.lower().startswith(prefix.lower()):
+            return idx, name
+    return None, None
+
+
+def build_codec_plan(catalog):
+    """Return a list of batch dicts: {name, folder, script, windows: [{label, expect_audio}]}."""
+    folders = catalog.get("folders", {})
+    batches = []
+
+    def add_batch(name, folder_name, specs):
+        info = folders.get(folder_name)
+        if not info:
+            return
+        tracks = info["tracks"]
+        items = []
+        windows = []
+        for prefix, label, wait_ms, measure_ms, screen_off, expect_audio, buf_range in specs:
+            idx, real_name = _find_track_index(tracks, prefix)
+            if idx is None:
+                continue
+            items.append((idx, label, wait_ms, measure_ms, screen_off, expect_audio))
+            windows.append({
+                "label": label,
+                "track": real_name,
+                "expect_audio": expect_audio,
+                "buf_range": buf_range,
+            })
+        if items:
+            batches.append({
+                "name": name,
+                "folder": folder_name,
+                "script": build_codec_batch_script(info["row"], items),
+                "windows": windows,
+            })
+
+    add_batch("batch4_hires", "Batch 4 Checks", [
+        ("01 FLAC 96k", "FLAC 96k/24 small blocks (scr ON)", 800, 2400, False, True, (100, 175)),
+        ("01 FLAC 96k", "FLAC 96k/24 small blocks (scr OFF)", 400, 2400, True, True, (90, 175)),
+        ("02 FLAC 44.1k", "FLAC 44.1k (pre-switch)", 700, 2000, False, True, (280, 345)),
+        ("03 FLAC 48k", "FLAC 48k (rate switch)", 700, 2000, False, True, (255, 315)),
+    ])
+    add_batch("batch4_lossy", "Batch 4 Checks", [
+        ("05 FLAC 1 min", "FLAC 1m (44.1k)", 700, 1800, False, True, (280, 345)),
+        ("07 FLAC 20 s", "FLAC 20s (44.1k)", 700, 1800, False, True, (280, 345)),
+        ("08 Opus 48k", "Opus 48k 20ms", 700, 2200, False, True, (255, 315)),
+        ("09 Vorbis 44.1k", "Vorbis 44.1k", 700, 2200, False, True, (280, 345)),
+    ])
+    add_batch("codecs_1", "Codec Checks", [
+        ("01 WAV 44k", "WAV 44.1k/16 stereo", 700, 2000, False, True, (280, 345)),
+        ("02 WAV 96k", "WAV 96k/24 stereo", 700, 2000, False, True, (100, 175)),
+        ("03 WAV 8k", "WAV 8k/16 mono", 700, 2000, False, True, (390, 465)),
+        ("04 FLAC 44k", "FLAC 44.1k/24 stereo", 700, 2000, False, True, (280, 345)),
+    ])
+    add_batch("codecs_2", "Codec Checks", [
+        ("05 FLAC 192k", "FLAC 192k/24 stereo", 800, 2400, False, True, (40, 95)),
+        ("06 MP3 CBR", "MP3 CBR 320k", 700, 2000, False, True, (280, 345)),
+        ("07 MP3 VBR", "MP3 VBR 48k", 700, 2000, False, True, (255, 315)),
+        ("08 AAC-LC 44k", "AAC-LC 44.1k stereo", 700, 2000, False, True, (280, 345)),
+    ])
+    add_batch("codecs_3", "Codec Checks", [
+        ("09 AAC-LC 16k", "AAC-LC 16k mono", 700, 2000, False, True, (390, 465)),
+        ("10 ALAC 44k", "ALAC 44.1k/24 stereo", 700, 2000, False, True, (280, 345)),
+        ("11 Vorbis 44k", "Vorbis 44.1k stereo", 700, 2000, False, True, (280, 345)),
+        ("12 Vorbis 48k", "Vorbis 48k stereo", 700, 2000, False, True, (255, 315)),
+    ])
+    add_batch("codecs_4", "Codec Checks", [
+        ("13 Opus 48k", "Opus 48k stereo", 700, 2000, False, True, (255, 315)),
+        ("14 Ogg Opus", "Ogg Opus 48k stereo", 700, 2000, False, True, (255, 315)),
+    ])
+    add_batch("beta_codecs", "Beta Checks", [
+        ("15 AIFF", "AIFF 44.1k/16 stereo", 700, 2000, False, True, (280, 345)),
+        ("16 WMA", "WMA v2 128k stereo", 700, 2000, False, True, (280, 345)),
+        ("17 APE", "APE 16-bit stereo", 700, 1800, False, True, (255, 465)),
+        ("19 DSD64", "DSD64 DSF 2.8MHz", 500, 1800, False, True, (115, 195)),
+    ])
+    return batches
+
+
+def _measure_audio_active(measure):
+    val = measure.get("audio")
+    if val is None:
+        val = measure.get("audio_running")
+    return val == 1
+
+
+def _measure_core1_percent(measure):
+    permille = measure.get("core1_busy_permille")
+    if isinstance(permille, int):
+        return round(permille / 10.0, 1)
+    pct = measure.get("core1_busy_percent")
+    return float(pct) if isinstance(pct, (int, float)) else None
+
+
+def run_codecs_playbook(tool, build, max_underruns, timeout, expect_card=False, elf_dir=None):
+    found = wait_for_settled_luns(tool, expect_card=True)
+    had_card = bool(found.get("usb") and found["usb"].get("card_volumes"))
+    catalog = discover_folder_catalog(found)
+    plan = build_codec_plan(catalog)
+    if not plan:
+        return {
+            "ok": False,
+            "had_card": had_card,
+            "error": "no_codec_test_folders_found",
+            "batches": [],
+            "tracks": [],
+        }
+    batch_results = []
+    track_rows = []
+    all_ok = True
+    for batch in plan:
+        res = run_script_playbook(tool, batch["script"], build, max_underruns, timeout,
+                                  expect_card=had_card or expect_card, elf_dir=elf_dir)
+        had_card = had_card or res["had_card"]
+        measures = res.get("measures", [])
+        batch_ok = res["ok"] and len(measures) == len(batch["windows"])
+        for win, m in zip(batch["windows"], measures):
+            und = m.get("underruns") or 0
+            out_und = m.get("output_underruns") or 0
+            active = _measure_audio_active(m)
+            blocks = m.get("blocks") or 0
+            buf_ms = m.get("buffered_ms")
+            buf_range = win.get("buf_range")
+            buf_ok = True
+            if win["expect_audio"] and buf_range is not None:
+                buf_ok = isinstance(buf_ms, int) and buf_range[0] <= buf_ms <= buf_range[1]
+            row_ok = (
+                res["ok"]
+                and und <= max_underruns
+                and out_und <= max_underruns
+                and (not win["expect_audio"] or (active and blocks > 0 and buf_ok))
+            )
+            batch_ok = batch_ok and row_ok
+            track_rows.append({
+                "batch": batch["name"],
+                "label": win["label"],
+                "track": win["track"],
+                "expect_audio": win["expect_audio"],
+                "audio": 1 if active else 0,
+                "blocks": blocks,
+                "buffered_ms": m.get("buffered_ms"),
+                "core0_pct": m.get("core0_busy_percent"),
+                "core1_pct": _measure_core1_percent(m),
+                "audio_busy_pct": m.get("audio_busy_percent"),
+                "read_max_us": m.get("read_max_us"),
+                "handoff_max_us": m.get("handoff_max_us"),
+                "underruns": und,
+                "output_underruns": out_und,
+                "ok": row_ok,
+            })
+        all_ok = all_ok and batch_ok
+        batch_results.append({
+            "name": batch["name"],
+            "folder": batch["folder"],
+            "ok": batch_ok,
+            "script_state": res["script_state"],
+            "bad_lines": res["bad_lines"],
+            "profile_top": res.get("profile_top", []),
+        })
+    return {
+        "ok": all_ok,
+        "had_card": had_card,
+        "batches": batch_results,
+        "tracks": track_rows,
+    }
+
+
+def decode_owner_settings(root):
+    """Read the owner's saved settings.bin into set-command labels so sweeps restore them."""
+    path = Path(root) / echo_debug.DATA_DIRECTORY / "settings.bin"
+    defaults = {
+        "gain": "Low",
+        "dac_filter": "Fast, low latency",
+        "equalizer": "Off",
+        "crossfeed": "Off",
+        "replay_gain": "Off",
+        "prevent_clipping": "On",
+        "skip_silence": "Off",
+        "speech_boost": "Off",
+        "playback_speed": "Normal (1×)",
+        "now_playing_style": "Cover",
+        "orientation": "Landscape",
+        "text_size": "Medium",
+    }
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return defaults
+    if len(data) < 58 or data[:4] != b"DSST":
+        return defaults
+    ext = data[38:54]
+
+    def pick(key, index):
+        opts = SETTINGS_LABELS[key]
+        return opts[index] if 0 <= index < len(opts) else defaults[key]
+
+    speed_offset = ext[3] - 256 if ext[3] >= 128 else ext[3]
+    style_idx = ((ext[13] & 0x20) >> 5) | ((ext[14] & 0x80) >> 6)
+    return {
+        "gain": pick("gain", data[8]),
+        "dac_filter": pick("dac_filter", ext[14] & 7),
+        "equalizer": pick("equalizer", data[18]),
+        "crossfeed": pick("crossfeed", (ext[14] >> 5) & 3),
+        "replay_gain": pick("replay_gain", data[5] & 3),
+        "prevent_clipping": pick("prevent_clipping", 1 if (data[5] & 4) else 0),
+        "skip_silence": pick("skip_silence", 1 if (ext[13] & 0x40) else 0),
+        "speech_boost": pick("speech_boost", 1 if (ext[13] & 0x80) else 0),
+        "playback_speed": pick("playback_speed", 2 + speed_offset),
+        "now_playing_style": pick("now_playing_style", style_idx),
+        "orientation": pick("orientation", data[26]),
+        "text_size": pick("text_size", data[24]),
+    }
+
+
+def build_settings_restore_script(owner_settings):
+    lines = [
+        f"set {SETTINGS_DISPLAY_NAMES[key]}={owner_settings[key]}"
+        for key in SETTINGS_DISPLAY_NAMES
+        if key in owner_settings
+    ]
+    lines.extend(["open home", "reconnect"])
+    return "\n".join(lines) + "\n"
+
+
+def build_settings_plan(folder_row, track_idx=0):
+    """Build 4 settings/DSP sweep batches during active 96k/24 FLAC playback."""
+    enter = folder_enter_lines(folder_row)
+    play_first = ",".join(["down"] * track_idx + ["play"])
+    batch1 = "\n".join(enter + [
+        play_first,
+        "set Gain=Low",
+        "set DAC filter=Fast, low latency",
+        "set Equalizer=Off",
+        "set Crossfeed=Off",
+        "set ReplayGain=Off",
+        "set Prevent clipping=Off",
+        "set Skip silence=Off",
+        "set Speech boost=Off",
+        "set Now Playing style=Cover",
+        "set Orientation=Landscape",
+        "wait 800",
+        "measure 2200",
+        "set Equalizer=Bass",
+        "wait 400",
+        "measure 2200",
+        "set Equalizer=Off",
+        "set Crossfeed=High",
+        "wait 400",
+        "measure 2200",
+        "set Equalizer=Bass",
+        "set ReplayGain=Track",
+        "set Prevent clipping=On",
+        "set Skip silence=On",
+        "set Speech boost=On",
+        "wait 400",
+        "measure 2200",
+        "play",
+        "reconnect",
+    ]) + "\n"
+
+    batch2 = "\n".join([
+        "open nowplaying",
+        "wait 300",
+        "play",
+        "set Equalizer=Off",
+        "set Crossfeed=Off",
+        "set ReplayGain=Off",
+        "set Skip silence=Off",
+        "set Speech boost=Off",
+        "set Gain=Low",
+        "set DAC filter=Fast, low latency",
+        "wait 700",
+        "measure 2200",
+        "set Gain=High",
+        "set DAC filter=Slow, low latency",
+        "wait 400",
+        "measure 2200",
+        "set DAC filter=Non-oversampling",
+        "wait 400",
+        "measure 2200",
+        "set Playback speed=1.5×",
+        "wait 400",
+        "measure 2200",
+        "set Playback speed=Normal (1×)",
+        "set Gain=Low",
+        "set DAC filter=Fast, low latency",
+        "play",
+        "reconnect",
+    ]) + "\n"
+
+    batch3 = "\n".join([
+        "open nowplaying",
+        "wait 300",
+        "play",
+        "set Now Playing style=Cover",
+        "wait 700",
+        "measure 2200",
+        "set Now Playing style=Cassette",
+        "wait 400",
+        "measure 2200",
+        "set Now Playing style=VU meters",
+        "wait 400",
+        "measure 2200",
+        "set Now Playing style=Spectrum",
+        "wait 400",
+        "measure 2200",
+        "play",
+        "reconnect",
+    ]) + "\n"
+
+    batch4 = "\n".join([
+        "open nowplaying",
+        "wait 300",
+        "play",
+        "set Now Playing style=Cover",
+        "set Orientation=Portrait",
+        "set Text size=Small",
+        "wait 700",
+        "measure 2200",
+        "set Equalizer=Bass",
+        "set Crossfeed=High",
+        "set ReplayGain=Track",
+        "set Now Playing style=Spectrum",
+        "set Text size=Large",
+        "wait 500",
+        "measure 2200",
+        "screen off",
+        "wait 400",
+        "measure 2200",
+        "screen on",
+        "set Orientation=Landscape",
+        "set Equalizer=Off",
+        "set Crossfeed=Off",
+        "set ReplayGain=Off",
+        "set Now Playing style=Cover",
+        "wait 500",
+        "measure 2200",
+        "play",
+        "reconnect",
+    ]) + "\n"
+
+    return [
+        {
+            "name": "dsp_core",
+            "script": batch1,
+            "labels": [
+                "Baseline (DSP Off, Cover)",
+                "Equalizer=Bass",
+                "Crossfeed=High",
+                "All DSP (EQ+Xfeed+RG+Clip+Skip+Speech)",
+            ],
+        },
+        {
+            "name": "dac_and_speed",
+            "script": batch2,
+            "labels": [
+                "Gain=Low + Fast low-lat",
+                "Gain=High + Slow low-lat",
+                "DAC filter=Non-oversampling",
+                "Playback speed=1.5×",
+            ],
+        },
+        {
+            "name": "now_playing_styles",
+            "script": batch3,
+            "labels": [
+                "Style=Cover",
+                "Style=Cassette",
+                "Style=VU meters",
+                "Style=Spectrum",
+            ],
+        },
+        {
+            "name": "layout_and_stress",
+            "script": batch4,
+            "labels": [
+                "Portrait + Text Small",
+                "Worst-Case (All DSP+Spectrum+Portrait+Large)",
+                "Screen Off (All DSP Active)",
+                "Screen On (Landscape + DSP Off)",
+            ],
+        },
+    ]
+
+
+def run_settings_playbook(tool, build, max_underruns, timeout, expect_card=False, elf_dir=None):
+    found = wait_for_settled_luns(tool, expect_card=True)
+    had_card = bool(found.get("usb") and found["usb"].get("card_volumes"))
+    root = Path(found["volume"]) if found.get("volume") else tool.root()
+    owner_settings = decode_owner_settings(root)
+    catalog = discover_folder_catalog(found)
+    batch4 = catalog.get("folders", {}).get("Batch 4 Checks")
+    if not batch4:
+        return {
+            "ok": False,
+            "had_card": had_card,
+            "error": "batch4_folder_not_found",
+            "owner_settings": owner_settings,
+            "rows": [],
+            "restored": False,
+        }
+    track_idx, track_name = _find_track_index(batch4["tracks"], "01 FLAC 96k")
+    if track_idx is None:
+        track_idx, track_name = 0, (batch4["tracks"][0] if batch4["tracks"] else "track0")
+    plan = build_settings_plan(batch4["row"], track_idx=track_idx)
+    rows = []
+    batch_results = []
+    all_ok = True
+    restored = False
+    try:
+        for batch in plan:
+            res = run_script_playbook(tool, batch["script"], build, max_underruns, timeout,
+                                      expect_card=had_card or expect_card, elf_dir=elf_dir)
+            had_card = had_card or res["had_card"]
+            measures = res.get("measures", [])
+            batch_ok = res["ok"] and len(measures) == len(batch["labels"])
+            for label, m in zip(batch["labels"], measures):
+                und = m.get("underruns") or 0
+                out_und = m.get("output_underruns") or 0
+                active = _measure_audio_active(m)
+                blocks = m.get("blocks") or 0
+                row_ok = res["ok"] and active and blocks > 0 and und <= max_underruns and out_und <= max_underruns
+                batch_ok = batch_ok and row_ok
+                rows.append({
+                    "batch": batch["name"],
+                    "label": label,
+                    "frames": m.get("frames"),
+                    "frame_avg_us": m.get("frame_avg_us"),
+                    "frame_worst_us": m.get("frame_worst_us"),
+                    "draw_avg_us": m.get("draw_avg_us"),
+                    "send_avg_us": m.get("send_avg_us"),
+                    "core0_pct": m.get("core0_busy_percent"),
+                    "core1_pct": _measure_core1_percent(m),
+                    "audio_busy_pct": m.get("audio_busy_percent"),
+                    "audio": 1 if active else 0,
+                    "buffered_ms": m.get("buffered_ms"),
+                    "read_max_us": m.get("read_max_us"),
+                    "handoff_max_us": m.get("handoff_max_us"),
+                    "underruns": und,
+                    "output_underruns": out_und,
+                    "ok": row_ok,
+                })
+            all_ok = all_ok and batch_ok
+            batch_results.append({
+                "name": batch["name"],
+                "ok": batch_ok,
+                "script_state": res["script_state"],
+                "bad_lines": res["bad_lines"],
+            })
+    finally:
+        restore_script = build_settings_restore_script(owner_settings)
+        restore_res = run_script_playbook(tool, restore_script, build, max_underruns, timeout,
+                                          expect_card=had_card or expect_card, elf_dir=elf_dir)
+        restored = bool(restore_res["ok"])
+    return {
+        "ok": all_ok and restored,
+        "had_card": had_card,
+        "track": track_name,
+        "owner_settings": owner_settings,
+        "restored": restored,
+        "batches": batch_results,
+        "rows": rows,
+    }
+
+
 def run_playbook(name, tool, build, rates, bits, silent, max_underruns, max_dac_gap_us, timeout,
-                 streamer=stream_to_dac, elf_dir=None):
-    selected = ("storage", "ui", "playback", "rescan", "dac") if name == "all" else (name,)
+                 streamer=stream_to_dac, elf_dir=None, bits_list=None):
+    if name == "all":
+        selected = ("storage", "ui", "playback", "rescan", "dac")
+    elif name == "certify":
+        selected = ("storage", "codecs", "settings", "ui", "rescan", "dac")
+    else:
+        selected = (name,)
+    dac_bits = bits_list if bits_list else ([16, 24, 32] if name == "certify" else [bits])
     results = {}
     had_card = False
     for step in selected:
         if step == "storage":
             res = run_storage_playbook(tool)
+            had_card = had_card or res["had_card"]
+        elif step == "codecs":
+            res = run_codecs_playbook(tool, build, max_underruns, timeout,
+                                      expect_card=had_card, elf_dir=elf_dir)
+            had_card = had_card or res["had_card"]
+        elif step == "settings":
+            res = run_settings_playbook(tool, build, max_underruns, timeout,
+                                        expect_card=had_card, elf_dir=elf_dir)
             had_card = had_card or res["had_card"]
         elif step == "ui":
             res = run_script_playbook(tool, PLAYBOOK_UI_SCRIPT, build, max_underruns, timeout,
@@ -812,14 +1447,15 @@ def run_playbook(name, tool, build, rates, bits, silent, max_underruns, max_dac_
             res["scan"] = extract_scan_timings(res["events"])
         elif step == "dac":
             runs = []
-            for rate in rates:
-                run = run_dac_test(
-                    tool, build, rate, silent, max_underruns, max_dac_gap_us, timeout,
-                    bits=bits, streamer=streamer, expect_card=had_card, allow_prior_drops=True,
-                    elf_dir=elf_dir,
-                )
-                had_card = had_card or run["had_card"]
-                runs.append(run)
+            for depth in dac_bits:
+                for rate in rates:
+                    run = run_dac_test(
+                        tool, build, rate, silent, max_underruns, max_dac_gap_us, timeout,
+                        bits=depth, streamer=streamer, expect_card=had_card, allow_prior_drops=True,
+                        elf_dir=elf_dir,
+                    )
+                    had_card = had_card or run["had_card"]
+                    runs.append(run)
             res = {"ok": all(r["ok"] for r in runs), "runs": runs}
         else:
             raise ValueError(f"unknown playbook {step!r}")
@@ -837,6 +1473,41 @@ def print_playbook_summary(result):
               f"burst({br['count']}x{br['bytes_each'] // 1024} KiB) w={br['write_mb_s']} MB/s r={br['read_mb_s']} MB/s")
         if st.get("usb_timing"):
             print(f"         usb.timing: {st['usb_timing']}")
+    if "codecs" in playbooks:
+        cd = playbooks["codecs"]
+        passed = sum(1 for row in cd.get("tracks", []) if row["ok"])
+        total = len(cd.get("tracks", []))
+        print(f"\nCODECS   {'PASS' if cd['ok'] else 'FAIL'} ({passed}/{total} tracks)")
+        print(f"  {'Track':<36} {'Aud':>3} {'Buf':>6} {'C0%':>4} {'C1%':>5} {'Aud%':>4} {'RdMax':>7} {'HoMax':>7} {'Und':>5} {'Res':>4}")
+        for row in cd.get("tracks", []):
+            c1 = f"{row['core1_pct']:.1f}" if row["core1_pct"] is not None else "-"
+            rd = f"{row['read_max_us']}us" if row["read_max_us"] is not None else "-"
+            ho = f"{row['handoff_max_us']}us" if row["handoff_max_us"] is not None else "-"
+            buf = f"{row['buffered_ms']}ms" if row["buffered_ms"] is not None else "-"
+            print(
+                f"  {row['label']:<36} {row['audio']:>3} {buf:>6} "
+                f"{str(row['core0_pct'] if row['core0_pct'] is not None else '-'):>4} {c1:>5} "
+                f"{str(row['audio_busy_pct'] if row['audio_busy_pct'] is not None else '-'):>4} "
+                f"{rd:>7} {ho:>7} {row['underruns']}/{row['output_underruns']:<3} "
+                f"{'PASS' if row['ok'] else 'FAIL':>4}"
+            )
+    if "settings" in playbooks:
+        sg = playbooks["settings"]
+        passed = sum(1 for row in sg.get("rows", []) if row["ok"])
+        total = len(sg.get("rows", []))
+        print(f"\nSETTINGS {'PASS' if sg['ok'] else 'FAIL'} ({passed}/{total} configs, restored={sg.get('restored')}, track={sg.get('track')})")
+        print(f"  {'Configuration':<44} {'Fr':>3} {'Draw':>8} {'Worst':>8} {'C0%':>4} {'C1%':>5} {'Aud%':>4} {'Buf':>6} {'Und':>5} {'Res':>4}")
+        for row in sg.get("rows", []):
+            c1 = f"{row['core1_pct']:.1f}" if row["core1_pct"] is not None else "-"
+            dr = f"{row['draw_avg_us']}us" if row["draw_avg_us"] is not None else "-"
+            wr = f"{row['frame_worst_us']}us" if row["frame_worst_us"] is not None else "-"
+            buf = f"{row['buffered_ms']}ms" if row["buffered_ms"] is not None else "-"
+            print(
+                f"  {row['label']:<44} {str(row['frames'] if row['frames'] is not None else '-'):>3} "
+                f"{dr:>8} {wr:>8} {str(row['core0_pct'] if row['core0_pct'] is not None else '-'):>4} {c1:>5} "
+                f"{str(row['audio_busy_pct'] if row['audio_busy_pct'] is not None else '-'):>4} {buf:>6} "
+                f"{row['underruns']}/{row['output_underruns']:<3} {'PASS' if row['ok'] else 'FAIL':>4}"
+            )
     for key, label in (("ui", "UI      "), ("playback", "PLAYBACK"), ("rescan", "RESCAN  ")):
         if key not in playbooks:
             continue
@@ -850,10 +1521,13 @@ def print_playbook_summary(result):
         print(f"{label} {'PASS' if res['ok'] else 'FAIL'} state={res['script_state']} "
               f"bad_lines={len(res['bad_lines'])}{extra}")
         for idx, m in enumerate(res.get("measures", []), 1):
+            aud = 1 if _measure_audio_active(m) else 0
+            c1 = _measure_core1_percent(m)
+            c1_txt = f"{c1}%" if c1 is not None else "n/a"
             print(f"         win{idx}: frames={m.get('frames')} avg={m.get('frame_avg_us')}us "
                   f"worst={m.get('frame_worst_us')}us draw={m.get('draw_avg_us')}us send={m.get('send_avg_us')}us "
-                  f"core0={m.get('core0_busy_percent')}% core1={m.get('core1_busy_percent')}% "
-                  f"audio={m.get('audio_running')} buf={m.get('buffered_ms')}ms "
+                  f"core0={m.get('core0_busy_percent')}% core1={c1_txt} "
+                  f"audio={aud} buf={m.get('buffered_ms')}ms "
                   f"read_max={m.get('read_max_us')}us underruns={m.get('underruns')}/{m.get('output_underruns')}")
         top = res.get("profile_top", [])[:5]
         if top:
@@ -924,7 +1598,7 @@ def build_parser():
     dac = commands.add_parser("dac-test", help="trigger automated USB DAC menu test, stream audio, and score report")
     rate_group = dac.add_mutually_exclusive_group()
     rate_group.add_argument("--rate", type=int, choices=VALID_RATES,
-                            help="single host sample rate to stream to Gnarlyr Echo DAC (default 96000)")
+                            help="single host sample rate to stream to the USB DAC (default 96000)")
     rate_group.add_argument("--rates", type=parse_rates,
                             help="comma-separated sample rates to sweep, e.g. 48000,96000,192000")
     dac.add_argument("--bits", type=int, default=0, choices=VALID_BITS,
@@ -956,11 +1630,13 @@ def build_parser():
 
     playbook = commands.add_parser("playbook", help="run repeatable real-hardware validation playbooks")
     playbook.add_argument("name", choices=PLAYBOOK_NAMES,
-                          help="playbook to run: storage, ui, playback, rescan, dac, or all")
+                          help="playbook to run: storage, codecs, settings, ui, playback, rescan, dac, all, or certify")
     playbook.add_argument("--rates", type=parse_rates, default=[44100, 48000, 96000, 192000],
-                          help="DAC rates when running dac/all (default 44100,48000,96000,192000)")
+                          help="DAC rates when running dac/all/certify (default 44100,48000,96000,192000)")
     playbook.add_argument("--bits", type=int, default=32, choices=VALID_BITS,
                           help="DAC bit depth when running dac/all (default 32)")
+    playbook.add_argument("--bits-list", type=parse_bits_list,
+                          help="comma-separated DAC bit depths to sweep, e.g. 16,24,32")
     playbook.add_argument("--silent", action="store_true", help="stream digital silence during DAC checks")
     playbook.add_argument("--build", metavar="SHA7", type=sha7, help="expected firmware commit")
     playbook.add_argument("--max-underruns", type=nonnegative_int, default=0,
@@ -1040,7 +1716,7 @@ def main(argv=None, host=None, streamer=stream_to_dac):
         tool = echo_debug.Tool(host=host)
         result = run_playbook(args.name, tool, args.build, args.rates, args.bits, args.silent,
                               args.max_underruns, args.max_dac_gap_us, args.timeout,
-                              streamer=streamer, elf_dir=args.elf_dir)
+                              streamer=streamer, elf_dir=args.elf_dir, bits_list=args.bits_list)
         if args.save is not None:
             dest = args.save
             if dest.is_dir() or not dest.suffix:

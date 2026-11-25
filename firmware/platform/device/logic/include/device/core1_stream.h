@@ -84,9 +84,18 @@ typedef struct Core1Decoder {
 typedef struct Core1Flac {
     FlacDecoder *decoder;
     const bool *starved;
+    int32_t *large_channels[FLAC_MAX_CHANNELS];
+    uint32_t *ring_bytes;
+    uint32_t full_ring_bytes;
+    uint32_t staged;
+    uint32_t taken;
+    uint32_t staged_first;
+    uint32_t staged_position;
 } Core1Flac;
 
 Core1Decoder core1_flac_decoder(Core1Flac *flac, FlacDecoder *decoder);
+void core1_flac_set_large_buffers(Core1Flac *flac, int32_t *left, int32_t *right,
+                                  uint32_t *ring_bytes, uint32_t full_ring_bytes);
 
 typedef struct Core1Stream {
     StreamRegion region;
