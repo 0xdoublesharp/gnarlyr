@@ -140,10 +140,35 @@ class MacHost:
         return echo_first_install.MacInstallIO()
 
     def eject(self, mount_point):
-        result = subprocess.run(["diskutil", "eject", str(mount_point)], check=False,
-                                capture_output=True, text=True)
-        if result.returncode != 0:
-            raise DebugError("eject_failed", result.stderr.strip() or result.stdout.strip())
+        last_detail = ""
+        for attempt in range(4):
+            result = subprocess.run(["diskutil", "eject", str(mount_point)], check=False,
+                                    capture_output=True, text=True)
+            if result.returncode == 0:
+                return
+            last_detail = result.stderr.strip() or result.stdout.strip()
+            lowered = last_detail.lower()
+            transient = any(tok in lowered for tok in ("dissented", "could not be unmounted", "busy"))
+            if not transient:
+                break
+            time.sleep(0.5)
+        if "mds_stores" in last_detail or "/metadata.framework/" in last_detail.lower():
+            info = subprocess.run(["diskutil", "info", str(mount_point)], check=False,
+                                  capture_output=True, text=True)
+            parent = None
+            for line in info.stdout.splitlines():
+                if "Part of Whole:" in line:
+                    parent = line.split(":", 1)[1].strip()
+                    break
+            subprocess.run(["diskutil", "unmount", "force", str(mount_point)], check=False,
+                           capture_output=True, text=True)
+            target = parent or str(mount_point)
+            result = subprocess.run(["diskutil", "eject", target], check=False,
+                                    capture_output=True, text=True)
+            if result.returncode == 0:
+                return
+            last_detail = result.stderr.strip() or result.stdout.strip()
+        raise DebugError("eject_failed", last_detail)
 
 
 def number(text):

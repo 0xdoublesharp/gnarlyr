@@ -297,12 +297,22 @@ if wantedBits > 0 {
     let res = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
     formatStatus = res.0
     selectedBits = res.1
-    Thread.sleep(forTimeInterval: 0.15)
+    for _ in 0..<6 {
+        Thread.sleep(forTimeInterval: 0.1)
+        if currentPhysicalBits(deviceID) == wantedBits {
+            break
+        }
+    }
     if currentPhysicalBits(deviceID) != wantedBits {
         let retry = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
         formatStatus = retry.0
         selectedBits = retry.1
-        Thread.sleep(forTimeInterval: 0.15)
+        for _ in 0..<6 {
+            Thread.sleep(forTimeInterval: 0.1)
+            if currentPhysicalBits(deviceID) == wantedBits {
+                break
+            }
+        }
     }
 }
 let actualBits = currentPhysicalBits(deviceID)

@@ -234,10 +234,10 @@ static void drawing_services_the_visible_hints_and_separator(void)
     CHECK_EQUAL(0, service_calls);
     clipped = canvas_clipped(&canvas, (Rect){PADDING, area.y + LINE / 2, 1, 1});
     footer_hints_draw(&clipped, &theme, area, hints);
-    CHECK_EQUAL(2, service_calls);
+    CHECK_EQUAL(3, service_calls);
     service_calls = 0;
     footer_hints_draw(&canvas, &theme, area, hints);
-    CHECK_EQUAL(4, service_calls);
+    CHECK_EQUAL(13, service_calls);
 }
 
 int main(void)

@@ -20,6 +20,7 @@ OTHER_PASS = "other"
 PASS_FUNCTIONS = {"library_scan": SCAN_PASS, "cover_build": COVER_PASS}
 PHASES = {
     "track_tags_read": "tags",
+    "track_tags_read_index": "tags",
     "scan_mark_cue_targets": "cue",
     "scan_add_cue": "cue",
     "cue_sheet_usable": "cue",

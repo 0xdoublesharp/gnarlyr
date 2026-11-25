@@ -1,6 +1,7 @@
 #include "usb_dac_menu.h"
 
 #include "core/i18n.h"
+#include "core/seam.h"
 #include "core/string_builder.h"
 #include "hal/audio.h"
 #include "usb_screen_parts.h"
@@ -93,7 +94,7 @@ int usb_dac_menu_rows(const Theme *theme)
     return rows < USB_DAC_ROW_COUNT ? rows : USB_DAC_ROW_COUNT;
 }
 
-void usb_dac_menu_open(UsbDacMenu *menu, UsbDacMenuConfig config, uint32_t now_ms)
+CORE_SEAM void usb_dac_menu_open(UsbDacMenu *menu, UsbDacMenuConfig config, uint32_t now_ms)
 {
     *menu = (UsbDacMenu){.settings = config.settings, .profiles = config.profiles};
     menu->model = (ListModel){.context = menu,

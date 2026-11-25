@@ -3539,6 +3539,8 @@
           "same_folded",
           "track_tags_format_for_name",
           "read_format",
+          "read_flac_bytes",
+          "read_tags_with_options",
           "track_tags_read",
           "track_tags_read_index",
           "tag_le16",

@@ -365,7 +365,8 @@ CORE_SEAM bool track_tags_read(ByteSource source, uint32_t size, TagFormat forma
     return read_tags_with_options(source, size, format, false, tags);
 }
 
-bool track_tags_read_index(ByteSource source, uint32_t size, TagFormat format, TrackTags *tags)
+CORE_SEAM bool track_tags_read_index(ByteSource source, uint32_t size, TagFormat format,
+                                     TrackTags *tags)
 {
     return read_tags_with_options(source, size, format, true, tags);
 }

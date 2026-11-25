@@ -36,6 +36,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         rig.press("previous")
         rig.press("play")
+        rig.run_for(300)
         self.assertTrue(seen)
         first_volume, first_position = seen[-1]
         self.assertEqual(first_volume, "13")

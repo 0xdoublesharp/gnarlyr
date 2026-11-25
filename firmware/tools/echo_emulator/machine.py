@@ -770,6 +770,22 @@ class Machine:
             self.add_address_hook(TRAMPOLINE, self.exception_return)
         self.hook_symbol("hal_system_set_usb_answer", self.override_usb_answer,
                          optional="hal_system_set_usb_answer" in self.optional_hooks)
+        self._overlay_returns = set()
+        self.hook_symbol("board_overlay_load", self._track_overlay_load, optional=True)
+
+    def _track_overlay_load(self):
+        back = self.reg(UC_ARM_REG_LR) & ~1
+        if back not in self._overlay_returns:
+            self._overlay_returns.add(back)
+            self.add_address_hook(back, self._flush_overlay_cache)
+        self._flush_overlay_cache()
+
+    def _flush_overlay_cache(self):
+        base = make_image.OVERLAY_BASE
+        capacity = make_image.OVERLAY_CAPACITY
+        self.uc.ctl_remove_cache(base, base + capacity)
+        if self._native is not None:
+            self._native_lib.emu_core0_clear_block_cache(self._native)
 
     def override_usb_answer(self):
         """Stand in for the owner's When plugged in setting; None keeps the firmware's own."""

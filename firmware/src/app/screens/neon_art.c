@@ -33,8 +33,19 @@ static void line(Canvas *canvas, Point from, Point to, NeonInk ink)
     int sx = from.x < to.x ? 1 : -1;
     int sy = from.y < to.y ? 1 : -1;
     int error = dx + dy;
+    int left = canvas->clip.x;
+    int top = canvas->clip.y;
+    int right = left + canvas->clip.width;
+    int bottom = top + canvas->clip.height;
+    int ox = canvas->bounds.x;
+    int oy = canvas->bounds.y;
+    int stride = canvas->bounds.width;
+    Color *pixels = canvas->pixels;
+    Color color = ink.bright;
     for (;;) {
-        canvas_fill_rect(canvas, (Rect){from.x, from.y, 1, 1}, ink.bright);
+        if (from.x >= left && from.x < right && from.y >= top && from.y < bottom) {
+            pixels[(from.y - oy) * stride + (from.x - ox)] = color;
+        }
         if (from.x == to.x && from.y == to.y) {
             return;
         }

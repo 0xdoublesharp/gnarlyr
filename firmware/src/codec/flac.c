@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "flac_bits.h"
 
 enum {
@@ -164,9 +165,10 @@ static FlacResult read_header(FlacBits *bits, FlacInput input, FlacInfo *info,
     return read_metadata(bits, info, audio_offset, max_block);
 }
 
-FlacResult flac_read_header(FlacBits *bits, FlacInput input, FlacInfo *info, uint32_t *audio_offset)
+CORE_SEAM FlacResult flac_read_header(FlacBits *bits, FlacInput input, FlacInfo *info,
+                                      uint32_t *audio_offset)
 {
-    return read_header(bits, input, info, audio_offset, FLAC_MAX_BLOCK);
+    return read_header(bits, input, info, audio_offset, FLAC_MAX_LARGE_BLOCK);
 }
 
 static void reset_counters(FlacDecoder *decoder)
@@ -180,8 +182,12 @@ FlacResult flac_open(FlacDecoder *decoder, FlacInput input)
 {
     reset_counters(decoder);
     decoder->audio_offset = 0;
-    return read_header(&decoder->bits, input, &decoder->info, &decoder->audio_offset,
-                       header_block_limit(decoder));
+    FlacResult result =
+        flac_read_header(&decoder->bits, input, &decoder->info, &decoder->audio_offset);
+    if (result != FLAC_OK) {
+        return result;
+    }
+    return decoder->info.max_block <= header_block_limit(decoder) ? FLAC_OK : FLAC_UNSUPPORTED;
 }
 
 void flac_start(FlacDecoder *decoder, FlacInput input, FlacInfo info)

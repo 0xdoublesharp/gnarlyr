@@ -857,6 +857,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_stop_audio_path_powers_down_acodec_and_gates_audio_clocks(self):
+        from echo_emulator.dac_hardware import RealCs43198Bus
         from echo_emulator.devices import GPIO_DATA, RegisterFile
         from echo_emulator.machine import PAGE, TRAMPOLINE
         from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_PRIMASK
@@ -868,7 +869,7 @@ class EchoImageTest(EchoImageHarness):
         acodec.regs[0x200] = 1 << 2
         acodec.regs[0x214] = 0
         machine.map_device(RegisterFile(), 0x40030000, PAGE)
-        machine.map_device(RegisterFile(), 0x40040000, PAGE)
+        machine.map_device(RealCs43198Bus(machine), 0x40040000, PAGE)
         machine.map_device(acodec, 0x40090000, PAGE)
         stopped_gates = (0x10, 0x11, 0x12, 0x13, 0x82, 0x83)
         kept_gates = (0x0E, 0x96)
