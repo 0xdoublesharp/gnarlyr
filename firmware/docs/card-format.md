@@ -1,6 +1,6 @@
 # Card formatting
 
-Settings → Format card operates on the raw SD block device. Its HAL implementation never passes an eMMC device to the formatter. The portable filesystem readers and file creators are reused to mount and populate the result; `fat_create` and `exfat_create` create entries in an existing filesystem and do not create volumes. The seven `created_cards_pass_fsck` images continue to exercise those existing entry operations separately.
+Settings → Library → Format card operates on the raw SD block device. The HAL passes only the SD device to the formatter. The firmware mounts and populates the result with the portable filesystem readers and file creators. `fat_create` and `exfat_create` add entries to an existing filesystem. The seven `created_cards_pass_fsck` images exercise those entry operations.
 
 ## Layout
 

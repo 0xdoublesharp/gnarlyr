@@ -1,12 +1,12 @@
 # Installing Gnarlyr
 
-Gnarlyr installs the way other custom firmware for this player does: copy one file to the player and let the player's own updater install it. Charge the battery and copy anything you want to keep off internal storage first. In this repository every install on the owner's player needs the owner's approval first (`../../AGENTS.md`).
+To install Gnarlyr on the full-size SNOWSKY ECHO, copy the image to internal storage and let the player install it. Charge the battery, back up internal storage, and prepare [recovery for this model](device-recovery.md) first. For the owner's player, follow the [device approval rules](../../AGENTS.md).
 
 ## First install: copy one file
 
 From FiiO's firmware (2.0.0):
 
-1. Download `ECHOECHO.img` from the release, or build it: `python3 tools/firmware.py build --preset release` writes `firmware/build/release/GNARLYR.IMG`; copy it as `ECHOECHO.img`. Check its SHA-256 against the one published with the release.
+1. Download `ECHOECHO.img` from [Gnarlyr Releases](https://github.com/0xdoublesharp/gnarlyr/releases) and verify it against `SHA256SUMS` from the same release. For a source build, run `python3 tools/firmware.py build --preset release` from the repository root. Use `firmware/build/release/GNARLYR.IMG` as the source for the copy to `ECHOECHO.img`, then compare the SHA-256 of both files.
 2. Connect the player, choose USB storage if asked, and copy `ECHOECHO.img` to the top level of its internal drive, outside any folders. Keep the downloaded filename.
 3. Eject both player drives, unplug USB, and fully turn the player off and on with Power. Leave it powered while it updates.
 4. Wait for Gnarlyr to start and check Settings → About. Let the first library scan finish before reconnecting USB.

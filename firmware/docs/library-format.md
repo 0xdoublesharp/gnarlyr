@@ -1,6 +1,6 @@
 # Library database format (version 2)
 
-The file formats Gnarlyr keeps in its data folder for the library, covers, favorites and bookmarks. The PC indexer (`tools/library_index.py`) writes the library database. The device reads it (`src/library`). Everything is sorted on the PC, so the device never sorts. It reads fixed-size records by index and strings by offset, a few hundred bytes at a time. The four-byte magics that start with `DS` are format tags named for the maker, Doublesharp, and remain stable across display-name and identifier changes.
+Gnarlyr stores the library, covers, favorites, and bookmarks in its data folder. Both the computer indexer (`tools/library_index.py`) and the firmware builder (`library/library_builder`) can write the database. The firmware reads fixed-size records by index and strings by offset, a few hundred bytes at a time. Four-byte magic values starting with `DS` are format tags named for Doublesharp. They stay the same across changes to the display name or identifier.
 
 - Location on the card: `/.gnarlyr/library.db`
 - Byte order: little-endian

@@ -1,6 +1,6 @@
 # Recovering a player through maskrom
 
-If the player doesn't start at all, its chip's maskrom mode can still write FiiO's firmware back from a computer over USB. It is also the route this project uses to install builds of Gnarlyr ([`device-install.md`](device-install.md)).
+Use this procedure to restore FiiO's firmware over USB when a full-size SNOWSKY ECHO will not start or expose its drives. If the player still starts and its drives mount, use the [file-copy installation and update guide](device-install.md). Follow the [device approval rules](../../AGENTS.md) before entering maskrom or accessing the owner's player.
 
 Maskrom writes go straight to internal storage, below the file system. A wrong command can leave the player unable to start until a later write succeeds. Follow the steps exactly, and don't run any command not listed here.
 

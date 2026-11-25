@@ -16,7 +16,7 @@ The stdio MCP server exposes the same operations as `echo_settings_list` and `ec
 
 A missing or damaged settings file requires a normal settings save on the player first. A newer settings version is preserved for a later compatible build. Language-pack inspection, installation and selection use the separate [language commands](language-packs.md).
 
-`settings-backup` lists the player's saved-state backups; `--out DIR` also copies them and the current state to the computer. `settings-restore newest|older|1|2|<build>` asks the player to restore one and ejects its drives. Settings → Backups offers the same restore on the player. The MCP operations `echo_settings_backup` and `echo_settings_restore` share these implementations; see [settings continuity](formats.md#settings-continuity).
+`settings-backup` lists the player's saved-state backups. Add `--out DIR` to copy them and the current state to the computer. `settings-restore newest|older|1|2|<build>` asks the player to restore a backup and ejects its drives. On the player, open Settings → Library → Backups. The MCP operations `echo_settings_backup` and `echo_settings_restore` use the same implementations. [Settings continuity](formats.md#settings-continuity).
 
 ## First install from FiiO
 

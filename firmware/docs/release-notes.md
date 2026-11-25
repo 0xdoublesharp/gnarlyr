@@ -1,21 +1,21 @@
 # Gnarlyr release notes
 
-Gnarlyr builds on Podium 4.5.9 and EchoPod with their GPL credits preserved. The source provenance is recorded in [`../UPSTREAM.md`](../UPSTREAM.md). Version 1.0.0 is not released; hardware checks are recorded in [`known-issues.md`](known-issues.md).
+Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. The `1.0.0-beta.1` notes are prepared for the first public beta. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
 
 ## 1.0.0-beta.1 (public beta)
 
-Gnarlyr is free, open-source firmware for the full-size Snowsky ECHO music player. It is built on Podium and EchoPod. This is a public beta for people who want to try it and tell us what breaks. It has been tested on the developer's player, but not yet on many others.
+Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds on Podium and EchoPod. Development builds have run on the developer's full-size ECHO. Reports from beta testers help us check more players and music libraries.
 
 ### Install
 
-- **Coming from FiiO's firmware:** download `ECHOECHO.IMG` and check it against `SHA256SUMS`. Connect the player, copy the file to the top of its internal drive (not into a folder), eject and unplug. The player installs Gnarlyr and starts it.
-- **Updating Gnarlyr:** copy `GNARLYR.IMG` to the top of the internal drive and eject. Confirm the new version with one more connection (step 4 of the update guide).
-- **Going back to FiiO:** copy FiiO's `ECHOV200.IMG` to the internal drive and eject.
-- Full steps, and what to do if the player won't start: <https://gnarlyr.com/install.html>.
+- **Coming from FiiO's firmware.** Download `ECHOECHO.img` and check it against `SHA256SUMS`. Copy it to the top level of internal storage, eject both drives, unplug, and fully power the player off and on.
+- **Updating Gnarlyr.** Copy `GNARLYR.IMG` to the top level of internal storage and eject both drives. Restart when prompted. To confirm the new version, reconnect, write a small file to internal storage, and eject both drives again.
+- **Going back to FiiO.** Use FiiO's `ECHOV200.IMG` and follow the [stock restore steps](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/device-install.md#going-back-to-fiios-firmware).
+- See the [installation guide](https://gnarlyr.com/install.html) for full steps and help if the player won't start.
 
 ### What's new
 
-- **Faster USB copying.** The player connects at High Speed (480 Mbit/s) and copies about twice as fast as before: 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
+- **Faster USB copying.** The player connects at High Speed (480 Mbit/s). On the developer's unit, microSD transfers ran at 8.7 MB/s writing and 9.8 MB/s reading, about twice the previous speed.
 - **New USB screens.** Connect to computer draws the last 10 seconds of reads and writes as a wireframe landscape. It shows the link speed as a USB symbol (with a lightning bolt at High Speed) and a row for each drive with its free space, which updates once the computer stops writing, and activity. Press Menu for detailed stats. The USB DAC screen shows the level, the format, both volumes and the buffer, and tapping Back opens its details.
 - **Safe updates.** A new version starts on trial and the previous one is kept as a backup. If the new one fails to start properly, the player puts the backup back and says "Update rolled back".
 - **Card eject and hot-insert.** Settings → Eject card makes the microSD card safe to remove. Insert or remove a card while the player runs, and the library follows it.

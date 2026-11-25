@@ -1,10 +1,10 @@
 # Gnarlyr user guide
 
-Gnarlyr is firmware for the full-size Snowsky (FiiO) Echo music player. It replaces FiiO's firmware and has large text, a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. Snowsky and FiiO are trademarks of their owners, and Echo is their product name. Gnarlyr is not made, endorsed or supported by FiiO.
+Use this guide to install Gnarlyr, copy music, and set up playback on the full-size SNOWSKY ECHO. Gnarlyr is independent firmware for this player. SNOWSKY, FiiO, and ECHO belong to their respective owners.
 
-Gnarlyr 1.0.0 is not released. This guide describes the current developer firmware; [`known-issues.md`](known-issues.md) says what has been checked on a player and what hasn't.
+Gnarlyr 1.0.0 is in development. See [known issues](known-issues.md) for checks completed on the player and those still pending.
 
-**Use it at your own risk.** Gnarlyr comes with no warranty (see `LICENSE`). If a player ever stops starting, the way back is maskrom recovery ([`device-recovery.md`](device-recovery.md)).
+Gnarlyr comes with no warranty. Prepare the [maskrom recovery procedure](device-recovery.md) before installing. [Firmware license](../LICENSE).
 
 ## Which players
 
@@ -18,16 +18,14 @@ Gnarlyr 1.0.0 is not released. This guide describes the current developer firmwa
 
 ## Install
 
-1. Download `ECHOECHO.img` from the release and check its SHA-256 against the one published with it.
+1. Download `ECHOECHO.img` from [Gnarlyr Releases](https://github.com/0xdoublesharp/gnarlyr/releases) and check its SHA-256 against `SHA256SUMS` from the same release. If you're building from source, use the [source build instructions](device-install.md#first-install-copy-one-file).
 2. Connect the player, choose USB storage if asked, and copy `ECHOECHO.img` to the top level of its internal drive, outside any folders. Keep the downloaded filename.
 3. Eject both player drives, unplug USB, and turn the player fully off and on with Power. Leave it powered while it updates.
 4. Wait for Gnarlyr to start and check Settings → About.
 
 If Updating appears briefly and the player returns to FiiO, follow [first-install troubleshooting](device-install.md#briefly-shows-updating-then-returns-to-fiio).
 
-Once installed, use the companion app for music, settings, languages and later firmware updates. Its current beta asks you to choose the player drive and eject it yourself. You can also keep copying files over USB.
-
-FiiO's firmware installs the file itself, the same way it installs other custom firmware for this player. [`device-install.md`](device-install.md) explains why the file has this name and what FiiO's updater checks. If the player ever stops starting, maskrom recovery ([`device-recovery.md`](device-recovery.md)) puts firmware back from a computer. Later versions install the same way, under Gnarlyr's own updater (see [Updating Gnarlyr](#updating-gnarlyr)).
+Once Gnarlyr starts, copy music over USB or use the [desktop companion](https://gnarlyr.com/companion.html) to review music copies, supported settings, languages, and updates. The companion beta asks you to choose the player drive and eject it yourself. For later firmware versions, follow [Updating Gnarlyr](#updating-gnarlyr).
 
 On the first start with a microSD card in the player, Gnarlyr builds its library. You can browse and play as soon as it says "Library: N tracks". Album covers follow while the player is idle and not playing (or paused for a minute): they appear one album at a time, a press of any key or starting a song pauses them, and they carry on the next time the player sits idle, also after a restart. Albums without their cover yet show their initials. Wait for the library to finish before you plug the player into a computer.
 
@@ -51,7 +49,7 @@ Settings opens on nine groups, each with an icon: **Sound** (output, gain, equal
 - `.m3u` and `.m3u8` playlists anywhere on the card appear under Music → Playlists.
 - **Favorite Playlist.** Hold Play on a song in any list and choose Add to favorites. The song goes into `Favorite Tracks.m3u` in the top folder of the storage that holds it: the card, or the player's own storage for a song stored there. With a card in, the two files show as one Favorite Tracks playlist, the card's songs first. The file is made on the first use, holds one path per line relative to that folder, and can be read and edited on a computer. A song that is one track of a CUE album gets the line `#GNARLYR-START:` and the track's start in milliseconds above its path (the path is the album's audio file, so computer players open the whole album); the player and echo-sync use the start to pick that exact track, and a line without it stands for the album's last track. Each track of a CUE album is added and checked on its own. A song already in it shows "Already in Favorites". The file has room for a few hundred songs; when it is full, or a computer edit left it without spare room, the player shows "Couldn't add to Favorites". Music → Playlists shows Favorite Tracks with the new song straight away, with no rescan, also after a restart. Lines added to the file on a computer show after the next library scan.
 - The library holds up to 65,535 tracks; [`known-issues.md`](known-issues.md) says what has been tested.
-- Gnarlyr keeps its own files in a hidden `/.gnarlyr` folder on the card, about 110 MB of them. Don't delete it unless you want the library rebuilt.
+- Keep the hidden `.gnarlyr` folders on both drives. They hold saved state such as settings, queues, bookmarks, and mixtapes alongside the files the player can rebuild. To refresh the library, use Settings → Library → Rescan library.
 
 ## File formats
 
@@ -537,11 +535,11 @@ Podcasts/
 
 Charge the battery first.
 
-1. Plug the player into the computer and choose **Connect to computer** (or Home → USB mode → Connect to computer). Copy the new `GNARLYR.IMG` to the top level of internal storage, not into a folder. A release's `ECHOECHO.IMG` is the same file and works too.
+1. Plug the player into the computer and choose **Connect to computer** (or Home → USB mode → Connect to computer). Copy the new `GNARLYR.IMG` or release `ECHOECHO.img` to the top level of internal storage. Check the copied file against the release checksum.
 2. Eject both drives. The player shows "Checking GNARLYR.IMG", then "Installing update" with a percentage. Don't unplug or turn it off.
 3. At "Update installed", the player says "Unplug USB, then hold Power". Unplug the cable, then hold Power for 2 seconds; the player shows "Turning off..." and switches off. If the cable is still in, it says "Unplug USB first".
 4. Hold Power to start the new version.
-5. Connect the player to the computer once more, copy any small file onto internal storage (or delete one), and eject both drives. The player shows "Saving this version as the backup" while it copies; from then on it keeps the new version. It only does this when the computer could write to internal storage during that connection, so a version whose drives open read-only stays on trial.
+5. Connect again, copy a small file to internal storage, and eject both drives. The player shows "Saving this version as the backup" while it copies. A successful write to internal storage and a clean eject of both drives confirm the new version. A read-only session leaves it on trial.
 
 The new version starts on trial: the previous version stays on the player as a backup until step 5. The player puts the previous version back by itself, and says "Update rolled back", when the new version starts without its text or without a part of its code it needs, or after three starts and USB connections that didn't confirm it (a start no longer counts once the player has run for 20 seconds). If the player hangs during the trial, for example while it is connected, hold Power for 10 seconds to restart it; each such restart counts as one try.
 
@@ -575,7 +573,7 @@ Follow [`device-recovery.md`](device-recovery.md). It writes FiiO's image into b
 - **"Update failed":** copy the file again and retry before turning the player off.
 - **"USB missing: reinstall update" or "Restart to finish the update":** see Known trade-offs in [`known-issues.md`](known-issues.md).
 - **"Update rolled back":** the new version didn't start properly, and the player went back to the version it had before. Report it with the Firmware line from Settings → About.
-- **The player doesn't start at all:** the chip's maskrom mode writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in [`device-recovery.md`](device-recovery.md). If the player still runs and you expect trouble, create the file `MASKROM.REQ` on internal storage beforehand, or, with the cable plugged into the computer, hold Power and vol+ together for about 3 seconds (same document).
+- **The player doesn't start at all.** Use the [maskrom recovery guide](device-recovery.md) to restore FiiO's firmware over USB with the patched `rkdeveloptool`. The guide also covers `MASKROM.REQ` and the Power and Vol+ shortcut for a player that still runs, along with the checks for each method.
 - **Noting a problem:** write down what you did, the FiiO version the player had before, and the Firmware line from Settings → About.
 
 ## Themes

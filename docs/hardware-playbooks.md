@@ -1,18 +1,18 @@
 # Real-hardware validation playbooks
 
-Repeatable, hands-free validation playbooks for the full-size Snowsky Echo over normal USB Mass Storage + USB Audio 2.0 (no maskrom or raw eMMC access, no edits to microSD music).
+Use these playbooks to test a full-size SNOWSKY ECHO from macOS over USB storage and USB Audio 2.0. The playbooks exercise the connected player. Follow the [device approval rules](../AGENTS.md) before running them on the owner's unit.
 
-All playbooks live in [tools/echo_hw_check.py](../tools/echo_hw_check.py) and write optional JSON archives under `/Volumes/Scratch/SnowskyEcho/reports/hw-playbooks/`.
+The checks use temporary files on internal storage and leave microSD music intact. Add `--save` to write JSON reports to `/Volumes/Scratch/SnowskyEcho/reports/hw-playbooks/`. [Playbook source](../tools/echo_hw_check.py).
 
 ## Quick commands
 
-Run the standard pre-handoff gate (`storage`, `ui`, `playback`, `rescan`, `dac`):
+Run the standard set (`storage`, `ui`, `playback`, `rescan`, and `dac`). It uses 32-bit audio for the DAC check by default.
 
 ```sh
 python3 tools/echo_hw_check.py playbook all --silent --save
 ```
 
-Run the full hardware certification sweep (all 6 stages: `storage`, `codecs`, `settings`, `ui`, `rescan`, and `dac` across 16/24/32-bit):
+Run `certify` to check `storage`, `codecs`, `settings`, `ui`, `rescan`, and `dac`. The DAC sweep tests 16-, 24-, and 32-bit formats.
 
 ```sh
 python3 tools/echo_hw_check.py playbook certify --silent --save
@@ -44,6 +44,6 @@ Add `--build <sha7>` to pin and verify the installed commit, or `--json` for mac
 | `rescan` | `rescan check` with 1 kHz PC profiler on the player's real internal + SD library | All script lines `ok`, 0 faults, exact `scan` event duration (`start` → `up_to_date` ms), top CPU functions |
 | `dac` | Automated `reconnect dac` + 12-key in-DAC torture sequence streamed via CoreAudio at 44.1 / 48 / 96 / 192 kHz across 16/24/32-bit (`--silent`) | Exact `usb.dac.rate` & `usb.dac.bits`, 0 underruns, 0 overflows, 0 realigns, `max_gap_us <= 200`, symbolized `usb.dac.max_gap_pc` |
 
-## Manual checks still owned by the user
+## Physical release checks
 
-Run `python3 tools/echo_hw_check.py checklist` for the remaining physical release checks: audible playback on both 3.5 mm and 4.4 mm jacks, true cold power-off/on cycles, cable unplug/replug, and real battery charging behavior.
+Run `python3 tools/echo_hw_check.py checklist` for the manual checklist. Before release, check both headphone outputs by ear and verify power cycles, saved state across restarts, charging, and normal file transfers on the player. [Release requirements](../AGENTS.md).

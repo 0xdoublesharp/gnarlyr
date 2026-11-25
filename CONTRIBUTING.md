@@ -11,9 +11,9 @@ Read [AGENTS.md](AGENTS.md) and, before editing firmware, [firmware/CLAUDE.md](f
 ## Make a focused change
 
 1. Branch from current `main`. For concurrent work, use a separate worktree and agree on shared files before editing.
-2. Keep a commit to one complete behavior: implementation, relevant tests, necessary generated output, and reference documentation.
-3. Regenerate assets with `python3 tools/firmware.py regen --jobs 2`; do not edit generated files by hand.
-4. Run focused tests and the smoke group. For firmware behavior, also run the size report for both image presets.
+2. Keep each commit focused on one behavior and include the relevant tests, generated assets, and reference documentation.
+3. If a change affects generated assets, regenerate them with `python3 tools/firmware.py regen --jobs 2`.
+4. For firmware changes, run focused tests, the smoke group, and the size report for both image presets.
 5. Open a pull request describing the behavior, checks, and remaining device checks.
 
 ```sh
@@ -27,7 +27,7 @@ Use a short imperative commit subject. Scopes help identify the component: `fix(
 
 ## Check the result
 
-The integration owner runs one complete suite on the combined candidate. Feature workers run focused tests; do not start competing full-suite runs. CI runs portable checks on Linux. Native macOS FAT/exFAT mount and read/write checks run with the required system permissions on trusted main/release refs; pull requests use Linux. Fast tool/generated-data checks run before six deterministic Linux shards. Together the shards and preflight cover every CTest test; CTest retains each shard's required fixtures. Documentation-only changes skip the expensive workflow.
+Run the checks for the files you changed. For a documentation edit, check links, commands, and examples against the source. The integration owner runs one complete firmware suite on the combined candidate. See the [CI workflow](docs/development.md#public-ci) for Linux and trusted-ref macOS coverage.
 
 Root parser, exporter, and host-tool changes use:
 

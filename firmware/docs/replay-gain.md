@@ -1,10 +1,10 @@
 # ReplayGain
 
-Settings → ReplayGain selects Off, Track or Album normalization for local playback. Off is the default and preserves the existing PCM output. Prevent clipping is on by default. The portable tag reader and both indexers prepare gain values for the shared device playback engine and the simulator.
+Settings → Sound → ReplayGain offers Off, Track, Album, and Auto for local playback. Off is the default and applies unity gain. Prevent clipping is on by default. The portable tag reader and both indexers prepare gain values for the device and simulator.
 
 ## Playback and settings
 
-Track mode selects the track gain; Album mode selects the album gain to retain the prepared level relationship between songs on an album. When the selected gain is missing, the other gain is used. When both are missing, or the cache is unreadable or invalid, playback uses unity. Off returns unity without reading gain metadata.
+Track mode uses track gain. Album mode uses album gain to preserve the relative levels of songs on the same album. Auto uses album gain for consecutive tracks in album order, including album shuffle, and track gain for song shuffle or isolated tracks. If the selected gain is missing, the player uses the other gain. Missing tags or an unreadable or invalid cache leave gain at unity. Off returns unity without reading gain metadata.
 
 Prevent clipping selects the matching peak-limited value. Turning it off selects the raw gain. Gain and the engine's digital volume are combined once when the track gain or volume changes, before sample conversion and saturation. PCM multiplication uses the existing Q16 conversion step; no tag parsing runs in the sample loop. Converted tracks receive gain before interpolation and retain the converter history across compatible files. EQ retains its separate processing and headroom policy after conversion.
 

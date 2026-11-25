@@ -1,6 +1,6 @@
 # Playback speed
 
-Playback speed changes how fast a recording plays without changing its pitch. The choices are 0.5×, 0.75×, 1×, 1.25×, 1.5×, 1.75×, 2×, 2.5× and 3×. Settings → Playback speed and the Playback speed row of Quick Settings (tap Menu on Now Playing; Play steps to the next speed) set it through the same `settings_action_*` functions; the choice is saved and applied at start.
+Playback speed changes how fast a recording plays while keeping its pitch. The choices are 0.5×, 0.75×, 1×, 1.25×, 1.5×, 1.75×, 2×, 2.5×, and 3×. Use Settings → Playback or tap Menu on Now Playing and choose Speed. Both controls use the same `settings_action_*` functions. The player saves the chosen speed and applies it at startup.
 
 ## Kernel
 

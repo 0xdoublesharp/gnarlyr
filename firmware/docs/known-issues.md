@@ -4,7 +4,7 @@ Gnarlyr 1.0.0 is not released. The developer firmware runs on the owner's full-s
 
 ## Beta testers
 
-These apply to 1.0.0-beta.1, the public beta. It is the `device` build, which writes debug reports.
+These notes cover the planned `1.0.0-beta.1` public beta. It uses the `device` preset, which writes debug reports.
 
 - **macOS System Information.** The beta candidate fixes the USB control transfers that could hang `system_profiler`. Emulator tests cover the fix. The `echo_debug.py` USB discovery command still times out after 12 seconds.
 - **Copy speed is still being improved.** On the developer's player, copies run at about 8.7 MB/s writing to the microSD card and 9.8 MB/s reading from it.
@@ -105,7 +105,7 @@ The canonical `GNARLYR` identity has been installed through the two-hop file-cop
 
 ## Portrait mode
 
-- **Small text shows 13 rows in portrait**, not the 17 that fit, because the browse and Up Next row caches hold 13.
+- At Small text size in portrait, Browse displays up to 14 rows and Up Next displays up to 13. Each list is limited by its row cache.
 
 ## Audiobook chapters (.m4b)
 
@@ -169,7 +169,7 @@ The canonical `GNARLYR` identity has been installed through the two-hop file-cop
 
 ## USB DAC host acceptance
 
-These checks require the parent’s separately approved player window. Keep the tested build tag, inspect USB enumeration at each speed and exercise both headphone outputs; do not infer physical acceptance from emulator PCM tests.
+Follow the [device approval rules](../../AGENTS.md) before running these checks on the owner's player. Record the build tag, check USB enumeration at each speed, and exercise both headphone outputs. Use the [hardware playbooks](../../docs/hardware-playbooks.md) for the automated macOS checks.
 
 - **macOS:** use Audio MIDI Setup to select each of the six rates and available 16/24/32-bit formats. Confirm high-speed enumeration, clock RANGE/CUR, stable explicit feedback and restart after rate/width changes. Repeat through a full-speed hub for UAC1. Test ▶, Vol+ hold and Vol− hold in the intended media app.
 - **Windows:** use the system UAC2 driver on a supported Windows release, inspect every format in Sound properties, and play through WASAPI exclusive. Check initial enumeration, unplug/replug, suspend/resume and endpoint stalls. Repeat full-speed UAC1 and the three consumer keys.
