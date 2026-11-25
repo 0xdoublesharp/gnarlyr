@@ -591,6 +591,11 @@ def run_storage_transfer_check(tool, size_bytes=STORAGE_TEST_BYTES):
     expected = hashlib.sha256(payload).hexdigest()
     started = time.monotonic()
     with target.open("wb") as handle:
+        if sys.platform == "darwin":
+            try:
+                fcntl.fcntl(handle.fileno(), 48, 1)
+            except OSError:
+                pass
         handle.write(payload)
         handle.flush()
         os.fsync(handle.fileno())

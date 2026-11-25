@@ -779,8 +779,11 @@ static void warm_menu_glyphs(void)
         (void)text_width(theme->fonts.title, label);
         (void)text_width(theme->fonts.body, label);
     }
+    static const uint16_t SYMBOLS[] = {0x00B1u, 0x00B7u, 0x2013u, 0x2026u};
+    const Font *warm_fonts[] = {theme->fonts.title, theme->fonts.body, theme->fonts.small};
     (void)text_width(detail, "0123456789");
     (void)text_width(theme->fonts.title, "0123456789");
+    (void)text_width(theme->fonts.title, i18n_text(STR_USB_DAC_RATE));
     (void)text_width(detail, menu.profile);
     for (size_t index = 0; index < sizeof EXTRAS / sizeof EXTRAS[0]; index++) {
         (void)text_width(detail, i18n_text((StringId)EXTRAS[index]));
@@ -788,9 +791,11 @@ static void warm_menu_glyphs(void)
     for (uint32_t code = ' '; code <= '~'; code++) {
         (void)font_find_glyph(theme->fonts.small, code);
     }
-    (void)font_find_glyph(theme->fonts.title, 0x2026u);
-    (void)font_find_glyph(theme->fonts.body, 0x2026u);
-    (void)font_find_glyph(theme->fonts.small, 0x2026u);
+    for (size_t font = 0; font < sizeof warm_fonts / sizeof warm_fonts[0]; font++) {
+        for (size_t symbol = 0; symbol < sizeof SYMBOLS / sizeof SYMBOLS[0]; symbol++) {
+            (void)font_find_glyph(warm_fonts[font], SYMBOLS[symbol]);
+        }
+    }
     (void)footer_hints_height(theme, (FooterHints){.items = DAC_HINTS + DAC_MENU_HINTS,
                                                    .count = 4,
                                                    .align = FOOTER_ALIGN_START});

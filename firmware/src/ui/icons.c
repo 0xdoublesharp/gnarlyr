@@ -396,11 +396,17 @@ static void fill_rows(const Pen *pen, RowEdges row, int top, int count)
 
 static void draw_shape(const Pen *pen, const Shape *shape)
 {
-    RowEdges run = row_edges(shape, 0);
-    int start = 0;
-    for (int row = 1; row <= shape->height; row++) {
-        RowEdges next = row < shape->height ? row_edges(shape, row) : run;
-        if (row == shape->height || !same_row(run, next)) {
+    int first = max_of(0, pen->canvas->clip.y - shape->origin.y);
+    int last =
+        min_of(shape->height, pen->canvas->clip.y + pen->canvas->clip.height - shape->origin.y);
+    if (first >= last) {
+        return;
+    }
+    RowEdges run = row_edges(shape, first);
+    int start = first;
+    for (int row = first + 1; row <= last; row++) {
+        RowEdges next = row < last ? row_edges(shape, row) : run;
+        if (row == last || !same_row(run, next)) {
             fill_rows(pen, run, shape->origin.y + start, row - start);
             run = next;
             start = row;
