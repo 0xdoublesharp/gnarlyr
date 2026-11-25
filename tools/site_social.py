@@ -1,4 +1,5 @@
 """Regenerate branded link-preview PNGs and social metadata for the static site."""
+import base64
 import hashlib
 from html import escape
 from html.parser import HTMLParser
@@ -40,13 +41,20 @@ class Metadata(HTMLParser):
                     self.translation_ids[key] = attributes["data-i18n-attrs"]
 
 
-def card_svg(card, artwork, domain):
-    title = "".join(f'<text x="64" y="{260 + i * 78}" font-size="66" font-weight="900" letter-spacing="-2">{escape(line)}</text>'
+def card_svg(card, artwork, domain, screenshot):
+    if screenshot[:8] != b"\x89PNG\r\n\x1a\n" or screenshot[12:16] != b"IHDR":
+        raise ValueError(f'{card["page"]} preview needs a PNG screenshot')
+    width, height = struct.unpack_from(">II", screenshot, 16)
+    scale = min(440 / width, 306 / height)
+    width, height = round(width * scale), round(height * scale)
+    x, y = 912 - width / 2, 326 - height / 2
+    image = base64.b64encode(screenshot).decode("ascii")
+    title = "".join(f'<text x="64" y="{265 + i * 72}" font-size="62" font-weight="900" letter-spacing="-2">{escape(line)}</text>'
                     for i, line in enumerate(card["title"]))
     description = "".join(f'<text x="66" y="{418 + i * 34}" font-size="24" fill="#b9acc8">{escape(line)}</text>'
                           for i, line in enumerate(card["description"]))
-    illustration = artwork.replace('<svg ', '<svg x="710" y="100" width="390" height="390" ', 1)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+    disc = artwork.replace('<svg ', '<svg x="995" y="77" width="137" height="137" ', 1)
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1200" height="630" viewBox="0 0 1200 630">
 <defs><radialGradient id="backdrop"><stop stop-color="#34203f"/><stop offset="1" stop-color="#150f25"/></radialGradient></defs>
 <rect width="1200" height="630" fill="#150f25"/>
 <ellipse cx="940" cy="300" rx="500" ry="420" fill="url(#backdrop)"/>
@@ -55,10 +63,13 @@ def card_svg(card, artwork, domain):
 <text x="64" y="100" font-size="36" font-weight="900" letter-spacing="1">{escape(IDENTITY["name"].upper())}<tspan fill="#ff88bd">.</tspan></text>
 <text x="66" y="161" font-family="monospace" font-size="16" fill="#a1edda" letter-spacing="1.5">{escape(card["label"].upper())}</text>
 {title}{description}
-</g>{illustration}
+</g>
+<path d="M670 434H1136 M670 460H1136 M670 486H1136" fill="none" stroke="#45334f"/>
+{disc}
+<rect x="{x-12}" y="{y-12}" width="{width+24}" height="{height+24}" rx="15" fill="#100b1d" stroke="#85658b" stroke-width="2"/>
+<image x="{x}" y="{y}" width="{width}" height="{height}" xlink:href="data:image/png;base64,{image}"/>
 <path d="M64 540H1136" stroke="#45334f"/>
 <text x="64" y="586" font-family="monospace" font-size="22" fill="#f4edde" letter-spacing="1">{escape(domain)}</text>
-<text x="1136" y="586" text-anchor="end" font-family="monospace" font-size="14" fill="#b9acc8" letter-spacing="2">LESS SCROLLING. MORE LISTENING.</text>
 </svg>'''.encode()
 
 
@@ -69,7 +80,7 @@ def metadata_tags(source, card, url):
     for key in ("og:title", "og:description", "og:type", "og:url"):
         if not values.get(key):
             raise ValueError(f'{card["page"]} needs {key}')
-    alt = f'{IDENTITY["name"]} Sunset Disc beside the words “{" ".join(card["title"])}”'
+    alt = f'{" ".join(card["title"])}. {card["image_alt"]}.'
     properties = {
         "og:site_name": IDENTITY["name"], "og:locale": "en_US", "og:image": url,
         "og:image:secure_url": url, "og:image:type": "image/png",
@@ -126,7 +137,11 @@ def main():
         for card in cards:
             if not re.fullmatch(r"[a-z]+(?:-[a-z]+)*", card["name"]):
                 raise ValueError("Card names must be lowercase words separated by hyphens")
-            png = subprocess.run([renderer, "--format", "png"], input=card_svg(card, artwork, domain),
+            screenshot = Path(card["image"])
+            if not re.fullmatch(r"assets/(?:screens|companion)/[a-z0-9-]+\.png", screenshot.as_posix()):
+                raise ValueError(f'{card["page"]} preview needs a published product screenshot')
+            png = subprocess.run([renderer, "--format", "png"],
+                                 input=card_svg(card, artwork, domain, (SITE / screenshot).read_bytes()),
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, timeout=30,
                                  env={**os.environ, "TMPDIR": work}).stdout
             if png[:8] != b"\x89PNG\r\n\x1a\n" or struct.unpack_from(">II", png, 16) != (1200, 630):

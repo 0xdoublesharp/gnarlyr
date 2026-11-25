@@ -3,19 +3,19 @@
   "locale": "de",
   "messages": {
     "home.a001": {
-      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
-      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
-      "translation": "Open-Source-Firmware für den großen Snowsky ECHO mit Cover Flow, bearbeitbaren Warteschlangen, Mixtapes und individuellem EQ."
+      "source": "Open-source firmware for the full-size SNOWSKY ECHO. Browse album covers, edit Up Next, save mixtapes, and tune your headphones.",
+      "source_sha256": "5752fcd0a550ade1c6ef3d8a7d394898b30bee5ec65ee21303c40cb42ece56c1",
+      "translation": "Open-Source-Firmware für den großen SNOWSKY ECHO. Blättere durch Albumcover, bearbeite die Warteschlange, speichere Mixtapes und passe den Kopfhörerklang an."
     },
     "home.a002": {
-      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
-      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
-      "translation": "Gnarlyr | Custom Firmware für Snowsky ECHO"
+      "source": "Gnarlyr for the full-size SNOWSKY ECHO",
+      "source_sha256": "c228d2a67ee86fcdabaaa96a1aaa61d32e1e208befddd72354879c6d845a0379",
+      "translation": "Gnarlyr für den großen SNOWSKY ECHO"
     },
     "home.a003": {
-      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
-      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
-      "translation": "Open-Source-Firmware für den großen Snowsky ECHO mit Cover Flow, bearbeitbaren Warteschlangen, Mixtapes und individuellem EQ."
+      "source": "Open-source firmware for the full-size SNOWSKY ECHO. Browse album covers, edit Up Next, save mixtapes, and tune your headphones.",
+      "source_sha256": "5752fcd0a550ade1c6ef3d8a7d394898b30bee5ec65ee21303c40cb42ece56c1",
+      "translation": "Open-Source-Firmware für den großen SNOWSKY ECHO. Blättere durch Albumcover, bearbeite die Warteschlange, speichere Mixtapes und passe den Kopfhörerklang an."
     },
     "home.m001": {
       "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
@@ -23,24 +23,24 @@
       "translation": "Gnarlyr | Custom Firmware für Snowsky ECHO"
     },
     "home.a004": {
-      "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
-      "source_sha256": "eb24eeb7e499e7f4cff74678147e57d76d607d44e86dc8e337c6da66b8d250c9",
-      "translation": "Gnarlyr Sunset Disc neben den Worten „A new side to your ECHO.“"
+      "source": "Your ECHO with Gnarlyr. Now Playing with a spectrum visualizer.",
+      "source_sha256": "7cfc00706f447c9072a840f2b3a590a239d8c831c40c641fe75c924b11074d8c",
+      "translation": "Dein ECHO mit Gnarlyr. Wiedergabeansicht mit Spektrumanzeige."
     },
     "home.a005": {
-      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
-      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
-      "translation": "Gnarlyr | Custom Firmware für Snowsky ECHO"
+      "source": "Gnarlyr for the full-size SNOWSKY ECHO",
+      "source_sha256": "c228d2a67ee86fcdabaaa96a1aaa61d32e1e208befddd72354879c6d845a0379",
+      "translation": "Gnarlyr für den großen SNOWSKY ECHO"
     },
     "home.a006": {
-      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
-      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
-      "translation": "Open-Source-Firmware für den großen Snowsky ECHO mit Cover Flow, bearbeitbaren Warteschlangen, Mixtapes und individuellem EQ."
+      "source": "Open-source firmware for the full-size SNOWSKY ECHO. Browse album covers, edit Up Next, save mixtapes, and tune your headphones.",
+      "source_sha256": "5752fcd0a550ade1c6ef3d8a7d394898b30bee5ec65ee21303c40cb42ece56c1",
+      "translation": "Open-Source-Firmware für den großen SNOWSKY ECHO. Blättere durch Albumcover, bearbeite die Warteschlange, speichere Mixtapes und passe den Kopfhörerklang an."
     },
     "home.a007": {
-      "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
-      "source_sha256": "eb24eeb7e499e7f4cff74678147e57d76d607d44e86dc8e337c6da66b8d250c9",
-      "translation": "Gnarlyr Sunset Disc neben den Worten „A new side to your ECHO.“"
+      "source": "Your ECHO with Gnarlyr. Now Playing with a spectrum visualizer.",
+      "source_sha256": "7cfc00706f447c9072a840f2b3a590a239d8c831c40c641fe75c924b11074d8c",
+      "translation": "Dein ECHO mit Gnarlyr. Wiedergabeansicht mit Spektrumanzeige."
     },
     "home.m002": {
       "source": "Skip to content",

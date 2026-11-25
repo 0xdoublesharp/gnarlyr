@@ -3,19 +3,19 @@
   "locale": "fr",
   "messages": {
     "home.a001": {
-      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
-      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
-      "translation": "Firmware open source pour le Snowsky ECHO grand format, avec Cover Flow, file d’attente modifiable, mixtapes et égaliseur personnalisable."
+      "source": "Open-source firmware for the full-size SNOWSKY ECHO. Browse album covers, edit Up Next, save mixtapes, and tune your headphones.",
+      "source_sha256": "5752fcd0a550ade1c6ef3d8a7d394898b30bee5ec65ee21303c40cb42ece56c1",
+      "translation": "Firmware open source pour le SNOWSKY ECHO grand format. Parcourez les pochettes, modifiez la file d’attente, enregistrez des mixtapes et réglez le son de votre casque."
     },
     "home.a002": {
-      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
-      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
-      "translation": "Gnarlyr | Firmware personnalisé pour Snowsky ECHO"
+      "source": "Gnarlyr for the full-size SNOWSKY ECHO",
+      "source_sha256": "c228d2a67ee86fcdabaaa96a1aaa61d32e1e208befddd72354879c6d845a0379",
+      "translation": "Gnarlyr pour le SNOWSKY ECHO grand format"
     },
     "home.a003": {
-      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
-      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
-      "translation": "Firmware open source pour le Snowsky ECHO grand format, avec Cover Flow, file d’attente modifiable, mixtapes et égaliseur personnalisable."
+      "source": "Open-source firmware for the full-size SNOWSKY ECHO. Browse album covers, edit Up Next, save mixtapes, and tune your headphones.",
+      "source_sha256": "5752fcd0a550ade1c6ef3d8a7d394898b30bee5ec65ee21303c40cb42ece56c1",
+      "translation": "Firmware open source pour le SNOWSKY ECHO grand format. Parcourez les pochettes, modifiez la file d’attente, enregistrez des mixtapes et réglez le son de votre casque."
     },
     "home.m001": {
       "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
@@ -23,24 +23,24 @@
       "translation": "Gnarlyr | Firmware personnalisé pour Snowsky ECHO"
     },
     "home.a004": {
-      "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
-      "source_sha256": "eb24eeb7e499e7f4cff74678147e57d76d607d44e86dc8e337c6da66b8d250c9",
-      "translation": "Disque Sunset Gnarlyr à côté des mots « A new side to your ECHO. »"
+      "source": "Your ECHO with Gnarlyr. Now Playing with a spectrum visualizer.",
+      "source_sha256": "7cfc00706f447c9072a840f2b3a590a239d8c831c40c641fe75c924b11074d8c",
+      "translation": "Votre ECHO avec Gnarlyr. Écran de lecture avec visualiseur de spectre."
     },
     "home.a005": {
-      "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
-      "source_sha256": "a77f789497cb33fa26e1890ffb38bc09ba3c86af38cecae6e025c3015e757bc9",
-      "translation": "Gnarlyr | Firmware personnalisé pour Snowsky ECHO"
+      "source": "Gnarlyr for the full-size SNOWSKY ECHO",
+      "source_sha256": "c228d2a67ee86fcdabaaa96a1aaa61d32e1e208befddd72354879c6d845a0379",
+      "translation": "Gnarlyr pour le SNOWSKY ECHO grand format"
     },
     "home.a006": {
-      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
-      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
-      "translation": "Firmware open source pour le Snowsky ECHO grand format, avec Cover Flow, file d’attente modifiable, mixtapes et égaliseur personnalisable."
+      "source": "Open-source firmware for the full-size SNOWSKY ECHO. Browse album covers, edit Up Next, save mixtapes, and tune your headphones.",
+      "source_sha256": "5752fcd0a550ade1c6ef3d8a7d394898b30bee5ec65ee21303c40cb42ece56c1",
+      "translation": "Firmware open source pour le SNOWSKY ECHO grand format. Parcourez les pochettes, modifiez la file d’attente, enregistrez des mixtapes et réglez le son de votre casque."
     },
     "home.a007": {
-      "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
-      "source_sha256": "eb24eeb7e499e7f4cff74678147e57d76d607d44e86dc8e337c6da66b8d250c9",
-      "translation": "Disque Sunset Gnarlyr à côté des mots « A new side to your ECHO. »"
+      "source": "Your ECHO with Gnarlyr. Now Playing with a spectrum visualizer.",
+      "source_sha256": "7cfc00706f447c9072a840f2b3a590a239d8c831c40c641fe75c924b11074d8c",
+      "translation": "Votre ECHO avec Gnarlyr. Écran de lecture avec visualiseur de spectre."
     },
     "home.m002": {
       "source": "Skip to content",

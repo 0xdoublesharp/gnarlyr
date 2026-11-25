@@ -109,7 +109,7 @@ copies of shared assets are not committed. The static runtime is unchanged.
 
 ## Link preview images
 
-Each English page has its own 1200 × 630 PNG card, Open Graph image metadata, and a Twitter/X large-image card. Translated homepages share the homepage image, with localized title, description, locale, and alt metadata. The artwork uses the Sunset Disc from `assets/brand/sunset-disc.svg`, matching the firmware mark. The site header and favicon use the same shape and colors. Titles and descriptions in the HTML remain the source for social text; `tools/site_social.json` controls the words drawn on each image.
+Each English page has a 1200 × 630 PNG card for Open Graph and Twitter/X. Cards pair the Sunset Disc with a firmware or Companion screenshot. Translated homepages share the homepage image and localize its title, description, and alt text. Set the social title and description in the HTML. Use `tools/site_social.json` to choose the screenshot, describe it for the image alt text, and set the words drawn on the card.
 
 Regenerate images and metadata after changing that copy or the Sunset Disc artwork:
 
