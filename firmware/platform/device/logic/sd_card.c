@@ -107,12 +107,13 @@ static bool assign_address(const SdHost *host, SdCard *card)
 
 static uint32_t csd_bits(const uint32_t csd[4], int start, int size)
 {
-    uint32_t value = 0;
-    for (int bit = size - 1; bit >= 0; bit--) {
-        int position = start + bit;
-        value = value << 1 | ((csd[position / 32] >> (position % 32)) & 1u);
+    int word = start / 32;
+    int offset = start % 32;
+    uint32_t value = csd[word] >> offset;
+    if (offset + size > 32) {
+        value |= csd[word + 1] << (32 - offset);
     }
-    return value;
+    return value & ((1u << size) - 1);
 }
 
 static uint32_t csd_sectors(const uint32_t csd[4])

@@ -60,11 +60,11 @@ static void write_register(const MmcHost *host, uint32_t offset, uint32_t value)
     register_write(host->base + offset, value);
 }
 
-__attribute__((noinline)) static bool wait_clear(const MmcHost *host, uint32_t offset,
-                                                 uint32_t bits, uint32_t timeout_ms)
+__attribute__((noinline)) static bool wait_register(uint32_t address, uint32_t bits, bool set,
+                                                    uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
-    while ((read_register(host, offset) & bits) != 0) {
+    while (((register_read(address) & bits) != 0) != set) {
         board_audio_stream_service();
         if (hal_clock_milliseconds() - start > timeout_ms) {
             return false;
@@ -73,17 +73,14 @@ __attribute__((noinline)) static bool wait_clear(const MmcHost *host, uint32_t o
     return true;
 }
 
-__attribute__((noinline)) static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits,
-                                               uint32_t timeout_ms)
+static bool wait_clear(const MmcHost *host, uint32_t offset, uint32_t bits, uint32_t timeout_ms)
 {
-    uint32_t start = hal_clock_milliseconds();
-    while ((read_register(host, offset) & bits) == 0) {
-        board_audio_stream_service();
-        if (hal_clock_milliseconds() - start > timeout_ms) {
-            return false;
-        }
-    }
-    return true;
+    return wait_register(host->base + offset, bits, false, timeout_ms);
+}
+
+static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits, uint32_t timeout_ms)
+{
+    return wait_register(host->base + offset, bits, true, timeout_ms);
 }
 
 CORE_COLD static bool update_clock(const MmcHost *host)
@@ -143,7 +140,7 @@ CORE_COLD void mmc_clock_init(const MmcHost *host)
     set_source(host, IDENTIFY_CLOCK_FIELD);
 }
 
-static bool enable_clock(const MmcHost *host, uint32_t enable)
+__attribute__((noinline)) static bool enable_clock(const MmcHost *host, uint32_t enable)
 {
     write_register(host, MMC_CLKENA, enable);
     return update_clock(host);
@@ -293,6 +290,21 @@ static bool command_failed(uint32_t flags, uint32_t status)
     return (status & errors) != 0;
 }
 
+__attribute__((noinline)) static bool start_command(const MmcHost *host, uint32_t argument,
+                                                    uint32_t command)
+{
+    write_register(host, MMC_RINTSTS, INT_ALL);
+    write_register(host, MMC_CMDARG, argument);
+    write_register(host, MMC_CMD, CMD_BASE | command);
+    return wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS);
+}
+
+static bool response_ready(const MmcHost *host, uint32_t flags)
+{
+    return wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) &&
+           !command_failed(flags, read_register(host, MMC_RINTSTS));
+}
+
 static void read_response(const MmcHost *host, uint32_t response[4])
 {
     for (uint32_t index = 0; index < 4; index++) {
@@ -300,18 +312,15 @@ static void read_response(const MmcHost *host, uint32_t response[4])
     }
 }
 
-bool mmc_command(const MmcHost *host, SdCommand command, uint32_t response[4])
+__attribute__((noinline)) bool mmc_command(const MmcHost *host, SdCommand command,
+                                           uint32_t response[4])
 {
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
         return false;
     }
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, command.argument);
     uint32_t flags = command_flags(command);
-    write_register(host, MMC_CMD, CMD_BASE | flags | command.index);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) ||
-        !wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) ||
-        command_failed(flags, read_register(host, MMC_RINTSTS))) {
+    if (!start_command(host, command.argument, flags | command.index) ||
+        !response_ready(host, flags)) {
         return false;
     }
     read_response(host, response);
@@ -355,23 +364,15 @@ static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
 
 static CORE_COLD bool failed(const MmcHost *host, MmcStep step);
 
-static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t bytes,
-                      uint32_t *words)
+static bool start_data(const MmcHost *host, uint32_t command, uint32_t address, uint32_t bytes)
 {
-    if (!prepare_data(host)) {
-        return failed(host, MMC_STEP_BUSY_BEFORE);
-    }
     write_register(host, MMC_BLKSIZ, bytes < BLOCK_BYTES ? bytes : BLOCK_BYTES);
     write_register(host, MMC_BYTCNT, bytes);
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, address);
-    write_register(host, MMC_CMD, CMD_BASE | CMD_DATA_READ | index);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS)) {
-        return failed(host, MMC_STEP_COMMAND_START);
-    }
-    if (!drain_fifo(host, words, bytes / 4)) {
-        return failed(host, MMC_STEP_FIFO);
-    }
+    return start_command(host, address, CMD_DATA_READ | command);
+}
+
+__attribute__((noinline)) static bool finish_data(const MmcHost *host)
+{
     if (!wait_any(host, MMC_RINTSTS, INT_DATA_FINISHED, DATA_TIMEOUT_MS)) {
         return failed(host, MMC_STEP_DATA_WAIT);
     }
@@ -380,6 +381,21 @@ static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint
     }
     write_register(host, MMC_RINTSTS, INT_ALL);
     return true;
+}
+
+static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t bytes,
+                      uint32_t *words)
+{
+    if (!prepare_data(host)) {
+        return failed(host, MMC_STEP_BUSY_BEFORE);
+    }
+    if (!start_data(host, index, address, bytes)) {
+        return failed(host, MMC_STEP_COMMAND_START);
+    }
+    if (!drain_fifo(host, words, bytes / 4)) {
+        return failed(host, MMC_STEP_FIFO);
+    }
+    return finish_data(host);
 }
 
 bool mmc_read_block(const MmcHost *host, uint8_t index, uint32_t address, uint32_t *words)
@@ -400,14 +416,8 @@ bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16])
 
 static bool stop_transmission(const MmcHost *host, uint32_t argument)
 {
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, argument);
-    write_register(host, MMC_CMD,
-                   CMD_BASE | CMD_STOP_ABORT | CMD_RESPONSE | CMD_CHECK_CRC |
-                       CMD_STOP_TRANSMISSION);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) ||
-        !wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) ||
-        command_failed(CMD_CHECK_CRC, read_register(host, MMC_RINTSTS))) {
+    uint32_t flags = CMD_STOP_ABORT | CMD_RESPONSE | CMD_CHECK_CRC | CMD_STOP_TRANSMISSION;
+    if (!start_command(host, argument, flags) || !response_ready(host, flags)) {
         return failed(host, MMC_STEP_STOP);
     }
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
@@ -474,22 +484,15 @@ bool mmc_write_blocks(const MmcHost *host, uint8_t index, uint32_t address, uint
     }
     write_register(host, MMC_BLKSIZ, BLOCK_BYTES);
     write_register(host, MMC_BYTCNT, BLOCK_BYTES * count);
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, address);
-    write_register(host, MMC_CMD, CMD_BASE | CMD_DATA_READ | CMD_WRITE | index);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS)) {
+    if (!start_command(host, address, CMD_DATA_READ | CMD_WRITE | index)) {
         return failed(host, MMC_STEP_COMMAND_START);
     }
     if (!fill_fifo(host, words, BLOCK_WORDS * count)) {
         return failed(host, MMC_STEP_FIFO);
     }
-    if (!wait_any(host, MMC_RINTSTS, INT_DATA_FINISHED, DATA_TIMEOUT_MS)) {
-        return failed(host, MMC_STEP_DATA_WAIT);
+    if (!finish_data(host)) {
+        return false;
     }
-    if ((read_register(host, MMC_RINTSTS) & INT_DATA_FAILED) != 0) {
-        return failed(host, MMC_STEP_DATA_ERROR);
-    }
-    write_register(host, MMC_RINTSTS, INT_ALL);
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
         return failed(host, MMC_STEP_BUSY_AFTER);
     }

@@ -249,7 +249,11 @@ set(ECHO_DEVICE_LOGIC_LTO_SOURCES
 set(ECHO_DEVICE_LOGIC_LTO_SOURCES ${ECHO_DEVICE_LOGIC_LTO_SOURCES} PARENT_SCOPE)
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
+        audio_engine.c
+        audio_math.c
+        audio_resample.c
         battery_gauge.c
+        block_read.c
         bt_module.c
         card_write.c
         clock_governor.c
@@ -258,21 +262,28 @@ if(CMAKE_CROSSCOMPILING)
         core1_open_mp3.c
         core1_pace.c
         debug_report.c
+        dma_loop.c
         emmc_layout.c
         equalizer_design.c
+        exfat.c
+        fat.c
         fat_delete.c
+        fat_extents.c
         flac_source.c
         flac_source_open.c
         image_crc.c
         key_ladder_model.c
+        key_scanner.c
         m4a_stream.c
         mp3_probe.c
         mp4_demux.c
         msc.c
         power_history.c
         slot_copy.c
+        stall_watch.c
         stream_drift.c
         time_file.c
+        tick_clock.c
         update_names.c
         update_trial.c
         updater.c
@@ -288,6 +299,8 @@ if(CMAKE_CROSSCOMPILING)
         usb_leave.c
         usb_level.c
         volume_space.c
+        vop.c
+        wav_source.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
     set_source_files_properties(${ECHO_DEVICE_LOGIC_LTO_SOURCES}

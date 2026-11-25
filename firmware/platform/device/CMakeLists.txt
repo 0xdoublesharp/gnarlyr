@@ -457,6 +457,8 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
     COMPILE_OPTIONS "-fno-builtin;-fno-tree-loop-distribute-patterns;-fno-lto"
 )
 if(CMAKE_CROSSCOMPILING)
+    set_property(SOURCE board/libc.c board/startup.c APPEND PROPERTY COMPILE_OPTIONS
+        "$<$<STREQUAL:$<TARGET_PROPERTY:NAME>,echo_device>:-Os>")
     set_source_files_properties(
         board/audio.c
         board/audio_dsp.c
@@ -491,6 +493,7 @@ if(CMAKE_CROSSCOMPILING)
         board/language.c
         board/loader_reboot.c
         board/main.c
+        board/mmc.c
         board/overlay.c
         board/panel_vop.c
         board/panic.c

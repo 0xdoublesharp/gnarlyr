@@ -150,13 +150,10 @@ static bool read_sector_count(void)
     return emmc.sector_count != 0;
 }
 
-static bool switch_high_speed(uint8_t limit, uint32_t words[4])
+__attribute__((noinline)) static bool switch_card(uint32_t argument, uint32_t words[4])
 {
-    if (limit == 0 || !command(CMD_SWITCH, SWITCH_HIGH_SPEED, SD_RESPONSE_SHORT_BUSY, words) ||
-        !mmc_card_status_ok(words[0]) || !wait_for_transfer_state()) {
-        return true;
-    }
-    return mmc_clock_accept(&EMMC_HOST, limit);
+    return command(CMD_SWITCH, argument, SD_RESPONSE_SHORT_BUSY, words) &&
+           mmc_card_status_ok(words[0]) && wait_for_transfer_state();
 }
 
 static bool select_and_widen(uint32_t words[4], bool try_high_speed)
@@ -167,13 +164,13 @@ static bool select_and_widen(uint32_t words[4], bool try_high_speed)
         !read_sector_count()) {
         return false;
     }
-    uint8_t type = ((const uint8_t *)board_scratch)[EXT_CSD_DEVICE_TYPE];
-    if (!command(CMD_SWITCH, SWITCH_BUS_WIDTH_8, SD_RESPONSE_SHORT_BUSY, words) ||
-        !mmc_card_status_ok(words[0]) || !wait_for_transfer_state()) {
+    uint8_t limit = mmc_emmc_limit_mhz(((const uint8_t *)board_scratch)[EXT_CSD_DEVICE_TYPE]);
+    if (!switch_card(SWITCH_BUS_WIDTH_8, words)) {
         return false;
     }
     mmc_set_bus_width(&EMMC_HOST, 8);
-    return !try_high_speed || switch_high_speed(mmc_emmc_limit_mhz(type), words);
+    return !try_high_speed || limit == 0 || !switch_card(SWITCH_HIGH_SPEED, words) ||
+           mmc_clock_accept(&EMMC_HOST, limit);
 }
 
 static bool read_single_block(void *context, uint32_t lba, uint32_t *words)

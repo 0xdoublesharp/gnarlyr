@@ -109,33 +109,34 @@ CORE_COLD bool dac_eq_from_equalizer(const Equalizer *eq, uint32_t sample_rate, 
     return true;
 }
 
-static bool write_pair(const DacBus *bus, uint32_t map, uint8_t value)
+__attribute__((noinline)) static bool write_pair(const DacBus *bus, uint32_t map, uint8_t value)
 {
     bool left = bus->write(bus->context, DAC_LEFT_ADDRESS, map, value);
     return bus->write(bus->context, DAC_RIGHT_ADDRESS, map, value) && left;
 }
 
-bool dac_eq_disable(const DacBus *bus)
+__attribute__((noinline)) CORE_COLD bool dac_eq_disable(const DacBus *bus)
 {
     bool disabled = write_pair(bus, FILTER_CONTROL_1, 0);
     return write_pair(bus, FILTER_CONTROL_2, 0) && disabled;
 }
 
-bool dac_eq_write(const DacBus *bus, const DacEqProgram *program)
+__attribute__((noinline)) CORE_COLD bool dac_eq_write(const DacBus *bus,
+                                                      const DacEqProgram *program)
 {
     if (!program->enabled) {
         return dac_eq_disable(bus);
     }
     for (uint32_t index = 0; index < sizeof program->coeffs; index++) {
         if (!write_pair(bus, FILTER_COEFFICIENT_FIRST + index, program->coeffs[index])) {
-            (void)dac_eq_disable(bus);
-            return false;
+            goto disable;
         }
     }
     if (write_pair(bus, FILTER_CONTROL_2, program->control2) &&
         write_pair(bus, FILTER_CONTROL_1, program->control1)) {
         return true;
     }
+disable:
     (void)dac_eq_disable(bus);
     return false;
 }

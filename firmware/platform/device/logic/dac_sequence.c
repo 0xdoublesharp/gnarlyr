@@ -17,7 +17,7 @@ enum {
     MCLK_44K_FAMILY = 0x04,
     RATE_192K = 6,
     PCM_WIDEBAND = 0x04,
-    PCM_NOS = 0x20,
+    PCM_NOS_FILTER = 4,
     SERIAL_PORT_BIT = 0x40,
     HEADPHONE_BIT = 0x10,
     OUTPUT_POWER_UP_MS = 12,
@@ -315,8 +315,8 @@ CORE_COLD static bool start_up(const DacBus *bus)
 
 static uint8_t filter_value(uint8_t filter, bool wideband)
 {
-    uint8_t value = FILTER_VALUES[filter < DAC_ANALOG_FILTERS ? filter : 0];
-    return value | (wideband && (value & PCM_NOS) == 0 ? PCM_WIDEBAND : 0);
+    return FILTER_VALUES[filter < DAC_ANALOG_FILTERS ? filter : 0] |
+           (wideband && filter != PCM_NOS_FILTER ? PCM_WIDEBAND : 0);
 }
 
 static uint8_t gain_value(bool high)
@@ -453,8 +453,9 @@ CORE_SEAM CORE_COLD bool dac_apply_analog(const DacBus *bus, DacAnalog before, D
     }
     bool wideband = bus->wideband != NULL && *bus->wideband;
     uint8_t filter = filter_value(after.filter, wideband);
+    bool nos_changed = (before.filter == PCM_NOS_FILTER) != (after.filter == PCM_NOS_FILTER);
     bool power_down = before.gain_high != after.gain_high || before.filter == DAC_ANALOG_UNKNOWN ||
-                      ((filter ^ filter_value(before.filter, wideband)) & PCM_WIDEBAND);
+                      (wideband && nos_changed);
     bool applied = power_down ? change_analog(bus, after, filter)
                               : before.filter == after.filter || change_filter(bus, filter);
     if (!applied) {

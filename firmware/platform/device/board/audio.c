@@ -315,7 +315,7 @@ static AudioSource chosen_source(void)
                                   flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
 
-static bool ensure_audio_clock(void)
+__attribute__((noinline)) static bool ensure_audio_clock(void)
 {
     return hal_system_clock_mhz() >= AUDIO_CLOCK_MHZ || hal_system_set_clock_mhz(AUDIO_CLOCK_MHZ);
 }
@@ -497,6 +497,15 @@ CORE_COLD static void stop_path(void)
     eq_pending = true;
 }
 
+__attribute__((noinline)) CORE_COLD static void wait_for_equalizer(uint32_t first)
+{
+    uint32_t started = hal_clock_milliseconds();
+    while ((int32_t)(consumed - first) < 0 &&
+           hal_clock_milliseconds() - started < PREFILL_TIMEOUT_MS) {
+        serve_fade();
+    }
+}
+
 CORE_COLD static void apply_equalizer(void)
 {
     eq_pending = false;
@@ -513,22 +522,18 @@ CORE_COLD static void apply_equalizer(void)
     if (restore) {
         dac_path_set_muted(true);
     }
-    bool switching = hardware != engine.hw_equalizing;
+    bool previous = engine.hw_equalizing;
     uint32_t first = engine.produced;
     engine.hw_equalizing = hardware;
     bool applied = dac_path_set_equalizer(hardware ? &program : NULL);
-    if (applied != hardware) {
+    bool failed = applied != hardware;
+    if (failed) {
         (void)ensure_audio_clock();
         first = engine.produced;
-        switching = true;
     }
     engine.hw_equalizing = applied;
-    if (switching && transferring) {
-        uint32_t started = hal_clock_milliseconds();
-        while ((int32_t)(consumed - first) < 0 &&
-               hal_clock_milliseconds() - started < PREFILL_TIMEOUT_MS) {
-            serve_fade();
-        }
+    if (transferring && (failed || applied != previous)) {
+        wait_for_equalizer(first);
     }
     if (restore) {
         dac_path_set_muted(false);
