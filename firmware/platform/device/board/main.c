@@ -396,7 +396,7 @@ static void follow_card(uint32_t *generation)
     }
 }
 
-void board_main(void)
+__attribute__((optimize("no-reorder-blocks"))) void board_main(void)
 {
     board_power_hold();
     board_start_record_boot();
