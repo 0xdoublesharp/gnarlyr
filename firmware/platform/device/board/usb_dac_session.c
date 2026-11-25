@@ -98,7 +98,7 @@ static DacNext next;
 
 static void start_output(void)
 {
-    if (!playing && receiving && usb_audio_sink_primed(&sink)) {
+    if (!playing && receiving && !port->setup_pending && usb_audio_sink_primed(&sink)) {
         playing = true;
         usb_audio_sink_set_playing(&sink, true);
         playing = board_audio_stream_play();
