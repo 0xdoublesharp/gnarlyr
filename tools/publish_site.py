@@ -20,6 +20,7 @@ PUBLIC_FILES = (
     "index.html", "companion.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
     "styles.css", "site.js", "analytics.js", "favicon.svg", "robots.txt", "sitemap.xml",
     "themes.html", "languages.html", "language-catalog.js", "language-packs.js",
+    "comparison.html", "comparison.js",
 )
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".avif", ".gif"}
 

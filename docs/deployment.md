@@ -46,7 +46,7 @@ as the other registered sites; session recording stays disabled.
 
 Every public HTML page defers `analytics.js`, which sends one pageview to
 `/api/send` on the Umami origin. Only the canonical production HTTPS hostname
-and explicit routes for the nine English pages and five translated homepages collect. Query strings and fragments are omitted,
+and explicit routes for the published English pages and five translated homepages collect. Query strings and fragments are omitted,
 referrers contain only their origin, and Do Not Track, Global Privacy Control,
 and the `umami.disabled` browser preference suppress collection. The validation
 hostname, local previews, health probes, and unknown routes do not collect.
@@ -74,9 +74,8 @@ operator’s sudo credential in memory and sends it over SSH stdin. Credential
 values are never stored here or printed. The connected `double-paas` MCP owns
 normal service configuration/start operations. Website publication is manual, with no automatic push deployment. Firmware and companion release workflows are separate.
 
-The publisher includes only `index.html`, `companion.html`, `firmware.html`, `hardware.html`,
-`docs.html`, `recovery.html`, `install.html`, `build.html`, `styles.css`, `site.js`, `analytics.js`, `favicon.svg`, `robots.txt`,
-`sitemap.xml`, `languages.html`, `language-catalog.js`, `language-packs.js`, and regular public image files under `site/assets/`, up to
+The publisher includes only the public route and asset allowlist in
+`tools/publish_site.py` and regular public image files under `site/assets/`, up to
 64 MiB total. It also generates complete homepages at `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/` from the English source and private `site/i18n/` catalogues. Those catalogues, firmware, README files, deployment files, and hidden files are excluded. Missing, stale, or invalid translations stop publication. See `site/README.md` for the translation workflow. The publisher versions local stylesheet, script and image URLs in each HTML page
 with the SHA-256 prefix of the referenced asset. Social-preview PNGs under
 `site/assets/social/` use content-hashed filenames and absolute HTTPS metadata URLs.
@@ -107,7 +106,8 @@ Do not restart the shared proxy for an ordinary site release.
 
 Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/analytics.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
-`/languages.html`, `/companion.html`, `/language-catalog.js`, `/language-packs.js`, and
+`/languages.html`, `/companion.html`, `/comparison.html`, `/comparison.js`,
+`/themes.html`, `/language-catalog.js`, `/language-packs.js`, and
 `/healthz`, plus `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/`; compare every published file, including the five language homepages, byte-for-byte against the publisher’s `public_files()` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for

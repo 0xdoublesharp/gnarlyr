@@ -73,9 +73,9 @@
       "translation": "Matériel"
     },
     "home.m006": {
-      "source": "Companion",
-      "source_sha256": "1dadb3284b8b358259ac6c0d3fb12e6884aa8d566282a1277d2a06a026d12c4f",
-      "translation": "Companion"
+      "source": "Companion App",
+      "source_sha256": "a4bc29d738d88b6e6595833acb0c8cd66a5ff9ffa1ec3cb49f2b1923bdeff7de",
+      "translation": "Appli Companion"
     },
     "home.m007": {
       "source": "Install",
@@ -133,9 +133,9 @@
       "translation": "Commandes personnalisées"
     },
     "home.m017": {
-      "source": "Made for the full-size <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a>.",
-      "source_sha256": "7d45d356ba0b821ea50c1e8e0cd3399a9190ab314fb9cd32d4878adeedec7208",
-      "translation": "Conçu pour le <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a> au format standard."
+      "source": "Made for the <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a>.",
+      "source_sha256": "7435878e48ddeb15f9fb6875c82281902ccdd3044290e88519833aead56b88dd",
+      "translation": "Conçu pour le <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a>."
     },
     "home.a010": {
       "source": "Gnarlyr Now Playing screen showing song details and playback progress",
@@ -448,9 +448,9 @@
       "translation": "Écran d’accueil Gnarlyr dans un cadre de lecteur stylisé"
     },
     "home.m071": {
-      "source": "The Gnarlyr interface · full-size ECHO",
-      "source_sha256": "d53e64eccf5e4d32fb14add4b99778f8b813ea056ac71e14d59cf4b736766748",
-      "translation": "L’interface Gnarlyr · ECHO au format standard"
+      "source": "The Gnarlyr interface · Snowsky ECHO",
+      "source_sha256": "65e620bbd13f992a5a4fe6aeb43bb7c9f6a20fea92e79670b98ca63e80c786e6",
+      "translation": "L’interface Gnarlyr · Snowsky ECHO"
     },
     "home.m072": {
       "source": "Get the player. Make it yours.",
@@ -463,9 +463,9 @@
       "translation": "Offre à ta musique<br> un lieu bien à elle."
     },
     "home.m074": {
-      "source": "Physical buttons. A pocket full of albums. The full-size Snowsky ECHO brings your library along, and Gnarlyr lets you make more of it.",
-      "source_sha256": "0e3889a397fdb2a70b6b135064f7ae33c62bbe3ae0421341b548a0c3715566d6",
-      "translation": "Des boutons physiques. Une poche pleine d’albums. Le Snowsky ECHO au format standard emporte ta bibliothèque partout, et Gnarlyr t’aide à en profiter davantage."
+      "source": "Physical buttons. A pocket full of albums. The Snowsky ECHO brings your library along, and Gnarlyr lets you make more of it.",
+      "source_sha256": "20a73cd021d791f6e35fa6c2cd5e9bb9a689ff552e539e3efde5935fd2c78186",
+      "translation": "Des boutons physiques. Une poche pleine d’albums. Le Snowsky ECHO emporte ta bibliothèque partout, et Gnarlyr t’aide à en profiter davantage."
     },
     "home.m075": {
       "source": "2.39-inch screen",
@@ -508,9 +508,9 @@
       "translation": "Un lecteur audio dédié"
     },
     "home.a020": {
-      "source": "Shop the full-size ECHO",
-      "source_sha256": "de0d334178908683bfe62959c1e4d9d2bf9f412f6cb9024dadf9e9329439fb27",
-      "translation": "Acheter l’ECHO au format standard"
+      "source": "Shop the Snowsky ECHO",
+      "source_sha256": "ef9b9de19efc66166c651d985043c0010e3e0cdb783445f45bf32ff85896e325",
+      "translation": "Acheter le Snowsky ECHO"
     },
     "home.m083": {
       "source": "Shop on Amazon <span aria-hidden=\"true\">↗</span>",
@@ -528,9 +528,9 @@
       "translation": "Découvrir le matériel →"
     },
     "home.m086": {
-      "source": "Choose the full-size ECHO. Install Gnarlyr separately with the <a href=\"install.html\">installation guide</a>.",
-      "source_sha256": "d8e96f38eadb1cba68e0221556ca4767420cbedf46a05672a8b55d9eebfd0083",
-      "translation": "Choisis l’ECHO au format standard. Installe Gnarlyr séparément à l’aide du <a href=\"install.html\">guide d’installation</a>."
+      "source": "Choose the Snowsky ECHO (the full-size model). Install Gnarlyr separately with the <a href=\"install.html\">installation guide</a>.",
+      "source_sha256": "9f781d37c7d7b3e7c8bb4bf6d52d05a067dd66849f940d4182e984751b296d07",
+      "translation": "Choisis le Snowsky ECHO (le modèle au format standard). Installe Gnarlyr séparément à l’aide du <a href=\"install.html\">guide d’installation</a>."
     },
     "home.m087": {
       "source": "As an Amazon Associate I earn from qualifying purchases. I may also earn a commission from AliExpress links.",
