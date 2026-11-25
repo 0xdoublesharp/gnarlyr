@@ -487,6 +487,7 @@ static void put_usb_dac(Writer *writer, const HalUsbDacStats *dac)
                                dac->underruns, dac->overflows, dac->realigned,  dac->max_gap_us};
     writer->prefix = "usb.dac.";
     put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    put_address(writer, "max_gap_pc", dac->max_gap_pc != 0, dac->max_gap_pc);
     writer->prefix = NULL;
 }
 

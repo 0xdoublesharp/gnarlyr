@@ -268,6 +268,90 @@ class ReportChecks(unittest.TestCase):
         script_file = self.debug / echo_debug.RUN_FILE
         self.assertIn("reconnect dac", script_file.read_text(encoding="ascii"))
 
+    def test_dac_test_multi_rate_sweep_requests_bits_and_verifies_format(self):
+        self.write_report(**{
+            "usb.dac.rate": 192000,
+            "usb.dac.bits": 32,
+            "usb.dac.high_speed": 1,
+            "usb.dac.packets": 50000,
+            "usb.dac.underruns": 0,
+            "usb.dac.overflows": 0,
+            "usb.dac.realigned": 0,
+            "usb.dac.max_gap_us": 120,
+            "usb.dac.max_gap_pc": "0x03081234",
+        })
+        medium = fixtures.medium("Internal storage", "ECHO", self.volume)
+        host = fixtures.FakeHost(fixtures.usb_tree(fixtures.player([medium])))
+        calls = []
+
+        def fake_streamer(rate, amplitude, connect_timeout, stream_timeout, bits=0):
+            calls.append((rate, bits, amplitude))
+            self.write_report(**{
+                "usb.dac.rate": rate,
+                "usb.dac.bits": bits,
+                "usb.dac.high_speed": 1,
+                "usb.dac.packets": 50000,
+                "usb.dac.underruns": 0,
+                "usb.dac.overflows": 0,
+                "usb.dac.realigned": 0,
+                "usb.dac.max_gap_us": 115,
+                "usb.dac.max_gap_pc": "0x03081234",
+            })
+            return {"ok": True, "device": "Gnarlyr Echo DAC", "rate": rate, "bits": bits, "frames": 576000}
+
+        output = io.StringIO()
+        with patch.object(echo_debug.Tool, "wait_for_return", return_value=None), \
+             patch.object(echo_hw_check, "symbolize_pc", return_value="usb_screen_text at usb_screen.c:240"):
+            with contextlib.redirect_stdout(output):
+                status = echo_hw_check.main(
+                    ["dac-test", "--rates", "48000,192000", "--bits", "32", "--silent", "--build", BUILD, "--json"],
+                    host=host,
+                    streamer=fake_streamer,
+                )
+        result = json.loads(output.getvalue())
+        self.assertEqual(status, 0, result)
+        self.assertTrue(result["ok"])
+        self.assertEqual(calls, [(48000, 32, 0.0), (192000, 32, 0.0)])
+        pc_checks = [c["value"] for c in result["runs"][1]["scorecard"]["checks"]
+                     if c["name"] == "usb.dac.max_gap_pc"]
+        self.assertEqual(pc_checks, ["0x03081234 (usb_screen_text at usb_screen.c:240)"])
+
+    def test_suite_runs_storage_local_and_dac_checks_and_cleans_temp_file(self):
+        self.write_report(**{"script.state": "finished"})
+        medium = fixtures.medium("Internal storage", "ECHO", self.volume)
+        host = fixtures.FakeHost(fixtures.usb_tree(fixtures.player([medium])))
+
+        def fake_streamer(rate, amplitude, connect_timeout, stream_timeout, bits=0):
+            self.write_report(**{
+                "script.state": "finished",
+                "usb.dac.rate": rate,
+                "usb.dac.bits": bits,
+                "usb.dac.high_speed": 1,
+                "usb.dac.packets": 50000,
+                "usb.dac.underruns": 0,
+                "usb.dac.overflows": 0,
+                "usb.dac.realigned": 0,
+                "usb.dac.max_gap_us": 110,
+            })
+            return {"ok": True, "device": "Gnarlyr Echo DAC", "rate": rate, "bits": bits, "frames": 576000}
+
+        output = io.StringIO()
+        with patch.object(echo_debug.Tool, "wait_for_return", return_value=None), \
+             patch.object(echo_hw_check, "STORAGE_TEST_BYTES", 4096):
+            with contextlib.redirect_stdout(output):
+                status = echo_hw_check.main(
+                    ["suite", "--rates", "96000", "--bits", "32", "--silent", "--build", BUILD, "--json"],
+                    host=host,
+                    streamer=fake_streamer,
+                )
+        result = json.loads(output.getvalue())
+        self.assertEqual(status, 0, result)
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["storage"]["ok"])
+        self.assertTrue(result["local"]["ok"])
+        self.assertEqual(len(result["dac_runs"]), 1)
+        self.assertFalse((self.debug / echo_hw_check.STORAGE_TEST_FILE).exists())
+
 
 class ScriptAndChecklist(unittest.TestCase):
     @patch.object(echo_debug.MacHost, "usb_tree", side_effect=AssertionError("unexpected USB discovery"))

@@ -81,6 +81,7 @@ typedef struct HalUsbDacStats {
     uint32_t overflows;
     uint32_t realigned;
     uint32_t max_gap_us;
+    uint32_t max_gap_pc;
     uint8_t bits;
     uint8_t high_speed;
     bool active;

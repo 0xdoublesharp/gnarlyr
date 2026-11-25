@@ -1014,6 +1014,7 @@ static void the_last_usb_dac_session_reports_its_counters(void)
                                      .overflows = 1,
                                      .realigned = 2,
                                      .max_gap_us = 64,
+                                     .max_gap_pc = 0x03081234u,
                                      .bits = 32,
                                      .high_speed = true,
                                      .active = true};
@@ -1026,6 +1027,7 @@ static void the_last_usb_dac_session_reports_its_counters(void)
     CHECK(has_line("usb.dac.overflows: 1"));
     CHECK(has_line("usb.dac.realigned: 2"));
     CHECK(has_line("usb.dac.max_gap_us: 64"));
+    CHECK(has_line("usb.dac.max_gap_pc: 0x03081234"));
 }
 
 static void the_last_usb_session_splits_its_write_time(void)

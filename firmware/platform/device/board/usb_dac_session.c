@@ -80,6 +80,7 @@ static uint32_t meter_ms;
 static uint32_t underruns_before;
 static uint32_t last_poll_us;
 static uint32_t max_poll_gap_us;
+static uint32_t max_poll_gap_pc;
 static UsbForced forced;
 static uint32_t back_pressed_ms;
 static bool back_armed;
@@ -99,7 +100,7 @@ static void start_output(void)
     }
 }
 
-static void note_poll_gap(void)
+static void note_poll_gap(uint32_t caller)
 {
     if (!playing) {
         return;
@@ -109,6 +110,7 @@ static void note_poll_gap(void)
         uint32_t gap = now - last_poll_us;
         if (gap > max_poll_gap_us) {
             max_poll_gap_us = gap;
+            max_poll_gap_pc = caller;
         }
     }
     last_poll_us = now;
@@ -132,27 +134,32 @@ static uint32_t feedback(uint16_t tick)
     return usb_audio_sink_feedback(&sink, board_audio_stream_consumed(), tick);
 }
 
-static void serve_usb(void)
+static void serve_audio_at(uint32_t caller)
 {
-    note_poll_gap();
-    for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
-        usb_poll(port);
-    }
-}
-
-static void serve_audio_usb(void)
-{
-    note_poll_gap();
+    note_poll_gap(caller);
     for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
         usb_poll_audio(port);
     }
 }
 
+static __attribute__((noinline)) void serve_usb(void)
+{
+    note_poll_gap((uint32_t)(uintptr_t)__builtin_return_address(0));
+    for (int poll = 0; poll < POLLS_PER_SERVICE; poll++) {
+        usb_poll(port);
+    }
+}
+
+static __attribute__((noinline)) void serve_audio_usb(void)
+{
+    serve_audio_at((uint32_t)(uintptr_t)__builtin_return_address(0));
+}
+
 static void keep_stream(void);
 
-static void serve_drawing_usb(void)
+static __attribute__((noinline)) void serve_drawing_usb(void)
 {
-    serve_audio_usb();
+    serve_audio_at((uint32_t)(uintptr_t)__builtin_return_address(0));
     keep_stream();
 }
 
@@ -819,6 +826,7 @@ static void start_session(void)
     hal_audio_set_volume(shared->dac_volume);
     last_poll_us = 0;
     max_poll_gap_us = 0;
+    max_poll_gap_pc = 0;
 #ifdef ECHO_DEBUG_LOOP
     dac_test_ms = 0;
     dac_test_step = 0;
@@ -872,6 +880,7 @@ void usb_dac_session(UsbShared *state)
         .overflows = sink.stats.overflows,
         .realigned = sink.stats.realigned,
         .max_gap_us = max_poll_gap_us,
+        .max_gap_pc = max_poll_gap_pc,
         .bits = scene->dac.bits,
         .high_speed = port->device.speed == USB_SPEED_HIGH,
         .active = true};
