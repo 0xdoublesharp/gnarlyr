@@ -17,8 +17,9 @@ typedef enum NowPlayingStyle {
 } NowPlayingStyle;
 
 typedef enum GainLevel {
-    GAIN_LOW,
-    GAIN_HIGH
+    GAIN_LOW = 0,
+    GAIN_HIGH = 1,
+    GAIN_MEDIUM = 2
 } GainLevel;
 
 typedef enum DacFilter {
@@ -131,7 +132,7 @@ typedef enum TrackTransition {
 } TrackTransition;
 
 enum {
-    GAIN_LEVEL_COUNT = GAIN_HIGH + 1,
+    GAIN_LEVEL_COUNT = GAIN_MEDIUM + 1,
     DAC_FILTER_COUNT = DAC_FILTER_NON_OVERSAMPLING + 1,
     APPEARANCE_THEME_COUNT = APPEARANCE_CLASSIC + 1,
     BUTTON_ACTION_COUNT = BUTTON_ACTION_HOME + 1,

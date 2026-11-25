@@ -22,7 +22,7 @@ enum {
 static const uint32_t MAPS[] = {POWER,       GAIN,   FILTER,    VOLUME,   PCM_MUTE,
                                 SAMPLE_RATE, OUTPUT, CHANNEL_A, CHANNEL_B};
 static const DacAnalog BEFORE = {.filter = 0};
-static const DacAnalog AFTER = {.gain_high = true, .filter = 3};
+static const DacAnalog AFTER = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = 3};
 static const DacAnalog FILTER_ONLY = {.filter = 3};
 
 typedef struct FakeDac {
@@ -59,7 +59,7 @@ static bool write_register(void *context, uint8_t address, uint32_t map, uint8_t
     if (nak(dac)) {
         return false;
     }
-    dac->pcm_unmutes += map == PCM_MUTE && value == 0xEC;
+    dac->pcm_unmutes += map == PCM_MUTE && value == 0xFC;
     uint8_t *reg = register_at(dac, address, map);
     if (reg != NULL) {
         *reg = value;
@@ -160,7 +160,7 @@ static bool run(FakeDac *dac, Operation op)
     case POWER_DOWN:
         return dac_sequence_power_down(&bus);
     case STOP:
-        dac_output_off(&bus);
+        dac_output_off(&bus, false);
         return true;
     }
     return false;
@@ -180,7 +180,7 @@ static void check_completed(FakeDac *dac, Operation op)
         both(dac, GAIN, op == GAIN_APPLY ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE);
         both(dac, FILTER, 0xC2);
         both(dac, POWER, 0xA6);
-        both(dac, PCM_MUTE, 0xEC);
+        both(dac, PCM_MUTE, 0xFC);
         CHECK(dac->pins[DAC_PIN_MUTE]);
         break;
     case START_OUTPUT:

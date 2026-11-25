@@ -7,15 +7,15 @@
 #include "usb_screen_parts.h"
 
 enum {
-    OUTPUT_CHOICES = 3,
-    GAIN_CHOICES = 2
+    OUTPUT_CHOICES = 3
 };
 
 static const uint16_t LABELS[USB_DAC_ROW_COUNT] = {
     STR_HEADPHONES, STR_GAIN, STR_OUTPUT, STR_VOLUME, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY};
 static const uint8_t ICONS[USB_DAC_ROW_COUNT] = {ICON_AUDIO,   ICON_GAIN,     ICON_JACK,
                                                  ICON_SPEAKER, ICON_COMPUTER, ICON_BOLT};
-static const uint16_t GAINS[GAIN_CHOICES] = {STR_GAIN_LOW, STR_GAIN_HIGH};
+static const uint16_t GAINS[GAIN_LEVEL_COUNT] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_GAIN_MEDIUM};
+static const uint8_t NEXT_GAIN[GAIN_LEVEL_COUNT] = {GAIN_MEDIUM, GAIN_LOW, GAIN_HIGH};
 static const uint16_t OUTPUTS[OUTPUT_CHOICES] = {STR_OUTPUT_AUTO, STR_JACK_35, STR_JACK_44};
 
 static int row_count(const void *context)
@@ -43,7 +43,7 @@ static const char *row_detail(const void *context, int index)
     case USB_DAC_ROW_VOLUME:
         return menu->volume;
     case USB_DAC_ROW_GAIN:
-        return i18n_text((StringId)GAINS[menu->settings.gain % GAIN_CHOICES]);
+        return i18n_text((StringId)GAINS[menu->settings.gain]);
     case USB_DAC_ROW_OUTPUT:
         return i18n_text((StringId)OUTPUTS[menu->settings.output % OUTPUT_CHOICES]);
     case USB_DAC_ROW_HEADPHONES:
@@ -159,7 +159,7 @@ static UsbDacAction choose(UsbDacMenu *menu)
         menu->adjusting = true;
         return USB_DAC_ACTION_REDRAW;
     case USB_DAC_ROW_GAIN:
-        menu->settings.gain = (uint8_t)((menu->settings.gain + 1) % GAIN_CHOICES);
+        menu->settings.gain = NEXT_GAIN[menu->settings.gain];
         return USB_DAC_ACTION_GAIN;
     case USB_DAC_ROW_OUTPUT:
         menu->settings.output = (uint8_t)((menu->settings.output + 1) % OUTPUT_CHOICES);

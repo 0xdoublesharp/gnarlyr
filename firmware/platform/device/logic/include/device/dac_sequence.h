@@ -4,10 +4,12 @@
 #include <stdint.h>
 
 #include "core/dac_identity.h"
+#include "hal/audio.h"
 
 enum {
     DAC_GAIN_HIGH_VALUE = 0x31,
-    DAC_GAIN_LOW_VALUE = 0x20
+    DAC_GAIN_LOW_VALUE = 0x20,
+    DAC_GAIN_MEDIUM_VALUE = 0x30
 };
 
 typedef enum DacPin {
@@ -41,9 +43,16 @@ typedef enum DacCurve {
 } DacCurve;
 
 typedef struct DacAnalog {
-    bool gain_high;
+    uint8_t gain;
     uint8_t filter;
 } DacAnalog;
+
+static inline uint8_t dac_gain_register(uint8_t gain)
+{
+    return gain == HAL_AUDIO_GAIN_HIGH     ? DAC_GAIN_HIGH_VALUE
+           : gain == HAL_AUDIO_GAIN_MEDIUM ? DAC_GAIN_MEDIUM_VALUE
+                                           : DAC_GAIN_LOW_VALUE;
+}
 
 enum {
     DAC_ANALOG_FILTERS = 5,
@@ -60,7 +69,7 @@ bool dac_probe(const DacBus *bus);
 DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog);
 bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after);
 void dac_output_on(const DacBus *bus, uint8_t volume);
-void dac_output_off(const DacBus *bus);
+void dac_output_off(const DacBus *bus, bool equalizing);
 void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume);
 bool dac_set_volume(const DacBus *bus, uint8_t volume);
 bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right);

@@ -56,12 +56,13 @@ static void without_a_cable_usb_power_is_not_offered_and_nothing_is_marked(void)
 
 static void settings_offer_ask_and_every_mode_with_the_saved_one_marked(void)
 {
-    static const PlugMode EXPECTED[] = {PLUG_MODE_ASK, PLUG_MODE_COMPUTER, PLUG_MODE_CHARGE,
-                                        PLUG_MODE_USB_POWER, PLUG_MODE_DAC};
-    PlugChoices choices = choices_at(PLUG_PLACE_SETTINGS, PLUG_MODE_DAC, UNPLUGGED);
-    check_modes(choices, EXPECTED, 5);
-    CHECK_EQUAL(4, choices.cursor);
-    CHECK_EQUAL(4, choices.marked);
+    static const PlugMode EXPECTED[] = {PLUG_MODE_ASK,    PLUG_MODE_COMPUTER,
+                                        PLUG_MODE_CHARGE, PLUG_MODE_USB_POWER,
+                                        PLUG_MODE_DAC,    PLUG_MODE_CHARGE_80};
+    PlugChoices choices = choices_at(PLUG_PLACE_SETTINGS, PLUG_MODE_CHARGE_80, UNPLUGGED);
+    check_modes(choices, EXPECTED, 6);
+    CHECK_EQUAL(5, choices.cursor);
+    CHECK_EQUAL(5, choices.marked);
 }
 
 static void a_low_battery_explains_that_usb_power_charges_first(void)
@@ -79,10 +80,14 @@ static void a_low_battery_explains_that_usb_power_charges_first(void)
 static void every_mode_has_one_name_one_line_and_one_icon(void)
 {
     i18n_detach();
-    static const char *const NAMES[PLUG_MODE_COUNT] = {
-        "Ask", "Connect to computer", "Charge & play", "Run from USB power", "USB audio (DAC)"};
-    static const IconId ICONS[PLUG_MODE_COUNT] = {ICON_USB, ICON_COMPUTER, ICON_BOLT, ICON_PLUG,
-                                                  ICON_SPEAKER};
+    static const char *const NAMES[PLUG_MODE_COUNT] = {"Ask",
+                                                       "Connect to computer",
+                                                       "Charge & play",
+                                                       "Run from USB power",
+                                                       "USB audio (DAC)",
+                                                       "Battery care (80%)"};
+    static const IconId ICONS[PLUG_MODE_COUNT] = {ICON_USB,  ICON_COMPUTER, ICON_BOLT,
+                                                  ICON_PLUG, ICON_SPEAKER,  ICON_BOLT};
     for (int mode = 0; mode < PLUG_MODE_COUNT; mode++) {
         CHECK(strcmp(NAMES[mode], i18n_text(plug_mode_name((PlugMode)mode))) == 0);
         CHECK_EQUAL(ICONS[mode], plug_mode_icon((PlugMode)mode));

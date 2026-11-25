@@ -506,7 +506,7 @@ CORE_COLD static HalToneResult start_audio_path(const AudioRate *rate, uint32_t 
     start_i2c();
     identify_once();
     if (!dac_probe(&BUS)) {
-        dac_output_off(&BUS);
+        dac_output_off(&BUS, false);
         set_soc_clocks(false);
         return HAL_TONE_NO_DAC;
     }
@@ -514,7 +514,7 @@ CORE_COLD static HalToneResult start_audio_path(const AudioRate *rate, uint32_t 
     start_i2s(divider, format, interrupts, transfer);
     DacResult configured = dac_configure(&BUS, rate->dac_byte, analog);
     if (configured != DAC_READY) {
-        dac_output_off(&BUS);
+        dac_output_off(&BUS, false);
         stop_soc_audio();
         return result_of(configured);
     }
@@ -532,7 +532,7 @@ CORE_COLD static void stop_audio_path(void)
 {
     uint32_t started = hal_clock_microseconds();
     dac_up = false;
-    dac_output_off(&BUS);
+    dac_output_off(&BUS, eq_result != DAC_EQ_OFF);
     board_dac_diagnostics.stop_us = hal_clock_microseconds() - started;
     reset_chip_volume();
     stop_soc_audio();
@@ -712,7 +712,7 @@ uint8_t dac_overflow_flags(void)
 
 CORE_COLD static bool set_analog(DacAnalog next)
 {
-    if (!dac_up || (chip_analog.gain_high == next.gain_high && chip_analog.filter == next.filter)) {
+    if (!dac_up || (chip_analog.gain == next.gain && chip_analog.filter == next.filter)) {
         analog = next;
         return true;
     }
@@ -731,15 +731,15 @@ CORE_COLD static bool set_analog(DacAnalog next)
     return changed;
 }
 
-CORE_COLD bool dac_path_set_gain(bool high)
+CORE_COLD bool dac_path_set_gain(HalAudioGain gain)
 {
-    return set_analog((DacAnalog){.gain_high = high, .filter = analog.filter});
+    return set_analog((DacAnalog){.gain = (uint8_t)gain, .filter = analog.filter});
 }
 
 CORE_COLD bool dac_path_set_filter(uint8_t filter)
 {
     return filter < DAC_ANALOG_FILTERS &&
-           set_analog((DacAnalog){.gain_high = analog.gain_high, .filter = filter});
+           set_analog((DacAnalog){.gain = analog.gain, .filter = filter});
 }
 
 bool dac_path_is_up(void)

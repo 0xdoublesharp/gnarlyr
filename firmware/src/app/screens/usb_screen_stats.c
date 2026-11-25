@@ -338,7 +338,8 @@ static void fill_gain(const UsbPainter *painter, uint8_t lun, char *text)
     string_builder_append(&hex, "0x");
     append_hex(&hex, dac->gain_register);
     StringBuilder builder = string_builder_make(text, USB_SCREEN_TEXT_CAPACITY);
-    const char *arguments[] = {i18n_text(dac->gain_high ? STR_GAIN_HIGH : STR_GAIN_LOW), value};
+    static const StringId GAINS[] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_GAIN_MEDIUM};
+    const char *arguments[] = {i18n_text(GAINS[dac->gain]), value};
     i18n_format(&builder, STR_USB_DAC_GAIN_VALUE, arguments, 2);
 }
 

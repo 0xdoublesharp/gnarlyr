@@ -5,9 +5,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
-    CABLE_STEADY_MS, DAC_MENU_GAIN_ROW, DAC_MENU_VOLUME_ROW, EchoImageHarness, KEY_NEXT, KEY_PLAY, main,
+    CABLE_STEADY_MS, DAC_MENU_GAIN_ROW, DAC_MENU_VOLUME_ROW, EchoImageHarness, IDENTITY, KEY_NEXT,
+    KEY_PLAY, main, settings_file,
 )
 from usb_audio_host import UsbAudioHost
+from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.dac_hardware import (
     DAC_GAIN_HIGH_VALUE,
     DAC_GAIN_LOW_VALUE,
@@ -173,7 +175,11 @@ class EchoImageTest(EchoImageHarness):
         self.stream_rate(192000)
 
     def test_usb_audio_switches_both_dacs_between_dop64_and_pcm(self):
-        session, audio, host = self.dac_session(176400, 3)
+        volume = Fat32Volume()
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", settings_file(0, b18=7, b35=28),
+                        directory=IDENTITY.data_directory)
+        session, audio, host = self.dac_session(176400, 3, volume=volume)
         machine = session.machine
         chips = audio.dac_bus.chips
         dmac = audio.real_dmac
@@ -197,12 +203,15 @@ class EchoImageTest(EchoImageHarness):
                 until_ms=machine.milliseconds() + 1000)
             status = ([regs.get(0x070004) for regs in chips.values()], dmac.starts, host.missed)
             self.assertEqual(result, "condition met", status)
+            eq = 0xC0 if value == 0x02 else 0
+            self.assertEqual([regs.get(0x09000A) for regs in chips.values()], [eq, eq])
 
         def change_format(rate, width):
             host.enabled = False
             host.format(rate, width)
 
-        self.assertTrue(all(regs.get(0x070004) == 0x02 for regs in chips.values()))
+        await_mode(0x02)
+        coeffs_at_176400 = tuple(chips[DAC_LEFT_ADDRESS][0x09000C + offset] for offset in range(15))
         host.push = push
         await_mode(0x52)
         words = struct.unpack("<8I", machine.read_memory(audio.dma_ring, 32))
@@ -219,8 +228,14 @@ class EchoImageTest(EchoImageHarness):
         change_format(96000, 4)
         await_mode(0x02)
         self.assertEqual(audio.rate, 96000)
+        coeffs_at_96000 = tuple(chips[DAC_LEFT_ADDRESS][0x09000C + offset] for offset in range(15))
+        self.assertNotEqual(coeffs_at_176400, coeffs_at_96000)
         self.assertGreaterEqual(dmac.starts, 7)
         self.assertEqual(host.missed, 0)
+        machine.vbus = False
+        result = machine.run(until=lambda: all(regs.get(0x09000A) == 0 for regs in chips.values()),
+                             until_ms=machine.milliseconds() + 3000)
+        self.assertEqual(result, "condition met")
         self.assert_healthy(session)
 
     def test_usb_audio_full_speed_retains_adaptive_fallback(self):
@@ -622,6 +637,8 @@ class EchoImageTest(EchoImageHarness):
         self.press(machine, KEY_PLAY)
         for _ in range(DAC_MENU_VOLUME_ROW - DAC_MENU_GAIN_ROW):
             self.press(machine, KEY_VOLUME_DOWN)
+        self.press(machine, KEY_PLAY)
+        self.assertTrue(all(regs.get(DAC_GAIN_REGISTER) == 0x30 for regs in dac_bus.chips.values()))
         self.press(machine, KEY_PLAY)
         self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
         self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)

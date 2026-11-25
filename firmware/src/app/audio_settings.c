@@ -20,15 +20,14 @@ AudioSettingsResult audio_settings_set_gain(SettingsStore *store, Player *player
 {
     uint8_t music = player->volume;
     uint8_t usb = store->settings.dac_volume;
-    bool rising = gain == GAIN_HIGH && store->settings.gain != GAIN_HIGH;
-    if (rising) {
+    uint8_t rise = hal_audio_gain_rise_db((HalAudioGain)store->settings.gain, (HalAudioGain)gain);
+    if (rise != 0) {
         HeadphoneAudio active = hal_audio_headphones();
-        set_volumes(store, player,
-                    headphone_audio_rise_volume(active, music, HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB),
-                    headphone_audio_rise_volume(active, usb, HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB));
+        set_volumes(store, player, headphone_audio_rise_volume(active, music, rise),
+                    headphone_audio_rise_volume(active, usb, rise));
     }
-    if (!hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW)) {
-        if (rising) {
+    if (!hal_audio_set_gain((HalAudioGain)gain)) {
+        if (rise != 0) {
             set_volumes(store, player, music, usb);
         }
         return AUDIO_SETTINGS_NOT_APPLIED;

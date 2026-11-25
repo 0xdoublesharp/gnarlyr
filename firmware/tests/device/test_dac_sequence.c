@@ -13,7 +13,7 @@ enum {
     START_VOLUME = 0x5E
 };
 
-static const DacAnalog STOCK_START = {.gain_high = false, .filter = 0};
+static const DacAnalog STOCK_START = {.gain = HAL_AUDIO_GAIN_LOW, .filter = 0};
 static const uint8_t FILTER_VALUES[DAC_ANALOG_FILTERS] = {0x02, 0x42, 0x82, 0xC2, 0x22};
 
 static const uint32_t IDENTITY_MAPS[IDENTITY_REGISTERS] = {0x010000, 0x010001, 0x010002, 0x010004,
@@ -392,7 +392,7 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x090000, 0x02));
     CHECK(next_both(0x090001, 0xFF));
     CHECK(next_both(0x090002, 0xFF));
-    CHECK(next_both(0x090003, 0xEC));
+    CHECK(next_both(0x090003, 0xFC));
     CHECK(next_both(0x090004, 0x00));
     CHECK(next_mono_table());
     CHECK(next_both(0x0B0000, 0x1F));
@@ -466,13 +466,13 @@ static DacBus playing_bus(uint8_t left_done_after, uint8_t right_done_after);
 static void every_failed_output_shutdown_transfer_stops_safely(void)
 {
     DacBus bus = playing_bus(0, 0);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int transfers = fake.transfers;
     CHECK(transfers > 8);
     for (int failure = 1; failure <= transfers; failure++) {
         bus = playing_bus(0, 0);
         fake.fail_transfer = failure;
-        dac_output_off(&bus);
+        dac_output_off(&bus, false);
         CHECK(fake.transfers >= failure);
     }
 }
@@ -530,7 +530,7 @@ static bool next_supplies_off(void)
 static void output_off_mutes_then_powers_the_outputs_down_before_the_serial_port(void)
 {
     DacBus bus = playing_bus(0, 0);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     CHECK(next_muted_output());
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080046, 0x21));
@@ -556,7 +556,7 @@ static void output_off_mutes_then_powers_the_outputs_down_before_the_serial_port
 static void output_off_waits_for_both_chips_to_finish_their_output_ramp(void)
 {
     DacBus bus = playing_bus(3, 5);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int waits = 0;
     int serial_port_downs = 0;
     for (int index = 0; index < fake.count && serial_port_downs == 0; index++) {
@@ -571,7 +571,7 @@ static void output_off_waits_for_both_chips_to_finish_their_output_ramp(void)
 static void a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms(void)
 {
     DacBus bus = playing_bus(255, 255);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int waits = 0;
     for (int index = 0; index < fake.count; index++) {
         waits += fake.ops[index].kind == OP_DELAY && fake.ops[index].value == 5000 ? 1 : 0;
@@ -644,7 +644,7 @@ static void dop64_configures_and_clears_the_dsd_path_with_the_port_down(void)
     int begin_shutdown = fake.count;
     fake.done_after[0] = 255;
     fake.done_after[1] = 255;
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int disabled = 0;
     int sigctl_cleared = 0;
     int down = 0;
@@ -731,16 +731,17 @@ static uint8_t last_write(uint8_t address, uint32_t map)
 static void start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down(void)
 {
     for (uint8_t filter = 0; filter < DAC_ANALOG_FILTERS; filter++) {
-        for (int high = 0; high < 2; high++) {
+        static const uint8_t GAINS[] = {0x20, 0x31, 0x30};
+        for (uint8_t gain = 0; gain < sizeof GAINS; gain++) {
             DacBus bus = counting_bus();
-            DacAnalog analog = {.gain_high = high != 0, .filter = filter};
+            DacAnalog analog = {.gain = gain, .filter = filter};
             CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1, analog));
             CHECK_EQUAL(4, analog_writes_while_powered_down);
             CHECK_EQUAL(0, analog_writes_while_powered_up);
             for (int chip = 0; chip < 2; chip++) {
                 uint8_t address = chip == 0 ? LEFT : RIGHT;
                 CHECK_EQUAL(FILTER_VALUES[filter], last_write(address, 0x090000));
-                CHECK_EQUAL(high ? 0x31 : 0x20, last_write(address, 0x080000));
+                CHECK_EQUAL(GAINS[gain], last_write(address, 0x080000));
             }
         }
     }
@@ -838,14 +839,14 @@ static bool next_pcm_muted_for_150_ms(void)
 
 static bool next_pcm_unmuted(void)
 {
-    return next_both(0x090003, 0xEC);
+    return next_both(0x090003, 0xFC);
 }
 
 static void a_gain_change_powers_the_outputs_down_around_the_register_write(void)
 {
     DacBus bus = playing_bus(0, 0);
-    DacAnalog before = {.gain_high = false, .filter = 1};
-    DacAnalog after = {.gain_high = true, .filter = 1};
+    DacAnalog before = {.gain = HAL_AUDIO_GAIN_LOW, .filter = 1};
+    DacAnalog after = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = 1};
     CHECK(dac_apply_analog(&bus, before, after));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080046, 0x21));
@@ -883,7 +884,8 @@ static void the_gain_setting_writes_the_headphone_gain_register(void)
 {
     DacBus bus = playing_bus(3, 5);
     bus.write = guarded_gain_write;
-    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = true}, (DacAnalog){.gain_high = false}));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH},
+                           (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW}));
     int gain_writes = 0;
     for (int index = 0; index < fake.count; index++) {
         Op op = fake.ops[index];
@@ -904,7 +906,8 @@ static void gain_registers_are_written_only_after_both_chips_report_power_down_d
     fake.power_control[1] = 0xA6;
     fake.done_after[0] = 4;
     fake.done_after[1] = 7;
-    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = true}, (DacAnalog){.gain_high = false}));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH},
+                           (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW}));
     CHECK_EQUAL(4, analog_writes_while_powered_down);
     CHECK_EQUAL(0, analog_writes_while_powered_up);
     int waits = 0;
@@ -924,8 +927,8 @@ static void a_filter_change_mutes_the_pcm_path_without_powering_down(void)
 {
     for (uint8_t filter = 0; filter < DAC_ANALOG_FILTERS; filter++) {
         DacBus bus = playing_bus(0, 0);
-        DacAnalog before = {.gain_high = true, .filter = (uint8_t)((filter + 1) % 5)};
-        DacAnalog after = {.gain_high = true, .filter = filter};
+        DacAnalog before = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = (uint8_t)((filter + 1) % 5)};
+        DacAnalog after = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = filter};
         CHECK(dac_apply_analog(&bus, before, after));
         CHECK(next_pcm_muted_for_150_ms());
         CHECK(next_both(0x090000, FILTER_VALUES[filter]));
@@ -938,7 +941,7 @@ static void a_filter_change_mutes_the_pcm_path_without_powering_down(void)
 static void an_unchanged_setting_touches_no_register(void)
 {
     DacBus bus = playing_bus(0, 0);
-    DacAnalog same = {.gain_high = true, .filter = 3};
+    DacAnalog same = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = 3};
     CHECK(dac_apply_analog(&bus, same, same));
     CHECK_EQUAL(0, fake.count);
 }
@@ -953,8 +956,8 @@ static void an_unknown_filter_is_refused_without_touching_a_register(void)
 static void an_unknown_chip_state_rewrites_gain_and_filter(void)
 {
     DacBus bus = playing_bus(0, 0);
-    DacAnalog unknown = {.gain_high = true, .filter = DAC_ANALOG_UNKNOWN};
-    CHECK(dac_apply_analog(&bus, unknown, (DacAnalog){.gain_high = true, .filter = 1}));
+    DacAnalog unknown = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = DAC_ANALOG_UNKNOWN};
+    CHECK(dac_apply_analog(&bus, unknown, (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH, .filter = 1}));
     bool gain_written = false;
     for (int index = 0; index < fake.count; index++) {
         gain_written |= fake.ops[index].kind == OP_WRITE && fake.ops[index].map == 0x080000;
@@ -966,14 +969,16 @@ static void a_silent_bus_fails_a_gain_change(void)
 {
     DacBus bus = playing_bus(0, 0);
     fake.silent = true;
-    CHECK(!dac_apply_analog(&bus, (DacAnalog){.gain_high = false}, (DacAnalog){.gain_high = true}));
+    CHECK(!dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW},
+                            (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH}));
     CHECK(!dac_apply_analog(&bus, (DacAnalog){.filter = 0}, (DacAnalog){.filter = 4}));
 }
 
 static void a_gain_timeout_never_writes_gain_or_releases_the_outputs(void)
 {
     DacBus bus = playing_bus(255, 255);
-    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = false}, (DacAnalog){.gain_high = true}));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW},
+                           (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH}));
     CHECK_EQUAL(0x31, last_write(LEFT, 0x080000));
     CHECK_EQUAL(0x31, last_write(RIGHT, 0x080000));
     CHECK_EQUAL(0xA6, fake.power_control[0]);

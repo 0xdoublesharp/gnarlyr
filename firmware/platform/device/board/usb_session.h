@@ -69,10 +69,12 @@ typedef struct UsbShared {
     int16_t clock_offset;
 } UsbShared;
 
+struct DacEqProgram;
+
 typedef struct UsbOverlayEntry {
     uint32_t magic;
     bool (*storage)(UsbShared *shared);
-    void (*dac)(UsbShared *shared);
+    void (*dac)(UsbShared *shared, const struct DacEqProgram *programs);
     AppUsbRenderer draw;
 #ifdef ECHO_DEBUG_LOOP
     void (*report)(const UsbShared *shared, uint32_t reason);
@@ -107,6 +109,6 @@ typedef struct UsbSessionScreen {
 } UsbSessionScreen;
 
 extern UsbSessionScreen usb_session_screen;
-void usb_dac_session(UsbShared *shared);
+void usb_dac_session(UsbShared *shared, const struct DacEqProgram *programs);
 void update_after_usb(UsbShared *shared);
 void time_file_take(bool apply, UsbShared *shared);

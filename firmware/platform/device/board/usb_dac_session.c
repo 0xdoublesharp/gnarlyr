@@ -8,6 +8,7 @@
 #include "core/headphone_audio.h"
 #include "core/i18n.h"
 #include "debug_probe.h"
+#include "device/dac_eq.h"
 #include "device/dac_sequence.h"
 #include "device/usb_audio.h"
 #include "device/usb_audio_sink.h"
@@ -77,6 +78,7 @@ static bool gain_refused;
 static UsbScene *const scene = &usb_session_screen.scene;
 static UsbDacMenu menu;
 static AppDacSettings settings;
+static const DacEqProgram *eq_programs;
 static uint32_t open_rate;
 static uint32_t last_packet_ms;
 static uint32_t received_packets;
@@ -234,8 +236,8 @@ static void follow_details(uint32_t now_ms)
     dac->asynchronous = usb_audio_asynchronous(&audio);
     dac->feedback = sink.asynchronous && sink.feedback_started ? sink.feedback_rate : 0;
     dac->overruns = sink.stats.overflows;
-    dac->gain_high = settings.gain == GAIN_HIGH;
-    dac->gain_register = dac->gain_high ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE;
+    dac->gain = settings.gain;
+    dac->gain_register = dac_gain_register(settings.gain);
     follow_rate(now_ms);
     follow_buffer();
 }
@@ -452,6 +454,18 @@ static void stop_output(bool dop)
     usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio), dop);
 }
 
+static const DacEqProgram *pcm_equalizer(void)
+{
+    if (eq_programs != NULL) {
+        for (int index = 0; index < USB_AUDIO_RATE_COUNT; index++) {
+            if (USB_AUDIO_RATES[index] == audio.rate && eq_programs[index].enabled) {
+                return &eq_programs[index];
+            }
+        }
+    }
+    return NULL;
+}
+
 static void open_output(bool dop)
 {
     receiving = false;
@@ -462,7 +476,9 @@ static void open_output(bool dop)
         return;
     }
     if (audio.rate != open_rate || was_dop != dop) {
-        open_rate = board_audio_stream_open(audio.rate, dop, serve_audio_usb) ? audio.rate : 0;
+        const DacEqProgram *program = dop ? NULL : pcm_equalizer();
+        open_rate =
+            board_audio_stream_open(audio.rate, dop, serve_audio_usb, program) ? audio.rate : 0;
     }
     receiving = open_rate != 0;
 }
@@ -535,13 +551,12 @@ static void switch_headphones(void)
 static void set_gain(uint8_t gain)
 {
     uint8_t volume = shared->dac_volume;
-    bool rising = gain == GAIN_HIGH && settings.gain != GAIN_HIGH;
-    if (rising) {
-        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), volume,
-                                               HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB));
+    uint8_t rise = hal_audio_gain_rise_db((HalAudioGain)settings.gain, (HalAudioGain)gain);
+    if (rise != 0) {
+        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), volume, rise));
     }
-    if (!hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW)) {
-        if (rising) {
+    if (!hal_audio_set_gain((HalAudioGain)gain)) {
+        if (rise != 0) {
             set_volume(volume);
         }
         menu.settings.gain = settings.gain;
@@ -786,7 +801,7 @@ static void serve(void)
 
 static void warm_menu_glyphs(void)
 {
-    static const uint16_t EXTRAS[] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_OUTPUT_AUTO,
+    static const uint16_t EXTRAS[] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_GAIN_MEDIUM, STR_OUTPUT_AUTO,
                                       STR_JACK_35,  STR_JACK_44,   STR_OFF};
     const Theme *theme = app_theme();
     const Font *detail = theme_is_portrait(theme) ? theme->fonts.small : theme->fonts.body;
@@ -879,9 +894,10 @@ static void switch_mode(void)
     }
 }
 
-void usb_dac_session(UsbShared *state)
+void usb_dac_session(UsbShared *state, const DacEqProgram *programs)
 {
     shared = state;
+    eq_programs = programs;
     app_show_usb_status(
         (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_DAC_LINE)});
     uint8_t level = board_audio_volume_level();
@@ -914,6 +930,7 @@ void usb_dac_session(UsbShared *state)
 #endif
     font_pack_hold(FONT_PACK_HOLD_NONE);
     board_audio_stream_close();
+    eq_programs = NULL;
     menu_open = false;
     usb_screen_capture(dac_status(), scene, CAPTURE_DAC, CAPTURE_DAC_SLOT);
     board_audio_set_attenuation(0);

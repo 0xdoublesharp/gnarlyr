@@ -25,6 +25,7 @@
 #include "device/m4a_stream.h"
 #include "device/mp3_probe.h"
 #include "device/mp4_demux.h"
+#include "device/usb_audio.h"
 #include "device/wav_source.h"
 #include "device/workspace_loan.h"
 #include "dmac.h"
@@ -821,7 +822,7 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
 
 CORE_SEAM CORE_COLD bool hal_audio_set_gain(HalAudioGain gain)
 {
-    return dac_path_set_gain(gain == HAL_AUDIO_GAIN_HIGH);
+    return dac_path_set_gain(gain);
 }
 
 CORE_SEAM CORE_COLD bool hal_audio_set_filter(HalAudioFilter filter)
@@ -1254,10 +1255,28 @@ static void clear_ring(void)
     uint32_t *buffer = board_audio_stream_ring(&frames);
     for (uint32_t index = 0; index < frames * WORDS_PER_FRAME; index++) {
         buffer[index] = 0;
+        if ((index & 511u) == 511u) {
+            board_audio_stream_service();
+        }
     }
 }
 
-CORE_COLD bool board_audio_stream_open(uint32_t rate, bool dop, void (*service)(void))
+CORE_COLD bool board_audio_prepare_usb_eq(DacEqProgram *programs)
+{
+    const HalAudioEqualizer *curve = &engine.equalizer_curve;
+    if ((!curve->is_parametric && curve->band_count == 0) || !board_audio_process_prepare()) {
+        return false;
+    }
+    for (int index = 0; index < USB_AUDIO_RATE_COUNT; index++) {
+        uint32_t rate = USB_AUDIO_RATES[index];
+        (void)equalizer_design(&equalizer, curve, rate);
+        (void)board_audio_encode_eq(&equalizer, rate, &programs[index]);
+    }
+    return true;
+}
+
+CORE_COLD bool board_audio_stream_open(uint32_t rate, bool dop, void (*service)(void),
+                                       const DacEqProgram *program)
 {
     if (!workspace_loan_claimable(&workspace_loan)) {
         return false;
@@ -1268,7 +1287,13 @@ CORE_COLD bool board_audio_stream_open(uint32_t rate, bool dop, void (*service)(
     dac_path_set_fade_service(serve_fade);
     board_audio_shut_down();
     clear_ring();
-    return ensure_path(rate, dop);
+    if (!ensure_path(rate, dop)) {
+        return false;
+    }
+    if (program != NULL) {
+        (void)dac_path_set_equalizer(program);
+    }
+    return true;
 }
 
 static uint32_t stream_frame_count(void)

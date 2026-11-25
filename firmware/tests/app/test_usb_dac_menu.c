@@ -75,6 +75,9 @@ static void play_cycles_gain_and_output(void)
     open_menu((AppDacSettings){35, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE, false});
     select_row(USB_DAC_ROW_GAIN);
     CHECK_EQUAL(USB_DAC_ACTION_GAIN, usb_dac_menu_key(&menu, KEY_PLAY, 0));
+    CHECK_EQUAL(GAIN_MEDIUM, menu.settings.gain);
+    CHECK(strcmp(menu.model.detail(&menu, USB_DAC_ROW_GAIN), i18n_text(STR_GAIN_MEDIUM)) == 0);
+    CHECK_EQUAL(USB_DAC_ACTION_GAIN, usb_dac_menu_key(&menu, KEY_PLAY, 0));
     CHECK_EQUAL(GAIN_HIGH, menu.settings.gain);
     CHECK_EQUAL(USB_DAC_ACTION_GAIN, usb_dac_menu_key(&menu, KEY_PLAY, 0));
     CHECK_EQUAL(GAIN_LOW, menu.settings.gain);

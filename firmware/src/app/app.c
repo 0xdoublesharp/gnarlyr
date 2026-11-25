@@ -2065,12 +2065,12 @@ const HeadphoneProfiles *app_headphone_profiles(void)
 
 void app_remember_dac(AppDacSettings settings)
 {
-    if (settings.gain == GAIN_HIGH && app.settings.settings.gain != GAIN_HIGH) {
+    uint8_t rise = hal_audio_gain_rise_db((HalAudioGain)app.settings.settings.gain,
+                                          (HalAudioGain)settings.gain);
+    if (rise != 0) {
         uint8_t wired = app.player.volume;
         player_set_volume(&app.player, PLAYER_OUTPUT_WIRED,
-                          wired > HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB
-                              ? (uint8_t)(wired - HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB)
-                              : 0);
+                          wired > rise ? (uint8_t)(wired - rise) : 0);
         (void)player_save(&app.player);
         capture_settings();
     }

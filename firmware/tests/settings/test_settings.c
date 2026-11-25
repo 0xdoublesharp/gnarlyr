@@ -855,7 +855,7 @@ static void each_invalid_extension_value_is_rejected_without_mutating_the_settin
         {0, 0x20},  {0, 0x40}, {0, 0x80}, {0, 0x18},  {1, 61},    {2, 4},     {2, 61},
         {2, 0},     {3, 7},    {3, 0xFD}, {3, 0x80},  {4, 0x00},  {4, 0x11},  {6, 0x55},
         {8, 0x18},  {8, 0x09}, {9, 0x08}, {9, 0xFF},  {10, 0x04}, {10, 0x80}, {12, 0x04},
-        {12, 0xFC}, {14, 5},   {14, 7},   {14, 0x18}, {15, 0x80}, {15, 16}};
+        {12, 0xFC}, {14, 5},   {14, 7},   {15, 0x80}, {15, 16}};
     for (uint32_t at = 0; at < sizeof CASES / sizeof CASES[0]; at++) {
         Settings original = settings_defaults();
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1305,6 +1305,21 @@ static void battery_care_owns_only_e14_bits_three_and_four(void)
     }
 }
 
+static void new_gain_and_battery_care_keep_their_encoded_values(void)
+{
+    Settings settings = settings_defaults();
+    uint8_t bytes[SETTINGS_FILE_SIZE];
+    settings.gain = GAIN_MEDIUM;
+    settings.battery_care = 3;
+    settings_encode(&settings, bytes);
+    CHECK_EQUAL(2, bytes[8]);
+    CHECK_EQUAL(24, bytes[52]);
+    Settings restored;
+    CHECK(settings_decode(bytes, sizeof bytes, &restored));
+    CHECK_EQUAL(2, restored.gain);
+    CHECK_EQUAL(3, restored.battery_care);
+}
+
 static const uint8_t GOLDEN_SETTINGS[] = {
     0x44, 0x53, 0x53, 0x54, 0x01, 0x04, 0x07, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0D, 0x02, 0x00,
     0x23, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x01, 0x14, 0x14, 0x14, 0x14,
@@ -1358,6 +1373,7 @@ int main(void)
         TEST_CASE(all_four_styles_use_only_their_two_allocated_bits),
         TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),
+        TEST_CASE(new_gain_and_battery_care_keep_their_encoded_values),
         TEST_CASE(all_status_choices_keep_their_values),
         TEST_CASE(the_fields_sharing_byte_13_decode_only_their_own_bits),
         TEST_CASE(status_bar_choices_round_trip_in_e13_without_using_other_extensions),

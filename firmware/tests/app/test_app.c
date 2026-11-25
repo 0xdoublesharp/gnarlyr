@@ -1477,13 +1477,18 @@ static void brightness_is_applied_and_saved(void)
     CHECK_EQUAL(settings_defaults().brightness + 1, settings.brightness);
 }
 
-static void gain_is_applied(void)
+static void medium_gain_is_applied_and_saved(void)
 {
     start_app_with_library();
+    uint8_t previous = fake_hal_audio_volume();
     open_setting(SETTINGS_GAIN_INDEX);
     move_down(1);
     tap(KEY_PLAY);
-    CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
+    CHECK_EQUAL(HAL_AUDIO_GAIN_MEDIUM, fake_hal_audio_gain());
+    CHECK_EQUAL(previous - GAIN_RISE_STEPS / 2, fake_hal_volume_at_gain());
+    Settings settings;
+    CHECK(saved_settings(&settings));
+    CHECK_EQUAL(GAIN_MEDIUM, settings.gain);
 }
 
 static void choosing_high_gain_lowers_both_volumes_before_the_gain_rises(void)
@@ -1492,7 +1497,7 @@ static void choosing_high_gain_lowers_both_volumes_before_the_gain_rises(void)
     uint8_t volume = fake_hal_audio_volume();
     CHECK(volume > GAIN_RISE_STEPS);
     open_setting(SETTINGS_GAIN_INDEX);
-    move_down(1);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
     CHECK_EQUAL(volume - GAIN_RISE_STEPS, fake_hal_volume_at_gain());
@@ -1509,7 +1514,7 @@ static void choosing_low_gain_or_the_same_gain_keeps_the_volume(void)
 {
     start_app_with_library();
     open_setting(SETTINGS_GAIN_INDEX);
-    move_down(1);
+    move_down(2);
     tap(KEY_PLAY);
     uint8_t volume = fake_hal_audio_volume();
     tap(KEY_PLAY);
@@ -1517,7 +1522,7 @@ static void choosing_low_gain_or_the_same_gain_keeps_the_volume(void)
     CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
     CHECK_EQUAL(volume, fake_hal_audio_volume());
     tap(KEY_PLAY);
-    move_up(1);
+    move_up(2);
     tap(KEY_PLAY);
     CHECK_EQUAL(HAL_AUDIO_GAIN_LOW, fake_hal_audio_gain());
     CHECK_EQUAL(volume, fake_hal_audio_volume());
@@ -1528,7 +1533,7 @@ static void high_gain_lowers_from_the_headphone_ceiling(void)
 {
     start_app_with_library();
     open_setting(SETTINGS_GAIN_INDEX);
-    move_down(1);
+    move_down(2);
     hal_audio_set_headphones((HeadphoneAudio){REPLAY_GAIN_UNITY, REPLAY_GAIN_UNITY, 10});
     tap(KEY_PLAY);
     CHECK_EQUAL(10 - GAIN_RISE_STEPS, fake_hal_volume_at_gain());
@@ -1585,7 +1590,7 @@ static void choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_ou
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
     uint8_t bluetooth = app_player_status().volume;
     open_setting(SETTINGS_GAIN_INDEX);
-    move_down(1);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK_EQUAL(bluetooth, app_player_status().volume);
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
@@ -1601,7 +1606,7 @@ static void a_refused_high_gain_while_bluetooth_plays_keeps_both_volumes(void)
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
     uint8_t bluetooth = app_player_status().volume;
     open_setting(SETTINGS_GAIN_INDEX);
-    move_down(1);
+    move_down(2);
     fake_hal_fail_analog(true);
     tap(KEY_PLAY);
     CHECK(toast_is("Couldn't change gain"));
@@ -1619,7 +1624,7 @@ static void a_gain_the_player_cannot_apply_is_reported_and_not_saved(void)
     start_app_with_library();
     uint8_t volume = fake_hal_audio_volume();
     open_setting(SETTINGS_GAIN_INDEX);
-    move_down(1);
+    move_down(2);
     fake_hal_fail_analog(true);
     tap(KEY_PLAY);
     CHECK(toast_is("Couldn't change gain"));
@@ -1632,7 +1637,7 @@ static void a_gain_the_player_cannot_apply_is_reported_and_not_saved(void)
     CHECK_EQUAL(SETTINGS_DEFAULT_DAC_VOLUME, store.settings.dac_volume);
     fake_hal_fail_analog(false);
     tap(KEY_PLAY);
-    move_down(1);
+    move_down(2);
     tap(KEY_PLAY);
     CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
     settings_store_load(&store);
@@ -9366,7 +9371,7 @@ int main(void)
         TEST_CASE(a_brightness_preview_is_restored_when_settings_cannot_come_back),
         TEST_CASE(a_brightness_preview_is_restored_through_settings_after_an_overlay),
         TEST_CASE(gain_waits_for_play_and_output_previews_without_restarting_music),
-        TEST_CASE(gain_is_applied),
+        TEST_CASE(medium_gain_is_applied_and_saved),
         TEST_CASE(choosing_high_gain_lowers_both_volumes_before_the_gain_rises),
         TEST_CASE(choosing_low_gain_or_the_same_gain_keeps_the_volume),
         TEST_CASE(high_gain_lowers_from_the_headphone_ceiling),

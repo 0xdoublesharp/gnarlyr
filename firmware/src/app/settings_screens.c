@@ -22,7 +22,7 @@ enum {
     SAFE_VOLUME_STEP = 6,
     SAFE_VOLUME_TEXT_CAPACITY = 4,
     MODE_ROW_FIRST = PLUG_MODE_COMPUTER,
-    MODE_ROW_COUNT = PLUG_MODE_COUNT - MODE_ROW_FIRST,
+    MODE_ROW_COUNT = PLUG_MODE_CHARGE_80 - MODE_ROW_FIRST,
     ALWAYS_CAPACITY = 64
 };
 
@@ -52,7 +52,8 @@ static const StringId TEXT_SIZE_OPTIONS[TEXT_SIZE_COUNT] = {STR_SIZE_SMALL, STR_
                                                             STR_SIZE_LARGE};
 static const StringId ORIENTATION_OPTIONS[ORIENTATION_COUNT] = {STR_LANDSCAPE, STR_PORTRAIT,
                                                                 STR_PORTRAIT_FLIPPED};
-static const StringId GAIN_OPTIONS[GAIN_LEVEL_COUNT] = {STR_GAIN_LOW, STR_GAIN_HIGH};
+static const StringId GAIN_OPTIONS[GAIN_LEVEL_COUNT] = {STR_GAIN_LOW, STR_GAIN_MEDIUM,
+                                                        STR_GAIN_HIGH};
 static const StringId FILTER_OPTIONS[DAC_FILTER_COUNT] = {
     STR_FILTER_FAST_LOW_LATENCY, STR_FILTER_FAST_PHASE_COMPENSATED, STR_FILTER_SLOW_LOW_LATENCY,
     STR_FILTER_SLOW_PHASE_COMPENSATED, STR_FILTER_NON_OVERSAMPLING};
@@ -64,7 +65,8 @@ static const StringId START_OPTIONS[START_SCREEN_COUNT] = {
     STR_START_MAIN_MENU, STR_NOW_PLAYING, STR_ALBUMS,    STR_ARTISTS,
     STR_FAVORITES,       STR_PLAYLISTS,   STR_COVER_FLOW};
 static const StringId USB_ANSWER_OPTIONS[PLUG_MODE_COUNT] = {
-    STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY, STR_PLUG_RUN_USB, STR_PLUG_DAC};
+    STR_PLUG_ASK,     STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY,
+    STR_PLUG_RUN_USB, STR_PLUG_DAC,      STR_PLUG_CARE_80};
 static const StringId *const USB_MODE_OPTIONS = USB_ANSWER_OPTIONS + MODE_ROW_FIRST;
 
 static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {
@@ -265,13 +267,15 @@ static void extend_language(SettingsScreens *screens, ChoiceConfig *config)
 
 static int current_gain(const void *context)
 {
-    return (int)settings_of(context)->gain;
+    GainLevel gain = settings_of(context)->gain;
+    return gain == GAIN_LOW ? 0 : GAIN_LEVEL_COUNT - (int)gain;
 }
 
 static void choose_gain(void *context, int index)
 {
     SettingsContext *settings = context;
-    report(settings, audio_settings_set_gain(settings->store, settings->player, (GainLevel)index),
+    GainLevel gain = index == 0 ? GAIN_LOW : (GainLevel)(GAIN_LEVEL_COUNT - index);
+    report(settings, audio_settings_set_gain(settings->store, settings->player, gain),
            STR_GAIN_NOT_CHANGED);
 }
 

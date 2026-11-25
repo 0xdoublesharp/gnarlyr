@@ -14,6 +14,7 @@ enum {
     USB_AUDIO_REPLY_BYTES = 284,
     USB_AUDIO_MAX_PACKET = 294,
     USB_AUDIO_DEFAULT_RATE = 48000,
+    USB_AUDIO_RATE_COUNT = 6,
     USB_AUDIO_CHANGED_FORMAT = 1,
     USB_AUDIO_CHANGED_VOLUME = 2,
     USB_AUDIO_MUTED = 0xFF
@@ -30,6 +31,8 @@ typedef struct UsbAudio {
     uint16_t hid_usage;
     uint8_t reply[USB_AUDIO_REPLY_BYTES];
 } UsbAudio;
+
+extern const uint32_t USB_AUDIO_RATES[USB_AUDIO_RATE_COUNT];
 
 void usb_audio_init(UsbAudio *audio, UsbDevice *device);
 void usb_audio_reset(UsbAudio *audio);

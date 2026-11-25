@@ -265,6 +265,7 @@ set(ECHO_OVERLAY_IMPORTS
     hal_clock_wall
     hal_system_extension_code
     app_dac_settings
+    USB_AUDIO_RATES
     app_remember_dac
     app_show_notice
     app_show_usb_area

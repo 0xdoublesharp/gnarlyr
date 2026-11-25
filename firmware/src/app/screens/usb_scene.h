@@ -85,7 +85,7 @@ typedef struct UsbSceneDac {
     uint8_t channels;
     uint8_t alt;
     uint8_t gain_register;
-    bool gain_high;
+    uint8_t gain;
     bool asynchronous;
     uint16_t buffer_low_ms;
     uint16_t buffer_high_ms;

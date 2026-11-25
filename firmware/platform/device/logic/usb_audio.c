@@ -43,7 +43,7 @@ typedef enum AudioControl {
     CONTROL_VALID
 } AudioControl;
 
-static const uint32_t RATES[] = {44100, 48000, 88200, 96000, 176400, 192000};
+const uint32_t USB_AUDIO_RATES[USB_AUDIO_RATE_COUNT] = {44100, 48000, 88200, 96000, 176400, 192000};
 
 void usb_audio_init(UsbAudio *audio, UsbDevice *device)
 {
@@ -103,8 +103,8 @@ static __attribute__((noinline)) UsbReply little_endian(UsbAudio *audio, uint32_
 
 static bool rate_supported(const UsbAudio *audio, uint32_t rate)
 {
-    for (size_t index = 0; index < sizeof RATES / sizeof RATES[0]; index++) {
-        if (RATES[index] == rate && (index < 2 || usb_audio_asynchronous(audio))) {
+    for (size_t index = 0; index < USB_AUDIO_RATE_COUNT; index++) {
+        if (USB_AUDIO_RATES[index] == rate && (index < 2 || usb_audio_asynchronous(audio))) {
             return true;
         }
     }
@@ -239,8 +239,8 @@ static UsbReply range_reply(UsbAudio *audio, UsbSetup setup, AudioControl contro
     if (control == CONTROL_RATE) {
         put_value(audio->reply, 6, 2);
         for (uint8_t index = 0; index < 6; index++) {
-            put_value(audio->reply + 2 + index * 12, RATES[index], 4);
-            put_value(audio->reply + 6 + index * 12, RATES[index], 4);
+            put_value(audio->reply + 2 + index * 12, USB_AUDIO_RATES[index], 4);
+            put_value(audio->reply + 6 + index * 12, USB_AUDIO_RATES[index], 4);
             put_value(audio->reply + 10 + index * 12, 0, 4);
         }
         return data_reply(audio->reply, 74, setup.length);
