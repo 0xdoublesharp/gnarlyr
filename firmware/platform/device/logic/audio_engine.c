@@ -639,7 +639,8 @@ static void finish_decoding(AudioEngine *engine);
 
 static bool continues_in_stream(const AudioEngine *engine)
 {
-    return engine->has_next && engine->next_start_ms == engine->decode_end_ms &&
+    return engine->has_next && engine->segment_count > 0 &&
+           engine->next_start_ms == engine->decode_end_ms &&
            (!engine->output_dop || engine->next_gain == 0 || engine->next_gain == UNITY_GAIN) &&
            audio_engine_same_text(engine->segments[engine->segment_count - 1].path,
                                   engine->next_path);

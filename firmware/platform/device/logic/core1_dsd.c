@@ -178,7 +178,7 @@ static Core1DecodeResult packet(Core1Dsd *dsd)
 {
     uint32_t bytes = dsd->input.size - dsd->position;
     uint32_t size = core1_smaller(bytes, DSD_BLOCK_BYTES * dsd->channels);
-    if (size == 0 || size % dsd->channels != 0) {
+    if (dsd->channels == 0 || size == 0 || size % dsd->channels != 0) {
         return CORE1_FAILED;
     }
     uint32_t next = dsd->lane ^ 1u;

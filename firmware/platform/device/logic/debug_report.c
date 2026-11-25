@@ -861,14 +861,14 @@ static void append_rtc_decoded(StringBuilder *text, const DebugRtcRead *read)
 {
     RtcTime time;
     bool valid = rtc_registers_decode(read->registers, &time);
-    append_field(text, "vl", true, time.voltage_low);
+    append_field(text, "vl", true, time.voltage_low ? 1u : 0u);
     if (valid) {
         append_rtc_time(text, &time);
     } else {
         string_builder_append(text, " time=invalid");
     }
     append_field(text, "weekday", true, time.weekday);
-    append_field(text, "century", true, time.century);
+    append_field(text, "century", true, time.century ? 1u : 0u);
 }
 
 static void append_rtc_head(StringBuilder *text, const DebugRtcRead *read)
