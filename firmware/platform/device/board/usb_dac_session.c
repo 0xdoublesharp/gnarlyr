@@ -440,7 +440,7 @@ static void step_meter(uint32_t now_ms)
     meter_ms = hal_clock_milliseconds();
 }
 
-static void stop_output(void)
+static void stop_output(bool dop)
 {
     if (playing) {
         playing = false;
@@ -449,18 +449,22 @@ static void stop_output(void)
         board_audio_stream_pause();
     }
     usb_audio_sink_set_asynchronous(&sink, usb_audio_asynchronous(&audio));
-    usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio));
+    usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio), dop);
 }
 
-static void follow_format(void)
+static void open_output(bool dop)
 {
     receiving = false;
-    stop_output();
-    if (usb_audio_sample_bytes(&audio) != 0 && audio.rate != open_rate) {
-        open_rate = board_audio_stream_open(audio.rate, serve_audio_usb) ? audio.rate : 0;
+    bool was_dop = sink.dop;
+    stop_output(dop);
+    if (sink.sample_bytes == 0) {
+        sink.dop = was_dop;
+        return;
     }
-    receiving = open_rate != 0 && usb_audio_sample_bytes(&audio) != 0;
-    show_state();
+    if (audio.rate != open_rate || was_dop != dop) {
+        open_rate = board_audio_stream_open(audio.rate, dop, serve_audio_usb) ? audio.rate : 0;
+    }
+    receiving = open_rate != 0;
 }
 
 static void follow_host(void)
@@ -471,7 +475,8 @@ static void follow_host(void)
         scene->dac.host_volume_known = true;
     }
     if ((changes & USB_AUDIO_CHANGED_FORMAT) != 0) {
-        follow_format();
+        open_output(false);
+        show_state();
     } else if (changes != 0) {
         show_info();
     }
@@ -479,10 +484,14 @@ static void follow_host(void)
 
 static void keep_stream(void)
 {
+    if (sink.dop_pending) {
+        open_output(!sink.dop);
+        return;
+    }
     bool empty = playing && (int32_t)(sink.written - board_audio_stream_consumed()) <= 0;
     if (playing &&
         (empty || deadline_elapsed(hal_clock_milliseconds(), last_packet_ms, STREAM_IDLE_MS + 1))) {
-        stop_output();
+        stop_output(sink.dop);
     } else {
         start_output();
     }
@@ -888,7 +897,7 @@ void usb_dac_session(UsbShared *state)
         serve();
     }
     receiving = false;
-    stop_output();
+    stop_output(false);
     shared->last_session.dac = (HalUsbDacStats){
         .rate = open_rate,
         .packets = sink.stats.packets,

@@ -1252,7 +1252,7 @@ static void clear_ring(void)
     }
 }
 
-CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
+CORE_COLD bool board_audio_stream_open(uint32_t rate, bool dop, void (*service)(void))
 {
     if (!workspace_loan_claimable(&workspace_loan)) {
         return false;
@@ -1263,7 +1263,7 @@ CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     dac_path_set_fade_service(serve_fade);
     board_audio_shut_down();
     clear_ring();
-    return ensure_path(rate, false);
+    return ensure_path(rate, dop);
 }
 
 static uint32_t stream_frame_count(void)
@@ -1290,7 +1290,6 @@ bool board_audio_stream_play(void)
 
 CORE_COLD void board_audio_stream_pause(void)
 {
-    clear_ring();
     dac_path_stream_quiet();
     dac_path_stop_transfer();
     dmac_stop();

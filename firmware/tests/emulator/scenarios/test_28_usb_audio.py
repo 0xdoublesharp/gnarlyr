@@ -94,7 +94,7 @@ class EchoImageTest(EchoImageHarness):
         def count_instruction(uc, address, size, user):
             if not self.write_complete:
                 self.sink_instructions += 1
-        for name in ("usb_audio_sink_write", "headphone_audio_word"):
+        for name in ("usb_audio_sink_write", "sample_word", "headphone_audio_word"):
             first = symbols[name]
             last = min(address for label, address in symbols.items()
                        if address > first and not label.startswith("$"))
@@ -149,6 +149,10 @@ class EchoImageTest(EchoImageHarness):
               "core 0 polling busy 100%%" % (rate, fill * 1000 / rate))
         if rate == 192000:
             print("[USB DAC sink] %.2f%% of 200 MHz at one cycle/instruction, counted directly including unity gain" % sink_share)
+            gap_address = machine.overlays[0].symbols["max_poll_gap_us"]
+            max_gap, = struct.unpack("<I", machine.read_memory(gap_address, 4))
+            print(f"[USB DAC sink] maximum firmware poll gap {max_gap} us")
+            self.assertLessEqual(max_gap, 130)
 
     def test_usb_audio_streams_44100_asynchronous_bit_exact(self):
         self.stream_rate(44100)
@@ -167,6 +171,57 @@ class EchoImageTest(EchoImageHarness):
 
     def test_usb_audio_streams_192000_asynchronous_bit_exact(self):
         self.stream_rate(192000)
+
+    def test_usb_audio_switches_both_dacs_between_dop64_and_pcm(self):
+        session, audio, host = self.dac_session(176400, 3)
+        machine = session.machine
+        chips = audio.dac_bus.chips
+        dmac = audio.real_dmac
+        original_push = host.push
+        send_dop = True
+
+        def push(endpoint, payload, packet_type=2):
+            if send_dop and endpoint == 1 and packet_type == 2 and host.width >= 3:
+                payload = bytearray(payload)
+                stride = 2 * host.width
+                first = host.sequence - len(payload) // stride
+                for frame, start in enumerate(range(0, len(payload), stride), first):
+                    marker = 0xFA if frame % 2 else 0x05
+                    payload[start + host.width - 1] = payload[start + stride - 1] = marker
+            original_push(endpoint, payload, packet_type)
+
+        def await_mode(value):
+            result = machine.run(
+                until=lambda: dmac.running and all(regs.get(0x070004) == value
+                                                   for regs in chips.values()),
+                until_ms=machine.milliseconds() + 1000)
+            status = ([regs.get(0x070004) for regs in chips.values()], dmac.starts, host.missed)
+            self.assertEqual(result, "condition met", status)
+
+        def change_format(rate, width):
+            host.enabled = False
+            host.format(rate, width)
+
+        self.assertTrue(all(regs.get(0x070004) == 0x02 for regs in chips.values()))
+        host.push = push
+        await_mode(0x52)
+        words = struct.unpack("<8I", machine.read_memory(audio.dma_ring, 32))
+        self.assertEqual(tuple(word >> 24 for word in words),
+                         (0x05, 0x05, 0xFA, 0xFA, 0x05, 0x05, 0xFA, 0xFA))
+        send_dop = False
+        await_mode(0x02)
+        send_dop = True
+        await_mode(0x52)
+        change_format(176400, 2)
+        await_mode(0x02)
+        change_format(176400, 4)
+        await_mode(0x52)
+        change_format(96000, 4)
+        await_mode(0x02)
+        self.assertEqual(audio.rate, 96000)
+        self.assertGreaterEqual(dmac.starts, 7)
+        self.assertEqual(host.missed, 0)
+        self.assert_healthy(session)
 
     def test_usb_audio_full_speed_retains_adaptive_fallback(self):
         session, audio, host = self.dac_session(48000, 3, False)
