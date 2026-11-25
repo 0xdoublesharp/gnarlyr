@@ -108,16 +108,23 @@ class EchoImageTest(EchoImageHarness):
         session = self.session(files=[("TRACK01.MP3", track, None)])
         self.damage_rescan_overlay(session, "slot_1")
         self.damage_rescan_overlay(session, "slot_2")
+        from unicorn.arm_const import UC_ARM_REG_R1
         machine = session.machine
         machine.note("hal_system_return_scratch")
-        toasts = self.collect_toasts(machine)
+        toasts = []
+        def on_toast():
+            text = machine.read_cstring(machine.reg(UC_ARM_REG_R1)).decode("utf-8", "replace")
+            toasts.append(text)
+            if text == english("STR_SCAN_NO_CODE"):
+                machine.stop("scan refused")
+        machine.hook_symbol("toast_show", on_toast)
         self.assertEqual(machine.run(until=lambda: self.rescan_overlay_reads(session, "slot_1"),
                                      until_ms=self.session_module.FRAME_LIMIT_MS),
                          "condition met")
         executed = machine.count_window_code()
-        self.assertEqual(machine.run(until=lambda: english("STR_SCAN_NO_CODE") in toasts,
-                                     until_ms=self.session_module.FRAME_LIMIT_MS),
-                         "condition met")
+        self.assertEqual(machine.run(until_ms=self.session_module.FRAME_LIMIT_MS),
+                         "scan refused")
+        self.assertIn(english("STR_SCAN_NO_CODE"), toasts)
         self.assertTrue(self.rescan_overlay_reads(session, "slot_2"))
         self.assertNotIn("hal_system_return_scratch", machine.reached)
         self.assertEqual(executed[0], 0)

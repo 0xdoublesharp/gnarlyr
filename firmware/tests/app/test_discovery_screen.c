@@ -14,7 +14,7 @@
 #include "settings/settings.h"
 #include "spoken_library.h"
 #include "ui/footer_hints.h"
-#include "ui/label.h"
+#include "ui/toast.h"
 
 static FixtureLibrary fixture;
 static DiscoveryScreen discovery;
@@ -23,6 +23,7 @@ static Theme theme;
 static WireMotion motion;
 static uint8_t scratch_bytes[LIBRARY_VIEW_WORK_BYTES];
 static Color pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
+static Color expected_pixels[HAL_DISPLAY_WIDTH * HAL_DISPLAY_HEIGHT];
 static bool refuse_writes;
 static uint32_t clock_ms;
 
@@ -135,7 +136,7 @@ static void selecting_a_sort_rebuilds_and_keeps_the_original_selected_track(void
     uint16_t selected;
     TrackOrderSource source = discovery_screen_order(&discovery);
     CHECK(source.read(source.context, 1, 1, &selected));
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
     CHECK_EQUAL(DISCOVERY_SORT, discovery.mode);
@@ -153,7 +154,7 @@ static void filter_choices_change_the_query_and_reset_removes_every_constraint(v
 {
     start();
     explore();
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
@@ -165,7 +166,7 @@ static void filter_choices_change_the_query_and_reset_removes_every_constraint(v
     CHECK_EQUAL(0, discovery.query.artist);
     key(KEY_BACK, KEY_GESTURE_PRESS);
     complete();
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     for (int step = 0; step < 3; step++) {
         key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     }
@@ -198,7 +199,7 @@ static void options_back_and_background_cancellation_keep_a_completed_selection(
     start();
     explore();
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     key(KEY_BACK, KEY_GESTURE_PRESS);
     CHECK_EQUAL(1, discovery.list.selected);
     uint16_t count = discovery_screen_order(&discovery).count;
@@ -213,7 +214,7 @@ static void results_left_open_under_options_come_back_after_a_reload(void)
     explore();
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     uint16_t count = discovery_screen_order(&discovery).count;
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     CHECK_EQUAL(DISCOVERY_OPTIONS, discovery.mode);
     static DiscoveryScreen other;
     discovery_screen_init(&other, discovery.config);
@@ -285,7 +286,7 @@ static void source_scope_is_combined_with_filters_and_survives_reset(void)
     discovery_screen_open(&discovery, browse_root_query(BROWSE_ALL_SONGS), false);
     complete();
     CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     for (int index = 0; index < 3; index++) {
         key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     }
@@ -333,9 +334,19 @@ static void personal_tag_filters_are_intersected_with_the_source_scope(void)
     CHECK_EQUAL(0, discovery_screen_order(&discovery).count);
 }
 
-static Color expected_footer[HAL_DISPLAY_WIDTH * 20];
+static bool matches_expected_pixels(Rect area)
+{
+    for (int row = 0; row < area.height; row++) {
+        int offset = (area.y + row) * theme.metrics.screen_width + area.x;
+        if (memcmp(expected_pixels + row * area.width, pixels + offset,
+                   (size_t)area.width * sizeof pixels[0]) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
 
-static void a_view_save_failure_is_visible_without_disabling_results(void)
+static void a_view_save_failure_keeps_the_options_hint_and_results_available(void)
 {
     start();
     fake_hal_set_reserve_result(HAL_RESERVE_NO_SPACE);
@@ -343,14 +354,13 @@ static void a_view_save_failure_is_visible_without_disabling_results(void)
     Canvas canvas =
         canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
     discovery.screen.draw(&discovery, &canvas);
-    Rect footer = {0, theme.metrics.screen_height - 20, theme.metrics.screen_width, 20};
-    Canvas expected = canvas_make(expected_footer, footer);
+    const FooterHint hint[] = {{FOOTER_KEY_HOLD_MENU, STR_VIEW_OPTIONS}};
+    FooterHints hints = {.items = hint, .count = 1, .align = FOOTER_ALIGN_START};
+    Rect footer = footer_hints_area(&theme, theme_content_area(&theme), hints);
+    Canvas expected = canvas_make(expected_pixels, footer);
     canvas_fill_rect(&expected, footer, theme.colors.background);
-    Rect text = {theme.metrics.padding, footer.y, footer.width - 2 * theme.metrics.padding,
-                 footer.height};
-    label_draw(&expected, (TextStyle){theme.fonts.small, theme.colors.text_secondary, false},
-               (Label){text, i18n_text(STR_VIEW_SAVE_FAILED)});
-    CHECK(memcmp(expected_footer, pixels + footer.y * footer.width, sizeof expected_footer) == 0);
+    footer_hints_draw(&expected, &theme, footer, hints);
+    CHECK(matches_expected_pixels(footer));
     CHECK(discovery_screen_order(&discovery).count > 0);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
     CHECK_EQUAL(DISCOVERY_REQUEST_PLAY, discovery.request);
@@ -468,12 +478,10 @@ static void native_layouts_keep_editor_hints_and_rows_inside_every_orientation(v
                 pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
             discovery.screen.draw(&discovery, &canvas);
             screen_snapshot_write(&canvas, "search-entry", size + orientation * TEXT_SIZE_COUNT);
-            const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
-                                        {FOOTER_KEY_PLAY, STR_HINT_ADD},
+            const FooterHint hints[] = {{FOOTER_KEY_PLAY, STR_HINT_ADD},
                                         {FOOTER_KEY_MENU, STR_HINT_ERASE},
-                                        {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
                                         {FOOTER_KEY_HOLD_PLAY, STR_HINT_SHOW_RESULTS}};
-            FooterHints footer = {.items = hints, .count = 5, .align = FOOTER_ALIGN_START};
+            FooterHints footer = {.items = hints, .count = 3, .align = FOOTER_ALIGN_START};
             int bottom = theme.metrics.header_height + theme.metrics.padding +
                          2 * theme.metrics.row_height + footer_hints_height(&theme, footer);
             CHECK(bottom <= theme.metrics.screen_height);
@@ -560,7 +568,7 @@ static void finishing_tag_loading_applies_the_new_filters_without_publishing_old
 static void open_filters(void)
 {
     explore();
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
@@ -633,7 +641,7 @@ static void every_sort_choice_and_direction_survives_a_rebuild(void)
     for (int sort = 0; sort <= 6; sort++) {
         start();
         explore();
-        key(KEY_MENU, KEY_GESTURE_PRESS);
+        key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
         key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
         key(KEY_PLAY, KEY_GESTURE_PRESS);
         CHECK_EQUAL(DISCOVERY_SORT, discovery.mode);
@@ -732,7 +740,14 @@ static void result_actions_expose_the_selected_tracks_information(void)
     explore();
     key(KEY_PLAY, KEY_GESTURE_LONG_PRESS);
     CHECK_EQUAL(DISCOVERY_ACTIONS, discovery.mode);
+    static const StringId actions[] = {STR_PLAY_NEXT, STR_ADD_TO_UP_NEXT, STR_TRACK_INFO,
+                                       STR_PERSONAL_TAGS};
     CHECK_EQUAL(4, discovery.model.count(&discovery));
+    for (int row = 0; row < 4; row++) {
+        CHECK(strcmp(i18n_text(actions[row]), discovery.model.label(&discovery, row)) == 0);
+    }
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
+    key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
     CHECK_EQUAL(DISCOVERY_INFO, discovery.mode);
     CHECK_EQUAL(11, discovery.model.count(&discovery));
@@ -745,14 +760,42 @@ static void result_actions_expose_the_selected_tracks_information(void)
     CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
 }
 
+static void draw_current_screen(void)
+{
+    Canvas canvas =
+        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+    discovery.screen.draw(&discovery, &canvas);
+}
+
+static void check_results_toast(StringId message)
+{
+    Toast toast = {0};
+    toast_show(&toast, i18n_text(message), clock_ms);
+    Rect area = toast_area(&toast, &theme);
+    Canvas expected = canvas_make(expected_pixels, area);
+    toast_draw(&toast, &expected, &theme);
+    draw_current_screen();
+    CHECK(matches_expected_pixels(area));
+
+    clock_ms += TOAST_DURATION_MS;
+    tick();
+    draw_current_screen();
+    CHECK(!matches_expected_pixels(area));
+    CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
+}
+
 static void track_actions_can_start_playback_and_return_to_results(void)
 {
-    for (int action = 2; action <= 3; action++) {
+    for (int action = 0; action < 2; action++) {
         start();
         Player player;
         player_init(&player, &fixture.library);
+        Screen now_playing = {0};
         discovery.config.player = &player;
+        discovery.config.now_playing = &now_playing;
         explore();
+        CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_MENU, KEY_GESTURE_PRESS).type);
+        CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
         uint16_t expected = LIBRARY_NONE;
         TrackOrderSource order = discovery_screen_order(&discovery);
         CHECK(order.read(order.context, 0, 1, &expected));
@@ -762,10 +805,13 @@ static void track_actions_can_start_playback_and_return_to_results(void)
             key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
         }
         key(KEY_PLAY, KEY_GESTURE_PRESS);
-        CHECK_EQUAL(DISCOVERY_NOTICE, discovery.mode);
+        CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
         CHECK(player_status(&player).has_track);
         CHECK_EQUAL(expected, player_status(&player).track);
-        key(KEY_BACK, KEY_GESTURE_PRESS);
+        check_results_toast(STR_PLAYING);
+        ScreenAction open_now_playing = key(KEY_MENU, KEY_GESTURE_PRESS);
+        CHECK_EQUAL(SCREEN_ACTION_PUSH, open_now_playing.type);
+        CHECK(open_now_playing.target == &now_playing);
         CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
     }
 }
@@ -811,7 +857,7 @@ static void a_tag_write_failure_shows_a_notice_without_creating_the_tag(void)
 
 static void track_actions_enqueue_without_interrupting_current_playback(void)
 {
-    for (int action = 2; action <= 3; action++) {
+    for (int action = 0; action < 2; action++) {
         start();
         Player player;
         player_init(&player, &fixture.library);
@@ -831,18 +877,12 @@ static void track_actions_enqueue_without_interrupting_current_playback(void)
             key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
         }
         key(KEY_PLAY, KEY_GESTURE_PRESS);
-        CHECK_EQUAL(DISCOVERY_NOTICE, discovery.mode);
+        CHECK_EQUAL(DISCOVERY_RESULTS, discovery.mode);
         CHECK_EQUAL(0, player_status(&player).track);
         CHECK_EQUAL(1, player.up_next.count);
         CHECK_EQUAL(expected, player.up_next.tracks[0]);
+        check_results_toast(action == 0 ? STR_PLAYING_NEXT : STR_ADDED_TO_UP_NEXT);
     }
-}
-
-static void draw_current_screen(void)
-{
-    Canvas canvas =
-        canvas_make(pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
-    discovery.screen.draw(&discovery, &canvas);
 }
 
 static void search_progress_cancel_failure_and_results_draw_distinct_states(void)
@@ -885,7 +925,7 @@ static void active_filters_change_the_results_summary(void)
     explore();
     draw_current_screen();
     memcpy(unfiltered, pixels, sizeof unfiltered);
-    key(KEY_MENU, KEY_GESTURE_PRESS);
+    key(KEY_MENU, KEY_GESTURE_LONG_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_VOLUME_UP, KEY_GESTURE_PRESS);
     key(KEY_PLAY, KEY_GESTURE_PRESS);
@@ -1207,7 +1247,7 @@ int main(void)
         TEST_CASE(search_work_stops_at_the_clock_budget_and_services_audio),
         TEST_CASE(source_scope_is_combined_with_filters_and_survives_reset),
         TEST_CASE(personal_tag_filters_are_intersected_with_the_source_scope),
-        TEST_CASE(a_view_save_failure_is_visible_without_disabling_results),
+        TEST_CASE(a_view_save_failure_keeps_the_options_hint_and_results_available),
         TEST_CASE(metadata_rows_expose_fields_and_a_full_width_path),
         TEST_CASE(the_path_of_an_internal_song_is_shown_without_the_drive_marker),
         TEST_CASE(personal_tag_management_does_not_assign_a_nonexistent_track),

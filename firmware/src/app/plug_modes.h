@@ -14,6 +14,7 @@ typedef enum PlugMode {
     PLUG_MODE_CHARGE,
     PLUG_MODE_USB_POWER,
     PLUG_MODE_DAC,
+    PLUG_MODE_CHARGE_80,
     PLUG_MODE_COUNT
 } PlugMode;
 
@@ -26,6 +27,7 @@ typedef enum PlugPlace {
 enum {
     PLUG_CARE_FULL = 0,
     PLUG_CARE_USB = 2,
+    PLUG_CARE_80 = 3,
     PLUG_SAFE_MILLIVOLTS = 3800,
     PLUG_NOT_MARKED = 255
 };

@@ -297,12 +297,22 @@ if wantedBits > 0 {
     let res = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
     formatStatus = res.0
     selectedBits = res.1
-    Thread.sleep(forTimeInterval: 0.15)
+    for _ in 0..<6 {
+        Thread.sleep(forTimeInterval: 0.1)
+        if currentPhysicalBits(deviceID) == wantedBits {
+            break
+        }
+    }
     if currentPhysicalBits(deviceID) != wantedBits {
         let retry = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
         formatStatus = retry.0
         selectedBits = retry.1
-        Thread.sleep(forTimeInterval: 0.15)
+        for _ in 0..<6 {
+            Thread.sleep(forTimeInterval: 0.1)
+            if currentPhysicalBits(deviceID) == wantedBits {
+                break
+            }
+        }
     }
 }
 let actualBits = currentPhysicalBits(deviceID)
@@ -905,7 +915,7 @@ def folder_enter_lines(folder_row):
     return [
         "open coverflow",
         "wait 200",
-        "back,down,down,down,down,down,play",
+        "back,up,play",
         "wait 350",
         ",".join(down_folder),
         "wait 300",
@@ -1009,7 +1019,7 @@ def build_codec_plan(catalog):
         ("15 AIFF", "AIFF 44.1k/16 stereo", 700, 2000, False, True, (280, 345)),
         ("16 WMA", "WMA v2 128k stereo", 700, 2000, False, True, (280, 345)),
         ("17 APE", "APE 16-bit stereo", 700, 1800, False, True, (255, 465)),
-        ("19 DSD64", "DSD64 DSF 2.8MHz", 500, 1800, False, True, (115, 195)),
+        ("19 DSD64", "DSD64 DSF 2.8MHz", 500, 1800, False, True, (40, 195)),
     ])
     return batches
 

@@ -26,23 +26,40 @@ typedef struct UsbAudioSink {
     uint8_t sample_bytes;
     bool playing;
     bool asynchronous;
+    bool unity;
     uint32_t rate;
     uint32_t feedback_rate;
     uint32_t feedback_consumed;
     uint16_t feedback_tick;
     bool feedback_started;
+    bool dop;
+    bool dop_pending;
+    uint8_t dop_marker;
+    uint8_t dop_frames;
     uint16_t peaks[2];
     StreamDrift drift;
     HeadphoneAudio headphones;
 } UsbAudioSink;
 
 void usb_audio_sink_init(UsbAudioSink *sink, uint32_t *ring, uint32_t ring_frames);
-void usb_audio_sink_start(UsbAudioSink *sink, uint32_t rate, uint8_t sample_bytes);
-void usb_audio_sink_set_playing(UsbAudioSink *sink, bool playing);
+void usb_audio_sink_start(UsbAudioSink *sink, uint32_t rate, uint8_t sample_bytes, bool dop);
 void usb_audio_sink_set_headphones(UsbAudioSink *sink, HeadphoneAudio profile);
 void usb_audio_sink_write(UsbAudioSink *sink, const uint8_t *bytes, uint32_t length,
                           uint32_t consumed);
-bool usb_audio_sink_primed(const UsbAudioSink *sink);
-void usb_audio_sink_set_asynchronous(UsbAudioSink *sink, bool asynchronous);
 uint32_t usb_audio_sink_feedback(UsbAudioSink *sink, uint32_t consumed, uint16_t tick);
 void usb_audio_sink_take_peaks(UsbAudioSink *sink, uint16_t *peaks);
+
+static inline void usb_audio_sink_set_playing(UsbAudioSink *sink, bool playing)
+{
+    sink->playing = playing;
+}
+
+static inline bool usb_audio_sink_primed(const UsbAudioSink *sink)
+{
+    return sink->sample_bytes != 0 && sink->written >= sink->target;
+}
+
+static inline void usb_audio_sink_set_asynchronous(UsbAudioSink *sink, bool asynchronous)
+{
+    sink->asynchronous = asynchronous;
+}

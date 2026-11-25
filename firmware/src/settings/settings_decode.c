@@ -87,8 +87,7 @@ static bool extension_valid(const uint8_t *extension)
     return comfort >> TRANSITION_SHIFT < TRACK_TRANSITION_COUNT && speed < SETTINGS_SPEED_COUNT &&
            extension[SAFE_LEVEL_BYTE] <= SETTINGS_VOLUME_MAX &&
            tenths >= SETTINGS_TRANSITION_TENTHS_MIN && tenths <= SETTINGS_TRANSITION_TENTHS_MAX &&
-           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension) &&
-           ((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT) < 3;
+           offset >= -720 && offset <= 840 && home_valid(extension) && reserved_clear(extension);
 }
 
 static bool second_valid(const uint8_t *second)

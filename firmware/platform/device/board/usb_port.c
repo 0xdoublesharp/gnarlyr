@@ -754,7 +754,7 @@ static void stream_burst(UsbPort *port)
     }
 }
 
-bool usb_wait_for_host(UsbPort *port, uint32_t timeout_ms)
+CORE_SEAM bool usb_wait_for_host(UsbPort *port, uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
     while (!deadline_elapsed(hal_clock_milliseconds(), start, timeout_ms)) {

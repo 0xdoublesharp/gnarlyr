@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/seam.h"
 #include "gfx/text.h"
 #include "ui/footer_hints.h"
 #include "ui/header.h"
@@ -135,13 +136,14 @@ static void draw(void *context, Canvas *canvas)
     ConfirmLayout layout = layout_of(confirm);
     canvas_fill_rect(canvas, theme_content_area(theme), theme->colors.background);
     header_draw(canvas, theme, confirm->config.title);
-    draw_notes(canvas, confirm, layout);
+    Canvas notes = canvas_clipped(canvas, layout.notes);
+    draw_notes(&notes, confirm, layout);
     list_view_fit_rows(&confirm->list, layout.rows.height / list_view_row_height(&confirm->list));
     list_view_draw(&confirm->list, canvas, layout.rows, confirm->now_ms);
     footer_hints_draw(canvas, theme, layout.footer, FOOTER);
 }
 
-static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
+CORE_COLD static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
 {
     ConfirmScreen *confirm = context;
     confirm->now_ms = now_ms;
@@ -170,7 +172,7 @@ static void update(void *context, uint32_t now_ms)
     confirm->now_ms = now_ms;
 }
 
-Screen *confirm_screen_init(ConfirmScreen *confirm, ConfirmConfig config)
+CORE_COLD Screen *confirm_screen_init(ConfirmScreen *confirm, ConfirmConfig config)
 {
     *confirm = (ConfirmScreen){.config = config};
     confirm->model = (ListModel){.context = confirm,

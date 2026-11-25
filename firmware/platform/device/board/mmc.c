@@ -3,11 +3,15 @@
 #include "board.h"
 #include "core/seam.h"
 #include "cru.h"
+#include "device/mmc_clock.h"
+#include "emmc.h"
 #include "hal/clock.h"
 #include "mmc_registers.h"
 #include "registers.h"
+#include "sd.h"
 
 #define CRU_MMC_DIVIDERS 0x30u
+#define CRU_MMC_BUS_GATES 0x84u
 
 enum {
     BLOCK_WORDS = 128,
@@ -19,6 +23,11 @@ enum {
     BUSY_TIMEOUT_MS = 1000,
     DATA_TIMEOUT_MS = 500,
     IDENTIFY_DIVIDER_REGISTER = 1,
+    IDENTIFY_CLOCK_FIELD = MMC_CRYSTAL_SOURCE | MMC_CRU_DIVIDER_MASK,
+    CLOCK_UPDATE_POLLS = 50000,
+    EMMC_FIELD_SHIFT = 8,
+    CLOCK_LIMIT_MASK = 0x7F,
+    CLOCK_LIMIT_PARKED = 0x80,
     FALLBACK_FIFO_DEPTH = 16,
     MINIMUM_FIFO_DEPTH = 8,
     MAXIMUM_FIFO_DEPTH = 1024,
@@ -27,6 +36,8 @@ enum {
 };
 
 static MmcFailure last_failure;
+static uint8_t clock_limit[2];
+static uint8_t pll_mhz;
 
 static uint32_t read_register(const MmcHost *host, uint32_t offset)
 {
@@ -49,11 +60,11 @@ static void write_register(const MmcHost *host, uint32_t offset, uint32_t value)
     register_write(host->base + offset, value);
 }
 
-__attribute__((noinline)) static bool wait_clear(const MmcHost *host, uint32_t offset,
-                                                 uint32_t bits, uint32_t timeout_ms)
+__attribute__((noinline)) static bool wait_register(uint32_t address, uint32_t bits, bool set,
+                                                    uint32_t timeout_ms)
 {
     uint32_t start = hal_clock_milliseconds();
-    while ((read_register(host, offset) & bits) != 0) {
+    while (((register_read(address) & bits) != 0) != set) {
         board_audio_stream_service();
         if (hal_clock_milliseconds() - start > timeout_ms) {
             return false;
@@ -62,23 +73,28 @@ __attribute__((noinline)) static bool wait_clear(const MmcHost *host, uint32_t o
     return true;
 }
 
-__attribute__((noinline)) static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits,
-                                               uint32_t timeout_ms)
+static bool wait_clear(const MmcHost *host, uint32_t offset, uint32_t bits, uint32_t timeout_ms)
 {
-    uint32_t start = hal_clock_milliseconds();
-    while ((read_register(host, offset) & bits) == 0) {
-        board_audio_stream_service();
-        if (hal_clock_milliseconds() - start > timeout_ms) {
-            return false;
-        }
-    }
-    return true;
+    return wait_register(host->base + offset, bits, false, timeout_ms);
+}
+
+static bool wait_any(const MmcHost *host, uint32_t offset, uint32_t bits, uint32_t timeout_ms)
+{
+    return wait_register(host->base + offset, bits, true, timeout_ms);
 }
 
 CORE_COLD static bool update_clock(const MmcHost *host)
 {
+    write_register(host, MMC_RINTSTS, INT_HARDWARE_LOCKED);
     write_register(host, MMC_CMD, CMD_UPDATE_CLOCK);
-    return wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS);
+    uint32_t polls = CLOCK_UPDATE_POLLS;
+    while ((read_register(host, MMC_CMD) & CMD_START) != 0) {
+        if (--polls == 0) {
+            return false;
+        }
+        board_audio_stream_service();
+    }
+    return (read_register(host, MMC_RINTSTS) & INT_HARDWARE_LOCKED) == 0;
 }
 
 static uint32_t fifo_depth(const MmcHost *host)
@@ -102,16 +118,118 @@ CORE_COLD void mmc_reset_controller(const MmcHost *host)
     write_register(host, MMC_PWREN, 1);
 }
 
-CORE_COLD void mmc_set_clock(const MmcHost *host, SdClock clock)
+static uint32_t host_index(const MmcHost *host)
 {
-    bool identify = clock == SD_CLOCK_IDENTIFY;
-    write_register(host, MMC_CLKENA, 0);
-    update_clock(host);
-    cru_write(CRU_MMC_DIVIDERS, identify ? host->cru_identify : host->cru_transfer);
+    return host->base == EMMC_BASE;
+}
+
+static uint32_t source_field(const MmcHost *host)
+{
+    uint32_t value = register_read(CRU_BASE + CRU_MMC_DIVIDERS);
+    return value >> (host_index(host) * EMMC_FIELD_SHIFT) & MMC_CRU_FIELD_MASK;
+}
+
+static void set_source(const MmcHost *host, uint32_t field)
+{
+    cru_write(CRU_MMC_DIVIDERS, ((MMC_CRU_FIELD_MASK << 16) | field)
+                                    << (host_index(host) * EMMC_FIELD_SHIFT));
+}
+
+CORE_COLD void mmc_clock_init(const MmcHost *host)
+{
+    set_source(host, IDENTIFY_CLOCK_FIELD);
+}
+
+__attribute__((noinline)) static bool enable_clock(const MmcHost *host, uint32_t enable)
+{
+    write_register(host, MMC_CLKENA, enable);
+    return update_clock(host);
+}
+
+CORE_COLD static bool disable_clock(const MmcHost *host)
+{
+    return wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY | STATUS_DATA_BUSY, BUSY_TIMEOUT_MS) &&
+           wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) && enable_clock(host, 0);
+}
+
+CORE_COLD static bool program_clock(const MmcHost *host, uint32_t field, bool identify)
+{
+    if (!disable_clock(host)) {
+        return false;
+    }
     write_register(host, MMC_CLKDIV, identify ? IDENTIFY_DIVIDER_REGISTER : 0);
-    update_clock(host);
-    write_register(host, MMC_CLKENA, CLKENA_ON);
-    update_clock(host);
+    if (!update_clock(host)) {
+        return false;
+    }
+    set_source(host, field);
+    return enable_clock(host, CLKENA_ON);
+}
+
+CORE_COLD static bool apply_limit(const MmcHost *host, uint8_t *limit)
+{
+    if ((*limit & CLOCK_LIMIT_PARKED) != 0) {
+        return true;
+    }
+    uint32_t field = mmc_clock_field(pll_mhz, *limit);
+    if (field == MMC_CRYSTAL_SOURCE || program_clock(host, field, false)) {
+        return true;
+    }
+    *limit |= CLOCK_LIMIT_PARKED;
+    return program_clock(host, MMC_CRYSTAL_SOURCE, false);
+}
+
+CORE_COLD bool mmc_set_clock(const MmcHost *host, SdClock clock)
+{
+    uint8_t *limit = &clock_limit[host_index(host)];
+    if (clock == SD_CLOCK_HIGH_SPEED) {
+        *limit &= CLOCK_LIMIT_MASK;
+        return apply_limit(host, limit) && (source_field(host) & MMC_CRYSTAL_SOURCE) == 0;
+    }
+    bool identify = clock == SD_CLOCK_IDENTIFY;
+    *limit = identify ? 0 : *limit | CLOCK_LIMIT_PARKED;
+    return program_clock(host, identify ? IDENTIFY_CLOCK_FIELD : MMC_CRYSTAL_SOURCE, identify);
+}
+
+CORE_COLD bool mmc_clock_accept(const MmcHost *host, uint8_t limit_mhz)
+{
+    uint8_t *limit = &clock_limit[host_index(host)];
+    *limit = limit_mhz;
+    return apply_limit(host, limit);
+}
+
+CORE_COLD bool mmc_stop_clock(const MmcHost *host)
+{
+    clock_limit[host_index(host)] = 0;
+    if (!disable_clock(host)) {
+        return false;
+    }
+    mmc_clock_init(host);
+    return true;
+}
+
+static bool park_pll(const MmcHost *host)
+{
+    uint32_t index = host_index(host);
+    uint32_t gates = register_read(CRU_BASE + CRU_MMC_BUS_GATES);
+    if ((source_field(host) & MMC_CRYSTAL_SOURCE) != 0 || (gates & (1u << (8 + index))) != 0) {
+        return true;
+    }
+    if (clock_limit[index] == 0) {
+        return (read_register(host, MMC_CLKENA) & 1u) == 0 || mmc_stop_clock(host);
+    }
+    return program_clock(host, MMC_CRYSTAL_SOURCE, false);
+}
+
+CORE_COLD bool mmc_park_pll(void)
+{
+    return park_pll(&SD_MMC_HOST) && park_pll(&EMMC_HOST);
+}
+
+CORE_COLD void mmc_resume_pll(uint32_t mhz)
+{
+    pll_mhz = (uint8_t)mhz;
+    apply_limit(&SD_MMC_HOST, &clock_limit[0]);
+    apply_limit(&EMMC_HOST, &clock_limit[1]);
 }
 
 bool mmc_wait_not_busy(const MmcHost *host)
@@ -148,12 +266,6 @@ CORE_COLD void mmc_set_bus_width(const MmcHost *host, uint8_t bits)
     write_register(host, MMC_CTYPE, type);
 }
 
-CORE_COLD void mmc_stop_clock(const MmcHost *host)
-{
-    write_register(host, MMC_CLKENA, 0);
-    update_clock(host);
-}
-
 static uint32_t command_flags(SdCommand command)
 {
     uint32_t flags = command.initialise ? CMD_INITIALISE : 0;
@@ -178,6 +290,21 @@ static bool command_failed(uint32_t flags, uint32_t status)
     return (status & errors) != 0;
 }
 
+__attribute__((noinline)) static bool start_command(const MmcHost *host, uint32_t argument,
+                                                    uint32_t command)
+{
+    write_register(host, MMC_RINTSTS, INT_ALL);
+    write_register(host, MMC_CMDARG, argument);
+    write_register(host, MMC_CMD, CMD_BASE | command);
+    return wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS);
+}
+
+static bool response_ready(const MmcHost *host, uint32_t flags)
+{
+    return wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) &&
+           !command_failed(flags, read_register(host, MMC_RINTSTS));
+}
+
 static void read_response(const MmcHost *host, uint32_t response[4])
 {
     for (uint32_t index = 0; index < 4; index++) {
@@ -185,18 +312,15 @@ static void read_response(const MmcHost *host, uint32_t response[4])
     }
 }
 
-bool mmc_command(const MmcHost *host, SdCommand command, uint32_t response[4])
+__attribute__((noinline)) bool mmc_command(const MmcHost *host, SdCommand command,
+                                           uint32_t response[4])
 {
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
         return false;
     }
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, command.argument);
     uint32_t flags = command_flags(command);
-    write_register(host, MMC_CMD, CMD_BASE | flags | command.index);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) ||
-        !wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) ||
-        command_failed(flags, read_register(host, MMC_RINTSTS))) {
+    if (!start_command(host, command.argument, flags | command.index) ||
+        !response_ready(host, flags)) {
         return false;
     }
     read_response(host, response);
@@ -216,7 +340,8 @@ static bool prepare_data(const MmcHost *host)
     return true;
 }
 
-static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
+__attribute__((optimize("O2"))) static bool drain_fifo(const MmcHost *host, uint32_t *words,
+                                                       uint32_t total)
 {
     uint32_t fifo = host->base + MMC_FIFO;
     uint32_t received = 0;
@@ -240,23 +365,15 @@ static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
 
 static CORE_COLD bool failed(const MmcHost *host, MmcStep step);
 
-static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t bytes,
-                      uint32_t *words)
+static bool start_data(const MmcHost *host, uint32_t command, uint32_t address, uint32_t bytes)
 {
-    if (!prepare_data(host)) {
-        return failed(host, MMC_STEP_BUSY_BEFORE);
-    }
     write_register(host, MMC_BLKSIZ, bytes < BLOCK_BYTES ? bytes : BLOCK_BYTES);
     write_register(host, MMC_BYTCNT, bytes);
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, address);
-    write_register(host, MMC_CMD, CMD_BASE | CMD_DATA_READ | index);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS)) {
-        return failed(host, MMC_STEP_COMMAND_START);
-    }
-    if (!drain_fifo(host, words, bytes / 4)) {
-        return failed(host, MMC_STEP_FIFO);
-    }
+    return start_command(host, address, CMD_DATA_READ | command);
+}
+
+__attribute__((noinline)) static bool finish_data(const MmcHost *host)
+{
     if (!wait_any(host, MMC_RINTSTS, INT_DATA_FINISHED, DATA_TIMEOUT_MS)) {
         return failed(host, MMC_STEP_DATA_WAIT);
     }
@@ -267,9 +384,30 @@ static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint
     return true;
 }
 
+static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint32_t bytes,
+                      uint32_t *words)
+{
+    if (!prepare_data(host)) {
+        return failed(host, MMC_STEP_BUSY_BEFORE);
+    }
+    if (!start_data(host, index, address, bytes)) {
+        return failed(host, MMC_STEP_COMMAND_START);
+    }
+    if (!drain_fifo(host, words, bytes / 4)) {
+        return failed(host, MMC_STEP_FIFO);
+    }
+    return finish_data(host);
+}
+
 bool mmc_read_block(const MmcHost *host, uint8_t index, uint32_t address, uint32_t *words)
 {
     return read_data(host, index, address, BLOCK_BYTES, words);
+}
+
+CORE_COLD bool mmc_read_sd_switch(const MmcHost *host, uint32_t argument, uint32_t words[16])
+{
+    return read_data(host, 6, argument, 64, words) &&
+           mmc_card_status_ok(read_register(host, MMC_RESP0));
 }
 
 bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16])
@@ -279,14 +417,8 @@ bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16])
 
 static bool stop_transmission(const MmcHost *host, uint32_t argument)
 {
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, argument);
-    write_register(host, MMC_CMD,
-                   CMD_BASE | CMD_STOP_ABORT | CMD_RESPONSE | CMD_CHECK_CRC |
-                       CMD_STOP_TRANSMISSION);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) ||
-        !wait_any(host, MMC_RINTSTS, INT_COMMAND_DONE, COMMAND_TIMEOUT_MS) ||
-        command_failed(CMD_CHECK_CRC, read_register(host, MMC_RINTSTS))) {
+    uint32_t flags = CMD_STOP_ABORT | CMD_RESPONSE | CMD_CHECK_CRC | CMD_STOP_TRANSMISSION;
+    if (!start_command(host, argument, flags) || !response_ready(host, flags)) {
         return failed(host, MMC_STEP_STOP);
     }
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
@@ -353,22 +485,15 @@ bool mmc_write_blocks(const MmcHost *host, uint8_t index, uint32_t address, uint
     }
     write_register(host, MMC_BLKSIZ, BLOCK_BYTES);
     write_register(host, MMC_BYTCNT, BLOCK_BYTES * count);
-    write_register(host, MMC_RINTSTS, INT_ALL);
-    write_register(host, MMC_CMDARG, address);
-    write_register(host, MMC_CMD, CMD_BASE | CMD_DATA_READ | CMD_WRITE | index);
-    if (!wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS)) {
+    if (!start_command(host, address, CMD_DATA_READ | CMD_WRITE | index)) {
         return failed(host, MMC_STEP_COMMAND_START);
     }
     if (!fill_fifo(host, words, BLOCK_WORDS * count)) {
         return failed(host, MMC_STEP_FIFO);
     }
-    if (!wait_any(host, MMC_RINTSTS, INT_DATA_FINISHED, DATA_TIMEOUT_MS)) {
-        return failed(host, MMC_STEP_DATA_WAIT);
+    if (!finish_data(host)) {
+        return false;
     }
-    if ((read_register(host, MMC_RINTSTS) & INT_DATA_FAILED) != 0) {
-        return failed(host, MMC_STEP_DATA_ERROR);
-    }
-    write_register(host, MMC_RINTSTS, INT_ALL);
     if (!wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY, BUSY_TIMEOUT_MS)) {
         return failed(host, MMC_STEP_BUSY_AFTER);
     }

@@ -50,7 +50,6 @@
 #include "music_check.h"
 #include "player.h"
 #include "plug_modes.h"
-#include "scan_guard.h"
 #include "screens/charge_screen.h"
 #include "settings/rocker.h"
 #include "settings_choose.h"
@@ -825,7 +824,8 @@ static bool opens_now_playing(KeyEvent event)
 
 static ScreenAction now_playing_action(void)
 {
-    return top_screen() == &app.screens.modules.playing.up_next.screen
+    return top_screen() == &app.screens.modules.playing.up_next.screen ||
+                   screen_stack_below_top(&app.stack) == &app.screens.now_playing.screen
                ? screen_action_pop()
                : screen_action_push(&app.screens.now_playing.screen);
 }
@@ -1666,7 +1666,7 @@ static void show_working_notice(StringId title, const char *message, WireShape s
     app_show_notice(i18n_text(title), message);
 }
 
-static void start_playback(bool cold_start)
+CORE_COLD static void start_playback(bool cold_start)
 {
     flush_listening();
     app.listening_loaded = false;
@@ -1717,11 +1717,10 @@ static void open_start_screen(uint32_t start, uint32_t now_ms)
     }
 }
 
-static void build_screens(uint32_t now_ms)
+CORE_COLD static void build_screens(uint32_t now_ms)
 {
-    AppScreensContext context = {
+    static const AppScreensContext INITIAL_CONTEXT = {
         .options = &app.options,
-        .theme = board_theme(),
         .styled_theme = &app.theme,
         .themes = &app.themes,
         .store = &app.library,
@@ -1739,6 +1738,8 @@ static void build_screens(uint32_t now_ms)
         .listening = &app.listening,
         .motion = &app.motion,
     };
+    AppScreensContext context = INITIAL_CONTEXT;
+    context.theme = board_theme();
     Screen *root = app_screens_init(&app.screens, context);
     app.slide.active = false;
     screen_stack_init(&app.stack, root, now_ms);
@@ -1772,34 +1773,6 @@ static void change_language(uint32_t now_ms)
     }
 }
 
-CORE_COLD static bool library_refused(void)
-{
-    HalFile file;
-    uint8_t magic[4] = {0, 0, 0, 0};
-    if (app.library.available || app.library_rebuilt || !hal_file_open(&file, LIBRARY_STORE_PATH)) {
-        return false;
-    }
-    bool read = hal_file_read(file, 0, magic, sizeof magic);
-    hal_file_close(&file);
-    return read && (magic[0] | magic[1] | magic[2] | magic[3]) != 0;
-}
-
-CORE_COLD static void request_start_scan(bool library_created)
-{
-    app.covers_pending = music_check_covers_pending();
-    uint32_t stopped = music_check_interrupted_scans();
-    bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
-    if (library_created || resume || (stopped == 0 && library_refused())) {
-        app.rescan_requested = true;
-        app.rescan_stops = resume ? (uint8_t)stopped : 0;
-    } else if (stopped == 0 && !app.library_rebuilt && music_check_firmware_is_new()) {
-        app.covers_pending = true;
-        app.music_check_requested = true;
-    } else if (stopped == 0 && !app.library_rebuilt && music_check_generation_moved()) {
-        app.music_check_requested = true;
-    }
-}
-
 CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.headphones_created && app.headphones.load == STORE_UNREADABLE) {
@@ -1813,13 +1786,19 @@ CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
     }
-    uint8_t update;
-    if (!hal_internal_file_read("/" FIRMWARE_UPDATE_FILE, &update, sizeof update)) {
-        request_start_scan(files.library_created);
+    CardStartScan scan =
+        card_files_start_scan(files.library_created, app.library.available, app.library_rebuilt);
+    if (scan.checked) {
+        app.covers_pending = scan.covers_pending;
     }
+    if (scan.rescan) {
+        app.rescan_requested = true;
+        app.rescan_stops = scan.rescan_stops;
+    }
+    app.music_check_requested |= scan.check_music;
 }
 
-static void start_app(bool power_on)
+CORE_COLD static void start_app(bool power_on)
 {
     extra_font_open(&app.extra_font);
 #ifdef ECHO_USB_OVERLAY_RENDERER
@@ -2086,12 +2065,12 @@ const HeadphoneProfiles *app_headphone_profiles(void)
 
 void app_remember_dac(AppDacSettings settings)
 {
-    if (settings.gain == GAIN_HIGH && app.settings.settings.gain != GAIN_HIGH) {
+    uint8_t rise = hal_audio_gain_rise_db((HalAudioGain)app.settings.settings.gain,
+                                          (HalAudioGain)settings.gain);
+    if (rise != 0) {
         uint8_t wired = app.player.volume;
         player_set_volume(&app.player, PLAYER_OUTPUT_WIRED,
-                          wired > HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB
-                              ? (uint8_t)(wired - HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB)
-                              : 0);
+                          wired > rise ? (uint8_t)(wired - rise) : 0);
         (void)player_save(&app.player);
         capture_settings();
     }
@@ -2272,34 +2251,16 @@ static void charge_step(uint32_t now_ms)
     }
 }
 
-static void show_prepare_progress(size_t index)
-{
-    char text[NOTICE_TEXT_CAPACITY];
-    StringBuilder builder = string_builder_make(text, sizeof text);
-    i18n_format_counts(&builder, STR_PREPARING_FILE, (uint32_t)index + 1,
-                       (uint32_t)card_files_count());
-    app_show_notice(i18n_text(STR_PREPARING_STORAGE), text);
-}
-
 static bool prepare_step(void)
 {
-    while (app.prepare_index < card_files_count()) {
-        size_t index = app.prepare_index++;
-        if (!card_files_missing(index)) {
-            continue;
-        }
-        bool slow = card_files_slow(index);
-        if (slow && !app.charging) {
-            show_prepare_progress(index);
-        }
-        card_files_reserve(&app.prepare_report, index);
-        if (slow) {
-            return !app.charging;
-        }
+    bool finished = false;
+    bool pause =
+        card_files_prepare_step(&app.prepare_index, &app.prepare_report, app.charging, &finished);
+    if (finished) {
+        app.prepare_pending = false;
+        report_card_files(app.prepare_report, hal_clock_milliseconds());
     }
-    app.prepare_pending = false;
-    report_card_files(app.prepare_report, hal_clock_milliseconds());
-    return false;
+    return pause;
 }
 
 bool app_preparing(void)

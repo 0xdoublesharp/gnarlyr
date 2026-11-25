@@ -37,8 +37,28 @@ class ModuleWatch:
         self.other_writes = 0
         self.executed = 0
         self.count_after = None
+        self.write_hook = None
         self.machine.hook_symbol(LOADER, self.entered)
-        direct.hook_add(self.machine.uc, UC_HOOK_MEM_WRITE, self.slot_written, None, SLOT_FIRST, SLOT_LAST)
+        self.machine.hook_symbol("board_overlay_load", self.overlay_entered, optional=True)
+        self.arm_write_hook()
+
+    def arm_write_hook(self):
+        if self.write_hook is None:
+            self.write_hook = direct.hook_add(self.machine.uc, UC_HOOK_MEM_WRITE, self.slot_written,
+                                              None, SLOT_FIRST, SLOT_LAST)
+
+    def overlay_entered(self):
+        overlay = self.machine.reg(UC_ARM_REG_R0)
+        magic = int.from_bytes(self.machine.read_memory(overlay + 4, 4), "little")
+        module = int.from_bytes(self.machine.read_memory(overlay + 16, 4), "little")
+        if module == 0 and magic == 0x42535545:
+            self.forgotten()
+
+    def forgotten(self):
+        self.code_end = SLOT_FIRST
+        if self.write_hook is not None:
+            self.machine.uc.hook_del(self.write_hook)
+            self.write_hook = None
 
     def count_slot_code(self, after_module=None):
         if after_module is not None:
@@ -71,6 +91,8 @@ class ModuleWatch:
         if call["sectors"]:
             size = int.from_bytes(self.machine.read_memory(SLOT_FIRST + 4, 4), "little")
             self.code_end = SLOT_FIRST + size if call["loaded"] else SLOT_FIRST
+        if call["loaded"]:
+            self.arm_write_hook()
         self.calls.append(call)
         if self.count_after == call["module"]:
             self.count_after = None

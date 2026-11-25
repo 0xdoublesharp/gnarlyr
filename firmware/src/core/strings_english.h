@@ -965,4 +965,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_THEME_VERIFIED] = "Verified",
     [STR_THEME_LOW_CONTRAST] = "Low contrast",
     [STR_THEME_CREDIT] = "{0} · {1}",
+    [STR_GAIN_MEDIUM] = "Medium",
+    [STR_PLUG_CARE_80] = "Battery care (80%)",
+    [STR_PLUG_CARE_80_LINE] = "Stops charging around 80% while you listen.",
 };

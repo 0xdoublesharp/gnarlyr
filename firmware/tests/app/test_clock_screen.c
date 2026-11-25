@@ -69,7 +69,7 @@ static void the_clock_shows_the_weekday_and_the_date(void)
     draw(&clock.screen);
     CHECK(saw(i18n_text(STR_WEDNESDAY)));
     CHECK(saw("November 11, 2026"));
-    CHECK(saw(i18n_text(STR_CLOCK_HINT)));
+    CHECK(saw(i18n_text(STR_CALENDAR)));
     CHECK(!saw(i18n_text(STR_TIME_UNKNOWN)));
 }
 

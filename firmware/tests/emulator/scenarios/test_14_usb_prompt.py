@@ -23,6 +23,7 @@ from echo_image_harness import (
     SETTINGS_PATH,
 )
 
+MEDIUM_GAIN_RISE_LEVELS = 3
 HIGH_GAIN_RISE_LEVELS = 6
 DAC_MENU_GAIN_ROW = 1
 SETTINGS_GAIN_FIELD = 8
@@ -231,9 +232,10 @@ class EchoImageTest(EchoImageHarness):
         gains = []
         machine.hook_symbol("hal_audio_set_gain", lambda: gains.append(
             (machine.reg(UC_ARM_REG_R0), level())))
-        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY, KEY_MENU):
+        for key in (KEY_MENU,) + (KEY_NEXT,) * DAC_MENU_GAIN_ROW + (KEY_PLAY, KEY_PLAY, KEY_MENU):
             self.press(machine, key)
-        self.assertEqual([(1, before - HIGH_GAIN_RISE_LEVELS)], gains)
+        self.assertEqual([(2, before - MEDIUM_GAIN_RISE_LEVELS),
+                          (1, before - HIGH_GAIN_RISE_LEVELS)], gains)
         self.hold_back(machine, LEAVE_HOLD_MS)
         machine.note("usb_modes")
         self.assertEqual(machine.run(until=lambda: "usb_modes" in machine.reached,
@@ -267,7 +269,7 @@ class EchoImageTest(EchoImageHarness):
             self.press(machine, key)
         self.assertEqual(english("STR_GAIN_NOT_CHANGED"), details[-1])
         self.press(machine, KEY_MENU)
-        self.assertEqual([before - HIGH_GAIN_RISE_LEVELS], gains)
+        self.assertEqual([before - MEDIUM_GAIN_RISE_LEVELS], gains)
         self.assertEqual(before, level())
         self.hold_back(machine, LEAVE_HOLD_MS)
         machine.note("usb_modes")

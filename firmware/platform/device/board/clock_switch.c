@@ -8,6 +8,7 @@
 #include "dmac.h"
 #include "hal/system.h"
 #include "irq.h"
+#include "mmc.h"
 #include "registers.h"
 
 void board_clock_lower_for_playback(void);
@@ -223,6 +224,9 @@ void board_clock_coast_divider(uint32_t divider)
 
 static bool retune(uint32_t mhz, bool keep_audio)
 {
+    if (!mmc_park_pll()) {
+        return false;
+    }
     uint32_t previous = current_mhz;
     uint32_t primask = irq_save();
     bool switched = switch_clock(mhz);
@@ -236,6 +240,7 @@ static bool retune(uint32_t mhz, bool keep_audio)
         dark_playback = current_mhz == IDLE_FROM_MHZ;
     }
     irq_restore(primask);
+    mmc_resume_pll(current_mhz);
     return switched;
 }
 
@@ -273,7 +278,7 @@ CORE_SEAM bool hal_system_set_clock_mhz(uint32_t mhz)
 {
     hal_system_coast(false);
     uint32_t current = hal_system_clock_mhz();
-    if (mhz == current || (mhz < current && board_usb_core_powered())) {
+    if ((mhz == current && current_mhz != 0) || (mhz < current && board_usb_core_powered())) {
         return true;
     }
     if (dark_playback && mhz == COAST_FROM_MHZ) {

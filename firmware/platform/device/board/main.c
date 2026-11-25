@@ -11,6 +11,7 @@
 #include "default_theme.h"
 #include "device/battery_gauge.h"
 #include "device/clock_governor.h"
+#include "device/dac_eq.h"
 #include "device/usb_plug.h"
 #include "emmc.h"
 #include "gfx/strip_renderer.h"
@@ -131,9 +132,11 @@ CORE_COLD static void run_dac_session(void)
     app_release_audio();
     hal_audio_release();
     app_bluetooth_off();
+    DacEqProgram programs[USB_AUDIO_RATE_COUNT];
+    bool eq_ready = board_audio_prepare_usb_eq(programs);
     const UsbOverlayEntry *usb = load_usb_code();
     if (usb != NULL) {
-        usb->dac(usb_session_shared());
+        usb->dac(usb_session_shared(), eq_ready ? programs : NULL);
     }
     app_set_usb_renderer(NULL);
 }
@@ -396,7 +399,7 @@ static void follow_card(uint32_t *generation)
     }
 }
 
-void board_main(void)
+__attribute__((optimize("no-reorder-blocks"))) void board_main(void)
 {
     board_power_hold();
     board_start_record_boot();

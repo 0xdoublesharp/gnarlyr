@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, english, main
+from echo_image_harness import EchoImageHarness, SETTINGS_DISPLAY_GROUP, english, main
 
 
 class EchoImageTest(EchoImageHarness):
@@ -22,8 +22,8 @@ class EchoImageTest(EchoImageHarness):
 
     def test_home_defaults_automatic_now_playing_and_hidden_editor_items(self):
         rig = self.playback_rig()
-        for string_id in ("STR_MUSIC", "STR_MIXTAPES", "STR_LISTENING", "STR_CLOCK",
-                          "STR_USB_MODE", "STR_SETTINGS"):
+        for string_id in ("STR_MUSIC", "STR_MIXTAPES", "STR_LISTENING", "STR_USB_MODE",
+                          "STR_CLOCK", "STR_SETTINGS"):
             rig.press("play")
             self.assert_screen(rig, string_id)
             rig.press("back")
@@ -40,21 +40,22 @@ class EchoImageTest(EchoImageHarness):
         self.assert_screen(rig, "STR_NOW_PLAYING")
         rig.press("menu")
         self.assert_screen(rig, "STR_QUICK_SETTINGS")
-        rig.press("previous")
         rig.press("play")
         self.assert_screen(rig, "STR_UP_NEXT")
         rig.press("back", hold=1300)
-        rig.press("previous")
+        rig.press_many("next", 3)
+        rig.press("play")
+        self.assert_screen(rig, "STR_UP_NEXT")
+        rig.press("back")
+        rig.press_many("next", 4)
         rig.press("play")
         self.assert_screen(rig, "STR_SETTINGS")
-        rig.press_many("next", 2)
+        rig.press_many("next", SETTINGS_DISPLAY_GROUP)
         rig.press("play")
-        rig.press_many("next", 8)
+        rig.press_many("next", 7)
         rig.press("play")
         self.assert_screen(rig, "STR_HOME_SCREEN")
-        rig.press_many("next", 5)
-        rig.press("play")
-        self.assert_screen(rig, "STR_AUDIOBOOKS")
+        rig.press_many("next", 6)
         toasts = self.collect_toasts(rig.machine)
         rig.press("play")
         self.assertIn(english("STR_HOME_WAS_SHOWN").replace("{0}", english("STR_AUDIOBOOKS")),

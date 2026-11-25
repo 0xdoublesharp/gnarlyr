@@ -104,12 +104,13 @@ static void a_flat_curve_leaves_the_equalizer_off(void)
     CHECK(!equalizer_design(&equalizer, &none, 48000));
 }
 
-static void rates_above_96_khz_are_left_alone(void)
+static void rates_through_192_khz_have_coefficients(void)
 {
     HalAudioEqualizer boost = one_band(1000, 6);
     CHECK(equalizer_design(&equalizer, &boost, 96000));
-    CHECK(!equalizer_design(&equalizer, &boost, 176400));
-    CHECK(!equalizer_design(&equalizer, &boost, 192000));
+    CHECK(equalizer_design(&equalizer, &boost, 176400));
+    CHECK(equalizer_design(&equalizer, &boost, 192000));
+    CHECK(!equalizer_design(&equalizer, &boost, 384000));
 }
 
 static bool coefficients_match(uint16_t hz, int8_t gain_half_db, uint32_t rate)
@@ -473,7 +474,7 @@ static void parametric_preamp_works_without_filters_and_nyquist_filters_are_inac
         (ParametricEq){.count = 1, .filters = {{20000, 70, 120, PARAMETRIC_PEAK, true}}};
     CHECK(!equalizer_design(&equalizer, &hal, 32000));
     CHECK(equalizer_design(&equalizer, &hal, 96000));
-    CHECK(!equalizer_design(&equalizer, &hal, 192000));
+    CHECK(equalizer_design(&equalizer, &hal, 192000));
 }
 
 static void sound_shaping_extremes_do_not_clip_full_scale_music_or_transients(void)
@@ -559,7 +560,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(a_flat_curve_leaves_the_equalizer_off),
-        TEST_CASE(rates_above_96_khz_are_left_alone),
+        TEST_CASE(rates_through_192_khz_have_coefficients),
         TEST_CASE(ten_bands_become_sections_for_every_band_below_a_quarter_of_the_rate),
         TEST_CASE(half_decibel_boosts_measure_half_decibels_at_the_band_centres),
         TEST_CASE(the_lowest_band_is_exact_at_96_khz),

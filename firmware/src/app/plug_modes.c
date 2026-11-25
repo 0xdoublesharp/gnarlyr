@@ -2,17 +2,19 @@
 
 static const uint8_t SWITCH_ORDER[] = {PLUG_MODE_COMPUTER, PLUG_MODE_CHARGE, PLUG_MODE_USB_POWER,
                                        PLUG_MODE_DAC};
-static const StringId NAMES[PLUG_MODE_COUNT] = {
-    STR_PLUG_ASK, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY, STR_PLUG_RUN_USB, STR_PLUG_DAC};
-static const StringId LINES[PLUG_MODE_COUNT] = {STR_PLUG_ASK_LINE, STR_PLUG_COMPUTER_LINE,
+static const StringId NAMES[PLUG_MODE_COUNT] = {STR_PLUG_ASK,         STR_PLUG_COMPUTER,
+                                                STR_PLUG_CHARGE_PLAY, STR_PLUG_RUN_USB,
+                                                STR_PLUG_DAC,         STR_PLUG_CARE_80};
+static const StringId LINES[PLUG_MODE_COUNT] = {STR_PLUG_ASK_LINE,         STR_PLUG_COMPUTER_LINE,
                                                 STR_PLUG_CHARGE_PLAY_LINE, STR_PLUG_RUN_USB_LINE,
-                                                STR_PLUG_DAC_LINE};
-static const uint8_t ICONS[PLUG_MODE_COUNT] = {ICON_USB, ICON_COMPUTER, ICON_BOLT, ICON_PLUG,
-                                               ICON_SPEAKER};
+                                                STR_PLUG_DAC_LINE,         STR_PLUG_CARE_80_LINE};
+static const uint8_t ICONS[PLUG_MODE_COUNT] = {ICON_USB,  ICON_COMPUTER, ICON_BOLT,
+                                               ICON_PLUG, ICON_SPEAKER,  ICON_BOLT};
 static const uint8_t SAVED_BY_ANSWER[USB_CONNECT_COUNT] = {PLUG_MODE_ASK, PLUG_MODE_COMPUTER,
                                                            PLUG_MODE_CHARGE, PLUG_MODE_DAC};
-static const uint8_t ANSWER_BY_MODE[PLUG_MODE_COUNT] = {
-    USB_CONNECT_ASK, USB_CONNECT_STORAGE, USB_CONNECT_CHARGE, USB_CONNECT_CHARGE, USB_CONNECT_DAC};
+static const uint8_t ANSWER_BY_MODE[PLUG_MODE_COUNT] = {USB_CONNECT_ASK,    USB_CONNECT_STORAGE,
+                                                        USB_CONNECT_CHARGE, USB_CONNECT_CHARGE,
+                                                        USB_CONNECT_DAC,    USB_CONNECT_CHARGE};
 
 static void add(PlugChoices *choices, PlugMode mode)
 {
@@ -46,6 +48,9 @@ PlugChoices plug_modes_choices(PlugState state)
         if (mode != PLUG_MODE_USB_POWER || settings || state.battery.usb_power) {
             add(&choices, mode);
         }
+    }
+    if (settings) {
+        add(&choices, PLUG_MODE_CHARGE_80);
     }
     PlugMode current = settings ? state.saved : in_use(state);
     bool prompt = state.place == PLUG_PLACE_PROMPT;
@@ -83,11 +88,15 @@ PlugMode plug_mode_saved(const Settings *settings)
     if (settings->battery_care == PLUG_CARE_USB) {
         return PLUG_MODE_USB_POWER;
     }
-    return (PlugMode)SAVED_BY_ANSWER[settings->usb_connect];
+    return settings->battery_care == PLUG_CARE_80
+               ? PLUG_MODE_CHARGE_80
+               : (PlugMode)SAVED_BY_ANSWER[settings->usb_connect];
 }
 
 void plug_mode_save(Settings *settings, PlugMode mode)
 {
     settings->usb_connect = (UsbConnect)ANSWER_BY_MODE[mode];
-    settings->battery_care = mode == PLUG_MODE_USB_POWER ? PLUG_CARE_USB : PLUG_CARE_FULL;
+    settings->battery_care = mode == PLUG_MODE_USB_POWER   ? PLUG_CARE_USB
+                             : mode == PLUG_MODE_CHARGE_80 ? PLUG_CARE_80
+                                                           : PLUG_CARE_FULL;
 }

@@ -406,7 +406,7 @@ Screen *moments_screen_init(MomentsScreen *screen, MomentsScreenConfig config)
     screen->model = (ListModel){.context = screen, .count = row_count, .label = row_label};
     screen->screen = (Screen){.title = i18n_text(STR_MOMENTS),
                               .context = screen,
-                              .keys = SCREEN_KEYS_ALL,
+                              .keys = SCREEN_KEYS_SHARED,
                               .stays_on_wake = true,
                               .enter = enter,
                               .handle_key = handle_key,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "device/updater.h"
@@ -15,6 +16,9 @@ struct SettingsStore;
 struct Player;
 struct Favorites;
 struct Bookmarks;
+struct BluetoothSaved;
+struct CardFilesReport;
+struct CardStartScan;
 
 typedef struct TrialBootModuleEntry {
     uint32_t magic;
@@ -26,6 +30,10 @@ typedef struct TrialBootModuleEntry {
     bool (*player_restore)(struct Player *player, bool cold_start);
     StoreLoad (*favorites_read)(struct Favorites *favorites);
     StoreLoad (*spoken_read)(struct Bookmarks *bookmarks);
+    void (*bluetooth_load)(struct BluetoothSaved *saved);
+    bool (*card_files_prepare)(size_t *prepare_index, struct CardFilesReport *report, bool charging,
+                               bool *finished);
+    struct CardStartScan (*card_start_scan)(bool created, bool available, bool rebuilt);
 } TrialBootModuleEntry;
 
 typedef struct TrialInstall {

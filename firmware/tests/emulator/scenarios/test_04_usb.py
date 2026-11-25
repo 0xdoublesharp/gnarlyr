@@ -17,6 +17,7 @@ from echo_image_harness import (
     CODE_WINDOW_BYTES,
     GRF_WORDS,
     GRF_WORDS_POWERED,
+    HOME_USB_MODE_ROW,
     IDENTITY,
     KEY_HOLD_MS,
     KEY_SETTLE_MS,
@@ -33,6 +34,7 @@ from echo_image_harness import (
     LEAVE_GRACE_MS,
     LEAVE_HOLD_MS,
     KEY_MENU,
+    KEY_NEXT,
     KEY_PLAY,
     KEY_PREVIOUS,
     TRAFFIC_MEASURE_MS,
@@ -352,8 +354,8 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.usb_connect_count, 1)
         self.assertNotIn("usb_session_storage_changed", machine.reached)
         machine.host_arrives()
-        self.press(machine, KEY_PREVIOUS)
-        self.press(machine, KEY_PREVIOUS)
+        for _ in range(HOME_USB_MODE_ROW):
+            self.press(machine, KEY_NEXT)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_PREVIOUS)
         self.press(machine, KEY_PLAY)

@@ -4,10 +4,12 @@
 #include <stdint.h>
 
 #include "core/dac_identity.h"
+#include "hal/audio.h"
 
 enum {
     DAC_GAIN_HIGH_VALUE = 0x31,
-    DAC_GAIN_LOW_VALUE = 0x20
+    DAC_GAIN_LOW_VALUE = 0x20,
+    DAC_GAIN_MEDIUM_VALUE = 0x30
 };
 
 typedef enum DacPin {
@@ -30,6 +32,8 @@ typedef struct DacBus {
     void (*set_pin)(void *context, DacPin pin, bool level);
     void (*delay_us)(void *context, uint32_t microseconds);
     void *context;
+    const bool *dop;
+    const bool *wideband;
 } DacBus;
 
 typedef enum DacCurve {
@@ -39,9 +43,16 @@ typedef enum DacCurve {
 } DacCurve;
 
 typedef struct DacAnalog {
-    bool gain_high;
+    uint8_t gain;
     uint8_t filter;
 } DacAnalog;
+
+static inline uint8_t dac_gain_register(uint8_t gain)
+{
+    return gain == HAL_AUDIO_GAIN_HIGH     ? DAC_GAIN_HIGH_VALUE
+           : gain == HAL_AUDIO_GAIN_MEDIUM ? DAC_GAIN_MEDIUM_VALUE
+                                           : DAC_GAIN_LOW_VALUE;
+}
 
 enum {
     DAC_ANALOG_FILTERS = 5,
@@ -58,9 +69,10 @@ bool dac_probe(const DacBus *bus);
 DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog);
 bool dac_apply_analog(const DacBus *bus, DacAnalog before, DacAnalog after);
 void dac_output_on(const DacBus *bus, uint8_t volume);
-void dac_output_off(const DacBus *bus);
+void dac_output_off(const DacBus *bus, bool equalizing);
 void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume);
 bool dac_set_volume(const DacBus *bus, uint8_t volume);
+bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right);
 uint8_t dac_volume_value(uint8_t level, DacCurve curve);
 uint8_t dac_ramp_next(uint8_t current, uint8_t target);
 
@@ -71,6 +83,17 @@ typedef struct DacLevel {
 
 bool dac_fade_volume(const DacBus *bus, DacLevel *level, uint8_t target, uint32_t step_us);
 
+typedef struct DacStereoLevel {
+    uint8_t left;
+    uint8_t right;
+    bool stale;
+} DacStereoLevel;
+
+uint8_t dac_balance_attenuation(uint32_t gain, uint32_t trim);
+uint8_t dac_balance_volume(uint8_t volume, uint8_t attenuation);
+bool dac_fade_volume_lr(const DacBus *bus, DacStereoLevel *level, DacStereoLevel target,
+                        uint32_t step_us);
+
 bool dac_sequence_power_down(const DacBus *bus);
 bool dac_sequence_power_up(const DacBus *bus);
 
@@ -80,5 +103,6 @@ typedef struct DacDiagnostics {
     uint32_t gain_us;
     uint8_t power[2];
     uint8_t valid;
+    uint8_t overflow;
     bool up;
 } DacDiagnostics;

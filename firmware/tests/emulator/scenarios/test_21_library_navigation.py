@@ -5,7 +5,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, IDENTITY, KEY_NEXT, KEY_PLAY, english, main
+from echo_image_harness import (
+    EchoImageHarness, IDENTITY, KEY_NEXT, KEY_PLAY, MUSIC_ALL_SONGS_ROW, MUSIC_ARTISTS_ROW,
+    english, main,
+)
 
 
 def library_volume(count, version):
@@ -55,7 +58,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         rig.press_many("next", row)
         rig.press("play")
-        expected = english("STR_ARTISTS" if row == 2 else "STR_ALL_SONGS").encode()
+        expected = english("STR_ARTISTS" if row == MUSIC_ARTISTS_ROW else "STR_ALL_SONGS").encode()
         self.assertEqual("condition met", rig.machine.run(
             until=lambda: titles and titles[-1] == expected,
             until_ms=rig.machine.milliseconds() + 60000))
@@ -121,17 +124,17 @@ class EchoImageTest(EchoImageHarness):
 
     def test_holding_130_artists_reaches_both_ends_within_three_seconds(self):
         from echo_emulator.playback import KEYS
-        rig = self.navigation_rig(130, 2)
+        rig = self.navigation_rig(130, MUSIC_ARTISTS_ROW)
         self.scroll_to_end(rig, 130, KEY_NEXT, 3000)
         self.scroll_to_end(rig, 130, KEYS["previous"], 3000)
 
     def test_holding_4000_songs_reaches_the_end_within_six_seconds(self):
-        rig = self.navigation_rig(4000, 7)
+        rig = self.navigation_rig(4000, MUSIC_ALL_SONGS_ROW)
         self.scroll_to_end(rig, 4000, KEY_NEXT, 6000)
 
     def test_20000_artists_keep_up_with_repeats_and_fast_taps_without_overshoot(self):
         from echo_emulator.playback import KEYS
-        rig = self.navigation_rig(20000, 2)
+        rig = self.navigation_rig(20000, MUSIC_ARTISTS_ROW)
         machine = rig.machine
         watch = self.navigation_watch(machine)
         windows = len(machine.panel.windows)
@@ -203,7 +206,7 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         rig.press("play")
-        rig.press_many("next", 2)
+        rig.press_many("next", MUSIC_ARTISTS_ROW)
         rig.press("play")
         rig.press("play", hold=800)
         if shuffled:

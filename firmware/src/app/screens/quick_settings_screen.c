@@ -7,6 +7,7 @@
 #include "core/string_builder.h"
 #include "equalizer_browser.h"
 #include "hal/clock.h"
+#include "hal/display.h"
 #include "settings_actions.h"
 #include "ui/footer_hints.h"
 #include "ui/header.h"
@@ -38,9 +39,7 @@ static char slot_names[HEADPHONE_PROFILE_LIMIT][HEADPHONE_PROFILE_NAME_BYTES];
 
 static const StringId SHUFFLE_VALUES[] = {STR_OFF, STR_SHUFFLE_SONGS, STR_SHUFFLE_ALBUMS};
 static const StringId REPEAT_VALUES[] = {STR_OFF, STR_REPEAT_MODE_ONE, STR_REPEAT_MODE_ALL};
-static const StringId TRANSITION_VALUES[] = {STR_OFF, STR_TRANSITION_FADE};
-static const StringId REPLAY_VALUES[] = {STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM,
-                                         STR_REPLAY_GAIN_AUTO};
+static const char *const BRIGHTNESS_OPTIONS[] = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
 static const StringId AB_VALUES[] = {STR_OFF, STR_AB_ROW_A, STR_AB_ROW_LOOP};
 static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
                                         STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
@@ -124,31 +123,53 @@ static void ab_step(void *context, int index)
     ab_repeat_step(settings->player, settings->power, settings->toast, hal_clock_milliseconds());
 }
 
+static int brightness_current(const void *context)
+{
+    const SettingsContext *settings = context;
+    return settings->store->settings.brightness - SETTINGS_BRIGHTNESS_MIN;
+}
+
+static const char *const *brightness_options(const SettingsContext *settings)
+{
+    (void)settings;
+    return BRIGHTNESS_OPTIONS;
+}
+
+static void brightness_choose(void *context, int index)
+{
+    SettingsContext *settings = context;
+    Settings next;
+    settings_action_candidate(settings, &next);
+    next.brightness = (uint8_t)(index + SETTINGS_BRIGHTNESS_MIN);
+    if (settings_action_publish(settings, &next)) {
+        hal_display_set_brightness(next.brightness);
+    }
+}
+
 static const QuickRow ROWS[] = {
+    {STR_UP_NEXT, STR_UP_NEXT, QUICK_PUSH, 1, offsetof(QuickSettingsConfig, up_next), NULL, NULL,
+     NULL, NULL, NULL},
     {STR_SHUFFLE, STR_SHUFFLE, QUICK_CYCLE, SHUFFLE_MODE_COUNT, 0, SHUFFLE_VALUES, NULL,
      settings_action_current_shuffle, NULL, settings_action_choose_shuffle},
     {STR_REPEAT, STR_REPEAT, QUICK_CYCLE, REPEAT_MODE_COUNT, 0, REPEAT_VALUES, NULL,
      settings_action_current_repeat, NULL, settings_action_choose_repeat},
+    {STR_SLEEP_TIMER, STR_SLEEP_TIMER, QUICK_SUBMENU, SLEEP_TIMER_OPTION_COUNT, 0,
+     SETTINGS_ACTION_SLEEP_LABELS, NULL, settings_action_current_sleep, NULL,
+     settings_action_choose_sleep},
+    {STR_BRIGHTNESS, STR_BRIGHTNESS, QUICK_SUBMENU,
+     sizeof BRIGHTNESS_OPTIONS / sizeof BRIGHTNESS_OPTIONS[0], 0, NULL, NULL, brightness_current,
+     brightness_options, brightness_choose},
     {STR_EQUALIZER, STR_EQUALIZER, QUICK_SUBMENU, 0, 0, NULL, equalizer_count, equalizer_current,
      equalizer_labels, equalizer_choose},
     {STR_HEADPHONES, STR_HEADPHONES, QUICK_SUBMENU, HEADPHONE_PROFILE_LIMIT + 1, 0, NULL, NULL,
      headphone_current, headphone_labels, headphone_choose},
     {STR_SPEED, STR_PLAYBACK_SPEED, QUICK_SUBMENU, 0, 0, SETTINGS_SPEED_LABELS, speed_count,
      settings_action_current_speed, NULL, settings_action_choose_speed},
-    {STR_SLEEP_TIMER, STR_SLEEP_TIMER, QUICK_SUBMENU, SLEEP_TIMER_OPTION_COUNT, 0,
-     SETTINGS_ACTION_SLEEP_LABELS, NULL, settings_action_current_sleep, NULL,
-     settings_action_choose_sleep},
-    {STR_TRANSITIONS, STR_TRANSITIONS, QUICK_CYCLE, 2, 0, TRANSITION_VALUES, NULL,
-     settings_action_current_transition, NULL, settings_action_choose_transition},
-    {STR_REPLAY_GAIN, STR_REPLAY_GAIN, QUICK_SUBMENU, REPLAY_GAIN_MODE_COUNT, 0, REPLAY_VALUES,
-     NULL, settings_action_current_replay_gain, NULL, settings_action_choose_replay_gain},
+    {STR_LYRICS, STR_LYRICS, QUICK_PUSH, 1, offsetof(QuickSettingsConfig, lyrics), NULL, NULL, NULL,
+     NULL, NULL},
     {STR_AB_LOOP, STR_AB_LOOP, QUICK_ACTION, 3, 0, AB_VALUES, NULL, ab_current, NULL, ab_step},
     {STR_NOW_PLAYING, STR_NOW_PLAYING_STYLE, QUICK_SUBMENU, 4, 0, STYLE_VALUES, NULL,
      settings_action_current_now_playing, NULL, settings_action_choose_now_playing},
-    {STR_LYRICS, STR_LYRICS, QUICK_PUSH, 1, offsetof(QuickSettingsConfig, lyrics), NULL, NULL, NULL,
-     NULL, NULL},
-    {STR_UP_NEXT, STR_UP_NEXT, QUICK_PUSH, 1, offsetof(QuickSettingsConfig, up_next), NULL, NULL,
-     NULL, NULL, NULL},
 };
 
 enum {

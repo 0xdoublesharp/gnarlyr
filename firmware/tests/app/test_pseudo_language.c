@@ -19,14 +19,17 @@ enum {
     KEY_HOLD_MS = 50,
     FRAME_MS = 120,
     SETTLE_FRAMES = 4,
-    HOME_ROWS = 7,
+    HOME_MIXTAPES_ROW = 1,
+    HOME_LISTENING_ROW = 2,
+    HOME_USB_ROW = 3,
+    HOME_CLOCK_ROW = 4,
     HOME_SETTINGS_ROW = 5,
-    HOME_NOW_PLAYING_ROW = 0,
+    HOME_UP_NEXT_WITH_TRACK_ROW = 3,
 
-    MUSIC_ENTRIES = 12,
-    MUSIC_SMART_LISTS_ROW = 10,
-    MUSIC_ALBUMS_ROW = 4,
-    MUSIC_ARTISTS_ROW = 2,
+    MUSIC_ALBUMS_ROW = 0,
+    MUSIC_ARTISTS_ROW = 1,
+    MUSIC_COVER_FLOW_ROW = 5,
+    MUSIC_SMART_LISTS_ROW = 6,
     BJORK_ROW = 3,
     MUSIC_ALL_SONGS_ROW = 7,
     GROUP_SOUND = 0,
@@ -39,19 +42,24 @@ enum {
     GROUP_LIBRARY = 7,
     GROUP_ABOUT = 8,
     SETTINGS_GROUPS = 9,
-    SOUND_OUTPUT_ROW = 0,
-    SOUND_EQUALIZER_ROW = 2,
-    SOUND_CUSTOM_EQ_ROW = 3,
-    SOUND_PARAMETRIC_ROW = 4,
-    SOUND_HEADPHONES_ROW = 5,
-    PLAYBACK_SLEEP_ROW = 8,
-    DISPLAY_HOME_ROW = 8,
+    SOUND_EQUALIZER_ROW = 0,
+    SOUND_HEADPHONES_ROW = 1,
+    SOUND_OUTPUT_ROW = 3,
+    SOUND_CUSTOM_EQ_ROW = 4,
+    SOUND_PARAMETRIC_ROW = 5,
+    SOUND_REPLAY_GAIN_ROW = 6,
+    PLAYBACK_SLEEP_ROW = 2,
+    PLAYBACK_TRANSITIONS_ROW = 4,
+    DISPLAY_THEME_ROW = 2,
+    DISPLAY_HOME_ROW = 7,
     POWER_STANDBY_ROW = 1,
-    CONNECTIONS_BLUETOOTH_ROW = 2,
+    CONNECTIONS_BLUETOOTH_ROW = 0,
     LIBRARY_RESCAN_ROW = 0,
-    LIBRARY_FORMAT_ROWS_UP = 1,
+    LIBRARY_CARD_ACTION_ROW = 1,
+    LIBRARY_FORMAT_ROW = 2,
+    QUICK_BRIGHTNESS_ROW = 4,
     ABOUT_ROWS = 14,
-    HOME_EDITOR_PODCASTS_ROW = 6,
+    HOME_EDITOR_PODCASTS_ROW = 7,
     EQUALIZER_SAVE_ROW = 10,
     EQUALIZER_SLOT_OPTION = 9,
     MINIMUM_PACK_TEXTS = 400,
@@ -288,6 +296,17 @@ static void show_titled(const char *screen, StringId title)
     CHECK(show(screen) > 0);
 }
 
+static bool drew_text(StringId id)
+{
+    const char *expected = i18n_text(id);
+    for (int index = 0; index < text_spy_count(); index++) {
+        if (strcmp(expected, text_spy_entry(index)->rest) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static void show_toast(const char *screen, StringId text)
 {
     const char *toast = app_toast_text();
@@ -314,11 +333,16 @@ static void open_music_row(int row)
     down(row);
 }
 
-static void open_settings_row(int row)
+static void open_home_row(int row)
 {
     begin();
-    down(HOME_SETTINGS_ROW);
+    down(row);
     tap(KEY_PLAY);
+}
+
+static void open_settings_row(int row)
+{
+    open_home_row(HOME_SETTINGS_ROW);
     down(row);
 }
 
@@ -338,13 +362,13 @@ static void up(int times)
 
 static void walk_music(void)
 {
-    static const StringId TITLES[MUSIC_ENTRIES] = {
-        STR_SEARCH,    STR_COVER_FLOW, STR_ARTISTS,     STR_ALBUM_ARTISTS,
-        STR_ALBUMS,    STR_GENRES,     STR_FOLDERS,     STR_ALL_SONGS,
-        STR_PLAYLISTS, STR_FAVORITES,  STR_SMART_LISTS, STR_PERSONAL_TAGS};
+    static const StringId TITLES[] = {STR_ALBUMS,      STR_ARTISTS,       STR_FAVORITES,
+                                      STR_PLAYLISTS,   STR_FOLDERS,       STR_COVER_FLOW,
+                                      STR_SMART_LISTS, STR_ALL_SONGS,     STR_ALBUM_ARTISTS,
+                                      STR_GENRES,      STR_PERSONAL_TAGS, STR_SEARCH};
     open_music_row(0);
     show_titled("Music", STR_MUSIC);
-    for (int entry = 1; entry < MUSIC_ENTRIES; entry++) {
+    for (int entry = 0; entry < (int)(sizeof TITLES / sizeof TITLES[0]); entry++) {
         open_music_row(entry);
         tap(KEY_PLAY);
         show_titled("a Music list", TITLES[entry]);
@@ -366,7 +390,7 @@ static void walk_smart_lists(void)
 
 static void walk_cover_flow(void)
 {
-    open_music_row(1);
+    open_music_row(MUSIC_COVER_FLOW_ROW);
     tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_COVER_FLOW), app_screen_title()) == 0);
     show("Cover Flow");
@@ -408,6 +432,21 @@ static void walk_song_actions(void)
     }
 }
 
+static void walk_home_with_a_track(void)
+{
+    hold(KEY_BACK, 700);
+    show_titled("Home with a track", STR_HOME);
+    tap(KEY_PLAY);
+    show_titled("Now Playing from Home", STR_NOW_PLAYING);
+    back(1);
+    down(HOME_UP_NEXT_WITH_TRACK_ROW);
+    tap(KEY_PLAY);
+    show_titled("Up Next from Home", STR_UP_NEXT);
+    back(1);
+    up(HOME_UP_NEXT_WITH_TRACK_ROW);
+    tap(KEY_PLAY);
+}
+
 static void walk_now_playing(void)
 {
     open_music_row(MUSIC_ALL_SONGS_ROW);
@@ -415,6 +454,7 @@ static void walk_now_playing(void)
     tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_NOW_PLAYING), app_screen_title()) == 0);
     show("Now Playing");
+    walk_home_with_a_track();
     tap(portrait ? KEY_VOLUME_DOWN : KEY_VOLUME_UP);
     CHECK(show("Now Playing with the volume") > 0);
     frames(20);
@@ -423,7 +463,13 @@ static void walk_now_playing(void)
     tap(KEY_PLAY);
     tap(KEY_MENU);
     show_titled("Quick Settings", STR_QUICK_SETTINGS);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    down(QUICK_BRIGHTNESS_ROW);
+    tap(KEY_PLAY);
+    show_titled("Quick Settings brightness", STR_BRIGHTNESS);
+    down(1);
+    show("another Quick Settings brightness");
+    back(1);
+    up(QUICK_BRIGHTNESS_ROW);
     tap(KEY_PLAY);
     show_titled("Up Next", STR_UP_NEXT);
 }
@@ -432,7 +478,7 @@ static const StringId GROUP_TITLES[SETTINGS_GROUPS] = {
     STR_SETTINGS_SOUND,   STR_SETTINGS_PLAYBACK,      STR_SETTINGS_DISPLAY_TEXT,
     STR_LANGUAGE,         STR_SETTINGS_POWER_BATTERY, STR_SETTINGS_CONNECTIONS,
     STR_SETTINGS_BUTTONS, STR_SETTINGS_LIBRARY,       STR_ABOUT};
-static const uint8_t GROUP_ROWS[SETTINGS_GROUPS] = {10, 9, 12, 0, 3, 3, 0, 3, 0};
+static const uint8_t GROUP_ROWS[SETTINGS_GROUPS] = {9, 9, 12, 0, 3, 3, 0, 2, 0};
 
 static void walk_settings_rows(void)
 {
@@ -474,36 +520,32 @@ static void open_place(SettingPlace place)
 static void walk_settings_choices(void)
 {
     static const SettingPlace PLACES[] = {
-        {GROUP_SOUND, 0, STR_OUTPUT},
-        {GROUP_SOUND, 1, STR_GAIN},
-        {GROUP_SOUND, 2, STR_EQUALIZER},
-        {GROUP_SOUND, 3, STR_CUSTOM_EQ},
-        {GROUP_SOUND, 7, STR_REPLAY_GAIN},
-        {GROUP_SOUND, 8, STR_PREVENT_CLIPPING},
-        {GROUP_SOUND, 9, STR_DAC_FILTER},
+        {GROUP_SOUND, SOUND_EQUALIZER_ROW, STR_EQUALIZER},
+        {GROUP_SOUND, 2, STR_GAIN},
+        {GROUP_SOUND, SOUND_OUTPUT_ROW, STR_OUTPUT},
+        {GROUP_SOUND, SOUND_CUSTOM_EQ_ROW, STR_CUSTOM_EQ},
+        {GROUP_SOUND, SOUND_REPLAY_GAIN_ROW, STR_REPLAY_GAIN},
+        {GROUP_SOUND, 7, STR_DAC_FILTER},
+        {GROUP_SOUND, 8, STR_CROSSFEED},
         {GROUP_PLAYBACK, 0, STR_SHUFFLE},
         {GROUP_PLAYBACK, 1, STR_REPEAT},
-        {GROUP_PLAYBACK, 2, STR_PLAYBACK_SPEED},
-        {GROUP_PLAYBACK, 3, STR_TRANSITIONS},
-        {GROUP_PLAYBACK, 4, STR_REWIND_ON_RESUME},
-        {GROUP_PLAYBACK, 7, STR_SAFE_START_VOLUME},
-        {GROUP_PLAYBACK, 8, STR_SLEEP_TIMER},
-        {GROUP_DISPLAY, 0, STR_TEXT_SIZE},
-        {GROUP_DISPLAY, 1, STR_ORIENTATION},
-        {GROUP_DISPLAY, 2, STR_THEME},
-        {GROUP_DISPLAY, 3, STR_COLOR},
-        {GROUP_DISPLAY, 4, STR_BRIGHTNESS},
-        {GROUP_DISPLAY, 5, STR_SCREEN_TIMEOUT},
+        {GROUP_PLAYBACK, PLAYBACK_SLEEP_ROW, STR_SLEEP_TIMER},
+        {GROUP_PLAYBACK, 3, STR_SAFE_START_VOLUME},
+        {GROUP_PLAYBACK, 5, STR_PLAYBACK_SPEED},
+        {GROUP_DISPLAY, 0, STR_BRIGHTNESS},
+        {GROUP_DISPLAY, 1, STR_SCREEN_TIMEOUT},
+        {GROUP_DISPLAY, DISPLAY_THEME_ROW, STR_THEME},
+        {GROUP_DISPLAY, 3, STR_TEXT_SIZE},
+        {GROUP_DISPLAY, 4, STR_ORIENTATION},
+        {GROUP_DISPLAY, 5, STR_NOW_PLAYING_STYLE},
         {GROUP_DISPLAY, 6, STR_STATUS_BAR},
-        {GROUP_DISPLAY, 9, STR_START_SCREEN},
-        {GROUP_DISPLAY, 10, STR_CLOCK_FORMAT},
-        {GROUP_DISPLAY, 11, STR_SET_CLOCK},
+        {GROUP_DISPLAY, 8, STR_START_SCREEN},
+        {GROUP_DISPLAY, 10, STR_SET_CLOCK},
         {GROUP_LANGUAGE, 0, STR_LANGUAGE},
         {GROUP_POWER, 0, STR_AUTO_OFF},
-        {GROUP_POWER, 2, STR_POWER_ON},
-        {GROUP_CONNECTIONS, 0, STR_USB_ANSWER},
+        {GROUP_CONNECTIONS, CONNECTIONS_BLUETOOTH_ROW, STR_BLUETOOTH},
         {GROUP_CONNECTIONS, 1, STR_USB_MODE},
-        {GROUP_CONNECTIONS, 2, STR_BLUETOOTH},
+        {GROUP_CONNECTIONS, 2, STR_USB_ANSWER},
         {GROUP_BUTTONS, 0, STR_SETTINGS_BUTTONS},
     };
     for (size_t index = 0; index < sizeof PLACES / sizeof PLACES[0]; index++) {
@@ -514,6 +556,80 @@ static void walk_settings_choices(void)
             show("its other options");
         }
     }
+}
+
+static void toggle_on_menu(StringId title)
+{
+    int depth = app_screen_depth();
+    tap(KEY_PLAY);
+    CHECK_EQUAL(depth, app_screen_depth());
+    show_titled("an inline setting after one press", title);
+}
+
+static Settings saved_settings(void)
+{
+    Settings saved = {0};
+    uint32_t size = 0;
+    const uint8_t *bytes = fake_hal_internal_file_bytes(SETTINGS_STORE_PATH, &size);
+    CHECK(bytes != NULL && settings_decode(bytes, size, &saved));
+    return saved;
+}
+
+static void walk_inline_settings(void)
+{
+    open_setting(GROUP_PLAYBACK, 6);
+    toggle_on_menu(STR_SETTINGS_PLAYBACK);
+    CHECK(!saved_settings().rewind_on_resume);
+    down(1);
+    toggle_on_menu(STR_SETTINGS_PLAYBACK);
+    CHECK(saved_settings().skip_silence);
+    down(1);
+    toggle_on_menu(STR_SETTINGS_PLAYBACK);
+    CHECK(saved_settings().speech_boost);
+
+    open_setting(GROUP_DISPLAY, 9);
+    toggle_on_menu(STR_SETTINGS_DISPLAY_TEXT);
+    CHECK_EQUAL(!variant_clock_24h, saved_settings().clock_24h);
+    down(2);
+    toggle_on_menu(STR_SETTINGS_DISPLAY_TEXT);
+    CHECK(!saved_settings().startup_animation);
+
+    open_setting(GROUP_POWER, 2);
+    toggle_on_menu(STR_SETTINGS_POWER_BATTERY);
+    CHECK(saved_settings().power_on_flags != settings_defaults().power_on_flags);
+}
+
+static void walk_conditional_settings(void)
+{
+    open_setting(GROUP_SOUND, SOUND_REPLAY_GAIN_ROW);
+    tap(KEY_PLAY);
+    down(1);
+    tap(KEY_PLAY);
+    down(1);
+    toggle_on_menu(STR_SETTINGS_SOUND);
+    CHECK(!saved_settings().prevent_clipping);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("DAC filter after enabling ReplayGain", STR_DAC_FILTER);
+
+    open_setting(GROUP_DISPLAY, DISPLAY_THEME_ROW);
+    tap(KEY_PLAY);
+    up(1);
+    tap(KEY_PLAY);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("Accent color in Graphite", STR_COLOR);
+    down(1);
+    show("another accent color");
+
+    open_setting(GROUP_PLAYBACK, PLAYBACK_TRANSITIONS_ROW);
+    toggle_on_menu(STR_SETTINGS_PLAYBACK);
+    CHECK_EQUAL(TRACK_TRANSITION_FADE, saved_settings().track_transition);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("Transition length with transitions on", STR_TRANSITION_LENGTH);
+    down(1);
+    show("another transition length");
 }
 
 static void choose_option(int group, int row, int option)
@@ -560,7 +676,7 @@ static void walk_equalizer(void)
     tap(KEY_PLAY);
     show_titled("Custom EQ with a used slot", STR_CUSTOM_EQ);
     back(1);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+    up(SOUND_CUSTOM_EQ_ROW - SOUND_EQUALIZER_ROW);
     tap(KEY_PLAY);
     down(EQUALIZER_SLOT_OPTION);
     show_titled("the equalizer choices with a saved slot", STR_EQUALIZER);
@@ -647,10 +763,24 @@ static void walk_bluetooth(void)
 static void walk_card_format(void)
 {
     open_setting(GROUP_LIBRARY, 0);
-    fake_hal_set_card(
-        (HalCardInfo){.present = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1}, true);
-    fake_hal_set_battery((HalBattery){.known = true, .percent = 80});
-    up(LIBRARY_FORMAT_ROWS_UP);
+    HalCardInfo card = {
+        .present = true, .ejected = true, .sectors = 64u * 2 * 1024 * 1024, .generation = 1};
+    fake_hal_set_card(card, true);
+    fake_hal_set_battery((HalBattery){.known = true, .percent = 80, .millivolts = 4000});
+    down(LIBRARY_CARD_ACTION_ROW);
+    frames(SETTLE_FRAMES);
+    CHECK(drew_text(STR_CARD_MOUNT));
+    show_titled("Library with an ejected card", STR_SETTINGS_LIBRARY);
+
+    card.ejected = false;
+    card.mounted = true;
+    fake_hal_set_card(card, true);
+    down(1);
+    up(1);
+    frames(SETTLE_FRAMES);
+    CHECK(drew_text(STR_CARD_EJECT));
+    show_titled("Library with a mounted card", STR_SETTINGS_LIBRARY);
+    down(LIBRARY_FORMAT_ROW - LIBRARY_CARD_ACTION_ROW);
     tap(KEY_PLAY);
     show_titled("the card format warning", STR_CARD_FORMAT);
     tap(KEY_PLAY);
@@ -684,13 +814,9 @@ static void walk_home_editor(void)
     open_home_editor();
     down(HOME_EDITOR_PODCASTS_ROW);
     tap(KEY_PLAY);
-    show_titled("a Home item's actions", STR_PODCASTS);
+    show_toast("the Home shown toast", STRING_COUNT);
     tap(KEY_PLAY);
     show_toast("the Home hidden toast", STRING_COUNT);
-    tap(KEY_PLAY);
-    show_titled("a hidden Home item's actions", STR_PODCASTS);
-    tap(KEY_PLAY);
-    show_toast("the Home shown toast", STRING_COUNT);
     hold(KEY_PLAY, 700);
     CHECK(show("a Home item being moved") >= 2);
     down(1);
@@ -734,9 +860,7 @@ static void walk_power(void)
 
 static void walk_clock(void)
 {
-    begin();
-    down(3);
-    tap(KEY_PLAY);
+    open_home_row(HOME_CLOCK_ROW);
     show_titled("Clock without a time", STR_CLOCK);
     tap(KEY_PLAY);
     show_titled("Calendar without a time", STR_CALENDAR);
@@ -744,7 +868,7 @@ static void walk_clock(void)
         variant_clock_24h = format != 0;
         begin();
         fake_hal_set_wall(1794390060u, 60);
-        down(3);
+        down(HOME_CLOCK_ROW);
         tap(KEY_PLAY);
         show_titled("Clock", STR_CLOCK);
         tap(KEY_PLAY);
@@ -766,35 +890,46 @@ static void walk_usb_prompt(void)
     tap(KEY_VOLUME_DOWN);
     hold(KEY_PLAY, 700);
     show_toast("the always toast", STRING_COUNT);
-    begin();
-    app_open_usb_modes();
-    show_titled("USB mode opened by hand", STR_USB_MODE);
+    open_home_row(HOME_USB_ROW);
+    show_titled("USB mode opened from Home", STR_USB_MODE);
 }
 
-static void walk_listening(void)
+static void walk_recap(void)
 {
-    begin();
-    down(2);
-    tap(KEY_PLAY);
-    show_titled("Recap", STR_LISTENING);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
-    tap(KEY_PLAY);
-    show_titled("Moments", STR_MOMENTS);
-    tap(KEY_BACK);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     show_titled("Recap periods", STR_RECAP);
     tap(KEY_PLAY);
     show_titled("Recap without a clock", STR_RECAP);
-    tap(KEY_BACK);
+    back(1);
     down(3);
     tap(KEY_PLAY);
     show_titled("Recap without history", STR_RECAP);
     back(2);
-    tap(portrait ? KEY_VOLUME_UP : KEY_VOLUME_DOWN);
+}
+
+static void walk_listening(void)
+{
+    static const StringId TOP_LISTS[] = {STR_TOP_ARTISTS, STR_TOP_ALBUMS, STR_TOP_SONGS};
+    open_home_row(HOME_LISTENING_ROW);
+    frames(SETTLE_FRAMES);
+    CHECK(drew_text(STR_LISTENING_PLAYS));
+    CHECK(drew_text(STR_LISTENING_SKIPS));
+    show_titled("Listening with totals", STR_LISTENING);
+    walk_recap();
+    for (size_t row = 0; row < sizeof TOP_LISTS / sizeof TOP_LISTS[0]; row++) {
+        down(1);
+        tap(KEY_PLAY);
+        show_titled("a top listening list", TOP_LISTS[row]);
+        back(1);
+    }
+    down(1);
     tap(KEY_PLAY);
     CHECK(strcmp(i18n_text(STR_EXPORT_PLAYS), app_screen_title()) == 0);
     CHECK(show("Export plays") >= 3);
+    back(1);
+    down(1);
+    tap(KEY_PLAY);
+    show_titled("Moments", STR_MOMENTS);
 }
 
 static void walk_headphones(void)
@@ -822,35 +957,22 @@ static void walk_headphones(void)
     }
 }
 
-static void walk_listening_effects(void)
-{
-    static const SettingPlace EFFECTS[] = {{GROUP_SOUND, 6, STR_CROSSFEED},
-                                           {GROUP_PLAYBACK, 6, STR_SPEECH_BOOST},
-                                           {GROUP_PLAYBACK, 5, STR_SKIP_SILENCE}};
-    for (int row = 0; row < 3; row++) {
-        open_place(EFFECTS[row]);
-        show_titled("a listening effect", EFFECTS[row].title);
-        down(1);
-        show("another listening effect option");
-        back(1);
-    }
-}
-
 static void walk_standby_settings(void)
 {
     open_setting(GROUP_POWER, POWER_STANDBY_ROW);
-    tap(KEY_PLAY);
-    show_titled("Power settings", STR_STANDBY_POWER);
-    tap(KEY_PLAY);
-    show_titled("Standby options", STR_STANDBY_ENABLED);
-    down(1);
-    show("Standby on option");
-    tap(KEY_BACK);
+    toggle_on_menu(STR_SETTINGS_POWER_BATTERY);
+    CHECK(saved_settings().standby_enabled);
     down(1);
     tap(KEY_PLAY);
-    show_titled("Standby deadline", STR_STANDBY_TIMEOUT);
+    show_titled("Standby timeout with Standby on", STR_STANDBY_TIMEOUT);
     down(1);
-    show("Standby deadline choices");
+    show("another Standby timeout");
+    back(1);
+    up(1);
+    toggle_on_menu(STR_SETTINGS_POWER_BATTERY);
+    CHECK(!saved_settings().standby_enabled);
+    down(1);
+    toggle_on_menu(STR_SETTINGS_POWER_BATTERY);
 }
 
 static void walk_everything(void)
@@ -859,6 +981,8 @@ static void walk_everything(void)
     tap(portrait ? KEY_VOLUME_DOWN : KEY_VOLUME_UP);
     CHECK(strcmp(i18n_text(STR_HOME), app_screen_title()) == 0);
     CHECK(show("Home") >= 2);
+    open_home_row(HOME_MIXTAPES_ROW);
+    show_titled("Mixtapes opened from Home", STR_MIXTAPES);
     walk_music();
     walk_smart_lists();
     walk_cover_flow();
@@ -867,6 +991,8 @@ static void walk_everything(void)
     walk_standby_settings();
     walk_card_format();
     walk_settings_choices();
+    walk_inline_settings();
+    walk_conditional_settings();
     walk_settings_toasts();
     walk_equalizer();
     walk_parametric();
@@ -874,7 +1000,6 @@ static void walk_everything(void)
     walk_bluetooth();
     walk_home_editor();
     walk_headphones();
-    walk_listening_effects();
     walk_about();
     walk_song_actions();
     walk_now_playing();

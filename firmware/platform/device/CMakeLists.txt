@@ -265,6 +265,7 @@ set(ECHO_OVERLAY_IMPORTS
     hal_clock_wall
     hal_system_extension_code
     app_dac_settings
+    USB_AUDIO_RATES
     app_remember_dac
     app_show_notice
     app_show_usb_area
@@ -457,6 +458,8 @@ set_source_files_properties(board/libc.c board/startup.c board/wide_divide.c PRO
     COMPILE_OPTIONS "-fno-builtin;-fno-tree-loop-distribute-patterns;-fno-lto"
 )
 if(CMAKE_CROSSCOMPILING)
+    set_property(SOURCE board/libc.c APPEND PROPERTY COMPILE_OPTIONS
+        "$<$<STREQUAL:$<TARGET_PROPERTY:NAME>,echo_device>:-Os>")
     set_source_files_properties(
         board/audio.c
         board/audio_dsp.c
@@ -491,6 +494,7 @@ if(CMAKE_CROSSCOMPILING)
         board/language.c
         board/loader_reboot.c
         board/main.c
+        board/mmc.c
         board/overlay.c
         board/panel_vop.c
         board/panic.c
@@ -516,6 +520,9 @@ if(CMAKE_CROSSCOMPILING)
         ${PROJECT_SOURCE_DIR}/src/app/missing_fonts_record.c
         PROPERTIES COMPILE_OPTIONS -Os
     )
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/logic/debug_report.c
+        TARGET_DIRECTORY echo_device_logic
+        PROPERTIES COMPILE_OPTIONS "-Os;-fno-reorder-blocks")
     set_source_files_properties(
         logic/usb_audio_descriptors.c
         logic/usb_audio_hid.c
@@ -640,6 +647,7 @@ if(NOT ECHO_RELEASE)
         board/debug_report_file.c
         board/debug_report_reads.c
         board/debug_script_file.c
+        board/fifo_words.c
         board/profiler_prepare.c
         board/time_file_take.c
         board/trial_module.c
@@ -781,7 +789,10 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             settings_store_read=trial_settings_store_read
             player_restore=trial_player_restore
             favorites_store_read=trial_favorites_store_read
-            spoken_store_read=trial_spoken_store_read)
+            spoken_store_read=trial_spoken_store_read
+            bluetooth_store_load=trial_bluetooth_store_load
+            card_files_prepare_step=trial_card_files_prepare_step
+            card_files_start_scan=trial_card_files_start_scan)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

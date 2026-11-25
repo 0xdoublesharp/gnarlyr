@@ -13,7 +13,7 @@ bool core1_open_dsd(void *context, const char *path, uint32_t start_ms, AudioTra
     }
     source->file_open = true;
     AudioTrackInfo candidate;
-    if (!dsd_stream_start(source->dsd, source->input, start_ms, &candidate) ||
+    if (!dsd_stream_start_mode(source->dsd, source->input, start_ms, &candidate) ||
         (source->dsd->track.rate == 11289600 && source->dsd->track.channels != 1)) {
         core1_source_stop(source);
         return false;
@@ -24,7 +24,7 @@ bool core1_open_dsd(void *context, const char *path, uint32_t start_ms, AudioTra
     source->end_offset = end;
     source->written = 0;
     source->lead_trim = 0;
-    uint64_t target = (uint64_t)start_ms * DSD_PCM_RATE / 1000;
+    uint64_t target = (uint64_t)start_ms * candidate.stream.sample_rate / 1000;
     source->skip_before = target < candidate.stream.total_samples
                               ? (uint32_t)target
                               : (uint32_t)candidate.stream.total_samples;
@@ -35,7 +35,7 @@ bool core1_open_dsd(void *context, const char *path, uint32_t start_ms, AudioTra
     source->channels = candidate.stream.channels;
     source->region.ring_bytes = DSD_RING_BYTES;
     volatile StreamControl *control = source->region.control;
-    control->sample_rate = DSD_PCM_RATE;
+    control->sample_rate = candidate.stream.sample_rate;
     control->channels = source->channels;
     control->bits_per_sample = 24;
     control->min_block = DSD_OUTPUT_FRAMES;

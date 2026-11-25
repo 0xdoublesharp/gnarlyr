@@ -13,8 +13,13 @@ const StringId EQUALIZER_PRESET_NAMES[EQUALIZER_PRESET_COUNT] = {
 
 const char SETTINGS_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/settings.bin";
 const char SETTINGS_BUTTONS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/buttons.bin";
+const char PARAMETRIC_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/parametric.bin";
+const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
 
-static const HalAudioGain HAL_GAINS[GAIN_LEVEL_COUNT] = {HAL_AUDIO_GAIN_LOW, HAL_AUDIO_GAIN_HIGH};
+_Static_assert((int)GAIN_LOW == (int)HAL_AUDIO_GAIN_LOW &&
+                   (int)GAIN_HIGH == (int)HAL_AUDIO_GAIN_HIGH &&
+                   (int)GAIN_MEDIUM == (int)HAL_AUDIO_GAIN_MEDIUM,
+               "saved and HAL gain levels match");
 static const HalAudioOutput HAL_OUTPUTS[OUTPUT_JACK_COUNT] = {
     HAL_AUDIO_OUTPUT_AUTO, HAL_AUDIO_OUTPUT_SINGLE_ENDED, HAL_AUDIO_OUTPUT_BALANCED};
 static const HalUsbMode HAL_USB_MODES[USB_MODE_COUNT] = {HAL_USB_MODE_STORAGE, HAL_USB_MODE_DAC};
@@ -158,7 +163,7 @@ void settings_store_apply_hardware(const Settings *settings)
 {
     hal_power_set_battery_care(settings->battery_care);
     hal_display_set_brightness(settings->brightness);
-    hal_audio_set_gain(HAL_GAINS[settings->gain]);
+    hal_audio_set_gain((HalAudioGain)settings->gain);
     hal_audio_set_filter((HalAudioFilter)settings->dac_filter);
     hal_audio_set_output(HAL_OUTPUTS[settings->output]);
     hal_system_set_usb_mode(HAL_USB_MODES[settings->usb_mode]);

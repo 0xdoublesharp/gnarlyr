@@ -83,7 +83,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(backup_list(builds, newest), data[:len(backup_list(builds, newest))])
 
     def open_backup_picker(self, rig):
-        for key in ("previous", "play", "previous", "previous", "play", "previous", "play"):
+        for key in ("previous", "play", "previous", "previous", "play", "previous", "previous", "play"):
             rig.press(key)
 
     def test_an_update_backs_up_what_the_old_build_left_before_the_new_build_reads_it(self):

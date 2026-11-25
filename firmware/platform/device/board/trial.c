@@ -5,7 +5,9 @@
 
 #include "app/app.h"
 #include "audio_process.h"
+#include "bluetooth_store.h"
 #include "board.h"
+#include "card_files.h"
 #include "core/deadline.h"
 #include "core/i18n.h"
 #include "core/seam.h"
@@ -206,6 +208,33 @@ CORE_SEAM StoreLoad spoken_store_read(Bookmarks *bookmarks)
 {
     const TrialBootModuleEntry *entry = boot_module();
     return entry != NULL ? entry->spoken_read(bookmarks) : STORE_UNSUPPORTED;
+}
+
+CORE_SEAM void bluetooth_store_load(BluetoothSaved *saved)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    if (entry != NULL) {
+        entry->bluetooth_load(saved);
+        return;
+    }
+    *saved = (BluetoothSaved){.enabled = false, .count = 0};
+}
+
+CORE_SEAM bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *report,
+                                       bool charging, bool *finished)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    if (entry != NULL) {
+        return entry->card_files_prepare(prepare_index, report, charging, finished);
+    }
+    *finished = true;
+    return false;
+}
+
+CardStartScan card_files_start_scan(bool created, bool available, bool rebuilt)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    return entry != NULL ? entry->card_start_scan(created, available, rebuilt) : (CardStartScan){0};
 }
 
 bool hal_system_settle_user_state(bool requested)

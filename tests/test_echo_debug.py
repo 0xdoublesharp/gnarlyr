@@ -573,5 +573,39 @@ class IdentitySourceTests(unittest.TestCase):
         self.assertIs(identity.parse, echo_debug.parse_identity)
 
 
+class MacHostEjectTests(unittest.TestCase):
+    def test_eject_retries_transient_dissenter_and_falls_back_for_spotlight(self):
+        from unittest import mock
+
+        class Result:
+            def __init__(self, returncode, stdout="", stderr=""):
+                self.returncode = returncode
+                self.stdout = stdout
+                self.stderr = stderr
+
+        volume = f"/Volumes/{echo_debug.IDENTITY['name']}"
+        calls = []
+
+        def fake_run(cmd, **_kwargs):
+            calls.append(cmd)
+            if cmd[:2] == ["diskutil", "eject"] and cmd[2] == volume:
+                return Result(1, stderr="Volume failed to eject: dissented by PID 99 (mds_stores)")
+            if cmd[:2] == ["diskutil", "info"]:
+                return Result(0, stdout="   Part of Whole: disk8\n")
+            if cmd[:3] == ["diskutil", "unmount", "force"]:
+                return Result(0)
+            if cmd == ["diskutil", "eject", "disk8"]:
+                return Result(0)
+            return Result(1, stderr="unexpected")
+
+        with mock.patch.object(echo_debug.subprocess, "run", side_effect=fake_run), \
+             mock.patch.object(echo_debug.time, "sleep", return_value=None):
+            echo_debug.MacHost().eject(volume)
+
+        self.assertEqual(calls.count(["diskutil", "eject", volume]), 4)
+        self.assertIn(["diskutil", "unmount", "force", volume], calls)
+        self.assertEqual(calls[-1], ["diskutil", "eject", "disk8"])
+
+
 if __name__ == "__main__":
     unittest.main()

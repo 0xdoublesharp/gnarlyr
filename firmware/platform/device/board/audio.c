@@ -5,6 +5,7 @@
 #include "app/debug_loop.h"
 
 #include "audio_dsp.h"
+#include "audio_effects.h"
 #include "audio_process.h"
 #include "board.h"
 #include "core/bytes.h"
@@ -24,6 +25,7 @@
 #include "device/m4a_stream.h"
 #include "device/mp3_probe.h"
 #include "device/mp4_demux.h"
+#include "device/usb_audio.h"
 #include "device/wav_source.h"
 #include "device/workspace_loan.h"
 #include "dmac.h"
@@ -114,6 +116,7 @@ static uint32_t position_before_clock_change;
 static AudioEngine engine;
 _Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the audio ring cursor");
 _Static_assert(offsetof(AudioEngine, state) == 44, "the emulator follows the engine state");
+_Static_assert(RING_FRAMES % 2 == 0, "DoP markers alternate across the DMA ring wrap");
 _Static_assert((STRETCH_WORDS + BLOCK_WORDS - 1) / BLOCK_WORDS == STRETCH_BLOCKS,
                "the stretched ring keeps its five DMA items");
 _Static_assert(BLOCK_WORDS + RING_BLOCKS - 1 <= DMA_MAX_BLOCK_WORDS,
@@ -127,6 +130,8 @@ static HalFile file;
 static bool engine_ready;
 static bool path_up;
 static uint32_t path_rate;
+static bool path_dop;
+static bool eq_pending;
 static bool transferring;
 static uint32_t consumed;
 static uint32_t last_position;
@@ -311,7 +316,7 @@ static AudioSource chosen_source(void)
                                   flac ? CORE1_FORMAT_FLAC : (Core1Format)source_kind);
 }
 
-static bool ensure_audio_clock(void)
+__attribute__((noinline)) static bool ensure_audio_clock(void)
 {
     return hal_system_clock_mhz() >= AUDIO_CLOCK_MHZ || hal_system_set_clock_mhz(AUDIO_CLOCK_MHZ);
 }
@@ -335,6 +340,10 @@ CORE_COLD static bool open_chosen(void *context, const char *path, uint32_t star
             using_core1 = false;
         }
     } else {
+        if (source_kind == SOURCE_DSD) {
+            dsd_stream.request_dop =
+                audio_engine_dop_allowed(&engine, !board_bluetooth_routed(), engine.track_gain);
+        }
         using_core1 = board_core1_start_stream((Core1Program)source_kind);
         core1_source.clock_mhz = hal_system_clock_mhz();
         if (!using_core1) {
@@ -485,19 +494,65 @@ CORE_COLD static void stop_path(void)
         dac_path_stop();
         path_up = false;
     }
+    engine.hw_equalizing = false;
+    eq_pending = true;
 }
 
-CORE_COLD static bool ensure_path(uint32_t rate)
+__attribute__((noinline)) CORE_COLD static void wait_for_equalizer(uint32_t first)
 {
-    if (path_up && path_rate == rate) {
+    uint32_t started = hal_clock_milliseconds();
+    while ((int32_t)(consumed - first) < 0 &&
+           hal_clock_milliseconds() - started < PREFILL_TIMEOUT_MS) {
+        serve_fade();
+    }
+}
+
+CORE_COLD static void apply_equalizer(void)
+{
+    eq_pending = false;
+    DacEqProgram program;
+    bool hardware = !path_dop && !board_bluetooth_routed() && engine.equalizing &&
+                    board_audio_encode_eq(&equalizer, path_rate, &program);
+    if (engine.equalizing && !hardware) {
+        (void)ensure_audio_clock();
+    }
+    if (!hardware && !engine.hw_equalizing) {
+        return;
+    }
+    bool restore = !dac_path_is_muted();
+    if (restore) {
+        dac_path_set_muted(true);
+    }
+    bool previous = engine.hw_equalizing;
+    uint32_t first = engine.produced;
+    engine.hw_equalizing = hardware;
+    bool applied = dac_path_set_equalizer(hardware ? &program : NULL);
+    bool failed = applied != hardware;
+    if (failed) {
+        (void)ensure_audio_clock();
+        first = engine.produced;
+    }
+    engine.hw_equalizing = applied;
+    if (transferring && (failed || applied != previous)) {
+        wait_for_equalizer(first);
+    }
+    if (restore) {
+        dac_path_set_muted(false);
+    }
+}
+
+CORE_COLD static bool ensure_path(uint32_t rate, bool dop)
+{
+    if (path_up && path_rate == rate && path_dop == dop) {
         return true;
     }
     stop_path();
-    if (dac_path_start(rate) != HAL_TONE_PLAYED) {
+    if (dac_path_start(rate, dop) != HAL_TONE_PLAYED) {
         return false;
     }
     path_up = true;
     path_rate = rate;
+    path_dop = dop;
     dac_path_output_on();
     return true;
 }
@@ -534,8 +589,11 @@ CORE_COLD static bool start_transfer(uint32_t words, bool audible)
 
 CORE_COLD static bool start_output(bool audible)
 {
-    if (!ensure_path(audio_engine_rate(&engine))) {
+    if (!ensure_path(audio_engine_rate(&engine), engine.output_dop)) {
         return false;
+    }
+    if (eq_pending) {
+        apply_equalizer();
     }
     uint32_t started_ms = hal_clock_milliseconds();
     uint32_t prefill = audio_engine_rate(&engine) / PREFILL_DIVISOR;
@@ -640,6 +698,7 @@ void hal_audio_release(void)
 CORE_COLD void hal_audio_resume(void)
 {
     ensure_engine();
+    audio_engine_resume(&engine);
     if (using_core1) {
         core1_source_hurry(&core1_source);
     }
@@ -649,9 +708,11 @@ CORE_COLD void hal_audio_resume(void)
         if (quiet) {
             (void)dac_path_take_underrun();
         }
+        if (eq_pending) {
+            apply_equalizer();
+        }
         dac_path_set_muted(false);
     }
-    audio_engine_resume(&engine);
 }
 
 CORE_COLD static void seek_at_audio_clock(uint32_t position_ms, bool paused)
@@ -703,20 +764,25 @@ static DacCurve output_curve(void)
                                                        : DAC_CURVE_SINGLE_ENDED;
 }
 
-static uint8_t routed_level(void)
-{
-    if (board_bluetooth_routed()) {
-        return bluetooth_level;
-    }
-    return headphone_audio_limit(hal_audio_headphones(), volume_level);
-}
-
 static void apply_volume(void)
 {
-    if (volume_set) {
-        uint32_t value = dac_volume_value(routed_level(), output_curve()) + extra_attenuation;
-        dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED);
+    if (!volume_set) {
+        return;
     }
+    bool bluetooth = board_bluetooth_routed();
+    HeadphoneAudio profile = bluetooth ? (HeadphoneAudio){0} : hal_audio_headphones();
+    uint8_t level = bluetooth ? bluetooth_level : headphone_audio_limit(profile, volume_level);
+    uint32_t value = dac_volume_value(level, output_curve()) + extra_attenuation;
+    uint8_t left = 0;
+    uint8_t right = 0;
+    if (!bluetooth && profile.left != profile.right) {
+        bool cut_left = profile.left < profile.right;
+        uint8_t cut = dac_balance_attenuation(cut_left ? profile.left : profile.right,
+                                              cut_left ? profile.right : profile.left);
+        left = cut_left ? cut : 0;
+        right = cut_left ? 0 : cut;
+    }
+    dac_path_set_volume(value < DAC_VOLUME_MUTED ? (uint8_t)value : DAC_VOLUME_MUTED, left, right);
 }
 
 CORE_COLD void hal_audio_set_volume(uint8_t level)
@@ -734,7 +800,8 @@ CORE_COLD void hal_audio_set_bluetooth_volume(uint8_t level)
 
 static HeadphoneAudio engine_headphones(void)
 {
-    return board_bluetooth_routed() ? headphone_audio_defaults() : hal_audio_headphones();
+    return board_bluetooth_routed() ? headphone_audio_defaults()
+                                    : headphone_audio_without_balance(hal_audio_headphones());
 }
 
 CORE_COLD HeadphoneAudio hal_audio_headphones(void)
@@ -755,7 +822,7 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
 
 CORE_SEAM CORE_COLD bool hal_audio_set_gain(HalAudioGain gain)
 {
-    return dac_path_set_gain(gain == HAL_AUDIO_GAIN_HIGH);
+    return dac_path_set_gain(gain);
 }
 
 CORE_SEAM CORE_COLD bool hal_audio_set_filter(HalAudioFilter filter)
@@ -779,10 +846,7 @@ CORE_SEAM CORE_COLD void hal_audio_set_output(HalAudioOutput output)
 CORE_COLD void hal_audio_set_equalizer(const HalAudioEqualizer *curve)
 {
     ensure_engine();
-    audio_engine_set_equalizer(&engine, curve);
-    if (engine.equalizing && transferring) {
-        (void)ensure_audio_clock();
-    }
+    eq_pending |= audio_engine_set_equalizer(&engine, curve);
 }
 
 void hal_audio_set_effects(HalAudioEffects effects)
@@ -892,6 +956,22 @@ static void change_rate(void)
     restart_output(true, paused);
 }
 
+CORE_COLD static void recheck_dop(void)
+{
+    if (!audio_engine_dop_allowed(&engine, !board_bluetooth_routed(),
+                                  engine.segments[0].replay_gain) ||
+        (engine.decode_track.dop && engine.track_gain != REPLAY_GAIN_UNITY)) {
+        HalAudioStatus status = hal_audio_status();
+        if (status.state != HAL_AUDIO_STOPPED) {
+            if (engine.next_token != status.token &&
+                (engine.segment_count > 1 || engine.rate_pending || engine.draining)) {
+                engine.has_next = true;
+            }
+            seek_to(status.position_ms, status.state == HAL_AUDIO_PAUSED);
+        }
+    }
+}
+
 CORE_COLD static void shut_down_when_idle(void)
 {
     if (audio_engine_status(&engine).state != AUDIO_ENGINE_STOPPED) {
@@ -941,6 +1021,12 @@ void hal_audio_service(void)
         return;
     }
     if (transferring) {
+        if (eq_pending && !dmac_suspended()) {
+            apply_equalizer();
+        }
+        if (engine.output_dop) {
+            recheck_dop();
+        }
         update_consumed();
         pump(consumed);
         change_rate();
@@ -983,12 +1069,13 @@ CORE_COLD HalToneResult hal_audio_dma_tone_start(uint32_t sample_rate)
         return HAL_TONE_NO_DMAC;
     }
     stop_path();
-    HalToneResult result = dac_path_start(sample_rate);
+    HalToneResult result = dac_path_start(sample_rate, false);
     if (result != HAL_TONE_PLAYED) {
         return result;
     }
     path_up = true;
     path_rate = sample_rate;
+    path_dop = false;
     uint32_t *words = ring();
     int16_t samples[TONE_PERIOD_SAMPLES];
     tone_fill(samples, TONE_PERIOD_SAMPLES, TONE_AMPLITUDE);
@@ -1102,8 +1189,8 @@ static uint32_t input_ms(void)
 static bool light_stream(uint32_t rate)
 {
     if (rate > LIGHT_RATE_HZ || engine.state != AUDIO_ENGINE_PLAYING || !engine.decoding ||
-        engine.rate_pending || engine.draining || engine.equalizing || engine.stretching ||
-        engine.resample.factor != 1) {
+        engine.rate_pending || engine.draining || (engine.equalizing && !engine.hw_equalizing) ||
+        engine.stretching || engine.resample.factor != 1) {
         return false;
     }
     AudioCodec codec = engine.decode_track.codec;
@@ -1168,10 +1255,28 @@ static void clear_ring(void)
     uint32_t *buffer = board_audio_stream_ring(&frames);
     for (uint32_t index = 0; index < frames * WORDS_PER_FRAME; index++) {
         buffer[index] = 0;
+        if ((index & 511u) == 511u) {
+            board_audio_stream_service();
+        }
     }
 }
 
-CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
+CORE_COLD bool board_audio_prepare_usb_eq(DacEqProgram *programs)
+{
+    const HalAudioEqualizer *curve = &engine.equalizer_curve;
+    if ((!curve->is_parametric && curve->band_count == 0) || !board_audio_process_prepare()) {
+        return false;
+    }
+    for (int index = 0; index < USB_AUDIO_RATE_COUNT; index++) {
+        uint32_t rate = USB_AUDIO_RATES[index];
+        (void)equalizer_design(&equalizer, curve, rate);
+        (void)board_audio_encode_eq(&equalizer, rate, &programs[index]);
+    }
+    return true;
+}
+
+CORE_COLD bool board_audio_stream_open(uint32_t rate, bool dop, void (*service)(void),
+                                       const DacEqProgram *program)
 {
     if (!workspace_loan_claimable(&workspace_loan)) {
         return false;
@@ -1182,7 +1287,13 @@ CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     dac_path_set_fade_service(serve_fade);
     board_audio_shut_down();
     clear_ring();
-    return ensure_path(rate);
+    if (!ensure_path(rate, dop)) {
+        return false;
+    }
+    if (program != NULL) {
+        (void)dac_path_set_equalizer(program);
+    }
+    return true;
 }
 
 static uint32_t stream_frame_count(void)
@@ -1209,7 +1320,6 @@ bool board_audio_stream_play(void)
 
 CORE_COLD void board_audio_stream_pause(void)
 {
-    clear_ring();
     dac_path_stream_quiet();
     dac_path_stop_transfer();
     dmac_stop();
@@ -1283,6 +1393,7 @@ CORE_SEAM CORE_COLD bool board_audio_bluetooth_start(void)
     }
     uint32_t position = hal_audio_status().position_ms;
     restart_transfer();
+    eq_pending = true;
     clear_ring();
     if (!audio_engine_seek(&engine, position)) {
         return false;
@@ -1303,6 +1414,7 @@ void board_audio_output_changed(void)
 {
     if (engine_ready) {
         audio_engine_set_headphones(&engine, engine_headphones());
+        eq_pending |= board_bluetooth_routed() == engine.hw_equalizing;
     }
     apply_volume();
 }

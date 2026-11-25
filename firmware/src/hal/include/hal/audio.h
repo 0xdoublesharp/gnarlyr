@@ -22,9 +22,19 @@ typedef enum HalAudioState {
 } HalAudioState;
 
 typedef enum HalAudioGain {
-    HAL_AUDIO_GAIN_LOW,
-    HAL_AUDIO_GAIN_HIGH
+    HAL_AUDIO_GAIN_LOW = 0,
+    HAL_AUDIO_GAIN_HIGH = 1,
+    HAL_AUDIO_GAIN_MEDIUM = 2
 } HalAudioGain;
+
+static inline uint8_t hal_audio_gain_rise_db(HalAudioGain before, HalAudioGain after)
+{
+    static const uint8_t HEADROOM[] = {0, HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB,
+                                       HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB / 2};
+    uint8_t previous = HEADROOM[before];
+    uint8_t next = HEADROOM[after];
+    return next > previous ? (uint8_t)(next - previous) : 0;
+}
 
 typedef enum HalAudioFilter {
     HAL_AUDIO_FILTER_FAST_LOW_LATENCY,

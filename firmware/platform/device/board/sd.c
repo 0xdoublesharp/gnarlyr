@@ -8,14 +8,13 @@
 #include "cru.h"
 #include "device/card_presence.h"
 #include "device/card_write.h"
+#include "device/mmc_clock.h"
 #include "device/sd_card.h"
 #include "gpio.h"
 #include "hal/clock.h"
 #include "mmc.h"
 #include "registers.h"
 
-#define CRU_SD_IDENTIFY 0x009F009Fu
-#define CRU_SD_TRANSFER 0x009F0080u
 #define GRF_SD_MUX_LOW 0x20u
 #define GRF_SD_MUX_LOW_VALUE 0xFC005400u
 #define GRF_SD_MUX_HIGH 0x24u
@@ -24,7 +23,6 @@
 #define GRF_DETECT_MUX_VALUE 0x00C00000u
 #define GRF_DETECT_PULL 0x14u
 #define GRF_DETECT_PULL_VALUE 0x00080008u
-#define CRU_MMC_DIVIDERS 0x30u
 #define STATUS_READY_FOR_DATA (1u << 8)
 #define STATUS_STATE_SHIFT 9
 #define STATUS_STATE_MASK 0xFu
@@ -47,7 +45,7 @@ enum {
 
 static const GpioPin CARD_DETECT = {0, 11};
 static uint32_t sd_fifo_depth;
-const MmcHost SD_MMC_HOST = {SD_BASE, CRU_SD_IDENTIFY, CRU_SD_TRANSFER, &sd_fifo_depth};
+const MmcHost SD_MMC_HOST = {SD_BASE, &sd_fifo_depth};
 
 static SdCard card;
 static bool ready;
@@ -79,10 +77,10 @@ static bool host_command(void *context, SdCommand command, uint32_t response[4])
     return done;
 }
 
-static void host_set_clock(void *context, SdClock clock)
+static bool host_set_clock(void *context, SdClock clock)
 {
     (void)context;
-    mmc_set_clock(&SD_MMC_HOST, clock);
+    return mmc_set_clock(&SD_MMC_HOST, clock);
 }
 
 static void host_set_bus_width(void *context, uint8_t bits)
@@ -115,14 +113,21 @@ static void host_stop(void *context)
 {
     (void)context;
     cru_gate(GATE_SD_CARD_CLOCK, true);
-    mmc_stop_clock(&SD_MMC_HOST);
-    cru_gate(GATE_SD_CARD_CLOCK, false);
-    cru_gate(GATE_SD_BUS, false);
+    if (mmc_stop_clock(&SD_MMC_HOST)) {
+        cru_gate(GATE_SD_CARD_CLOCK, false);
+        cru_gate(GATE_SD_BUS, false);
+    }
+}
+
+static bool host_switch_status(void *context, uint32_t argument, uint32_t status[16])
+{
+    (void)context;
+    return mmc_read_sd_switch(&SD_MMC_HOST, argument, status);
 }
 
 static const SdHost HOST = {host_command, host_set_clock,    host_set_bus_width,
                             host_delay,   host_card_present, host_stop,
-                            NULL};
+                            NULL,         host_switch_status};
 
 CORE_COLD static void start_card_detect(void)
 {
@@ -142,6 +147,7 @@ CORE_COLD static void start_card_detect(void)
 void sd_reset_controller(void)
 {
     cru_reset(RESET_SD, true);
+    mmc_clock_init(&SD_MMC_HOST);
     board_delay_us(RESET_PULSE_US);
     cru_reset(RESET_SD, false);
 }
@@ -151,7 +157,6 @@ CORE_COLD static void clock_controller(void)
     cru_gate(GATE_SD_BUS, true);
     cru_gate(GATE_SD_CARD_CLOCK, true);
     cru_reset(RESET_SD, false);
-    cru_write(CRU_MMC_DIVIDERS, CRU_SD_IDENTIFY);
     register_write(GRF_BASE + GRF_SD_MUX_LOW, GRF_SD_MUX_LOW_VALUE);
     register_write(GRF_BASE + GRF_SD_MUX_HIGH, GRF_SD_MUX_HIGH_VALUE);
     sd_delay_ms(POWER_SETTLE_MS);
@@ -164,7 +169,7 @@ static void power_card_off(void)
     mmc_set_power(&SD_MMC_HOST, false);
 }
 
-static void power_up_card(void)
+static bool power_up_card(void)
 {
     clock_controller();
     start_log.powered_before = mmc_powered(&SD_MMC_HOST);
@@ -172,17 +177,18 @@ static void power_up_card(void)
     sd_delay_ms(CARD_OFF_MS);
     mmc_reset_controller(&SD_MMC_HOST);
     sd_delay_ms(POWER_UP_MS);
-    mmc_set_clock(&SD_MMC_HOST, SD_CLOCK_IDENTIFY);
+    bool clocked = mmc_set_clock(&SD_MMC_HOST, SD_CLOCK_IDENTIFY);
     sd_delay_ms(POWER_SETTLE_MS);
+    return clocked;
 }
 
-CORE_COLD void sd_quiesce(void)
+CORE_SEAM CORE_COLD void sd_quiesce(void)
 {
     if (!controller_on) {
         return;
     }
     clock_controller();
-    if (ready) {
+    if (ready && mmc_set_clock(&SD_MMC_HOST, SD_CLOCK_TRANSFER)) {
         uint32_t none[4] = {0, 0, 0, 0};
         mmc_command(&SD_MMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, false}, none);
     }
@@ -208,10 +214,18 @@ static bool start_card(void)
     if (!start_log.detected) {
         return false;
     }
-    power_up_card();
+    if (!power_up_card()) {
+        host_stop(NULL);
+        return false;
+    }
     uint32_t started_ms = hal_clock_milliseconds();
     start_log.attempts++;
     start_log.ready = sd_card_init(&card, &HOST);
+    if (start_log.ready && card.high_speed &&
+        !mmc_clock_accept(&SD_MMC_HOST, MMC_SD_HIGH_SPEED_MHZ)) {
+        host_stop(NULL);
+        start_log.ready = false;
+    }
     start_log.init_ms = hal_clock_milliseconds() - started_ms;
     return start_log.ready;
 }

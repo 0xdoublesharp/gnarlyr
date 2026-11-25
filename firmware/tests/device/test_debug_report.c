@@ -62,6 +62,7 @@ static void dac_diagnostics_report_cached_reads_and_sequence_durations(void)
     DebugReportInput input = plain_input();
     input.dac = (DacDiagnostics){.up = false,
                                  .valid = 1,
+                                 .overflow = 3,
                                  .power = {0xB6, 0},
                                  .start_us = 12345,
                                  .stop_us = 150123,
@@ -73,6 +74,7 @@ static void dac_diagnostics_report_cached_reads_and_sequence_durations(void)
     CHECK(has_line("dac.start_us: 12345"));
     CHECK(has_line("dac.stop_us: 150123"));
     CHECK(has_line("dac.gain_us: 162123"));
+    CHECK(has_line("dac.overflow: 3"));
 }
 
 static void record(DebugEventKind kind, uint32_t value, const char *label)

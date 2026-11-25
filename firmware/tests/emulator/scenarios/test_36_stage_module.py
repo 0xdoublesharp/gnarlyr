@@ -9,6 +9,7 @@ from echo_image_harness import (
     PLAYBACK_SAFE_START_ROW,
     SETTINGS_PLAYBACK_GROUP,
     SOUND_EQUALIZER_ROW,
+    DAC_MENU_HEADPHONES_ROW,
     DAC_PROMPT_KEYS,
     EchoImageHarness,
     IDENTITY,
@@ -29,9 +30,8 @@ from echo_image_harness import (
 from test_22_meter_styles import MovingFlac
 
 COVER, CASSETTE, VU, SPECTRUM = 0, 1, 2, 3
-QUICK_SETTINGS_STYLE_ROW_FROM_END = 3
-QUICK_SETTINGS_EQUALIZER_ROW = 2
-QUICK_SETTINGS_HEADPHONES_ROW = 3
+QUICK_SETTINGS_EQUALIZER_ROW = 5
+QUICK_SETTINGS_HEADPHONES_ROW = 6
 SETTINGS_EQUALIZER_FIELD = 18
 SETTINGS_LONG_PRESS_FIELD = 59
 LONG_PRESS_SHUFFLE = 4
@@ -48,13 +48,12 @@ PARAMETRIC_BANK_BYTES = 1536
 STORE_BLOCK = 512
 SCREENSHOT_SCRIPT = ["open coverflow", "wait 600", "rescan check", "screenshot after_check",
                      "reconnect"]
-DAC_MENU_HEADPHONES_ROW = 3
 
 ANIMATE_MS = 600
 STRIP_ALBUMS = 3
-BROWSE_SCRIPT = ["set Now Playing style=VU meters", "play", "down,down,play", "wait 600", "play",
+BROWSE_SCRIPT = ["set Now Playing style=VU meters", "play", "down,play", "wait 600", "play",
                  "wait 900", "play", "wait 700", "back", "wait 700", "back", "wait 700", "back",
-                 "wait 400", "down,down,play", "wait 600", "play", "wait 700",
+                 "wait 400", "up,play", "wait 600", "play", "wait 700",
                  "set Now Playing style=Cassette", "wait 300", "play", "wait 900", "menu",
                  "wait 900", "screenshot cassette", "set Now Playing style=VU meters", "wait 900",
                  "screenshot vu", "reconnect"]
@@ -105,7 +104,6 @@ class EchoImageTest(EchoImageHarness):
         self.release_to_first_draw_ms(machine, KEY_MENU)
         rig.run_for(ANIMATE_MS)
         rig.press("menu")
-        rig.press("previous")
         latencies["up_next"] = self.release_to_first_draw_ms(machine, KEY_PLAY)
         rig.press("back")
         rig.run_for(ANIMATE_MS)
@@ -235,7 +233,7 @@ class EchoImageTest(EchoImageHarness):
         _, equalizer = self.module(rig.machine, "equalizer")
         self.assertTrue(equalizer.loaded(rig.machine))
         if first:
-            rig.press_many("previous", QUICK_SETTINGS_STYLE_ROW_FROM_END)
+            rig.press("previous")
         opened = len(watch.loads())
         rig.press("play")
         rig.press_many("next", presses)
@@ -363,7 +361,7 @@ class EchoImageTest(EchoImageHarness):
         return rig, machine, equalizer
 
     def test_the_equalizer_list_keeps_its_names_after_a_usb_session_reloads_the_module(self):
-        rig, machine, equalizer = self.reload_with_a_value_list_open(2, "Equalizer")
+        rig, machine, equalizer = self.reload_with_a_value_list_open(QUICK_SETTINGS_EQUALIZER_ROW, "Equalizer")
         self.assertEqual(EQUALIZER_PRESETS + 1, self.option_count(machine, equalizer))
         rig.press("next")
         rig.press("play")
@@ -371,7 +369,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_the_headphone_list_keeps_its_names_after_a_usb_session_reloads_the_module(self):
-        rig, machine, equalizer = self.reload_with_a_value_list_open(3, "Headphones")
+        rig, machine, equalizer = self.reload_with_a_value_list_open(QUICK_SETTINGS_HEADPHONES_ROW, "Headphones")
         names = equalizer.symbols["headphone_names"]
         pointers = struct.unpack("<5I", machine.read_memory(names, 20))
         self.assertNotIn(0, pointers)

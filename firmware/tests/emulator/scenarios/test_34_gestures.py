@@ -36,7 +36,7 @@ EVENT_NAMES = ("key", "screen", "player", "underrun", "output_underrun", "refusa
                "display_fallback", "ladder")
 ENGINE_STOPPED = 0
 SETTLE_MS = 600
-CHECKS = 3
+CHECKS = 4
 CHECK_GAP_MS = 250
 MP3 = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_192_48k_stereo_bare.mp3"
 MP3_REPEATS = 24
@@ -261,6 +261,9 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(shown, screens(), layers.events(EVENT_CAPACITY))
         self.assertEqual(PLAYER_PLAYING, layers.snapshot()["app"])
         gestures.ladder([(PLAY, LONG_HOLD_MS)])
+        self.assertEqual(shown + 1, screens(), layers.events(EVENT_CAPACITY))
+        self.assertEqual(volume, layers.byte("volume_value"), layers.events())
+        rig.press("back")
         gestures.ladder([(VOLUME_KEYS[1], TAP_MS)])
         rig.run_for(SETTLE_MS)
         self.assertNotEqual(volume, layers.byte("volume_value"), layers.events())

@@ -331,6 +331,10 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
         edit_name(ui, event);
         return screen_action_none();
     }
+    if (ui->mode == MIXTAPE_LIST && event.key == KEY_MENU && event.gesture == KEY_GESTURE_PRESS &&
+        ui->config.player != NULL && ui->config.player->has_track) {
+        return screen_action_push(ui->config.now_playing);
+    }
     ListSelection selection = {.select = select_row, .context = ui};
     ScreenAction action = list_navigation_handle(&ui->list, event, now_ms, selection);
     refresh_labels(ui);
@@ -385,14 +389,17 @@ static void draw_name(const MixtapeUi *ui, Canvas *canvas)
     area.height = theme->metrics.row_height;
     label_draw(canvas, style,
                (Label){area, mixtape_ui_name_view(ui->name, style.font, area.width)});
-    char selected[] = {'[', ' ', ' ', ' ', ']', 0};
-    selected[2] = CHARACTERS[ui->character];
+    int count = (int)sizeof CHARACTERS - 1;
+    char selected[] = {' ', ' ', ' ', ' ', '[', ' ', ']', ' ', ' ', ' ', ' ', 0};
+    selected[0] = CHARACTERS[(ui->character + count - 2) % count];
+    selected[2] = CHARACTERS[(ui->character + count - 1) % count];
+    selected[5] = CHARACTERS[ui->character];
+    selected[8] = CHARACTERS[(ui->character + 1) % count];
+    selected[10] = CHARACTERS[(ui->character + 2) % count];
     area.y += area.height;
     label_draw(canvas, style, (Label){area, selected});
-    static const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
-                                       {FOOTER_KEY_PLAY, STR_HINT_ADD},
+    static const FooterHint hints[] = {{FOOTER_KEY_PLAY, STR_HINT_ADD},
                                        {FOOTER_KEY_MENU, STR_HINT_ERASE},
-                                       {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
                                        {FOOTER_KEY_HOLD_PLAY, STR_HINT_SAVE}};
     FooterHints footer = {
         .items = hints, .count = sizeof hints / sizeof *hints, .align = FOOTER_ALIGN_START};

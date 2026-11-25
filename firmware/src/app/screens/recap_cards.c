@@ -14,6 +14,7 @@
 #include "hal/system.h"
 #include "home_art.h"
 #include "listening_work.h"
+#include "ui/footer_hints.h"
 #include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/message_screen.h"
@@ -509,9 +510,9 @@ static void draw_title_card(ListeningScreen *screen, Pane pane)
                                    inner.width - figure.width - GAP, inner.height};
     draw_figure(screen, pane, figure);
     draw_title_words(screen, pane, words);
-    draw_aligned(pane, (TextStyle){theme->fonts.small, theme->colors.text_secondary, false},
-                 (Rect){inner.x, inner.y + inner.height, inner.width, hint},
-                 i18n_text(STR_RECAP_HINT), 1);
+    const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_NEXT}, {FOOTER_KEY_BACK, STR_DONE}};
+    FooterHints footer = {.items = hints, .count = 2, .align = FOOTER_ALIGN_START};
+    footer_hints_draw(pane.canvas, theme, footer_hints_area(theme, pane.area, footer), footer);
 }
 
 static Color tile_color(const Theme *theme)

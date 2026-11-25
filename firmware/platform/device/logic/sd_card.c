@@ -1,9 +1,13 @@
 #include "device/sd_card.h"
 
+#include "device/mmc_clock.h"
+
 #define VOLTAGE_WINDOW 0x00FF8000u
 #define HIGH_CAPACITY_REQUEST 0x40000000u
 #define CARD_READY 0x80000000u
 #define CARD_HIGH_CAPACITY 0x40000000u
+#define SD_CHECK_HIGH_SPEED 0x00FFFFF1u
+#define SD_SWITCH_HIGH_SPEED 0x80FFFFF1u
 
 enum {
     CMD_GO_IDLE = 0,
@@ -12,6 +16,7 @@ enum {
     CMD_SELECT = 7,
     CMD_SEND_IF_COND = 8,
     CMD_SEND_CSD = 9,
+    CMD_SEND_STATUS = 13,
     CMD_SET_BLOCK_LENGTH = 16,
     CMD_APP = 55,
     ACMD_SET_BUS_WIDTH = 6,
@@ -26,7 +31,13 @@ enum {
     BLOCK_LENGTH = 512,
     SECTOR_SHIFT = 9,
     WIDE_BUS_ARGUMENT = 2,
-    WIDE_BUS_BITS = 4
+    WIDE_BUS_BITS = 4,
+    SWITCH_COMMAND_CLASS_BIT = 94,
+    SWITCH_SUPPORT_BYTE = 13,
+    SWITCH_RESULT_BYTE = 16,
+    SWITCH_VERSION_BYTE = 17,
+    SWITCH_BUSY_BYTE = 29,
+    SWITCH_HIGH_SPEED_BIT = 2
 };
 
 static bool send(const SdHost *host, SdCommand command, uint32_t response[4])
@@ -96,12 +107,13 @@ static bool assign_address(const SdHost *host, SdCard *card)
 
 static uint32_t csd_bits(const uint32_t csd[4], int start, int size)
 {
-    uint32_t value = 0;
-    for (int bit = size - 1; bit >= 0; bit--) {
-        int position = start + bit;
-        value = value << 1 | ((csd[position / 32] >> (position % 32)) & 1u);
+    int word = start / 32;
+    int offset = start % 32;
+    uint32_t value = csd[word] >> offset;
+    if (offset + size > 32) {
+        value |= csd[word + 1] << (32 - offset);
     }
-    return value;
+    return value & ((1u << size) - 1);
 }
 
 static uint32_t csd_sectors(const uint32_t csd[4])
@@ -130,6 +142,7 @@ static bool identify(const SdHost *host, SdCard *card)
         return false;
     }
     card->sector_count = csd_sectors(words);
+    card->high_speed = csd_bits(words, SWITCH_COMMAND_CLASS_BIT, 1) != 0;
     uint32_t write_shift = csd_bits(words, 22, 4);
     uint32_t erase_blocks = csd_bits(words, 46, 1) != 0 ? 1 : csd_bits(words, 39, 7) + 1;
     card->erase_sectors =
@@ -140,8 +153,8 @@ static bool identify(const SdHost *host, SdCard *card)
 static bool select_card(const SdHost *host, SdCard *card)
 {
     uint32_t status = 0;
-    host->set_clock(host->context, SD_CLOCK_TRANSFER);
-    if (!send_short(host, CMD_SELECT, sd_card_rca_argument(card), SD_RESPONSE_SHORT_BUSY,
+    if (!host->set_clock(host->context, SD_CLOCK_TRANSFER) ||
+        !send_short(host, CMD_SELECT, sd_card_rca_argument(card), SD_RESPONSE_SHORT_BUSY,
                     &status)) {
         return false;
     }
@@ -154,10 +167,34 @@ static void widen_bus(const SdHost *host, SdCard *card)
     uint32_t status = 0;
     send_app(host, card, ACMD_SET_CLEAR_CARD_DETECT, 0, &status);
     card->bus_width = 1;
-    if (send_app(host, card, ACMD_SET_BUS_WIDTH, WIDE_BUS_ARGUMENT, &status)) {
+    if (send_app(host, card, ACMD_SET_BUS_WIDTH, WIDE_BUS_ARGUMENT, &status) &&
+        mmc_card_status_ok(status)) {
         host->set_bus_width(host->context, WIDE_BUS_BITS);
         card->bus_width = WIDE_BUS_BITS;
     }
+}
+
+static bool high_speed_status(const uint8_t *status)
+{
+    return (status[SWITCH_SUPPORT_BYTE] & SWITCH_HIGH_SPEED_BIT) != 0 &&
+           (status[SWITCH_RESULT_BYTE] & 0xF) == 1 &&
+           (status[SWITCH_VERSION_BYTE] == 0 ||
+            (status[SWITCH_VERSION_BYTE] == 1 &&
+             (status[SWITCH_BUSY_BYTE] & SWITCH_HIGH_SPEED_BIT) == 0));
+}
+
+static bool switch_high_speed(const SdHost *host, const SdCard *card)
+{
+    uint32_t status[16];
+    const uint8_t *bytes = (const uint8_t *)status;
+    uint32_t response;
+    return host->switch_status(host->context, SD_CHECK_HIGH_SPEED, status) &&
+           high_speed_status(bytes) &&
+           host->switch_status(host->context, SD_SWITCH_HIGH_SPEED, status) &&
+           high_speed_status(bytes) &&
+           send_short(host, CMD_SEND_STATUS, sd_card_rca_argument(card), SD_RESPONSE_SHORT,
+                      &response) &&
+           mmc_transfer_ready(response);
 }
 
 static bool start_card(const SdHost *host, SdCard *card)
@@ -181,6 +218,7 @@ bool sd_card_init(SdCard *card, const SdHost *host)
         return false;
     }
     widen_bus(host, card);
+    card->high_speed = card->high_speed && switch_high_speed(host, card);
     return true;
 }
 

@@ -1,5 +1,9 @@
 #pragma once
 
+#include "device/dac_eq.h"
+
+bool board_audio_encode_eq(const Equalizer *equalizer, uint32_t rate, DacEqProgram *program);
+
 #include <stdbool.h>
 
 #include "device/audio_effects_module.h"

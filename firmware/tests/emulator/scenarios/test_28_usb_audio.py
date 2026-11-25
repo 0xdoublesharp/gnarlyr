@@ -4,8 +4,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, CABLE_STEADY_MS, KEY_NEXT, KEY_PLAY
+from echo_image_harness import (
+    CABLE_STEADY_MS, DAC_MENU_GAIN_ROW, DAC_MENU_VOLUME_ROW, EchoImageHarness, IDENTITY, KEY_NEXT,
+    KEY_PLAY, main, settings_file,
+)
 from usb_audio_host import UsbAudioHost
+from echo_emulator.fat_volume import Fat32Volume
 from echo_emulator.dac_hardware import (
     DAC_GAIN_HIGH_VALUE,
     DAC_GAIN_LOW_VALUE,
@@ -19,7 +23,7 @@ SCENE_BYTES = 96
 SCENE_SEARCH_BYTES = 64
 DAC_BITS = (16, 24, 32)
 KEY_VOLUME_UP = 120
-KEY_VOLUME_DOWN = 100
+KEY_VOLUME_DOWN = 35
 KEY_MENU = 350
 KEY_BACK = 500
 OVERVIEW_COLUMN_X = 192
@@ -92,7 +96,7 @@ class EchoImageTest(EchoImageHarness):
         def count_instruction(uc, address, size, user):
             if not self.write_complete:
                 self.sink_instructions += 1
-        for name in ("usb_audio_sink_write", "headphone_audio_word"):
+        for name in ("usb_audio_sink_write", "sample_word", "headphone_audio_word"):
             first = symbols[name]
             last = min(address for label, address in symbols.items()
                        if address > first and not label.startswith("$"))
@@ -147,6 +151,10 @@ class EchoImageTest(EchoImageHarness):
               "core 0 polling busy 100%%" % (rate, fill * 1000 / rate))
         if rate == 192000:
             print("[USB DAC sink] %.2f%% of 200 MHz at one cycle/instruction, counted directly including unity gain" % sink_share)
+            gap_address = machine.overlays[0].symbols["max_poll_gap_us"]
+            max_gap, = struct.unpack("<I", machine.read_memory(gap_address, 4))
+            print(f"[USB DAC sink] maximum firmware poll gap {max_gap} us")
+            self.assertLessEqual(max_gap, 130)
 
     def test_usb_audio_streams_44100_asynchronous_bit_exact(self):
         self.stream_rate(44100)
@@ -165,6 +173,70 @@ class EchoImageTest(EchoImageHarness):
 
     def test_usb_audio_streams_192000_asynchronous_bit_exact(self):
         self.stream_rate(192000)
+
+    def test_usb_audio_switches_both_dacs_between_dop64_and_pcm(self):
+        volume = Fat32Volume()
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", settings_file(0, b18=7, b35=28),
+                        directory=IDENTITY.data_directory)
+        session, audio, host = self.dac_session(176400, 3, volume=volume)
+        machine = session.machine
+        chips = audio.dac_bus.chips
+        dmac = audio.real_dmac
+        original_push = host.push
+        send_dop = True
+
+        def push(endpoint, payload, packet_type=2):
+            if send_dop and endpoint == 1 and packet_type == 2 and host.width >= 3:
+                payload = bytearray(payload)
+                stride = 2 * host.width
+                first = host.sequence - len(payload) // stride
+                for frame, start in enumerate(range(0, len(payload), stride), first):
+                    marker = 0xFA if frame % 2 else 0x05
+                    payload[start + host.width - 1] = payload[start + stride - 1] = marker
+            original_push(endpoint, payload, packet_type)
+
+        def await_mode(value):
+            result = machine.run(
+                until=lambda: dmac.running and all(regs.get(0x070004) == value
+                                                   for regs in chips.values()),
+                until_ms=machine.milliseconds() + 1000)
+            status = ([regs.get(0x070004) for regs in chips.values()], dmac.starts, host.missed)
+            self.assertEqual(result, "condition met", status)
+            eq = 0xC0 if value == 0x02 else 0
+            self.assertEqual([regs.get(0x09000A) for regs in chips.values()], [eq, eq])
+
+        def change_format(rate, width):
+            host.enabled = False
+            host.format(rate, width)
+
+        await_mode(0x02)
+        coeffs_at_176400 = tuple(chips[DAC_LEFT_ADDRESS][0x09000C + offset] for offset in range(15))
+        host.push = push
+        await_mode(0x52)
+        words = struct.unpack("<8I", machine.read_memory(audio.dma_ring, 32))
+        self.assertEqual(tuple(word >> 24 for word in words),
+                         (0x05, 0x05, 0xFA, 0xFA, 0x05, 0x05, 0xFA, 0xFA))
+        send_dop = False
+        await_mode(0x02)
+        send_dop = True
+        await_mode(0x52)
+        change_format(176400, 2)
+        await_mode(0x02)
+        change_format(176400, 4)
+        await_mode(0x52)
+        change_format(96000, 4)
+        await_mode(0x02)
+        self.assertEqual(audio.rate, 96000)
+        coeffs_at_96000 = tuple(chips[DAC_LEFT_ADDRESS][0x09000C + offset] for offset in range(15))
+        self.assertNotEqual(coeffs_at_176400, coeffs_at_96000)
+        self.assertGreaterEqual(dmac.starts, 7)
+        self.assertEqual(host.missed, 0)
+        machine.vbus = False
+        result = machine.run(until=lambda: all(regs.get(0x09000A) == 0 for regs in chips.values()),
+                             until_ms=machine.milliseconds() + 3000)
+        self.assertEqual(result, "condition met")
+        self.assert_healthy(session)
 
     def test_usb_audio_full_speed_retains_adaptive_fallback(self):
         session, audio, host = self.dac_session(48000, 3, False)
@@ -334,15 +406,36 @@ class EchoImageTest(EchoImageHarness):
         self.assert_stream_clean(audio, host)
         self.assert_healthy(session)
 
+    def assert_volume_hold(self, machine, volumes, key, step):
+        volumes.clear()
+        start = machine.milliseconds()
+        machine.press_key(key, delay_ms=20, hold_ms=650)
+        machine.run(until_ms=start + 250)
+        self.assertEqual(len(volumes), 1)
+        machine.run(until_ms=start + 750)
+        self.assertGreaterEqual(len(volumes), 4)
+        self.assertEqual(volumes, list(range(volumes[0], volumes[-1] + step, step)))
+        released = len(volumes)
+        machine.run(until_ms=start + 900)
+        self.assertEqual(len(volumes), released)
+
     def test_usb_audio_remote_keys_emit_consumer_press_and_release(self):
-        session, audio, host = self.dac_session(48000)
+        from unicorn.arm_const import UC_ARM_REG_R0
+
+        session, _, host = self.dac_session(48000)
         machine = session.machine
+        volumes = []
+        machine.hook_symbol("hal_audio_set_volume", lambda: volumes.append(machine.reg(UC_ARM_REG_R0)))
         self.press(machine, KEY_PLAY)
-        machine.press_key(100, delay_ms=20, hold_ms=650)
-        machine.run(until_ms=machine.milliseconds() + 750)
-        machine.press_key(35, delay_ms=20, hold_ms=650)
-        machine.run(until_ms=machine.milliseconds() + 750)
-        self.assertEqual(host.hid, [0xCD, 0, 0xB5, 0, 0xB6, 0])
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_UP, 1)
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_DOWN, -1)
+        self.press(machine, KEY_MENU)
+        for _ in range(DAC_MENU_VOLUME_ROW):
+            self.press(machine, KEY_VOLUME_UP)
+        self.press(machine, KEY_PLAY)
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_UP, 1)
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_DOWN, -1)
+        self.assertEqual(host.hid, [0xCD, 0])
         self.assert_healthy(session)
 
     def test_usb_audio_recovers_from_incomplete_iso_and_interface_reselect(self):
@@ -536,11 +629,16 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
         self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
         self.press(machine, KEY_MENU)
+        for _ in range(DAC_MENU_VOLUME_ROW):
+            self.press(machine, KEY_VOLUME_UP)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_VOLUME_UP)
         self.press(machine, KEY_VOLUME_DOWN)
         self.press(machine, KEY_PLAY)
-        self.press(machine, KEY_VOLUME_UP)
+        for _ in range(DAC_MENU_VOLUME_ROW - DAC_MENU_GAIN_ROW):
+            self.press(machine, KEY_VOLUME_DOWN)
+        self.press(machine, KEY_PLAY)
+        self.assertTrue(all(regs.get(DAC_GAIN_REGISTER) == 0x30 for regs in dac_bus.chips.values()))
         self.press(machine, KEY_PLAY)
         self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
         self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)

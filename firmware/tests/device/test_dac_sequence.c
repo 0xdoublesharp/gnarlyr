@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 #include "check.h"
-#include "device/dac_sequence.h"
+#include "device/dac_eq.h"
 
 enum {
     LEFT = 0x60,
@@ -13,7 +13,7 @@ enum {
     START_VOLUME = 0x5E
 };
 
-static const DacAnalog STOCK_START = {.gain_high = false, .filter = 0};
+static const DacAnalog STOCK_START = {.gain = HAL_AUDIO_GAIN_LOW, .filter = 0};
 static const uint8_t FILTER_VALUES[DAC_ANALOG_FILTERS] = {0x02, 0x42, 0x82, 0xC2, 0x22};
 
 static const uint32_t IDENTITY_MAPS[IDENTITY_REGISTERS] = {0x010000, 0x010001, 0x010002, 0x010004,
@@ -140,7 +140,7 @@ static void fake_delay(void *context, uint32_t microseconds)
 static DacBus fresh_bus(void)
 {
     fake = (FakeBus){.count = 0};
-    return (DacBus){fake_write, fake_read, fake_pin, fake_delay, NULL};
+    return (DacBus){fake_write, fake_read, fake_pin, fake_delay, NULL, NULL, NULL};
 }
 
 static int cursor;
@@ -392,7 +392,7 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x090000, 0x02));
     CHECK(next_both(0x090001, 0xFF));
     CHECK(next_both(0x090002, 0xFF));
-    CHECK(next_both(0x090003, 0xEC));
+    CHECK(next_both(0x090003, 0xFC));
     CHECK(next_both(0x090004, 0x00));
     CHECK(next_mono_table());
     CHECK(next_both(0x0B0000, 0x1F));
@@ -407,6 +407,9 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x180000, 0x45));
     CHECK(next_both(0x010010, 0x00));
+    CHECK(next_both(0x01000B, 0x01));
+    CHECK(next_both(0x070004, 0x02));
+    CHECK(next_both(0x070006, 0x00));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080032, 0x20));
     CHECK(next_release(LEFT, 0xF6, 0x40));
@@ -416,7 +419,6 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_delay_ms(12));
     CHECK(next_both(0x080032, 0x00));
     CHECK(next_both(0x010010, 0x00));
-    CHECK(next_both(0x01000B, 0x01));
     CHECK_EQUAL(cursor, fake.count);
     CHECK_EQUAL(0xA6, fake.power_control[0]);
     CHECK_EQUAL(0xA6, fake.power_control[1]);
@@ -464,13 +466,13 @@ static DacBus playing_bus(uint8_t left_done_after, uint8_t right_done_after);
 static void every_failed_output_shutdown_transfer_stops_safely(void)
 {
     DacBus bus = playing_bus(0, 0);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int transfers = fake.transfers;
     CHECK(transfers > 8);
     for (int failure = 1; failure <= transfers; failure++) {
         bus = playing_bus(0, 0);
         fake.fail_transfer = failure;
-        dac_output_off(&bus);
+        dac_output_off(&bus, false);
         CHECK(fake.transfers >= failure);
     }
 }
@@ -528,7 +530,7 @@ static bool next_supplies_off(void)
 static void output_off_mutes_then_powers_the_outputs_down_before_the_serial_port(void)
 {
     DacBus bus = playing_bus(0, 0);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     CHECK(next_muted_output());
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080046, 0x21));
@@ -554,7 +556,7 @@ static void output_off_mutes_then_powers_the_outputs_down_before_the_serial_port
 static void output_off_waits_for_both_chips_to_finish_their_output_ramp(void)
 {
     DacBus bus = playing_bus(3, 5);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int waits = 0;
     int serial_port_downs = 0;
     for (int index = 0; index < fake.count && serial_port_downs == 0; index++) {
@@ -569,7 +571,7 @@ static void output_off_waits_for_both_chips_to_finish_their_output_ramp(void)
 static void a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms(void)
 {
     DacBus bus = playing_bus(255, 255);
-    dac_output_off(&bus);
+    dac_output_off(&bus, false);
     int waits = 0;
     for (int index = 0; index < fake.count; index++) {
         waits += fake.ops[index].kind == OP_DELAY && fake.ops[index].value == 5000 ? 1 : 0;
@@ -602,6 +604,78 @@ static void setting_the_volume_writes_pcm_volume_a_on_both_chips(void)
     CHECK_EQUAL(cursor, fake.count);
 }
 
+static uint8_t last_write(uint8_t address, uint32_t map);
+
+static void dop64_configures_and_clears_the_dsd_path_with_the_port_down(void)
+{
+    DacBus bus = fresh_bus();
+    bool dop = true;
+    bus.dop = &dop;
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 5, STOCK_START));
+    bool configured[2] = {false, false};
+    for (int index = 0; index < fake.count; index++) {
+        Op op = fake.ops[index];
+        if (op.kind != OP_WRITE) {
+            continue;
+        }
+        int chip = chip_of(op.address);
+        if (op.map == 0x070004 && op.value == 0x52) {
+            configured[chip] = true;
+        }
+        if (op.map == 0x020000 && (op.value & 0x40) == 0) {
+            CHECK(configured[chip]);
+        }
+    }
+    CHECK(configured[0] && configured[1]);
+    for (int chip = 0; chip < 2; chip++) {
+        uint8_t address = chip == 0 ? LEFT : RIGHT;
+        CHECK_EQUAL(0x05, last_write(address, 0x01000B));
+        CHECK_EQUAL(0x05, last_write(address, 0x01000C));
+        CHECK_EQUAL(0x02, last_write(address, 0x040012));
+        CHECK_EQUAL(chip == 0 ? 0x06 : 0x0E, last_write(address, 0x05000A));
+        CHECK_EQUAL(chip == 0 ? 0x06 : 0x0E, last_write(address, 0x05000B));
+        CHECK_EQUAL(0xD0, last_write(address, 0x070006));
+        CHECK_EQUAL(0xFF, last_write(address, 0x070001));
+    }
+    dac_output_on(&bus, DAC_VOLUME_MUTED);
+    CHECK(dac_set_volume_lr(&bus, 0x30, 0x42));
+    CHECK_EQUAL(0x30, last_write(LEFT, 0x070001));
+    CHECK_EQUAL(0x42, last_write(RIGHT, 0x070001));
+    int begin_shutdown = fake.count;
+    fake.done_after[0] = 255;
+    fake.done_after[1] = 255;
+    dac_output_off(&bus, false);
+    int disabled = 0;
+    int sigctl_cleared = 0;
+    int down = 0;
+    for (int index = begin_shutdown; index < fake.count; index++) {
+        Op op = fake.ops[index];
+        if (op.kind == OP_WRITE && op.map == 0x020000 && (op.value & 0x50) == 0x50) {
+            down++;
+        }
+        if (op.kind == OP_WRITE && op.map == 0x070004 && op.value == 0x02) {
+            CHECK_EQUAL(2, down);
+            disabled++;
+        }
+        if (op.kind == OP_WRITE && op.map == 0x070006 && op.value == 0x00) {
+            CHECK_EQUAL(2, down);
+            sigctl_cleared++;
+        }
+    }
+    CHECK_EQUAL(2, disabled);
+    CHECK_EQUAL(2, sigctl_cleared);
+}
+
+static void setting_independent_volumes_writes_each_chip(void)
+{
+    DacBus bus = fresh_bus();
+    cursor = 0;
+    CHECK(dac_set_volume_lr(&bus, 0x30, 0x31));
+    CHECK(next_one(LEFT, 0x090002, 0x30));
+    CHECK(next_one(RIGHT, 0x090002, 0x31));
+    CHECK_EQUAL(cursor, fake.count);
+}
+
 static bool powered_down_on_both_chips(void)
 {
     return (fake.power_control[0] & 0x10) != 0 && (fake.power_control[1] & 0x10) != 0;
@@ -612,7 +686,7 @@ static int analog_writes_while_powered_up;
 
 static bool counting_write(void *context, uint8_t address, uint32_t map, uint8_t value)
 {
-    if (map == 0x080000 || map == 0x090000) {
+    if (map == 0x080000 || map == 0x090000 || (map >= 0x09000A && map <= 0x090041)) {
         if (powered_down_on_both_chips()) {
             analog_writes_while_powered_down++;
         } else {
@@ -657,19 +731,37 @@ static uint8_t last_write(uint8_t address, uint32_t map)
 static void start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down(void)
 {
     for (uint8_t filter = 0; filter < DAC_ANALOG_FILTERS; filter++) {
-        for (int high = 0; high < 2; high++) {
+        static const uint8_t GAINS[] = {0x20, 0x31, 0x30};
+        for (uint8_t gain = 0; gain < sizeof GAINS; gain++) {
             DacBus bus = counting_bus();
-            DacAnalog analog = {.gain_high = high != 0, .filter = filter};
+            DacAnalog analog = {.gain = gain, .filter = filter};
             CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1, analog));
             CHECK_EQUAL(4, analog_writes_while_powered_down);
             CHECK_EQUAL(0, analog_writes_while_powered_up);
             for (int chip = 0; chip < 2; chip++) {
                 uint8_t address = chip == 0 ? LEFT : RIGHT;
                 CHECK_EQUAL(FILTER_VALUES[filter], last_write(address, 0x090000));
-                CHECK_EQUAL(high ? 0x31 : 0x20, last_write(address, 0x080000));
+                CHECK_EQUAL(GAINS[gain], last_write(address, 0x080000));
             }
         }
     }
+}
+
+static void start_up_selects_the_clock_family_and_wideband_filter(void)
+{
+    const uint8_t clocks[] = {0, 4, 0, 4, 0, 4, 0};
+    for (uint8_t rate = 0; rate < sizeof clocks; rate++) {
+        DacBus bus = fresh_bus();
+        CHECK_EQUAL(DAC_READY, dac_configure(&bus, rate, STOCK_START));
+        CHECK_EQUAL(clocks[rate], last_write(LEFT, 0x010006));
+        CHECK_EQUAL(clocks[rate], last_write(RIGHT, 0x010006));
+        CHECK_EQUAL(rate == 6 ? 0x06 : 0x02, last_write(LEFT, 0x090000));
+        CHECK_EQUAL(rate == 6 ? 0x06 : 0x02, last_write(RIGHT, 0x090000));
+    }
+    DacBus bus = fresh_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, (DacAnalog){.filter = 4}));
+    CHECK_EQUAL(0x22, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0x22, last_write(RIGHT, 0x090000));
 }
 
 static void an_unknown_filter_starts_with_stock_default_filter(void)
@@ -678,6 +770,60 @@ static void an_unknown_filter_starts_with_stock_default_filter(void)
     CHECK_EQUAL(DAC_READY, dac_configure(&bus, 1, (DacAnalog){.filter = DAC_ANALOG_FILTERS}));
     CHECK_EQUAL(0x02, last_write(LEFT, 0x090000));
     CHECK_EQUAL(0x02, last_write(RIGHT, 0x090000));
+}
+
+static void hardware_eq_and_wideband_switch_with_both_outputs_powered_down(void)
+{
+    DacBus bus = counting_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, STOCK_START));
+    const DacEqProgram eq = {.enabled = true, .control1 = 0xC0, .control2 = 8};
+    CHECK_EQUAL(DAC_EQ_ON, dac_sequence_equalizer(&bus, &eq, 0, true));
+    CHECK_EQUAL(0x02, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0xC0, last_write(LEFT, 0x09000A));
+    CHECK_EQUAL(0xC0, last_write(RIGHT, 0x09000A));
+    CHECK_EQUAL(DAC_EQ_OFF, dac_sequence_equalizer(&bus, NULL, 0, true));
+    CHECK_EQUAL(0x06, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0x06, last_write(RIGHT, 0x090000));
+    CHECK_EQUAL(0, last_write(LEFT, 0x09000A));
+    CHECK_EQUAL(0, last_write(RIGHT, 0x09000A));
+    CHECK_EQUAL(0, analog_writes_while_powered_up);
+    CHECK_EQUAL(0xA6, fake.power_control[0]);
+    CHECK_EQUAL(0xA6, fake.power_control[1]);
+}
+
+static bool reject_a_coefficient(void *context, uint8_t address, uint32_t map, uint8_t value)
+{
+    return (map != 0x09000D || address != RIGHT) && counting_write(context, address, map, value);
+}
+
+static void failed_hardware_eq_restores_both_chips_to_wideband_pcm(void)
+{
+    DacBus bus = counting_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, STOCK_START));
+    bus.write = reject_a_coefficient;
+    const DacEqProgram eq = {.enabled = true, .control1 = 0xC0, .control2 = 8};
+    CHECK_EQUAL(DAC_EQ_OFF, dac_sequence_equalizer(&bus, &eq, 0, true));
+    CHECK_EQUAL(0x06, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0x06, last_write(RIGHT, 0x090000));
+    CHECK_EQUAL(0, last_write(LEFT, 0x09000A));
+    CHECK_EQUAL(0, last_write(RIGHT, 0x09000A));
+    CHECK_EQUAL(0, analog_writes_while_powered_up);
+    CHECK_EQUAL(0xA6, fake.power_control[0]);
+    CHECK_EQUAL(0xA6, fake.power_control[1]);
+}
+
+static void wideband_filter_switching_via_nos_powers_the_outputs_down(void)
+{
+    DacBus bus = counting_bus();
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 6, STOCK_START));
+    bool wideband = true;
+    bus.wideband = &wideband;
+    DacAnalog nos = {.filter = 4};
+    CHECK(dac_apply_analog(&bus, STOCK_START, nos));
+    CHECK_EQUAL(0x22, last_write(LEFT, 0x090000));
+    CHECK(dac_apply_analog(&bus, nos, STOCK_START));
+    CHECK_EQUAL(0x06, last_write(LEFT, 0x090000));
+    CHECK_EQUAL(0, analog_writes_while_powered_up);
 }
 
 static bool next_read_modify_write(uint8_t address, uint8_t after)
@@ -693,14 +839,14 @@ static bool next_pcm_muted_for_150_ms(void)
 
 static bool next_pcm_unmuted(void)
 {
-    return next_both(0x090003, 0xEC);
+    return next_both(0x090003, 0xFC);
 }
 
 static void a_gain_change_powers_the_outputs_down_around_the_register_write(void)
 {
     DacBus bus = playing_bus(0, 0);
-    DacAnalog before = {.gain_high = false, .filter = 1};
-    DacAnalog after = {.gain_high = true, .filter = 1};
+    DacAnalog before = {.gain = HAL_AUDIO_GAIN_LOW, .filter = 1};
+    DacAnalog after = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = 1};
     CHECK(dac_apply_analog(&bus, before, after));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080046, 0x21));
@@ -738,7 +884,8 @@ static void the_gain_setting_writes_the_headphone_gain_register(void)
 {
     DacBus bus = playing_bus(3, 5);
     bus.write = guarded_gain_write;
-    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = true}, (DacAnalog){.gain_high = false}));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH},
+                           (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW}));
     int gain_writes = 0;
     for (int index = 0; index < fake.count; index++) {
         Op op = fake.ops[index];
@@ -759,7 +906,8 @@ static void gain_registers_are_written_only_after_both_chips_report_power_down_d
     fake.power_control[1] = 0xA6;
     fake.done_after[0] = 4;
     fake.done_after[1] = 7;
-    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = true}, (DacAnalog){.gain_high = false}));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH},
+                           (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW}));
     CHECK_EQUAL(4, analog_writes_while_powered_down);
     CHECK_EQUAL(0, analog_writes_while_powered_up);
     int waits = 0;
@@ -779,8 +927,8 @@ static void a_filter_change_mutes_the_pcm_path_without_powering_down(void)
 {
     for (uint8_t filter = 0; filter < DAC_ANALOG_FILTERS; filter++) {
         DacBus bus = playing_bus(0, 0);
-        DacAnalog before = {.gain_high = true, .filter = (uint8_t)((filter + 1) % 5)};
-        DacAnalog after = {.gain_high = true, .filter = filter};
+        DacAnalog before = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = (uint8_t)((filter + 1) % 5)};
+        DacAnalog after = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = filter};
         CHECK(dac_apply_analog(&bus, before, after));
         CHECK(next_pcm_muted_for_150_ms());
         CHECK(next_both(0x090000, FILTER_VALUES[filter]));
@@ -793,7 +941,7 @@ static void a_filter_change_mutes_the_pcm_path_without_powering_down(void)
 static void an_unchanged_setting_touches_no_register(void)
 {
     DacBus bus = playing_bus(0, 0);
-    DacAnalog same = {.gain_high = true, .filter = 3};
+    DacAnalog same = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = 3};
     CHECK(dac_apply_analog(&bus, same, same));
     CHECK_EQUAL(0, fake.count);
 }
@@ -808,8 +956,8 @@ static void an_unknown_filter_is_refused_without_touching_a_register(void)
 static void an_unknown_chip_state_rewrites_gain_and_filter(void)
 {
     DacBus bus = playing_bus(0, 0);
-    DacAnalog unknown = {.gain_high = true, .filter = DAC_ANALOG_UNKNOWN};
-    CHECK(dac_apply_analog(&bus, unknown, (DacAnalog){.gain_high = true, .filter = 1}));
+    DacAnalog unknown = {.gain = HAL_AUDIO_GAIN_HIGH, .filter = DAC_ANALOG_UNKNOWN};
+    CHECK(dac_apply_analog(&bus, unknown, (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH, .filter = 1}));
     bool gain_written = false;
     for (int index = 0; index < fake.count; index++) {
         gain_written |= fake.ops[index].kind == OP_WRITE && fake.ops[index].map == 0x080000;
@@ -821,14 +969,16 @@ static void a_silent_bus_fails_a_gain_change(void)
 {
     DacBus bus = playing_bus(0, 0);
     fake.silent = true;
-    CHECK(!dac_apply_analog(&bus, (DacAnalog){.gain_high = false}, (DacAnalog){.gain_high = true}));
+    CHECK(!dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW},
+                            (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH}));
     CHECK(!dac_apply_analog(&bus, (DacAnalog){.filter = 0}, (DacAnalog){.filter = 4}));
 }
 
 static void a_gain_timeout_never_writes_gain_or_releases_the_outputs(void)
 {
     DacBus bus = playing_bus(255, 255);
-    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain_high = false}, (DacAnalog){.gain_high = true}));
+    CHECK(dac_apply_analog(&bus, (DacAnalog){.gain = HAL_AUDIO_GAIN_LOW},
+                           (DacAnalog){.gain = HAL_AUDIO_GAIN_HIGH}));
     CHECK_EQUAL(0x31, last_write(LEFT, 0x080000));
     CHECK_EQUAL(0x31, last_write(RIGHT, 0x080000));
     CHECK_EQUAL(0xA6, fake.power_control[0]);
@@ -924,9 +1074,41 @@ static void a_silent_bus_leaves_the_level_stale_until_a_request_gets_through(voi
     CHECK_EQUAL(255, last_volume_written());
 }
 
+static void balance_quantizes_and_preserves_the_mute_code(void)
+{
+    CHECK_EQUAL(0, dac_balance_attenuation(65536, 65536));
+    CHECK_EQUAL(12, dac_balance_attenuation(32768, 65536));
+    CHECK_EQUAL(40, dac_balance_attenuation(6554, 65536));
+    CHECK_EQUAL(80, dac_balance_attenuation(655, 65536));
+    CHECK_EQUAL(DAC_VOLUME_MUTED, dac_balance_attenuation(0, 65536));
+    CHECK_EQUAL(254, dac_balance_volume(250, 12));
+    CHECK_EQUAL(DAC_VOLUME_MUTED, dac_balance_volume(255, 0));
+    CHECK_EQUAL(DAC_VOLUME_MUTED, dac_balance_volume(0, 255));
+}
+
+static void stereo_ramps_preserve_targets_and_retry_partial_writes(void)
+{
+    DacBus bus = fresh_bus();
+    DacStereoLevel level = {.left = 100, .right = 112};
+    DacStereoLevel target = {.left = 112, .right = 130};
+    fake.fail_transfer = 4;
+    CHECK(!dac_fade_volume_lr(&bus, &level, target, 50));
+    CHECK(level.stale);
+    CHECK_EQUAL(106, level.left);
+    CHECK_EQUAL(118, level.right);
+    fake.fail_transfer = 0;
+    CHECK(dac_fade_volume_lr(&bus, &level, target, 50));
+    CHECK_EQUAL(112, level.left);
+    CHECK_EQUAL(130, level.right);
+    CHECK(!level.stale);
+    CHECK_EQUAL(150, fake.elapsed_us);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(balance_quantizes_and_preserves_the_mute_code),
+        TEST_CASE(stereo_ramps_preserve_targets_and_retry_partial_writes),
         TEST_CASE(the_power_pins_pulse_reset_as_in_the_facts),
         TEST_CASE(the_probe_writes_map_zero_to_both_chips),
         TEST_CASE(a_silent_bus_fails_the_probe),
@@ -950,7 +1132,13 @@ int main(void)
         TEST_CASE(a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms),
         TEST_CASE(muting_holds_the_pin_and_mutes_both_chips),
         TEST_CASE(setting_the_volume_writes_pcm_volume_a_on_both_chips),
+        TEST_CASE(setting_independent_volumes_writes_each_chip),
+        TEST_CASE(dop64_configures_and_clears_the_dsd_path_with_the_port_down),
         TEST_CASE(start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down),
+        TEST_CASE(start_up_selects_the_clock_family_and_wideband_filter),
+        TEST_CASE(hardware_eq_and_wideband_switch_with_both_outputs_powered_down),
+        TEST_CASE(failed_hardware_eq_restores_both_chips_to_wideband_pcm),
+        TEST_CASE(wideband_filter_switching_via_nos_powers_the_outputs_down),
         TEST_CASE(an_unknown_filter_starts_with_stock_default_filter),
         TEST_CASE(a_gain_change_powers_the_outputs_down_around_the_register_write),
         TEST_CASE(gain_registers_are_written_only_after_both_chips_report_power_down_done),

@@ -1,52 +1,52 @@
 #include "device/usb_audio_hid.h"
 
+#include "core/deadline.h"
+
 enum {
-    HOLD_MS = 400
+    HOLD_MS = 350,
+    REPEAT_MS = 75
 };
 
-static void enqueue(UsbAudioHid *hid, uint16_t usage)
+int usb_audio_hid_tick(UsbAudioHid *hid, uint32_t now_ms)
 {
-    if (hid->count < USB_AUDIO_HID_QUEUE) {
-        hid->queue[(hid->head + hid->count) % USB_AUDIO_HID_QUEUE] = usage;
-        hid->count++;
+    if (hid->volume_step == 0 || !deadline_reached(now_ms, hid->repeat_ms)) {
+        return 0;
     }
-}
-
-void usb_audio_hid_tick(UsbAudioHid *hid, uint32_t now_ms)
-{
-    for (uint8_t index = 0; index < 2; index++) {
-        uint8_t mask = (uint8_t)(1u << index);
-        if ((hid->held & mask) != 0 && (hid->skipped & mask) == 0 &&
-            now_ms - hid->pressed_ms[index] >= HOLD_MS) {
-            enqueue(hid, index == 0 ? USB_AUDIO_HID_NEXT : USB_AUDIO_HID_PREVIOUS);
-            hid->skipped |= mask;
-        }
-    }
+    hid->repeat_ms = now_ms + REPEAT_MS;
+    return hid->volume_step;
 }
 
 int usb_audio_hid_key(UsbAudioHid *hid, Key key, bool pressed, uint32_t now_ms)
 {
     if (key == KEY_PLAY) {
         if (pressed) {
-            enqueue(hid, USB_AUDIO_HID_PLAY_PAUSE);
+            usb_audio_hid_enqueue(hid, USB_AUDIO_HID_PLAY_PAUSE);
         }
         return 0;
     }
     if (key != KEY_VOLUME_UP && key != KEY_VOLUME_DOWN) {
         return 0;
     }
-    uint8_t index = key == KEY_VOLUME_UP ? 0 : 1;
-    uint8_t mask = (uint8_t)(1u << index);
-    if (pressed) {
-        hid->pressed_ms[index] = now_ms;
-        hid->held |= mask;
-        hid->skipped &= (uint8_t)~mask;
-        return 0;
+    int8_t step = key == KEY_VOLUME_UP ? 1 : -1;
+    if (step != hid->volume_step && pressed) {
+        hid->volume_step = step;
+        hid->repeat_ms = now_ms + HOLD_MS;
+        return step;
     }
-    usb_audio_hid_tick(hid, now_ms);
-    bool tap = (hid->held & mask) != 0 && (hid->skipped & mask) == 0;
-    hid->held &= (uint8_t)~mask;
-    return tap ? (index == 0 ? 1 : -1) : 0;
+    if (step == hid->volume_step && !pressed) {
+        hid->volume_step = 0;
+    }
+    return 0;
+}
+
+bool usb_audio_hid_enqueue(UsbAudioHid *hid, uint8_t usage)
+{
+    if (usage == 0 || hid->count == USB_AUDIO_HID_QUEUE) {
+        return false;
+    }
+    hid->queue[(hid->head + hid->count) % USB_AUDIO_HID_QUEUE] = usage;
+    hid->count++;
+    return true;
 }
 
 bool usb_audio_hid_report(const UsbAudioHid *hid, uint16_t *usage)
@@ -64,8 +64,8 @@ void usb_audio_hid_sent(UsbAudioHid *hid)
         return;
     }
     if (hid->releasing) {
-        hid->head = (uint8_t)((hid->head + 1) % USB_AUDIO_HID_QUEUE);
         hid->count--;
+        hid->head = (uint8_t)((hid->head + 1) % USB_AUDIO_HID_QUEUE);
     }
     hid->releasing = !hid->releasing;
 }

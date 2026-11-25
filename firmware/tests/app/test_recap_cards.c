@@ -16,7 +16,7 @@
 enum {
     DAY = 86400,
     HOUR = 3600,
-    RECAP_ROW = 5,
+    RECAP_ROW = 0,
     TICK_LIMIT = 2000,
     SETTLE_TICKS = 200,
     SAMPLE_PLAYS = 40,
@@ -449,7 +449,7 @@ static void check_card(int card)
     CHECK((card >= 2 && card <= 4) || card == FULL_DECK - 1 || !saw("\xE2\x80\xA6"));
     if (card == 0) {
         CHECK(saw_whole(STR_RECAP_YOUR_MONTH));
-        CHECK(saw_whole(STR_RECAP_HINT));
+        CHECK(saw_whole(STR_HINT_NEXT) && saw_whole(STR_DONE));
     } else if (card == 1) {
         CHECK(saw_whole(STR_LISTENING_PLAYS) && saw_whole(STR_ARTISTS));
     } else if (card == 5) {

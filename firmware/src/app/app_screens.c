@@ -22,32 +22,32 @@ typedef enum MusicSource {
 } MusicSource;
 
 typedef struct MusicEntry {
-    StringId label;
-    MusicSource source;
-    BrowseKind kind;
+    uint16_t label;
+    uint8_t source;
+    uint8_t kind;
 } MusicEntry;
 
 enum {
-    MUSIC_COVER_FLOW_ENTRY = 1,
-    MUSIC_ARTISTS_ENTRY = 2,
-    MUSIC_ALBUMS_ENTRY = 4,
-    MUSIC_PLAYLISTS_ENTRY = 8,
-    MUSIC_FAVORITES_ENTRY = 9
+    MUSIC_ALBUMS_ENTRY = 0,
+    MUSIC_ARTISTS_ENTRY = 1,
+    MUSIC_FAVORITES_ENTRY = 2,
+    MUSIC_PLAYLISTS_ENTRY = 3,
+    MUSIC_COVER_FLOW_ENTRY = 5
 };
 
 static const MusicEntry MUSIC_ENTRIES[MUSIC_ITEM_COUNT] = {
-    {STR_SEARCH, MUSIC_SEARCH, BROWSE_ALL_SONGS},
-    {STR_COVER_FLOW, MUSIC_COVER_FLOW, BROWSE_ALBUMS},
-    {STR_ARTISTS, MUSIC_LIBRARY, BROWSE_ARTISTS},
-    {STR_ALBUM_ARTISTS, MUSIC_LIBRARY, BROWSE_ALBUM_ARTISTS},
     {STR_ALBUMS, MUSIC_LIBRARY, BROWSE_ALBUMS},
-    {STR_GENRES, MUSIC_LIBRARY, BROWSE_GENRES},
-    {STR_FOLDERS, MUSIC_LIBRARY, BROWSE_FOLDER},
-    {STR_ALL_SONGS, MUSIC_LIBRARY, BROWSE_ALL_SONGS},
-    {STR_PLAYLISTS, MUSIC_LIBRARY, BROWSE_PLAYLISTS},
+    {STR_ARTISTS, MUSIC_LIBRARY, BROWSE_ARTISTS},
     {STR_FAVORITES, MUSIC_FAVORITES, BROWSE_ALBUMS},
+    {STR_PLAYLISTS, MUSIC_LIBRARY, BROWSE_PLAYLISTS},
+    {STR_FOLDERS, MUSIC_LIBRARY, BROWSE_FOLDER},
+    {STR_COVER_FLOW, MUSIC_COVER_FLOW, BROWSE_ALBUMS},
     {STR_SMART_LISTS, MUSIC_SMART, BROWSE_ALL_SONGS},
+    {STR_ALL_SONGS, MUSIC_LIBRARY, BROWSE_ALL_SONGS},
+    {STR_ALBUM_ARTISTS, MUSIC_LIBRARY, BROWSE_ALBUM_ARTISTS},
+    {STR_GENRES, MUSIC_LIBRARY, BROWSE_GENRES},
     {STR_PERSONAL_TAGS, MUSIC_TAGS, BROWSE_ALL_SONGS},
+    {STR_SEARCH, MUSIC_SEARCH, BROWSE_ALL_SONGS},
 };
 
 static bool player_has_track(const void *context)
@@ -233,21 +233,23 @@ static MenuItem music_item(AppScreens *screens, const LibraryStore *store, int i
         ScreenAction (*select)(void *) = entry->source == MUSIC_SEARCH ? open_search
                                          : entry->source == MUSIC_TAGS ? open_my_tags
                                                                        : open_smart_lists;
-        return (MenuItem){
-            .label = i18n_text(entry->label), .select = select, .context = screens, .opens = true};
+        return (MenuItem){.label = i18n_text((StringId)entry->label),
+                          .select = select,
+                          .context = screens,
+                          .opens = true};
     }
     screens->browse_entries[index] = (BrowseEntry){
         .pool = &screens->browse,
         .store = store,
         .unavailable = &screens->no_library.screen,
-        .query = browse_root_query(entry->kind),
+        .query = browse_root_query((BrowseKind)entry->kind),
         .favorites = entry->source == MUSIC_FAVORITES,
         .fixed =
             entry->source == MUSIC_COVER_FLOW ? &screens->modules.playing.cover_flow.screen : NULL,
         .shelf = SPOKEN_NONE,
         .present = true,
     };
-    return (MenuItem){.label = i18n_text(entry->label),
+    return (MenuItem){.label = i18n_text((StringId)entry->label),
                       .select = open_browse,
                       .context = &screens->browse_entries[index],
                       .value = NULL,
@@ -301,8 +303,8 @@ static void build_music(AppScreens *screens, AppScreensContext context)
     };
     browse_pool_init(&screens->browse, browse);
     static const IconId icons[MUSIC_ITEM_COUNT] = {
-        ICON_SEARCH, ICON_COVER_FLOW, ICON_ARTIST,   ICON_ALBUM_ARTIST, ICON_ALBUM, ICON_GENRE,
-        ICON_FOLDER, ICON_SONG,       ICON_PLAYLIST, ICON_FAVORITE,     ICON_QUEUE, ICON_GENRE};
+        ICON_ALBUM, ICON_ARTIST, ICON_FAVORITE,     ICON_PLAYLIST, ICON_FOLDER, ICON_COVER_FLOW,
+        ICON_QUEUE, ICON_SONG,   ICON_ALBUM_ARTIST, ICON_GENRE,    ICON_TAG,    ICON_SEARCH};
     for (int index = 0; index < MUSIC_ITEM_COUNT; index++) {
         screens->music_items[index] = music_item(screens, context.store, index);
         screens->music_items[index].icon = (uint8_t)icons[index];

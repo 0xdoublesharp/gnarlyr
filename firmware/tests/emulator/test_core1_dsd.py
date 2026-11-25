@@ -17,6 +17,39 @@ FRAMES = 4 * 4096 + 1000
 
 
 class DsdProgramTest(unittest.TestCase):
+    def test_dop64_packs_bit_exact_frames_within_the_100_mhz_budget(self):
+        program = Path(ARGUMENTS["program"]).read_bytes()
+        data, _ = signal(2822400, frames=FRAMES, channels=2)
+        reversed_byte = bytes(int(f"{value:08b}"[::-1], 2) for value in range(256))
+        for container, extension in ((dsf, "dsf"), (dff, "dff")):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                source = root / f"music.{extension}"
+                transport, pcm = root / "transport.bin", root / "pcm.bin"
+                source.write_bytes(container(data, 2822400))
+                subprocess.run([ARGUMENTS["tool"], source, transport, pcm], check=True)
+                stream = bytearray(transport.read_bytes())
+            stream[31] |= 0x80
+            ready = []
+            for result, first, count, channels, instructions in decode_stream(
+                    program, bytes(stream), 2, 24, 0, ring_bytes=32768):
+                if result != 0:
+                    self.assertEqual(2, result)
+                    continue
+                self.assertEqual(ready[-1][0] if ready else 0, first)
+                for raw, decoded in zip(data, channels):
+                    ordered = raw[2 * first:2 * (first + count)].translate(reversed_byte)
+                    expected = [((0x05 if frame % 2 == 0 else 0xFA) << 16)
+                                | (ordered[2 * at] << 8) | ordered[2 * at + 1]
+                                for at, frame in enumerate(range(first, first + count))]
+                    self.assertEqual(expected, [value & 0xFFFFFF for value in decoded])
+                ready.append((first + count, instructions))
+            self.assertEqual(2 * FRAMES, ready[-1][0])
+            worst = max(round((after[1] - before[1]) * 3528 / (after[0] - before[0]))
+                        for before, after in zip(ready[:-2], ready[1:-1]))
+            print(f"DoP64 stereo {extension}: {worst:,} peak instructions per 20 ms", flush=True)
+            self.assertLess(worst, 300_000)
+
     def test_dsf_and_dff_match_native_pcm_and_report_steady_instruction_cost(self):
         program = Path(ARGUMENTS["program"]).read_bytes()
         report = []

@@ -54,6 +54,7 @@ add_library(echo_app STATIC
     bluetooth_link.c
     bluetooth_link_ui.c
     bluetooth_store.c
+    bluetooth_store_read.c
     board_layout.c
     board_cover_layout.c
     browse_screen.c
@@ -87,6 +88,8 @@ add_library(echo_app STATIC
     language_module.c
     library_rescan.c
     music_check.c
+    music_check_boot.c
+    music_check_version.c
     music_walk.c
     music_record.c
     library_store.c

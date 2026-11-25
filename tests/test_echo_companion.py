@@ -282,7 +282,8 @@ class CompanionSettings(VolumeCase):
 
     def test_when_plugged_in_reads_the_saved_answer_and_usb_power(self):
         for flags, care, expected in ((0x04, 0, "ask"), (0x14, 0, "computer"), (0x24, 0, "charge"),
-                                      (0x24, 0x10, "run_from_usb"), (0x34, 0, "dac")):
+                                      (0x24, 0x10, "run_from_usb"), (0x34, 0, "dac"),
+                                      (0x24, 0x18, "charge_80")):
             with self.subTest(expected=expected):
                 data = bytearray(self.path.read_bytes())
                 data[5], data[52] = flags, care
@@ -293,7 +294,7 @@ class CompanionSettings(VolumeCase):
                 self.assertEqual(listed["when_plugged_in"]["value"], expected)
                 self.assertEqual([option["label"] for option in listed["when_plugged_in"]["options"]],
                                  ["Ask", "Connect to computer", "Charge & play", "Run from USB power",
-                                  "USB audio (DAC)"])
+                                  "USB audio (DAC)", "Battery care (80%)"])
 
     def test_when_plugged_in_set_to_computer_sends_the_settings_row_and_verifies_the_answer(self):
         tool, _ = self.tool(self.change(5, 0x14))
@@ -517,7 +518,7 @@ class CompanionSettings(VolumeCase):
 
     def test_extension_values_the_firmware_rejects_are_refused_before_writes(self):
         cases = ((38, 0x18), (38, 0x20), (39, 61), (40, 4), (40, 61), (41, 7), (41, 0xFD), (42, 0x00),
-                 (46, 0x18), (47, 0x08), (48, 0x02), (50, 4), (52, 0x05), (52, 0x18), (53, 0x80))
+                 (46, 0x18), (47, 0x08), (48, 0x02), (50, 4), (52, 0x05), (53, 0x80))
         for offset, value in cases:
             with self.subTest(offset=offset, value=value):
                 data = bytearray(saved_settings())

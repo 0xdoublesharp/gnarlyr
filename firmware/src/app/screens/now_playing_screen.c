@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "app/debug_loop.h"
+#include "app_screens.h"
 #include "board_layout.h"
 #include "cassette_art.h"
 #include "core/deadline.h"
@@ -331,6 +332,23 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     return action;
 }
 
+static ScreenAction handle_app_key(void *context, KeyEvent event, uint32_t now_ms)
+{
+    if (event.key != KEY_PLAY || event.gesture != KEY_GESTURE_LONG_PRESS ||
+        event.chord != KEY_CHORD_NONE) {
+        return handle_key(context, event, now_ms);
+    }
+    NowPlayingScreen *now_playing = context;
+    refresh(now_playing, now_ms);
+    if (!now_playing->status.has_track) {
+        return screen_action_none();
+    }
+    AppScreens *screens = (AppScreens *)((char *)now_playing - offsetof(AppScreens, now_playing));
+    Screen *actions = browse_pool_song_actions(&screens->browse, now_playing->status.track,
+                                               now_playing->title, now_ms);
+    return screen_action_push(actions);
+}
+
 static void enter(void *context, uint32_t now_ms)
 {
     NowPlayingScreen *now_playing = context;
@@ -643,15 +661,23 @@ static uint32_t whole_seconds_left(uint32_t position_ms, uint32_t duration_ms)
 }
 
 static void draw_place(const NowPlayingScreen *now_playing, Canvas *canvas, TextStyle style,
-                       Rect area)
+                       Rect area, const char *left, const char *right)
 {
+    if (now_playing->status.place.total == 0) {
+        return;
+    }
     char place[TIME_CAPACITY * 2];
     StringBuilder builder = string_builder_make(place, sizeof place);
-    if (now_playing->status.place.total > 0) {
-        i18n_format_counts(&builder, STR_PLACE, now_playing->status.place.number,
-                           now_playing->status.place.total);
+    i18n_format_counts(&builder, STR_PLACE, now_playing->status.place.number,
+                       now_playing->status.place.total);
+    int center = text_width(style.font, place);
+    int offset = (area.width - center) / 2;
+    int left_edge = TRANSPORT_ICON + 2 * TRANSPORT_GAP + text_width(style.font, left);
+    int right_edge = area.width - TRANSPORT_GAP - text_width(style.font, right);
+    if (left_edge <= offset && offset + center <= right_edge) {
+        label_draw(canvas, style,
+                   (Label){.area = {area.x + offset, area.y, center, area.height}, .text = place});
     }
-    draw_aligned(canvas, style, area, place, 1);
 }
 
 static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas, Rect area)
@@ -666,17 +692,20 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas, Rect
     const char *left = elapsed;
     const char *right = remaining;
     bool preview = previewing(now_playing);
+    bool volume = !preview && showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME);
     if (preview) {
         right = i18n_text(STR_SCRUB_PREVIEW);
         marquee_watch(MARQUEE_STEP_MS);
-    } else if (showing(now_playing, NOW_PLAYING_FEEDBACK_VOLUME)) {
+    } else if (volume) {
         left = i18n_text(STR_VOLUME);
         StringBuilder level = string_builder_make(remaining, sizeof remaining);
         string_builder_append_unsigned(&level, now_playing->status.volume);
     }
     TextStyle style = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
     watch_position(now_playing, MARQUEE_BAND_TIME, area);
-    draw_place(now_playing, canvas, style, area);
+    if (!preview && !volume) {
+        draw_place(now_playing, canvas, style, area, left, right);
+    }
     Rect icon = {area.x, area.y + (area.height - TRANSPORT_ICON) / 2, TRANSPORT_ICON,
                  TRANSPORT_ICON};
     IconId state = now_playing->status.state == PLAYER_PAUSED ? ICON_PAUSE : ICON_PLAY;
@@ -688,17 +717,16 @@ static void draw_times(const NowPlayingScreen *now_playing, Canvas *canvas, Rect
     draw_aligned(canvas, style, area, right, 2);
 }
 
-static void modes_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
+static void modes_text(const NowPlayingScreen *now_playing, StringBuilder *builder)
 {
     const PlayerStatus *status = &now_playing->status;
     const Settings *settings = now_playing->config.settings;
-    StringBuilder builder = string_builder_make(buffer, capacity);
     if (status->repeat != REPEAT_OFF) {
-        join(&builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
+        join(builder, i18n_text(status->repeat == REPEAT_ONE ? STR_REPEAT_ONE : STR_REPEAT_ALL));
     }
     if (settings != NULL && settings->playback_speed != SETTINGS_SPEED_NORMAL &&
         settings->playback_speed < SETTINGS_SPEED_COUNT) {
-        join(&builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
+        join(builder, i18n_text(SETTINGS_SPEED_LABELS[settings->playback_speed]));
     }
 }
 
@@ -720,17 +748,19 @@ static void tape_text(const NowPlayingScreen *now_playing, char *buffer, size_t 
 
 static void status_text(const NowPlayingScreen *now_playing, char *buffer, size_t capacity)
 {
-    modes_text(now_playing, buffer, capacity);
+    StringBuilder builder = string_builder_make(buffer, capacity);
+    modes_text(now_playing, &builder);
     if (now_playing->config.player != NULL && now_playing->config.player->cassette.active) {
-        tape_text(now_playing, buffer, capacity);
+        char tape[STATUS_CAPACITY];
+        tape_text(now_playing, tape, sizeof tape);
+        join(&builder, tape);
     }
     if (now_playing->status.ab_repeat != 0 ||
         (now_playing->repeat_feedback_ms != 0 &&
          !deadline_elapsed(now_playing->now_ms, now_playing->repeat_feedback_ms,
                            NOW_PLAYING_BADGE_MS))) {
         static const StringId states[] = {STR_AB_OFF, STR_AB_A, STR_AB_LOOP};
-        StringBuilder repeat = string_builder_make(buffer, capacity);
-        string_builder_append(&repeat, i18n_text(states[now_playing->status.ab_repeat]));
+        join(&builder, i18n_text(states[now_playing->status.ab_repeat]));
     }
 }
 
@@ -742,8 +772,9 @@ static bool lyrics_cued(const NowPlayingScreen *now_playing)
 {
     return now_playing->config.lyrics != NULL &&
            (now_playing->config.settings == NULL ||
-            settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
-                BUTTON_ACTION_DEFAULT);
+            (now_playing->config.settings->long_press_action == 0 &&
+             settings_button_action(now_playing->config.settings, PLAYBACK_MENU_HOLD) ==
+                 BUTTON_ACTION_DEFAULT));
 }
 
 static void draw_cue(const NowPlayingScreen *now_playing, Canvas *canvas, Rect area)
@@ -842,7 +873,7 @@ static void draw(void *context, Canvas *canvas)
     draw_transport(now_playing, canvas, frame);
 }
 
-void now_playing_screen_attach(NowPlayingScreen *now_playing)
+static void attach(NowPlayingScreen *now_playing)
 {
     now_playing->screen.enter = enter;
     now_playing->screen.handle_key = handle_key;
@@ -851,9 +882,15 @@ void now_playing_screen_attach(NowPlayingScreen *now_playing)
     now_playing->screen.untitled_header = false;
 }
 
+void now_playing_screen_attach(NowPlayingScreen *now_playing)
+{
+    attach(now_playing);
+    now_playing->screen.handle_key = handle_app_key;
+}
+
 Screen *now_playing_screen_init(NowPlayingScreen *now_playing, NowPlayingConfig config)
 {
     now_playing_screen_setup(now_playing, config);
-    now_playing_screen_attach(now_playing);
+    attach(now_playing);
     return &now_playing->screen;
 }

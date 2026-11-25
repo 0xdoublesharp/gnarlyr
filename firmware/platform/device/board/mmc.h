@@ -28,8 +28,6 @@ typedef struct MmcFailure {
 
 typedef struct MmcHost {
     uint32_t base;
-    uint32_t cru_identify;
-    uint32_t cru_transfer;
     uint32_t *fifo_depth;
 } MmcHost;
 
@@ -45,11 +43,16 @@ bool mmc_read_blocks(const MmcHost *host, uint32_t address, uint32_t count, uint
 bool mmc_write_blocks(const MmcHost *host, uint8_t index, uint32_t address, uint32_t count,
                       const uint32_t *words);
 bool mmc_stop(const MmcHost *host, uint32_t argument);
-void mmc_set_clock(const MmcHost *host, SdClock clock);
+bool mmc_set_clock(const MmcHost *host, SdClock clock);
+void mmc_clock_init(const MmcHost *host);
+bool mmc_clock_accept(const MmcHost *host, uint8_t limit_mhz);
+bool mmc_park_pll(void);
+void mmc_resume_pll(uint32_t mhz);
 void mmc_set_bus_width(const MmcHost *host, uint8_t bits);
-void mmc_stop_clock(const MmcHost *host);
+bool mmc_stop_clock(const MmcHost *host);
 void mmc_note_failure(const MmcHost *host, MmcStep step);
 MmcFailure mmc_last_failure(void);
 bool mmc_wait_not_busy(const MmcHost *host);
 
+bool mmc_read_sd_switch(const MmcHost *host, uint32_t argument, uint32_t words[16]);
 bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16]);

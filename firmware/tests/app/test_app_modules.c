@@ -33,7 +33,12 @@ enum {
     HOME_SETTINGS_ROW = 5,
     SETTINGS_PLAYBACK_ROW = 1,
     SETTINGS_CONNECTIONS_ROW = 5,
-    CONNECTIONS_BLUETOOTH_ROW = 2,
+    MUSIC_ALBUMS_ROW = 0,
+    MUSIC_ARTISTS_ROW = 1,
+    MUSIC_COVER_FLOW_ROW = 5,
+    MUSIC_SMART_LISTS_ROW = 6,
+    MUSIC_ALL_SONGS_ROW = 7,
+    MUSIC_GENRES_ROW = 9,
     SETTINGS_LIBRARY_ROWS_UP = 2,
     LIBRARY_FORMAT_ROWS_UP = 1,
     SCRIPT_STEP_MS = 8,
@@ -117,24 +122,24 @@ static void start_app_with_style(NowPlayingStyle style)
     app_start();
 }
 
-static void open_music(void)
-{
-    tap(KEY_PLAY);
-    wait_ms(SLIDE_DURATION_MS);
-    tap(KEY_VOLUME_UP);
-}
-
-static void open_cover_flow(void)
-{
-    open_music();
-    tap(KEY_PLAY);
-}
-
 static void move_down(int times)
 {
     for (int count = 0; count < times; count++) {
         tap(KEY_VOLUME_UP);
     }
+}
+
+static void select_music_row(int row)
+{
+    tap(KEY_PLAY);
+    wait_ms(SLIDE_DURATION_MS);
+    move_down(row);
+}
+
+static void open_cover_flow(void)
+{
+    select_music_row(MUSIC_COVER_FLOW_ROW);
+    tap(KEY_PLAY);
 }
 
 static void open_settings(void)
@@ -176,11 +181,12 @@ static void delete_and_clear_questions_belong_to_the_modules_that_draw_them(void
                 screen_modules_of(&isolated, &isolated.modules.listening.moments.screen));
 }
 
-static void search_is_the_first_music_entry_and_loads_the_library_module(void)
+static void search_is_the_last_music_entry_and_loads_the_library_module(void)
 {
     start_app();
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(title_is("Search"));
     CHECK_EQUAL(SCREEN_MODULE_LIBRARY, (int)fake_hal_loaded_module());
@@ -189,11 +195,12 @@ static void search_is_the_first_music_entry_and_loads_the_library_module(void)
     CHECK(title_is("Music"));
 }
 
-static void the_personal_tag_manager_opens_from_the_last_music_row(void)
+static void the_personal_tag_manager_opens_before_search(void)
 {
     start_app();
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
+    tap(KEY_VOLUME_DOWN);
     tap(KEY_VOLUME_DOWN);
     tap(KEY_PLAY);
     CHECK(title_is("My tags"));
@@ -205,10 +212,7 @@ static void the_personal_tag_manager_opens_from_the_last_music_row(void)
 static void smart_lists_open_from_music_and_play_through_the_listening_module(void)
 {
     start_app();
-    tap(KEY_PLAY);
-    wait_ms(SLIDE_DURATION_MS);
-    tap(KEY_VOLUME_DOWN);
-    tap(KEY_VOLUME_DOWN);
+    select_music_row(MUSIC_SMART_LISTS_ROW);
     tap(KEY_PLAY);
     CHECK(title_is("Smart Lists"));
     CHECK_EQUAL(SCREEN_MODULE_LISTENING, (int)fake_hal_loaded_module());
@@ -257,10 +261,7 @@ static void add_track_files(void)
 
 static void open_never_played_track_actions(void)
 {
-    tap(KEY_PLAY);
-    wait_ms(SLIDE_DURATION_MS);
-    tap(KEY_VOLUME_DOWN);
-    tap(KEY_VOLUME_DOWN);
+    select_music_row(MUSIC_SMART_LISTS_ROW);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     move_down(3);
@@ -309,7 +310,7 @@ static void a_smart_list_delete_question_swaps_to_views_and_back_on_cancel_or_de
 static void home_art_loads_playing_and_cover_flow_reuses_it(void)
 {
     start_app();
-    open_music();
+    select_music_row(MUSIC_COVER_FLOW_ROW);
     CHECK_EQUAL(1, fake_hal_module_loads());
     CHECK_EQUAL(SCREEN_MODULE_PLAYING, (int)fake_hal_loaded_module());
     tap(KEY_PLAY);
@@ -322,10 +323,9 @@ static void home_art_loads_playing_and_cover_flow_reuses_it(void)
 static void a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module(void)
 {
     start_app_with_style(NOW_PLAYING_VU);
-    open_music();
+    select_music_row(MUSIC_ALL_SONGS_ROW);
     CHECK_EQUAL(SCREEN_MODULE_STAGE, (int)fake_hal_loaded_module());
     CHECK_EQUAL(1, fake_hal_module_loads());
-    move_down(6);
     tap(KEY_PLAY);
     CHECK(title_is("All songs"));
     wait_ms(SLIDE_DURATION_MS);
@@ -340,10 +340,10 @@ static void a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module(v
 
 static void opening_albums_and_genres_under_a_meter_style_needs_no_module_load(void)
 {
-    for (int row = 3; row <= 4; row++) {
+    static const int rows[] = {MUSIC_ALBUMS_ROW, MUSIC_GENRES_ROW};
+    for (int index = 0; index < (int)(sizeof rows / sizeof rows[0]); index++) {
         start_app_with_style(NOW_PLAYING_VU);
-        open_music();
-        move_down(row);
+        select_music_row(rows[index]);
         tap(KEY_PLAY);
         wait_ms(SLIDE_DURATION_MS);
         tap(KEY_PLAY);
@@ -357,8 +357,7 @@ static void opening_albums_and_genres_under_a_meter_style_needs_no_module_load(v
 static int artist_loads(int row)
 {
     start_app_with_style(NOW_PLAYING_VU);
-    open_music();
-    move_down(1);
+    select_music_row(MUSIC_ARTISTS_ROW);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     move_down(row);
@@ -449,7 +448,7 @@ static void cycle_style_in_quick_settings(int presses, bool first)
 {
     tap(KEY_MENU);
     CHECK(title_is("Quick Settings"));
-    for (int count = 0; first && count < 3; count++) {
+    if (first) {
         tap(KEY_VOLUME_DOWN);
     }
     tap(KEY_PLAY);
@@ -540,7 +539,7 @@ static void open_sleep_list(void)
 {
     tap(KEY_MENU);
     CHECK(title_is("Quick Settings"));
-    move_down(5);
+    move_down(3);
     tap(KEY_PLAY);
     CHECK(title_is("Sleep timer"));
     CHECK_EQUAL(SCREEN_MODULE_EQUALIZER, (int)fake_hal_loaded_module());
@@ -592,8 +591,7 @@ static void a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_
 
 static void open_now_playing_from_all_songs(void)
 {
-    open_music();
-    move_down(6);
+    select_music_row(MUSIC_ALL_SONGS_ROW);
     tap(KEY_PLAY);
     wait_ms(SLIDE_DURATION_MS);
     tap(KEY_PLAY);
@@ -652,7 +650,7 @@ static void a_resident_screen_opened_from_a_module_screen_needs_no_load(void)
 static void a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so(void)
 {
     start_app();
-    open_music();
+    select_music_row(MUSIC_COVER_FLOW_ROW);
     fake_hal_evict_module();
     fake_hal_break_module(SCREEN_MODULE_PLAYING, true);
     tap(KEY_PLAY);
@@ -668,7 +666,7 @@ static void a_module_that_cannot_load_keeps_the_screen_before_it_and_says_so(voi
 static void after_an_installed_update_a_module_screen_asks_for_a_restart(void)
 {
     start_app();
-    open_music();
+    select_music_row(MUSIC_COVER_FLOW_ROW);
     fake_hal_evict_module();
     fake_hal_set_restart_pending(true);
     tap(KEY_PLAY);
@@ -842,7 +840,6 @@ static void settings_returns_from_about_to_its_own_module(void)
     tap(KEY_BACK);
     move_down(SETTINGS_CONNECTIONS_ROW - SETTINGS_PLAYBACK_ROW);
     tap(KEY_PLAY);
-    move_down(CONNECTIONS_BLUETOOTH_ROW);
     tap(KEY_PLAY);
     CHECK(title_is("Bluetooth"));
     CHECK_EQUAL(4, fake_hal_module_loads());
@@ -1134,8 +1131,8 @@ int main(void)
         TEST_CASE(a_matching_internal_music_generation_asks_for_nothing_at_start),
         TEST_CASE(about_omits_the_old_usb_controls_and_raw_dac_rows),
         TEST_CASE(discovery_screen_memory_belongs_to_the_library_module),
-        TEST_CASE(search_is_the_first_music_entry_and_loads_the_library_module),
-        TEST_CASE(the_personal_tag_manager_opens_from_the_last_music_row),
+        TEST_CASE(search_is_the_last_music_entry_and_loads_the_library_module),
+        TEST_CASE(the_personal_tag_manager_opens_before_search),
         TEST_CASE(smart_lists_open_from_music_and_play_through_the_listening_module),
         TEST_CASE(home_art_loads_playing_and_cover_flow_reuses_it),
         TEST_CASE(a_meter_style_keeps_home_lists_and_now_playing_in_the_stage_module),

@@ -9,13 +9,14 @@ from echo_image_harness import (
     EchoImageHarness,
     main,
     HEIGHT,
-    HOME_MIXTAPES_BEFORE_SETTINGS,
+    HOME_MIXTAPES_BEFORE_SETTINGS_WITH_TRACK,
     KEY_BACK,
     KEY_MENU,
     KEY_NEXT,
     KEY_PLAY,
     MODULE_LOAD_LIMIT_MS,
     MODULE_REUSE_LIMIT_US,
+    MUSIC_COVER_FLOW_ROW,
     MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW,
     REPEAT_ALL,
     SETTINGS_PATH,
@@ -98,7 +99,8 @@ class EchoImageTest(EchoImageHarness):
         self.open_settings(restarted.machine)
         cold = again.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in cold],
-                         [(START_MODULE, True), (11, True), (number, True)])
+                         [(START_MODULE, True), (11, True), (START_MODULE, True), (11, True),
+                          (number, True)])
         self.assertLess(max(call["us"] for call in cold), MODULE_LOAD_LIMIT_MS * 1000)
         self.assert_healthy(restarted)
         print("[Settings load after a start] " + again.describe(cold[-1]))
@@ -273,12 +275,12 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.assertEqual(session.fat().read(SETTINGS_PATH)[SETTINGS_REPEAT_FIELD], REPEAT_ALL)
         rig.press_many("back", 2)
-        rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS)
+        rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS_WITH_TRACK)
         rig.press("play")
         rig.run_for(400)
         self.assertTrue(views.loaded(machine))
         rig.press("back")
-        rig.press_many("next", HOME_MIXTAPES_BEFORE_SETTINGS)
+        rig.press_many("next", HOME_MIXTAPES_BEFORE_SETTINGS_WITH_TRACK)
         rig.press("play")
         rig.run_for(400)
         self.assertTrue(settings.loaded(machine))
@@ -302,7 +304,8 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.modules import ModuleWatch
         from echo_emulator.playback import ALBUM_COUNT
         from echo_emulator.real_volume import real_volume
-        script = "\n".join(["build " + self.build_tag(), "play", "down,play", "wait 600",
+        open_cover_flow = ",".join(["down"] * MUSIC_COVER_FLOW_ROW + ["play"])
+        script = "\n".join(["build " + self.build_tag(), "play", open_cover_flow, "wait 600",
                             "screenshot coverflow", "set Repeat=All", "down", "wait 300",
                             "back:long", "wait 600", "up", "play", "wait 600",
                             "screenshot settings", "measure 500", "reconnect", ""])
@@ -325,10 +328,11 @@ class EchoImageTest(EchoImageHarness):
                                               {"slot": 1, "name": "settings"}])
         loads = watch.loads()
         self.assertEqual([(call["module"], call["loaded"]) for call in loads],
-                         [(equalizer_number, True), (START_MODULE, True), (playing_number, True),
-                          (START_MODULE, True), (playing_number, True), (equalizer_number, True),
-                          (playing_number, True), (settings_number, True), (playing_number, True),
-                          (settings_number, True)])
+                         [(START_MODULE, True), (equalizer_number, True), (START_MODULE, True),
+                          (playing_number, True), (START_MODULE, True), (playing_number, True),
+                          (START_MODULE, True), (playing_number, True), (START_MODULE, True),
+                          (equalizer_number, True), (playing_number, True), (settings_number, True),
+                          (playing_number, True), (settings_number, True)])
         self.assertLess(max(call["us"] for call in loads), MODULE_LOAD_LIMIT_MS * 1000)
         screens = [event["detail"] for event in report["events"] if event["kind"] == "screen"]
         self.assertIn("3 " + english("STR_COVER_FLOW")[:7], screens)

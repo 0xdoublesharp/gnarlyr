@@ -9,12 +9,14 @@ from echo_image_harness import (
     IDENTITY,
     NOVEMBER_2026,
     TIME_PATH,
+    SETTINGS_DISPLAY_GROUP,
     SETTINGS_PATH,
     settings_file,
     struct,
 )
 
 EQUALIZER_CUSTOM = 7
+DISPLAY_SET_CLOCK_ROW = 10
 
 
 class EchoImageTest(EchoImageHarness):
@@ -82,9 +84,9 @@ class EchoImageTest(EchoImageHarness):
         before = self.i2c1_state(machine)
         rig.press("previous")
         rig.press("play")
-        rig.press_many("next", 2)
+        rig.press_many("next", SETTINGS_DISPLAY_GROUP)
         rig.press("play")
-        rig.press_many("next", 11)
+        rig.press_many("next", DISPLAY_SET_CLOCK_ROW)
         rig.press("play")
         rig.press_many("menu", 4)
         rig.press("next")
@@ -119,9 +121,9 @@ class EchoImageTest(EchoImageHarness):
         rig = self.playback_rig(prepare=lambda machine: machine.rtc_bus.registers.__setitem__(2, 0x85))
         rig.press("previous")
         rig.press("play")
-        rig.press_many("next", 2)
+        rig.press_many("next", SETTINGS_DISPLAY_GROUP)
         rig.press("play")
-        rig.press_many("next", 11)
+        rig.press_many("next", DISPLAY_SET_CLOCK_ROW)
         rig.press("play")
         rig.press_many("menu", 4)
         rig.press("next")

@@ -13,6 +13,7 @@ from echo_image_harness import (
     struct,
     IDENTITY,
     SETTINGS_PATH,
+    SOUND_EQUALIZER_ROW,
 )
 
 SPEED_STEPS = ((100, 0), (150, 2), (200, 4), (300, 6))
@@ -60,7 +61,7 @@ class EchoImageTest(EchoImageHarness):
                 rig.press("previous")
                 rig.press("play")
                 rig.press("play")
-                rig.press_many("next", 2)
+                rig.press_many("next", SOUND_EQUALIZER_ROW)
                 rig.press("play")
                 rig.press("play")
                 self.assertEqual(8, rig.session.fat().read(SETTINGS_PATH)[18])

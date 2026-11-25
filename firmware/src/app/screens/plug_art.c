@@ -142,7 +142,7 @@ static const PlugArtPart DAC_PARTS[] = {
 
 static const PlugArt ARTS[PLUG_MODE_COUNT] = {
     PLUG_ART(ASK_PARTS),       PLUG_ART(COMPUTER_PARTS), PLUG_ART(CHARGE_PARTS),
-    PLUG_ART(USB_POWER_PARTS), PLUG_ART(DAC_PARTS),
+    PLUG_ART(USB_POWER_PARTS), PLUG_ART(DAC_PARTS),      PLUG_ART(CHARGE_PARTS),
 };
 
 static int smaller(int first, int second)

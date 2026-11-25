@@ -13,7 +13,7 @@
 #include "settings_store.h"
 
 enum {
-    MUSIC_ALBUMS_INDEX = 4
+    MUSIC_ALBUMS_INDEX = 0
 };
 
 static uint32_t now_ms;

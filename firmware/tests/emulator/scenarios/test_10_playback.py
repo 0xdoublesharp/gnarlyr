@@ -20,6 +20,9 @@ from echo_image_harness import (
 )
 
 
+SOUND_PREVENT_CLIPPING_ROW = 7
+
+
 class EchoImageTest(EchoImageHarness):
     def test_analog_seek_clears_old_pcm_and_output_changes_fade(self):
         from echo_emulator.audio import RING_BYTES, PRODUCED_OFFSET
@@ -143,9 +146,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("previous")
         rig.press("play")
         rig.press("play")
-        rig.press_many("next", 8)
-        rig.press("play")
-        rig.press("previous")
+        rig.press_many("next", SOUND_PREVENT_CLIPPING_ROW)
         rig.press("play")
         rig.run_for(400)
         self.assertEqual(plays, len(rig.audio.plays))
@@ -857,6 +858,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
     def test_stop_audio_path_powers_down_acodec_and_gates_audio_clocks(self):
+        from echo_emulator.dac_hardware import RealCs43198Bus
         from echo_emulator.devices import GPIO_DATA, RegisterFile
         from echo_emulator.machine import PAGE, TRAMPOLINE
         from unicorn.arm_const import UC_ARM_REG_LR, UC_ARM_REG_PC, UC_ARM_REG_PRIMASK
@@ -868,7 +870,7 @@ class EchoImageTest(EchoImageHarness):
         acodec.regs[0x200] = 1 << 2
         acodec.regs[0x214] = 0
         machine.map_device(RegisterFile(), 0x40030000, PAGE)
-        machine.map_device(RegisterFile(), 0x40040000, PAGE)
+        machine.map_device(RealCs43198Bus(machine), 0x40040000, PAGE)
         machine.map_device(acodec, 0x40090000, PAGE)
         stopped_gates = (0x10, 0x11, 0x12, 0x13, 0x82, 0x83)
         kept_gates = (0x0E, 0x96)

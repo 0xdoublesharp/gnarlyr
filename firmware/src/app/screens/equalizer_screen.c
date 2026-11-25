@@ -202,14 +202,16 @@ static void draw(void *context, Canvas *canvas)
     const EqualizerScreen *equalizer = context;
     const Theme *theme = equalizer->config.theme;
     static const FooterHint GAIN_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHANGE},
-                                            {FOOTER_KEY_PLAY, STR_HINT_KEEP}};
+                                            {FOOTER_KEY_PLAY, STR_HINT_KEEP},
+                                            {FOOTER_KEY_BACK, STR_CANCEL}};
     static const FooterHint SLOT_HINTS[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
-                                            {FOOTER_KEY_PLAY, STR_HINT_SAVE}};
+                                            {FOOTER_KEY_PLAY, STR_HINT_SAVE},
+                                            {FOOTER_KEY_BACK, STR_CANCEL}};
     static const FooterHint BROWSE_HINTS[] = {{FOOTER_KEY_PLAY, STR_HINT_ADJUST}};
     FooterHints hints = {.items = !equalizer->adjusting                  ? BROWSE_HINTS
                                   : equalizer->list.selected == SAVE_ROW ? SLOT_HINTS
                                                                          : GAIN_HINTS,
-                         .count = equalizer->adjusting ? 2 : 1,
+                         .count = equalizer->adjusting ? 3 : 1,
                          .align = FOOTER_ALIGN_END};
     EqualizerPlotLayout layout = equalizer_plot_layout(theme, hints, false);
     canvas_fill_rect(canvas,

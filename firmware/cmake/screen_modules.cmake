@@ -1,5 +1,7 @@
 set(ECHO_SCREEN_MODULES views settings library listening dsp ogg process extension playing effects source dsd equalizer ape_wma trial stage format)
-set(ECHO_SCREEN_MODULE_SHARED_SOURCES src/codec/flac.c src/codec/flac_bits.c)
+set(ECHO_SCREEN_MODULE_SHARED_SOURCES
+    src/codec/flac.c src/codec/flac_bits.c platform/device/logic/dac_eq.c
+)
 set(ECHO_SCREEN_MODULE_SOURCES_process
     src/core/parametric.c
     src/core/parametric_curve.c
@@ -21,6 +23,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_effects
     platform/device/logic/audio_effects.c
     platform/device/logic/audio_engine_settle.c
     platform/device/logic/audio_skip.c
+    platform/device/logic/dac_eq.c
 )
 set(ECHO_SCREEN_MODULE_SOURCES_source
     platform/device/logic/audio_source_entry.c
@@ -79,6 +82,10 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/settings/settings_decode.c
     src/app/player_restore.c
     src/app/start_stores.c
+    src/app/bluetooth_store_read.c
+    src/app/card_files.c
+    src/app/music_check_boot.c
+    src/app/music_check_version.c
     src/library/favorites_decode.c
     src/playback/bookmarks_decode.c
 )
@@ -154,6 +161,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     platform/device/logic/exfat_list.c
     platform/device/logic/fat_utf8.c
     src/app/music_walk.c
+    src/app/music_check_version.c
     src/app/music_record.c
     src/library/music_fingerprint.c
     src/settings/sound_shaping.c

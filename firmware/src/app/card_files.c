@@ -3,7 +3,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "app/app.h"
 #include "bluetooth_store.h"
+#include "core/i18n.h"
+#include "core/string_builder.h"
 #include "cover_cache.h"
 #include "equalizer_presets.h"
 #include "favorite_playlist.h"
@@ -18,13 +21,12 @@
 #include "playback/mix_catalog.h"
 #include "playback/track_keys.h"
 #include "player.h"
+#include "scan_guard.h"
 #include "settings_store.h"
 #include "spoken_store.h"
 
-const char PARAMETRIC_STORE_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/parametric.bin";
-const char EQUALIZER_SLOTS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/eq_slots.bin";
-
 enum {
+    PREPARE_NOTICE_CAPACITY = 96,
     SMALL_FILE_BYTES = 4096,
     LIBRARY_FILE_BYTES = 4 * 1024 * 1024,
     COVERS_FILE_BYTES = 80 * 1024 * 1024,
@@ -110,4 +112,67 @@ void card_files_reserve(CardFilesReport *report, size_t index)
         result == HAL_RESERVE_CREATED && CARD_FILES[index].path == LIBRARY_STORE_PATH;
     report->headphones_created |=
         result == HAL_RESERVE_CREATED && CARD_FILES[index].path == HEADPHONE_STORE_PATH;
+}
+
+static void show_prepare_progress(size_t index)
+{
+    char text[PREPARE_NOTICE_CAPACITY];
+    StringBuilder builder = string_builder_make(text, sizeof text);
+    i18n_format_counts(&builder, STR_PREPARING_FILE, (uint32_t)index + 1,
+                       (uint32_t)card_files_count());
+    app_show_notice(i18n_text(STR_PREPARING_STORAGE), text);
+}
+
+bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *report, bool charging,
+                             bool *finished)
+{
+    while (*prepare_index < card_files_count()) {
+        size_t index = (*prepare_index)++;
+        if (!card_files_missing(index)) {
+            continue;
+        }
+        bool slow = card_files_slow(index);
+        if (slow && !charging) {
+            show_prepare_progress(index);
+        }
+        card_files_reserve(report, index);
+        if (slow) {
+            *finished = false;
+            return !charging;
+        }
+    }
+    *finished = true;
+    return false;
+}
+
+static bool library_refused(void)
+{
+    HalFile file;
+    uint8_t magic[4] = {0, 0, 0, 0};
+    if (!hal_file_open(&file, LIBRARY_STORE_PATH)) {
+        return false;
+    }
+    bool read = hal_file_read(file, 0, magic, sizeof magic);
+    hal_file_close(&file);
+    return read && (magic[0] | magic[1] | magic[2] | magic[3]) != 0;
+}
+
+CardStartScan card_files_start_scan(bool created, bool available, bool rebuilt)
+{
+    uint8_t update;
+    if (hal_internal_file_read("/" FIRMWARE_UPDATE_FILE, &update, sizeof update)) {
+        return (CardStartScan){0};
+    }
+    CardStartScan scan = {.checked = true, .covers_pending = music_check_covers_pending()};
+    uint32_t stopped = music_check_interrupted_scans();
+    bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
+    if (created || resume || (stopped == 0 && !available && !rebuilt && library_refused())) {
+        scan.rescan = true;
+        scan.rescan_stops = resume ? (uint8_t)stopped : 0;
+    } else if (stopped == 0 && !rebuilt) {
+        bool new_firmware = music_check_firmware_is_new();
+        scan.covers_pending |= new_firmware;
+        scan.check_music = new_firmware || music_check_generation_moved();
+    }
+    return scan;
 }

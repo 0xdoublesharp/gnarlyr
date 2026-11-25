@@ -33,6 +33,8 @@ STATUS_COMMAND_US = 15
 POLL_JUMP_CYCLES = 240
 FIFO_COUNT_LIMIT = 0x1FFF
 STATUS_CARD_BUSY = 1 << 9
+STATUS_DATA_BUSY = 1 << 10
+MMC_CLKDIV = 0x08
 MMC_CLKENA = 0x10
 MMC_PWREN = 0x04
 CARD_POWER_OFF_MS = 5
@@ -42,6 +44,9 @@ CTRL_RESET_BITS = 0x7
 CTRL_FIFO_RESET = 0x2
 FIFOTH_RESET_VALUE = 0x000F0000
 EXT_CSD_CARD_TYPE = 196
+EXT_CSD_HS_TIMING = 185
+EMMC_SWITCH_HIGH_SPEED = 0x03B90100
+STATUS_SWITCH_ERROR = 1 << 7
 SWITCH_STATUS_BYTES = 64
 SWITCH_SUPPORT_BYTE = 13
 SWITCH_RESULT_BYTE = 16
@@ -106,11 +111,16 @@ class EmmcCard:
         self.failed_starts = 0
         self.starts = 0
         self.card_type = 0
+        self.high_speed_timing = False
+        self.reject_high_speed = False
+        self.reject_timing_status = False
+        self.check_timing = False
 
     def ext_csd(self):
         data = bytearray(SECTOR)
         struct.pack_into("<I", data, EXT_CSD_SECTOR_COUNT, self.disk.sector_count)
         data[EXT_CSD_CARD_TYPE] = self.card_type
+        data[EXT_CSD_HS_TIMING] = int(self.high_speed_timing)
         return bytes(data)
 
     def cid(self):
@@ -120,12 +130,28 @@ class EmmcCard:
         self.commands.append((self.machine.cycles(), index, argument))
         if index == 0:
             self.starts += 1
+            self.high_speed_timing = False
+            self.check_timing = False
             return ()
         if index == 1:
             return (0, 0, 0, 0) if self.starts <= self.failed_starts else (OCR_READY_SECTOR_MODE, 0, 0, 0)
         if index == 2 or index == 9:
             return self.cid()
+        if index == 6 and argument == EMMC_SWITCH_HIGH_SPEED:
+            if not self.card_type & 3 or self.reject_high_speed:
+                return (READY_TRANSFER_STATUS | STATUS_SWITCH_ERROR, 0, 0, 0)
+            self.high_speed_timing = True
+            self.check_timing = True
+        if index == 13 and self.check_timing:
+            self.check_timing = False
+            if self.reject_timing_status:
+                return (READY_TRANSFER_STATUS | STATUS_SWITCH_ERROR, 0, 0, 0)
         return (READY_TRANSFER_STATUS, 0, 0, 0)
+
+    def clock_limit_hz(self):
+        if self.high_speed_timing and self.card_type & 2:
+            return 52000000
+        return 26000000
 
     def read_blocks(self, index, argument, count):
         if index == 8:
@@ -153,6 +179,9 @@ class DwMmc(RegisterFile):
         self.write_target = None
         self.busy_until = 0
         self.resets = []
+        self.clock_enabled = False
+        self.clock_divider = 0
+        self.overspeed = []
         self.regs[MMC_FIFOTH] = FIFOTH_RESET_VALUE
         self.inject_fifo_read_error(0, 0)
 
@@ -160,6 +189,8 @@ class DwMmc(RegisterFile):
         commands = len(self.card.commands) if self.card is not None else 0
         self.resets.append((self.machine.milliseconds(), commands))
         self.regs = {MMC_FIFOTH: FIFOTH_RESET_VALUE}
+        self.clock_enabled = False
+        self.clock_divider = 0
         self.read_queue.clear()
         self.write_words = []
         self.write_target = None
@@ -198,7 +229,8 @@ class DwMmc(RegisterFile):
             waiting = self.busy()
             count = 0 if waiting else min(len(self.read_queue), FIFO_COUNT_LIMIT)
             empty = STATUS_FIFO_EMPTY if count == 0 else 0
-            return empty | (count << STATUS_FIFO_COUNT_SHIFT) | (STATUS_CARD_BUSY if waiting and not self.read_queue else 0)
+            busy_flag = STATUS_DATA_BUSY if self.read_queue else STATUS_CARD_BUSY
+            return empty | (count << STATUS_FIFO_COUNT_SHIFT) | (busy_flag if waiting else 0)
         if offset == MMC_RINTSTS:
             value = super().read_word(offset)
             return value & ~INT_DATA_OVER if self.busy() else value
@@ -231,10 +263,17 @@ class DwMmc(RegisterFile):
 
     def execute(self, value):
         if value & CMD_UPDATE_CLOCK_ONLY:
+            self.clock_enabled = bool(self.regs.get(MMC_CLKENA, 0) & CLKENA_CARD_CLOCK)
+            self.clock_divider = self.regs.get(MMC_CLKDIV, 0) & 0xFF
             return
         index = value & 0x3F
         argument = self.regs.get(MMC_CMDARG, 0)
-        if self.card is None or not self.regs.get(MMC_CLKENA, 0) & CLKENA_CARD_CLOCK:
+        if self.card is None or not self.clock_enabled:
+            self.raise_status(INT_COMMAND_DONE | INT_RESPONSE_TIMEOUT)
+            return
+        hz = self.card_hz()
+        if hz > self.card.clock_limit_hz():
+            self.overspeed.append((index, hz))
             self.raise_status(INT_COMMAND_DONE | INT_RESPONSE_TIMEOUT)
             return
         response = self.card.command(index, argument)
@@ -250,9 +289,9 @@ class DwMmc(RegisterFile):
 
     def card_hz(self):
         field = (self.machine.cru.regs.get(CRU_MMC_DIVIDERS, 0) >> self.clock_shift) & 0xFF
-        if field & CRYSTAL_SOURCE:
-            return CRYSTAL_HZ
-        return self.machine.pll_hz() // ((field & DIVIDER_MASK) + 1)
+        parent = CRYSTAL_HZ if field & CRYSTAL_SOURCE else self.machine.pll_hz()
+        source = parent // ((field & DIVIDER_MASK) + 1)
+        return source // max(1, self.clock_divider * 2)
 
     def block_scale(self):
         return min(1.0, CRYSTAL_HZ / max(1, self.card_hz()))
@@ -321,6 +360,8 @@ class SdCard(EmmcCard):
     high_speed = False
     off_since_ms = None
     power_cycles = 0
+    reject_high_speed_data = False
+    high_speed_busy = False
 
     def power(self, on, now_ms):
         if not on:
@@ -336,6 +377,7 @@ class SdCard(EmmcCard):
         if self.stuck:
             return None
         if index == 0:
+            self.high_speed_timing = False
             return ()
         if index == 8:
             return (0x1AA, 0, 0, 0)
@@ -345,8 +387,13 @@ class SdCard(EmmcCard):
             return (0x12340000, 0, 0, 0)
         if index == 9:
             csd = (1 << 126) | ((self.disk.sector_count // 1024 - 1) << 48) | (9 << 22)
+            if self.high_speed:
+                csd |= 1 << 94
             return tuple((csd >> (32 * word)) & 0xFFFFFFFF for word in range(4))
         return (READY_TRANSFER_STATUS, 0, 0, 0)
+
+    def clock_limit_hz(self):
+        return 50000000 if self.high_speed_timing else 25000000
 
     def read_blocks(self, index, argument, count):
         if index == 13:
@@ -359,7 +406,13 @@ class SdCard(EmmcCard):
 
     def switch_status(self, argument):
         status = bytearray(SWITCH_STATUS_BYTES)
+        capable = self.high_speed and not self.high_speed_busy
+        switched = capable and not (argument & SWITCH_SET and self.reject_high_speed_data)
         status[SWITCH_SUPPORT_BYTE] = SWITCH_HIGH_SPEED if self.high_speed else 0
-        status[SWITCH_RESULT_BYTE] = 1 if self.high_speed else (0xF if argument & SWITCH_SET else 0)
+        status[SWITCH_RESULT_BYTE] = 1 if switched else 0xF
+        status[17] = 1
+        status[29] = SWITCH_HIGH_SPEED if self.high_speed_busy else 0
+        if switched and argument & SWITCH_SET:
+            self.high_speed_timing = True
         self.switches = getattr(self, "switches", []) + [argument]
         return bytes(status)

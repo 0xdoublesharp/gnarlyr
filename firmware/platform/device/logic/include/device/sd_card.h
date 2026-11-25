@@ -13,7 +13,8 @@ typedef enum SdResponse {
 
 typedef enum SdClock {
     SD_CLOCK_IDENTIFY,
-    SD_CLOCK_TRANSFER
+    SD_CLOCK_TRANSFER,
+    SD_CLOCK_HIGH_SPEED
 } SdClock;
 
 typedef struct SdCommand {
@@ -25,16 +26,18 @@ typedef struct SdCommand {
 
 typedef struct SdHost {
     bool (*command)(void *context, SdCommand command, uint32_t response[4]);
-    void (*set_clock)(void *context, SdClock clock);
+    bool (*set_clock)(void *context, SdClock clock);
     void (*set_bus_width)(void *context, uint8_t bits);
     void (*delay_ms)(void *context, uint32_t milliseconds);
     bool (*card_present)(void *context);
     void (*stop)(void *context);
     void *context;
+    bool (*switch_status)(void *context, uint32_t argument, uint32_t status[16]);
 } SdHost;
 
 typedef struct SdCard {
     bool high_capacity;
+    bool high_speed;
     uint16_t rca;
     uint32_t sector_count;
     uint32_t erase_sectors;

@@ -53,6 +53,8 @@
         "entry": "scan_record",
         "sources": [
           "src/app/music_check.c",
+          "src/app/music_check_boot.c",
+          "src/app/music_check_version.c",
           "src/app/music_record.c",
           "src/library/music_fingerprint.c"
         ],
@@ -3539,6 +3541,8 @@
           "same_folded",
           "track_tags_format_for_name",
           "read_format",
+          "read_flac_bytes",
+          "read_tags_with_options",
           "track_tags_read",
           "track_tags_read_index",
           "tag_le16",

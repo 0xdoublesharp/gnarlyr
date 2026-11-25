@@ -39,96 +39,174 @@ typedef struct Writer {
 } Writer;
 
 static const char UNKNOWN[] = "unknown";
-static const char *const EVENT_NAMES[DEBUG_EVENT_KIND_COUNT] = {
-    [DEBUG_EVENT_KEY] = "key",
-    [DEBUG_EVENT_SCREEN] = "screen",
-    [DEBUG_EVENT_PLAYER] = "player",
-    [DEBUG_EVENT_UNDERRUN] = "underrun",
-    [DEBUG_EVENT_OUTPUT_UNDERRUN] = "output_underrun",
-    [DEBUG_EVENT_REFUSAL] = "refusal",
-    [DEBUG_EVENT_STORAGE] = "storage",
-    [DEBUG_EVENT_USB_START] = "usb_start",
-    [DEBUG_EVENT_USB_END] = "usb_end",
-    [DEBUG_EVENT_SCRIPT] = "script",
-    [DEBUG_EVENT_POWER] = "power",
-    [DEBUG_EVENT_USB_CONNECT] = "usb_connect",
-    [DEBUG_EVENT_SCAN] = "scan",
-    [DEBUG_EVENT_COVER] = "cover",
-    [DEBUG_EVENT_DISPLAY_FALLBACK] = "display_fallback",
-    [DEBUG_EVENT_LADDER] = "ladder",
+enum {
+    EVENT_NAMES_COUNT = DEBUG_EVENT_KIND_COUNT
 };
-static const char *const SCAN_PHASES[DEBUG_SCAN_PHASE_COUNT] = {
-    [DEBUG_SCAN_START] = "start",
-    [DEBUG_SCAN_LIBRARY] = "library",
-    [DEBUG_SCAN_COVERS] = "covers",
-    [DEBUG_SCAN_COVERS_DONE] = "covers_done",
-    [DEBUG_SCAN_COVERS_STOPPED] = "covers_stopped",
-    [DEBUG_SCAN_UP_TO_DATE] = "up_to_date",
-    [DEBUG_SCAN_EMMC_OK] = "emmc_ok",
-    [DEBUG_SCAN_EMMC_FAILED] = "emmc_failed",
-    [DEBUG_SCAN_EMMC_FLAG_LOST] = "emmc_flag_lost",
+static const char EVENT_NAMES[] = "key\0"
+                                  "screen\0"
+                                  "player\0"
+                                  "underrun\0"
+                                  "output_underrun\0"
+                                  "refusal\0"
+                                  "storage\0"
+                                  "usb_start\0"
+                                  "usb_end\0"
+                                  "script\0"
+                                  "power\0"
+                                  "usb_connect\0"
+                                  "scan\0"
+                                  "cover\0"
+                                  "display_fallback\0"
+                                  "ladder";
+enum {
+    SCAN_PHASES_COUNT = DEBUG_SCAN_PHASE_COUNT
 };
-static const char *const SCRIPT_STATES[DEBUG_SCRIPT_STATE_COUNT] = {
-    [DEBUG_SCRIPT_NONE] = "none",
-    [DEBUG_SCRIPT_PENDING] = "pending",
-    [DEBUG_SCRIPT_RUNNING] = "running",
-    [DEBUG_SCRIPT_FINISHED] = "finished",
-    [DEBUG_SCRIPT_TIMED_OUT] = "timed_out",
-    [DEBUG_SCRIPT_ABORTED] = "aborted",
-    [DEBUG_SCRIPT_REFUSED_TOO_LONG] = "refused_too_long",
-    [DEBUG_SCRIPT_REFUSED_RESTART_PENDING] = "refused_restart_pending",
-    [DEBUG_SCRIPT_REFUSED_NO_BUILD] = "refused_no_build",
-    [DEBUG_SCRIPT_REFUSED_BUILD] = "refused_build",
+static const char SCAN_PHASES[] = "start\0"
+                                  "library\0"
+                                  "covers\0"
+                                  "covers_done\0"
+                                  "covers_stopped\0"
+                                  "up_to_date\0"
+                                  "emmc_ok\0"
+                                  "emmc_failed\0"
+                                  "emmc_flag_lost";
+enum {
+    SCRIPT_STATES_COUNT = DEBUG_SCRIPT_STATE_COUNT
 };
-static const char *const LINE_STATUSES[DEBUG_LINE_STATUS_COUNT] = {
-    [DEBUG_LINE_NOT_RUN] = "not_run",    [DEBUG_LINE_OK] = "ok",
-    [DEBUG_LINE_UNKNOWN] = "unknown",    [DEBUG_LINE_BAD_ARGUMENT] = "bad_argument",
-    [DEBUG_LINE_FAILED] = "failed",      [DEBUG_LINE_REFUSED] = "refused",
-    [DEBUG_LINE_CUT_SHORT] = "cut_short"};
-static const char *const SOAK_ENDS[DEBUG_SOAK_END_COUNT] = {[DEBUG_SOAK_RUNNING] = "running",
-                                                            [DEBUG_SOAK_DONE] = "done",
-                                                            [DEBUG_SOAK_KEY] = "key",
-                                                            [DEBUG_SOAK_LOW_BATTERY] =
-                                                                "low_battery",
-                                                            [DEBUG_SOAK_STOPPED] = "stopped"};
-static const char *const REASON_NAMES[DEBUG_REPORT_REASON_COUNT] = {
-    [DEBUG_REPORT_NONE] = "none",
-    [DEBUG_REPORT_USB_SESSION] = "usb_session",
-    [DEBUG_REPORT_SHUTDOWN] = "shutdown",
-    [DEBUG_REPORT_AUTO_OFF] = "auto_off",
-    [DEBUG_REPORT_SLEEP_TIMER] = "sleep_timer",
-    [DEBUG_REPORT_LOW_BATTERY] = "low_battery",
-    [DEBUG_REPORT_UNPLUGGED] = "unplugged",
-    [DEBUG_REPORT_RESTART] = "restart",
-    [DEBUG_REPORT_NO_HOST] = "no_host",
+static const char SCRIPT_STATES[] = "none\0"
+                                    "pending\0"
+                                    "running\0"
+                                    "finished\0"
+                                    "timed_out\0"
+                                    "aborted\0"
+                                    "refused_too_long\0"
+                                    "refused_restart_pending\0"
+                                    "refused_no_build\0"
+                                    "refused_build";
+enum {
+    LINE_STATUSES_COUNT = DEBUG_LINE_STATUS_COUNT
 };
-static const char *const RTC_STATUSES[HAL_RTC_STATUS_COUNT] = {[HAL_RTC_OK] = "ok",
-                                                               [HAL_RTC_NO_ACK] = "no_ack",
-                                                               [HAL_RTC_TIMEOUT] = "timeout",
-                                                               [HAL_RTC_NO_TIME] = "no_time",
-                                                               [HAL_RTC_MISMATCH] = "mismatch"};
-static const char *const RTC_ACTIONS[] = {[DEBUG_RTC_READ] = "read", [DEBUG_RTC_SET] = "set"};
-static const char *const CONNECT_NAMES[] = {"none", "waiting", "answered", "no_host", "cancelled"};
+static const char LINE_STATUSES[] = "not_run\0"
+                                    "ok\0"
+                                    "unknown\0"
+                                    "bad_argument\0"
+                                    "failed\0"
+                                    "refused\0"
+                                    "cut_short";
+enum {
+    SOAK_ENDS_COUNT = DEBUG_SOAK_END_COUNT
+};
+static const char SOAK_ENDS[] = "running\0"
+                                "done\0"
+                                "key\0"
+                                "low_battery\0"
+                                "stopped";
+enum {
+    REASON_NAMES_COUNT = DEBUG_REPORT_REASON_COUNT
+};
+static const char REASON_NAMES[] = "none\0"
+                                   "usb_session\0"
+                                   "shutdown\0"
+                                   "auto_off\0"
+                                   "sleep_timer\0"
+                                   "low_battery\0"
+                                   "unplugged\0"
+                                   "restart\0"
+                                   "no_host";
+enum {
+    RTC_STATUSES_COUNT = HAL_RTC_STATUS_COUNT
+};
+static const char RTC_STATUSES[] = "ok\0"
+                                   "no_ack\0"
+                                   "timeout\0"
+                                   "no_time\0"
+                                   "mismatch";
+enum {
+    RTC_ACTIONS_COUNT = 2
+};
+static const char RTC_ACTIONS[] = "read\0"
+                                  "set";
+enum {
+    CONNECT_NAMES_COUNT = 5
+};
+static const char CONNECT_NAMES[] = "none\0"
+                                    "waiting\0"
+                                    "answered\0"
+                                    "no_host\0"
+                                    "cancelled";
 static const char SCHEMA_KEY[] = "debug_report";
 static const char SEQUENCE_KEY[] = "report.sequence";
 static const char COLD_KEY[] = "report.cold_start";
-static const char *const GESTURE_NAMES[] = {"press", "long", "repeat"};
-static const char *const PLAYER_NAMES[] = {"idle", "playing", "paused", "standby"};
-_Static_assert(sizeof PLAYER_NAMES / sizeof PLAYER_NAMES[0] == DEBUG_PLAYER_STANDBY + 1,
+enum {
+    GESTURE_NAMES_COUNT = 3
+};
+static const char GESTURE_NAMES[] = "press\0"
+                                    "long\0"
+                                    "repeat";
+enum {
+    PLAYER_NAMES_COUNT = 4
+};
+static const char PLAYER_NAMES[] = "idle\0"
+                                   "playing\0"
+                                   "paused\0"
+                                   "standby";
+_Static_assert(PLAYER_NAMES_COUNT == DEBUG_PLAYER_STANDBY + 1,
                "the report names the standby state the event log records");
-static const char *const AUDIO_NAMES[] = {"stopped", "playing", "paused"};
-static const char *const USB_END_NAMES[] = {"none", "ejected", "unplugged", "no_host"};
-static const char *const SPEED_FALLBACK_NAMES[] = {"none", "not_configured", "few_commands",
-                                                   "resets"};
-static const char *const STEP_NAMES[HAL_START_STEP_COUNT] = {
-    "none",       "backlight_on", "backlight_off", "clock_switch", "core1_start",
-    "core1_stop", "card_write",   "watchdog_test", "loader"};
+enum {
+    AUDIO_NAMES_COUNT = 3
+};
+static const char AUDIO_NAMES[] = "stopped\0"
+                                  "playing\0"
+                                  "paused";
+enum {
+    USB_END_NAMES_COUNT = 4
+};
+static const char USB_END_NAMES[] = "none\0"
+                                    "ejected\0"
+                                    "unplugged\0"
+                                    "no_host";
+enum {
+    SPEED_FALLBACK_NAMES_COUNT = 4
+};
+static const char SPEED_FALLBACK_NAMES[] = "none\0"
+                                           "not_configured\0"
+                                           "few_commands\0"
+                                           "resets";
+enum {
+    STEP_NAMES_COUNT = HAL_START_STEP_COUNT
+};
+static const char STEP_NAMES[] = "none\0"
+                                 "backlight_on\0"
+                                 "backlight_off\0"
+                                 "clock_switch\0"
+                                 "core1_start\0"
+                                 "core1_stop\0"
+                                 "card_write\0"
+                                 "watchdog_test\0"
+                                 "loader";
 static const char *const PART_NAMES[DEBUG_FRAME_PARTS] = {"part.covers_us", "part.reflections_us",
                                                           "part.text_us",   "part.backdrop_us",
                                                           "part.hash_us",   "part.audio_us"};
 
-#define NAME_IN(names, index)                                                                      \
-    ((size_t)(index) < sizeof(names) / sizeof(names)[0] ? (names)[index] : UNKNOWN)
+static const char *next_key(const char *key)
+{
+    while (*key++ != '\0') {
+    }
+    return key;
+}
+
+static const char *indexed_name(const char *names, size_t count, size_t index)
+{
+    if (index >= count) {
+        return UNKNOWN;
+    }
+    while (index-- != 0) {
+        names = next_key(names);
+    }
+    return names;
+}
+
+#define NAME_IN(names, index) indexed_name(names, names##_COUNT, index)
 
 static void begin(Writer *writer, const char *key)
 {
@@ -321,11 +399,69 @@ static void put_battery(Writer *writer, const DebugReportInput *input)
     put_unsigned(writer, "battery.usb_power", battery.usb_power);
 }
 
-static void put_known_list(Writer *writer, const char *const *keys, const uint32_t *values,
-                           size_t count, bool known)
+static void put_known_list(Writer *writer, const char *const *keys, const void *first, size_t count,
+                           bool known)
 {
+    const uint8_t *bytes = first;
     for (size_t index = 0; index < count; index++) {
-        put_known(writer, keys[index], known, values[index]);
+        put_known(writer, keys[index], known, *(const uint32_t *)(const void *)bytes);
+        bytes += sizeof(uint32_t);
+    }
+}
+
+static void put_word_list(Writer *writer, const char *const *keys, const void *first, size_t count)
+{
+    put_known_list(writer, keys, first, count, true);
+}
+
+enum {
+    REPORT_OFFSET_MASK = 63,
+    REPORT_SIZE_SHIFT = 6,
+    REPORT_HALFWORD = 1,
+    REPORT_BYTE = 2
+};
+
+_Static_assert(sizeof(bool) == sizeof(uint8_t), "report descriptors read bools as bytes");
+
+#define REPORT_OFFSET(type, member)                                                                \
+    (offsetof(type, member) +                                                                      \
+     0 * sizeof(char[offsetof(type, member) <= REPORT_OFFSET_MASK ? 1 : -1]))
+#define REPORT_SIZE(type, member)                                                                  \
+    _Generic(((type *)0)->member,                                                                  \
+        bool: REPORT_BYTE,                                                                         \
+        uint8_t: REPORT_BYTE,                                                                      \
+        uint16_t: REPORT_HALFWORD,                                                                 \
+        uint32_t: 0)
+#define REPORT_NUMBER(type, member)                                                                \
+    (REPORT_OFFSET(type, member) | (REPORT_SIZE(type, member) << REPORT_SIZE_SHIFT))
+#define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
+
+static uint32_t report_number(const void *data, uint8_t field)
+{
+    const uint8_t *bytes = (const uint8_t *)data + (field & REPORT_OFFSET_MASK);
+    if (field >= (REPORT_BYTE << REPORT_SIZE_SHIFT)) {
+        return *bytes;
+    }
+    if (field >= (REPORT_HALFWORD << REPORT_SIZE_SHIFT)) {
+        return *(const uint16_t *)(const void *)bytes;
+    }
+    return *(const uint32_t *)(const void *)bytes;
+}
+
+typedef struct ReportNumbers {
+    const char *keys;
+    const uint8_t *offsets;
+    size_t count;
+} ReportNumbers;
+
+#define REPORT_NUMBERS(keys, offsets) ((ReportNumbers){(keys), (offsets), sizeof(offsets)})
+
+static void put_numbers(Writer *writer, ReportNumbers fields, const void *data, bool known)
+{
+    const char *key = fields.keys;
+    for (size_t index = 0; index < fields.count; index++) {
+        put_known(writer, key, known, report_number(data, fields.offsets[index]));
+        key = next_key(key);
     }
 }
 
@@ -339,8 +475,12 @@ static void put_power(Writer *writer, const DebugReportInput *input)
     bool gauged = power->gauge_readings != 0;
     bool charging = input->battery.charging;
     writer->prefix = "power.";
-    put_unsigned(writer, "vbus", power->vbus);
-    put_unsigned(writer, "usb_powered", power->usb_powered);
+    static const char FLAGS_KEYS[] = "vbus\0usb_powered";
+    static const uint8_t FLAGS[] = {
+        REPORT_NUMBER(DebugReportPower, vbus),
+        REPORT_NUMBER(DebugReportPower, usb_powered),
+    };
+    put_numbers(writer, REPORT_NUMBERS(FLAGS_KEYS, FLAGS), power, true);
     put_known(writer, "charge_pin", power->pin_known, power->pin_high);
     put_text(writer, "adc_source", reading_source(power->adc_from_gauge, power->adc_known));
     put_known(writer, "adc_raw", power->adc_known, power->adc_raw);
@@ -362,11 +502,6 @@ static void put_power(Writer *writer, const DebugReportInput *input)
     writer->prefix = NULL;
 }
 
-static void append_flag(StringBuilder *text, uint8_t flags, uint8_t flag)
-{
-    string_builder_append_char(text, (flags & flag) != 0 ? '1' : '0');
-}
-
 static void append_sample(StringBuilder *text, PowerSample sample)
 {
     string_builder_append_unsigned(text, sample.minute);
@@ -375,11 +510,13 @@ static void append_sample(StringBuilder *text, PowerSample sample)
     string_builder_append_char(text, ' ');
     string_builder_append_unsigned(text, sample.percent);
     string_builder_append_char(text, ' ');
-    append_flag(text, sample.flags, POWER_SAMPLE_VBUS);
-    append_flag(text, sample.flags, POWER_SAMPLE_CHARGE_PIN);
-    append_flag(text, sample.flags, POWER_SAMPLE_PLAYING);
-    append_flag(text, sample.flags, POWER_SAMPLE_USB_POWERED);
-    append_flag(text, sample.flags, POWER_SAMPLE_USB_KEPT_ON);
+    _Static_assert(POWER_SAMPLE_VBUS == 1 && POWER_SAMPLE_CHARGE_PIN == 2 &&
+                       POWER_SAMPLE_PLAYING == 4 && POWER_SAMPLE_USB_POWERED == 8 &&
+                       POWER_SAMPLE_USB_KEPT_ON == 16,
+                   "power samples report flags from low to high");
+    for (unsigned flag = 1; flag <= POWER_SAMPLE_USB_KEPT_ON; flag <<= 1) {
+        string_builder_append_char(text, (sample.flags & flag) != 0 ? '1' : '0');
+    }
 }
 
 static void put_samples(Writer *writer, const PowerHistory *history, uint32_t first, uint32_t end)
@@ -413,19 +550,37 @@ static void put_start(Writer *writer, const HalStartInfo *start)
 {
     bool warm = start->warm;
     writer->prefix = "start.";
-    put_unsigned(writer, "count", start->starts);
-    put_unsigned(writer, "warm", warm);
-    put_known(writer, "previous_uptime_ms", warm, start->previous_uptime_ms);
-    put_known(writer, "previous_power_off", warm, start->previous_power_off);
+    static const char COUNTS_KEYS[] = "count\0warm\0previous_uptime_ms\0previous_power_off";
+    static const uint8_t COUNTS[] = {
+        REPORT_NUMBER(HalStartInfo, starts),
+        REPORT_NUMBER(HalStartInfo, warm),
+        REPORT_NUMBER(HalStartInfo, previous_uptime_ms),
+        REPORT_NUMBER(HalStartInfo, previous_power_off),
+    };
+    put_numbers(writer, (ReportNumbers){COUNTS_KEYS, COUNTS, 2}, start, true);
+    put_numbers(writer, (ReportNumbers){COUNTS_KEYS + sizeof "count\0warm", COUNTS + 2, 2}, start,
+                warm);
     put_text(writer, "last_step", warm ? NAME_IN(STEP_NAMES, start->last_step) : UNKNOWN);
-    put_known(writer, "last_step_finished", warm, start->last_step_finished);
-    put_known(writer, "last_step_ms", warm, start->last_step_ms);
+    static const char STEPS_KEYS[] = "last_step_finished\0last_step_ms";
+    static const uint8_t STEPS[] = {
+        REPORT_NUMBER(HalStartInfo, last_step_finished),
+        REPORT_NUMBER(HalStartInfo, last_step_ms),
+    };
+    put_numbers(writer, REPORT_NUMBERS(STEPS_KEYS, STEPS), start, warm);
     put_known(writer, "last_millivolts", warm && start->last_millivolts != 0,
               start->last_millivolts);
     writer->prefix = "fault.";
-    put_address(writer, "cfsr", warm, start->fault_status);
-    put_address(writer, "hfsr", warm, start->hard_fault_status);
-    put_address(writer, "pc", warm, start->fault_pc);
+    static const char FAULTS_KEYS[] = "cfsr\0hfsr\0pc";
+    static const uint8_t FAULTS[] = {
+        REPORT_NUMBER(HalStartInfo, fault_status),
+        REPORT_NUMBER(HalStartInfo, hard_fault_status),
+        REPORT_NUMBER(HalStartInfo, fault_pc),
+    };
+    const char *key = FAULTS_KEYS;
+    for (size_t index = 0; index < FIELD_COUNT(FAULTS); index++) {
+        put_address(writer, key, warm, report_number(start, FAULTS[index]));
+        key = next_key(key);
+    }
     writer->prefix = NULL;
 }
 
@@ -463,16 +618,21 @@ static void append_word(StringBuilder *text, const char *name, uint32_t value)
 
 static void put_writes(Writer *writer, const HalUsbWrites *writes)
 {
-    static const char *const NAMES[] = {
-        "writes=",     " receive_ms=",    " card_ms=",   " idle_ms=", " fast=",
-        " fallbacks=", " fifo_internal=", " fifo_card=", " ui_ms="};
-    const uint32_t values[] = {writes->commands,      writes->receive_ms,    writes->card_ms,
-                               writes->idle_ms,       writes->fast_cards,    writes->fallbacks,
-                               writes->fifo_words[0], writes->fifo_words[1], writes->ui_ms};
+    static const char FIELDS_KEYS[] = "writes=\0 receive_ms=\0 card_ms=\0 idle_ms=\0 fast=\0 "
+                                      "fallbacks=\0 fifo_internal=\0 fifo_card=\0 ui_ms=";
+    static const uint8_t FIELDS[] = {
+        REPORT_NUMBER(HalUsbWrites, commands),      REPORT_NUMBER(HalUsbWrites, receive_ms),
+        REPORT_NUMBER(HalUsbWrites, card_ms),       REPORT_NUMBER(HalUsbWrites, idle_ms),
+        REPORT_NUMBER(HalUsbWrites, fast_cards),    REPORT_NUMBER(HalUsbWrites, fallbacks),
+        REPORT_NUMBER(HalUsbWrites, fifo_words[0]), REPORT_NUMBER(HalUsbWrites, fifo_words[1]),
+        REPORT_NUMBER(HalUsbWrites, ui_ms),
+    };
     begin(writer, "usb.timing");
-    for (uint32_t index = 0; index < sizeof values / sizeof values[0]; index++) {
-        string_builder_append(&writer->text, NAMES[index]);
-        string_builder_append_unsigned(&writer->text, values[index]);
+    const char *key = FIELDS_KEYS;
+    for (size_t index = 0; index < FIELD_COUNT(FIELDS); index++) {
+        string_builder_append(&writer->text, key);
+        string_builder_append_unsigned(&writer->text, report_number(writes, FIELDS[index]));
+        key = next_key(key);
     }
     append_word(&writer->text, "hcon_internal", writes->hcon[0]);
     append_word(&writer->text, "hcon_card", writes->hcon[1]);
@@ -481,27 +641,35 @@ static void put_writes(Writer *writer, const HalUsbWrites *writes)
 
 static void put_usb_dac(Writer *writer, const HalUsbDacStats *dac)
 {
-    static const char *const KEYS[] = {"rate",      "bits",      "high_speed", "packets",
-                                       "underruns", "overflows", "realigned",  "max_gap_us"};
-    const uint32_t values[] = {dac->rate,      dac->bits,      dac->high_speed, dac->packets,
-                               dac->underruns, dac->overflows, dac->realigned,  dac->max_gap_us};
+    static const char FIELDS_KEYS[] =
+        "rate\0bits\0high_speed\0packets\0underruns\0overflows\0realigned\0max_gap_us";
+    static const uint8_t FIELDS[] = {
+        REPORT_NUMBER(HalUsbDacStats, rate),       REPORT_NUMBER(HalUsbDacStats, bits),
+        REPORT_NUMBER(HalUsbDacStats, high_speed), REPORT_NUMBER(HalUsbDacStats, packets),
+        REPORT_NUMBER(HalUsbDacStats, underruns),  REPORT_NUMBER(HalUsbDacStats, overflows),
+        REPORT_NUMBER(HalUsbDacStats, realigned),  REPORT_NUMBER(HalUsbDacStats, max_gap_us),
+    };
     writer->prefix = "usb.dac.";
-    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    put_numbers(writer, REPORT_NUMBERS(FIELDS_KEYS, FIELDS), dac, true);
     put_address(writer, "max_gap_pc", dac->max_gap_pc != 0, dac->max_gap_pc);
     writer->prefix = NULL;
 }
 
 static void put_usb(Writer *writer, const HalUsbLast *usb, bool kept_on)
 {
-    static const char *const KEYS[] = {"left_mounted", "internal_sectors_written",
-                                       "card_sectors_written", "writes_after_eject"};
-    const uint32_t values[] = {usb->left_mounted, usb->internal_written, usb->card_written,
-                               usb->writes_after_eject};
+    static const char FIELDS_KEYS[] =
+        "left_mounted\0internal_sectors_written\0card_sectors_written\0writes_after_eject";
+    static const uint8_t FIELDS[] = {
+        REPORT_NUMBER(HalUsbLast, left_mounted),
+        REPORT_NUMBER(HalUsbLast, internal_written),
+        REPORT_NUMBER(HalUsbLast, card_written),
+        REPORT_NUMBER(HalUsbLast, writes_after_eject),
+    };
     bool known = usb->end != HAL_USB_END_NONE;
     writer->prefix = "usb.";
     put_text(writer, "sense_mode", kept_on ? "kept_on" : "normal");
     put_text(writer, "last_end", NAME_IN(USB_END_NAMES, usb->end));
-    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], known);
+    put_numbers(writer, REPORT_NUMBERS(FIELDS_KEYS, FIELDS), usb, known);
     writer->prefix = NULL;
     if (known) {
         put_writes(writer, &usb->writes);
@@ -559,10 +727,13 @@ static void put_loop(Writer *writer, const DebugReportInput *input)
     static const char *const KEYS[] = {"connect_attempts", "connect_answered",
                                        "connect_unanswered"};
     const DebugReportLoop *loop = &input->loop;
-    const uint32_t values[] = {loop->attempts, loop->answered, loop->unanswered};
+    _Static_assert(offsetof(DebugReportLoop, unanswered) - offsetof(DebugReportLoop, attempts) ==
+                       (FIELD_COUNT(KEYS) - 1) * sizeof(uint32_t),
+                   "the loop report reads the counters in member order");
     writer->prefix = "loop.";
     put_text(writer, "boot", boot_kind(input));
-    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    put_word_list(writer, KEYS, (const uint8_t *)loop + offsetof(DebugReportLoop, attempts),
+                  FIELD_COUNT(KEYS));
     put_text(writer, "last_connect", NAME_IN(CONNECT_NAMES, loop->last_connect));
     put_known(writer, "cable_bit_at_connect", loop->attempts != 0, loop->cable_at_connect);
     writer->prefix = NULL;
@@ -604,11 +775,6 @@ static void put_card(Writer *writer, const CardStartLog *card)
     finish(writer);
 }
 
-static void put_average(Writer *writer, const char *key, uint32_t total, uint32_t count)
-{
-    put_known(writer, key, count != 0, count != 0 ? total / count : 0);
-}
-
 static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
 {
     static const char *const KEYS[] = {
@@ -617,11 +783,10 @@ static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
     if (link == NULL) {
         return;
     }
-    const HalBluetoothTimeline *time = &link->timeline;
-    const uint32_t values[] = {time->module_on_ms, time->init_done_ms, time->connect_ms,
-                               time->connected_ms, time->stream_ms,    time->first_audio_ms};
+    _Static_assert(sizeof(HalBluetoothTimeline) == sizeof KEYS / sizeof KEYS[0] * sizeof(uint32_t),
+                   "the Bluetooth report reads the timeline in member order");
     writer->prefix = "bluetooth.";
-    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    put_word_list(writer, KEYS, &link->timeline, sizeof KEYS / sizeof KEYS[0]);
     begin(writer, "reports");
     for (uint32_t index = 0; index < link->event_count; index++) {
         string_builder_append_char(&writer->text, link->events[index][0]);
@@ -632,25 +797,54 @@ static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
     writer->prefix = NULL;
 }
 
+enum {
+    AUDIO_ALWAYS,
+    AUDIO_RUNNING,
+    AUDIO_DECODED,
+    AUDIO_AVERAGE
+};
+
+#define AUDIO_FIELD(member, mode)                                                                  \
+    (REPORT_OFFSET(HalAudioStats, member) | (mode) << REPORT_SIZE_SHIFT)
+
 static void put_audio(Writer *writer, const DebugReportAudio *audio)
 {
+    static const char KEYS[] = "buffered_ms\0"
+                               "underruns\0"
+                               "output_underruns\0"
+                               "blocks\0"
+                               "handoff_avg_us\0"
+                               "handoff_max_us\0"
+                               "read_avg_us\0"
+                               "read_max_us\0"
+                               "busy_us\0"
+                               "elapsed_us";
+    static const uint8_t FIELDS[] = {
+        AUDIO_FIELD(buffered_ms, AUDIO_RUNNING),     AUDIO_FIELD(underruns, AUDIO_RUNNING),
+        AUDIO_FIELD(output_underruns, AUDIO_ALWAYS), AUDIO_FIELD(blocks, AUDIO_ALWAYS),
+        AUDIO_FIELD(decode_total_us, AUDIO_AVERAGE), AUDIO_FIELD(decode_max_us, AUDIO_DECODED),
+        AUDIO_FIELD(read_total_us, AUDIO_AVERAGE),   AUDIO_FIELD(read_max_us, AUDIO_DECODED),
+        AUDIO_FIELD(busy_us, AUDIO_ALWAYS),          AUDIO_FIELD(elapsed_us, AUDIO_RUNNING),
+    };
     const HalAudioStats *stats = &audio->stats;
-    bool running = audio->running;
-    bool decoded = stats->blocks != 0;
+    const uint8_t *bytes = (const uint8_t *)stats;
     writer->prefix = "audio.";
     put_text(writer, "state", NAME_IN(AUDIO_NAMES, audio->state));
-    put_unsigned(writer, "running", running);
-    put_known(writer, "buffered_ms", running, stats->buffered_ms);
-    put_known(writer, "underruns", running, stats->underruns);
-    put_unsigned(writer, "output_underruns", stats->output_underruns);
-    put_unsigned(writer, "blocks", stats->blocks);
-    put_average(writer, "handoff_avg_us", stats->decode_total_us, stats->blocks);
-    put_known(writer, "handoff_max_us", decoded, stats->decode_max_us);
-    put_average(writer, "read_avg_us", stats->read_total_us, stats->blocks);
-    put_known(writer, "read_max_us", decoded, stats->read_max_us);
-    put_unsigned(writer, "busy_us", stats->busy_us);
-    put_known(writer, "elapsed_us", running, stats->elapsed_us);
-    put_share(writer, "busy_percent", stats->busy_us, running ? stats->elapsed_us : 0);
+    put_unsigned(writer, "running", audio->running);
+    const char *key = KEYS;
+    for (size_t index = 0; index < sizeof FIELDS; index++) {
+        uint8_t kind = FIELDS[index] >> REPORT_SIZE_SHIFT;
+        uint32_t value =
+            *(const uint32_t *)(const void *)(bytes + (FIELDS[index] & REPORT_OFFSET_MASK));
+        bool decoded = stats->blocks != 0;
+        bool known = kind == AUDIO_ALWAYS || (kind == AUDIO_RUNNING ? audio->running : decoded);
+        if (kind == AUDIO_AVERAGE && decoded) {
+            value /= stats->blocks;
+        }
+        put_known(writer, key, known, value);
+        key = next_key(key);
+    }
+    put_share(writer, "busy_percent", stats->busy_us, audio->running ? stats->elapsed_us : 0);
     writer->prefix = NULL;
 }
 
@@ -661,9 +855,11 @@ static void put_frames(Writer *writer, const DebugFrames *frames)
     bool drawn = frames->count != 0;
     writer->prefix = "frame.";
     put_unsigned(writer, "count", frames->count);
-    const uint32_t values[] = {frames->total_us, frames->worst_us, frames->update_us,
-                               frames->draw_us, frames->send_us};
-    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], drawn);
+    _Static_assert(offsetof(DebugFrames, send_us) - offsetof(DebugFrames, total_us) ==
+                       (FIELD_COUNT(KEYS) - 1) * sizeof(uint32_t),
+                   "the frame report reads the counters in member order");
+    put_known_list(writer, KEYS, (const uint8_t *)frames + offsetof(DebugFrames, total_us),
+                   FIELD_COUNT(KEYS), drawn);
     put_known_list(writer, PART_NAMES, frames->part_us, DEBUG_FRAME_PARTS, drawn);
     writer->prefix = NULL;
 }
@@ -711,11 +907,6 @@ static void append_field(StringBuilder *text, const char *name, bool known, uint
     }
 }
 
-static void append_average(StringBuilder *text, const char *name, uint32_t total, uint32_t count)
-{
-    append_field(text, name, count != 0, count != 0 ? total / count : 0);
-}
-
 static void append_share(StringBuilder *text, const char *name, uint32_t part, uint32_t whole)
 {
     bool known = whole >= PERCENT && part <= whole;
@@ -728,41 +919,80 @@ static void append_permille(StringBuilder *text, const char *name, uint32_t part
     append_field(text, name, known, known ? part / (whole / PERMILLE) : 0);
 }
 
-static void append_measured_frames(StringBuilder *text, const DebugMeasure *measure)
+enum {
+    MEASURE_ALWAYS,
+    MEASURE_FRAMES,
+    MEASURE_RUNNING,
+    MEASURE_BLOCKS,
+    MEASURE_AVERAGE = 4
+};
+
+#define MEASURE_FIELD(member, mode) {offsetof(DebugMeasure, member), mode}
+
+static void append_measured_fields(StringBuilder *text, const DebugMeasure *measure)
 {
-    append_field(text, "frames", true, measure->frames);
-    append_average(text, "frame_avg_us", measure->frame_us, measure->frames);
-    append_field(text, "frame_worst_us", measure->frames != 0, measure->frame_worst_us);
-    append_average(text, "update_avg_us", measure->update_us, measure->frames);
-    append_average(text, "draw_avg_us", measure->draw_us, measure->frames);
-    append_average(text, "send_avg_us", measure->send_us, measure->frames);
+    static const char KEYS[] = "ms\0"
+                               "frames\0"
+                               "frame_avg_us\0"
+                               "frame_worst_us\0"
+                               "update_avg_us\0"
+                               "draw_avg_us\0"
+                               "send_avg_us\0"
+                               "audio\0"
+                               "buffered_ms\0"
+                               "underruns\0"
+                               "output_underruns\0"
+                               "blocks\0"
+                               "handoff_avg_us\0"
+                               "handoff_max_us\0"
+                               "read_avg_us\0"
+                               "read_max_us";
+    static const uint8_t FIELDS[][2] = {
+        MEASURE_FIELD(duration_ms, MEASURE_ALWAYS),
+        MEASURE_FIELD(frames, MEASURE_ALWAYS),
+        MEASURE_FIELD(frame_us, MEASURE_FRAMES | MEASURE_AVERAGE),
+        MEASURE_FIELD(frame_worst_us, MEASURE_FRAMES),
+        MEASURE_FIELD(update_us, MEASURE_FRAMES | MEASURE_AVERAGE),
+        MEASURE_FIELD(draw_us, MEASURE_FRAMES | MEASURE_AVERAGE),
+        MEASURE_FIELD(send_us, MEASURE_FRAMES | MEASURE_AVERAGE),
+        MEASURE_FIELD(audio_running, MEASURE_ALWAYS),
+        MEASURE_FIELD(buffered_ms, MEASURE_RUNNING),
+        MEASURE_FIELD(underruns, MEASURE_RUNNING),
+        MEASURE_FIELD(output_underruns, MEASURE_ALWAYS),
+        MEASURE_FIELD(blocks, MEASURE_ALWAYS),
+        MEASURE_FIELD(handoff_us, MEASURE_BLOCKS | MEASURE_AVERAGE),
+        MEASURE_FIELD(handoff_max_us, MEASURE_BLOCKS),
+        MEASURE_FIELD(read_us, MEASURE_BLOCKS | MEASURE_AVERAGE),
+        MEASURE_FIELD(read_max_us, MEASURE_BLOCKS),
+    };
+    const uint32_t counts[] = {1, measure->frames, measure->audio_running, measure->blocks};
+    const uint8_t *bytes = (const uint8_t *)measure;
+    const char *key = KEYS;
+    for (size_t index = 0; index < FIELD_COUNT(FIELDS); index++) {
+        uint8_t mode = FIELDS[index][1];
+        uint32_t count = counts[mode & (MEASURE_AVERAGE - 1)];
+        uint32_t value = *(const uint32_t *)(const void *)(bytes + FIELDS[index][0]);
+        if ((mode & MEASURE_AVERAGE) != 0 && count != 0) {
+            value /= count;
+        }
+        append_field(text, key, count != 0, value);
+        key = next_key(key);
+    }
 }
 
-static void append_measured_audio(StringBuilder *text, const DebugMeasure *measure)
+static void begin_script_line(Writer *writer, const char *name, uint32_t line)
 {
-    bool running = measure->audio_running != 0;
-    bool decoded = measure->blocks != 0;
-    append_field(text, "audio", true, measure->audio_running);
-    append_field(text, "buffered_ms", running, measure->buffered_ms);
-    append_field(text, "underruns", running, measure->underruns);
-    append_field(text, "output_underruns", true, measure->output_underruns);
-    append_field(text, "blocks", true, measure->blocks);
-    append_average(text, "handoff_avg_us", measure->handoff_us, measure->blocks);
-    append_field(text, "handoff_max_us", decoded, measure->handoff_max_us);
-    append_average(text, "read_avg_us", measure->read_us, measure->blocks);
-    append_field(text, "read_max_us", decoded, measure->read_max_us);
-    append_share(text, "audio_busy_percent", measure->audio_busy_us,
-                 running ? measure->audio_elapsed_us : 0);
+    begin(writer, name);
+    string_builder_append(&writer->text, "line=");
+    string_builder_append_unsigned(&writer->text, line);
 }
 
 static void put_measure(Writer *writer, const DebugMeasure *measure)
 {
-    begin(writer, "script.measure");
-    string_builder_append(&writer->text, "line=");
-    string_builder_append_unsigned(&writer->text, measure->line);
-    append_field(&writer->text, "ms", true, measure->duration_ms);
-    append_measured_frames(&writer->text, measure);
-    append_measured_audio(&writer->text, measure);
+    begin_script_line(writer, "script.measure", measure->line);
+    append_measured_fields(&writer->text, measure);
+    append_share(&writer->text, "audio_busy_percent", measure->audio_busy_us,
+                 measure->audio_running != 0 ? measure->audio_elapsed_us : 0);
     append_share(&writer->text, "core0_busy_percent", measure->clock_us - measure->idle_us,
                  measure->clock_us);
     uint32_t core1_busy = measure->core1_cycles - measure->core1_idle_cycles;
@@ -772,9 +1002,7 @@ static void put_measure(Writer *writer, const DebugMeasure *measure)
 
 static void put_probe(Writer *writer, const DebugProbe *probe)
 {
-    begin(writer, "script.probe");
-    string_builder_append(&writer->text, "line=");
-    string_builder_append_unsigned(&writer->text, probe->line);
+    begin_script_line(writer, "script.probe", probe->line);
     append_field(&writer->text, "ms", true, probe->time_ms);
     append_word(&writer->text, "before", probe->before);
     append_word(&writer->text, "after", probe->after);
@@ -795,11 +1023,13 @@ static void append_rtc_time(StringBuilder *text, const RtcTime *time)
 {
     string_builder_append(text, " time=");
     string_builder_append_unsigned(text, time->year);
-    append_two_digits(text, '-', time->month);
-    append_two_digits(text, '-', time->day);
-    append_two_digits(text, 'T', time->hour);
-    append_two_digits(text, ':', time->minute);
-    append_two_digits(text, ':', time->second);
+    static const char SEPARATORS[] = "--T::";
+    _Static_assert(offsetof(RtcTime, second) - offsetof(RtcTime, month) == sizeof SEPARATORS - 2,
+                   "the RTC report reads the time fields in member order");
+    const uint8_t *fields = (const uint8_t *)time + offsetof(RtcTime, month);
+    for (size_t index = 0; index < sizeof SEPARATORS - 1; index++) {
+        append_two_digits(text, SEPARATORS[index], fields[index]);
+    }
 }
 
 static void append_rtc_registers(StringBuilder *text, const DebugRtcRead *read)
@@ -814,20 +1044,18 @@ static void append_rtc_decoded(StringBuilder *text, const DebugRtcRead *read)
 {
     RtcTime time;
     bool valid = rtc_registers_decode(read->registers, &time);
-    append_field(text, "vl", true, time.voltage_low);
+    append_field(text, "vl", true, time.voltage_low ? 1u : 0u);
     if (valid) {
         append_rtc_time(text, &time);
     } else {
         string_builder_append(text, " time=invalid");
     }
     append_field(text, "weekday", true, time.weekday);
-    append_field(text, "century", true, time.century);
+    append_field(text, "century", true, time.century ? 1u : 0u);
 }
 
 static void append_rtc_head(StringBuilder *text, const DebugRtcRead *read)
 {
-    string_builder_append(text, "line=");
-    string_builder_append_unsigned(text, read->line);
     append_field(text, "ms", true, read->time_ms);
     string_builder_append(text, " action=");
     string_builder_append(text, NAME_IN(RTC_ACTIONS, read->action));
@@ -838,7 +1066,7 @@ static void append_rtc_head(StringBuilder *text, const DebugRtcRead *read)
 
 static void put_rtc(Writer *writer, const DebugRtcRead *read)
 {
-    begin(writer, "script.rtc");
+    begin_script_line(writer, "script.rtc", read->line);
     append_rtc_head(&writer->text, read);
     if (read->status == HAL_RTC_OK || read->status == HAL_RTC_MISMATCH) {
         append_rtc_registers(&writer->text, read);
@@ -951,9 +1179,7 @@ static void put_soak(Writer *writer, const DebugSoak *soak, const PowerHistory *
 {
     SoakVoltage voltage = soak_voltage(history, soak);
     uint32_t lasted_ms = soak->ended_ms - soak->started_ms;
-    begin(writer, "script.soak");
-    string_builder_append(&writer->text, "line=");
-    string_builder_append_unsigned(&writer->text, soak->line);
+    begin_script_line(writer, "script.soak", soak->line);
     append_field(&writer->text, "minutes", true, lasted_ms / MILLISECONDS_PER_MINUTE);
     string_builder_append(&writer->text, " end=");
     string_builder_append(&writer->text, NAME_IN(SOAK_ENDS, soak->end));
@@ -1056,39 +1282,55 @@ static void append_refusal(StringBuilder *text, uint32_t value)
 static void append_event_value(StringBuilder *text, const DebugEvent *event)
 {
     uint32_t value = event->value;
-    if (event->kind == DEBUG_EVENT_KEY) {
+    switch (event->kind) {
+    case DEBUG_EVENT_KEY:
         string_builder_append(text, key_script_key_name((Key)(value & KEY_MASK)));
         string_builder_append_char(text, ' ');
         string_builder_append(text, NAME_IN(GESTURE_NAMES, (value >> GESTURE_SHIFT) & 0xFFu));
         string_builder_append_char(text, ' ');
         string_builder_append_unsigned(text, value >> 16);
-    } else if (event->kind == DEBUG_EVENT_LADDER) {
+        break;
+    case DEBUG_EVENT_LADDER:
         string_builder_append(text, key_script_key_name((Key)(value & KEY_MASK)));
         string_builder_append(text, (value & LADDER_PRESSED) != 0 ? " press " : " release ");
         string_builder_append_unsigned(text, value >> 16);
         string_builder_append(text, (value & LADDER_CHORD) != 0 ? " chord" : "");
-    } else if (event->kind == DEBUG_EVENT_PLAYER) {
+        break;
+    case DEBUG_EVENT_PLAYER:
         append_named_pair(text, NAME_IN(PLAYER_NAMES, value & STATE_MASK), value >> TRACK_SHIFT);
-    } else if (event->kind == DEBUG_EVENT_REFUSAL) {
+        break;
+    case DEBUG_EVENT_REFUSAL:
         append_refusal(text, value);
-    } else if (event->kind == DEBUG_EVENT_USB_END) {
+        break;
+    case DEBUG_EVENT_USB_END:
         string_builder_append(text, NAME_IN(USB_END_NAMES, value));
-    } else if (event->kind == DEBUG_EVENT_SCRIPT && value >= DEBUG_SCRIPT_EVENT_STATE) {
-        string_builder_append(text, NAME_IN(SCRIPT_STATES, value - DEBUG_SCRIPT_EVENT_STATE));
-    } else if (event->kind == DEBUG_EVENT_SCAN) {
+        break;
+    case DEBUG_EVENT_SCRIPT:
+        if (value >= DEBUG_SCRIPT_EVENT_STATE) {
+            string_builder_append(text, NAME_IN(SCRIPT_STATES, value - DEBUG_SCRIPT_EVENT_STATE));
+        } else {
+            string_builder_append_unsigned(text, value);
+        }
+        break;
+    case DEBUG_EVENT_SCAN:
         append_named_pair(text, NAME_IN(SCAN_PHASES, value >> DEBUG_SCAN_PHASE_SHIFT),
                           value & DEBUG_SCAN_NUMBER_MASK);
-    } else if (event->kind == DEBUG_EVENT_COVER) {
+        break;
+    case DEBUG_EVENT_COVER:
         append_named_pair(text, (value & DEBUG_COVER_FULL) != 0 ? "full" : "half",
                           value & DEBUG_COVER_ALBUM_MASK);
         string_builder_append(text, (value & DEBUG_COVER_FOUND) != 0 ? " found" : " missing");
-    } else if (event->kind == DEBUG_EVENT_USB_CONNECT) {
+        break;
+    case DEBUG_EVENT_USB_CONNECT:
         string_builder_append(text, NAME_IN(CONNECT_NAMES, value));
-    } else if (event->kind == DEBUG_EVENT_POWER) {
+        break;
+    case DEBUG_EVENT_POWER:
         append_named_pair(text, (value & POWER_SAMPLE_VBUS) != 0 ? "1" : "0",
                           (value & POWER_SAMPLE_CHARGE_PIN) != 0 ? 1 : 0);
-    } else {
+        break;
+    default:
         string_builder_append_unsigned(text, value);
+        break;
     }
 }
 
@@ -1180,14 +1422,18 @@ static void put_profile(Writer *writer, const PcProfile *profile)
         put_text(writer, "profile.state", UNKNOWN);
         return;
     }
+    static const char *const KEYS[] = {"samples", "idle", "overlay", "other"};
+    _Static_assert(offsetof(PcProfile, other_samples) - offsetof(PcProfile, samples) ==
+                       (sizeof KEYS / sizeof KEYS[0] - 1) * sizeof(uint32_t),
+                   "the profile report reads the counters in member order");
     put_text(writer, "profile.state", profile_state(profile));
-    put_unsigned(writer, "profile.samples", profile->samples);
-    put_unsigned(writer, "profile.idle", profile->idle_samples);
-    put_unsigned(writer, "profile.overlay", profile->overlay_samples);
-    put_unsigned(writer, "profile.other", profile->other_samples);
-    put_address(writer, "profile.code_base", true, profile->code.base);
-    put_unsigned(writer, "profile.bucket_bytes", 1u << profile->bucket_shift);
-    put_unsigned(writer, "profile.buckets", profile->bucket_count);
+    writer->prefix = "profile.";
+    put_word_list(writer, KEYS, (const uint8_t *)profile + offsetof(PcProfile, samples),
+                  sizeof KEYS / sizeof KEYS[0]);
+    put_address(writer, "code_base", true, profile->code.base);
+    put_unsigned(writer, "bucket_bytes", 1u << profile->bucket_shift);
+    put_unsigned(writer, "buckets", profile->bucket_count);
+    writer->prefix = NULL;
     put_rows(writer, profile);
 }
 
@@ -1203,13 +1449,34 @@ static uint32_t put_tail(Writer *writer, uint32_t capacity)
 
 static void put_boot(Writer *writer, const uint64_t *times)
 {
-    static const char *const KEYS[DEBUG_BOOT_COUNT] = {
-        "boot.clock_us", "boot.display_us",   "boot.glyphs_us",      "boot.app_us",
-        "boot.frame_us", "boot.extension_us", "boot.interactive_us", "boot.audio_us"};
+    static const char KEYS[] = "clock_us\0display_us\0glyphs_us\0app_us\0"
+                               "frame_us\0extension_us\0interactive_us\0audio_us";
+    const char *key = KEYS;
+    writer->prefix = "boot.";
     for (int index = 0; index < DEBUG_BOOT_COUNT; index++) {
         uint64_t value = times != NULL ? times[index] : 0;
-        put_known_u64(writer, KEYS[index], value != 0, value - 1);
+        put_known_u64(writer, key, value != 0, value - 1);
+        key = next_key(key);
     }
+    writer->prefix = NULL;
+}
+
+static void put_dac(Writer *writer, const DacDiagnostics *dac)
+{
+    static const char *const KEYS[] = {"start_us", "stop_us", "gain_us"};
+    _Static_assert(offsetof(DacDiagnostics, gain_us) - offsetof(DacDiagnostics, start_us) ==
+                       (FIELD_COUNT(KEYS) - 1) * sizeof(uint32_t),
+                   "the DAC report reads the timings in member order");
+    writer->prefix = "dac.";
+    put_unsigned(writer, "up", dac->up);
+    put_known(writer, "power_left", (dac->valid & 1) != 0, dac->power[0]);
+    put_known(writer, "power_right", (dac->valid & 2) != 0, dac->power[1]);
+    put_word_list(writer, KEYS, (const uint8_t *)dac + offsetof(DacDiagnostics, start_us),
+                  FIELD_COUNT(KEYS));
+    if (dac->overflow != 0) {
+        put_unsigned(writer, "overflow", dac->overflow);
+    }
+    writer->prefix = NULL;
 }
 
 uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t capacity)
@@ -1230,12 +1497,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     put_audio(&writer, &input->audio);
     put_refusals(&writer, &input->refusals);
     put_bluetooth(&writer, input->bluetooth);
-    put_unsigned(&writer, "dac.up", input->dac.up);
-    put_known(&writer, "dac.power_left", (input->dac.valid & 1) != 0, input->dac.power[0]);
-    put_known(&writer, "dac.power_right", (input->dac.valid & 2) != 0, input->dac.power[1]);
-    put_unsigned(&writer, "dac.start_us", input->dac.start_us);
-    put_unsigned(&writer, "dac.stop_us", input->dac.stop_us);
-    put_unsigned(&writer, "dac.gain_us", input->dac.gain_us);
+    put_dac(&writer, &input->dac);
     put_frames(&writer, &input->frames);
     put_script(&writer, input);
     put_events(&writer, input->log);

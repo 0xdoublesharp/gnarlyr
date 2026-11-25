@@ -180,8 +180,10 @@ static void bind_rows(ButtonSettings *buttons)
                                         .value = long_value,
                                         .opens = true,
                                         .icon = ICON_KEY_MENU};
-    items[BUTTON_ROW_RESET] =
-        (MenuItem){.label = i18n_text(STR_RESET_BUTTONS), .select = reset, .context = buttons};
+    items[BUTTON_ROW_RESET] = (MenuItem){.label = i18n_text(STR_RESET_BUTTONS),
+                                         .select = reset,
+                                         .context = buttons,
+                                         .role = LIST_ROW_DANGER_DIVIDED};
 }
 
 Screen *button_settings_init(ButtonSettings *buttons, ButtonSettingsConfig config)

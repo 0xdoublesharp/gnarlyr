@@ -26,8 +26,8 @@ enum {
     MODE_CONFIRM,
     MODE_PERIODS,
     MODE_RECAP,
-    MENU_ROWS = 6,
-    RECAP_ROW = 5,
+    MENU_ROWS = 5,
+    RECAP_ROW = 0,
     STAT_GAP = 8,
     EXPORT_MEASURE,
     EXPORT_WRITE,
@@ -47,8 +47,7 @@ static Toast *toast;
 static const bool *scanning;
 
 static const StringId MENU[MENU_ROWS] = {
-    STR_TOP_ARTISTS,      STR_TOP_ALBUMS,   STR_TOP_SONGS,
-    STR_LISTENING_TOTALS, STR_EXPORT_PLAYS, STR_RECAP,
+    STR_RECAP, STR_TOP_ARTISTS, STR_TOP_ALBUMS, STR_TOP_SONGS, STR_EXPORT_PLAYS,
 };
 
 static const StringId PERIODS[LISTENING_PERIOD_COUNT] = {STR_RECAP_THIS_MONTH, STR_RECAP_LAST_MONTH,
@@ -176,15 +175,15 @@ static void show_card(ListeningScreen *screen, int step)
 static void choose(ListeningScreen *screen)
 {
     screen->selected = (uint8_t)screen->list.selected;
-    if (screen->selected < 3) {
-        screen->group = screen->selected == 0   ? LISTENING_BY_ARTIST
-                        : screen->selected == 1 ? LISTENING_BY_ALBUM
+    if (screen->selected == RECAP_ROW) {
+        show_mode(screen, MODE_PERIODS);
+    } else if (screen->selected <= 3) {
+        screen->group = screen->selected == 1   ? LISTENING_BY_ARTIST
+                        : screen->selected == 2 ? LISTENING_BY_ALBUM
                                                 : LISTENING_BY_TRACK;
         show_mode(screen, MODE_TOP);
-    } else if (screen->selected == RECAP_ROW) {
-        show_mode(screen, MODE_PERIODS);
     } else {
-        show_mode(screen, screen->selected == 3 ? MODE_TOTALS : MODE_EXPORT);
+        show_mode(screen, MODE_EXPORT);
     }
 }
 
@@ -508,8 +507,10 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
         Rect card = {area.x + padding, area.y + STAT_GAP + index * (height + STAT_GAP),
                      area.width - 2 * padding, height};
         canvas_fill_rect(canvas, card, theme->colors.header_background);
+        bool compact = height < 22 + font_line_height(theme->fonts.small);
         draw_label(canvas, theme,
-                   (Rect){card.x + STAT_GAP, card.y + 3, card.width - 2 * STAT_GAP, 20},
+                   compact ? (Rect){card.x + STAT_GAP, card.y, card.width / 2 - STAT_GAP, height}
+                           : (Rect){card.x + STAT_GAP, card.y + 3, card.width - 2 * STAT_GAP, 20},
                    i18n_text(labels[index]), false);
         if (index == 0) {
             listening_screen_format_time(value, sizeof value, totals.listened_ms);
@@ -517,9 +518,12 @@ static void draw_totals(ListeningScreen *screen, Canvas *canvas, Rect area)
             StringBuilder builder = string_builder_make(value, sizeof value);
             string_builder_append_unsigned(&builder, index == 1 ? totals.plays : totals.skips);
         }
-        draw_label(canvas, theme,
-                   (Rect){card.x + STAT_GAP, card.y + 22, card.width - 2 * STAT_GAP, height - 22},
-                   value, true);
+        draw_label(
+            canvas, theme,
+            compact
+                ? (Rect){card.x + card.width / 2, card.y, card.width / 2 - STAT_GAP, height}
+                : (Rect){card.x + STAT_GAP, card.y + 22, card.width - 2 * STAT_GAP, height - 22},
+            value, true);
     }
 }
 

@@ -1336,11 +1336,72 @@ static void dac_overview_shows_format_output_and_host(void)
     CHECK(saw("44.1 kHz · 24-bit"));
     CHECK(saw("-12 dB"));
     CHECK(saw(i18n_text(STR_JACK_35)));
-    CHECK(saw("35"));
+    CHECK(saw("35/60"));
     CHECK(saw("20 ms"));
+    scene.dac.volume = 0;
+    draw_text_of(&theme, status, &scene);
+    CHECK(saw("0/60"));
     scene.dac.host_muted = true;
     draw_text_of(&theme, status, &scene);
     CHECK(saw(i18n_text(STR_USB_DAC_MUTED_VALUE)));
+}
+
+static void dac_volume_bar_shows_empty_partial_and_full_in_each_layout(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(APPEARANCE_GRAPHITE, orientation, size);
+            UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+            AppUsbStatus status =
+                with_page_hint(&theme, (AppUsbStatus){.view = APP_USB_DAC}, &scene);
+            UsbScreenLayout layout = usb_screen_layout(&theme, status);
+            Rect rows = usb_screen_dac_rows_area(&theme, &layout, &scene);
+            int y = rows.y + 3 * font_line_height(theme.fonts.small) / 2;
+            int gap = theme.metrics.padding / 2;
+            int left = rows.x + text_width(theme.fonts.small, i18n_text(STR_VOLUME)) + gap;
+            TextStyle figures = {theme.fonts.small, theme.colors.text, true};
+            int width = rows.x + rows.width - text_style_width(figures, "60/60") - gap - left;
+            CHECK(width > 0);
+            int near = left + width / 4;
+            int far = left + width * 3 / 4;
+            Canvas canvas = canvas_for(&theme);
+            static const uint8_t VOLUMES[] = {0, 35, HAL_AUDIO_VOLUME_MAX};
+            for (size_t index = 0; index < sizeof VOLUMES / sizeof VOLUMES[0]; index++) {
+                scene.dac.volume = VOLUMES[index];
+                usb_screen_draw(&canvas, &theme, (HalBattery){0}, status);
+                CHECK_EQUAL(index > 0, canvas_pixel_at(&canvas, near, y) == theme.colors.success);
+                CHECK_EQUAL(index > 1, canvas_pixel_at(&canvas, far, y) == theme.colors.success);
+                screen_snapshot_write(&canvas, "dac-volume",
+                                      orientation * 100 + size * 10 + (int)index);
+            }
+        }
+    }
+}
+
+static void dac_volume_menu_shows_the_scale_while_adjusting_in_each_layout(void)
+{
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(APPEARANCE_GRAPHITE, orientation, size);
+            UsbScene scene = dac_scene(USB_SCENE_DAC_PLAYING);
+            UsbDacMenuConfig config = {.theme = &theme, .settings = {.volume = scene.dac.volume}};
+            usb_dac_menu_open(&menu, config, 0);
+            for (int index = 0; index < USB_DAC_ROW_VOLUME; index++) {
+                usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0);
+            }
+            usb_dac_menu_key(&menu, KEY_PLAY, 0);
+            scene.menu = &menu.view;
+            scene.hints = (const FooterHint[]){{FOOTER_KEY_VOL, STR_HINT_CHANGE},
+                                               {FOOTER_KEY_PLAY, STR_DONE}};
+            scene.hint_count = 2;
+            Canvas canvas = canvas_for(&theme);
+            AppUsbStatus status = {.view = APP_USB_DAC, .scene = &scene};
+            text_spy_reset();
+            usb_screen_draw(&canvas, &theme, (HalBattery){.known = true, .percent = 64}, status);
+            CHECK(saw("35/60"));
+            screen_snapshot_write(&canvas, "dac-volume-menu", orientation * 100 + size);
+        }
+    }
 }
 
 static void dac_details_show_what_the_session_measured(void)
@@ -1851,6 +1912,8 @@ int main(void)
         TEST_CASE(a_resting_row_dims_both_arrows_and_a_lit_one_takes_its_colour),
         TEST_CASE(a_drive_light_stays_lit_while_the_host_uses_the_drive_and_never_flashes),
         TEST_CASE(dac_overview_shows_format_output_and_host),
+        TEST_CASE(dac_volume_bar_shows_empty_partial_and_full_in_each_layout),
+        TEST_CASE(dac_volume_menu_shows_the_scale_while_adjusting_in_each_layout),
         TEST_CASE(dac_details_show_what_the_session_measured),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

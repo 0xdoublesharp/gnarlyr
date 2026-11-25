@@ -1,7 +1,9 @@
 #include <stddef.h>
 
 #include "app/app.h"
+#include "bluetooth_store.h"
 #include "board.h"
+#include "card_files.h"
 #include "core/i18n.h"
 #include "core/seam.h"
 #include "core/string_builder.h"
@@ -254,4 +256,7 @@ const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_
                                                       settings_store_read,
                                                       player_restore,
                                                       favorites_store_read,
-                                                      spoken_store_read};
+                                                      spoken_store_read,
+                                                      bluetooth_store_load,
+                                                      card_files_prepare_step,
+                                                      card_files_start_scan};

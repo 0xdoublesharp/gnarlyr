@@ -17,7 +17,7 @@ static UsbAudioSink started_sink(uint8_t sample_bytes)
         ring[index] = 0xDEADBEEFu;
     }
     usb_audio_sink_init(&sink, ring, RING_FRAMES);
-    usb_audio_sink_start(&sink, RATE, sample_bytes);
+    usb_audio_sink_start(&sink, RATE, sample_bytes, false);
     return sink;
 }
 
@@ -220,7 +220,7 @@ static void headphones_trim_both_usb_formats_and_survive_rate_restarts(void)
             }
         }
         for (int rate = 44100; rate <= 48000; rate += 3900) {
-            usb_audio_sink_start(&sink, (uint32_t)rate, width);
+            usb_audio_sink_start(&sink, (uint32_t)rate, width, false);
             usb_audio_sink_write(&sink, bytes, 2u * width, 0);
             CHECK_EQUAL(headphone_audio_word(width == 2 ? 0x7FFF0000u : 0x7FFFFF00u, profile.left),
                         ring[0]);
@@ -237,7 +237,7 @@ static void asynchronous_audio_never_drops_or_repeats_frames_to_correct_fill(voi
 {
     UsbAudioSink sink = started_sink(4);
     usb_audio_sink_set_asynchronous(&sink, true);
-    usb_audio_sink_start(&sink, 192000, 4);
+    usb_audio_sink_start(&sink, 192000, 4, false);
     CHECK_EQUAL(960, sink.target);
     CHECK_EQUAL(192, sink.guard);
     uint8_t bytes[192] = {0};
@@ -258,7 +258,7 @@ static void feedback_tracks_the_output_clock_and_steers_the_host_toward_target_f
 {
     UsbAudioSink sink = started_sink(4);
     usb_audio_sink_set_asynchronous(&sink, true);
-    usb_audio_sink_start(&sink, 192000, 4);
+    usb_audio_sink_start(&sink, 192000, 4, false);
     CHECK_EQUAL(24u << 16, usb_audio_sink_feedback(&sink, 0, 0));
     usb_audio_sink_set_playing(&sink, true);
     sink.written = sink.target;
@@ -278,7 +278,7 @@ static void stream_with_clock_error(uint32_t rate, uint8_t width, int32_t ppm)
     UsbAudioSink sink;
     usb_audio_sink_init(&sink, ring, 2200);
     usb_audio_sink_set_asynchronous(&sink, true);
-    usb_audio_sink_start(&sink, rate, width);
+    usb_audio_sink_start(&sink, rate, width, false);
     uint64_t host_phase = 0;
     uint32_t played_tick = 0;
     uint32_t consumed = 0;
@@ -340,7 +340,7 @@ static void a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer(voi
     UsbAudioSink sink;
     usb_audio_sink_init(&sink, ring, 2200);
     usb_audio_sink_set_asynchronous(&sink, true);
-    usb_audio_sink_start(&sink, 192000, 4);
+    usb_audio_sink_start(&sink, 192000, 4, false);
     uint8_t packet[192] = {0};
     for (int index = 0; index < 40; index++) {
         usb_audio_sink_write(&sink, packet, sizeof packet, 0);
@@ -380,9 +380,178 @@ static void the_meter_measures_trimmed_samples_at_every_usb_width(void)
     }
 }
 
+static void hardware_balance_keeps_usb_samples_at_the_software_trim(void)
+{
+    UsbAudioSink sink = started_sink(2);
+    HeadphoneAudio profile = {
+        .left = REPLAY_GAIN_UNITY / 4, .right = REPLAY_GAIN_UNITY / 2, .ceiling = 60};
+    usb_audio_sink_set_headphones(&sink, headphone_audio_without_balance(profile));
+    const uint8_t samples[] = {0x00, 0x40, 0x00, 0x40};
+    usb_audio_sink_write(&sink, samples, sizeof samples, 0);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(8192, peaks[0]);
+    CHECK_EQUAL(8192, peaks[1]);
+}
+
+static void dop_packet(uint8_t *bytes, uint8_t width, unsigned frames, uint8_t marker)
+{
+    for (unsigned frame = 0; frame < frames; frame++) {
+        bytes[width - 3] = 0x12;
+        bytes[2 * width - 3] = 0x34;
+        bytes[width - 1] = bytes[2 * width - 1] = marker;
+        bytes += 2 * width;
+        marker ^= 0xFF;
+    }
+}
+
+static void dop64_requires_thirty_two_stereo_frames_before_switching(void)
+{
+    for (uint8_t width = 3; width <= 4; width++) {
+        UsbAudioSink sink = started_sink(width);
+        usb_audio_sink_set_asynchronous(&sink, true);
+        usb_audio_sink_start(&sink, 176400, width, false);
+        uint8_t packet[16 * 8] = {0};
+        dop_packet(packet, width, 16, 0x05);
+        usb_audio_sink_write(&sink, packet, 16u * 2 * width, 0);
+        usb_audio_sink_write(&sink, packet, 15u * 2 * width, 0);
+        CHECK_EQUAL(31, sink.written);
+        CHECK(!sink.dop_pending);
+        usb_audio_sink_write(&sink, packet + 15u * 2 * width, 2u * width, 0);
+        CHECK_EQUAL(31, sink.written);
+        CHECK(sink.dop_pending);
+        usb_audio_sink_write(&sink, packet, 16u * 2 * width, 0);
+        CHECK_EQUAL(31, sink.written);
+    }
+}
+
+static void partial_or_repeated_markers_do_not_lock(void)
+{
+    UsbAudioSink sink = started_sink(3);
+    usb_audio_sink_set_asynchronous(&sink, true);
+    usb_audio_sink_start(&sink, 176400, 3, false);
+    uint8_t packet[32 * 6] = {0};
+    dop_packet(packet, 3, 32, 0x05);
+    packet[15 * 6 + 5] = 0x05;
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(!sink.dop_pending);
+    dop_packet(packet, 3, 32, 0xFA);
+    usb_audio_sink_write(&sink, packet, 31 * 6, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_write(&sink, packet, 6, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_write(&sink, packet + 6, 31 * 6, 0);
+    CHECK(sink.dop_pending);
+}
+
+static void dop64_requires_high_speed_wide_samples_and_unity_gain(void)
+{
+    UsbAudioSink sink = started_sink(3);
+    uint8_t packet[32 * 6] = {0};
+    dop_packet(packet, 3, 32, 0x05);
+    usb_audio_sink_start(&sink, 176400, 3, false);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_set_asynchronous(&sink, true);
+    usb_audio_sink_start(&sink, 192000, 3, false);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_start(&sink, 176400, 2, false);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_start(&sink, 176400, 3, false);
+    HeadphoneAudio profile = headphone_audio_defaults();
+    profile.right = REPLAY_GAIN_UNITY / 2;
+    usb_audio_sink_set_headphones(&sink, profile);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_set_headphones(&sink, headphone_audio_without_balance(profile));
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(sink.dop_pending);
+}
+
+static void dop64_bypasses_scaling_and_meters_until_the_first_broken_frame(void)
+{
+    UsbAudioSink sink = started_sink(4);
+    usb_audio_sink_set_asynchronous(&sink, true);
+    usb_audio_sink_start(&sink, 176400, 4, true);
+    uint8_t packet[16] = {0};
+    dop_packet(packet, 4, 2, 0xFA);
+    packet[0] = 0x42;
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK_EQUAL(3, sink.written);
+    CHECK_EQUAL(0x05696900u, ring[0]);
+    CHECK_EQUAL(0xFA001242u, ring[2]);
+    CHECK_EQUAL(0xFA003400u, ring[3]);
+    CHECK_EQUAL(0x05001200u, ring[4]);
+    CHECK_EQUAL(0xFA696900u, ring[6]);
+    CHECK_EQUAL(0x05696900u, ring[8]);
+    uint16_t peaks[2];
+    usb_audio_sink_take_peaks(&sink, peaks);
+    CHECK_EQUAL(0, peaks[0]);
+    CHECK_EQUAL(0, peaks[1]);
+    packet[7] = 0x05;
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(sink.dop_pending);
+    CHECK_EQUAL(3, sink.written);
+    CHECK_EQUAL(0xFA696900u, ring[6]);
+}
+
+static void a_dop64_underrun_preserves_marker_phase_across_ring_wrap(void)
+{
+    UsbAudioSink sink = started_sink(3);
+    usb_audio_sink_set_asynchronous(&sink, true);
+    usb_audio_sink_start(&sink, 176400, 3, true);
+    uint8_t packet[12] = {0};
+    dop_packet(packet, 3, 2, 0x05);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    uint32_t consumed = RING_FRAMES - 1;
+    usb_audio_sink_write(&sink, packet, sizeof packet, consumed);
+    CHECK_EQUAL(1, sink.stats.underruns);
+    CHECK_EQUAL(0xFA696900u, ring[(RING_FRAMES - 1) * 2]);
+    CHECK_EQUAL(0x05696900u, ring[0]);
+    CHECK_EQUAL(0xFA696900u, ring[2]);
+    CHECK_EQUAL(0x05001200u, ring[((sink.written - 2) % RING_FRAMES) * 2]);
+    CHECK_EQUAL(0x05696900u, ring[(sink.written % RING_FRAMES) * 2]);
+}
+
+static void enabling_software_trim_exits_dop64_even_between_packets(void)
+{
+    UsbAudioSink sink = started_sink(3);
+    usb_audio_sink_set_asynchronous(&sink, true);
+    usb_audio_sink_start(&sink, 176400, 3, true);
+    HeadphoneAudio profile = headphone_audio_defaults();
+    profile.left = REPLAY_GAIN_UNITY / 2;
+    usb_audio_sink_set_headphones(&sink, profile);
+    CHECK(sink.dop_pending);
+}
+
+static void restarting_the_sink_discards_a_partial_dop64_lock(void)
+{
+    UsbAudioSink sink = started_sink(3);
+    usb_audio_sink_set_asynchronous(&sink, true);
+    usb_audio_sink_start(&sink, 176400, 3, false);
+    uint8_t packet[16 * 6] = {0};
+    dop_packet(packet, 3, 16, 0x05);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    usb_audio_sink_start(&sink, 176400, 3, false);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(!sink.dop_pending);
+    usb_audio_sink_write(&sink, packet, sizeof packet, 0);
+    CHECK(sink.dop_pending);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(dop64_requires_thirty_two_stereo_frames_before_switching),
+        TEST_CASE(partial_or_repeated_markers_do_not_lock),
+        TEST_CASE(dop64_requires_high_speed_wide_samples_and_unity_gain),
+        TEST_CASE(dop64_bypasses_scaling_and_meters_until_the_first_broken_frame),
+        TEST_CASE(a_dop64_underrun_preserves_marker_phase_across_ring_wrap),
+        TEST_CASE(enabling_software_trim_exits_dop64_even_between_packets),
+        TEST_CASE(restarting_the_sink_discards_a_partial_dop64_lock),
+        TEST_CASE(hardware_balance_keeps_usb_samples_at_the_software_trim),
         TEST_CASE(the_meter_measures_trimmed_samples_at_every_usb_width),
         TEST_CASE(a_two_millisecond_delivery_burst_stays_inside_the_192_khz_buffer),
         TEST_CASE(every_rate_and_width_streams_bit_exact_with_fast_and_slow_device_clocks),

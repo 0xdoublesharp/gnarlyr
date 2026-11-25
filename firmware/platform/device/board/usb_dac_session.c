@@ -8,6 +8,7 @@
 #include "core/headphone_audio.h"
 #include "core/i18n.h"
 #include "debug_probe.h"
+#include "device/dac_eq.h"
 #include "device/dac_sequence.h"
 #include "device/usb_audio.h"
 #include "device/usb_audio_sink.h"
@@ -57,6 +58,11 @@ static UsbShared *shared;
 static UsbPort *const port = &usb_session_screen.port;
 static UsbAudio audio;
 static UsbAudioSink sink;
+
+static __attribute__((noinline)) void set_sink_headphones(HeadphoneAudio profile)
+{
+    usb_audio_sink_set_headphones(&sink, headphone_audio_without_balance(profile));
+}
 #define USB_DAC_RING_FRAMES 3000u
 
 _Static_assert(USB_DAC_RING_FRAMES > 192000 / 200 + 192000 / 1000 + 25,
@@ -72,6 +78,7 @@ static bool gain_refused;
 static UsbScene *const scene = &usb_session_screen.scene;
 static UsbDacMenu menu;
 static AppDacSettings settings;
+static const DacEqProgram *eq_programs;
 static uint32_t open_rate;
 static uint32_t last_packet_ms;
 static uint32_t received_packets;
@@ -91,7 +98,7 @@ static DacNext next;
 
 static void start_output(void)
 {
-    if (!playing && receiving && usb_audio_sink_primed(&sink)) {
+    if (!playing && receiving && !port->setup_pending && usb_audio_sink_primed(&sink)) {
         playing = true;
         usb_audio_sink_set_playing(&sink, true);
         playing = board_audio_stream_play();
@@ -229,8 +236,8 @@ static void follow_details(uint32_t now_ms)
     dac->asynchronous = usb_audio_asynchronous(&audio);
     dac->feedback = sink.asynchronous && sink.feedback_started ? sink.feedback_rate : 0;
     dac->overruns = sink.stats.overflows;
-    dac->gain_high = settings.gain == GAIN_HIGH;
-    dac->gain_register = dac->gain_high ? DAC_GAIN_HIGH_VALUE : DAC_GAIN_LOW_VALUE;
+    dac->gain = settings.gain;
+    dac->gain_register = dac_gain_register(settings.gain);
     follow_rate(now_ms);
     follow_buffer();
 }
@@ -435,7 +442,7 @@ static void step_meter(uint32_t now_ms)
     meter_ms = hal_clock_milliseconds();
 }
 
-static void stop_output(void)
+static void stop_output(bool dop)
 {
     if (playing) {
         playing = false;
@@ -444,18 +451,36 @@ static void stop_output(void)
         board_audio_stream_pause();
     }
     usb_audio_sink_set_asynchronous(&sink, usb_audio_asynchronous(&audio));
-    usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio));
+    usb_audio_sink_start(&sink, audio.rate, usb_audio_sample_bytes(&audio), dop);
 }
 
-static void follow_format(void)
+static const DacEqProgram *pcm_equalizer(void)
+{
+    if (eq_programs != NULL) {
+        for (int index = 0; index < USB_AUDIO_RATE_COUNT; index++) {
+            if (USB_AUDIO_RATES[index] == audio.rate && eq_programs[index].enabled) {
+                return &eq_programs[index];
+            }
+        }
+    }
+    return NULL;
+}
+
+static void open_output(bool dop)
 {
     receiving = false;
-    stop_output();
-    if (usb_audio_sample_bytes(&audio) != 0 && audio.rate != open_rate) {
-        open_rate = board_audio_stream_open(audio.rate, serve_audio_usb) ? audio.rate : 0;
+    bool was_dop = sink.dop;
+    stop_output(dop);
+    if (sink.sample_bytes == 0) {
+        sink.dop = was_dop;
+        return;
     }
-    receiving = open_rate != 0 && usb_audio_sample_bytes(&audio) != 0;
-    show_state();
+    if (audio.rate != open_rate || was_dop != dop) {
+        const DacEqProgram *program = dop ? NULL : pcm_equalizer();
+        open_rate =
+            board_audio_stream_open(audio.rate, dop, serve_audio_usb, program) ? audio.rate : 0;
+    }
+    receiving = open_rate != 0;
 }
 
 static void follow_host(void)
@@ -466,7 +491,8 @@ static void follow_host(void)
         scene->dac.host_volume_known = true;
     }
     if ((changes & USB_AUDIO_CHANGED_FORMAT) != 0) {
-        follow_format();
+        open_output(false);
+        show_state();
     } else if (changes != 0) {
         show_info();
     }
@@ -474,10 +500,14 @@ static void follow_host(void)
 
 static void keep_stream(void)
 {
+    if (sink.dop_pending) {
+        open_output(!sink.dop);
+        return;
+    }
     bool empty = playing && (int32_t)(sink.written - board_audio_stream_consumed()) <= 0;
     if (playing &&
         (empty || deadline_elapsed(hal_clock_milliseconds(), last_packet_ms, STREAM_IDLE_MS + 1))) {
-        stop_output();
+        stop_output(sink.dop);
     } else {
         start_output();
     }
@@ -515,29 +545,18 @@ static void switch_headphones(void)
     HeadphoneAudio after = headphone_store_parameters(&chosen);
     set_volume(headphone_audio_switch_volume(hal_audio_headphones(), after, shared->dac_volume));
     hal_audio_set_headphones(after);
-    usb_audio_sink_set_headphones(&sink, after);
-}
-
-static void step_volume(int step)
-{
-    int level = shared->dac_volume + step;
-    if (level < 0 || level > HAL_AUDIO_VOLUME_MAX) {
-        return;
-    }
-    set_volume((uint8_t)level);
-    show_info();
+    set_sink_headphones(after);
 }
 
 static void set_gain(uint8_t gain)
 {
     uint8_t volume = shared->dac_volume;
-    bool rising = gain == GAIN_HIGH && settings.gain != GAIN_HIGH;
-    if (rising) {
-        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), volume,
-                                               HEADPHONE_AUDIO_HIGH_GAIN_RISE_DB));
+    uint8_t rise = hal_audio_gain_rise_db((HalAudioGain)settings.gain, (HalAudioGain)gain);
+    if (rise != 0) {
+        set_volume(headphone_audio_rise_volume(hal_audio_headphones(), volume, rise));
     }
-    if (!hal_audio_set_gain(gain == GAIN_HIGH ? HAL_AUDIO_GAIN_HIGH : HAL_AUDIO_GAIN_LOW)) {
-        if (rising) {
+    if (!hal_audio_set_gain((HalAudioGain)gain)) {
+        if (rise != 0) {
             set_volume(volume);
         }
         menu.settings.gain = settings.gain;
@@ -605,6 +624,9 @@ static void follow_menu(Key key, uint32_t time_ms)
     if (action == USB_DAC_ACTION_NONE) {
         return;
     }
+    if (!menu.adjusting) {
+        port->hid.volume_step = 0;
+    }
     gain_refused = false;
     if (action == USB_DAC_ACTION_CLOSE) {
         menu_open = false;
@@ -623,6 +645,22 @@ static void follow_menu(Key key, uint32_t time_ms)
     }
 }
 
+static void step_volume(int step, uint32_t now_ms)
+{
+    if (step == 0) {
+        return;
+    }
+    int level = shared->dac_volume + step;
+    if ((unsigned)level > HAL_AUDIO_VOLUME_MAX) {
+        port->hid.volume_step = 0;
+    } else if (menu_open) {
+        follow_menu(step > 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN, now_ms);
+    } else {
+        set_volume((uint8_t)level);
+        show_info();
+    }
+}
+
 static __attribute__((noinline)) void load_menu(uint32_t now_ms)
 {
     usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
@@ -636,8 +674,7 @@ static void open_menu(uint32_t now_ms)
     serve_audio_usb();
     menu_open = true;
     gain_refused = false;
-    port->hid.held = 0;
-    port->hid.skipped = 0;
+    port->hid.volume_step = 0;
     show_screen(true);
 }
 
@@ -670,17 +707,14 @@ static __attribute__((noinline)) void follow_key(HalKeyTransition key)
 {
     if (key.key == KEY_BACK) {
         follow_back(key);
-    } else if (menu_open) {
+    } else if (menu_open && (!menu.adjusting || key.key > KEY_VOLUME_DOWN)) {
         if (key.pressed) {
             follow_menu((Key)key.key, key.time_ms);
         }
     } else if (key.key == KEY_MENU && key.pressed) {
         open_menu(key.time_ms);
     } else {
-        int step = usb_audio_hid_key(&port->hid, key.key, key.pressed, key.time_ms);
-        if (step != 0) {
-            step_volume(step);
-        }
+        step_volume(usb_audio_hid_key(&port->hid, key.key, key.pressed, key.time_ms), key.time_ms);
     }
 }
 
@@ -755,10 +789,8 @@ static void serve(void)
         board_display_service();
         follow_host();
         keep_output();
-        if (!menu_open) {
-            usb_audio_hid_tick(&port->hid, hal_clock_milliseconds());
-        }
         uint32_t now = hal_clock_milliseconds();
+        step_volume(usb_audio_hid_tick(&port->hid, now), now);
 #ifdef ECHO_DEBUG_LOOP
         step_dac_test(now);
 #endif
@@ -769,7 +801,7 @@ static void serve(void)
 
 static void warm_menu_glyphs(void)
 {
-    static const uint16_t EXTRAS[] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_OUTPUT_AUTO,
+    static const uint16_t EXTRAS[] = {STR_GAIN_LOW, STR_GAIN_HIGH, STR_GAIN_MEDIUM, STR_OUTPUT_AUTO,
                                       STR_JACK_35,  STR_JACK_44,   STR_OFF};
     const Theme *theme = app_theme();
     const Font *detail = theme_is_portrait(theme) ? theme->fonts.small : theme->fonts.body;
@@ -781,8 +813,8 @@ static void warm_menu_glyphs(void)
     }
     static const uint16_t SYMBOLS[] = {0x00B1u, 0x00B7u, 0x2013u, 0x2026u};
     const Font *warm_fonts[] = {theme->fonts.title, theme->fonts.body, theme->fonts.small};
-    (void)text_width(detail, "0123456789");
-    (void)text_width(theme->fonts.title, "0123456789");
+    (void)text_width(theme->fonts.body, "0123456789/");
+    (void)text_width(theme->fonts.title, "0123456789/");
     (void)text_width(theme->fonts.title, i18n_text(STR_USB_DAC_RATE));
     (void)text_width(detail, menu.profile);
     for (size_t index = 0; index < sizeof EXTRAS / sizeof EXTRAS[0]; index++) {
@@ -807,7 +839,7 @@ static void start_session(void)
     uint32_t frames = 0;
     uint32_t *ring = board_audio_stream_ring(&frames);
     usb_audio_sink_init(&sink, ring, frames);
-    usb_audio_sink_set_headphones(&sink, hal_audio_headphones());
+    set_sink_headphones(hal_audio_headphones());
     open_rate = 0;
     received_packets = 0;
     forced = (UsbForced){0};
@@ -817,8 +849,6 @@ static void start_session(void)
     hinted_page = 0;
     receiving = false;
     playing = false;
-    port->hid.held = 0;
-    port->hid.skipped = 0;
     menu_open = false;
     next = DAC_NEXT_STAY;
     settings = app_dac_settings();
@@ -864,9 +894,10 @@ static void switch_mode(void)
     }
 }
 
-void usb_dac_session(UsbShared *state)
+void usb_dac_session(UsbShared *state, const DacEqProgram *programs)
 {
     shared = state;
+    eq_programs = programs;
     app_show_usb_status(
         (AppUsbStatus){.view = APP_USB_CONNECTING, .detail = i18n_text(STR_PLUG_DAC_LINE)});
     uint8_t level = board_audio_volume_level();
@@ -882,7 +913,7 @@ void usb_dac_session(UsbShared *state)
         serve();
     }
     receiving = false;
-    stop_output();
+    stop_output(false);
     shared->last_session.dac = (HalUsbDacStats){
         .rate = open_rate,
         .packets = sink.stats.packets,
@@ -899,6 +930,7 @@ void usb_dac_session(UsbShared *state)
 #endif
     font_pack_hold(FONT_PACK_HOLD_NONE);
     board_audio_stream_close();
+    eq_programs = NULL;
     menu_open = false;
     usb_screen_capture(dac_status(), scene, CAPTURE_DAC, CAPTURE_DAC_SLOT);
     board_audio_set_attenuation(0);

@@ -56,6 +56,7 @@ typedef struct AudioTrackInfo {
     FlacInfo stream;
     uint32_t audio_bytes;
     AudioCodec codec;
+    bool dop;
 } AudioTrackInfo;
 
 typedef struct AudioSource {
@@ -145,6 +146,7 @@ typedef struct AudioEngine {
     bool ended;
     uint32_t end_at;
     bool rate_pending;
+    bool output_dop;
     uint32_t output_rate;
     AudioResample resample;
     bool has_next;
@@ -170,6 +172,7 @@ typedef struct AudioEngine {
     uint32_t decode_token;
     HalAudioEqualizer equalizer_curve;
     bool equalizing;
+    bool hw_equalizing;
     AudioEngineStats stats;
     AudioRefusal refusal;
     HeadphoneAudio headphones;
@@ -185,7 +188,7 @@ typedef struct AudioEngine {
 void audio_engine_init(AudioEngine *engine, AudioEngineConfig config);
 void audio_engine_set_volume(AudioEngine *engine, uint8_t level);
 void audio_engine_set_headphones(AudioEngine *engine, HeadphoneAudio profile);
-void audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
+bool audio_engine_set_equalizer(AudioEngine *engine, const HalAudioEqualizer *curve);
 void audio_engine_set_effects(AudioEngine *engine, HalAudioEffects effects);
 bool audio_engine_play(AudioEngine *engine, const AudioEngineTrack *track, uint32_t offset_ms);
 const char *audio_engine_current_path(const AudioEngine *engine);
@@ -202,6 +205,8 @@ AudioEngineStats audio_engine_stats(const AudioEngine *engine);
 bool audio_engine_wants_rate(const AudioEngine *engine, uint32_t *rate);
 void audio_engine_restart(AudioEngine *engine);
 bool audio_engine_needs_full_clock(const AudioEngine *engine);
+bool audio_engine_dop_allowed(const AudioEngine *engine, bool wired, uint32_t replay_gain);
+void audio_engine_clear_words(uint32_t *words, uint32_t frames, uint32_t first, bool dop);
 uint32_t audio_engine_rate(const AudioEngine *engine);
 uint32_t audio_engine_buffered(const AudioEngine *engine, uint32_t consumed);
 AudioEngineStatus audio_engine_status(const AudioEngine *engine);

@@ -47,6 +47,14 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/registration/codec.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/registration/audio.cmake)
 
+echo_add_unit_test(NAME test_dac_eq
+    SOURCES device/test_dac_eq.c
+    LIBRARIES echo_device_logic
+)
+if(UNIX)
+    target_link_libraries(test_dac_eq PRIVATE m)
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/registration/image.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/registration/storage.cmake)

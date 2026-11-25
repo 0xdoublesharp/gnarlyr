@@ -42,7 +42,7 @@ static void start_in(HalBattery battery, const uint8_t *pack, uint32_t size)
         CHECK(segment == 0 || i18n_attach_segment(segment, pack + row.offset, &row));
     }
     theme = BOARD_THEME;
-    store.settings = settings_defaults();
+    settings_store_load(&store);
     toast = (Toast){0};
     SettingsContext context = {.store = &store, .player = &player, .toast = &toast};
     settings_screens_init(&screens, context, &theme);
@@ -326,6 +326,29 @@ static void every_chooser_draws_at_every_theme_size_and_orientation(void)
     }
 }
 
+static void battery_care_can_be_selected_and_persists_at_every_size(void)
+{
+    for (int turn = 0; turn < 2; turn++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            start(ON_A_CABLE);
+            use_theme(0, turn == 0 ? ORIENTATION_LANDSCAPE : ORIENTATION_PORTRAIT, size);
+            Screen *screen = open_at(PLUG_PLACE_SETTINGS);
+            press(screen, KEY_VOLUME_DOWN, 10);
+            CHECK_EQUAL(PLUG_MODE_CHARGE_80,
+                        plug_chooser_mode(&screens.plug, screens.plug.list.selected));
+            CHECK_EQUAL(SCREEN_ACTION_POP, press(screen, KEY_PLAY, 20).type);
+            CHECK_EQUAL(PLUG_CARE_80, fake_hal_battery_care_mode());
+            SettingsStore restored;
+            settings_store_load(&restored);
+            CHECK_EQUAL(PLUG_CARE_80, restored.settings.battery_care);
+            CHECK_EQUAL(USB_CONNECT_CHARGE, restored.settings.usb_connect);
+            screen = open_at(PLUG_PLACE_SETTINGS);
+            CHECK_EQUAL(screens.plug.list.selected, screens.plug.choices.marked);
+            draw_variant(screen, "battery-care", turn * TEXT_SIZE_COUNT + size);
+        }
+    }
+}
+
 static void each_mode_has_its_own_figure(void)
 {
     start(ON_A_CABLE);
@@ -585,6 +608,7 @@ int main(void)
         TEST_CASE(every_chooser_fits_every_size_and_orientation),
         TEST_CASE(every_chooser_draws_at_every_theme_size_and_orientation),
         TEST_CASE(each_mode_has_its_own_figure),
+        TEST_CASE(battery_care_can_be_selected_and_persists_at_every_size),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }
