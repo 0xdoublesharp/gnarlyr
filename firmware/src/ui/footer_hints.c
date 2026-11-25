@@ -143,11 +143,17 @@ __attribute__((noinline)) static void draw_cell(const FooterDraw *draw, Rect cel
                        high};
     }
     canvas_outline_rect(draw->canvas, box, run->ink.verb);
-    label_draw(draw->canvas, style, (Label){words, i18n_text((StringId)hint->verb)});
+    label_draw_serviced(draw->canvas, style, (Label){words, i18n_text((StringId)hint->verb)},
+                        draw->hints.service);
+    if (draw->hints.service != NULL) {
+        draw->hints.service();
+    }
     style.color = run->ink.key;
     box.x += FOOTER_CHIP_PADDING;
     box.width -= 2 * FOOTER_CHIP_PADDING;
-    label_draw(draw->canvas, style, (Label){box, footer_hints_key_name((FooterKey)hint->key)});
+    label_draw_serviced(draw->canvas, style,
+                        (Label){box, footer_hints_key_name((FooterKey)hint->key)},
+                        draw->hints.service);
 }
 
 static void footer_service(void (*service)(void))

@@ -114,6 +114,13 @@ class ReportChecks(unittest.TestCase):
         self.assert_failed_check("audio.output_underruns", -1)
         self.write_report(**{"audio.output_underruns": "bad"})
         self.assert_failed_check("audio.output_underruns", "bad")
+        self.write_report(**{
+            "start.warm": 0,
+            "fault.cfsr": "unknown",
+            "fault.hfsr": "unknown",
+            "fault.pc": "unknown",
+        })
+        self.assertEqual(self.check()[0], 0)
 
     def test_the_underrun_limit_is_inclusive(self):
         self.write_report(**{"audio.output_underruns": 2})

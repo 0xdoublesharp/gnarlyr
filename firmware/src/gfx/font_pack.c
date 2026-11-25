@@ -10,7 +10,7 @@ enum {
     EXTRA_COUNT_FIELD = 5,
     EXTRA_LANGUAGES_FIELD = 6,
     EXTRA_SIZE_FIELD = 8,
-    HELD_BUCKETS = 1024,
+    HELD_BUCKETS = 256,
     HELD_INDEX_BYTES = HELD_BUCKETS * sizeof(uint16_t)
 };
 
@@ -448,18 +448,21 @@ static const Glyph *find_held(uint32_t face, const PackFace *ready, uint32_t cod
     }
     uint16_t *table = held_table();
     uint32_t bucket = key_hash(key) & (HELD_BUCKETS - 1);
-    for (uint32_t probe = 0; probe < HELD_BUCKETS; probe++) {
-        uint16_t entry_word = table[bucket];
-        if (entry_word == 0) {
-            break;
-        }
-        PackSlot *slot = (PackSlot *)(base + ((uint32_t)(entry_word - 1) << 2));
+    uint16_t cached = table[bucket];
+    if (cached != 0) {
+        PackSlot *slot = (PackSlot *)(base + ((uint32_t)(cached - 1) << 2));
         if (slot->key == key) {
             return slot->present ? &slot->glyph : NULL;
         }
-        bucket = (bucket + 1) & (HELD_BUCKETS - 1);
     }
-    if (table[bucket] != 0 || held_bytes + sizeof(PackSlot) > limit) {
+    for (uint32_t at = 0; at < held_bytes; at += held_entry_bytes((PackSlot *)(base + at))) {
+        PackSlot *slot = (PackSlot *)(base + at);
+        if (slot->key == key) {
+            table[bucket] = (uint16_t)((at >> 2) + 1);
+            return slot->present ? &slot->glyph : NULL;
+        }
+    }
+    if (held_bytes + sizeof(PackSlot) > limit) {
         return NULL;
     }
     PackSlot *slot = (PackSlot *)(base + held_bytes);

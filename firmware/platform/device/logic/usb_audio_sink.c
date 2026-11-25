@@ -52,13 +52,6 @@ bool usb_audio_sink_primed(const UsbAudioSink *sink)
     return sink->sample_bytes != 0 && sink->written >= sink->target;
 }
 
-static void put_frame(UsbAudioSink *sink, uint32_t frame, uint32_t left, uint32_t right)
-{
-    uint32_t *words = sink->ring + (frame % sink->ring_frames) * WORDS_PER_FRAME;
-    words[0] = left;
-    words[1] = right;
-}
-
 static uint32_t sample_word(const uint8_t *bytes, uint8_t count)
 {
     uint32_t word = 0;
@@ -87,8 +80,18 @@ void usb_audio_sink_take_peaks(UsbAudioSink *sink, uint16_t *peaks)
 
 static void clear_range(UsbAudioSink *sink, uint32_t frame, uint32_t end)
 {
-    for (; frame != end; frame++) {
-        put_frame(sink, frame, 0, 0);
+    if (frame == end) {
+        return;
+    }
+    uint32_t pos = frame % sink->ring_frames;
+    uint32_t count = end - frame;
+    for (uint32_t index = 0; index < count; index++) {
+        uint32_t *words = sink->ring + pos * WORDS_PER_FRAME;
+        words[0] = 0;
+        words[1] = 0;
+        if (++pos == sink->ring_frames) {
+            pos = 0;
+        }
     }
 }
 
@@ -130,6 +133,7 @@ static void write_frames(UsbAudioSink *sink, const uint8_t *bytes, uint32_t fram
     uint32_t frame_bytes = 2u * sink->sample_bytes;
     uint32_t kept = adjust < 0 && frames > 1 ? frames - 1 : frames;
     uint32_t total = adjust > 0 ? kept + 1 : kept;
+    uint32_t pos = sink->written % sink->ring_frames;
     for (uint32_t index = 0; index < total; index++) {
         const uint8_t *frame = bytes + (index < kept ? index : kept - 1) * frame_bytes;
         uint32_t left =
@@ -138,7 +142,13 @@ static void write_frames(UsbAudioSink *sink, const uint8_t *bytes, uint32_t fram
             sample_word(frame + sink->sample_bytes, sink->sample_bytes), sink->headphones.right);
         note_peak(sink, 0, left);
         note_peak(sink, 1, right);
-        put_frame(sink, sink->written++, left, right);
+        uint32_t *words = sink->ring + pos * WORDS_PER_FRAME;
+        words[0] = left;
+        words[1] = right;
+        if (++pos == sink->ring_frames) {
+            pos = 0;
+        }
+        sink->written++;
     }
 }
 

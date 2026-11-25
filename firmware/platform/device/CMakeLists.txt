@@ -284,6 +284,7 @@ set(ECHO_OVERLAY_IMPORTS
     footer_hints_height
     footer_hints_draw
     label_draw
+    label_draw_serviced
     label_draw_wrapped
     label_draw_wrapped_serviced
     label_centered_area

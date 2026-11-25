@@ -252,9 +252,12 @@ def check_report(tool, build, max_underruns, require_dac=False, max_dac_gap_us=N
             clean_tag = tag.removesuffix("+").lower() if tag is not None else None
             check("firmware.build", tag, build, clean_tag == build)
 
+        warm = values.get("start.warm")
         for name in ("fault.cfsr", "fault.hfsr", "fault.pc"):
             value = values.get(name)
-            check(name, value, 0, value == 0)
+            cold_unknown = warm == 0 and value is None
+            check(name, value, "0 (or unknown on cold start)" if warm == 0 else 0,
+                  value == 0 or cold_unknown)
 
         underruns = values.get("audio.output_underruns")
         check("audio.output_underruns", underruns, f"0..{max_underruns}",

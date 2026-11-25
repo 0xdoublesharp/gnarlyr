@@ -110,18 +110,29 @@ Rect label_centered_area(const Font *font, Rect bounds, const char *text)
     return (Rect){bounds.x + (bounds.width - width) / 2, bounds.y, width, bounds.height};
 }
 
-void label_draw(Canvas *canvas, TextStyle style, Label label)
+void label_draw_serviced(Canvas *canvas, TextStyle style, Label label, void (*service)(void))
 {
     Canvas clipped = canvas_clipped(canvas, label.area);
     if (rect_is_empty(clipped.clip)) {
         return;
     }
     LabelFit fit = label_fit(style.font, label.text, label.area.width);
+    if (service != NULL) {
+        service();
+    }
     Point pen = {label.area.x, label_baseline(style.font, label.area)};
     pen.x = text_draw_span(&clipped, style, pen, (TextSpan){label.text, fit.byte_count});
     if (fit.ellipsis) {
+        if (service != NULL) {
+            service();
+        }
         text_draw(&clipped, style, pen, ELLIPSIS_TEXT);
     }
+}
+
+void label_draw(Canvas *canvas, TextStyle style, Label label)
+{
+    label_draw_serviced(canvas, style, label, NULL);
 }
 
 static bool prefers_break_after(uint32_t codepoint)

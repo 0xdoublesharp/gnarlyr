@@ -237,7 +237,7 @@ Color usb_screen_tint(Color color, Color toward)
 void usb_screen_text(const UsbPainter *painter, Rect area, TextStyle style, const char *text)
 {
     usb_screen_service(painter->scene);
-    label_draw(painter->canvas, style, (Label){area, text});
+    label_draw_serviced(painter->canvas, style, (Label){area, text}, painter->scene->service);
     usb_screen_service(painter->scene);
 }
 
