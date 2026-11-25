@@ -46,8 +46,8 @@
 <main id="main">
   <div class="page-intro wrap">
     <p class="eyebrow">Theme packs · format version 2</p>
-    <h1 class="page-title">Make your ECHO look like yours.</h1>
-    <p>Swap colors, screen backgrounds, and icons with a single <code>.gtheme</code> file. Preview your pack offline in Gnarlyr Companion or build it from source, then copy it to your player over USB. Select any screenshot to see it at full size.</p>
+    <h1 class="page-title">Theme packs for Gnarlyr</h1>
+    <p>A <code>.gtheme</code> pack changes colors, backgrounds, and icons. Build or preview a pack offline, then copy it to your ECHO over USB. Select a screenshot to see it at full size.</p>
     <div class="actions">
       <a class="button" href="#make-a-theme">How to make a theme ↓</a>
       <a class="text-link" href="#gallery">See custom themes →</a>
@@ -69,7 +69,7 @@
     </nav>
     <div>
       <section class="doc-section" id="gallery" aria-labelledby="gallery-title">
-        <h2 id="gallery-title">Custom themes in action.</h2>
+        <h2 id="gallery-title">Example themes</h2>
         <p class="intro">A theme pack can change every menu color, supply custom landscape and portrait backgrounds, tile list screens, and replace Home and status icons—without touching your firmware.</p>
         <p>Both example packs below are original CC0-1.0 designs included in the <a href="https://github.com/0xdoublesharp/gnarlyr/tree/main/examples/themes">Gnarlyr repository ↗</a> and bundled as demos inside <a href="companion.html#themes">Gnarlyr Companion</a>. Screenshots use Gnarlyr’s screen renderer with sample music.</p>
 
@@ -169,7 +169,7 @@
 
       <section class="doc-section" id="make-a-theme" aria-labelledby="make-a-theme-title">
         <p class="eyebrow">Step 1 of 5</p>
-        <h2 id="make-a-theme-title">Start with a theme folder.</h2>
+        <h2 id="make-a-theme-title">Make a theme folder</h2>
         <p class="intro">Every theme pack is compiled from one ordinary folder on your computer containing a manifest (<code>theme.json</code> or <code>theme.toml</code>) and optional PNG images.</p>
         <p>The fastest way to begin is to copy <a href="https://github.com/0xdoublesharp/gnarlyr/tree/main/examples/themes/pocket-scope">examples/themes/pocket-scope ↗</a> or <a href="https://github.com/0xdoublesharp/gnarlyr/tree/main/examples/themes/desktop-98">examples/themes/desktop-98 ↗</a>, generate a fresh UUID for <code>id</code>, and customize the colors and PNGs.</p>
         <pre><code>my-theme/
@@ -236,7 +236,7 @@
           </thead>
           <tbody>
             <tr><th scope="row"><code>id</code></th><td>Non-zero UUID identifying your theme across updates.</td></tr>
-            <tr><th scope="row"><code>name</code>, <code>author</code></th><td>UTF-8 strings, up to 31 bytes each. Shown in Settings → Theme.</td></tr>
+            <tr><th scope="row"><code>name</code>, <code>author</code></th><td>UTF-8 strings, up to 31 bytes each. Shown in Settings → Display &amp; text → Theme.</td></tr>
             <tr><th scope="row"><code>version</code></th><td>Numeric <code>major.minor.patch</code> (each 0–65535, no leading zeros).</td></tr>
             <tr><th scope="row"><code>licence</code></th><td>License identifier such as <code>CC0-1.0</code>, <code>MIT</code>, or <code>CC-BY-4.0</code> (up to 63 UTF-8 bytes).</td></tr>
             <tr><th scope="row"><code>homepage</code>, <code>gallery</code></th><td>Optional <code>https://</code> URLs (up to 127 bytes each), or empty string <code>""</code>.</td></tr>
@@ -249,7 +249,7 @@
 
       <section class="doc-section" id="palette" aria-labelledby="palette-title">
         <p class="eyebrow">Step 2 of 5</p>
-        <h2 id="palette-title">Choose your 20 palette colors.</h2>
+        <h2 id="palette-title">Choose the 20 palette colors</h2>
         <p class="intro">Every pack supplies all 20 color roles as <code>#RRGGBB</code> hex strings. The builder converts them to the ECHO’s 16-bit RGB565 display format.</p>
         <table class="data-table">
           <caption>Palette roles in theme.json / theme.toml</caption>
@@ -272,7 +272,7 @@
 
       <section class="doc-section" id="artwork" aria-labelledby="artwork-title">
         <p class="eyebrow">Step 3 of 5</p>
-        <h2 id="artwork-title">Create artwork and icons.</h2>
+        <h2 id="artwork-title">Create artwork and icons</h2>
         <p class="intro">Add PNGs for any screen or icon you want to customize. Any slot you leave out uses Gnarlyr’s built-in drawing with your theme’s palette.</p>
         <table class="data-table">
           <caption>Image slots, dimensions, and codec rules</caption>
@@ -333,7 +333,7 @@
 
       <section class="doc-section" id="build-preview" aria-labelledby="build-preview-title">
         <p class="eyebrow">Step 4 of 5</p>
-        <h2 id="build-preview-title">Build and preview your pack.</h2>
+        <h2 id="build-preview-title">Build and preview the pack</h2>
         <p class="intro">You can compile and inspect version 2 <code>.gtheme</code> packs right inside Gnarlyr Companion—no command line required—or from a firmware source checkout.</p>
 
         <h3>Option A · Gnarlyr Companion (desktop)</h3>
@@ -362,7 +362,7 @@
 
       <section class="doc-section" id="install-theme" aria-labelledby="install-theme-title">
         <p class="eyebrow">Step 5 of 5</p>
-        <h2 id="install-theme-title">Copy, eject, and choose on your ECHO.</h2>
+        <h2 id="install-theme-title">Install the pack on your ECHO</h2>
         <p class="intro">You can install any <code>.gtheme</code> pack over ordinary USB storage—even without Companion.</p>
         <ol class="sequence">
           <li><strong>Connect in USB storage mode.</strong> Plug in your ECHO and choose <strong>Connect to computer</strong> (or Home → USB mode → Connect to computer).</li>
@@ -386,10 +386,6 @@
     </div>
   </div>
 </main>
-<div class="outro wrap">
-  <p class="outro-phrase">Stay offline. Get a little gnarly.</p>
-  <p class="eyebrow">Made for the music you already love.</p>
-</div>
 <footer class="wrap">
   <nav class="footer-nav" aria-label="More about Gnarlyr"><a href="index.html">Home</a><a href="firmware.html">Features &amp; improvements</a><a href="docs.html">Docs</a><a href="hardware.html">Hardware</a><a href="companion.html">Companion</a><a href="install.html">Install &amp; update</a><a href="themes.html" aria-current="page">Themes</a><a href="languages.html">Languages</a><a href="build.html">Developers</a></nav>
   <div class="footer-hardware" id="hardware"><p><strong>Snowsky ECHO</strong> · <a href="hardware.html">Hardware guide</a></p>

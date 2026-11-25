@@ -206,10 +206,14 @@ class PublishedLanguageTests(unittest.TestCase):
 
     def test_source_edits_require_translation_updates(self):
         source = {name: (publisher.SITE / name).read_bytes() for name in publisher.PUBLIC_FILES}
-        source["index.html"] = source["index.html"].replace(b"Rediscover the music you own.", b"Enjoy your music again.")
+        homepage = source["index.html"].decode()
+        hero = next(node for node in locales.Document(homepage).nodes
+                    if node["attrs"].get("data-i18n") == "home.m010")
+        end = hero["stop"]
+        source["index.html"] = (homepage[:end] + " A test edit." + homepage[end:]).encode()
         with self.assertRaisesRegex(ValueError, "stale translation"):
             locales.build(source, publisher.SITE)
-        source["index.html"] = (publisher.SITE / "index.html").read_bytes().replace(b"</main>", b"<p>A new feature.</p></main>")
+        source["index.html"] = homepage.replace("</main>", "<p>A new feature.</p></main>").encode()
         with self.assertRaisesRegex(ValueError, "unmarked translation"):
             locales.build(source, publisher.SITE)
 

@@ -3,9 +3,9 @@
   "locale": "ja",
   "messages": {
     "home.a001": {
-      "source": "Give your Snowsky ECHO a new side: visual album browsing, editable queues, saved mixtapes, custom EQ, and a look you can make your own.",
-      "source_sha256": "a3d48c327b24894f04424308af16facdcc6ecc3b361097168da132092bdf2099",
-      "translation": "Snowsky ECHOの新しい一面を。アルバムをカバーで探し、再生キューを編集し、ミックステープを保存。EQや見た目も自分好みに。"
+      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
+      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
+      "translation": "フルサイズのSnowsky ECHO向けオープンソースファームウェア。Cover Flow、再生キュー編集、ミックステープ保存、カスタムEQに対応。"
     },
     "home.a002": {
       "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
@@ -13,9 +13,9 @@
       "translation": "Gnarlyr | Snowsky ECHO用カスタムファームウェア"
     },
     "home.a003": {
-      "source": "Give your Snowsky ECHO a new side: visual album browsing, editable queues, saved mixtapes, custom EQ, and a look you can make your own.",
-      "source_sha256": "a3d48c327b24894f04424308af16facdcc6ecc3b361097168da132092bdf2099",
-      "translation": "Snowsky ECHOの新しい一面を。アルバムをカバーで探し、再生キューを編集し、ミックステープを保存。EQや見た目も自分好みに。"
+      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
+      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
+      "translation": "フルサイズのSnowsky ECHO向けオープンソースファームウェア。Cover Flow、再生キュー編集、ミックステープ保存、カスタムEQに対応。"
     },
     "home.m001": {
       "source": "Gnarlyr | Custom firmware for Snowsky ECHO",
@@ -33,9 +33,9 @@
       "translation": "Gnarlyr | Snowsky ECHO用カスタムファームウェア"
     },
     "home.a006": {
-      "source": "Give your Snowsky ECHO a new side: visual album browsing, editable queues, saved mixtapes, custom EQ, and a look you can make your own.",
-      "source_sha256": "a3d48c327b24894f04424308af16facdcc6ecc3b361097168da132092bdf2099",
-      "translation": "Snowsky ECHOの新しい一面を。アルバムをカバーで探し、再生キューを編集し、ミックステープを保存。EQや見た目も自分好みに。"
+      "source": "Open-source firmware for the full-size Snowsky ECHO with Cover Flow, editable queues, saved mixtapes, and custom EQ.",
+      "source_sha256": "eda849d7652f749ffe4bd1055d96c4579846fafa444272c22ede1c4ff4cd122f",
+      "translation": "フルサイズのSnowsky ECHO向けオープンソースファームウェア。Cover Flow、再生キュー編集、ミックステープ保存、カスタムEQに対応。"
     },
     "home.a007": {
       "source": "Gnarlyr Sunset Disc beside the words “A new side to your ECHO.”",
@@ -93,9 +93,9 @@
       "translation": "<span>あなたのECHO。</span><span class=\"gnarly\">巻き戻して、新しく。</span>"
     },
     "home.m010": {
-      "source": "Rediscover the music you own. Browse album covers, build the perfect play order, and give your ECHO a look that feels like you.",
-      "source_sha256": "e2cf785c47194163ceda94ed178eaf5f3882b4229db74c384dd292849198cf8b",
-      "translation": "手元の音楽を再発見。アルバムカバーを眺め、理想の再生順を作り、ECHOを自分らしい姿に。"
+      "source": "Browse your albums by cover, rearrange the songs coming up, and save the best mixes for another listen.",
+      "source_sha256": "211a5666797b7b70f697f60d6ca77b1c06e6b593cbe5129be94fa28a52b9bbb7",
+      "translation": "ジャケットでアルバムを探し、次に再生する曲を並べ替え、気に入ったミックスを保存してまた聴けます。"
     },
     "home.m011": {
       "source": "Install Gnarlyr <span aria-hidden=\"true\">→</span>",
@@ -103,34 +103,14 @@
       "translation": "Gnarlyrをインストール <span aria-hidden=\"true\">→</span>"
     },
     "home.m012": {
-      "source": "See it in action ↓",
-      "source_sha256": "f92749dfa4dce9a970c5785b3ba754c3fe4cd71abbe33654f11befe67768dda9",
-      "translation": "動きを見る ↓"
+      "source": "Explore the screens ↓",
+      "source_sha256": "411cb820679ae9c1c368dbc9125d282192563817e26315d522d5dd7c6a7cf411",
+      "translation": "画面を見る ↓"
     },
     "home.m013": {
-      "source": "Meet the ECHO: specs &amp; hardware →",
-      "source_sha256": "2c8e234e3b6eb375830716ef27e206faf62cf6ad268edc6e584dd97056b0508e",
-      "translation": "ECHOを知る：仕様 &amp; ハードウェア →"
-    },
-    "home.a009": {
-      "source": "Highlights",
-      "source_sha256": "6e517828c3d88ea3e62b2169a626c32e39be2e7cf52e99f7e9d764af6859bbd0",
-      "translation": "主な特徴"
-    },
-    "home.m014": {
-      "source": "Gapless albums",
-      "source_sha256": "8d7843d53a03564fd3fa9c8fba73f10fc90eaac2ca5d1bef901007daed25b61d",
-      "translation": "アルバムを途切れなく"
-    },
-    "home.m015": {
-      "source": "Saved mixtapes",
-      "source_sha256": "32c65508b49a492a57b6172f1790a53cbadf3b5f4eaf0c10cf7add3dfc79b060",
-      "translation": "ミックステープを保存"
-    },
-    "home.m016": {
-      "source": "Your own controls",
-      "source_sha256": "ce1b6f95fb92f99eda743e57d025abe949ff02fbea28f0d089088c312661257a",
-      "translation": "操作も自分好みに"
+      "source": "ECHO hardware &amp; specs →",
+      "source_sha256": "9dc1e06062fa062884c07e209f43346dbd2a665ae4dfc09b8f63e462884aa0b0",
+      "translation": "ECHOのハードウェアと仕様 →"
     },
     "home.m017": {
       "source": "Made for the <a href=\"https://www.amazon.com/dp/B0GK61Y1FD?tag=doublesharp-20\" rel=\"sponsored nofollow\">Snowsky ECHO ↗</a>.",
@@ -147,25 +127,15 @@
       "source_sha256": "9b8beafc811d138c1b7329239b71b8da903bae1e60c1a56ea6d52350e5e67b18",
       "translation": "曲の詳細と再生位置を表示するGnarlyrの再生画面"
     },
-    "home.m019": {
-      "source": "Meet your new daily player",
-      "source_sha256": "5d7ab504c96f46464ae56714020c27de0cbafdc3d5091d9c31ba55c76b7b5ebe",
-      "translation": "毎日の新しいプレーヤーに"
-    },
     "home.m020": {
-      "source": "Good music. Great company.",
-      "source_sha256": "0779884b245e8d7e683e0d54c3294fe8dd530badede32539d83b9be6867ff8fc",
-      "translation": "いい音楽と、いい時間。"
+      "source": "Browse, queue, and tune",
+      "source_sha256": "f151ebaf16ba09d490578c58a6ba1f39d84d221fa1cd156f283cda54b80ae1a2",
+      "translation": "曲を探す・並べ替える・音を調整する"
     },
     "home.m021": {
-      "source": "Take the screen tour →",
-      "source_sha256": "a74900f4a915560772328d9ff0c9529d0eb7a6c72cf31da1c5ef00821f7b8a81",
-      "translation": "画面を見てみる →"
-    },
-    "home.m022": {
-      "source": "01 / BROWSE",
-      "source_sha256": "ecacbffa30aed44b6290a6968930536bbee293ddd26e8839a422ad1b0a043ec3",
-      "translation": "01 / 探す"
+      "source": "See the player guide →",
+      "source_sha256": "c988be69d577462074a65af37cb5cc9b7f4019bff93fc0c05ec2eca372300d8c",
+      "translation": "使い方ガイドを見る →"
     },
     "home.a012": {
       "source": "Gnarlyr Cover Flow with album artwork",
@@ -178,24 +148,19 @@
       "translation": "アルバムアートを表示するGnarlyrのCover Flow"
     },
     "home.m023": {
-      "source": "Find your next favorite.",
-      "source_sha256": "aff03956e5ebddfaade149d968f4c96b21c630a7257e77d50a71edcd08fdc954",
-      "translation": "次のお気に入りを見つけよう。"
+      "source": "Cover Flow",
+      "source_sha256": "99cc914a01e890352d45fec6c26bb19e33d9da8d3d40d435dedcc5f42134d91f",
+      "translation": "Cover Flow"
     },
     "home.m024": {
-      "source": "Flip through album covers, browse an artist’s albums by year, or jump through long lists by letter. No artwork? Gnarlyr gives the album a cover of its own.",
-      "source_sha256": "3d60d64cdcee4e74f26ec483f6f2cb40a6e80f8175e4806e90910664569254be",
-      "translation": "アルバムカバーをめくったり、アーティストのアルバムを年順に探したり。長いリストも文字でジャンプできます。アートワークがなくても、Gnarlyrがカバーを用意します。"
+      "source": "Flip through covers, browse an artist’s albums by year, or jump by letter in long lists. Albums without artwork get a cover with their initials.",
+      "source_sha256": "383bfbf7d4333bde2551a41039554da7e0a3d31c9538519f5b8a6114ffea86c1",
+      "translation": "ジャケットをめくったり、アーティストのアルバムを年順に見たり、長い一覧を頭文字で移動したりできます。画像がないアルバムには、頭文字を使ったジャケットが表示されます。"
     },
     "home.m025": {
-      "source": "Explore this screen →",
-      "source_sha256": "4df103adc3e408602b465236fccbe26f7fdfa87f45bc3d741b870691ff584a9a",
-      "translation": "この画面を見る →"
-    },
-    "home.m026": {
-      "source": "02 / MIX",
-      "source_sha256": "b7617014b21559e9dfb40cc15346c717a4764232e2cae8fe13902f011b50b5fb",
-      "translation": "02 / ミックス"
+      "source": "Browse the library →",
+      "source_sha256": "e23684cbfd498d37e6035ba0643cf8eaa78fb405be5387ae199f150ed18409d7",
+      "translation": "ライブラリを見る →"
     },
     "home.a014": {
       "source": "Gnarlyr Up Next showing an editable play order",
@@ -208,24 +173,19 @@
       "translation": "再生順を編集できるGnarlyrの次に再生画面"
     },
     "home.m027": {
-      "source": "Make the queue yours.",
-      "source_sha256": "5a90c2aaef9384db821fb132fa9da79359e06bcbd2bd9cddd311dde5a1326257",
-      "translation": "キューを思いのままに。"
+      "source": "Up Next and mixtapes",
+      "source_sha256": "1c92434b981a57026a5f69db535dcf04fdc6f7e97abc8dcfd25a68aa58aa4649",
+      "translation": "再生キューとミックステープ"
     },
     "home.m028": {
-      "source": "Move a song, add the next one, or save the whole mix. Save up to 32 mixtapes, including two-sided C60/C90 tapes you flip as you listen.",
-      "source_sha256": "3789d0a25990415d41b758726c0551e6db494f05a7d88e2fdb3293905770fb97",
-      "translation": "曲を移動したり、次の曲を追加したり、ミックス全体を保存したり。聴きながら裏返す両面のC60/C90テープを含め、最大32個のミックステープを保存できます。"
+      "source": "Add or move songs in Up Next. Save up to 32 mixtapes, including two-sided C60 or C90 tapes you flip as you listen.",
+      "source_sha256": "12760cc7dad2d614ebb5c01c5a3d0098e22869f9d5d3b384cc977a7e92fcf006",
+      "translation": "再生キューに曲を追加したり、順番を変えたりできます。再生中に面を切り替えるC60やC90の両面テープなど、最大32本のミックステープを保存できます。"
     },
     "home.m029": {
-      "source": "Explore this screen →",
-      "source_sha256": "4df103adc3e408602b465236fccbe26f7fdfa87f45bc3d741b870691ff584a9a",
-      "translation": "この画面を見る →"
-    },
-    "home.m030": {
-      "source": "03 / TUNE",
-      "source_sha256": "c660352217cc8a3f7f113e4e8f2f10a2f87d32b17c556d00a74148663024d4b9",
-      "translation": "03 / 音を調整"
+      "source": "Manage the queue →",
+      "source_sha256": "64cb51705218e93e3518affd36c0c2feb1e8647df2031259f75496c937518501",
+      "translation": "再生キューを編集する →"
     },
     "home.a016": {
       "source": "Gnarlyr Sound shaping with Warmth, Brightness, and Bass controls",
@@ -238,9 +198,9 @@
       "translation": "Warmth、Brightness、Bassの調整項目を表示するGnarlyrの音質調整画面"
     },
     "home.m031": {
-      "source": "Hear it your way.",
-      "source_sha256": "9bacc9f0b6715935716066e1d3cb63d6ef6563fd6846509f84458e4be07b9b1b",
-      "translation": "好きな音で聴こう。"
+      "source": "Equalizer",
+      "source_sha256": "71255f2b68557b0515baaccd0baf1657730689a4d95229923027b83d397f6960",
+      "translation": "イコライザー"
     },
     "home.m032": {
       "source": "Add warmth, bring vocals closer, or fine-tune a parametric EQ. Save your sound and keep favorite controls in Quick Settings.",
@@ -248,24 +208,19 @@
       "translation": "温かみを加えたり、ボーカルを近づけたり、パラメトリックEQを細かく調整したり。音を保存し、お気に入りの調整項目をクイック設定に置けます。"
     },
     "home.m033": {
-      "source": "Explore this screen →",
-      "source_sha256": "4df103adc3e408602b465236fccbe26f7fdfa87f45bc3d741b870691ff584a9a",
-      "translation": "この画面を見る →"
+      "source": "Adjust the sound →",
+      "source_sha256": "f5d815af7cf290cbed1ca93254a7a41b9eea85e8b80408e9ef49ccb9a54c7e3c",
+      "translation": "音を調整する →"
     },
     "home.m034": {
       "source": "Screens shown with a sample library.",
       "source_sha256": "bef36488fd2f43e3d06d332e056c5c0a5aa274007cc82de648a491152263de08",
       "translation": "画面にはサンプルライブラリを表示しています。"
     },
-    "home.m035": {
-      "source": "More ways to use your ECHO",
-      "source_sha256": "6101659a44f13cb66095fd0bec803f55e9f62043f5dd3b00d343b310b02413b5",
-      "translation": "ECHOの楽しみ方をもっと"
-    },
     "home.m036": {
-      "source": "Built around how you listen.",
-      "source_sha256": "c215ede4fbac9ae0b662bf6142623e0204de4a208819381676818e3616a3e70b",
-      "translation": "あなたの聴き方に合わせて。"
+      "source": "Playback and controls",
+      "source_sha256": "1d4f1cc2bcedb63e92f8e2f1561bbf29333ecca5a1895d660e59576653d7f0be",
+      "translation": "再生と操作"
     },
     "home.m037": {
       "source": "All features →",
@@ -273,9 +228,9 @@
       "translation": "すべての機能 →"
     },
     "home.m038": {
-      "source": "Let the album flow.",
-      "source_sha256": "696a4ff910b320f37be54af3f3952033916a6d750d562dd010f9fdc205a4731f",
-      "translation": "アルバムの流れをそのままに。"
+      "source": "Gapless playback",
+      "source_sha256": "018d983670010e57c0954d8e1b2132a807ca153080ebbb3d3c5c73c9605d93e4",
+      "translation": "ギャップレス再生"
     },
     "home.m039": {
       "source": "Gapless playback keeps compatible tracks together, from live sets to continuous mixes.",
@@ -288,9 +243,9 @@
       "translation": "再生 →"
     },
     "home.m041": {
-      "source": "Pick up your next chapter.",
-      "source_sha256": "a36fa99af4a10d35024aab6e54321c3b0145e6365e83c716423db9fb7e5a8ccf",
-      "translation": "次の章へ進もう。"
+      "source": "Audiobooks",
+      "source_sha256": "a01be1671e8272084901c592024bcb8272e2b81fc895178358d107c5de99e4cb",
+      "translation": "オーディオブック"
     },
     "home.m042": {
       "source": "M4B books get their own shelf, chapter titles, and bookmarks. Slow down or listen faster, from 0.5× to 3×, without changing the pitch.",
@@ -303,9 +258,9 @@
       "translation": "オーディオブック →"
     },
     "home.m044": {
-      "source": "Keep your hands on the music.",
-      "source_sha256": "c6557ac308d8cee9baf50e6816419d4259afbd161c28812b2de1e40ce1116952",
-      "translation": "手元で音楽を自在に。"
+      "source": "Button shortcuts",
+      "source_sha256": "bcb371225b4171d38758bfb087bb0ad24202c101ae864f312c9723f66be3a30e",
+      "translation": "ボタンのショートカット"
     },
     "home.m045": {
       "source": "Assign tap and hold shortcuts. Skip with Power + Volume even while locked, or control playback with the screen off.",
@@ -318,109 +273,19 @@
       "translation": "操作 →"
     },
     "home.m047": {
-      "source": "A player that feels like yours.",
-      "source_sha256": "1d4feb9eaed109a88b7c5f9d38fdfdb1628d788f21871e50efc9803064f7b74b",
-      "translation": "自分らしいプレーヤーに。"
+      "source": "Display options",
+      "source_sha256": "a6150b11d28c1d529624fd1f0b94892a06b3f373991b334134591c917de0600d",
+      "translation": "表示設定"
     },
     "home.m048": {
-      "source": "Choose Cover, Cassette, VU meters, or Spectrum for Now Playing. Add theme packs, pick a text size, and make the screen yours.",
-      "source_sha256": "566b0738ea463005eb02e6e2e1801b89bc90966654d8d8082f3095d7c571868b",
-      "translation": "再生画面をカバー、カセット、VUメーター、スペクトラムから選択。テーマパックを追加し、文字サイズを選んで、画面を自分好みに。"
+      "source": "Change the text size or switch to portrait. On Now Playing, choose Cover, Cassette, VU meters, or Spectrum.",
+      "source_sha256": "8bba71e805496b3f54f8b579cb74d123a4d210d59d59e43770b7d97609962d80",
+      "translation": "文字サイズを変更したり、縦向きに切り替えたりできます。再生画面にはジャケット、カセット、VUメーター、スペクトラムを選べます。"
     },
     "home.m049": {
       "source": "Personalization →",
       "source_sha256": "cb1b6a99c0fc9a6c20dafce4c39ef4bad088be41d405739eb6a326857225ea0c",
       "translation": "カスタマイズ →"
-    },
-    "home.m050": {
-      "source": "Parametric EQ &amp; AutoEQ",
-      "source_sha256": "718b082642bbac9beefca8d40055db3cf06289499671a6b6ac83db8042401209",
-      "translation": "パラメトリックEQ &amp; AutoEQ"
-    },
-    "home.m051": {
-      "source": "Sound shaping",
-      "source_sha256": "011730316bb8fd59455854bc8288cea144ddb82248058511e79a0537388a41c0",
-      "translation": "音質調整"
-    },
-    "home.m052": {
-      "source": "Quick Settings",
-      "source_sha256": "d4bea702b12b7ab2ad76c59073cfe2b2db0d119cdbb3853aa2aa9be19a522a3f",
-      "translation": "クイック設定"
-    },
-    "home.m053": {
-      "source": "Five Smart Lists",
-      "source_sha256": "7dde03267ad6409025f096cabd4fe05f382ce2d57c8294240c180a2800148b03",
-      "translation": "5つのスマートリスト"
-    },
-    "home.m054": {
-      "source": "Four headphone profiles",
-      "source_sha256": "6e9f00454fb4492e2a207a2ec9c8457cce465dd0a7497b47a309ff594ef00447",
-      "translation": "4つのヘッドホンプロファイル"
-    },
-    "home.m055": {
-      "source": "64 saved Moments",
-      "source_sha256": "5b42495417ba94f96f1eaad8f88cf7a7a6dc8c0f1021b652fc93d344cdc1c284",
-      "translation": "64個の保存済みモーメント"
-    },
-    "home.m056": {
-      "source": "Listening Recap",
-      "source_sha256": "0c430db3ca979573de76673155199879bb7601536c5ddfa1903979e3033ad2b9",
-      "translation": "リスニング履歴の振り返り"
-    },
-    "home.m057": {
-      "source": "Settings backups",
-      "source_sha256": "cb20b9ae2fbd64f9ff1dbf3d1f29173ead15a1cae47740a41277f3c8893777d3",
-      "translation": "設定のバックアップ"
-    },
-    "home.m058": {
-      "source": "A–B repeat",
-      "source_sha256": "267c7856c43e4e7ab3a3ed0df7cf2a503c4a77b2dbcf822732b46187bc8f717c",
-      "translation": "A–Bリピート"
-    },
-    "home.m059": {
-      "source": "End-of-track sleep",
-      "source_sha256": "24ae993b6677f2b2f42129a60cba7823e7608398b66840d249bafc64d315a7ca",
-      "translation": "曲の終わりにスリープ"
-    },
-    "home.m060": {
-      "source": "Timed lyrics",
-      "source_sha256": "90a5fe85cefe45264fcec7dddc64e8d2b1721a84869ac9ba11f756acd1e4b78c",
-      "translation": "同期歌詞"
-    },
-    "home.m061": {
-      "source": "Theme packs",
-      "source_sha256": "94c283396b95db92ae9cd01c82f1a0342214a7b1791aab72301fc215cc50ca5e",
-      "translation": "テーマパック"
-    },
-    "home.m062": {
-      "source": "Crossfeed",
-      "source_sha256": "a9373ff653c9995ed0b3463f176af6becf7c4d59d4410525036ee9531bc1c828",
-      "translation": "クロスフィード"
-    },
-    "home.m063": {
-      "source": "Spoken-word controls",
-      "source_sha256": "c3e122ace573a1fc61aefecbe546c08279acc9361206522d08d4eb95c12387d0",
-      "translation": "オーディオブックとポッドキャストの設定"
-    },
-    "home.m064": {
-      "source": "Custom status bar",
-      "source_sha256": "253a149fb7d15539ce615f14536ea9d41f21abf6b38142db0c5a1442410792a0",
-      "translation": "カスタムステータスバー"
-    },
-    "home.m065": {
-      "source": "Bluetooth reconnect",
-      "source_sha256": "2670f4ff9e0a9007df3b2b5e0280dfaf1a56004a95e9218bf34826fb18f71c19",
-      "translation": "Bluetooth再接続"
-    },
-    "home.m066": {
-      "source": "Faster microSD transfers",
-      "source_sha256": "8e51942ee07d3115c962751ff7c58e54f702aac864bc773abb13a727df5db235",
-      "translation": "microSDへの高速転送"
-    },
-    "home.m067": {
-      "source": "Open-source firmware",
-      "source_sha256": "b3a3b607557ea8b05d17351968f841cb5381ebfe150974617b6ea477a5d4090f",
-      "translation": "オープンソースファームウェア"
     },
     "home.m068": {
       "source": "<strong>What changes from stock →</strong><span>Editable queues, saved mixes, chaptered books, and controls you can make your own.</span>",
@@ -428,14 +293,9 @@
       "translation": "<strong>標準ファームウェアからの変更点 →</strong><span>編集できるキュー、保存したミックス、章付きの本、自分好みに設定できる操作。</span>"
     },
     "home.m069": {
-      "source": "<strong>More from the hardware →</strong><span>Guarded audio changes, USB power choices, finer brightness control, and a settable clock.</span>",
-      "source_sha256": "160000cd86e956e02e5e37c53e5d7a65d0c60163e15d2c45c7b817717696729c",
-      "translation": "<strong>ハードウェアをもっと活用 →</strong><span>保護された音声設定の変更、USB電源の選択、細かな明るさ調整、時刻を設定できる時計。</span>"
-    },
-    "home.m070": {
-      "source": "Your library. Ready to go.",
-      "source_sha256": "5fe1256ce1e80de8fdd85dc4882eb32a75538e9f4dd4ddf2c511eec6d35a8a97",
-      "translation": "ライブラリを、いつでも持ち出そう。"
+      "source": "<strong>ECHO hardware and controls →</strong><span>See the audio hardware, USB power modes, brightness controls, and clock.</span>",
+      "source_sha256": "1e77052ff2078a6eb6de111ee97d3a63f028faa6c219e708daed57d58f22eb9a",
+      "translation": "<strong>ECHOのハードウェアと操作 →</strong><span>音声回路、USB給電モード、明るさ調整、時計を紹介します。</span>"
     },
     "home.a018": {
       "source": "Gnarlyr Home screen on a stylized player frame",
@@ -452,20 +312,10 @@
       "source_sha256": "65e620bbd13f992a5a4fe6aeb43bb7c9f6a20fea92e79670b98ca63e80c786e6",
       "translation": "Gnarlyrの画面 · Snowsky ECHO"
     },
-    "home.m072": {
-      "source": "Get the player. Make it yours.",
-      "source_sha256": "40de5798aaecaf8d2fc2139c1971abbd5091200eb966bb1c19f3798b02de68a0",
-      "translation": "プレーヤーを手に入れて、自分らしく。"
-    },
     "home.m073": {
-      "source": "Give your music<br> a home of its own.",
-      "source_sha256": "f4692fe172ead464c407f81a707fa2c5d30b677fc43c58e1a9d9303ed918ad1a",
-      "translation": "音楽に<br>居場所を。"
-    },
-    "home.m074": {
-      "source": "Physical buttons. A pocket full of albums. The Snowsky ECHO brings your library along, and Gnarlyr lets you make more of it.",
-      "source_sha256": "20a73cd021d791f6e35fa6c2cd5e9bb9a689ff552e539e3efde5935fd2c78186",
-      "translation": "物理ボタンと、ポケットいっぱいのアルバム。Snowsky ECHOならライブラリを持ち歩け、Gnarlyrでもっと楽しめます。"
+      "source": "The full-size<br> Snowsky ECHO",
+      "source_sha256": "bed7c78366b8fda64107505f1c65c4fdd4f388960d225367c5ed2cbe34a4f0a1",
+      "translation": "フルサイズの<br>Snowsky ECHO"
     },
     "home.m075": {
       "source": "2.39-inch screen",
@@ -503,9 +353,9 @@
       "translation": "デュアルCS43198 DAC"
     },
     "home.m082": {
-      "source": "A dedicated audio player",
-      "source_sha256": "d1d0671585df299ff6b3f1ca07c3e4bda784f8e8b6896cdf4ebfcb2ba3a543c0",
-      "translation": "音楽専用プレーヤー"
+      "source": "Cirrus Logic audio converters",
+      "source_sha256": "fb16fd5ca2e86e4d15efca9eee2790f239723d8a745f33a0666ca22e39564b5f",
+      "translation": "Cirrus Logic製のオーディオ変換チップ"
     },
     "home.a020": {
       "source": "Shop the Snowsky ECHO",
@@ -537,25 +387,15 @@
       "source_sha256": "dbd55f4c6dd95663e64d63c4408a1c394bc08cbb48469433eefb2e9c6a3fdbb3",
       "translation": "Amazonアソシエイトとして、適格販売により収入を得ています。AliExpressのリンクからも報酬を得る場合があります。"
     },
-    "home.m088": {
-      "source": "Gnarlyr Companion · desktop beta",
-      "source_sha256": "e991d81a62dfe0b9e43cddb510072ba805f15d963a89be4db7dd631334e6c281",
-      "translation": "Gnarlyr Companion · デスクトップ版ベータ"
-    },
     "home.m089": {
-      "source": "Your music.<br>A bigger view.",
-      "source_sha256": "a1b87a4506111e8d5d19d1f16d42a4d7c2161ef37b16d09a4cb600f1f8337ce5",
-      "translation": "あなたの音楽を、<br>大きな画面で。"
-    },
-    "home.m090": {
-      "source": "Choose albums on your computer, review the copy, and build a mixtape for the road. Prepare the player library, preview theme packs, and set up its sound and languages from the same app.",
-      "source_sha256": "91775141247f8411bd4adec026ad5af77b852c51555bb3befe3136113e301f79",
-      "translation": "パソコンでアルバムを選び、コピー内容を確認し、旅のお供にミックステープを作成。プレーヤーのライブラリを準備し、テーマパックをプレビューして、音や言語も同じアプリで設定できます。"
+      "source": "Gnarlyr<br>Companion",
+      "source_sha256": "0e50710eff9749b9b8083de88ba36542768a5dc888424dc57ea5925e25b8e004",
+      "translation": "Gnarlyr<br>Companion"
     },
     "home.m091": {
-      "source": "Browse local music and verify every copied file.",
-      "source_sha256": "07f8fbbbd0af747a5ff55435c9dec7890455a82f6d9b87febb9324917efa1548",
-      "translation": "ローカルの音楽を探し、コピーしたファイルをすべて検証。"
+      "source": "Browse albums on your computer and review what to copy.",
+      "source_sha256": "b18b54e1eac2ea7ae1ee8ee105b872920f9f2501a324152fe820ddfcd21e430e",
+      "translation": "パソコン上のアルバムを探し、コピーする内容を確認できます。"
     },
     "home.m092": {
       "source": "Make mixtapes and two-sided C60/C90 cassettes.",
@@ -573,9 +413,9 @@
       "translation": "プレーヤーの設定、言語パック、ファームウェアを確認。"
     },
     "home.m095": {
-      "source": "Meet the companion →",
-      "source_sha256": "ecc03e5ef43370f508dafd1abece6ee7d27651bd080a43024492ba595992a579",
-      "translation": "Companionを見る →"
+      "source": "Explore the app →",
+      "source_sha256": "eda3f2b03bd0dcb0ebf563ac9e72c30c8c769d672c45ba200addd4ddff958760",
+      "translation": "アプリを見る →"
     },
     "home.a021": {
       "source": "Explore the Gnarlyr desktop companion",
@@ -592,35 +432,25 @@
       "source_sha256": "48fb86415a3da0b3a604411d4e8688a84a0d7132af6842ae7ed701ad41da44a4",
       "translation": "デスクトップ版ベータのプレビュー · サンプル音楽"
     },
-    "home.m097": {
-      "source": "Already have an ECHO?",
-      "source_sha256": "b6244ad9b61470f21eb6b9110c0e6fa6a795faee9330b273bde344f539a5eab2",
-      "translation": "すでにECHOをお持ちですか？"
-    },
     "home.m098": {
-      "source": "Your next favorite upgrade.",
-      "source_sha256": "c6ec16906209976c38d31590739f0c974a6de751572d97104d75450a83e45365",
-      "translation": "次のお気に入りアップグレード。"
-    },
-    "home.m099": {
-      "source": "Keep the player you love. Give it a new way to play.",
-      "source_sha256": "6dcf6a92b7cf1bbfa18ff9704f82886cd9cc3c33cb8223907d68f6c0b67121f7",
-      "translation": "お気に入りのプレーヤーはそのままに。新しい再生体験を。"
+      "source": "Install Gnarlyr",
+      "source_sha256": "08a0f6d605dcfceaa43ac17d7c578b5f3fd995f26e6ab7601cbf19608fe2aae7",
+      "translation": "Gnarlyrをインストール"
     },
     "home.m100": {
-      "source": "<span>01</span><div><h3>Get ready.</h3><p>Back up your music and follow the guide for your firmware image.</p></div>",
-      "source_sha256": "2215264d929f028e682e567e409bcedae05af51ac80ac7363ca293b421ed26f3",
-      "translation": "<span>01</span><div><h3>準備する。</h3><p>音楽をバックアップし、ファームウェアイメージのガイドに従います。</p></div>"
+      "source": "<span>01</span><div><h3>Back up your files</h3><p>Save a copy of the files on internal storage.</p></div>",
+      "source_sha256": "2004dbc0ade0334039a099fcd8330494592d21d83e72fd15c8338decf26cbd27",
+      "translation": "<span>01</span><div><h3>ファイルをバックアップ</h3><p>内蔵ストレージのファイルを別の場所に保存します。</p></div>"
     },
     "home.m101": {
-      "source": "<span>02</span><div><h3>Make the switch.</h3><p>Copy one file to the player and let it install. Later updates work the same way.</p></div>",
-      "source_sha256": "cd61b52ad89e41160405576c5931ac3ab315138e78398ebc2f2d961b5727b213",
-      "translation": "<span>02</span><div><h3>切り替える。</h3><p>ファイルをひとつプレーヤーにコピーしてインストール。以後の更新も同じ手順です。</p></div>"
+      "source": "<span>02</span><div><h3>Install the firmware</h3><p>Copy the firmware file over USB and follow the guide to restart.</p></div>",
+      "source_sha256": "cd5c04c6c126e742d50d4d5a28d83ba7fbf2e4e26f424cc2e0cc992b834a1eff",
+      "translation": "<span>02</span><div><h3>ファームウェアをインストール</h3><p>USBでファイルをコピーし、ガイドに沿って再起動します。</p></div>"
     },
     "home.m102": {
-      "source": "<span>03</span><div><h3>Find your first album.</h3><p>Add your music, choose a theme, and press play.</p></div>",
-      "source_sha256": "df92fa24f591d9bb5cc5cb94daf2a9bfb879e2d06b4aa310e782759b5b8c6ac2",
-      "translation": "<span>03</span><div><h3>最初のアルバムを選ぶ。</h3><p>音楽を追加し、テーマを選んで、再生ボタンを押しましょう。</p></div>"
+      "source": "<span>03</span><div><h3>Open your library</h3><p>Add music and let the player scan it.</p></div>",
+      "source_sha256": "4dce86296409deb4c45747c099276a2bfc05696de6f3de0b75956aa7c214fa6f",
+      "translation": "<span>03</span><div><h3>ライブラリを開く</h3><p>音楽を追加し、プレーヤーが曲を読み込むのを待ちます。</p></div>"
     },
     "home.m103": {
       "source": "Read the installation guide →",
@@ -777,20 +607,15 @@
       "source_sha256": "fc457d42d767a3f3eb24df58595fb1955b77c813da138fa1784dc45449cd4ca9",
       "translation": "スペクトラム"
     },
-    "home.m126": {
-      "source": "04 / THEMES",
-      "source_sha256": "9a315d504f5f11dcf1318c36bdd5ef132c93b9cb35dfbd62ce0a40f28c410392",
-      "translation": "04 / テーマ"
-    },
     "home.m127": {
-      "source": "Switch the whole look.",
-      "source_sha256": "10f5341fd416d3e2c943dc224524c5e73d9139e1c1adbf8c2dab51b02800ee72",
-      "translation": "見た目ごと切り替える。"
+      "source": "Custom themes",
+      "source_sha256": "343cee86594115cca8ccfc399c3c2568d16b8a11b7462bd7e1b8c82052eb7b36",
+      "translation": "カスタムテーマ"
     },
     "home.m128": {
-      "source": "Choose from five built-in themes or drop a custom .gtheme pack onto your ECHO for new palettes, screen artwork, and icons—previewed live before you save.",
-      "source_sha256": "4f844021d7e6a1256ee2ebf082b9811cae7d84778e0a526eaf343d2d26f6d42c",
-      "translation": "5つの内蔵テーマから選ぶか、カスタム.gthemeパックをECHOに追加。配色、背景アート、アイコンを保存前にライブでプレビューできます。"
+      "source": "Choose one of five built-in themes or add a custom .gtheme pack for new colors, artwork, and icons. Preview the result on the player before saving.",
+      "source_sha256": "5a72af4d1198e9a105ad6364ba820e3e6fe1671f2d79f9b253d05764122f2304",
+      "translation": "5種類の内蔵テーマから選ぶか、色・画像・アイコンを変更できる .gtheme パックを追加できます。保存する前に本体でプレビューできます。"
     },
     "home.m129": {
       "source": "Explore custom themes →",
