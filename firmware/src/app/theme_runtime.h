@@ -20,6 +20,8 @@ typedef struct ThemeArtCache {
     uint8_t codec;
     uint8_t alpha;
     int8_t index;
+    bool palette_ready;
+    Color palette[256];
 } ThemeArtCache;
 
 typedef struct ThemeRuntime {

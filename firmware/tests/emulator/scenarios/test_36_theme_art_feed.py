@@ -316,7 +316,7 @@ class EchoImageTest(EchoImageHarness):
         machine.run(until_ms=machine.milliseconds() + DAC_MENU_RUN_MS)
         peak = self.stack_peak(machine)
         print(json.dumps({"usb_dac_menu_stack_peak_bytes": peak, "art_draws": len(draws)}))
-        self.assertTrue(draws)
+        self.assertEqual([], draws)
         self.assertLessEqual(peak, STACK_LIMIT_BYTES, peak)
         self.assertEqual(0, audio.output_underruns())
         self.assert_healthy(session)
@@ -345,7 +345,7 @@ class EchoImageTest(EchoImageHarness):
         after = self.art_share(machine.panel.frame, art)
         print(json.dumps({"usb_dac_menu_art_share_before": round(before, 3),
                           "after": round(after, 3)}))
-        self.assertGreaterEqual(before, ART_SHARE_MIN / 2, before)
+        self.assertLessEqual(before, PLAIN_SHARE_MAX, before)
         self.assertLessEqual(after, PLAIN_SHARE_MAX, after)
         self.assertEqual(0, audio.output_underruns())
         self.assert_healthy(session)

@@ -186,8 +186,18 @@ def has_mounted_volume(entry):
                for volume in medium_volumes(medium))
 
 
+def has_mounted_internal(entry):
+    return any(INTERNAL_MEDIUM.lower() in medium.get("_name", "").lower()
+               and any(volume["mount_point"] for volume in medium_volumes(medium))
+               for medium in entry.get("Media", []))
+
+
 def find_players(tree):
     players = [entry for entry in usb_entries(tree) if is_player(entry)]
+    with_internal = {entry.get("serial_num") for entry in players
+                     if entry.get("serial_num") and has_mounted_internal(entry)}
+    players = [entry for entry in players
+               if has_mounted_internal(entry) or entry.get("serial_num") not in with_internal]
     with_mounted = {entry.get("serial_num") for entry in players
                     if entry.get("serial_num") and has_mounted_volume(entry)}
     players = [entry for entry in players

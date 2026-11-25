@@ -93,40 +93,49 @@ static bool describe(ThemeRuntime *runtime, int index)
     }
     uint32_t entries = bytes[16] == ART_CODEC_INDEXED ? bytes[17] + 1u : 0;
     uint32_t nibbles = entries > 0 ? (bytes[18] + 1u) / 2 : 0;
-    runtime->art = (ThemeArtCache){bytes_le32(bytes + 8),
-                                   bytes_le32(bytes + 12),
-                                   THEME_PACK_PAYLOAD_HEAD_BYTES + entries * 2 + nibbles,
-                                   (uint16_t)(bytes[4] | bytes[5] << 8),
-                                   (uint16_t)(bytes[6] | bytes[7] << 8),
-                                   bytes[16],
-                                   bytes[18],
-                                   (int8_t)index};
-    const ThemeArtCache *art = &runtime->art;
+    ThemeArtCache *art = &runtime->art;
+    art->offset = bytes_le32(bytes + 8);
+    art->bytes = bytes_le32(bytes + 12);
+    art->table = THEME_PACK_PAYLOAD_HEAD_BYTES + entries * 2 + nibbles;
+    art->width = (uint16_t)(bytes[4] | bytes[5] << 8);
+    art->height = (uint16_t)(bytes[6] | bytes[7] << 8);
+    art->codec = bytes[16];
+    art->alpha = bytes[18];
+    art->index = (int8_t)index;
+    art->palette_ready = false;
     uint32_t size = runtime->file.size;
     return art->offset <= size && art->bytes <= size - art->offset &&
            art->table + 4u * (art->height + 1u) <= art->bytes;
 }
 
-static bool load_palette(ThemeRuntime *runtime, ArtPalette *palette)
+static bool load_palette(ThemeRuntime *runtime, ArtPalette *palette, uint8_t *scratch)
 {
-    const ThemeArtCache *art = &runtime->art;
-    palette->alpha_entries = art->alpha;
+    ThemeArtCache *art = &runtime->art;
     uint32_t colors = art->table - THEME_PACK_PAYLOAD_HEAD_BYTES;
     uint32_t nibbles = art->codec == ART_CODEC_INDEXED ? (art->alpha + 1u) / 2 : 0;
-    uint32_t start = art->offset + THEME_PACK_PAYLOAD_HEAD_BYTES;
-    uint8_t head[THEME_PACK_PAYLOAD_HEAD_BYTES];
-    palette->entries = (colors - nibbles) / 2;
-    for (uint32_t at = palette->entries; at < ART_PALETTE_MAX; at++) {
-        palette->colors[at] = 0;
+    uint32_t color_bytes = colors - nibbles;
+    palette->alpha_entries = art->alpha;
+    palette->entries = color_bytes / 2;
+    if (art->alpha == 0 && art->palette_ready) {
+        __builtin_memcpy(palette->colors, art->palette, sizeof palette->colors);
+        return true;
     }
-    if (!hal_file_read(runtime->file, art->offset, head, sizeof head) || head[0] != art->codec ||
-        head[1] != (palette->entries > 0 ? palette->entries - 1 : 0) || head[2] != art->alpha ||
-        head[3] != 1) {
+    if (art->table > ART_WINDOW_BYTES ||
+        !hal_file_read(runtime->file, art->offset, scratch, art->table) ||
+        scratch[0] != art->codec ||
+        scratch[1] != (palette->entries > 0 ? palette->entries - 1 : 0) ||
+        scratch[2] != art->alpha || scratch[3] != 1) {
         return false;
     }
-    return colors == 0 ||
-           (hal_file_read(runtime->file, start, palette->colors, colors - nibbles) &&
-            hal_file_read(runtime->file, start + colors - nibbles, palette->alpha, nibbles));
+    __builtin_memset(palette->colors, 0, sizeof palette->colors);
+    __builtin_memcpy(palette->colors, scratch + THEME_PACK_PAYLOAD_HEAD_BYTES, color_bytes);
+    __builtin_memcpy(palette->alpha, scratch + THEME_PACK_PAYLOAD_HEAD_BYTES + color_bytes,
+                     nibbles);
+    if (art->alpha == 0) {
+        __builtin_memcpy(art->palette, palette->colors, sizeof art->palette);
+        art->palette_ready = true;
+    }
+    return true;
 }
 
 static int rows_that_fit(const ArtWindow *window, const ThemeArtCache *asset, int count)
@@ -140,11 +149,15 @@ static int rows_that_fit(const ArtWindow *window, const ThemeArtCache *asset, in
     return fit;
 }
 
-static bool fill(const ArtJob *job, int row)
+static bool fill(const ArtJob *job, int row, int wanted_rows)
 {
     ArtWindow *window = job->window;
     const ThemeArtCache *asset = job->asset;
-    int count = asset->height - row < ART_BATCH ? asset->height - row : ART_BATCH;
+    int remaining = asset->height - row;
+    int count = wanted_rows < remaining ? wanted_rows : remaining;
+    if (count > ART_BATCH) {
+        count = ART_BATCH;
+    }
     if (!hal_file_read(job->runtime->file, asset->offset + asset->table + (uint32_t)row * 4,
                        window->offsets, (uint32_t)(count + 1) * 4) ||
         window->offsets[0] >= asset->bytes) {
@@ -156,19 +169,15 @@ static bool fill(const ArtJob *job, int row)
     if (window->count == 0) {
         return false;
     }
-    uint32_t end = asset->offset + window->offsets[window->count];
-    uint32_t last = asset->offset + asset->bytes;
-    uint32_t wanted =
-        last - window->base < ART_WINDOW_BYTES ? last - window->base : ART_WINDOW_BYTES;
-    uint32_t length =
-        end - window->base > ART_WINDOW_BYTES - ART_SECTOR_BYTES ? wanted : end - window->base;
+    uint32_t length = asset->offset + window->offsets[window->count] - window->base;
     return hal_file_read(job->runtime->file, window->base, window->bytes, length);
 }
 
-static bool draw_row(const ArtJob *job, int row, ArtSpan span)
+static bool draw_row(const ArtJob *job, int row, int wanted_rows, ArtSpan span)
 {
     ArtWindow *window = job->window;
-    if ((row < window->first || row >= window->first + window->count) && !fill(job, row)) {
+    if ((row < window->first || row >= window->first + window->count) &&
+        !fill(job, row, wanted_rows)) {
         return false;
     }
     int at = row - window->first;
@@ -180,7 +189,7 @@ static bool draw_row(const ArtJob *job, int row, ArtSpan span)
                : art_row_lossless(&source, job->palette->alpha_entries != 0, span);
 }
 
-static bool draw_line(const ArtJob *job, Canvas *canvas, Rect clip, Point origin)
+static bool draw_line(const ArtJob *job, Canvas *canvas, Rect clip, Point origin, int wanted_rows)
 {
     const ThemeArtCache *asset = job->asset;
     int row = (clip.y - origin.y) % asset->height;
@@ -189,7 +198,8 @@ static bool draw_line(const ArtJob *job, Canvas *canvas, Rect clip, Point origin
         int from = (x - origin.x) % asset->width;
         int to = from + clip.x + clip.width - x;
         to = to < asset->width ? to : asset->width;
-        if (!draw_row(job, row, (ArtSpan){pixels + (x - canvas->bounds.x), from, to})) {
+        if (!draw_row(job, row, wanted_rows,
+                      (ArtSpan){pixels + (x - canvas->bounds.x), from, to})) {
             return false;
         }
         x += to - from;
@@ -197,12 +207,11 @@ static bool draw_line(const ArtJob *job, Canvas *canvas, Rect clip, Point origin
     return true;
 }
 
-static bool draw_asset(const ArtJob *job, Canvas *canvas, Rect area, bool placed)
+static bool draw_asset(const ArtJob *job, Canvas *canvas, Rect clip, Point origin)
 {
-    Rect clip = rect_intersection(canvas->clip, area);
-    Point origin = placed ? (Point){area.x, area.y} : (Point){0, 0};
     for (int y = clip.y; y < clip.y + clip.height; y++) {
-        if (!draw_line(job, canvas, (Rect){clip.x, y, clip.width, 1}, origin)) {
+        int left = clip.y + clip.height - y;
+        if (!draw_line(job, canvas, (Rect){clip.x, y, clip.width, 1}, origin, left)) {
             return false;
         }
     }
@@ -218,7 +227,7 @@ bool theme_runtime_draw(void *context, Canvas *canvas, ThemeArtRequest request)
     if (index < 0) {
         return false;
     }
-    if (!describe(runtime, index) || !load_palette(runtime, &palette)) {
+    if (!describe(runtime, index)) {
         theme_runtime_close(runtime);
         return false;
     }
@@ -229,8 +238,17 @@ bool theme_runtime_draw(void *context, Canvas *canvas, ThemeArtRequest request)
     }
     Rect area =
         placed ? (Rect){request.area.x, request.area.y, asset->width, asset->height} : request.area;
+    Rect clip = rect_intersection(canvas->clip, area);
+    if (rect_is_empty(clip)) {
+        return true;
+    }
+    if (!load_palette(runtime, &palette, window.bytes)) {
+        theme_runtime_close(runtime);
+        return false;
+    }
     ArtJob job = {runtime, asset, &palette, &window};
-    if (!draw_asset(&job, canvas, area, placed)) {
+    Point origin = placed ? (Point){area.x, area.y} : (Point){0, 0};
+    if (!draw_asset(&job, canvas, clip, origin)) {
         theme_runtime_close(runtime);
         return false;
     }

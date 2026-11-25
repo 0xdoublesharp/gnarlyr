@@ -483,8 +483,10 @@ def check_report(tool, build, max_underruns, require_dac=False, max_dac_gap_us=N
             check(name, value, [None, allowed], value in (None, allowed))
 
         millivolts = values.get("battery.millivolts")
-        check("battery.millivolts", millivolts, "unknown or 3000..4500 mV",
-              millivolts is None or isinstance(millivolts, int) and 3000 <= millivolts <= 4500)
+        usb_power = values.get("power.usb_power") == 1 or values.get("battery.usb_power") == 1
+        max_mv = 4900 if usb_power else 4500
+        check("battery.millivolts", millivolts, f"unknown or 3000..{max_mv} mV",
+              millivolts is None or isinstance(millivolts, int) and 3000 <= millivolts <= max_mv)
         dropped = values.get("events.dropped", 0)
         if max_dropped_events is not None:
             expected_dropped = "absent or 0" if max_dropped_events == 0 else f"<= {max_dropped_events}"
@@ -595,16 +597,20 @@ def wait_for_settled_luns(tool, expect_card=False, settle_seconds=6.0):
     usb = found.get("usb")
     if not usb or usb.get("card_volumes"):
         return found
-    should_wait = expect_card or bool(usb.get("has_card_medium"))
-    if not should_wait:
+    has_card_hint = expect_card or bool(usb.get("has_card_medium"))
+    if not has_card_hint and not isinstance(getattr(tool, "host", None), echo_debug.MacHost):
         return found
-    deadline = tool.clock() + settle_seconds
+    wait_limit = settle_seconds if has_card_hint else 2.5
+    deadline = tool.clock() + wait_limit
     while tool.clock() < deadline:
         tool.sleep(0.25)
         found = tool.locate()
         usb = found.get("usb")
         if usb and usb.get("card_volumes"):
             return found
+        if usb and usb.get("has_card_medium") and wait_limit < settle_seconds:
+            deadline = tool.clock() + (settle_seconds - wait_limit)
+            wait_limit = settle_seconds
     return found
 
 
@@ -766,10 +772,10 @@ def extract_scan_timings(events):
     started = next((e["time_ms"] for e in scans if e.get("detail", "").startswith("start")), None)
     done = next((e["time_ms"] for e in reversed(scans)
                  if any(tok in e.get("detail", "") for tok in ("up_to_date", "covers_done", "library"))), None)
-    return {
-        "events": scans,
-        "duration_ms": (done - started) if (started is not None and done is not None and done >= started) else None,
-    }
+    duration = (done - started) if (started is not None and done is not None and done >= started) else (
+        0 if any("up_to_date" in e.get("detail", "") for e in scans) else None
+    )
+    return {"events": scans, "duration_ms": duration}
 
 
 def run_playbook(name, tool, build, rates, bits, silent, max_underruns, max_dac_gap_us, timeout,
