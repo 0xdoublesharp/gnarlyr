@@ -19,10 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `8141c452e7a7e8257753c3a3296abd89a3f333b4cb3e8c2dff25a5e35c47b0c9` |
-| Rollback content release | `194a515afd12323d4cc87ffb8972c2aef4ae8ea036c9f560266051a8b64055e9` |
-
-The rollback retains the previous static release before the Neon Noir visual refresh and animated Now Playing GIFs.
+| Current content release | `42c53e0b42866c2eb7274f929d0729895a3377ba63e30b4ef55b49dc4e2d095b` |
+| Rollback content release | `e9b66f73b5bcc5be07a380cd79d607b7cf48c737f50ce4472cc4e5cd7219c5fc` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
