@@ -5,6 +5,7 @@
 #include "hal/clock.h"
 #include "ui/icons.h"
 #include "ui/label.h"
+#include "usb_dac_menu.h"
 
 enum {
     SEGMENT_PITCH = 6,
@@ -282,19 +283,23 @@ static void draw_output_row(const UsbPainter *painter, Rect row)
     usb_screen_row(painter, rest, i18n_text(STR_USB_DAC_HOST), host);
 }
 
-static void draw_breath(const UsbPainter *painter, Rect row)
+typedef struct InlineBar {
+    StringId label;
+    const char *value;
+    uint32_t level;
+    uint32_t full;
+} InlineBar;
+
+static __attribute__((noinline)) void draw_inline_bar(const UsbPainter *painter, Rect row,
+                                                      InlineBar data)
 {
     const Theme *theme = painter->theme;
-    const UsbSceneDac *dac = &painter->scene->dac;
-    char value[USB_SCREEN_TEXT_CAPACITY];
-    char number[USB_SCREEN_NUMBER_CAPACITY];
-    usb_screen_number_text(number, dac->buffer_ms);
-    usb_screen_format_one(value, STR_USB_DAC_MS, number);
     const Font *font = theme->fonts.small;
-    int name = text_width(font, i18n_text(STR_USB_DAC_BUFFER));
-    int note = text_style_width((TextStyle){font, theme->colors.text, true}, value);
+    const char *label = i18n_text(data.label);
+    int name = text_width(font, label);
+    int note = text_style_width((TextStyle){font, theme->colors.text, true}, data.value);
     int gap = theme->metrics.padding / 2;
-    usb_screen_row(painter, row, i18n_text(STR_USB_DAC_BUFFER), value);
+    usb_screen_row(painter, row, label, data.value);
     Rect bar = {row.x + name + gap, row.y + row.height / 2 - BAR_HALF, 0, 2 * BAR_HALF};
     bar.width = row.x + row.width - note - gap - bar.x;
     if (bar.width <= 0) {
@@ -303,12 +308,22 @@ static void draw_breath(const UsbPainter *painter, Rect row)
     canvas_fill_rect(
         painter->canvas, bar,
         color_between(theme->colors.backdrop_top, theme->colors.text_tertiary, 1, DIM_STEPS));
-    uint32_t full = 2u * (dac->buffer_average_ms > 0 ? dac->buffer_average_ms : 1u);
-    uint32_t level = dac->buffer_ms < full ? dac->buffer_ms : full;
-    bar.width = (int)(level * (uint32_t)bar.width / full);
+    uint32_t level = data.level < data.full ? data.level : data.full;
+    bar.width = (int)(level * (uint32_t)bar.width / data.full);
     bool live = painter->scene->state == USB_SCENE_DAC_PLAYING;
     canvas_fill_rect(painter->canvas, bar,
                      live ? theme->colors.success : theme->colors.text_tertiary);
+}
+
+static void draw_breath(const UsbPainter *painter, Rect row)
+{
+    const UsbSceneDac *dac = &painter->scene->dac;
+    char value[USB_SCREEN_TEXT_CAPACITY];
+    char number[USB_SCREEN_NUMBER_CAPACITY];
+    usb_screen_number_text(number, dac->buffer_ms);
+    usb_screen_format_one(value, STR_USB_DAC_MS, number);
+    uint32_t full = 2u * (dac->buffer_average_ms > 0 ? dac->buffer_average_ms : 1u);
+    draw_inline_bar(painter, row, (InlineBar){STR_USB_DAC_BUFFER, value, dac->buffer_ms, full});
 }
 
 static void draw_rows(const UsbPainter *painter, Rect lines)
@@ -321,9 +336,10 @@ static void draw_rows(const UsbPainter *painter, Rect lines)
     }
     row.y += line;
     if (row.y + line <= bottom && usb_screen_touches(painter, row)) {
-        char volume[USB_SCREEN_NUMBER_CAPACITY];
-        usb_screen_number_text(volume, painter->scene->dac.volume);
-        usb_screen_row(painter, row, i18n_text(STR_VOLUME), volume);
+        char volume[USB_DAC_MENU_TEXT_CAPACITY];
+        uint8_t level = painter->scene->dac.volume;
+        usb_dac_menu_volume_text(volume, level);
+        draw_inline_bar(painter, row, (InlineBar){STR_VOLUME, volume, level, HAL_AUDIO_VOLUME_MAX});
     }
     row.y += line;
     if (row.y + line <= bottom && painter->scene->dac.bits != 0 &&

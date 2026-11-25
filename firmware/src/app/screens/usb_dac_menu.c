@@ -54,10 +54,17 @@ static const char *row_detail(const void *context, int index)
     return NULL;
 }
 
+void usb_dac_menu_volume_text(char *text, uint8_t volume)
+{
+    StringBuilder builder = string_builder_make(text, USB_DAC_MENU_TEXT_CAPACITY);
+    string_builder_append_unsigned(&builder, volume);
+    string_builder_append_char(&builder, '/');
+    string_builder_append_unsigned(&builder, HAL_AUDIO_VOLUME_MAX);
+}
+
 static void write_volume(UsbDacMenu *menu)
 {
-    StringBuilder builder = string_builder_make(menu->volume, sizeof menu->volume);
-    string_builder_append_unsigned(&builder, menu->settings.volume);
+    usb_dac_menu_volume_text(menu->volume, menu->settings.volume);
 }
 
 static void write_profile(UsbDacMenu *menu)

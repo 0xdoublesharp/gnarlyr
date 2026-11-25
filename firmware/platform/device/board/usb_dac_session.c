@@ -523,16 +523,6 @@ static void switch_headphones(void)
     set_sink_headphones(after);
 }
 
-static void step_volume(int step)
-{
-    int level = shared->dac_volume + step;
-    if (level < 0 || level > HAL_AUDIO_VOLUME_MAX) {
-        return;
-    }
-    set_volume((uint8_t)level);
-    show_info();
-}
-
 static void set_gain(uint8_t gain)
 {
     uint8_t volume = shared->dac_volume;
@@ -610,6 +600,9 @@ static void follow_menu(Key key, uint32_t time_ms)
     if (action == USB_DAC_ACTION_NONE) {
         return;
     }
+    if (!menu.adjusting) {
+        port->hid.volume_step = 0;
+    }
     gain_refused = false;
     if (action == USB_DAC_ACTION_CLOSE) {
         menu_open = false;
@@ -628,6 +621,22 @@ static void follow_menu(Key key, uint32_t time_ms)
     }
 }
 
+static void step_volume(int step, uint32_t now_ms)
+{
+    if (step == 0) {
+        return;
+    }
+    int level = shared->dac_volume + step;
+    if ((unsigned)level > HAL_AUDIO_VOLUME_MAX) {
+        port->hid.volume_step = 0;
+    } else if (menu_open) {
+        follow_menu(step > 0 ? KEY_VOLUME_UP : KEY_VOLUME_DOWN, now_ms);
+    } else {
+        set_volume((uint8_t)level);
+        show_info();
+    }
+}
+
 static __attribute__((noinline)) void load_menu(uint32_t now_ms)
 {
     usb_dac_menu_open(&menu, (UsbDacMenuConfig){app_theme(), settings, app_headphone_profiles()},
@@ -641,8 +650,7 @@ static void open_menu(uint32_t now_ms)
     serve_audio_usb();
     menu_open = true;
     gain_refused = false;
-    port->hid.held = 0;
-    port->hid.skipped = 0;
+    port->hid.volume_step = 0;
     show_screen(true);
 }
 
@@ -675,17 +683,14 @@ static __attribute__((noinline)) void follow_key(HalKeyTransition key)
 {
     if (key.key == KEY_BACK) {
         follow_back(key);
-    } else if (menu_open) {
+    } else if (menu_open && (!menu.adjusting || key.key > KEY_VOLUME_DOWN)) {
         if (key.pressed) {
             follow_menu((Key)key.key, key.time_ms);
         }
     } else if (key.key == KEY_MENU && key.pressed) {
         open_menu(key.time_ms);
     } else {
-        int step = usb_audio_hid_key(&port->hid, key.key, key.pressed, key.time_ms);
-        if (step != 0) {
-            step_volume(step);
-        }
+        step_volume(usb_audio_hid_key(&port->hid, key.key, key.pressed, key.time_ms), key.time_ms);
     }
 }
 
@@ -760,10 +765,8 @@ static void serve(void)
         board_display_service();
         follow_host();
         keep_output();
-        if (!menu_open) {
-            usb_audio_hid_tick(&port->hid, hal_clock_milliseconds());
-        }
         uint32_t now = hal_clock_milliseconds();
+        step_volume(usb_audio_hid_tick(&port->hid, now), now);
 #ifdef ECHO_DEBUG_LOOP
         step_dac_test(now);
 #endif
@@ -786,8 +789,8 @@ static void warm_menu_glyphs(void)
     }
     static const uint16_t SYMBOLS[] = {0x00B1u, 0x00B7u, 0x2013u, 0x2026u};
     const Font *warm_fonts[] = {theme->fonts.title, theme->fonts.body, theme->fonts.small};
-    (void)text_width(detail, "0123456789");
-    (void)text_width(theme->fonts.title, "0123456789");
+    (void)text_width(theme->fonts.body, "0123456789/");
+    (void)text_width(theme->fonts.title, "0123456789/");
     (void)text_width(theme->fonts.title, i18n_text(STR_USB_DAC_RATE));
     (void)text_width(detail, menu.profile);
     for (size_t index = 0; index < sizeof EXTRAS / sizeof EXTRAS[0]; index++) {
@@ -822,8 +825,6 @@ static void start_session(void)
     hinted_page = 0;
     receiving = false;
     playing = false;
-    port->hid.held = 0;
-    port->hid.skipped = 0;
     menu_open = false;
     next = DAC_NEXT_STAY;
     settings = app_dac_settings();

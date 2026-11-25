@@ -53,6 +53,7 @@ typedef struct UsbDacMenu {
 } UsbDacMenu;
 
 void usb_dac_menu_open(UsbDacMenu *menu, UsbDacMenuConfig config, uint32_t now_ms);
+void usb_dac_menu_volume_text(char *text, uint8_t volume);
 void usb_dac_menu_show_volume(UsbDacMenu *menu, uint8_t volume);
 UsbDacAction usb_dac_menu_key(UsbDacMenu *menu, Key key, uint32_t now_ms);
 int usb_dac_menu_rows(const Theme *theme);

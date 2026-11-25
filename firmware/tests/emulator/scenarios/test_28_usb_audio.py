@@ -336,15 +336,36 @@ class EchoImageTest(EchoImageHarness):
         self.assert_stream_clean(audio, host)
         self.assert_healthy(session)
 
+    def assert_volume_hold(self, machine, volumes, key, step):
+        volumes.clear()
+        start = machine.milliseconds()
+        machine.press_key(key, delay_ms=20, hold_ms=650)
+        machine.run(until_ms=start + 250)
+        self.assertEqual(len(volumes), 1)
+        machine.run(until_ms=start + 750)
+        self.assertGreaterEqual(len(volumes), 4)
+        self.assertEqual(volumes, list(range(volumes[0], volumes[-1] + step, step)))
+        released = len(volumes)
+        machine.run(until_ms=start + 900)
+        self.assertEqual(len(volumes), released)
+
     def test_usb_audio_remote_keys_emit_consumer_press_and_release(self):
-        session, audio, host = self.dac_session(48000)
+        from unicorn.arm_const import UC_ARM_REG_R0
+
+        session, _, host = self.dac_session(48000)
         machine = session.machine
+        volumes = []
+        machine.hook_symbol("hal_audio_set_volume", lambda: volumes.append(machine.reg(UC_ARM_REG_R0)))
         self.press(machine, KEY_PLAY)
-        machine.press_key(100, delay_ms=20, hold_ms=650)
-        machine.run(until_ms=machine.milliseconds() + 750)
-        machine.press_key(35, delay_ms=20, hold_ms=650)
-        machine.run(until_ms=machine.milliseconds() + 750)
-        self.assertEqual(host.hid, [0xCD, 0, 0xB5, 0, 0xB6, 0])
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_UP, 1)
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_DOWN, -1)
+        self.press(machine, KEY_MENU)
+        for _ in range(DAC_MENU_VOLUME_ROW):
+            self.press(machine, KEY_VOLUME_UP)
+        self.press(machine, KEY_PLAY)
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_UP, 1)
+        self.assert_volume_hold(machine, volumes, KEY_VOLUME_DOWN, -1)
+        self.assertEqual(host.hid, [0xCD, 0])
         self.assert_healthy(session)
 
     def test_usb_audio_recovers_from_incomplete_iso_and_interface_reselect(self):
