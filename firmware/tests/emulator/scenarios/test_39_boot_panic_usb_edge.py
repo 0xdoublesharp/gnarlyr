@@ -32,7 +32,7 @@ SECTOR = 512
 CARD_TYPE_52_MHZ = 0x03
 CRU_MMC_DIVIDERS = 0x30
 SD_FIELD = 0x00FF
-SD_PLL_QUARTER = 0x0003
+PLL_DIVIDERS = {96000000: 1, 200000000: 3}
 SD_BASE = 0x60020000
 EMMC_BASE = 0x60030000
 FSINFO_FREE_OFFSET = 488
@@ -230,7 +230,7 @@ class EchoImageTest(EchoImageHarness):
         machine.run(until_ms=machine.milliseconds() + 300)
         scsi = ScsiHost(machine, host)
         self.assertTrue(scsi.until_ready(CARD_LUN))
-        self.assertEqual(machine.cru.regs.get(CRU_MMC_DIVIDERS, 0) & SD_FIELD, SD_PLL_QUARTER)
+        self.assertEqual(machine.cru.regs.get(CRU_MMC_DIVIDERS, 0) & SD_FIELD, PLL_DIVIDERS[machine.pll_hz()])
         cleared = [False]
         machine.hook_symbol("usb_card_clear_fast", lambda: cleared.__setitem__(0, True))
         machine.card_present = False

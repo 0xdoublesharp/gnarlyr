@@ -3,11 +3,15 @@
 #include "board.h"
 #include "core/seam.h"
 #include "cru.h"
+#include "device/mmc_clock.h"
+#include "emmc.h"
 #include "hal/clock.h"
 #include "mmc_registers.h"
 #include "registers.h"
+#include "sd.h"
 
 #define CRU_MMC_DIVIDERS 0x30u
+#define CRU_MMC_BUS_GATES 0x84u
 
 enum {
     BLOCK_WORDS = 128,
@@ -19,6 +23,11 @@ enum {
     BUSY_TIMEOUT_MS = 1000,
     DATA_TIMEOUT_MS = 500,
     IDENTIFY_DIVIDER_REGISTER = 1,
+    IDENTIFY_CLOCK_FIELD = MMC_CRYSTAL_SOURCE | MMC_CRU_DIVIDER_MASK,
+    CLOCK_UPDATE_POLLS = 50000,
+    EMMC_FIELD_SHIFT = 8,
+    CLOCK_LIMIT_MASK = 0x7F,
+    CLOCK_LIMIT_PARKED = 0x80,
     FALLBACK_FIFO_DEPTH = 16,
     MINIMUM_FIFO_DEPTH = 8,
     MAXIMUM_FIFO_DEPTH = 1024,
@@ -27,6 +36,8 @@ enum {
 };
 
 static MmcFailure last_failure;
+static uint8_t clock_limit[2];
+static uint8_t pll_mhz;
 
 static uint32_t read_register(const MmcHost *host, uint32_t offset)
 {
@@ -77,8 +88,16 @@ __attribute__((noinline)) static bool wait_any(const MmcHost *host, uint32_t off
 
 CORE_COLD static bool update_clock(const MmcHost *host)
 {
+    write_register(host, MMC_RINTSTS, INT_HARDWARE_LOCKED);
     write_register(host, MMC_CMD, CMD_UPDATE_CLOCK);
-    return wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS);
+    uint32_t polls = CLOCK_UPDATE_POLLS;
+    while ((read_register(host, MMC_CMD) & CMD_START) != 0) {
+        if (--polls == 0) {
+            return false;
+        }
+        board_audio_stream_service();
+    }
+    return (read_register(host, MMC_RINTSTS) & INT_HARDWARE_LOCKED) == 0;
 }
 
 static uint32_t fifo_depth(const MmcHost *host)
@@ -102,16 +121,118 @@ CORE_COLD void mmc_reset_controller(const MmcHost *host)
     write_register(host, MMC_PWREN, 1);
 }
 
-CORE_COLD void mmc_set_clock(const MmcHost *host, SdClock clock)
+static uint32_t host_index(const MmcHost *host)
 {
-    bool identify = clock == SD_CLOCK_IDENTIFY;
-    write_register(host, MMC_CLKENA, 0);
-    update_clock(host);
-    cru_write(CRU_MMC_DIVIDERS, identify ? host->cru_identify : host->cru_transfer);
+    return host->base == EMMC_BASE;
+}
+
+static uint32_t source_field(const MmcHost *host)
+{
+    uint32_t value = register_read(CRU_BASE + CRU_MMC_DIVIDERS);
+    return value >> (host_index(host) * EMMC_FIELD_SHIFT) & MMC_CRU_FIELD_MASK;
+}
+
+static void set_source(const MmcHost *host, uint32_t field)
+{
+    cru_write(CRU_MMC_DIVIDERS, ((MMC_CRU_FIELD_MASK << 16) | field)
+                                    << (host_index(host) * EMMC_FIELD_SHIFT));
+}
+
+CORE_COLD void mmc_clock_init(const MmcHost *host)
+{
+    set_source(host, IDENTIFY_CLOCK_FIELD);
+}
+
+static bool enable_clock(const MmcHost *host, uint32_t enable)
+{
+    write_register(host, MMC_CLKENA, enable);
+    return update_clock(host);
+}
+
+CORE_COLD static bool disable_clock(const MmcHost *host)
+{
+    return wait_clear(host, MMC_STATUS, STATUS_CARD_BUSY | STATUS_DATA_BUSY, BUSY_TIMEOUT_MS) &&
+           wait_clear(host, MMC_CMD, CMD_START, COMMAND_TIMEOUT_MS) && enable_clock(host, 0);
+}
+
+CORE_COLD static bool program_clock(const MmcHost *host, uint32_t field, bool identify)
+{
+    if (!disable_clock(host)) {
+        return false;
+    }
     write_register(host, MMC_CLKDIV, identify ? IDENTIFY_DIVIDER_REGISTER : 0);
-    update_clock(host);
-    write_register(host, MMC_CLKENA, CLKENA_ON);
-    update_clock(host);
+    if (!update_clock(host)) {
+        return false;
+    }
+    set_source(host, field);
+    return enable_clock(host, CLKENA_ON);
+}
+
+CORE_COLD static bool apply_limit(const MmcHost *host, uint8_t *limit)
+{
+    if ((*limit & CLOCK_LIMIT_PARKED) != 0) {
+        return true;
+    }
+    uint32_t field = mmc_clock_field(pll_mhz, *limit);
+    if (field == MMC_CRYSTAL_SOURCE || program_clock(host, field, false)) {
+        return true;
+    }
+    *limit |= CLOCK_LIMIT_PARKED;
+    return program_clock(host, MMC_CRYSTAL_SOURCE, false);
+}
+
+CORE_COLD bool mmc_set_clock(const MmcHost *host, SdClock clock)
+{
+    uint8_t *limit = &clock_limit[host_index(host)];
+    if (clock == SD_CLOCK_HIGH_SPEED) {
+        *limit &= CLOCK_LIMIT_MASK;
+        return apply_limit(host, limit) && (source_field(host) & MMC_CRYSTAL_SOURCE) == 0;
+    }
+    bool identify = clock == SD_CLOCK_IDENTIFY;
+    *limit = identify ? 0 : *limit | CLOCK_LIMIT_PARKED;
+    return program_clock(host, identify ? IDENTIFY_CLOCK_FIELD : MMC_CRYSTAL_SOURCE, identify);
+}
+
+CORE_COLD bool mmc_clock_accept(const MmcHost *host, uint8_t limit_mhz)
+{
+    uint8_t *limit = &clock_limit[host_index(host)];
+    *limit = limit_mhz;
+    return apply_limit(host, limit);
+}
+
+CORE_COLD bool mmc_stop_clock(const MmcHost *host)
+{
+    clock_limit[host_index(host)] = 0;
+    if (!disable_clock(host)) {
+        return false;
+    }
+    mmc_clock_init(host);
+    return true;
+}
+
+static bool park_pll(const MmcHost *host)
+{
+    uint32_t index = host_index(host);
+    uint32_t gates = register_read(CRU_BASE + CRU_MMC_BUS_GATES);
+    if ((source_field(host) & MMC_CRYSTAL_SOURCE) != 0 || (gates & (1u << (8 + index))) != 0) {
+        return true;
+    }
+    if (clock_limit[index] == 0) {
+        return (read_register(host, MMC_CLKENA) & 1u) == 0 || mmc_stop_clock(host);
+    }
+    return program_clock(host, MMC_CRYSTAL_SOURCE, false);
+}
+
+CORE_COLD bool mmc_park_pll(void)
+{
+    return park_pll(&SD_MMC_HOST) && park_pll(&EMMC_HOST);
+}
+
+CORE_COLD void mmc_resume_pll(uint32_t mhz)
+{
+    pll_mhz = (uint8_t)mhz;
+    apply_limit(&SD_MMC_HOST, &clock_limit[0]);
+    apply_limit(&EMMC_HOST, &clock_limit[1]);
 }
 
 bool mmc_wait_not_busy(const MmcHost *host)
@@ -146,12 +267,6 @@ CORE_COLD void mmc_set_bus_width(const MmcHost *host, uint8_t bits)
 {
     uint32_t type = bits == 8 ? CTYPE_8_BIT : bits == 4 ? CTYPE_4_BIT : 0;
     write_register(host, MMC_CTYPE, type);
-}
-
-CORE_COLD void mmc_stop_clock(const MmcHost *host)
-{
-    write_register(host, MMC_CLKENA, 0);
-    update_clock(host);
 }
 
 static uint32_t command_flags(SdCommand command)
@@ -270,6 +385,12 @@ static bool read_data(const MmcHost *host, uint8_t index, uint32_t address, uint
 bool mmc_read_block(const MmcHost *host, uint8_t index, uint32_t address, uint32_t *words)
 {
     return read_data(host, index, address, BLOCK_BYTES, words);
+}
+
+CORE_COLD bool mmc_read_sd_switch(const MmcHost *host, uint32_t argument, uint32_t words[16])
+{
+    return read_data(host, 6, argument, 64, words) &&
+           mmc_card_status_ok(read_register(host, MMC_RESP0));
 }
 
 bool mmc_read_sd_status(const MmcHost *host, uint32_t words[16])

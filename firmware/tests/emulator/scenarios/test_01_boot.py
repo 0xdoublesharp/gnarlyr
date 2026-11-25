@@ -30,6 +30,14 @@ from echo_image_harness import (
 )
 
 
+from echo_emulator.devices import CMD_UPDATE_CLOCK_ONLY, MMC_CMD
+from echo_emulator.emmc import CRU_MMC_DIVIDERS, CRYSTAL_SOURCE
+from echo_emulator.fat_volume import Fat32Volume
+
+
+CLOCK_PROGRAM_REGISTERS = (0x00, 0x04, 0x08, 0x10)
+
+
 class EchoImageTest(EchoImageHarness):
     def test_normal_boot_initialises_the_panel_and_draws_the_first_frame(self):
         session = self.session()
@@ -75,6 +83,110 @@ class EchoImageTest(EchoImageHarness):
         self.assertGreater(machine.watchdog_kicks, 0)
         self.assertGreater(len(session.card.reads), 0)
         summary("home screen", session)
+
+    def storage_clock_session(self, card_type=2, emmc_error=None, sd_error=False):
+        session = self.session(volume=Fat32Volume())
+        session.card.card_type = card_type
+        if emmc_error is not None:
+            setattr(session.card, emmc_error, True)
+        card = self.with_card().insert(session.machine)
+        card.high_speed = True
+        card.reject_high_speed_data = sd_error
+        self.assertEqual(session.run_to_home_screen(), "condition met")
+        return session
+
+    def test_card_clocks_park_on_the_crystal_before_each_pll_transition(self):
+        session = self.storage_clock_session()
+        machine = session.machine
+        sd, emmc = machine.sd_controller, machine.emmc_controller
+        self.assertEqual((sd.card_hz(), emmc.card_hz()), (48000000, 48000000))
+        write = machine.cru.write_word
+
+        def watch_cru(offset, value):
+            if offset in CLOCK_PROGRAM_REGISTERS:
+                fields = machine.cru.regs[CRU_MMC_DIVIDERS]
+                self.assertEqual(fields & 0x8080, 0x8080)
+            if offset == CRU_MMC_DIVIDERS:
+                if value & 0x009F0000:
+                    self.assertFalse(sd.clock_enabled)
+                if value & 0x9F000000:
+                    self.assertFalse(emmc.clock_enabled)
+            write(offset, value)
+
+        machine.cru.write_word = watch_cru
+        for pll_mhz, card_hz in ((200, 50000000), (96, 48000000), (24, 24000000), (200, 50000000)):
+            self.assertEqual(self.call_firmware(machine, "hal_system_set_clock_mhz", pll_mhz), 1)
+            self.assertEqual((sd.card_hz(), emmc.card_hz()), (card_hz, card_hz))
+            self.assertTrue(sd.clock_enabled and emmc.clock_enabled)
+        self.assertEqual(sd.overspeed + emmc.overspeed, [])
+        self.assert_healthy(session)
+
+    def test_a_stuck_mmc_clock_update_aborts_the_pll_transition(self):
+        session = self.storage_clock_session()
+        machine = session.machine
+        sd = machine.sd_controller
+        execute = sd.execute
+
+        def stuck_update(value):
+            if value & CMD_UPDATE_CLOCK_ONLY:
+                sd.regs[MMC_CMD] = value
+            else:
+                execute(value)
+
+        sd.execute = stuck_update
+        self.assertEqual(self.call_firmware(machine, "hal_system_set_clock_mhz", 200), 0)
+        self.assertEqual(machine.pll_hz(), 96000000)
+        self.assertEqual(sd.card_hz(), 48000000)
+        self.assert_healthy(session)
+
+    def test_rejected_high_speed_negotiation_leaves_both_cards_at_24_mhz(self):
+        for emmc_error in ("reject_high_speed", "reject_timing_status"):
+            with self.subTest(emmc_error=emmc_error):
+                session = self.storage_clock_session(emmc_error=emmc_error, sd_error=True)
+                machine = session.machine
+                self.assertEqual(self.call_firmware(machine, "hal_system_set_clock_mhz", 200), 1)
+                sd, emmc = machine.sd_controller, machine.emmc_controller
+                self.assertEqual((sd.card_hz(), emmc.card_hz()), (24000000, 24000000))
+                self.assertEqual(sd.card.switches, [0x00FFFFF1, 0x80FFFFF1])
+                self.assertEqual(sd.overspeed + emmc.overspeed, [])
+                self.assert_only_the_user_volume_changed(session)
+                self.assert_healthy(session)
+
+    def test_a_26_mhz_emmc_uses_the_200_mhz_pll_only(self):
+        session = self.storage_clock_session(card_type=1)
+        machine = session.machine
+        emmc = machine.emmc_controller
+        self.assertEqual(emmc.card_hz(), 24000000)
+        self.assertEqual(self.call_firmware(machine, "hal_system_set_clock_mhz", 200), 1)
+        self.assertEqual(emmc.card_hz(), 25000000)
+        self.assertEqual(self.call_firmware(machine, "hal_system_set_clock_mhz", 96), 1)
+        self.assertEqual(emmc.card_hz(), 24000000)
+        self.assertEqual(machine.cru.regs[CRU_MMC_DIVIDERS] >> 8, CRYSTAL_SOURCE)
+        self.assert_healthy(session)
+
+    def test_warm_restart_sends_card_idle_commands_at_crystal_speed(self):
+        session = self.storage_clock_session()
+        machine = session.machine
+        sd, emmc = machine.sd_controller, machine.emmc_controller
+        self.assertEqual(self.call_firmware(machine, "hal_system_set_clock_mhz", 200), 1)
+        idle_clocks = []
+
+        def watch_idle(controller):
+            command = controller.card.command
+
+            def run(index, argument):
+                if index == 0:
+                    idle_clocks.append(controller.card_hz())
+                return command(index, argument)
+
+            controller.card.command = run
+
+        watch_idle(sd)
+        watch_idle(emmc)
+        self.call_firmware(machine, "emmc_quiesce")
+        self.call_firmware(machine, "sd_quiesce")
+        self.assertEqual(idle_clocks, [24000000, 24000000])
+        self.assert_healthy(session)
 
     def test_power_hold_comes_first_and_on_battery_the_usb_supply_pins_stay_low(self):
         session = self.session()

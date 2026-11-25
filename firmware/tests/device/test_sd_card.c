@@ -1,5 +1,6 @@
 #include "check.h"
 #include "device/card_presence.h"
+#include "device/mmc_clock.h"
 #include "device/sd_card.h"
 
 enum {
@@ -16,6 +17,8 @@ typedef struct FakeCard {
     int zero_rca_answers;
     uint32_t csd[4];
     bool wide_bus;
+    uint8_t switches;
+    uint8_t fault;
     int log_count;
     SdCommand log[LOG_CAPACITY];
     SdClock clock;
@@ -54,6 +57,9 @@ static bool answer(FakeCard *card, SdCommand command, uint32_t response[4])
         return true;
     case 6:
         return card->wide_bus;
+    case 13:
+        response[0] = card->fault == 5 ? 0x00400900 : 0x900;
+        return true;
     default:
         response[0] = 0x900;
         return true;
@@ -69,9 +75,25 @@ static bool fake_command(void *context, SdCommand command, uint32_t response[4])
     return card->present && answer(card, command, response);
 }
 
-static void fake_set_clock(void *context, SdClock clock)
+static bool fake_switch(void *context, uint32_t argument, uint32_t status[16])
+{
+    FakeCard *card = context;
+    CHECK_EQUAL(card->switches++ ? 0x80FFFFF1u : 0x00FFFFF1u, argument);
+    uint8_t *bytes = (uint8_t *)status;
+    for (int word = 0; word < 16; word++) {
+        status[word] = 0;
+    }
+    bytes[13] = card->fault == 1 ? 0 : 2;
+    bytes[16] = card->fault == 2 && card->switches == 2 ? 0xF : 1;
+    bytes[17] = 1;
+    bytes[29] = card->fault == 3 ? 2 : 0;
+    return card->fault != 4 || card->switches == 1;
+}
+
+static bool fake_set_clock(void *context, SdClock clock)
 {
     ((FakeCard *)context)->clock = clock;
+    return true;
 }
 
 static void fake_set_bus_width(void *context, uint8_t bits)
@@ -96,9 +118,8 @@ static void fake_stop(void *context)
 
 static SdHost host_for(FakeCard *card)
 {
-    return (SdHost){fake_command, fake_set_clock, fake_set_bus_width,
-                    fake_delay,   fake_present,   fake_stop,
-                    card};
+    return (SdHost){fake_command, fake_set_clock, fake_set_bus_width, fake_delay, fake_present,
+                    fake_stop,    card,           fake_switch};
 }
 
 static void set_bits(uint32_t csd[4], int start, int size, uint32_t value)
@@ -154,6 +175,51 @@ static void an_sdhc_card_initialises_with_its_size_and_a_4_bit_bus(void)
     CHECK_EQUAL(4, sd.bus_width);
     CHECK_EQUAL(4, card.bus_width);
     CHECK_EQUAL(SD_CLOCK_TRANSFER, card.clock);
+}
+
+static void high_speed_requires_both_a_supported_check_and_a_successful_switch(void)
+{
+    FakeCard card = sdhc_card(100);
+    set_bits(card.csd, 94, 1, 1);
+    SdHost host = host_for(&card);
+    SdCard sd;
+    CHECK(sd_card_init(&sd, &host));
+    CHECK(sd.high_speed);
+    CHECK_EQUAL(2, card.switches);
+    for (uint8_t fault = 1; fault <= 5; fault++) {
+        card.switches = 0;
+        card.fault = fault;
+        CHECK(sd_card_init(&sd, &host));
+        CHECK(!sd.high_speed);
+        CHECK_EQUAL(fault == 1 || fault == 3 ? 1 : 2, card.switches);
+        CHECK_EQUAL(SD_CLOCK_TRANSFER, card.clock);
+    }
+}
+
+static void mmc_dividers_keep_each_speed_at_or_below_its_limits(void)
+{
+    CHECK_EQUAL(3, mmc_clock_field(200, 52));
+    CHECK_EQUAL(3, mmc_clock_field(200, 50));
+    CHECK_EQUAL(1, mmc_clock_field(96, 52));
+    CHECK_EQUAL(1, mmc_clock_field(96, 50));
+    CHECK_EQUAL(7, mmc_clock_field(200, 26));
+    CHECK_EQUAL(MMC_CRYSTAL_SOURCE, mmc_clock_field(96, 26));
+    CHECK_EQUAL(MMC_CRYSTAL_SOURCE, mmc_clock_field(24, 52));
+    CHECK_EQUAL(MMC_CRYSTAL_SOURCE, mmc_clock_field(200, 0));
+    CHECK_EQUAL(MMC_CRYSTAL_SOURCE, mmc_clock_field(201, 50));
+}
+
+static void emmc_requires_a_supported_speed_and_clean_ready_transfer_status(void)
+{
+    CHECK_EQUAL(0, mmc_emmc_limit_mhz(0xFC));
+    CHECK_EQUAL(26, mmc_emmc_limit_mhz(1));
+    CHECK_EQUAL(52, mmc_emmc_limit_mhz(2));
+    CHECK_EQUAL(52, mmc_emmc_limit_mhz(3));
+    CHECK(mmc_transfer_ready(0x900));
+    CHECK(!mmc_transfer_ready(0x800));
+    CHECK(!mmc_transfer_ready(0xB00));
+    CHECK(!mmc_transfer_ready(0x980));
+    CHECK(!mmc_transfer_ready(0x00400900));
 }
 
 static void the_commands_follow_the_sd_init_order(void)
@@ -369,6 +435,9 @@ int main(void)
         TEST_CASE(a_failed_start_is_retried_each_second_up_to_ten_times),
         TEST_CASE(presence_rejects_bounce_and_handles_clock_wrap),
         TEST_CASE(an_sdhc_card_initialises_with_its_size_and_a_4_bit_bus),
+        TEST_CASE(high_speed_requires_both_a_supported_check_and_a_successful_switch),
+        TEST_CASE(mmc_dividers_keep_each_speed_at_or_below_its_limits),
+        TEST_CASE(emmc_requires_a_supported_speed_and_clean_ready_transfer_status),
         TEST_CASE(the_commands_follow_the_sd_init_order),
         TEST_CASE(command_arguments_and_responses_match_the_facts_sheet),
         TEST_CASE(the_card_is_asked_again_every_10_ms_while_busy),

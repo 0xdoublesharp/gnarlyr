@@ -9,14 +9,12 @@
 #include "cru.h"
 #include "device/block_read.h"
 #include "device/card_write.h"
+#include "device/mmc_clock.h"
 #include "dmac.h"
 #include "hal/clock.h"
 #include "mmc.h"
 #include "registers.h"
 
-#define CRU_EMMC_IDENTIFY 0x9F009F00u
-#define CRU_EMMC_TRANSFER 0x9F008000u
-#define CRU_MMC_DIVIDERS 0x30u
 #define GRF_EMMC_MUX_0 0x00u
 #define GRF_EMMC_MUX_0_VALUE 0xFFFF5555u
 #define GRF_EMMC_MUX_1 0x04u
@@ -28,10 +26,7 @@
 #define OCR_SECTOR_MODE (1u << 30)
 #define RCA_ARGUMENT 0x00020000u
 #define SWITCH_BUS_WIDTH_8 0x03B70200u
-#define STATUS_READY_FOR_DATA (1u << 8)
-#define STATUS_STATE_SHIFT 9
-#define STATUS_STATE_MASK 0xFu
-#define STATE_TRANSFER 4u
+#define SWITCH_HIGH_SPEED 0x03B90100u
 
 enum {
     GATE_EMMC_BUS = 0x19,
@@ -58,13 +53,14 @@ enum {
     MMC_STEP_SHIFT = 20,
     STATUS_TRIES = 1000,
     EXT_CSD_SECTOR_COUNT = 212,
+    EXT_CSD_DEVICE_TYPE = 196,
     MUX_SETTLE_US = 10,
     IDLE_SETTLE_US = 100,
     BLOCK_LENGTH = 512
 };
 
 static uint32_t emmc_fifo_depth;
-const MmcHost EMMC_HOST = {EMMC_BASE, CRU_EMMC_IDENTIFY, CRU_EMMC_TRANSFER, &emmc_fifo_depth};
+const MmcHost EMMC_HOST = {EMMC_BASE, &emmc_fifo_depth};
 static EmmcInfo emmc;
 static bool started;
 static uint32_t started_magic;
@@ -74,19 +70,19 @@ static bool command(uint8_t index, uint32_t argument, SdResponse response, uint3
     return mmc_command(&EMMC_HOST, (SdCommand){index, argument, response, false}, words);
 }
 
-static void power_controller(void)
+static bool power_controller(void)
 {
     cru_gate(GATE_EMMC_BUS, true);
     cru_gate(GATE_EMMC_CARD_CLOCK, true);
     cru_reset(RESET_EMMC, false);
-    cru_write(CRU_MMC_DIVIDERS, CRU_EMMC_IDENTIFY);
     register_write(GRF_BASE + GRF_EMMC_MUX_0, GRF_EMMC_MUX_0_VALUE);
     register_write(GRF_BASE + GRF_EMMC_MUX_1, GRF_EMMC_MUX_1_VALUE);
     register_write(GRF_BASE + GRF_EMMC_MUX_2, GRF_EMMC_MUX_2_VALUE);
     board_delay_us(MUX_SETTLE_US);
     mmc_reset_controller(&EMMC_HOST);
-    mmc_set_clock(&EMMC_HOST, SD_CLOCK_IDENTIFY);
+    bool clocked = mmc_set_clock(&EMMC_HOST, SD_CLOCK_IDENTIFY);
     mmc_power_cycle(&EMMC_HOST);
+    return clocked;
 }
 
 static bool wait_for_ocr(uint32_t words[4])
@@ -134,9 +130,11 @@ static bool wait_for_transfer_state(void)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     for (int attempt = 0; attempt < STATUS_TRIES; attempt++) {
-        if (command(CMD_SEND_STATUS, RCA_ARGUMENT, SD_RESPONSE_SHORT, words) &&
-            (words[0] & STATUS_READY_FOR_DATA) != 0 &&
-            ((words[0] >> STATUS_STATE_SHIFT) & STATUS_STATE_MASK) == STATE_TRANSFER) {
+        if (!command(CMD_SEND_STATUS, RCA_ARGUMENT, SD_RESPONSE_SHORT, words) ||
+            !mmc_card_status_ok(words[0])) {
+            return false;
+        }
+        if (mmc_transfer_ready(words[0])) {
             return true;
         }
     }
@@ -152,18 +150,30 @@ static bool read_sector_count(void)
     return emmc.sector_count != 0;
 }
 
-static bool select_and_widen(uint32_t words[4])
+static bool switch_high_speed(uint8_t limit, uint32_t words[4])
 {
-    mmc_set_clock(&EMMC_HOST, SD_CLOCK_TRANSFER);
-    if (!command(CMD_SELECT, RCA_ARGUMENT, SD_RESPONSE_SHORT_BUSY, words) ||
+    if (limit == 0 || !command(CMD_SWITCH, SWITCH_HIGH_SPEED, SD_RESPONSE_SHORT_BUSY, words) ||
+        !mmc_card_status_ok(words[0]) || !wait_for_transfer_state()) {
+        return true;
+    }
+    return mmc_clock_accept(&EMMC_HOST, limit);
+}
+
+static bool select_and_widen(uint32_t words[4], bool try_high_speed)
+{
+    if (!mmc_set_clock(&EMMC_HOST, SD_CLOCK_TRANSFER) ||
+        !command(CMD_SELECT, RCA_ARGUMENT, SD_RESPONSE_SHORT_BUSY, words) ||
         !command(CMD_SET_BLOCK_LENGTH, BLOCK_LENGTH, SD_RESPONSE_SHORT, words) ||
-        !read_sector_count() ||
-        !command(CMD_SWITCH, SWITCH_BUS_WIDTH_8, SD_RESPONSE_SHORT_BUSY, words) ||
-        !wait_for_transfer_state()) {
+        !read_sector_count()) {
+        return false;
+    }
+    uint8_t type = ((const uint8_t *)board_scratch)[EXT_CSD_DEVICE_TYPE];
+    if (!command(CMD_SWITCH, SWITCH_BUS_WIDTH_8, SD_RESPONSE_SHORT_BUSY, words) ||
+        !mmc_card_status_ok(words[0]) || !wait_for_transfer_state()) {
         return false;
     }
     mmc_set_bus_width(&EMMC_HOST, 8);
-    return true;
+    return !try_high_speed || switch_high_speed(mmc_emmc_limit_mhz(type), words);
 }
 
 static bool read_single_block(void *context, uint32_t lba, uint32_t *words)
@@ -235,14 +245,13 @@ bool emmc_volume_write(void *context, uint32_t lba, uint32_t count, const void *
            emmc_write(context, emmc.layout.volume_start + lba, count, buffer);
 }
 
-static uint32_t start_once(void)
+static uint32_t start_once(bool try_high_speed)
 {
     uint32_t words[4];
-    power_controller();
-    if (!identify(words)) {
+    if (!power_controller() || !identify(words)) {
         return 1;
     }
-    if (!select_and_widen(words)) {
+    if (!select_and_widen(words, try_high_speed)) {
         return 2;
     }
     started = true;
@@ -263,7 +272,7 @@ static void start_with_retries(void)
     uint32_t since = hal_clock_milliseconds();
     uint32_t step = 0;
     for (int attempt = 0; attempt < START_TRIES && !started; attempt++) {
-        step = start_once();
+        step = start_once(attempt == 0);
     }
     uint32_t spent = hal_clock_milliseconds() - since;
     spent = spent < SPENT_MASK ? spent : SPENT_MASK;
@@ -292,14 +301,17 @@ bool emmc_ready(void)
 void emmc_reset_controller(void)
 {
     cru_reset(RESET_EMMC, true);
+    mmc_clock_init(&EMMC_HOST);
     board_delay_us(MUX_SETTLE_US);
     cru_reset(RESET_EMMC, false);
 }
 
-void emmc_quiesce(void)
+CORE_SEAM CORE_COLD void emmc_quiesce(void)
 {
-    uint32_t words[4];
-    go_idle(words, false);
+    if (mmc_set_clock(&EMMC_HOST, SD_CLOCK_TRANSFER)) {
+        uint32_t words[4];
+        go_idle(words, false);
+    }
 }
 
 bool emmc_volume_start(BlockDevice *device)

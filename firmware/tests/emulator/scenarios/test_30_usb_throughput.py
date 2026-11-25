@@ -26,9 +26,8 @@ CRU_MMC_DIVIDERS = 0x30
 SD_FIELD = 0x00FF
 EMMC_FIELD = 0xFF00
 SD_CRYSTAL = 0x0080
-SD_PLL_QUARTER = 0x0003
 EMMC_CRYSTAL = 0x8000
-EMMC_PLL_QUARTER = 0x0300
+PLL_DIVIDERS = {96000000: 1, 200000000: 3}
 CARD_TYPE_52_MHZ = 0x03
 SWITCH_HIGH_SPEED_TIMING = 0x03B90100
 LEAVE_LIMIT_MS = 5000
@@ -76,7 +75,7 @@ class EchoImageTest(EchoImageHarness):
         return value & SD_FIELD, value & EMMC_FIELD
 
     def measure(self, fast, label=None, rate=HOST_MB_PER_S):
-        label = label or (" at 50 MHz" if fast else "")
+        label = label or (" at high speed" if fast else "")
         session, machine, card, disk, host, scsi = self.storage_host(fast, rate=rate)
         written = [self.pattern(index) for index in range(COMMANDS)]
         writes_before = len(card.writes)
@@ -143,12 +142,15 @@ class EchoImageTest(EchoImageHarness):
         self.assertNotIn(SWITCH_HIGH_SPEED_TIMING,
                          [argument for _, index, argument in session.card.commands if index == 6])
 
-    def test_both_cards_run_at_50_mhz_during_the_session_and_return_to_the_crystal(self):
+    def test_both_cards_use_the_pll_during_the_session_and_return_to_the_crystal(self):
         session, machine, card = self.measure(fast=True)
-        self.assertEqual(self.clock_fields(machine), (SD_PLL_QUARTER, EMMC_PLL_QUARTER))
+        divider = PLL_DIVIDERS[machine.pll_hz()]
+        self.assertEqual(self.clock_fields(machine), (divider, divider << 8))
+        self.assertEqual(machine.sd_controller.card_hz(), machine.pll_hz() // (divider + 1))
+        self.assertEqual(machine.emmc_controller.card_hz(), machine.sd_controller.card_hz())
         self.assertEqual(card.switches, [0x00FFFFF1, 0x80FFFFF1])
-        self.assertIn(SWITCH_HIGH_SPEED_TIMING,
-                      [argument for _, index, argument in session.card.commands if index == 6])
+        self.assertEqual(1, sum(index == 6 and argument == SWITCH_HIGH_SPEED_TIMING
+                                for _, index, argument in session.card.commands))
         machine.note("usb_session_stop_listening")
         machine.host_stays = False
         machine.vbus = False
@@ -159,7 +161,7 @@ class EchoImageTest(EchoImageHarness):
 
     def test_a_card_write_error_reaches_the_host_and_drops_the_card_to_the_crystal(self):
         session, machine, card, disk, host, scsi = self.storage_host(fast=True)
-        self.assertEqual(self.clock_fields(machine)[0], SD_PLL_QUARTER)
+        self.assertEqual(self.clock_fields(machine)[0], PLL_DIVIDERS[machine.pll_hz()])
         controller = machine.sd_controller
         accept = controller.accept_word
         state = {"words": 0}
@@ -177,7 +179,7 @@ class EchoImageTest(EchoImageHarness):
         sense, status = scsi.request_sense(CARD_LUN)
         self.assertEqual(status, (0, 0))
         self.assertEqual((sense[2], sense[12]), (0x03, 0x0C))
-        self.assertEqual(self.clock_fields(machine), (SD_CRYSTAL, EMMC_PLL_QUARTER))
+        self.assertEqual(self.clock_fields(machine), (SD_CRYSTAL, PLL_DIVIDERS[machine.pll_hz()] << 8))
         self.assertEqual(scsi.write(CARD_LUN, FIRST_LBA, self.pattern(1)), (0, 0))
         self.assertEqual(disk.read(FIRST_LBA, COMMAND_SECTORS), self.pattern(1))
         self.assert_healthy(session)
