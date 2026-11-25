@@ -19,7 +19,7 @@ enum {
     HOME_SETTINGS_INDEX = 5,
     SETTINGS_PLAYBACK_INDEX = 1,
     SETTINGS_LANGUAGE_INDEX = 3,
-    PLAYBACK_SLEEP_INDEX = 8,
+    PLAYBACK_SLEEP_INDEX = 2,
     SETTINGS_DEPTH = 2,
     MUSIC_ALL_SONGS_INDEX = 7
 };
@@ -108,7 +108,7 @@ static bool title_is(const char *expected)
 
 static void open_setting(int index)
 {
-    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 1 : 0));
+    move_down(HOME_SETTINGS_INDEX + (app_player_status().has_track ? 2 : 0));
     tap(KEY_PLAY);
     move_down(index);
     tap(KEY_PLAY);

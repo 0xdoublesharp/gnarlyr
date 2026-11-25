@@ -6,7 +6,7 @@
 #include "ui/label.h"
 
 enum {
-    TOAST_BOTTOM_MARGIN = 10,
+    TOAST_BOTTOM_MARGIN = 34,
     BORDER = 1
 };
 

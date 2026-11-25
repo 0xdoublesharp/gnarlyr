@@ -137,6 +137,23 @@ static int hidden_below(const HomeArt *art)
     return list->model->count(list->model->context) - list->top - list->visible_rows;
 }
 
+static void format_range(const ListView *list, int last, StringBuilder *line)
+{
+    const ListModel *model = list->model;
+    char range[16];
+    char total[8];
+    StringBuilder rows = string_builder_make(range, sizeof range);
+    if (list->visible_rows > 1) {
+        string_builder_append_unsigned(&rows, (uint32_t)list->top + 1u);
+        string_builder_append_char(&rows, '-');
+    }
+    string_builder_append_unsigned(&rows, (uint32_t)last);
+    StringBuilder count = string_builder_make(total, sizeof total);
+    string_builder_append_unsigned(&count, (uint32_t)model->count(model->context));
+    const char *arguments[] = {range, total};
+    i18n_format(line, STR_HOME_ROWS_PLACE, arguments, 2);
+}
+
 static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
 {
     const Theme *theme = art->theme;
@@ -145,12 +162,20 @@ static void draw_cue(const HomeArt *art, Canvas *canvas, Rect area)
     int last = list->top + list->visible_rows;
     char text[CUE_TEXT_CAPACITY];
     StringBuilder line = string_builder_make(text, sizeof text);
-    i18n_format_counts(&line, STR_HOME_ROWS_PLACE, (uint32_t)last,
-                       (uint32_t)model->count(model->context));
+    format_range(list, last, &line);
     canvas_fill_rect(canvas, area, theme->colors.background);
     TextStyle style = {theme->fonts.small, theme->colors.text_secondary, false};
-    Rect row = {area.x + theme->metrics.padding, area.y + CUE_INSET, area.width, CUE_LINE};
-    label_draw(canvas, style, (Label){row, text});
+    Rect row = {area.x + theme->metrics.padding, area.y + CUE_INSET,
+                area.width - 2 * theme->metrics.padding, CUE_LINE};
+    Rect caption = row;
+    caption.width -= 12;
+    label_draw(canvas, style, (Label){caption, text});
+    int center = row.x + row.width - 4;
+    int y = row.y + row.height / 2;
+    for (int step = 0; step < 4; step++) {
+        canvas_fill_rect(canvas, (Rect){center - step, y - step, 1, 1}, theme->colors.accent);
+        canvas_fill_rect(canvas, (Rect){center + step, y - step, 1, 1}, theme->colors.accent);
+    }
     row.y += CUE_LINE;
     style.color = theme->colors.accent;
     label_draw(canvas, style, (Label){row, model->label(model->context, last)});

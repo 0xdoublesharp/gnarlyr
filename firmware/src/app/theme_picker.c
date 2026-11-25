@@ -120,6 +120,9 @@ static ScreenAction select_theme(void *context, int index)
                    picker->now_ms);
         return screen_action_none();
     }
+    if (index < APPEARANCE_THEME_COUNT) {
+        default_theme_set_appearance(picker->screens->context.styled_theme, (AppearanceTheme)index);
+    }
     return screen_action_pop();
 }
 

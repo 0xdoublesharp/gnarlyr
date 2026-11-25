@@ -602,6 +602,16 @@ static void setting_the_volume_writes_pcm_volume_a_on_both_chips(void)
     CHECK_EQUAL(cursor, fake.count);
 }
 
+static void setting_independent_volumes_writes_each_chip(void)
+{
+    DacBus bus = fresh_bus();
+    cursor = 0;
+    CHECK(dac_set_volume_lr(&bus, 0x30, 0x31));
+    CHECK(next_one(LEFT, 0x090002, 0x30));
+    CHECK(next_one(RIGHT, 0x090002, 0x31));
+    CHECK_EQUAL(cursor, fake.count);
+}
+
 static bool powered_down_on_both_chips(void)
 {
     return (fake.power_control[0] & 0x10) != 0 && (fake.power_control[1] & 0x10) != 0;
@@ -950,6 +960,7 @@ int main(void)
         TEST_CASE(a_chip_that_never_reports_its_ramp_done_is_given_up_after_150_ms),
         TEST_CASE(muting_holds_the_pin_and_mutes_both_chips),
         TEST_CASE(setting_the_volume_writes_pcm_volume_a_on_both_chips),
+        TEST_CASE(setting_independent_volumes_writes_each_chip),
         TEST_CASE(start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down),
         TEST_CASE(an_unknown_filter_starts_with_stock_default_filter),
         TEST_CASE(a_gain_change_powers_the_outputs_down_around_the_register_write),

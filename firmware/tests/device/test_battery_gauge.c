@@ -309,6 +309,14 @@ static void usb_only_keeps_charging_for_unknown_or_low_batteries_and_uses_hyster
     CHECK(!battery_care_charge(true, reading));
     reading.millivolts = 3599;
     CHECK(battery_care_charge(false, reading));
+    reading.mode = 3;
+    reading.millivolts = 3949;
+    CHECK(battery_care_charge(false, reading));
+    reading.millivolts = 3950;
+    CHECK(battery_care_charge(true, reading));
+    CHECK(!battery_care_charge(false, reading));
+    reading.millivolts = 4050;
+    CHECK(!battery_care_charge(true, reading));
     reading.mode = 0;
     reading.millivolts = 4800;
     CHECK(battery_care_charge(false, reading));

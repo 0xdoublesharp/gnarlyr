@@ -5,6 +5,7 @@
 #include "core/i18n.h"
 #include "core/utf8.h"
 #include "gfx/text.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/label.h"
 #include "ui/navigation.h"
@@ -181,9 +182,9 @@ static void draw(void *context, Canvas *canvas)
     } else {
         clock_screen_draw_unknown(canvas, theme, content);
     }
-    ClockLayout layout = clock_screen_layout(theme, "", NULL);
-    draw_centered(canvas, (TextStyle){theme->fonts.small, theme->colors.text_tertiary, false},
-                  layout.hint, i18n_text(STR_CLOCK_HINT));
+    const FooterHint hints[] = {{FOOTER_KEY_PLAY, STR_CALENDAR}};
+    FooterHints footer = {.items = hints, .count = 1, .align = FOOTER_ALIGN_START};
+    footer_hints_draw(canvas, theme, footer_hints_area(theme, content, footer), footer);
 }
 
 static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)

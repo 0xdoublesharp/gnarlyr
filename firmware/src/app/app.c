@@ -825,7 +825,8 @@ static bool opens_now_playing(KeyEvent event)
 
 static ScreenAction now_playing_action(void)
 {
-    return top_screen() == &app.screens.modules.playing.up_next.screen
+    return top_screen() == &app.screens.modules.playing.up_next.screen ||
+                   screen_stack_below_top(&app.stack) == &app.screens.now_playing.screen
                ? screen_action_pop()
                : screen_action_push(&app.screens.now_playing.screen);
 }

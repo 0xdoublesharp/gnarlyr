@@ -273,6 +273,12 @@ CORE_COLD DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalo
     return set_up_blocks(bus, analog) && release_outputs(bus, rate_byte) ? DAC_READY : DAC_NO_REPLY;
 }
 
+CORE_COLD bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right)
+{
+    return bus->write(bus->context, DAC_LEFT_ADDRESS, PCM_VOLUME_A, left) &&
+           bus->write(bus->context, DAC_RIGHT_ADDRESS, PCM_VOLUME_A, right);
+}
+
 CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
 {
     return write_both(bus, PCM_VOLUME_A, volume);

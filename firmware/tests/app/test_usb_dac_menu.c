@@ -42,6 +42,7 @@ static void the_menu_lists_volume_gain_output_and_both_other_modes(void)
 static void play_on_volume_adjusts_it_with_the_volume_keys_until_play(void)
 {
     open_menu((AppDacSettings){35, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE, false});
+    select_row(USB_DAC_ROW_VOLUME);
     CHECK_EQUAL(USB_DAC_ACTION_REDRAW, usb_dac_menu_key(&menu, KEY_PLAY, 0));
     CHECK(menu.adjusting);
     CHECK_EQUAL(USB_DAC_ACTION_VOLUME, usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0));
@@ -50,17 +51,19 @@ static void play_on_volume_adjusts_it_with_the_volume_keys_until_play(void)
     CHECK_EQUAL(USB_DAC_ACTION_REDRAW, usb_dac_menu_key(&menu, KEY_PLAY, 0));
     CHECK(!menu.adjusting);
     CHECK_EQUAL(USB_DAC_ACTION_REDRAW, usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0));
-    CHECK_EQUAL(USB_DAC_ROW_GAIN, menu.view.selected);
+    CHECK_EQUAL(USB_DAC_ROW_COMPUTER, menu.view.selected);
 }
 
 static void the_volume_stays_within_the_dac_range(void)
 {
     open_menu((AppDacSettings){HAL_AUDIO_VOLUME_MAX, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE,
                                false});
+    select_row(USB_DAC_ROW_VOLUME);
     usb_dac_menu_key(&menu, KEY_PLAY, 0);
     CHECK_EQUAL(USB_DAC_ACTION_NONE, usb_dac_menu_key(&menu, KEY_VOLUME_UP, 0));
     CHECK_EQUAL(HAL_AUDIO_VOLUME_MAX, menu.settings.volume);
     open_menu((AppDacSettings){0, GAIN_LOW, OUTPUT_AUTO, HEADPHONE_PROFILE_NONE, false});
+    select_row(USB_DAC_ROW_VOLUME);
     usb_dac_menu_key(&menu, KEY_PLAY, 0);
     CHECK_EQUAL(USB_DAC_ACTION_NONE, usb_dac_menu_key(&menu, KEY_VOLUME_DOWN, 0));
     CHECK_EQUAL(0, menu.settings.volume);

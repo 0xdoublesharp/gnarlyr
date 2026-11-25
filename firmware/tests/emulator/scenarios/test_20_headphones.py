@@ -12,6 +12,7 @@ from echo_image_harness import (
     KEY_PLAY,
     KEY_PREVIOUS,
     SETTINGS_PATH,
+    SOUND_HEADPHONES_ROW,
     STARTUP_WORK_MS,
 )
 
@@ -19,8 +20,9 @@ HEADPHONES = "/" + IDENTITY.data_directory + "/headphones.bin"
 ENTRY_BYTES = 32
 LONG_NAME = 0x0F
 DELETED = 0xE5
-PROFILE_KEYS = ((KEY_PLAY,) + (KEY_NEXT,) * 5 + (KEY_PLAY, KEY_NEXT, KEY_PLAY) + (KEY_NEXT,) * 2 + (KEY_PLAY,)
-                + (KEY_NEXT,) * 12 + (KEY_PLAY,) + (KEY_PREVIOUS,) * 2 + (KEY_PLAY,))
+PROFILE_KEYS = ((KEY_PLAY,) + (KEY_NEXT,) * SOUND_HEADPHONES_ROW + (KEY_PLAY, KEY_NEXT, KEY_PLAY)
+                + (KEY_NEXT,) * 2 + (KEY_PLAY,) + (KEY_NEXT,) * 12 + (KEY_PLAY,)
+                + (KEY_PREVIOUS,) * 2 + (KEY_PLAY,))
 
 
 def delete_entry(session, folder, name):
@@ -72,7 +74,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("previous")
         rig.press("play")
         rig.press("play")
-        rig.press_many("next", 5)
+        rig.press_many("next", SOUND_HEADPHONES_ROW)
         rig.press("play")
         rig.press("next")
         rig.press("play")

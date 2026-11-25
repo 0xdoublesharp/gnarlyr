@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import echo_image_harness as image_tests
 
-from echo_image_harness import EchoImageHarness, main
+from echo_image_harness import DAC_MENU_HEADPHONES_ROW, EchoImageHarness, main
 from test_16_extension import headphone_bank
 from test_33_combined_library import host_rewrites_internal_entry
 
@@ -16,7 +16,6 @@ PROFILE_CEILING = 18
 NOTE_NAME = "NOTE.TXT"
 NOTE_ENTRY = b"NOTE    TXT"
 HEADPHONES = "/" + image_tests.IDENTITY.data_directory + "/headphones.bin"
-DAC_MENU_HEADPHONES_ROW = 3
 SAVED_VOLUME = 5
 
 
@@ -184,7 +183,7 @@ class EchoImageTest(EchoImageHarness):
     def test_without_an_intact_start_module_playback_cannot_replace_the_saved_session(self):
         rig = self.playback_rig()
         rig.press("play")
-        rig.press_many("next", 2)
+        rig.press_many("next", image_tests.MUSIC_ARTISTS_ROW)
         rig.press("play")
         rig.press("play", hold=800)
         rig.press("play")

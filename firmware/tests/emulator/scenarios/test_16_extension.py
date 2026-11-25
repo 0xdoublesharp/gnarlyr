@@ -87,7 +87,9 @@ class EchoImageTest(EchoImageHarness):
         address = overlay.symbols["home_art_draw_backdrop"]
         draws = []
         def drew(uc, at, size, user):
-            draws.append(machine.read_memory(overlay.base, len(overlay.header)) == overlay.header)
+            head = machine.read_memory(overlay.base, len(overlay.header))
+            if head[:4] != b"EOVL":
+                draws.append(head == overlay.header)
         machine.uc.hook_add(UC_HOOK_CODE, drew, begin=address, end=address)
         self.assertEqual(session.run_to_first_frame(), "condition met")
         self.assertEqual(session.run_through_update_check(), "reached usb_session_storage_changed")

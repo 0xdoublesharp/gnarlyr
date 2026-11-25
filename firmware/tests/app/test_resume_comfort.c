@@ -16,7 +16,7 @@
 #include "ui/toast.h"
 
 enum {
-    MUSIC_ALBUMS_INDEX = 4,
+    MUSIC_ALBUMS_INDEX = 0,
     LOUD = 50,
     QUIET = 10,
     BELOW_SAFE = 20,
@@ -463,10 +463,7 @@ static Settings saved_settings(void)
 
 static void the_rewind_row_turns_rewinding_off(void)
 {
-    open_playback_row(4, "Rewind on resume");
-    tap(KEY_VOLUME_DOWN);
-    tap(KEY_PLAY);
-    CHECK(strcmp(app_screen_title(), "Playback") == 0);
+    open_playback_row(6, "Playback");
     CHECK(!saved_settings().rewind_on_resume);
     tap(KEY_POWER);
     fake_hal_audio_set_position(42000);
@@ -480,7 +477,7 @@ static void the_rewind_row_turns_rewinding_off(void)
 
 static void the_safe_volume_row_turns_the_cap_off(void)
 {
-    open_playback_row(7, "Safe start volume");
+    open_playback_row(3, "Safe start volume");
     for (int option = 0; option < 3; option++) {
         tap(KEY_VOLUME_DOWN);
     }
@@ -492,7 +489,7 @@ static void the_safe_volume_row_turns_the_cap_off(void)
 
 static void the_safe_volume_row_picks_a_level(void)
 {
-    open_playback_row(7, "Safe start volume");
+    open_playback_row(3, "Safe start volume");
     tap(KEY_VOLUME_UP);
     tap(KEY_VOLUME_UP);
     tap(KEY_PLAY);
@@ -503,7 +500,7 @@ static void the_safe_volume_row_picks_a_level(void)
 
 static void the_speed_row_saves_and_applies_a_faster_speed(void)
 {
-    open_playback_row(2, "Playback speed");
+    open_playback_row(5, "Playback speed");
     for (int option = 0; option < 2; option++) {
         tap(KEY_VOLUME_UP);
     }

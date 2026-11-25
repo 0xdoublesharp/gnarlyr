@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, IDENTITY
+from echo_image_harness import EchoImageHarness, IDENTITY, SOUND_EQUALIZER_ROW, main
 
 
 class EchoImageTest(EchoImageHarness):
@@ -19,7 +19,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("previous")
         rig.press("play")
         rig.press("play")
-        rig.press_many("next", 2)
+        rig.press_many("next", SOUND_EQUALIZER_ROW)
         rig.press("play")
         rig.press("previous")
         rig.press("play")

@@ -107,19 +107,22 @@ static bool selected_home_item_is(int item)
     return home_row_is(screens.home.list.selected, item);
 }
 
-static void the_default_home_has_six_rows_and_a_track_adds_the_first_row(void)
+static void the_default_home_shows_playback_destinations_only_with_a_track(void)
 {
-    static const int EXPECTED[] = {MUSIC, MIXTAPES, LISTENING, CLOCK, USB_MODE, SETTINGS};
+    static const int IDLE[] = {MUSIC, MIXTAPES, LISTENING, USB_MODE, CLOCK, SETTINGS};
+    static const int PLAYING[] = {NOW_PLAYING, MUSIC,    MIXTAPES, UP_NEXT,
+                                  LISTENING,   USB_MODE, CLOCK,    SETTINGS};
     settings.settings = settings_defaults();
     build();
     CHECK_EQUAL(6, home_rows());
     for (int row = 0; row < 6; row++) {
-        CHECK(home_row_is(row, EXPECTED[row]));
+        CHECK(home_row_is(row, IDLE[row]));
     }
     player.has_track = true;
-    CHECK_EQUAL(7, home_rows());
-    CHECK(home_row_is(0, NOW_PLAYING));
-    CHECK(home_row_is(1, MUSIC));
+    CHECK_EQUAL(8, home_rows());
+    for (int row = 0; row < 8; row++) {
+        CHECK(home_row_is(row, PLAYING[row]));
+    }
     player.has_track = false;
     CHECK_EQUAL(6, home_rows());
     CHECK(home_row_is(0, MUSIC));
@@ -185,6 +188,23 @@ static void spoken_shelves_are_reachable_from_music_when_present(void)
     spoken_library_close(&spoken);
 }
 
+static void music_opens_on_albums_and_places_search_after_tags(void)
+{
+    settings.settings = settings_defaults();
+    build();
+    static const StringId ORDER[] = {STR_ALBUMS,      STR_ARTISTS,       STR_FAVORITES,
+                                     STR_PLAYLISTS,   STR_FOLDERS,       STR_COVER_FLOW,
+                                     STR_SMART_LISTS, STR_ALL_SONGS,     STR_ALBUM_ARTISTS,
+                                     STR_GENRES,      STR_PERSONAL_TAGS, STR_SEARCH};
+    MenuScreen *music = &screens.music;
+    CHECK_EQUAL(0, music->list.selected);
+    CHECK_EQUAL((int)(sizeof ORDER / sizeof *ORDER), music->model.count(music));
+    for (int row = 0; row < MUSIC_ITEM_COUNT; row++) {
+        CHECK(strcmp(i18n_text(ORDER[row]), music->model.label(music, row)) == 0);
+    }
+    CHECK_EQUAL(ICON_TAG, music->model.icon(music, MUSIC_ITEM_COUNT - 2));
+}
+
 static void the_editor_omits_now_playing_and_marks_the_default_hidden_items(void)
 {
     settings.settings = settings_defaults();
@@ -198,10 +218,9 @@ static void the_editor_omits_now_playing_and_marks_the_default_hidden_items(void
     for (int row = 0; row < HOME_EDITOR_ITEM_COUNT; row++) {
         CHECK(strcmp(editor->model.label(editor, row), i18n_text(STR_NOW_PLAYING)) != 0);
         int item = settings.settings.home_order[row];
-        StringId detail = item == SETTINGS ? STR_HOME_ALWAYS
-                          : item == AUDIOBOOKS || item == PODCASTS || item == UP_NEXT
-                              ? STR_HOME_HIDDEN
-                              : STR_HOME_SHOWN;
+        StringId detail = item == SETTINGS                         ? STR_HOME_ALWAYS
+                          : item == AUDIOBOOKS || item == PODCASTS ? STR_HOME_HIDDEN
+                                                                   : STR_HOME_SHOWN;
         CHECK(strcmp(i18n_text(detail), editor->model.detail(editor, row)) == 0);
     }
 }
@@ -313,7 +332,8 @@ static void missing_screen_modules_return_safe_fallbacks(void)
     CHECK(screens.browse.config.play_group(screens.browse.config.tools_context, browse) == NULL);
     CHECK(screens.browse.config.info(screens.browse.config.tools_context, 0) == NULL);
     CHECK(screens.browse.config.tags(screens.browse.config.tools_context, 0) == NULL);
-    CHECK_EQUAL(SCREEN_ACTION_NONE, screens.music_items[0].select(&screens).type);
+    CHECK_EQUAL(SCREEN_ACTION_NONE,
+                screens.music_items[MUSIC_ITEM_COUNT - 2].select(&screens).type);
     CHECK_EQUAL(SCREEN_ACTION_NONE,
                 screens.music_items[MUSIC_ITEM_COUNT - 1].select(&screens).type);
     screens.context.toast = NULL;
@@ -335,7 +355,7 @@ static void missing_screen_modules_return_safe_fallbacks(void)
     fake_hal_break_module(SCREEN_MODULE_PLAYING, false);
     fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
     CHECK(app_screens_usb_modes(&screens, false) == NULL);
-    list_view_select(&screens.home.list, 4, 0);
+    list_view_select(&screens.home.list, 3, 0);
     ScreenAction usb = screens.home.screen.handle_key(
         &screens.home, (KeyEvent){.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS}, 0);
     CHECK_EQUAL(SCREEN_ACTION_NONE, usb.type);
@@ -427,7 +447,7 @@ static void open_editor_row(int row)
     taps(KEY_VOLUME_UP, SETTINGS_GROUP_DISPLAY);
     tap(KEY_PLAY);
     CHECK(title_is(STR_SETTINGS_DISPLAY_TEXT));
-    taps(KEY_VOLUME_UP, SETTINGS_HOME_ITEM - SETTINGS_DISPLAY_FIRST);
+    taps(KEY_VOLUME_UP, SETTINGS_HOME_ITEM - SETTINGS_DISPLAY_FIRST - 1);
     tap(KEY_PLAY);
     CHECK(title_is(STR_HOME_SCREEN));
     if (row == EDITOR_RESET_ROW) {
@@ -454,8 +474,6 @@ static void hiding_an_item_in_the_editor_takes_it_off_home_and_saves(void)
     start_app();
     open_editor_row(MUSIC);
     tap(KEY_PLAY);
-    CHECK(title_is(STR_MUSIC));
-    tap(KEY_PLAY);
     CHECK(title_is(STR_HOME_SCREEN));
     CHECK(toast_is("Music hidden from Home"));
     CHECK_EQUAL(settings_defaults().home_hidden | 1u << MUSIC, saved_settings().home_hidden);
@@ -469,18 +487,17 @@ static void a_hidden_item_offers_show_and_comes_back(void)
     start_app();
     open_editor_row(MIXTAPES);
     tap(KEY_PLAY);
+    CHECK(toast_is("Mixtapes hidden from Home"));
     tap(KEY_PLAY);
-    tap(KEY_PLAY);
-    CHECK(title_is(STR_MIXTAPES));
-    tap(KEY_PLAY);
+    CHECK(title_is(STR_HOME_SCREEN));
     CHECK(toast_is("Mixtapes shown on Home"));
     CHECK_EQUAL(settings_defaults().home_hidden, saved_settings().home_hidden);
 }
 
 static void holding_play_picks_an_item_up_and_volume_moves_it(void)
 {
-    static const uint8_t EXPECTED[] = {SETTINGS, MUSIC,      MIXTAPES, LISTENING, CLOCK,
-                                       USB_MODE, AUDIOBOOKS, PODCASTS, UP_NEXT,   NOW_PLAYING};
+    static const uint8_t EXPECTED[] = {SETTINGS, MUSIC, MIXTAPES,   UP_NEXT,  LISTENING,
+                                       USB_MODE, CLOCK, AUDIOBOOKS, PODCASTS, NOW_PLAYING};
     start_app();
     open_editor_row(SETTINGS);
     press(KEY_PLAY, LONG_HOLD_MS);
@@ -522,33 +539,16 @@ static void back_cancels_a_move_and_keeps_the_saved_order(void)
     CHECK(toast_is("Move cancelled"));
     CHECK_EQUAL(4, app_screen_depth());
     tap(KEY_PLAY);
-    CHECK(title_is(STR_USB_MODE));
+    CHECK(toast_is("USB mode hidden from Home"));
 }
 
-static void the_move_action_picks_the_item_up_like_a_hold(void)
-{
-    start_app();
-    open_editor_row(LISTENING);
-    tap(KEY_PLAY);
-    tap(KEY_VOLUME_UP);
-    tap(KEY_PLAY);
-    CHECK(title_is(STR_HOME_SCREEN));
-    tap(KEY_VOLUME_UP);
-    tap(KEY_PLAY);
-    CHECK(toast_is("Recap placed"));
-    CHECK_EQUAL(LISTENING, saved_settings().home_order[3]);
-}
-
-static void settings_offers_only_the_move_action(void)
+static void settings_stays_visible_when_play_is_pressed(void)
 {
     start_app();
     open_editor_row(SETTINGS);
     tap(KEY_PLAY);
-    CHECK(title_is(STR_SETTINGS));
-    tap(KEY_PLAY);
     CHECK(title_is(STR_HOME_SCREEN));
-    tap(KEY_BACK);
-    CHECK(toast_is("Move cancelled"));
+    CHECK_EQUAL(settings_defaults().home_hidden, saved_settings().home_hidden);
 }
 
 static void leaving_during_a_move_discards_it(void)
@@ -567,7 +567,6 @@ static void reset_shows_every_item_in_the_default_order(void)
 {
     start_app();
     open_editor_row(MUSIC);
-    tap(KEY_PLAY);
     tap(KEY_PLAY);
     press(KEY_PLAY, LONG_HOLD_MS);
     taps(KEY_VOLUME_UP, 4);
@@ -590,9 +589,8 @@ static void the_reset_row_cannot_be_picked_up(void)
     start_app();
     open_editor_row(EDITOR_RESET_ROW);
     press(KEY_PLAY, LONG_HOLD_MS);
-    tap(KEY_VOLUME_UP);
-    tap(KEY_PLAY);
-    CHECK(title_is(STR_MUSIC));
+    CHECK(title_is(STR_HOME_SCREEN));
+    CHECK(!toast_is("Home screen reset"));
 }
 
 static void missing_cover_storage_does_not_walk_every_album(void)
@@ -612,10 +610,11 @@ static void missing_cover_storage_does_not_walk_every_album(void)
 int main(void)
 {
     static const TestCase cases[] = {
-        TEST_CASE(the_default_home_has_six_rows_and_a_track_adds_the_first_row),
+        TEST_CASE(the_default_home_shows_playback_destinations_only_with_a_track),
         TEST_CASE(selected_now_playing_fits_one_row_in_large_portrait),
         TEST_CASE(now_playing_ignores_a_saved_hide_bit_and_opens_the_existing_screen),
         TEST_CASE(spoken_shelves_are_reachable_from_music_when_present),
+        TEST_CASE(music_opens_on_albums_and_places_search_after_tags),
         TEST_CASE(the_editor_omits_now_playing_and_marks_the_default_hidden_items),
         TEST_CASE(home_lists_the_saved_order_without_the_hidden_items),
         TEST_CASE(missing_cover_storage_does_not_walk_every_album),
@@ -632,8 +631,7 @@ int main(void)
         TEST_CASE(holding_play_picks_an_item_up_and_volume_moves_it),
         TEST_CASE(a_moved_order_survives_a_restart),
         TEST_CASE(back_cancels_a_move_and_keeps_the_saved_order),
-        TEST_CASE(the_move_action_picks_the_item_up_like_a_hold),
-        TEST_CASE(settings_offers_only_the_move_action),
+        TEST_CASE(settings_stays_visible_when_play_is_pressed),
         TEST_CASE(leaving_during_a_move_discards_it),
         TEST_CASE(reset_shows_every_item_in_the_default_order),
         TEST_CASE(the_reset_row_cannot_be_picked_up),

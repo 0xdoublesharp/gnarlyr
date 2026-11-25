@@ -248,8 +248,11 @@ CORE_COLD bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *v
     bool received = wait_pending(I2C_RX_DONE, I2C_STAGE_RECEIVE);
     *value = (uint8_t)register_read(I2C_RXDATA);
     bool ok = i2c_stop() && received;
+    uint32_t chip = address == DAC_LEFT_ADDRESS ? 0 : 1;
+    if (ok && map == 0x0F0000 && (*value & 0x80)) {
+        board_dac_diagnostics.overflow |= (uint8_t)(1u << chip);
+    }
     if (map == 0x020000) {
-        uint32_t chip = address == DAC_LEFT_ADDRESS ? 0 : 1;
         board_dac_diagnostics.power[chip] = *value;
         board_dac_diagnostics.valid =
             (uint8_t)((board_dac_diagnostics.valid & ~(1u << chip)) | ((ok ? 1u : 0u) << chip));
@@ -257,7 +260,7 @@ CORE_COLD bool dac_read(void *context, uint8_t address, uint32_t map, uint8_t *v
     return ok;
 }
 
-static void dac_set_pin(void *context, DacPin pin, bool level)
+CORE_COLD static void dac_set_pin(void *context, DacPin pin, bool level)
 {
     (void)context;
     if (pin == DAC_PIN_MUTE || pin == DAC_PIN_ENABLE_A) {

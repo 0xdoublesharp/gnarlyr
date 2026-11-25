@@ -191,9 +191,9 @@ void cassette_now_playing_draw(const NowPlayingScreen *screen, Canvas *canvas)
                (TextStyle){theme->fonts.small, theme->colors.text_secondary, false});
     int y = layout.body.y + layout.body.height - 20;
     TextStyle footer = {.font = theme->fonts.small, .color = theme->colors.text_secondary};
-    label_draw(canvas, footer,
-               (Label){{layout.body.x + 12, y, 40, 18}, i18n_text(STR_CASSETTE_C60)});
     if (screen->tape_side == 1 || screen->tape_side == 2) {
+        label_draw(canvas, footer,
+                   (Label){{layout.body.x + 12, y, 40, 18}, i18n_text(STR_CASSETTE_C60)});
         StringId side = screen->tape_side == 1 ? STR_CASSETTE_SIDE_A : STR_CASSETTE_SIDE_B;
         label_draw(canvas, footer,
                    (Label){{layout.body.x + layout.body.width - 30, y, 18, 18}, i18n_text(side)});

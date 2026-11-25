@@ -436,8 +436,8 @@ static void draw_passive_view(uint32_t position_ms, uint32_t now_ms)
 {
     playback_view.status.position_ms = position_ms;
     playback_view.now_ms = now_ms;
-    Canvas canvas =
-        canvas_make(playback_pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    Canvas canvas = canvas_make(playback_pixels, (Rect){0, 0, playback_theme.metrics.screen_width,
+                                                        playback_theme.metrics.screen_height});
     playback_view.screen.draw(&playback_view, &canvas);
 }
 
@@ -680,6 +680,76 @@ static DrawnRows rows_drawn_at(uint32_t position_ms, uint32_t now_ms)
                        rows_hash(frame.times.y, line), icon};
 }
 
+static void queue_position_yields_to_long_times_in_portrait(void)
+{
+    start_passive_view();
+    default_theme_set_text_size(&playback_theme, TEXT_SIZE_LARGE);
+    playback_view.status.duration_ms = 3600000000u;
+    playback_view.status.place = (PlayQueuePlace){.number = 12345, .total = 54321};
+    uint32_t landscape = rows_drawn_at(1800000000u, 1000).times;
+    playback_view.status.place.total = 0;
+    CHECK(landscape != rows_drawn_at(1800000000u, 1000).times);
+
+    default_theme_set_orientation(&playback_theme, ORIENTATION_PORTRAIT);
+    uint32_t portrait = rows_drawn_at(1800000000u, 1000).times;
+    playback_view.status.place.total = 54321;
+    CHECK_EQUAL(portrait, rows_drawn_at(1800000000u, 1000).times);
+}
+
+static void volume_and_preview_temporarily_hide_the_queue_position(void)
+{
+    start_preview_view(ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
+    playback_view.status.place = (PlayQueuePlace){.number = 2, .total = 3};
+    uint32_t preview = rows_drawn_at(2000, 6000).times;
+    playback_view.status.place.total = 0;
+    CHECK_EQUAL(preview, rows_drawn_at(2000, 6000).times);
+
+    playback_view.scrub.active = false;
+    playback_view.feedback = NOW_PLAYING_FEEDBACK_VOLUME;
+    playback_view.feedback_started_ms = 5900;
+    uint32_t volume = rows_drawn_at(2000, 6000).times;
+    playback_view.status.place.total = 3;
+    CHECK_EQUAL(volume, rows_drawn_at(2000, 6000).times);
+}
+
+static uint32_t cue_hash(void)
+{
+    draw_passive_view(2000, 1000);
+    Rect cue = now_playing_frame(&playback_theme, false).cue;
+    return rows_hash(cue.y, cue.height);
+}
+
+static void lyrics_cue_yields_to_the_global_menu_hold_action(void)
+{
+    start_passive_view();
+    uint32_t no_lyrics = cue_hash();
+    Screen lyrics = {0};
+    playback_view.config.lyrics = &lyrics;
+    CHECK(no_lyrics != cue_hash());
+    playback_settings.long_press_action = 1;
+    CHECK_EQUAL(no_lyrics, cue_hash());
+}
+
+static void tape_and_a_b_status_keep_the_playback_modes_visible(void)
+{
+    start_preview_view(ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM);
+    playback_view.scrub.active = false;
+    preview_player.cassette.active = true;
+    playback_view.status.place = (PlayQueuePlace){.number = 2, .total = 3};
+    uint32_t tape = cue_hash();
+    playback_view.status.repeat = REPEAT_ONE;
+    playback_settings.playback_speed = SETTINGS_SPEED_NORMAL + 1;
+    CHECK(tape != cue_hash());
+
+    playback_view.status.ab_repeat = 2;
+    uint32_t combined = cue_hash();
+    preview_player.cassette.active = false;
+    CHECK(combined != cue_hash());
+    playback_view.status.repeat = REPEAT_OFF;
+    playback_settings.playback_speed = SETTINGS_SPEED_NORMAL;
+    CHECK(combined != cue_hash());
+}
+
 static bool rows_equal(DrawnRows left, DrawnRows right)
 {
     return left.bar == right.bar && left.times == right.times && left.icon == right.icon;
@@ -919,6 +989,10 @@ int main(void)
         TEST_CASE(a_preview_from_another_track_shows_the_real_position),
         TEST_CASE(scrubbing_an_unknown_length_says_so),
         TEST_CASE(the_preview_wins_over_the_volume_bar),
+        TEST_CASE(queue_position_yields_to_long_times_in_portrait),
+        TEST_CASE(volume_and_preview_temporarily_hide_the_queue_position),
+        TEST_CASE(tape_and_a_b_status_keep_the_playback_modes_visible),
+        TEST_CASE(lyrics_cue_yields_to_the_global_menu_hold_action),
         TEST_CASE(the_preview_is_drawn_in_every_text_size_and_orientation),
         TEST_CASE(a_tap_moves_ten_seconds),
         TEST_CASE(a_held_scrub_crosses_a_three_minute_track_in_ten_seconds_then_three),

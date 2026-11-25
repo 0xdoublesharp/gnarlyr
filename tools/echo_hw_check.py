@@ -915,7 +915,7 @@ def folder_enter_lines(folder_row):
     return [
         "open coverflow",
         "wait 200",
-        "back,down,down,down,down,down,play",
+        "back,up,play",
         "wait 350",
         ",".join(down_folder),
         "wait 300",

@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "core/deadline.h"
+#include "core/seam.h"
 
 enum {
     FULL_SCALE_MILLIVOLTS = 5000,
@@ -177,13 +178,16 @@ ChargeState charge_tracker_update(ChargeTracker *tracker, ChargeReading reading)
     return CHARGE_FULL;
 }
 
-bool battery_care_charge(bool charging, BatteryCareReading reading)
+CORE_COLD bool battery_care_charge(bool charging, BatteryCareReading reading)
 {
     if (!reading.usb_power) {
         return false;
     }
-    if (reading.mode != 2 || !reading.known || reading.millivolts < 3600) {
+    uint8_t mode = reading.mode;
+    if ((mode != 2 && mode != 3) || !reading.known) {
         return true;
     }
-    return reading.millivolts >= 3800 ? false : charging;
+    uint16_t low = mode == 3 ? 3950 : 3600;
+    uint16_t high = mode == 3 ? 4050 : 3800;
+    return reading.millivolts < low ? true : reading.millivolts >= high ? false : charging;
 }

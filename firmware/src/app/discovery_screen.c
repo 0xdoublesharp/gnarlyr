@@ -18,6 +18,7 @@
 #include "ui/label.h"
 #include "ui/message_screen.h"
 #include "ui/navigation.h"
+#include "ui/toast.h"
 
 enum {
     ROW_BYTES = 192,
@@ -52,6 +53,7 @@ typedef struct DiscoveryWork {
     int first;
     int cached_mode;
     StringId notice;
+    Toast toast;
     bool restoring;
     bool pending_search;
     bool tag_change;
@@ -73,8 +75,8 @@ static const StringId FILTERS[] = {STR_ARTIST,       STR_ALBUM,        STR_GENRE
 static const StringId INFO[] = {STR_TITLE,     STR_ARTIST,        STR_ALBUM,      STR_ALBUM_ARTIST,
                                 STR_GENRE,     STR_YEAR,          STR_DISC_TRACK, STR_DURATION,
                                 STR_FILE_PATH, STR_PERSONAL_TAGS, STR_PLAY_NEXT};
-static const StringId ACTIONS[] = {STR_TRACK_INFO, STR_PERSONAL_TAGS, STR_PLAY_NEXT,
-                                   STR_ADD_TO_UP_NEXT};
+static const StringId ACTIONS[] = {STR_PLAY_NEXT, STR_ADD_TO_UP_NEXT, STR_TRACK_INFO,
+                                   STR_PERSONAL_TAGS};
 
 static void copy_text(char *to, size_t capacity, const char *text)
 {
@@ -222,7 +224,12 @@ static Rect list_area(const DiscoveryScreen *screen)
     Rect area = theme_content_area(screen->config.theme);
     if (screen->mode == DISCOVERY_RESULTS) {
         area.y += SUMMARY_HEIGHT;
-        area.height -= SUMMARY_HEIGHT + FOOTER_HEIGHT;
+        area.height -=
+            SUMMARY_HEIGHT +
+            footer_hints_height(screen->config.theme,
+                                (FooterHints){.items = (const FooterHint[]){{FOOTER_KEY_HOLD_MENU,
+                                                                             STR_VIEW_OPTIONS}},
+                                              .count = 1});
     }
     return area;
 }
@@ -740,6 +747,9 @@ static void choose_options(DiscoveryScreen *screen, int index)
 
 static void queue_selected(DiscoveryScreen *screen, bool next)
 {
+    if (screen->config.player == NULL) {
+        return;
+    }
     PlayerUpNextResult result =
         next ? player_play_next(screen->config.player, screen->info_track)
              : player_add_to_up_next(screen->config.player, screen->info_track);
@@ -749,7 +759,8 @@ static void queue_selected(DiscoveryScreen *screen, bool next)
                     : result == PLAYER_UP_NEXT_WORKING ? STR_PREPARING_STORAGE
                     : result == PLAYER_UP_NEXT_FULL    ? STR_UP_NEXT_FULL
                                                        : STR_QUEUE_SAVE_FAILED;
-    notice(screen, text, DISCOVERY_RESULTS);
+    show_mode(screen, DISCOVERY_RESULTS);
+    toast_show(&work.toast, i18n_text(text), screen->now_ms);
 }
 
 static void choose_tag(DiscoveryScreen *screen, int index)
@@ -838,12 +849,12 @@ static void choose_row(DiscoveryScreen *screen, int index)
         }
         break;
     case DISCOVERY_ACTIONS:
-        if (index == 0) {
+        if (index < 2) {
+            queue_selected(screen, index == 0);
+        } else if (index == 2) {
             open_info(screen, screen->info_track);
-        } else if (index == 1) {
-            open_tags(screen);
         } else {
-            queue_selected(screen, index == 2);
+            open_tags(screen);
         }
         break;
     default:
@@ -960,8 +971,13 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
             discovery_text_key(&screen->editor, event);
         }
     } else if (event.key == KEY_MENU && screen->mode == DISCOVERY_RESULTS) {
-        remember_selection(screen);
-        show_mode(screen, DISCOVERY_OPTIONS);
+        if (event.gesture == KEY_GESTURE_LONG_PRESS) {
+            remember_selection(screen);
+            show_mode(screen, DISCOVERY_OPTIONS);
+        } else if (event.gesture == KEY_GESTURE_PRESS && screen->config.player != NULL &&
+                   screen->config.player->has_track) {
+            return screen_action_push(screen->config.now_playing);
+        }
     } else if (navigation.intent == NAVIGATION_NEXT || navigation.intent == NAVIGATION_PREVIOUS) {
         int direction = navigation.intent == NAVIGATION_NEXT ? 1 : -1;
         if (navigation.repeated) {
@@ -1100,6 +1116,7 @@ static void update(void *context, uint32_t now_ms)
 {
     DiscoveryScreen *screen = context;
     screen->now_ms = now_ms;
+    toast_update(&work.toast, now_ms);
     discovery_screen_reload(screen);
     update_tags(screen);
     if (work.pending_search && !tags_busy()) {
@@ -1147,14 +1164,24 @@ static void draw_editor(const DiscoveryScreen *screen, Canvas *canvas, Rect area
     area.height = theme->metrics.row_height;
     draw_line(canvas, theme, area,
               discovery_text_tail(screen->editor.text, theme->fonts.body, area.width), false);
-    char selected[] = {'[', ' ', ' ', ' ', ']', 0};
-    selected[2] = discovery_text_character(&screen->editor);
+    char selected[] = {' ', ' ', ' ', ' ', '[', ' ', ']', ' ', ' ', ' ', ' ', 0};
+    DiscoveryText choice = screen->editor;
+    KeyEvent step = {.key = KEY_VOLUME_DOWN, .gesture = KEY_GESTURE_PRESS};
+    selected[5] = discovery_text_character(&choice);
+    discovery_text_key(&choice, step);
+    selected[2] = discovery_text_character(&choice);
+    discovery_text_key(&choice, step);
+    selected[0] = discovery_text_character(&choice);
+    choice = screen->editor;
+    step.key = KEY_VOLUME_UP;
+    discovery_text_key(&choice, step);
+    selected[8] = discovery_text_character(&choice);
+    discovery_text_key(&choice, step);
+    selected[10] = discovery_text_character(&choice);
     area.y += area.height;
     draw_line(canvas, theme, area, selected, false);
-    const FooterHint hints[] = {{FOOTER_KEY_VOL, STR_HINT_CHOOSE},
-                                {FOOTER_KEY_PLAY, STR_HINT_ADD},
+    const FooterHint hints[] = {{FOOTER_KEY_PLAY, STR_HINT_ADD},
                                 {FOOTER_KEY_MENU, STR_HINT_ERASE},
-                                {FOOTER_KEY_BACK, STR_HINT_GO_BACK},
                                 {FOOTER_KEY_HOLD_PLAY, screen->edit_kind == EDIT_QUERY
                                                            ? STR_HINT_SHOW_RESULTS
                                                            : STR_HINT_SAVE}};
@@ -1247,12 +1274,10 @@ static void draw(void *context, Canvas *canvas)
         } else {
             list_view_draw(&screen->list, canvas, list_area(screen), screen->now_ms);
         }
-        area.y += area.height - FOOTER_HEIGHT;
-        area.height = FOOTER_HEIGHT;
-        area.x += theme->metrics.padding;
-        area.width -= 2 * theme->metrics.padding;
-        draw_line(canvas, theme, area,
-                  i18n_text(work.pref_failed ? STR_VIEW_SAVE_FAILED : STR_DISCOVERY_HINT), true);
+        const FooterHint hint[] = {{FOOTER_KEY_HOLD_MENU, STR_VIEW_OPTIONS}};
+        FooterHints footer = {.items = hint, .count = 1, .align = FOOTER_ALIGN_START};
+        footer_hints_draw(canvas, theme, footer_hints_area(theme, area, footer), footer);
+        toast_draw(&work.toast, canvas, theme);
         return;
     }
     if ((screen->mode == DISCOVERY_TAGS || screen->mode == DISCOVERY_TAG_FILTER) && tags_busy()) {

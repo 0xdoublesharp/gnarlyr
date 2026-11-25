@@ -9,13 +9,14 @@ from echo_image_harness import (
     EchoImageHarness,
     main,
     HEIGHT,
-    HOME_MIXTAPES_BEFORE_SETTINGS,
+    HOME_MIXTAPES_BEFORE_SETTINGS_WITH_TRACK,
     KEY_BACK,
     KEY_MENU,
     KEY_NEXT,
     KEY_PLAY,
     MODULE_LOAD_LIMIT_MS,
     MODULE_REUSE_LIMIT_US,
+    MUSIC_COVER_FLOW_ROW,
     MUSIC_ROWS_BETWEEN_SONGS_AND_COVER_FLOW,
     REPEAT_ALL,
     SETTINGS_PATH,
@@ -273,12 +274,12 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.assertEqual(session.fat().read(SETTINGS_PATH)[SETTINGS_REPEAT_FIELD], REPEAT_ALL)
         rig.press_many("back", 2)
-        rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS)
+        rig.press_many("previous", HOME_MIXTAPES_BEFORE_SETTINGS_WITH_TRACK)
         rig.press("play")
         rig.run_for(400)
         self.assertTrue(views.loaded(machine))
         rig.press("back")
-        rig.press_many("next", HOME_MIXTAPES_BEFORE_SETTINGS)
+        rig.press_many("next", HOME_MIXTAPES_BEFORE_SETTINGS_WITH_TRACK)
         rig.press("play")
         rig.run_for(400)
         self.assertTrue(settings.loaded(machine))
@@ -302,7 +303,8 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.modules import ModuleWatch
         from echo_emulator.playback import ALBUM_COUNT
         from echo_emulator.real_volume import real_volume
-        script = "\n".join(["build " + self.build_tag(), "play", "down,play", "wait 600",
+        open_cover_flow = ",".join(["down"] * MUSIC_COVER_FLOW_ROW + ["play"])
+        script = "\n".join(["build " + self.build_tag(), "play", open_cover_flow, "wait 600",
                             "screenshot coverflow", "set Repeat=All", "down", "wait 300",
                             "back:long", "wait 600", "up", "play", "wait 600",
                             "screenshot settings", "measure 500", "reconnect", ""])

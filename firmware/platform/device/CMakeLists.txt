@@ -640,6 +640,7 @@ if(NOT ECHO_RELEASE)
         board/debug_report_file.c
         board/debug_report_reads.c
         board/debug_script_file.c
+        board/fifo_words.c
         board/profiler_prepare.c
         board/time_file_take.c
         board/trial_module.c

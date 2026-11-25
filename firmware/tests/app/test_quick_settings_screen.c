@@ -15,27 +15,26 @@
 #include "ui/footer_hints.h"
 
 enum {
-    SHUFFLE_ROW = 0,
-    REPEAT_ROW = 1,
-    EQUALIZER_ROW = 2,
-    HEADPHONES_ROW = 3,
-    SPEED_ROW = 4,
-    SLEEP_ROW = 5,
-    TRANSITIONS_ROW = 6,
-    REPLAY_GAIN_ROW = 7,
-    AB_ROW = 8,
-    STYLE_ROW = 9,
-    LYRICS_ROW = 10,
-    UP_NEXT_ROW = 11,
-    ROWS = 12
+    UP_NEXT_ROW,
+    SHUFFLE_ROW,
+    REPEAT_ROW,
+    SLEEP_ROW,
+    BRIGHTNESS_ROW,
+    EQUALIZER_ROW,
+    HEADPHONES_ROW,
+    SPEED_ROW,
+    LYRICS_ROW,
+    AB_ROW,
+    STYLE_ROW,
+    ROWS
 };
 
 static const StringId STYLE_VALUES[] = {STR_NOW_PLAYING_COVER, STR_NOW_PLAYING_CASSETTE,
                                         STR_NOW_PLAYING_VU, STR_NOW_PLAYING_SPECTRUM};
-static const int SUBMENU_ROWS[] = {EQUALIZER_ROW, HEADPHONES_ROW,  SPEED_ROW,
-                                   SLEEP_ROW,     REPLAY_GAIN_ROW, STYLE_ROW};
-static const char *const SUBMENU_NAMES[] = {"equalizer", "headphones",  "speed",
-                                            "sleep",     "replay-gain", "style"};
+static const int SUBMENU_ROWS[] = {SLEEP_ROW,      BRIGHTNESS_ROW, EQUALIZER_ROW,
+                                   HEADPHONES_ROW, SPEED_ROW,      STYLE_ROW};
+static const char *const SUBMENU_NAMES[] = {"sleep",      "brightness", "equalizer",
+                                            "headphones", "speed",      "style"};
 
 static QuickSettingsScreen panel;
 static EqualizerUi equalizer;
@@ -125,16 +124,29 @@ static bool value_label_is(int value, const char *expected)
     return strcmp(expected, panel.values.model.label(&panel.values, value)) == 0;
 }
 
+static void playback_shortcuts_come_before_the_less_used_settings(void)
+{
+    static const StringId expected[] = {
+        STR_UP_NEXT,    STR_SHUFFLE, STR_REPEAT, STR_SLEEP_TIMER, STR_BRIGHTNESS, STR_EQUALIZER,
+        STR_HEADPHONES, STR_SPEED,   STR_LYRICS, STR_AB_LOOP,     STR_NOW_PLAYING};
+    start();
+    CHECK_EQUAL(sizeof expected / sizeof expected[0], panel.model.count(&panel));
+    for (int row = 0; row < panel.model.count(&panel); row++) {
+        CHECK(strcmp(panel.model.label(&panel, row), i18n_text(expected[row])) == 0);
+    }
+}
+
 static void navigation_wraps_and_back_closes_without_changing_a_value(void)
 {
     start();
     CHECK_EQUAL(ROWS, panel.model.count(&panel));
-    press(KEY_VOLUME_DOWN);
     CHECK_EQUAL(UP_NEXT_ROW, panel.list.selected);
     CHECK_EQUAL(SCREEN_ACTION_PUSH, press(KEY_PLAY).type);
     CHECK(press(KEY_PLAY).target == &up_next);
+    press(KEY_VOLUME_DOWN);
+    CHECK_EQUAL(STYLE_ROW, panel.list.selected);
     press(KEY_VOLUME_UP);
-    CHECK_EQUAL(0, panel.list.selected);
+    CHECK_EQUAL(UP_NEXT_ROW, panel.list.selected);
     CHECK_EQUAL(SCREEN_ACTION_POP, press(KEY_BACK).type);
     CHECK_EQUAL(SHUFFLE_OFF, player.shuffle);
     CHECK_EQUAL(0, fake_hal_write_count());
@@ -178,10 +190,6 @@ static void cycle_rows_wrap_to_their_first_value(void)
         CHECK_EQUAL(index % REPEAT_MODE_COUNT,
                     settings_action_current_repeat(&panel.config.settings));
     }
-    choose(TRANSITIONS_ROW);
-    CHECK(row_detail_is(TRANSITIONS_ROW, STR_TRANSITION_FADE));
-    choose(TRANSITIONS_ROW);
-    CHECK(row_detail_is(TRANSITIONS_ROW, STR_OFF));
 }
 
 static void a_submenu_marks_and_highlights_the_current_value_on_entry(void)
@@ -309,7 +317,7 @@ static void speed_is_listed_only_while_playback_can_change_speed(void)
     CHECK_EQUAL(SETTINGS_SPEED_NORMAL + 1, restored.settings.playback_speed);
     panel.config.settings.player = NULL;
     CHECK_EQUAL(ROWS - 1, panel.model.count(&panel));
-    CHECK(strcmp(panel.model.label(&panel, SPEED_ROW), i18n_text(STR_SLEEP_TIMER)) == 0);
+    CHECK(strcmp(panel.model.label(&panel, SPEED_ROW), i18n_text(STR_LYRICS)) == 0);
     panel.config.settings.player = &player;
     CHECK_EQUAL(ROWS, panel.model.count(&panel));
 }
@@ -317,36 +325,26 @@ static void speed_is_listed_only_while_playback_can_change_speed(void)
 static void losing_speed_support_keeps_the_selection_inside_the_panel(void)
 {
     start();
-    list_view_select(&panel.list, UP_NEXT_ROW, 100);
+    list_view_select(&panel.list, STYLE_ROW, 100);
     panel.config.settings.player = NULL;
     panel.screen.update(&panel, 200);
-    CHECK_EQUAL(UP_NEXT_ROW - 1, panel.list.selected);
-    CHECK(press(KEY_PLAY).target == &up_next);
+    CHECK_EQUAL(STYLE_ROW - 1, panel.list.selected);
+    CHECK(strcmp(panel.model.label(&panel, panel.list.selected), i18n_text(STR_NOW_PLAYING)) == 0);
 }
 
-static void replay_gain_and_transitions_update_the_player_and_keep_other_settings(void)
+static void brightness_persists_and_updates_the_display(void)
 {
     start();
-    settings.settings.prevent_clipping = false;
-    settings.settings.transition_tenths = 27;
-    for (int mode = 1; mode <= REPLAY_GAIN_MODE_COUNT; mode++) {
-        pick(REPLAY_GAIN_ROW, mode % REPLAY_GAIN_MODE_COUNT);
-        CHECK_EQUAL(mode % REPLAY_GAIN_MODE_COUNT, player.replay_gain_mode);
-        CHECK(!player.prevent_clipping);
-        SettingsStore restored;
-        settings_store_load(&restored);
-        CHECK_EQUAL(player.replay_gain_mode, restored.settings.replay_gain_mode);
-        CHECK(!restored.settings.prevent_clipping);
-    }
-    choose(TRANSITIONS_ROW);
-    CHECK(player.fade_transitions);
-    CHECK_EQUAL(27, player.transition_tenths);
-    choose(TRANSITIONS_ROW);
-    CHECK(!player.fade_transitions);
+    open_values(BRIGHTNESS_ROW);
+    CHECK_EQUAL(settings.settings.brightness - SETTINGS_BRIGHTNESS_MIN, panel.values.list.selected);
+    CHECK(value_label_is(0, "1"));
+    CHECK(value_label_is(SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN, "10"));
+    CHECK_EQUAL(SCREEN_ACTION_POP, press_values(KEY_BACK).type);
+    pick(BRIGHTNESS_ROW, SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN);
+    CHECK_EQUAL(SETTINGS_BRIGHTNESS_MAX, fake_hal_display_brightness());
     SettingsStore restored;
     settings_store_load(&restored);
-    CHECK_EQUAL(TRACK_TRANSITION_OFF, restored.settings.track_transition);
-    CHECK_EQUAL(27, restored.settings.transition_tenths);
+    CHECK_EQUAL(SETTINGS_BRIGHTNESS_MAX, restored.settings.brightness);
 }
 
 static bool memory_matches_storage(void)
@@ -357,8 +355,7 @@ static bool memory_matches_storage(void)
     const Settings *shown = &settings.settings;
     return stored->equalizer == shown->equalizer &&
            stored->playback_speed == shown->playback_speed &&
-           stored->replay_gain_mode == shown->replay_gain_mode &&
-           stored->track_transition == shown->track_transition &&
+           stored->brightness == shown->brightness &&
            settings_now_playing_style(stored) == settings_now_playing_style(shown);
 }
 
@@ -368,6 +365,7 @@ static void check_failed_save(int row, int value, bool cycle)
     char before[64];
     snprintf(before, sizeof before, "%s", panel.model.detail(&panel, row));
     Player player_before = player;
+    uint8_t brightness_before = fake_hal_display_brightness();
     fake_hal_fail_internal_writes(SETTINGS_STORE_PATH);
     if (cycle) {
         choose(row);
@@ -382,31 +380,22 @@ static void check_failed_save(int row, int value, bool cycle)
     CHECK_EQUAL(player_before.replay_gain_mode, player.replay_gain_mode);
     CHECK_EQUAL(player_before.fade_transitions, player.fade_transitions);
     CHECK_EQUAL(player_before.speed, player.speed);
+    CHECK_EQUAL(brightness_before, fake_hal_display_brightness());
 }
 
 static void a_failed_save_leaves_every_saving_row_at_its_stored_value(void)
 {
     check_failed_save(SHUFFLE_ROW, 0, true);
     check_failed_save(REPEAT_ROW, 0, true);
-    check_failed_save(TRANSITIONS_ROW, 0, true);
     check_failed_save(EQUALIZER_ROW, EQUALIZER_RETRO, false);
     check_failed_save(SPEED_ROW, SETTINGS_SPEED_NORMAL + 1, false);
-    check_failed_save(REPLAY_GAIN_ROW, REPLAY_GAIN_ALBUM, false);
+    check_failed_save(BRIGHTNESS_ROW, SETTINGS_BRIGHTNESS_MAX - SETTINGS_BRIGHTNESS_MIN, false);
     check_failed_save(STYLE_ROW, NOW_PLAYING_VU, false);
     start();
     fake_hal_fail_internal_writes(HEADPHONE_STORE_PATH);
     pick(HEADPHONES_ROW, 1);
     CHECK_EQUAL(HEADPHONE_PROFILE_NONE, headphones.profiles.current);
     CHECK(strcmp(toast.text, i18n_text(STR_SETTINGS_NOT_SAVED)) == 0);
-}
-
-static void a_saved_transition_still_explains_shuffle(void)
-{
-    start();
-    choose(TRANSITIONS_ROW);
-    CHECK(player.fade_transitions);
-    CHECK(strcmp(toast.text, i18n_text(STR_TRANSITIONS_IN_SHUFFLE)) == 0);
-    CHECK(memory_matches_storage());
 }
 
 static void a_rebuild_after_the_slot_file_fails_clamps_the_equalizer_list(void)
@@ -703,6 +692,7 @@ static void every_submenu_fits_every_text_size_and_orientation(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(playback_shortcuts_come_before_the_less_used_settings),
         TEST_CASE(navigation_wraps_and_back_closes_without_changing_a_value),
         TEST_CASE(rows_with_four_or_more_values_open_a_submenu_and_the_rest_act_in_place),
         TEST_CASE(cycle_rows_wrap_to_their_first_value),
@@ -713,9 +703,8 @@ int main(void)
         TEST_CASE(sleep_is_chosen_for_the_same_session_timer_and_does_not_persist),
         TEST_CASE(speed_is_listed_only_while_playback_can_change_speed),
         TEST_CASE(losing_speed_support_keeps_the_selection_inside_the_panel),
-        TEST_CASE(replay_gain_and_transitions_update_the_player_and_keep_other_settings),
+        TEST_CASE(brightness_persists_and_updates_the_display),
         TEST_CASE(a_failed_save_leaves_every_saving_row_at_its_stored_value),
-        TEST_CASE(a_saved_transition_still_explains_shuffle),
         TEST_CASE(a_rebuild_after_the_slot_file_fails_clamps_the_equalizer_list),
         TEST_CASE(a_rebuild_keeps_the_headphone_names),
         TEST_CASE(a_b_repeat_sets_a_then_b_then_clears),

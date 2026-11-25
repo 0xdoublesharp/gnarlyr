@@ -293,7 +293,7 @@ static void every_top_group_resolves_names_without_starting_playback(void)
 {
     for (int group = 0; group < 3; group++) {
         start(true);
-        choose(group);
+        choose(group + 1);
         draw();
         CHECK(saw(i18n_text(STR_LISTENING_WORKING)));
         finish_top();
@@ -303,7 +303,7 @@ static void every_top_group_resolves_names_without_starting_playback(void)
         CHECK(!screen.model.opens(&screen, 0));
         CHECK_EQUAL(0, fake_hal_audio_play_count());
         CHECK_EQUAL(SCREEN_ACTION_NONE, key(KEY_BACK, KEY_GESTURE_PRESS).type);
-        CHECK_EQUAL(group, screen.list.selected);
+        CHECK_EQUAL(group + 1, screen.list.selected);
         CHECK_EQUAL(SCREEN_ACTION_POP, key(KEY_BACK, KEY_GESTURE_PRESS).type);
     }
 }
@@ -311,7 +311,7 @@ static void every_top_group_resolves_names_without_starting_playback(void)
 static void empty_history_and_unknown_track_identities_are_distinct(void)
 {
     start(false);
-    choose(0);
+    choose(1);
     for (int step = 0; step < 8; step++) {
         tick();
     }
@@ -319,7 +319,7 @@ static void empty_history_and_unknown_track_identities_are_distinct(void)
     CHECK(saw(i18n_text(STR_LISTENING_EMPTY)));
     start(false);
     add_play(0, false);
-    choose(0);
+    choose(1);
     finish_top();
     CHECK_EQUAL(1, screen.model.count(&screen));
     CHECK(strcmp(i18n_text(STR_HISTORY_UNAVAILABLE), screen.model.label(&screen, 0)) == 0);
@@ -329,13 +329,13 @@ static void a_history_read_error_is_visible_and_a_fresh_job_can_recover(void)
 {
     start(true);
     disk.refuse_reads = true;
-    choose(0);
+    choose(1);
     tick();
     draw();
     CHECK(saw(i18n_text(STR_HISTORY_UNAVAILABLE)));
     key(KEY_BACK, KEY_GESTURE_PRESS);
     disk.refuse_reads = false;
-    choose(0);
+    choose(1);
     finish_top();
     CHECK(strcmp(i18n_text(STR_HISTORY_UNAVAILABLE), screen.model.label(&screen, 0)) != 0);
     CHECK_EQUAL(2, store.log.root.counters.totals.plays);
@@ -532,7 +532,7 @@ static void an_export_restarted_after_its_buffer_was_reused_still_writes_a_whole
 static void a_job_rebuilds_after_another_screen_reuses_the_cold_work_buffer(void)
 {
     start(true);
-    choose(0);
+    choose(1);
     finish_top();
     int count = screen.model.count(&screen);
     ListeningScreen other;
@@ -551,15 +551,13 @@ static void totals_and_top_lists_render_at_every_size_and_orientation(void)
             start(true);
             default_theme_set_text_size(&theme, (TextSize)size);
             default_theme_set_orientation(&theme, (Orientation)orientation);
-            choose(3);
             Canvas canvas = draw();
             CHECK(saw(i18n_text(STR_TOTAL_LISTENING)));
             CHECK(saw(i18n_text(STR_LISTENING_PLAYS)));
             CHECK(saw(i18n_text(STR_LISTENING_SKIPS)));
             screen_snapshot_write(&canvas, "listening-totals",
                                   orientation * TEXT_SIZE_COUNT + size);
-            key(KEY_BACK, KEY_GESTURE_PRESS);
-            choose(0);
+            choose(1);
             finish_top();
             canvas = draw();
             CHECK(!saw(i18n_text(STR_HISTORY_UNAVAILABLE)));
@@ -640,7 +638,7 @@ static void clearing_without_export_empties_totals_and_rankings(void)
     ListeningLog recovered;
     CHECK_EQUAL(STORE_READY, listening_log_open(&recovered, listening_disk_config(&disk)));
     CHECK_EQUAL(0, recovered.root.kept);
-    choose(0);
+    choose(1);
     for (int step = 0; step < 100; step++) {
         tick();
         draw();

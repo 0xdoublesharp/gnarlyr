@@ -11,12 +11,12 @@ enum {
     GAIN_CHOICES = 2
 };
 
-static const StringId LABELS[USB_DAC_ROW_COUNT] = {
-    STR_VOLUME, STR_GAIN, STR_OUTPUT, STR_HEADPHONES, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY};
-static const uint8_t ICONS[USB_DAC_ROW_COUNT] = {ICON_SPEAKER, ICON_GAIN,     ICON_JACK,
-                                                 ICON_AUDIO,   ICON_COMPUTER, ICON_BOLT};
-static const StringId GAINS[GAIN_CHOICES] = {STR_GAIN_LOW, STR_GAIN_HIGH};
-static const StringId OUTPUTS[OUTPUT_CHOICES] = {STR_OUTPUT_AUTO, STR_JACK_35, STR_JACK_44};
+static const uint16_t LABELS[USB_DAC_ROW_COUNT] = {
+    STR_HEADPHONES, STR_GAIN, STR_OUTPUT, STR_VOLUME, STR_PLUG_COMPUTER, STR_PLUG_CHARGE_PLAY};
+static const uint8_t ICONS[USB_DAC_ROW_COUNT] = {ICON_AUDIO,   ICON_GAIN,     ICON_JACK,
+                                                 ICON_SPEAKER, ICON_COMPUTER, ICON_BOLT};
+static const uint16_t GAINS[GAIN_CHOICES] = {STR_GAIN_LOW, STR_GAIN_HIGH};
+static const uint16_t OUTPUTS[OUTPUT_CHOICES] = {STR_OUTPUT_AUTO, STR_JACK_35, STR_JACK_44};
 
 static int row_count(const void *context)
 {
@@ -27,7 +27,7 @@ static int row_count(const void *context)
 static const char *row_label(const void *context, int index)
 {
     (void)context;
-    return i18n_text(LABELS[index]);
+    return i18n_text((StringId)LABELS[index]);
 }
 
 static IconId row_icon(const void *context, int index)
@@ -43,9 +43,9 @@ static const char *row_detail(const void *context, int index)
     case USB_DAC_ROW_VOLUME:
         return menu->volume;
     case USB_DAC_ROW_GAIN:
-        return i18n_text(GAINS[menu->settings.gain % GAIN_CHOICES]);
+        return i18n_text((StringId)GAINS[menu->settings.gain % GAIN_CHOICES]);
     case USB_DAC_ROW_OUTPUT:
-        return i18n_text(OUTPUTS[menu->settings.output % OUTPUT_CHOICES]);
+        return i18n_text((StringId)OUTPUTS[menu->settings.output % OUTPUT_CHOICES]);
     case USB_DAC_ROW_HEADPHONES:
         return menu->profile;
     default:
@@ -89,7 +89,8 @@ void usb_dac_menu_show_volume(UsbDacMenu *menu, uint8_t volume)
 int usb_dac_menu_rows(const Theme *theme)
 {
     int rows = (theme->metrics.screen_height - usb_screen_header_height(theme) -
-                3 * theme->metrics.padding - font_line_height(theme->fonts.small)) /
+                3 * theme->metrics.padding - font_line_height(theme->fonts.small) -
+                (theme_is_portrait(theme) ? 24 : 0)) /
                theme->metrics.row_height;
     return rows < USB_DAC_ROW_COUNT ? rows : USB_DAC_ROW_COUNT;
 }

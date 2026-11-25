@@ -5,6 +5,7 @@
 #include "core/string_builder.h"
 #include "gfx/text.h"
 #include "hal/clock.h"
+#include "ui/footer_hints.h"
 #include "ui/header.h"
 #include "ui/list_navigation.h"
 #include "ui/navigation.h"
@@ -50,10 +51,10 @@ static const char *row_detail(const void *context, int index)
     return i18n_text(detail);
 }
 
-static bool row_opens(const void *context, int index)
+static ListRowRole row_role(const void *context, int index)
 {
-    const HomeEditor *editor = context;
-    return is_item_row(index) && !editor->moving;
+    (void)context;
+    return is_item_row(index) ? LIST_ROW_PLAIN : LIST_ROW_DANGER_DIVIDED;
 }
 
 static IconId row_icon(const void *context, int index)
@@ -146,39 +147,10 @@ static ScreenAction handle_move(HomeEditor *editor, KeyEvent event)
     return screen_action_none();
 }
 
-static ScreenAction toggle_hidden(void *context)
+static void toggle_hidden(HomeEditor *editor, int item)
 {
-    HomeEditor *editor = context;
-    int item = editor->order[editor->target];
     editor->config.settings->home_hidden ^= (uint16_t)(1u << item);
     commit(editor, item_hidden(editor, item) ? STR_HOME_WAS_HIDDEN : STR_HOME_WAS_SHOWN, item);
-    return screen_action_pop();
-}
-
-static ScreenAction move_from_actions(void *context)
-{
-    HomeEditor *editor = context;
-    editor->pick_pending = true;
-    return screen_action_pop();
-}
-
-static ScreenAction open_actions(HomeEditor *editor, int index)
-{
-    int item = editor->order[index];
-    int count = 0;
-    editor->target = (int8_t)index;
-    if (item != SETTINGS_HOME_SETTINGS_ITEM) {
-        StringId label = item_hidden(editor, item) ? STR_HOME_SHOW : STR_HOME_HIDE;
-        editor->action_items[count++] =
-            (MenuItem){.label = i18n_text(label), .select = toggle_hidden, .context = editor};
-    }
-    editor->action_items[count++] = (MenuItem){
-        .label = i18n_text(STR_HOME_MOVE), .select = move_from_actions, .context = editor};
-    MenuConfig config = {.title = i18n_text(editor->config.items[item].label),
-                         .items = editor->action_items,
-                         .item_count = count,
-                         .theme = editor->config.theme};
-    return screen_action_push(menu_screen_init(&editor->actions, config));
 }
 
 static ScreenAction reset(HomeEditor *editor)
@@ -194,7 +166,15 @@ static ScreenAction reset(HomeEditor *editor)
 
 static ScreenAction select_row(void *context, int index)
 {
-    return is_item_row(index) ? open_actions(context, index) : reset(context);
+    HomeEditor *editor = context;
+    if (!is_item_row(index)) {
+        return reset(editor);
+    }
+    int item = editor->order[index];
+    if (item != SETTINGS_HOME_SETTINGS_ITEM) {
+        toggle_hidden(editor, item);
+    }
+    return screen_action_none();
 }
 
 static ScreenAction pick_row(void *context, int index)
@@ -222,18 +202,42 @@ static void enter(void *context, uint32_t now_ms)
     editor->now_ms = now_ms;
     editor->moving = false;
     sync_order(editor);
-    if (editor->pick_pending) {
-        editor->pick_pending = false;
-        begin_move(editor, editor->target);
-    }
     list_view_restart_marquee(&editor->list, now_ms);
+}
+
+static FooterHints editor_hints(const HomeEditor *editor, FooterHint *hints)
+{
+    int count = 0;
+    if (editor->moving) {
+        hints[count++] = (FooterHint){FOOTER_KEY_PLAY, STR_HOME_PLACE};
+        hints[count++] = (FooterHint){FOOTER_KEY_BACK, STR_CANCEL};
+    } else if (is_item_row(editor->list.selected)) {
+        int item = editor->order[editor->list.selected];
+        if (item != SETTINGS_HOME_SETTINGS_ITEM) {
+            StringId action = item_hidden(editor, item) ? STR_HOME_SHOW : STR_HOME_HIDE;
+            hints[count++] = (FooterHint){FOOTER_KEY_PLAY, (uint16_t)action};
+        }
+        hints[count++] = (FooterHint){FOOTER_KEY_HOLD_PLAY, STR_HOME_MOVE};
+    }
+    return (FooterHints){.items = hints, .count = (uint8_t)count};
+}
+
+static Rect editor_footer(const HomeEditor *editor, FooterHints hints)
+{
+    const Theme *theme = editor->config.theme;
+    return footer_hints_area(theme, theme_content_area(theme), hints);
 }
 
 static void update(void *context, uint32_t now_ms)
 {
     HomeEditor *editor = context;
     editor->now_ms = now_ms;
-    const Font *font = editor->config.theme->fonts.header;
+    const Theme *theme = editor->config.theme;
+    FooterHint hints[2];
+    Rect footer = editor_footer(editor, editor_hints(editor, hints));
+    list_view_fit_rows(&editor->list,
+                       list_view_rows_in(&editor->list, footer.y - theme_content_area(theme).y));
+    const Font *font = theme->fonts.header;
     editor->screen.header_title_width =
         editor->moving ? (uint16_t)text_width(font, i18n_text(STR_HOME_MOVING)) : 0;
 }
@@ -243,7 +247,13 @@ static void draw(void *context, Canvas *canvas)
     const HomeEditor *editor = context;
     const Theme *theme = editor->config.theme;
     header_draw(canvas, theme, editor->moving ? i18n_text(STR_HOME_MOVING) : editor->screen.title);
-    list_view_draw(&editor->list, canvas, theme_content_area(theme), editor->now_ms);
+    FooterHint storage[2];
+    FooterHints hints = editor_hints(editor, storage);
+    Rect footer = editor_footer(editor, hints);
+    Rect content = theme_content_area(theme);
+    content.height = footer.y - content.y;
+    list_view_draw(&editor->list, canvas, content, editor->now_ms);
+    footer_hints_draw(canvas, theme, footer, hints);
 }
 
 Screen *home_editor_init(HomeEditor *editor, HomeEditorConfig config)
@@ -253,7 +263,7 @@ Screen *home_editor_init(HomeEditor *editor, HomeEditorConfig config)
                                 .count = row_count,
                                 .label = row_label,
                                 .detail = row_detail,
-                                .opens = row_opens,
+                                .role = row_role,
                                 .icon = row_icon,
                                 .detail_below = true};
     list_view_init(&editor->list, &editor->model, config.theme, 0);

@@ -61,6 +61,7 @@ void dac_output_on(const DacBus *bus, uint8_t volume);
 void dac_output_off(const DacBus *bus);
 void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume);
 bool dac_set_volume(const DacBus *bus, uint8_t volume);
+bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right);
 uint8_t dac_volume_value(uint8_t level, DacCurve curve);
 uint8_t dac_ramp_next(uint8_t current, uint8_t target);
 
@@ -80,5 +81,6 @@ typedef struct DacDiagnostics {
     uint32_t gain_us;
     uint8_t power[2];
     uint8_t valid;
+    uint8_t overflow;
     bool up;
 } DacDiagnostics;

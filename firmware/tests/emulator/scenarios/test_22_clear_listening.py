@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, HOME_LISTENING_ROW, IDENTITY, main
+from echo_image_harness import EchoImageHarness, HOME_LISTENING_WITH_TRACK_ROW, IDENTITY, english, main
 
 
 class EchoImageTest(EchoImageHarness):
@@ -20,9 +20,7 @@ class EchoImageTest(EchoImageHarness):
         rig.skip("next")
         rig.press("play")
         rig.press("back", hold=1300)
-        rig.press_many("next", HOME_LISTENING_ROW)
-        rig.press("play")
-        rig.press_many("next", 3)
+        rig.press_many("next", HOME_LISTENING_WITH_TRACK_ROW)
         rig.press("play")
         populated = tuple(rig.machine.panel.frame)
         reader = FatReader(rig.session.disk, rig.session.layout["volume_start"])
@@ -36,6 +34,7 @@ class EchoImageTest(EchoImageHarness):
 
         before = root()
         self.assertGreaterEqual(struct.unpack_from("<I", before, 44)[0], 2)
+        toasts = self.collect_toasts(rig.machine)
         rig.press("play", hold=1300)
         rig.press("next")
         rig.press("play")
@@ -51,8 +50,9 @@ class EchoImageTest(EchoImageHarness):
         records = [line for line in exported.splitlines() if not line.startswith(b"#")]
         self.assertGreaterEqual(len(records), 2)
         self.assertTrue(all(len(line.split(b"\t")) == 8 for line in records))
+        self.assertIn(english("STR_HISTORY_CLEARED"), toasts)
+        rig.run_for(1500)
         rig.settle()
-        rig.press("play")
         self.assertNotEqual(populated, tuple(machine.panel.frame))
         self.assertEqual(0, struct.unpack_from("<I", root(), 44)[0])
         self.assert_healthy(rig.session)

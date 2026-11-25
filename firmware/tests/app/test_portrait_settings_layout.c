@@ -218,7 +218,9 @@ static void status_bar_choices_fit_every_size_and_orientation_and_save_independe
                       theme.metrics.screen_width - 2 * theme.metrics.padding);
                 CHECK(item->value(item->context) != NULL);
                 ScreenAction action = item->select(item->context);
-                CHECK(action.target != NULL);
+                bool opens = row >= 4;
+                CHECK_EQUAL(opens, item->opens);
+                CHECK_EQUAL(opens, action.target != NULL);
             }
             store.settings.status_items = 0xD0;
             DebugSpan title = {i18n_text(STR_STATUS_VOLUME), 0};
@@ -506,7 +508,9 @@ static void every_former_settings_row_is_in_exactly_one_group(void)
                                     STR_CARD_FORMAT,
                                     STR_HOME_SCREEN,
                                     STR_PEQ,
-                                    STR_STANDBY_POWER,
+                                    STR_STANDBY_ENABLED,
+                                    STR_STANDBY_TIMEOUT,
+                                    STR_STARTUP_ANIMATION,
                                     STR_NOW_PLAYING_STYLE,
                                     STR_BACKUPS,
                                     STR_SETTINGS_BUTTONS,
@@ -526,11 +530,50 @@ static void every_former_settings_row_is_in_exactly_one_group(void)
     CHECK_EQUAL((int)(sizeof rows / sizeof rows[0]), listed);
 }
 
+static void dependent_settings_appear_only_when_their_feature_is_enabled(void)
+{
+    open_grouped();
+    const MenuItem *accent = &grouped.items[SETTINGS_ACCENT_ITEM];
+    const MenuItem *clipping = &grouped.items[SETTINGS_CLIPPING_ITEM];
+    const MenuItem *timeout = &grouped.items[SETTINGS_STANDBY_TIMEOUT_ITEM];
+    CHECK(!accent->shown(accent->shown_context));
+    CHECK(!clipping->shown(clipping->shown_context));
+    CHECK(!timeout->shown(timeout->shown_context));
+    store.settings.appearance = APPEARANCE_GRAPHITE;
+    store.settings.replay_gain_mode = REPLAY_GAIN_TRACK;
+    store.settings.standby_enabled = true;
+    CHECK(accent->shown(accent->shown_context));
+    CHECK(clipping->shown(clipping->shown_context));
+    CHECK(timeout->shown(timeout->shown_context));
+    CHECK(!clipping->opens);
+    CHECK(store.settings.prevent_clipping);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, clipping->select(clipping->context).type);
+    CHECK(!store.settings.prevent_clipping);
+}
+
+static void resetting_buttons_persists_the_defaults_and_shows_feedback(void)
+{
+    open_grouped();
+    store.settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NEXT;
+    store.settings.long_press_action = 4;
+    CHECK(settings_store_save(&store));
+    const MenuItem *reset = &grouped.buttons.items[BUTTON_ROW_RESET];
+    CHECK_EQUAL(LIST_ROW_DANGER_DIVIDED, reset->role);
+    CHECK_EQUAL(SCREEN_ACTION_NONE, reset->select(reset->context).type);
+    CHECK(strcmp(grouped.context.toast->text, i18n_text(STR_DONE)) == 0);
+    SettingsStore loaded;
+    settings_store_load(&loaded);
+    CHECK_EQUAL(BUTTON_ACTION_DEFAULT, loaded.settings.button_actions[PLAYBACK_PLAY_TAP]);
+    CHECK_EQUAL(0, loaded.settings.long_press_action);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(settings_open_on_nine_groups_with_language_fourth_and_about_last),
         TEST_CASE(every_former_settings_row_is_in_exactly_one_group),
+        TEST_CASE(dependent_settings_appear_only_when_their_feature_is_enabled),
+        TEST_CASE(resetting_buttons_persists_the_defaults_and_shows_feedback),
         TEST_CASE(status_bar_choices_fit_every_size_and_orientation_and_save_independently),
         TEST_CASE(value_rows_get_a_separate_line_in_large_portrait),
         TEST_CASE(every_control_label_and_value_is_shown_whole_in_portrait),

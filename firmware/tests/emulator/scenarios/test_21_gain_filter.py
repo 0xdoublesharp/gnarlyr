@@ -10,8 +10,8 @@ from echo_image_harness import (
     SETTINGS_PATH,
 )
 
-SOUND_GAIN_ROW = 1
-SOUND_FILTER_ROW = 9
+SOUND_GAIN_ROW = 2
+SOUND_FILTER_ROW_WITH_REPLAY_GAIN_OFF = 7
 HIGH_GAIN_RISE_LEVELS = 6
 DAC_UNITS_PER_LEVEL = 2
 HIGH_GAIN_RISE_UNITS = HIGH_GAIN_RISE_LEVELS * DAC_UNITS_PER_LEVEL
@@ -55,7 +55,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(1, len(gains), gains)
         self.assertEqual(1, gains[-1][0])
         self.assertGreaterEqual(gains[-1][1], before + HIGH_GAIN_RISE_UNITS, (before, gains))
-        rig.press_many("next", SOUND_FILTER_ROW - SOUND_GAIN_ROW)
+        rig.press_many("next", SOUND_FILTER_ROW_WITH_REPLAY_GAIN_OFF - SOUND_GAIN_ROW)
         rig.press("play")
         rig.press_many("next", NON_OVERSAMPLING)
         rig.press("play")
@@ -150,7 +150,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
         self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
-        rig.press_many("next", SOUND_FILTER_ROW - SOUND_GAIN_ROW)
+        rig.press_many("next", SOUND_FILTER_ROW_WITH_REPLAY_GAIN_OFF - SOUND_GAIN_ROW)
         rig.press("play")
         rig.press_many("next", NON_OVERSAMPLING)
         rig.press("play")
@@ -160,7 +160,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(rig.audio.underruns(audible), [])
         self.assertEqual(0, rig.audio.output_underruns())
         self.assertEqual(0, real_dmac.bad_disables)
-        rig.press_many("previous", SOUND_FILTER_ROW - SOUND_GAIN_ROW)
+        rig.press_many("previous", SOUND_FILTER_ROW_WITH_REPLAY_GAIN_OFF - SOUND_GAIN_ROW)
         dac_bus.fail_register = DAC_GAIN_REGISTER
         rig.audio.dac_events.clear()
         rig.press("play")

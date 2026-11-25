@@ -713,9 +713,9 @@ static void check_extension_defaults(const Settings *settings)
     CHECK(settings->clock_24h);
     CHECK_EQUAL(TRACK_TRANSITION_OFF, settings->track_transition);
     CHECK_EQUAL(15, settings->transition_tenths);
-    static const uint8_t ORDER[] = {0, 6, 7, 9, 8, 1, 2, 5, 3, 4};
+    static const uint8_t ORDER[] = {0, 6, 5, 7, 8, 9, 1, 2, 3, 4};
     CHECK(memcmp(ORDER, settings->home_order, sizeof ORDER) == 0);
-    CHECK_EQUAL(1u << 1 | 1u << 2 | 1u << 5, settings->home_hidden);
+    CHECK_EQUAL(1u << 1 | 1u << 2, settings->home_hidden);
     CHECK_EQUAL(0, settings->status_items);
     CHECK_EQUAL(DAC_FILTER_FAST_LOW_LATENCY, settings->dac_filter);
     CHECK_EQUAL(SETTINGS_SPEED_NORMAL, settings->playback_speed);
@@ -731,8 +731,8 @@ static void the_extension_defaults_keep_todays_behaviour(void)
 
 static void the_extension_block_sits_between_the_language_and_the_checksum(void)
 {
-    static const uint8_t EXPECTED[16] = {0x07, 24,   15, 0, 0x60, 0x97, 0x18, 0x52,
-                                         0x43, 0x26, 0,  0, 0,    0,    0,    0};
+    static const uint8_t EXPECTED[16] = {0x07, 24,   15, 0, 0x60, 0x75, 0x98, 0x21,
+                                         0x43, 0x06, 0,  0, 0,    0,    0,    0};
     Settings settings = settings_defaults();
     uint8_t bytes[SETTINGS_FILE_SIZE];
     settings_encode(&settings, bytes);
@@ -1326,6 +1326,9 @@ static Settings golden_sample(void)
     settings.clock_offset_minutes = -300;
     settings.track_transition = TRACK_TRANSITION_CROSSFADE;
     settings.transition_tenths = 30;
+    static const uint8_t HOME_ORDER[] = {0, 6, 7, 9, 8, 1, 2, 5, 3, 4};
+    memcpy(settings.home_order, HOME_ORDER, sizeof HOME_ORDER);
+    settings.home_hidden = 0x26;
     return settings;
 }
 

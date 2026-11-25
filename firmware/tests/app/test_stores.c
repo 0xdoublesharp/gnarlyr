@@ -758,7 +758,7 @@ static void shaping_words_and_positions_survive_restart_and_plain_edits_clear_th
     SettingsContext context = {
         .store = &store, .player = &row_player, .toast = &row_toast, .power = &power};
     settings_screens_init(&screens, context, &BOARD_THEME);
-    const MenuItem *row = &screens.items[SETTINGS_CUSTOM_EQ_ITEM - 1];
+    const MenuItem *row = &screens.items[SETTINGS_SOUND_FIRST];
     CHECK(strcmp(row->value(row->context), "Warm · Bright") == 0);
 
     EqualizerUi ui;

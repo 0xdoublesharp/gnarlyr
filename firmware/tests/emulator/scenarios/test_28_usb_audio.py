@@ -4,7 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, main, CABLE_STEADY_MS, KEY_NEXT, KEY_PLAY
+from echo_image_harness import (
+    CABLE_STEADY_MS, DAC_MENU_GAIN_ROW, DAC_MENU_VOLUME_ROW, EchoImageHarness, KEY_NEXT, KEY_PLAY, main,
+)
 from usb_audio_host import UsbAudioHost
 from echo_emulator.dac_hardware import (
     DAC_GAIN_HIGH_VALUE,
@@ -19,7 +21,7 @@ SCENE_BYTES = 96
 SCENE_SEARCH_BYTES = 64
 DAC_BITS = (16, 24, 32)
 KEY_VOLUME_UP = 120
-KEY_VOLUME_DOWN = 100
+KEY_VOLUME_DOWN = 35
 KEY_MENU = 350
 KEY_BACK = 500
 OVERVIEW_COLUMN_X = 192
@@ -536,11 +538,14 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
         self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_LOW_VALUE)
         self.press(machine, KEY_MENU)
+        for _ in range(DAC_MENU_VOLUME_ROW):
+            self.press(machine, KEY_VOLUME_UP)
         self.press(machine, KEY_PLAY)
         self.press(machine, KEY_VOLUME_UP)
         self.press(machine, KEY_VOLUME_DOWN)
         self.press(machine, KEY_PLAY)
-        self.press(machine, KEY_VOLUME_UP)
+        for _ in range(DAC_MENU_VOLUME_ROW - DAC_MENU_GAIN_ROW):
+            self.press(machine, KEY_VOLUME_DOWN)
         self.press(machine, KEY_PLAY)
         self.assertEqual(dac_bus.chips[DAC_LEFT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)
         self.assertEqual(dac_bus.chips[DAC_RIGHT_ADDRESS].get(DAC_GAIN_REGISTER), DAC_GAIN_HIGH_VALUE)

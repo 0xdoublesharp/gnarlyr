@@ -164,6 +164,7 @@ static void paused_reels_ignore_elapsed_wall_time(void)
 static void classic_footer_uses_the_themes_legible_secondary_ink(void)
 {
     Canvas canvas = start_view(0, TEXT_SIZE_MEDIUM);
+    screen.tape_side = 1;
     default_theme_set_appearance(&theme, APPEARANCE_CLASSIC);
     cassette_now_playing_draw(&screen, &canvas);
     Rect body = cassette_now_playing_layout(&theme).body;

@@ -20,6 +20,9 @@ from echo_image_harness import (
 )
 
 
+SOUND_PREVENT_CLIPPING_ROW = 7
+
+
 class EchoImageTest(EchoImageHarness):
     def test_analog_seek_clears_old_pcm_and_output_changes_fade(self):
         from echo_emulator.audio import RING_BYTES, PRODUCED_OFFSET
@@ -143,9 +146,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("previous")
         rig.press("play")
         rig.press("play")
-        rig.press_many("next", 8)
-        rig.press("play")
-        rig.press("previous")
+        rig.press_many("next", SOUND_PREVENT_CLIPPING_ROW)
         rig.press("play")
         rig.run_for(400)
         self.assertEqual(plays, len(rig.audio.plays))

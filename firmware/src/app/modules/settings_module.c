@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "core/i18n.h"
+#include "core/string_builder.h"
 #include "hal/clock.h"
 
 static bool home_changed(void *context)
@@ -85,8 +86,19 @@ static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
 {
     SettingsScreens *settings = &screens->modules.settings.settings;
     if (action == 4) {
-        int shuffle = settings_action_current_shuffle(&settings->context);
-        settings_action_choose_shuffle(&settings->context, shuffle == 0 ? 1 : 0);
+        SettingsContext *context = &settings->context;
+        int next =
+            settings_action_current_shuffle(context) == SHUFFLE_OFF ? SHUFFLE_SONGS : SHUFFLE_OFF;
+        settings_action_choose_shuffle(context, next);
+        if (settings_action_current_shuffle(context) == next) {
+            StringBuilder message = string_builder_make(context->message, sizeof context->message);
+            string_builder_append(&message, i18n_text(STR_SHUFFLE));
+            string_builder_append_char(&message, ':');
+            string_builder_append_char(&message, ' ');
+            string_builder_append(&message,
+                                  i18n_text(next == SHUFFLE_OFF ? STR_OFF : STR_SHUFFLE_SONGS));
+            toast_show(context->toast, message.buffer, hal_clock_milliseconds());
+        }
         return screen_action_pop_to_root();
     }
     if (action == 5) {

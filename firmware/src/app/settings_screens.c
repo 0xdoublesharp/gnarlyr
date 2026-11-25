@@ -517,6 +517,18 @@ static void choose_transition_length(void *context, int index)
     settings_action_apply_transitions(context);
 }
 
+static bool clipping_shown(const void *context)
+{
+    return settings_of(context)->replay_gain_mode != REPLAY_GAIN_OFF;
+}
+
+static bool accent_shown(const void *context)
+{
+    const SettingsContext *settings = context;
+    return settings->theme != NULL ? settings->theme->appearance == APPEARANCE_GRAPHITE
+                                   : current_appearance(context) == APPEARANCE_GRAPHITE;
+}
+
 static bool transition_length_shown(const void *context)
 {
     return settings_action_current_transition(context) != 0;
@@ -624,6 +636,11 @@ static void choose_crossfeed(void *context, int index)
 static int current_standby(const void *context)
 {
     return settings_of(context)->standby_enabled;
+}
+
+static bool standby_timeout_shown(const void *context)
+{
+    return current_standby(context) != 0;
 }
 
 static void choose_standby(void *context, int index)
@@ -759,11 +776,21 @@ static Screen *choice_view(SettingsScreens *screens, const SettingChoice *choice
     return choice_screen_init(&screens->choice, config);
 }
 
+static bool inline_choice(const SettingChoice *choice)
+{
+    return choice->options == OFF_ON_OPTIONS || choice->title == STR_TRANSITIONS ||
+           choice->title == STR_CLOCK_FORMAT || choice->title == STR_POWER_ON;
+}
+
 static ScreenAction open_choice(void *context)
 {
     SettingsEntry *entry = context;
     SettingsScreens *screens = entry->owner;
     const SettingChoice *choice = entry->choice;
+    if (inline_choice(choice)) {
+        choice->choose(&screens->context, 1 - choice->current(&screens->context));
+        return screen_action_none();
+    }
     if (choice->title == STR_EQUALIZER) {
         return screen_action_push(screens->context.equalizer);
     }
@@ -784,25 +811,6 @@ static ScreenAction open_choice(void *context)
 }
 
 static const char *choice_value(const void *context);
-
-static ScreenAction open_power(void *context)
-{
-    SettingsScreens *screens = context;
-    for (int index = 0; index < SETTINGS_POWER_CHOICES; index++) {
-        screens->power_items[index] =
-            (MenuItem){.label = i18n_text(CHOICES[SETTINGS_STANDBY_CHOICE + index].title),
-                       .select = open_choice,
-                       .context = &screens->entries[SETTINGS_STANDBY_CHOICE + index],
-                       .value = choice_value,
-                       .opens = true};
-    }
-    MenuConfig config = {.title = i18n_text(STR_STANDBY_POWER),
-                         .items = screens->power_items,
-                         .item_count = SETTINGS_POWER_CHOICES,
-                         .theme = screens->theme,
-                         .detail_below = true};
-    return screen_action_push(menu_screen_init(&screens->power_menu, config));
-}
 
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt)
 {
@@ -905,6 +913,22 @@ static void buttons_changed(void *context)
     settings_action_save(context);
 }
 
+static ScreenAction reset_buttons_with_feedback(void *context)
+{
+    SettingsScreens *screens = context;
+    SettingsContext *settings = &screens->context;
+    SettingsStore *store = settings->store;
+    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
+        store->settings.button_actions[index] =
+            (uint8_t)settings_default_button_action((PlaybackButton)index);
+    }
+    store->settings.long_press_action = 0;
+    settings_store_capture(store, player_status(settings->player));
+    StringId message = settings_store_save(store) ? STR_DONE : STR_SETTINGS_NOT_SAVED;
+    toast_show(settings->toast, i18n_text(message), hal_clock_milliseconds());
+    return screen_action_none();
+}
+
 static bool headphones_shown(const void *context)
 {
     const SettingsScreens *screens = context;
@@ -940,7 +964,7 @@ static void bind_status_bar(SettingsScreens *screens)
                                                   .select = open_choice,
                                                   .context = &screens->entries[choice],
                                                   .value = choice_value,
-                                                  .opens = true};
+                                                  .opens = !inline_choice(&CHOICES[choice])};
     }
     MenuConfig config = {.title = i18n_text(STR_STATUS_BAR),
                          .items = screens->status_items,
@@ -967,17 +991,53 @@ enum {
 };
 
 static const uint8_t ROW_CHOICES[SETTINGS_ITEM_COUNT] = {
-    13,          11,          14,          ROW_SPECIAL,
-    ROW_SPECIAL, ROW_SPECIAL, 30,          15,
-    16,          12,          0,           1,
-    21,          24,          25,          22,
-    28,          29,          23,          2,
-    8,           9,           19,          7,
-    6,           4,           ROW_SPECIAL, SETTINGS_NOW_PLAYING_CHOICE,
-    ROW_SPECIAL, 17,          5,           ROW_SPECIAL,
-    3,           ROW_SPECIAL, 27,          26,
-    18,          ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL,
-    ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL, ROW_SPECIAL};
+    14,
+    ROW_SPECIAL,
+    11,
+    13,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+    15,
+    16,
+    12,
+    30,
+    0,
+    1,
+    2,
+    23,
+    24,
+    25,
+    21,
+    22,
+    28,
+    29,
+    6,
+    4,
+    19,
+    7,
+    8,
+    9,
+    SETTINGS_NOW_PLAYING_CHOICE,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+    17,
+    5,
+    ROW_SPECIAL,
+    SETTINGS_STANDBY_CHOICE + 2,
+    3,
+    SETTINGS_STANDBY_CHOICE,
+    SETTINGS_STANDBY_CHOICE + 1,
+    27,
+    ROW_SPECIAL,
+    18,
+    26,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+    ROW_SPECIAL,
+};
 
 static const uint8_t GROUP_FIRST[LIST_GROUPS + 1] = {
     SETTINGS_SOUND_FIRST,   SETTINGS_PLAYBACK_FIRST, SETTINGS_DISPLAY_FIRST,
@@ -1061,11 +1121,14 @@ static void bind_choice_rows(SettingsScreens *screens)
                                               .select = open_choice,
                                               .context = &screens->entries[choice],
                                               .value = choice_value,
-                                              .opens = true};
+                                              .shown_context = &screens->context,
+                                              .opens = !inline_choice(&CHOICES[choice])};
         }
     }
+    screens->items[SETTINGS_ACCENT_ITEM].shown = accent_shown;
+    screens->items[SETTINGS_CLIPPING_ITEM].shown = clipping_shown;
     screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown = transition_length_shown;
-    screens->items[SETTINGS_TRANSITION_LENGTH_ITEM].shown_context = &screens->context;
+    screens->items[SETTINGS_STANDBY_TIMEOUT_ITEM].shown = standby_timeout_shown;
 }
 
 static void bind_groups(SettingsScreens *screens, Screen *buttons)
@@ -1101,6 +1164,7 @@ static void bind_card_rows(SettingsScreens *screens)
     screens->items[SETTINGS_FORMAT_ITEM] = (MenuItem){.label = i18n_text(STR_CARD_FORMAT),
                                                       .select = open_format,
                                                       .value = format_status,
+                                                      .role = LIST_ROW_DANGER_DIVIDED,
                                                       .context = screens,
                                                       .opens = true};
     screens->items[SETTINGS_RESCAN_ITEM] = (MenuItem){.label = i18n_text(STR_RESCAN_LIBRARY),
@@ -1130,7 +1194,6 @@ static void bind_special_rows(SettingsScreens *screens)
         opening(STR_CUSTOM_EQ, menu_open_screen, context->graphic);
     screens->items[SETTINGS_PARAMETRIC_ITEM] =
         opening(STR_PEQ, menu_open_screen, context->parametric);
-    screens->items[SETTINGS_POWER_ITEM] = opening(STR_STANDBY_POWER, open_power, screens);
     screens->items[SETTINGS_HOME_ITEM] = opening(STR_HOME_SCREEN, NULL, NULL);
     bind_status_bar(screens);
 }
@@ -1149,6 +1212,8 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                     .changed = buttons_changed,
                                     .context = &screens->context};
     Screen *controls = button_settings_init(&screens->buttons, buttons);
+    screens->buttons.items[BUTTON_ROW_RESET].select = reset_buttons_with_feedback;
+    screens->buttons.items[BUTTON_ROW_RESET].context = screens;
     bind_choice_rows(screens);
     bind_special_rows(screens);
     bind_groups(screens, controls);

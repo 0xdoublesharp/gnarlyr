@@ -12,11 +12,11 @@ static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
     [SAFE_LEVEL_BYTE] = SETTINGS_DEFAULT_SAFE_START_VOLUME,
     [TRANSITION_BYTE] = SETTINGS_DEFAULT_TRANSITION_TENTHS,
     [HOME_ORDER_BYTE] = 0x60,
-    0x97,
-    0x18,
-    0x52,
+    0x75,
+    0x98,
+    0x21,
     0x43,
-    [HOME_HIDDEN_BYTE] = (1u << 1) | (1u << 2) | (1u << 5)};
+    [HOME_HIDDEN_BYTE] = (1u << 1) | (1u << 2)};
 static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30, 60, 120, 300, 0};
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};

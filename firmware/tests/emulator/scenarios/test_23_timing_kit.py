@@ -15,7 +15,10 @@ class EchoImageTest(EchoImageHarness):
         import scan_timing
         from echo_emulator.playback import ALBUM_COUNT, Rig
         from echo_emulator.real_volume import real_volume
-        script = scan_timing.script_text(name, self.build_tag()).encode("ascii")
+        script = scan_timing.script_text(name, self.build_tag())
+        if name == "nowplaying":
+            script = script.replace("\nplay\ndown,down,down,down\nplay\n", "\nplay\nplay\n", 1)
+        script = script.encode("ascii")
         volume = self.debug_volume(real_volume(playable=True, album_count=ALBUM_COUNT), run_txt=script)
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
                   module_elfs=self.module_elfs)

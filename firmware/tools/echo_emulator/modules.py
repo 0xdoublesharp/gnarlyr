@@ -49,8 +49,9 @@ class ModuleWatch:
 
     def overlay_entered(self):
         overlay = self.machine.reg(UC_ARM_REG_R0)
+        magic = int.from_bytes(self.machine.read_memory(overlay + 4, 4), "little")
         module = int.from_bytes(self.machine.read_memory(overlay + 16, 4), "little")
-        if module == 0:
+        if module == 0 and magic == 0x42535545:
             self.forgotten()
 
     def forgotten(self):

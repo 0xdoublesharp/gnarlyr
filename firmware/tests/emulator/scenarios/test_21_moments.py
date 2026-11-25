@@ -4,7 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from echo_image_harness import EchoImageHarness, HOME_LISTENING_ROW, STATS_MOMENTS_ROW, IDENTITY, main
+from echo_image_harness import (
+    EchoImageHarness, HOME_LISTENING_WITH_TRACK_ROW, STATS_MOMENTS_ROW, IDENTITY, main,
+)
 
 
 class EchoImageTest(EchoImageHarness):
@@ -117,7 +119,7 @@ class EchoImageTest(EchoImageHarness):
         rig.play_song(1)
         rig.run_for(1500)
         rig.press("back", hold=1300)
-        rig.press_many("next", HOME_LISTENING_ROW)
+        rig.press_many("next", HOME_LISTENING_WITH_TRACK_ROW)
         rig.press("play")
         rig.press_many("next", STATS_MOMENTS_ROW)
         rig.press("play")
@@ -137,7 +139,7 @@ class EchoImageTest(EchoImageHarness):
         resumed.steps = again.machine.trace("app_step")
         again.run_to_home_screen()
         resumed.settle(1000)
-        resumed.press_many("next", HOME_LISTENING_ROW)
+        resumed.press_many("next", HOME_LISTENING_WITH_TRACK_ROW)
         resumed.press("play")
         resumed.press_many("next", STATS_MOMENTS_ROW)
         resumed.press("play")
