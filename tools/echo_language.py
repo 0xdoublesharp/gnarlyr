@@ -160,7 +160,7 @@ class Snapshot:
         step = block[3] - 256 if block[3] > 127 else block[3]
         return (block[0] >> 3 < 3 and block[1] <= 60 and 5 <= block[2] <= 60 and -2 <= step <= 6 and
                 -720 <= offset <= 840 and self.home_valid(block) and block[14] & 7 < DAC_FILTERS and
-                block[14] >> 3 & 3 < 3 and block[15] == 0 and second[0] & 0xF0 == 0 and second[0] >> 2 < 3 and
+                block[14] >> 3 & 3 < 4 and block[15] == 0 and second[0] & 0xF0 == 0 and second[0] >> 2 < 3 and
                 second[1] & 0xF8 == 0 and second[2] <= 60 and not any(second[3:]))
 
     def settings_checksums(self, data):

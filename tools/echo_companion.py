@@ -4,7 +4,7 @@ import re
 import echo_language
 
 ASCII_LOWER = echo_language.ASCII_LOWER
-BOUNDS = {6: (1, 10), 7: (0, 6), 8: (0, 1), 9: (0, 2), 10: (0, 6),
+BOUNDS = {6: (1, 10), 7: (0, 6), 8: (0, 2), 9: (0, 2), 10: (0, 6),
           11: (0, 2), 12: (0, 2), 13: (0, 60), 14: (0, 3), 15: (0, 1),
           16: (0, 60), 17: (0, 7), 18: (0, 8), 24: (0, 2), 25: (0, 2),
           26: (0, 2), 27: (0, 4)}
@@ -32,12 +32,17 @@ PLUG_SPEC = ("when_plugged_in", "STR_USB_ANSWER", "USB_ANSWER_OPTIONS",
              ("ask", "computer", "charge", "run_from_usb", "dac"),
              ("STR_PLUG_ASK", "STR_PLUG_COMPUTER", "STR_PLUG_CHARGE_PLAY", "STR_PLUG_RUN_USB",
               "STR_PLUG_DAC"), 5, 0x30, 4, 0)
-PLUG_ANSWERS = (0, 1, 2, 2, 3)
+PLUG_SPEC_CARE_80 = ("when_plugged_in", "STR_USB_ANSWER", "USB_ANSWER_OPTIONS",
+                     ("ask", "computer", "charge", "run_from_usb", "dac", "charge_80"),
+                     ("STR_PLUG_ASK", "STR_PLUG_COMPUTER", "STR_PLUG_CHARGE_PLAY",
+                      "STR_PLUG_RUN_USB", "STR_PLUG_DAC", "STR_PLUG_CARE_80"), 5, 0x30, 4, 0)
+PLUG_ANSWERS = (0, 1, 2, 2, 3, 2)
 PLUG_SAVED = ("ask", "computer", "charge", "dac")
 PLUG_CARE_BYTE = 52
 PLUG_CARE_MASK = 0x18
 PLUG_CARE_SHIFT = 3
 PLUG_CARE_USB = 2
+PLUG_CARE_80 = 3
 CLOCK_SPEC = ("clock_24h", "STR_CLOCK_FORMAT", "CLOCK_FORMAT_OPTIONS", ("12h", "24h"),
               ("STR_CLOCK_12H", "STR_CLOCK_24H"), 38, 4, 2, 0)
 
@@ -74,7 +79,10 @@ class Layout:
             if members != expected:
                 raise ValueError("the installed display setting encoding has changed")
         titles = self.title_ids()
-        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_CARE_SPEC, PLUG_SPEC)
+        plug_spec = PLUG_SPEC
+        if PLUG_SPEC[1] in titles and "STR_PLUG_CARE_80" in array_source(self.ui, PLUG_SPEC[2]):
+            plug_spec = PLUG_SPEC_CARE_80
+        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_CARE_SPEC, plug_spec)
                                    if spec[1] in titles)
         for spec in self.specs:
             body = array_source(self.ui, spec[2])
@@ -86,9 +94,12 @@ class Layout:
         return self.snapshot.setting_title_ids()
 
     def value(self, spec, data):
-        if spec is PLUG_SPEC:
-            if (data[PLUG_CARE_BYTE] & PLUG_CARE_MASK) >> PLUG_CARE_SHIFT == PLUG_CARE_USB:
+        if spec in (PLUG_SPEC, PLUG_SPEC_CARE_80):
+            care = (data[PLUG_CARE_BYTE] & PLUG_CARE_MASK) >> PLUG_CARE_SHIFT
+            if care == PLUG_CARE_USB:
                 return "run_from_usb"
+            if spec is PLUG_SPEC_CARE_80 and care == PLUG_CARE_80:
+                return "charge_80"
             return PLUG_SAVED[(data[spec[5]] & spec[6]) >> spec[7]]
         index = ((data[spec[5]] & spec[6]) >> spec[7]) - spec[8]
         return spec[3][index]
@@ -96,10 +107,11 @@ class Layout:
     def changed(self, spec, value, data):
         changed = bytearray(data)
         index = spec[3].index(value)
-        raw = (PLUG_ANSWERS[index] if spec is PLUG_SPEC else index + spec[8]) << spec[7]
+        is_plug = spec in (PLUG_SPEC, PLUG_SPEC_CARE_80)
+        raw = (PLUG_ANSWERS[index] if is_plug else index + spec[8]) << spec[7]
         changed[spec[5]] = changed[spec[5]] & (255 ^ spec[6]) | raw
-        if spec is PLUG_SPEC:
-            care = PLUG_CARE_USB if value == "run_from_usb" else 0
+        if is_plug:
+            care = PLUG_CARE_USB if value == "run_from_usb" else (PLUG_CARE_80 if value == "charge_80" else 0)
             changed[PLUG_CARE_BYTE] = (changed[PLUG_CARE_BYTE] & (255 ^ PLUG_CARE_MASK) |
                                        care << PLUG_CARE_SHIFT)
         return self.snapshot.settings_checksums(changed)
