@@ -344,12 +344,11 @@ def stream_to_dac(rate, amplitude, connect_timeout, stream_timeout):
 
 
 def run_dac_test(tool, build, rate, silent, max_underruns, max_dac_gap_us, timeout, streamer=stream_to_dac):
-    found = tool.locate()
     root = tool.root()
     target_build = build or tool.read_report()[1]["values"].get("firmware.build") or "any"
     data = echo_debug.prepare_script(DAC_TEST_SCRIPT, target_build)
     tool.write(root, root / echo_debug.DATA_DIRECTORY / echo_debug.DEBUG_DIRECTORY / echo_debug.RUN_FILE, data)
-    ejected = tool.eject(found)
+    ejected = tool.eject(tool.locate())
     amplitude = 0.0 if silent else 0.008
     stream = streamer(rate, amplitude, min(timeout, 20), min(timeout, 25))
     tool.wait_for_return(timeout)
