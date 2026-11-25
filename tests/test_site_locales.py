@@ -37,8 +37,8 @@ class LocalizedPublicationTests(unittest.TestCase):
             (site / "i18n/locales.json").write_text(json.dumps({
                 "version": 1, "origin": locales.SITE_ORIGIN, "pages": ["index.html"],
                 "locales": [
-                    {"code": "en", "name": "English", "og_locale": "en_US", "language_label": "Site language", "home_label": "home", "guide_note": ""},
-                    {"code": "es", "name": "Español", "og_locale": "es_ES", "language_label": "Idioma", "home_label": "inicio", "guide_note": "Guías en inglés."},
+                    {"code": "en", "name": "English", "og_locale": "en_US", "language_label": "Site language", "guide_note": ""},
+                    {"code": "es", "name": "Español", "og_locale": "es_ES", "language_label": "Idioma", "guide_note": "Guías en inglés."},
                 ],
             }))
             messages = {}
@@ -146,6 +146,26 @@ class PublishedLanguageTests(unittest.TestCase):
         self.assertIn(f"{self.config['origin']}/ja/", urls)
         self.assertNotIn(f"{self.config['origin']}/index.html", urls)
         self.assertFalse(any(url.endswith("/docs.html") and "/es/" in url for url in urls))
+
+    def test_comparison_is_in_every_header(self):
+        for path, doc in self.pages.items():
+            with self.subTest(path=path):
+                links = [node for node in doc.nodes if node["tag"] == "a"
+                         and node["attrs"].get("href") == "/comparison.html"
+                         and node["parent"]["tag"] == "nav"
+                         and node["parent"]["parent"]["tag"] == "header"]
+                self.assertEqual(len(links), 1)
+                self.assertEqual(links[0]["attrs"].get("aria-current"),
+                                 "page" if path == "comparison.html" else None)
+
+    def test_language_picker_uses_plain_names_on_guides(self):
+        doc = self.pages["comparison.html"]
+        links = [node for node in doc.nodes if node["tag"] == "a" and "hreflang" in node["attrs"]]
+        self.assertEqual([doc.source[node["inside"]:node["stop"]] for node in links],
+                         [locale["name"] for locale in self.config["locales"]])
+        self.assertEqual([node["attrs"]["href"] for node in links],
+                         ["/comparison.html", "/es/", "/de/", "/ja/", "/fr/", "/pt/"])
+        self.assertEqual(doc.source.count("Other languages open the translated homepage."), 1)
 
     def test_generated_navigation_assets_and_fragments_resolve(self):
         ids = {path: {n["attrs"]["id"] for n in doc.nodes if "id" in n["attrs"]} for path, doc in self.pages.items()}

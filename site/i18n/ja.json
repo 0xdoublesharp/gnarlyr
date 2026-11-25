@@ -971,6 +971,11 @@
       "source": "Copy review",
       "source_sha256": "aac6266599223b28fdf7004832ecf926275e8e878890d4d81e2138311a457d5d",
       "translation": "コピー確認"
+    },
+    "home.m142": {
+      "source": "Comparison",
+      "source_sha256": "571527339d0e3e34a6fd5b9c1d776218573a85cc984efb94d0631d47b8aa1d76",
+      "translation": "比較"
     }
   }
 }

@@ -30,7 +30,6 @@
       for (const divider of matrix.querySelectorAll('th[scope="rowgroup"]')) {
         divider.colSpan = players.length + 1;
       }
-      matrix.parentElement.scrollLeft = 0;
     }
 
     const shared = rows.filter(row => players.every(player => row.scores.has(player)));

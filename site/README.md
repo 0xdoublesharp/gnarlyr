@@ -51,8 +51,8 @@ The player outline is CSS around the image, so regenerated PNGs retain their ori
 English HTML remains the editable source. The publisher generates complete
 homepages at `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/` from that same layout.
 The language picker works without JavaScript. Other pages retain their English
-URLs; the picker labels links to translated homepages when the current guide
-has no translation. Screenshots and the shared social images remain in English.
+URLs. On those pages, the picker explains that other languages open the
+translated homepage. Screenshots and the shared social images remain in English.
 
 The initial languages are Spanish, German, Japanese, French, and Portuguese.
 They are the five most-used website content languages after English in the

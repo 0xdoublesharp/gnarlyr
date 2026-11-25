@@ -205,7 +205,7 @@ def configuration(site):
         if not re.fullmatch("[a-z]+(?:-[a-z]+)*\\.html", page):
             raise ValueError("Localized pages must be root HTML filenames")
     for locale in config["locales"]:
-        for name in ("name", "og_locale", "language_label", "home_label", "guide_note"):
+        for name in ("name", "og_locale", "language_label", "guide_note"):
             if not isinstance(locale.get(name), str) or (name != "guide_note" and not locale[name]):
                 raise ValueError("Missing locale field: " + name)
     return config
@@ -221,16 +221,17 @@ def selector(config, locale, page):
     for target in config["locales"]:
         translated = target["code"] == "en" or page in config["pages"]
         path = page_path(page if translated else "index.html", target["code"])
-        label = escape(target["name"])
-        if not translated:
-            label += ' <span class="language-home">· ' + escape(locale["home_label"]) + '</span>'
         current = ' aria-current="page"' if target["code"] == locale["code"] else ""
-        links.append(f'<a href="{path}" lang="{target["code"]}" hreflang="{target["code"]}"{current}>{label}</a>')
-    note = '<p>' + escape(locale["guide_note"]) + '</p>' if locale["guide_note"] else ""
+        links.append(f'<a href="{path}" lang="{target["code"]}" hreflang="{target["code"]}"{current}>{escape(target["name"])}</a>')
+    guide_note = escape(locale["guide_note"])
+    home_note = f'<p>{guide_note}</p>' if locale["code"] != "en" and guide_note else ""
+    picker_note = ""
+    if page not in config["pages"] and len(config["locales"]) > 1 and guide_note:
+        picker_note = f'<p class="language-picker-note">{guide_note}</p>'
     label = escape(locale["language_label"], quote=True)
-    return (f'<div class="site-languages wrap">{note}<details class="language-picker">'
+    return (f'<div class="site-languages wrap">{home_note}<details class="language-picker">'
             f'<summary aria-label="{label}: {escape(locale["name"], quote=True)}">{escape(locale["name"])} <span aria-hidden="true">⌄</span></summary>'
-            f'<nav aria-label="{label}">{"".join(links)}</nav></details></div>')
+            f'<nav aria-label="{label}">{"".join(links)}{picker_note}</nav></details></div>')
 
 
 def render(source, config, locale, page):
