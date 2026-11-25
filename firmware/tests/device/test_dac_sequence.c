@@ -408,6 +408,8 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x180000, 0x45));
     CHECK(next_both(0x010010, 0x00));
     CHECK(next_both(0x01000B, 0x01));
+    CHECK(next_both(0x070004, 0x02));
+    CHECK(next_both(0x070006, 0x00));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080032, 0x20));
     CHECK(next_release(LEFT, 0xF6, 0x40));
@@ -640,8 +642,11 @@ static void dop64_configures_and_clears_the_dsd_path_with_the_port_down(void)
     CHECK_EQUAL(0x30, last_write(LEFT, 0x070001));
     CHECK_EQUAL(0x42, last_write(RIGHT, 0x070001));
     int begin_shutdown = fake.count;
+    fake.done_after[0] = 255;
+    fake.done_after[1] = 255;
     dac_output_off(&bus);
     int disabled = 0;
+    int sigctl_cleared = 0;
     int down = 0;
     for (int index = begin_shutdown; index < fake.count; index++) {
         Op op = fake.ops[index];
@@ -652,8 +657,13 @@ static void dop64_configures_and_clears_the_dsd_path_with_the_port_down(void)
             CHECK_EQUAL(2, down);
             disabled++;
         }
+        if (op.kind == OP_WRITE && op.map == 0x070006 && op.value == 0x00) {
+            CHECK_EQUAL(2, down);
+            sigctl_cleared++;
+        }
     }
     CHECK_EQUAL(2, disabled);
+    CHECK_EQUAL(2, sigctl_cleared);
 }
 
 static void setting_independent_volumes_writes_each_chip(void)

@@ -28,6 +28,7 @@ enum {
 #define PCM_FILTER 0x090000u
 #define PCM_MUTE 0x090003u
 #define DSD_PATH 0x070004u
+#define DSD_SIGCTL 0x070006u
 #define DSD_VOLUME_A 0x070001u
 #define SERIAL_RATE 0x01000Bu
 
@@ -65,8 +66,13 @@ static const uint32_t BEFORE_MONO[] = {
 };
 
 static const uint32_t DOP_SETUP[] = {
-    WRITE(0x01000C, 0x05), WRITE(0x040012, 0x02), WRITE(DSD_VOLUME_A, DAC_VOLUME_MUTED),
-    WRITE(0x070006, 0xD0), WRITE(DSD_PATH, 0x52),
+    WRITE(0x01000C, 0x05),   WRITE(0x040012, 0x02), WRITE(DSD_VOLUME_A, DAC_VOLUME_MUTED),
+    WRITE(DSD_SIGCTL, 0xD0), WRITE(DSD_PATH, 0x52),
+};
+
+static const uint32_t DOP_CLEAR[] = {
+    WRITE(DSD_PATH, 0x02),
+    WRITE(DSD_SIGCTL, 0x00),
 };
 
 static const uint8_t MONO_OFFSETS[MONO_ITEMS] = {0x09, 0x0A, 0x0B, 0x0C, 0x0F, 0x10};
@@ -328,8 +334,11 @@ CORE_COLD bool dac_sequence_power_up(const DacBus *bus)
 
 CORE_COLD static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
 {
+    bool dop = dop_mode(bus);
     return write_both(bus, SERIAL_RATE, rate_byte) &&
-           (!dop_mode(bus) || write_all(bus, DOP_SETUP, sizeof DOP_SETUP / sizeof DOP_SETUP[0])) &&
+           write_all(bus, dop ? DOP_SETUP : DOP_CLEAR,
+                     dop ? sizeof DOP_SETUP / sizeof DOP_SETUP[0]
+                         : sizeof DOP_CLEAR / sizeof DOP_CLEAR[0]) &&
            dac_sequence_power_up(bus);
 }
 
@@ -442,7 +451,7 @@ CORE_COLD static bool wait_for_power_down(const DacBus *bus)
                 break;
             }
             if (waited_ms >= POWER_DOWN_LIMIT_MS) {
-                return !dop_mode(bus);
+                return true;
             }
             wait_ms(bus, POWER_DOWN_POLL_MS);
             waited_ms += POWER_DOWN_POLL_MS;
@@ -471,7 +480,7 @@ CORE_COLD void dac_output_off(const DacBus *bus)
                   sizeof OUTPUT_OFF_PRE_PINS / sizeof OUTPUT_OFF_PRE_PINS[0]);
     dac_set_volume(bus, DAC_VOLUME_MUTED);
     if (dac_sequence_power_down(bus) && dop_mode(bus)) {
-        write_both(bus, DSD_PATH, 0x02);
+        write_all(bus, DOP_CLEAR, sizeof DOP_CLEAR / sizeof DOP_CLEAR[0]);
     }
     write_both(bus, 0x0B0000, 0x00);
     wait_ms(bus, 10);
