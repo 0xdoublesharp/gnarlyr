@@ -47,7 +47,7 @@ What this project checked on a player: on the owner's Echo (4 GB), an earlier bu
   - SYNTH does the whole MP3 polyphase synthesis but returns 16-bit PCM (within 2 LSB of pvmp3dec on 99.995 % of samples; their MP3 load fell from 37–39 to 21–23 MHz). Imdct36 signals completion only through IRQ 7.
   - Not adopted yet: synthesis is about 43 % of core 1's MP3 work after the `FPM_ARM` change (emulator profile), but SYNTH would cut MP3 output from libmad's 24 bits to 16; the FFT is not bit-exact and exceeds the Vorbis test's 2 LSB tolerance; and the emulator models none of them, so each needs its own player check first.
   - The ALAC predictor is used for orders 3 to 30 with `lpc_quant` below 12. Before using it, the M4A program runs order-4 and order-8 known-answer tests; a failed or timed-out test, or a transfer that stops partway, leaves ALAC decoding in software. Host tests check the driver against a software model; it has not run on the player ([`known-issues.md`](known-issues.md)).
-- No hardware equalizer: the CS43198 has none (only its digital filters and gain), and the SoC's audio path has none in use. FiiO's firmware runs its equalizer in software on core 0, and so does Gnarlyr (`docs/architecture.md`, Equalizer).
+- FiiO's firmware and Gnarlyr run their equalizers in software on core 0 (`architecture.md`, Equalizer). The CS43198 has a programmable PCM filter with three second-order stages and one first-order stage ([DS1156F2](https://statics.cirrus.com/pubs/proDatasheet/CS43198_DS1156F2.pdf), §4.13). Both firmwares leave those stages unused.
 
 ## USB
 

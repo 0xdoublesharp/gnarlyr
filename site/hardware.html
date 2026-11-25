@@ -42,7 +42,7 @@
 </p>
 <h1 class="page-title">Meet the hardware.
 </h1>
-<p>See what Gnarlyr makes possible on the ECHO’s existing hardware, then explore the chips and circuits behind its screen, sound, storage, and connections.
+<p>A look inside the Snowsky ECHO, from the two DACs to the controls for USB power. Here’s what FiiO specifies, how the stock firmware uses the hardware, and what we’ve tested with Gnarlyr.
 </p><p class="hardware-link"><a href="#shop">Shop the Snowsky ECHO →</a>. Gnarlyr is installed separately.</p></div><div class="doc-layout wrap">
 <nav class="contents" aria-label="On this page">
 <p class="eyebrow">On this page
@@ -53,6 +53,7 @@
 <li><a href="#chips">Processor and audio chips</a>
 </li>
 <li><a href="#unlocked">What Gnarlyr unlocks</a></li>
+<li><a href="#device-tests">Tests on the player</a></li>
 <li><a href="#engineering">Cores, DMA, and memory</a></li><li><a href="#display">Screen and buttons</a>
 </li>
 <li><a href="#usb">USB and Bluetooth</a>
@@ -90,15 +91,15 @@
 </tr>
 <tr><th scope="row">Output power</th><td>At 32 Ω with USB power and THD+N below 1%: at least 120 mW/channel (3.5 mm), 260 mW/channel (4.4 mm)</td>
 </tr>
-<tr><th scope="row">Headphone impedance</th><td>16–150 Ω (3.5 mm) · 16–300 Ω (4.4 mm)</td>
+<tr><th scope="row">Recommended headphone impedance</th><td>16–150 Ω (3.5 mm) · 16–300 Ω (4.4 mm)</td>
 </tr>
-<tr><th scope="row">USB and wireless</th><td>USB-C charging/data · SBC Bluetooth transmission</td>
+<tr><th scope="row">USB and wireless</th><td>USB-C charging and data · SBC Bluetooth transmission · no built-in Wi-Fi</td>
 </tr>
 </tbody>
 </table>
 <p>For the formats and controls provided by Gnarlyr, see <a href="firmware.html#foundation">built-in playback</a>.
 </p>
-<h3 id="technical-notes">Useful hardware details.</h3><table class="data-table"><caption>What the firmware map, device registers, and stock-code analysis tell us</caption><tbody><tr><th scope="row">Processor</th><td>Rockchip RKnano with two ARM Cortex-M3 cores. Core 0 runs the player and audio processing; core 1 runs the loaded compressed-audio decoder.</td></tr><tr><th scope="row">Firmware clock profiles</th><td>The system uses 96 and 200 MHz PLL profiles. Light playback with the screen off (FLAC, WAV, Apple Lossless, and MP3 up to 48 kHz, without EQ or speed changes) runs at 96 MHz. Decoder programs normally have a 100 MHz ceiling, with 200 MHz available for selected workloads. Dividers and idle sleep reduce activity between tasks; these are operating choices, not the processor’s rated maximum.</td></tr><tr><th scope="row">Display memory</th><td>The panel stores its own picture and receives 16-bit RGB565 pixels. Gnarlyr updates changed windows without reserving a full-screen framebuffer in main RAM.</td></tr><tr><th scope="row">Shared audio hardware</th><td>The 3.5 mm and 4.4 mm jacks share the two CS43198 DACs. Gain, digital filters, and volume affect both. The Output setting chooses a volume scale; it does not switch the signal between jacks.</td></tr><tr><th scope="row">Real-time clock</th><td>A separate clock uses a PCF8563-compatible register layout. It lets the player keep the date and time across shutdown.</td></tr><tr><th scope="row">Charging control</th><td>Charging is switched on or off. The battery ADC reads the player’s supply rail, which USB power can raise above the cell voltage. That reading cannot enforce an accurate 80% charge limit.</td></tr><tr><th scope="row">USB packet memory</th><td>The USB controller reports 308 words of shared FIFO RAM: 1,232 bytes for receiving and sending packets. Its 480 Mbit/s link rate is separate from measured file-copy speed.</td></tr></tbody></table></section>
+<h3 id="technical-notes">Useful hardware details.</h3><table class="data-table"><caption>What the firmware map, device registers, and stock-code analysis tell us</caption><tbody><tr><th scope="row">Processor</th><td>Rockchip RKnano with two ARM Cortex-M3 cores. Core 0 runs the player and audio processing; core 1 runs the loaded compressed-audio decoder.</td></tr><tr><th scope="row">Firmware clock profiles</th><td>The system uses 96 and 200 MHz PLL profiles. Light playback with the screen off (FLAC, WAV, Apple Lossless, and MP3 up to 48 kHz, without EQ or speed changes) runs at 96 MHz. Decoder programs normally have a 100 MHz ceiling, with 200 MHz available for selected workloads. Dividers and idle sleep reduce activity between tasks; these are operating choices, not the processor’s rated maximum.</td></tr><tr><th scope="row">Display memory</th><td>The panel stores its own picture and receives 16-bit RGB565 pixels. Gnarlyr updates changed windows without reserving a full-screen framebuffer in main RAM.</td></tr><tr><th scope="row">Shared audio hardware</th><td>The 3.5 mm and 4.4 mm jacks share the two CS43198 DACs, with one chip per channel. Both jacks share gain and filter settings. Gnarlyr’s Output setting chooses the volume scale for the jack you use.</td></tr><tr><th scope="row">Real-time clock</th><td>A separate clock uses a PCF8563-compatible register layout. It lets the player keep the date and time across shutdown.</td></tr><tr><th scope="row">Charging control</th><td>The board has separate on/off controls for USB power and battery charging, plus a charge-complete signal. The voltage sensor reads the player’s supply rail. When USB power raises that voltage, it can overstate the battery’s charge.</td></tr><tr><th scope="row">USB packet memory</th><td>The USB controller reports 308 words of shared FIFO RAM: 1,232 bytes for receiving and sending packets. Its 480 Mbit/s link rate is separate from measured file-copy speed.</td></tr></tbody></table></section>
 <section class="doc-section" id="chips" aria-labelledby="chips-title">
 <h2 id="chips-title">From music file to headphone signal.
 </h2>
@@ -116,8 +117,10 @@
 </tr>
 <tr><th scope="row">Audio transport</th><td>I2S carries audio samples to the DACs. DMA transfers samples from memory without making the main loop copy each one.</td>
 </tr>
-<tr><th scope="row">EQ</th><td>Software EQ runs on the main processor. The CS43198’s own digital filters and gain controls are separate.</td>
+<tr><th scope="row">EQ</th><td>Stock and Gnarlyr run their equalizers on the main processor. Each CS43198 also has a programmable seventh-order filter for PCM audio. The equalizers in these builds leave that filter unused.</td>
 </tr>
+<tr><th scope="row">Channel balance</th><td>FiiO 2.0.0 uses the DACs’ volume registers to turn down either the left or right channel in 0.5 dB steps. Gnarlyr’s headphone profiles apply balance to decoded samples.</td></tr>
+<tr id="dsd-path"><th scope="row">DSD playback</th><td>FiiO lists DSD64, DSD128, and DSD256 file support. The DFF and DSF paths traced in stock 2.0.0 convert DSD to PCM. Gnarlyr converts its supported DSD files to 88.2 kHz PCM. The DAC can accept DSD over PCM (DoP), a separate way of sending the original DSD stream. That path still needs a check on the ECHO.</td></tr>
 </tbody>
 </table>
 <p><a href="#engineering">Follow the two-core audio path below.</a> Read the <a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 documentation</a> for chip details, or <a href="https://www.fiio.com/echo_parameters">FiiO’s specifications</a> for player ratings.
@@ -143,11 +146,17 @@
 <li><strong>Display transfers by DMA.</strong> Larger changed regions go straight from memory to the display controller while the main core sleeps. The panel sets the transfer pace; DMA frees processor time for the player. Small regions and transfers that time out use the CPU path.</li>
 <li><strong>Less activity between tasks.</strong> Stock’s main loop busy-polls. Gnarlyr lets idle cores sleep, batches screen-off storage reads, and adjusts the main core’s clock to the playback workload. The panel and backlight sleep between uses, the audio clocks switch off when playback stops, and an unconnected Bluetooth radio turns off after 30 seconds. Optional standby keeps a paused session ready on the 24 MHz crystal, with a later full shutdown.</li>
 </ul>
-<p>These changes describe firmware behavior. Battery-life gains, output levels, and audible improvements need measurements and listening checks on the player. FiiO’s power and battery ratings remain the reference above.</p>
+<p>The power and battery ratings above come from FiiO. We’ve measured processor load on the player. Battery runtime and analog output levels take separate measurements.</p>
 <p><a href="firmware.html#over-stock">See the listening features added over stock →</a></p>
 <p><a href="comparison.html#hardware-prices">Compare player prices and features →</a></p>
 </section>
-<section class="doc-section" id="engineering" aria-labelledby="engineering-title"><h2 id="engineering-title">How the small hardware does more.</h2><p class="intro">Playing music is a relay: read a file, turn it into samples, keep those samples moving, then turn them into sound. The ECHO splits that work between two processors and dedicated transfer hardware.</p><ol class="install-preview"><li><span>01</span><div><h3>Read and decode.</h3><p>Core 0 runs the menus, storage, and audio processing. Core 1 runs the loaded compressed-audio decoder; a dedicated hardware accelerator helps reconstruct FLAC audio. Apple Lossless can use it too, pending a check on the player.</p></div></li><li><span>02</span><div><h3>Keep a buffer ready.</h3><p>A ring in RAM holds decoded samples. DMA moves them to I2S at the audio clock’s pace while the processors prepare more.</p></div></li><li><span>03</span><div><h3>Make the signal.</h3><p>I2S feeds both CS43198 DACs. They convert samples into the analog signal used by the headphone outputs.</p></div></li></ol><h3>Keeping playback moving</h3><ul class="detail-list"><li><strong>Continuous audio transfers.</strong> Both stock and Gnarlyr use DMA to move samples without copying each one in the main loop. Gnarlyr clears stale audio on restart, refills before restarting DMA, and fades around interrupted playback. Compatible gapless transitions keep the continuous sample stream.</li><li><strong>Targeted decoder work.</strong> Stock decoder modules reference FLAC prediction, MP3 synthesis, and transform accelerators. Gnarlyr uses the FLAC prediction block. For Apple Lossless it uses the same block only after a self-test passes, and decodes in software otherwise; that path hasn’t been checked on a player yet. Other decoder work uses software and targeted ARM arithmetic.</li><li><strong>Room for more features.</strong> RAM is reused for code modules: scanning, extra screens, and USB need not all live in memory at once. Scanning can use decoder RAM while playback is stopped. The display stores its own picture, avoiding a full-screen framebuffer in main RAM.</li></ul></section>
+<section class="doc-section" id="device-tests" aria-labelledby="device-tests-title">
+<h2 id="device-tests-title">Tested on the player.</h2>
+<p>On November 24, 2026, we ran Gnarlyr build <code>0a7a76c</code> on a 4 GB ECHO. It passed 26 local playback cases and 16 combinations of sound and display settings with no reported audio underruns. The files included 192 kHz/24-bit FLAC, ALAC, Opus, APE, and DSD64 played as PCM.</p>
+<p>On macOS, USB DAC playback passed all 12 tested combinations of 16-, 24-, and 32-bit input at 44.1, 48, 96, and 192 kHz. The same run checked USB file integrity, the real-time clock, and rescanning an unchanged library.</p>
+<p>With an 8 kHz mono WAV file, the main processor was busy 38% of the time, down from 48% on the previous tested build (<code>998c390</code>).</p>
+</section>
+<section class="doc-section" id="engineering" aria-labelledby="engineering-title"><h2 id="engineering-title">How the small hardware does more.</h2><p class="intro">Playing music is a relay: read a file, turn it into samples, keep those samples moving, then turn them into sound. The ECHO splits that work between two processors and dedicated transfer hardware.</p><ol class="install-preview"><li><span>01</span><div><h3>Read and decode.</h3><p>Core 0 runs the menus, storage, and audio processing. Core 1 runs the loaded compressed-audio decoder; a dedicated hardware accelerator helps reconstruct FLAC audio. Apple Lossless can also use it if the decoder’s self-test passes.</p></div></li><li><span>02</span><div><h3>Keep a buffer ready.</h3><p>A ring in RAM holds decoded samples. DMA moves them to I2S at the audio clock’s pace while the processors prepare more.</p></div></li><li><span>03</span><div><h3>Make the signal.</h3><p>I2S feeds both CS43198 DACs. They convert samples into the analog signal used by the headphone outputs.</p></div></li></ol><h3>Keeping playback moving</h3><ul class="detail-list"><li><strong>Continuous audio transfers.</strong> Both stock and Gnarlyr use DMA to move samples without copying each one in the main loop. Gnarlyr clears stale audio on restart, refills before restarting DMA, and fades around interrupted playback. Compatible gapless transitions keep the continuous sample stream.</li><li><strong>Targeted decoder work.</strong> Stock decoder modules reference FLAC prediction, MP3 synthesis, and transform accelerators. Gnarlyr uses the FLAC prediction block. Apple Lossless played on the test unit. The playback check did not record whether that file used the accelerator or its software fallback. Other decoder work uses software and targeted ARM arithmetic.</li><li><strong>Room for more features.</strong> RAM is reused for code modules: scanning, extra screens, and USB need not all live in memory at once. Scanning can use decoder RAM while playback is stopped. The display stores its own picture, avoiding a full-screen framebuffer in main RAM.</li></ul></section>
 <section class="doc-section" id="display" aria-labelledby="display-title">
 <h2 id="display-title">Screen, backlight, and buttons.
 </h2>
@@ -177,17 +186,17 @@
 </li><li><strong>A different USB stack.</strong> Gnarlyr’s storage and audio code share a loaded module region. Storage activity, ejects, and pending writes are tracked before handing the drives back to the player. The cable can keep supplying power throughout.
 </li><li><strong>Separate drives.</strong> Internal storage and an inserted microSD card appear as separate drives. Eject every drive present at connection to return storage to the player.
 </li>
-<li><strong>Audio mode.</strong> The high-speed USB Audio Class 2.0 path offers 16/24/32-bit PCM at 44.1–192 kHz. Full-speed Class 1.0 fallback offers 16/24-bit at 44.1/48 kHz. DAC volume is remembered separately. <a href="build.html#usb-audio">Formats and host validation →</a>
+<li id="usb-dac-formats"><strong>Audio mode.</strong> The stock 2.0.0 USB Audio Class 1.0 descriptor lists 16-bit stereo PCM at 48 kHz. Gnarlyr offers 16-, 24-, and 32-bit stereo PCM from 44.1 to 192 kHz over high-speed USB Audio Class 2.0. Its full-speed Class 1.0 fallback offers 16- or 24-bit input at 44.1 or 48 kHz. <a href="#device-tests">See the rates tested on the player →</a>
 </li>
 <li><strong>Cable detection.</strong> GPIO2.0 controls taking power from USB and GPIO0.14 controls charging. Gnarlyr keeps these power-control signals in sync with the cable state.
 </li>
-<li><strong>Bluetooth module.</strong> A separate module handles wireless audio. The processor controls it with short commands over UART1 at 115,200 baud. FiiO specifies SBC transmission to headphones.
+<li><strong>Bluetooth module.</strong> The separate Bluetooth module takes an analog audio feed from the DACs. The processor sends commands over UART1 at 115,200 baud. FiiO specifies SBC transmission to headphones, and the stock control protocol we traced is for sending audio.
 </li>
 </ul>
 <p><a href="install.html#usb">How the USB changes affect updates →</a>
 </p>
 </section>
-<section class="doc-section" id="usb-speed" aria-labelledby="usb-speed-title"><h2 id="usb-speed-title">About twice the microSD transfer speed.</h2><p class="intro">On the same ECHO and microSD card, Gnarlyr recorded 12.81 MB/s writing and 14.90 MB/s reading. Stock 2.0.0 recorded 5.95 and 6.90 MB/s in the same file-transfer test.</p><table class="data-table transfer-chart"><caption>Recorded USB throughput · MB/s · higher is faster</caption><thead><tr><th scope="col">Storage / direction</th><th scope="col">Stock 2.0.0</th><th scope="col">Gnarlyr</th></tr></thead><tbody><tr><th scope="row">Internal · write</th><td><span class="transfer-value">8.85</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:44.25%"></span></span></td><td><span class="transfer-value">9.05</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:45.25%"></span></span></td></tr><tr><th scope="row">Internal · read</th><td><span class="transfer-value">10.93</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:54.65%"></span></span></td><td><span class="transfer-value">16.65</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:83.25%"></span></span></td></tr><tr><th scope="row">microSD · write</th><td><span class="transfer-value">5.95</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:29.75%"></span></span></td><td><span class="transfer-value">12.81</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:64.05%"></span></span></td></tr><tr><th scope="row">microSD · read</th><td><span class="transfer-value">6.90</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:34.50%"></span></span></td><td><span class="transfer-value">14.90</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:74.50%"></span></span></td></tr></tbody></table><p class="transfer-method">Single runs on 13 November 2026, using Gnarlyr build <code>68f3450</code>. Each drive transferred eight 16 MiB files (128 MiB total) with uncached macOS file I/O. Writes include flushing and unmounting; reads include SHA-256 verification after remounting. All 16 files verified in each run. Bars share a 0–20 MB/s scale. Results depend on the computer, cable, card, and files.</p></section>
+<section class="doc-section" id="usb-speed" aria-labelledby="usb-speed-title"><h2 id="usb-speed-title">USB file transfers.</h2><p class="intro">In one side-by-side test on the same ECHO and microSD card, Gnarlyr wrote at 12.81 MB/s and read at 14.90 MB/s. Stock 2.0.0 wrote at 5.95 MB/s and read at 6.90 MB/s.</p><table class="data-table transfer-chart"><caption>Recorded USB throughput · MB/s · higher is faster</caption><thead><tr><th scope="col">Storage / direction</th><th scope="col">Stock 2.0.0</th><th scope="col">Gnarlyr</th></tr></thead><tbody><tr><th scope="row">Internal · write</th><td><span class="transfer-value">8.85</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:44.25%"></span></span></td><td><span class="transfer-value">9.05</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:45.25%"></span></span></td></tr><tr><th scope="row">Internal · read</th><td><span class="transfer-value">10.93</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:54.65%"></span></span></td><td><span class="transfer-value">16.65</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:83.25%"></span></span></td></tr><tr><th scope="row">microSD · write</th><td><span class="transfer-value">5.95</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:29.75%"></span></span></td><td><span class="transfer-value">12.81</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:64.05%"></span></span></td></tr><tr><th scope="row">microSD · read</th><td><span class="transfer-value">6.90</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar stock" style="width:34.50%"></span></span></td><td><span class="transfer-value">14.90</span><span class="transfer-track" aria-hidden="true"><span class="transfer-bar gnarlyr" style="width:74.50%"></span></span></td></tr></tbody></table><p class="transfer-method">Single runs on 13 November 2026, using Gnarlyr build <code>68f3450</code>. Each drive transferred eight 16 MiB files (128 MiB total) with uncached macOS file I/O. Writes include flushing and unmounting; reads include SHA-256 verification after remounting. All 16 files verified in each run. Bars share a 0–20 MB/s scale. Results depend on the computer, cable, card, and files.</p></section>
 <section class="doc-section" id="memory" aria-labelledby="memory-title">
 <h2 id="memory-title">Storage and working memory.
 </h2>
@@ -197,6 +206,7 @@
 <tbody>
 <tr><th scope="row">Internal storage</th><td>eMMC with two firmware slots, a SAVE area, and the user’s FAT32 volume. The microSD card is separate. Gnarlyr combines music from both in one library while keeping them separate USB drives.</td>
 </tr>
+<tr><th scope="row">Storage bus clocks</th><td>The stock 2.0.0 code can switch compatible eMMC to 52 MHz and microSD to 50 MHz. The Gnarlyr build tested above uses a 24 MHz crystal clock for storage transfers. Bus clock rates and USB file-copy speeds are separate measurements.</td></tr>
 <tr><th scope="row">Main working RAM</th><td>Core 0 data window: <code>0x03004000–0x0304C000</code> · 288 KiB of mapped space. Boot loading and reserved code banks constrain what the app can use.</td>
 </tr>
 <tr><th scope="row">Decoder RAM</th><td>Core 1 region: <code>0x01000000–0x0105FFFF</code> · 384 KiB.</td>
@@ -211,7 +221,7 @@
 </table>
 <p>Gnarlyr therefore distinguishes Charging, Charged, and USB power. It avoids presenting a USB-powered rail reading as the battery’s voltage.
 </p>
-<p>These working regions come from the firmware map and stock-code analysis; they do not specify the ECHO’s total RAM capacity.
+<p>The listed addresses describe working regions from the firmware map and stock-code analysis. They cover part of the ECHO’s RAM.
 </p>
 </section>
 <section class="doc-section" id="potential-ports" aria-labelledby="potential-ports-title">
@@ -252,6 +262,8 @@
 <li><a href="https://www.cirrus.com/products/cs43198">Cirrus Logic CS43198 documentation ↗</a>
 </li>
 <li>In the Gnarlyr checkout: <code>docs/stock-firmware.md</code> records the stock-image analysis and the dual-DAC readback.
+</li>
+<li><code>docs/stock-hardware-notes.md</code> records how stock 2.0.0 uses the USB, audio, storage, and power circuitry.
 </li>
 <li><code>firmware/docs/hardware.md</code> maps the display, buttons, memory, USB, power, and Bluetooth interfaces.
 </li>

@@ -46,6 +46,11 @@ A charging-rate display can't come from firmware facts: the current is neither s
 
 ## Audio path
 
+The DFF and DSF decoder overlays (81 and 82) convert the file's DSD stream to
+PCM in the playback paths traced in stock 2.0.0. FiiO's DSD64/128/256 listing
+describes supported files. The DAC's DoP interface ([DS1156F2](https://statics.cirrus.com/pubs/proDatasheet/CS43198_DS1156F2.pdf),
+§4.8.11 and §4.9) is a separate chip capability that needs a check on the ECHO.
+
 Register addresses are CS43198 addresses; the datasheet is DS1156F2.
 
 **Register writer** `0x03060f00`:
@@ -190,6 +195,11 @@ Gnarlyr:
 - It scans every 5 ms on a 1 ms SysTick (`board/clock.c:14-15`, `input.c:106-117`).
 - A press needs 4 samples and a release 2 (`key_scanner.h:10-11`).
 - Long press is 600 ms, the first repeat 400 ms, then every 120 ms (`src/app/app.c:79-82`).
+
+## USB audio and storage clocks
+
+- Module 11's USB Audio Class 1.0 streaming descriptor has one active audio format. It declares two channels, two bytes per sample, 16 valid bits, and a discrete sample rate of 48,000 Hz (`80 bb 00`).
+- Stock sends eMMC `CMD6` to set `EXT_CSD[185]` to High Speed, then requests a 52 MHz bus clock. The SD path checks for high-speed support and switches compatible cards to 50 MHz. The clock setter selects a PLL-derived clock above 24 MHz. These are bus clocks. USB copy rates also depend on the host, transfer code, and storage media.
 
 ## Clocks and power
 
