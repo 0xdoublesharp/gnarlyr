@@ -121,7 +121,8 @@ void label_draw_serviced(Canvas *canvas, TextStyle style, Label label, void (*se
         service();
     }
     Point pen = {label.area.x, label_baseline(style.font, label.area)};
-    pen.x = text_draw_span(&clipped, style, pen, (TextSpan){label.text, fit.byte_count});
+    pen.x = text_draw_span_serviced(&clipped, style, pen, (TextSpan){label.text, fit.byte_count},
+                                    service);
     if (fit.ellipsis) {
         if (service != NULL) {
             service();

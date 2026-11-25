@@ -105,10 +105,13 @@ int text_digit_width(const Font *font)
     return widest;
 }
 
-int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
+int text_draw_span_serviced(Canvas *canvas, TextStyle style, Point pen, TextSpan span,
+                            void (*service)(void))
 {
+    int digit_width = style.tabular ? text_digit_width(style.font) : 0;
     const char *cursor = span.start;
     const char *end = span.start + span.byte_count;
+    unsigned drawn = 0;
     while (cursor < end) {
         uint32_t codepoint = utf8_next(&cursor);
         if (codepoint == 0) {
@@ -118,15 +121,24 @@ int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
         if (glyph == NULL) {
             continue;
         }
-        int cell = text_cell_width(style, codepoint, glyph->advance);
+        bool digit = codepoint >= '0' && codepoint <= '9';
+        int cell = style.tabular && digit ? digit_width : glyph->advance;
         if (glyph->codepoint != codepoint) {
             draw_missing_box(canvas, style.color, glyph, (Rect){pen.x, pen.y, cell, 0});
         } else {
             draw_glyph(canvas, style, glyph, (Point){pen.x + (cell - glyph->advance) / 2, pen.y});
         }
         pen.x += cell;
+        if (service != NULL && (++drawn & 3u) == 0u) {
+            service();
+        }
     }
     return pen.x;
+}
+
+int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
+{
+    return text_draw_span_serviced(canvas, style, pen, span, NULL);
 }
 
 enum {

@@ -5,12 +5,16 @@
 
 #define text_draw text_spy_real_draw
 #define text_draw_span text_spy_real_draw_span
+#define text_draw_span_serviced text_spy_real_draw_span_serviced
 #include "text.c"
 #undef text_draw
 #undef text_draw_span
+#undef text_draw_span_serviced
 
 int text_draw(Canvas *canvas, TextStyle style, Point pen, const char *text);
 int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span);
+int text_draw_span_serviced(Canvas *canvas, TextStyle style, Point pen, TextSpan span,
+                            void (*service)(void));
 
 static TextSpyEntry entries[TEXT_SPY_CAPACITY];
 static int entry_count;
@@ -56,4 +60,11 @@ int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span)
 {
     record(span, style.font);
     return text_spy_real_draw_span(canvas, style, pen, span);
+}
+
+int text_draw_span_serviced(Canvas *canvas, TextStyle style, Point pen, TextSpan span,
+                            void (*service)(void))
+{
+    record(span, style.font);
+    return text_spy_real_draw_span_serviced(canvas, style, pen, span, service);
 }

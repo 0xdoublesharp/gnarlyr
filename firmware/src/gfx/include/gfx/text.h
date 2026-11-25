@@ -21,6 +21,8 @@ int text_digit_width(const Font *font);
 int text_style_width(TextStyle style, const char *text);
 int text_draw(Canvas *canvas, TextStyle style, Point pen, const char *text);
 int text_draw_span(Canvas *canvas, TextStyle style, Point pen, TextSpan span);
+int text_draw_span_serviced(Canvas *canvas, TextStyle style, Point pen, TextSpan span,
+                            void (*service)(void));
 static inline int text_cell_width(TextStyle style, uint32_t codepoint, int advance)
 {
     bool digit = codepoint >= '0' && codepoint <= '9';
