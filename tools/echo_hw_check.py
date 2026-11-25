@@ -23,7 +23,11 @@ RESIDENT_RANGE = range(0x03050000, 0x0307A000)
 VALID_RATES = (44100, 48000, 88200, 96000, 176400, 192000)
 VALID_BITS = (0, 16, 24, 32)
 STORAGE_TEST_BYTES = 1024 * 1024
+STORAGE_PLAYBOOK_BYTES = 8 * 1024 * 1024
+STORAGE_BURST_BYTES = 256 * 1024
+STORAGE_BURST_COUNT = 4
 STORAGE_TEST_FILE = "xfer.tmp"
+PLAYBOOK_REPORT_DIR = SCRATCH_ROOT / "reports" / "hw-playbooks"
 
 DAC_TEST_SCRIPT = """\
 reconnect dac
@@ -31,13 +35,71 @@ reconnect dac
 
 LOCAL_SMOKE_SCRIPT = """\
 open home
-wait 400
-open settings
-wait 400
+wait 300
+open coverflow
+wait 300
 open home
-wait 400
+wait 300
 reconnect
 """
+
+PLAYBOOK_UI_SCRIPT = """\
+profile reset
+open home
+wait 300
+rtc read
+screenshot home
+profile on
+measure 2000
+open coverflow
+wait 500
+down
+wait 600
+down
+wait 600
+down
+wait 600
+up
+wait 600
+screenshot coverflow
+measure 2000
+profile off
+open home
+reconnect
+"""
+
+PLAYBOOK_PLAYBACK_SCRIPT = """\
+profile reset
+open nowplaying
+wait 400
+play
+wait 600
+profile on
+measure 3000
+screen off
+wait 500
+measure 3000
+screen on
+wait 300
+profile off
+play
+wait 300
+open home
+reconnect
+"""
+
+PLAYBOOK_RESCAN_SCRIPT = """\
+profile reset
+open home
+wait 300
+profile on
+rescan check
+wait 6000
+profile off
+reconnect
+"""
+
+PLAYBOOK_NAMES = ("storage", "ui", "playback", "rescan", "dac", "all")
 
 COREAUDIO_STREAM_SWIFT = r"""
 import AudioToolbox
@@ -584,13 +646,10 @@ def run_dac_test(tool, build, rate, silent, max_underruns, max_dac_gap_us, timeo
             "ejected": ejected, "stream": stream, "scorecard": scorecard}
 
 
-def run_storage_transfer_check(tool, size_bytes=STORAGE_TEST_BYTES):
-    root = tool.root()
-    target = root / echo_debug.DATA_DIRECTORY / echo_debug.DEBUG_DIRECTORY / STORAGE_TEST_FILE
-    payload = os.urandom(size_bytes)
+def _nocache_write_read(path, payload):
     expected = hashlib.sha256(payload).hexdigest()
     started = time.monotonic()
-    with target.open("wb") as handle:
+    with path.open("wb") as handle:
         if sys.platform == "darwin":
             try:
                 fcntl.fcntl(handle.fileno(), 48, 1)
@@ -601,7 +660,7 @@ def run_storage_transfer_check(tool, size_bytes=STORAGE_TEST_BYTES):
         os.fsync(handle.fileno())
     write_s = max(time.monotonic() - started, 1e-6)
     read_start = time.monotonic()
-    with target.open("rb") as handle:
+    with path.open("rb") as handle:
         if sys.platform == "darwin":
             try:
                 fcntl.fcntl(handle.fileno(), 48, 1)
@@ -609,34 +668,199 @@ def run_storage_transfer_check(tool, size_bytes=STORAGE_TEST_BYTES):
                 pass
         actual = hashlib.sha256(handle.read()).hexdigest()
     read_s = max(time.monotonic() - read_start, 1e-6)
-    target.unlink()
-    sidecar = target.with_name(f"._{target.name}")
+    path.unlink()
+    sidecar = path.with_name(f"._{path.name}")
     if sidecar.exists():
         sidecar.unlink()
-    mb = size_bytes / (1024 * 1024)
+    mb = len(payload) / (1024 * 1024)
     return {
         "ok": actual == expected,
-        "bytes": size_bytes,
+        "bytes": len(payload),
         "sha256": actual,
         "write_mb_s": round(mb / write_s, 2),
         "read_mb_s": round(mb / read_s, 2),
     }
 
 
-def run_local_smoke(tool, build, max_underruns, timeout, expect_card=False, elf_dir=None):
+def run_storage_transfer_check(tool, size_bytes=STORAGE_TEST_BYTES):
+    root = tool.root()
+    target = root / echo_debug.DATA_DIRECTORY / echo_debug.DEBUG_DIRECTORY / STORAGE_TEST_FILE
+    return _nocache_write_read(target, os.urandom(size_bytes))
+
+
+def script_line_failures(report):
+    lines = report.get("script", {}).get("lines", [])
+    return [line for line in lines if line.get("status") != "ok"]
+
+
+def profile_top_functions(tool, build=None, elf_dir=None, top=6):
+    elf = find_elf_for_address(0x03050000, build=build, elf_dir=elf_dir)
+    if elf is None:
+        return []
+    try:
+        prof = tool.profile(elf, top=top)
+        return prof["profile"]["functions"][:top]
+    except (echo_debug.DebugError, OSError, KeyError, ValueError):
+        return []
+
+
+def run_script_playbook(tool, script_text, build, max_underruns, timeout,
+                        expect_card=False, elf_dir=None):
     found = wait_for_settled_luns(tool, expect_card=expect_card)
     had_card = bool(found.get("usb") and found["usb"].get("card_volumes"))
     root = Path(found["volume"]) if found.get("volume") else tool.root()
     target_build = build or tool.read_report()[1]["values"].get("firmware.build") or "any"
-    data = echo_debug.prepare_script(LOCAL_SMOKE_SCRIPT, target_build)
+    data = echo_debug.prepare_script(script_text, target_build)
     tool.write(root, root / echo_debug.DATA_DIRECTORY / echo_debug.DEBUG_DIRECTORY / echo_debug.RUN_FILE, data)
     tool.eject(wait_for_settled_luns(tool, expect_card=had_card or expect_card))
     tool.wait_for_return(timeout)
     wait_for_settled_luns(tool, expect_card=had_card or expect_card)
+    _, report = tool.read_report()
     scorecard = check_report(tool, build, max_underruns, max_dropped_events=None, elf_dir=elf_dir)
+    bad_lines = script_line_failures(report)
     script_state = scorecard["values"].get("script.state")
-    ok = scorecard["ok"] and script_state == "finished"
-    return {"ok": ok, "had_card": had_card, "script_state": script_state, "scorecard": scorecard}
+    ok = scorecard["ok"] and script_state == "finished" and not bad_lines
+    return {
+        "ok": ok,
+        "had_card": had_card,
+        "script_state": script_state,
+        "bad_lines": bad_lines,
+        "measures": report.get("script", {}).get("measures", []),
+        "rtc": report.get("script", {}).get("rtc", []),
+        "screenshots": report.get("script", {}).get("screenshots", []),
+        "events": report.get("events", []),
+        "profile_top": profile_top_functions(tool, build=build, elf_dir=elf_dir),
+        "scorecard": scorecard,
+    }
+
+
+def run_storage_playbook(tool, size_bytes=STORAGE_PLAYBOOK_BYTES, burst_bytes=STORAGE_BURST_BYTES,
+                         burst_count=STORAGE_BURST_COUNT):
+    found = wait_for_settled_luns(tool)
+    root = Path(found["volume"]) if found.get("volume") else tool.root()
+    debug_dir = root / echo_debug.DATA_DIRECTORY / echo_debug.DEBUG_DIRECTORY
+    seq = _nocache_write_read(debug_dir / STORAGE_TEST_FILE, os.urandom(size_bytes))
+    bursts = [_nocache_write_read(debug_dir / f"burst{i}.tmp", os.urandom(burst_bytes))
+              for i in range(burst_count)]
+    burst_ok = all(item["ok"] for item in bursts)
+    burst_write = round(sum(item["write_mb_s"] for item in bursts) / len(bursts), 2) if bursts else 0.0
+    burst_read = round(sum(item["read_mb_s"] for item in bursts) / len(bursts), 2) if bursts else 0.0
+    usb_timing = None
+    try:
+        _, report = tool.read_report()
+        usb_timing = report["values"].get("usb.timing")
+    except (echo_debug.DebugError, OSError):
+        pass
+    return {
+        "ok": seq["ok"] and burst_ok,
+        "had_card": bool(found.get("usb") and found["usb"].get("card_volumes")),
+        "sequential": seq,
+        "burst": {"ok": burst_ok, "count": burst_count, "bytes_each": burst_bytes,
+                  "write_mb_s": burst_write, "read_mb_s": burst_read},
+        "usb_timing": usb_timing,
+    }
+
+
+def extract_scan_timings(events):
+    scans = [event for event in events if event.get("kind") == "scan"]
+    started = next((e["time_ms"] for e in scans if e.get("detail", "").startswith("start")), None)
+    done = next((e["time_ms"] for e in reversed(scans)
+                 if any(tok in e.get("detail", "") for tok in ("up_to_date", "covers_done", "library"))), None)
+    return {
+        "events": scans,
+        "duration_ms": (done - started) if (started is not None and done is not None and done >= started) else None,
+    }
+
+
+def run_playbook(name, tool, build, rates, bits, silent, max_underruns, max_dac_gap_us, timeout,
+                 streamer=stream_to_dac, elf_dir=None):
+    selected = ("storage", "ui", "playback", "rescan", "dac") if name == "all" else (name,)
+    results = {}
+    had_card = False
+    for step in selected:
+        if step == "storage":
+            res = run_storage_playbook(tool)
+            had_card = had_card or res["had_card"]
+        elif step == "ui":
+            res = run_script_playbook(tool, PLAYBOOK_UI_SCRIPT, build, max_underruns, timeout,
+                                      expect_card=had_card, elf_dir=elf_dir)
+            had_card = had_card or res["had_card"]
+            rtc_ok = all(entry.get("status") == "ok" for entry in res["rtc"]) if res["rtc"] else False
+            res["rtc_ok"] = rtc_ok
+            res["ok"] = res["ok"] and rtc_ok
+        elif step == "playback":
+            res = run_script_playbook(tool, PLAYBOOK_PLAYBACK_SCRIPT, build, max_underruns, timeout,
+                                      expect_card=had_card, elf_dir=elf_dir)
+            had_card = had_card or res["had_card"]
+            zero_underruns = all(
+                (m.get("underruns", 0) or 0) <= max_underruns
+                and (m.get("output_underruns", 0) or 0) <= max_underruns
+                for m in res["measures"]
+            )
+            res["ok"] = res["ok"] and zero_underruns
+        elif step == "rescan":
+            res = run_script_playbook(tool, PLAYBOOK_RESCAN_SCRIPT, build, max_underruns, timeout,
+                                      expect_card=had_card, elf_dir=elf_dir)
+            had_card = had_card or res["had_card"]
+            res["scan"] = extract_scan_timings(res["events"])
+        elif step == "dac":
+            runs = []
+            for rate in rates:
+                run = run_dac_test(
+                    tool, build, rate, silent, max_underruns, max_dac_gap_us, timeout,
+                    bits=bits, streamer=streamer, expect_card=had_card, allow_prior_drops=True,
+                    elf_dir=elf_dir,
+                )
+                had_card = had_card or run["had_card"]
+                runs.append(run)
+            res = {"ok": all(r["ok"] for r in runs), "runs": runs}
+        else:
+            raise ValueError(f"unknown playbook {step!r}")
+        results[step] = res
+    return {"ok": all(r["ok"] for r in results.values()), "playbooks": results}
+
+
+def print_playbook_summary(result):
+    playbooks = result["playbooks"]
+    if "storage" in playbooks:
+        st = playbooks["storage"]
+        seq, br = st["sequential"], st["burst"]
+        print(f"STORAGE  {'PASS' if st['ok'] else 'FAIL'} "
+              f"seq({seq['bytes'] // (1024 * 1024)} MiB) w={seq['write_mb_s']} MB/s r={seq['read_mb_s']} MB/s | "
+              f"burst({br['count']}x{br['bytes_each'] // 1024} KiB) w={br['write_mb_s']} MB/s r={br['read_mb_s']} MB/s")
+        if st.get("usb_timing"):
+            print(f"         usb.timing: {st['usb_timing']}")
+    for key, label in (("ui", "UI      "), ("playback", "PLAYBACK"), ("rescan", "RESCAN  ")):
+        if key not in playbooks:
+            continue
+        res = playbooks[key]
+        extra = ""
+        if key == "ui":
+            extra = f" rtc={'ok' if res.get('rtc_ok') else 'fail'} shots={len(res.get('screenshots', []))}"
+        elif key == "rescan":
+            dur = res.get("scan", {}).get("duration_ms")
+            extra = f" scan_ms={dur if dur is not None else 'n/a'}"
+        print(f"{label} {'PASS' if res['ok'] else 'FAIL'} state={res['script_state']} "
+              f"bad_lines={len(res['bad_lines'])}{extra}")
+        for idx, m in enumerate(res.get("measures", []), 1):
+            print(f"         win{idx}: frames={m.get('frames')} avg={m.get('frame_avg_us')}us "
+                  f"worst={m.get('frame_worst_us')}us draw={m.get('draw_avg_us')}us send={m.get('send_avg_us')}us "
+                  f"core0={m.get('core0_busy_percent')}% core1={m.get('core1_busy_percent')}% "
+                  f"audio={m.get('audio_running')} buf={m.get('buffered_ms')}ms "
+                  f"read_max={m.get('read_max_us')}us underruns={m.get('underruns')}/{m.get('output_underruns')}")
+        top = res.get("profile_top", [])[:5]
+        if top:
+            formatted = ", ".join(f"{fn['name']} {fn['percent']}%" for fn in top)
+            print(f"         profile: {formatted}")
+    if "dac" in playbooks:
+        print_dac_summary_table(playbooks["dac"]["runs"])
+
+
+def run_local_smoke(tool, build, max_underruns, timeout, expect_card=False, elf_dir=None):
+    res = run_script_playbook(tool, LOCAL_SMOKE_SCRIPT, build, max_underruns, timeout,
+                              expect_card=expect_card, elf_dir=elf_dir)
+    return {"ok": res["ok"], "had_card": res["had_card"], "script_state": res["script_state"],
+            "bad_lines": res["bad_lines"], "scorecard": res["scorecard"]}
 
 
 def run_suite(tool, build, matrix, silent, max_underruns, max_dac_gap_us, timeout,
@@ -723,6 +947,25 @@ def build_parser():
     suite.add_argument("--elf-dir", type=Path, help="directory holding echo_device.elf / echo_usb_overlay.elf")
     suite.add_argument("--json", action="store_true", help="emit the result as JSON")
 
+    playbook = commands.add_parser("playbook", help="run repeatable real-hardware validation playbooks")
+    playbook.add_argument("name", choices=PLAYBOOK_NAMES,
+                          help="playbook to run: storage, ui, playback, rescan, dac, or all")
+    playbook.add_argument("--rates", type=parse_rates, default=[44100, 48000, 96000, 192000],
+                          help="DAC rates when running dac/all (default 44100,48000,96000,192000)")
+    playbook.add_argument("--bits", type=int, default=32, choices=VALID_BITS,
+                          help="DAC bit depth when running dac/all (default 32)")
+    playbook.add_argument("--silent", action="store_true", help="stream digital silence during DAC checks")
+    playbook.add_argument("--build", metavar="SHA7", type=sha7, help="expected firmware commit")
+    playbook.add_argument("--max-underruns", type=nonnegative_int, default=0,
+                          help="highest passing output underrun count (default %(default)s)")
+    playbook.add_argument("--max-dac-gap-us", type=nonnegative_int, default=200,
+                          help="upper bound on usb.dac.max_gap_us (default %(default)s)")
+    playbook.add_argument("--timeout", type=int, default=60, help="seconds to wait per reconnect (default %(default)s)")
+    playbook.add_argument("--elf-dir", type=Path, help="directory holding echo_device.elf / echo_usb_overlay.elf")
+    playbook.add_argument("--save", type=Path, nargs="?", const=PLAYBOOK_REPORT_DIR,
+                          help="save full JSON report to this file or directory (default Scratch/reports/hw-playbooks)")
+    playbook.add_argument("--json", action="store_true", help="emit the result as JSON")
+
     script = commands.add_parser("soak-script", help="generate a script for a paused track on an English UI")
     script.add_argument("--output", type=Path, help="save to this computer instead of printing the script")
     script.add_argument("--build", metavar="SHA7", type=sha7,
@@ -762,7 +1005,7 @@ def main(argv=None, host=None, streamer=stream_to_dac):
             run = run_dac_test(tool, args.build, rate, args.silent, args.max_underruns,
                                args.max_dac_gap_us, args.timeout, bits=args.bits,
                                streamer=streamer, expect_card=had_card,
-                               allow_prior_drops=index > 0, elf_dir=args.elf_dir)
+                               allow_prior_drops=True, elf_dir=args.elf_dir)
             had_card = had_card or run["had_card"]
             runs.append(run)
         result = {"ok": all(run["ok"] for run in runs), "runs": runs}
@@ -785,6 +1028,29 @@ def main(argv=None, host=None, streamer=stream_to_dac):
             loc = result["local"]
             print(f"LOCAL   {'PASS' if loc['ok'] else 'FAIL'} script.state={loc['script_state']}")
             print_dac_summary_table(result["dac_runs"])
+        return 0 if result["ok"] else 1
+    if args.command == "playbook":
+        tool = echo_debug.Tool(host=host)
+        result = run_playbook(args.name, tool, args.build, args.rates, args.bits, args.silent,
+                              args.max_underruns, args.max_dac_gap_us, args.timeout,
+                              streamer=streamer, elf_dir=args.elf_dir)
+        if args.save is not None:
+            dest = args.save
+            if dest.is_dir() or not dest.suffix:
+                dest.mkdir(parents=True, exist_ok=True)
+                stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+                tag = args.build or "live"
+                dest = dest / f"{stamp}-{args.name}-{tag}.json"
+            else:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+            result["saved_to"] = str(dest)
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print_playbook_summary(result)
+            if "saved_to" in result:
+                print(f"\nSaved JSON report: {result['saved_to']}")
         return 0 if result["ok"] else 1
     if args.command == "soak-script":
         try:

@@ -377,6 +377,55 @@ class ReportChecks(unittest.TestCase):
         found = echo_hw_check.wait_for_settled_luns(FakeTool(), expect_card=False)
         self.assertEqual(found["usb"]["card_volumes"], [{"mount_point": "/Volumes/GnarlySD"}])
 
+    def test_playbook_storage_and_ui_validate_lines_and_save_report(self):
+        self.write_report(**{"script.state": "finished", "usb.timing": "writes=10 receive_ms=5 card_ms=8 ui_ms=20"})
+        report_path = self.debug / "report0.txt"
+        text = report_path.read_text(encoding="utf-8")
+        extra = (
+            "script.line: 1 ok open home\n"
+            "script.measure: line=7 duration_ms=2000 frames=12 frame_avg_us=4200 frame_worst_us=8100 "
+            "draw_avg_us=2100 send_avg_us=1800 core0_busy_percent=14 core1_busy_percent=0 "
+            "audio_running=0 buffered_ms=0 read_max_us=0 underruns=0 output_underruns=0\n"
+            "script.rtc: line=4 status=ok action=read time_ms=420 written_s=0 registers=00000000000000000000000000000000\n"
+        )
+        body, rest = text.split("truncated: 0\n", 1)
+        new_body = body + extra
+        report_path.write_text(f"{new_body}truncated: 0\nend: {len(new_body.encode('utf-8'))}\n", encoding="utf-8")
+        medium = fixtures.medium("Internal storage", "ECHO", self.volume)
+        host = fixtures.FakeHost(fixtures.usb_tree(fixtures.player([medium])))
+
+        output = io.StringIO()
+        with fixtures.temporary_directory() as out_dir:
+            save_file = Path(out_dir) / "playbook.json"
+            with patch.object(echo_debug.Tool, "wait_for_return", return_value=None), \
+                 patch.object(echo_hw_check, "STORAGE_PLAYBOOK_BYTES", 4096), \
+                 patch.object(echo_hw_check, "STORAGE_BURST_BYTES", 1024), \
+                 patch.object(echo_hw_check, "STORAGE_BURST_COUNT", 2):
+                with contextlib.redirect_stdout(output):
+                    status = echo_hw_check.main(
+                        ["playbook", "storage", "--build", BUILD, "--save", str(save_file), "--json"],
+                        host=host,
+                    )
+            self.assertEqual(status, 0, output.getvalue())
+            saved = json.loads(save_file.read_text(encoding="utf-8"))
+            self.assertTrue(saved["ok"])
+            self.assertTrue(saved["playbooks"]["storage"]["sequential"]["ok"])
+            self.assertTrue(saved["playbooks"]["storage"]["burst"]["ok"])
+            self.assertFalse((self.debug / echo_hw_check.STORAGE_TEST_FILE).exists())
+
+            ui_out = io.StringIO()
+            with patch.object(echo_debug.Tool, "wait_for_return", return_value=None):
+                with contextlib.redirect_stdout(ui_out):
+                    ui_status = echo_hw_check.main(
+                        ["playbook", "ui", "--build", BUILD, "--json"],
+                        host=host,
+                    )
+            self.assertEqual(ui_status, 0, ui_out.getvalue())
+            ui_res = json.loads(ui_out.getvalue())["playbooks"]["ui"]
+            self.assertTrue(ui_res["ok"])
+            self.assertTrue(ui_res["rtc_ok"])
+            self.assertEqual(ui_res["bad_lines"], [])
+
 
 class ScriptAndChecklist(unittest.TestCase):
     @patch.object(echo_debug.MacHost, "usb_tree", side_effect=AssertionError("unexpected USB discovery"))
