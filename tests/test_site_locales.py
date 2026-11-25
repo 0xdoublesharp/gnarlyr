@@ -147,16 +147,27 @@ class PublishedLanguageTests(unittest.TestCase):
         self.assertNotIn(f"{self.config['origin']}/index.html", urls)
         self.assertFalse(any(url.endswith("/docs.html") and "/es/" in url for url in urls))
 
-    def test_comparison_is_in_every_header(self):
+    def test_docs_dropdown_groups_guides_in_every_header(self):
+        guides = ["/docs.html", "/hardware.html", "/comparison.html"]
         for path, doc in self.pages.items():
             with self.subTest(path=path):
+                nav = next(node for node in doc.nodes
+                           if node["tag"] == "nav" and node["parent"]["tag"] == "header")
+                dropdowns = [node for node in doc.nodes
+                             if node["tag"] == "details" and node["parent"] is nav]
+                self.assertEqual(len(dropdowns), 1)
+                dropdown = dropdowns[0]
+                self.assertTrue(any(node["tag"] == "summary" and node["parent"] is dropdown
+                                    for node in doc.nodes))
                 links = [node for node in doc.nodes if node["tag"] == "a"
-                         and node["attrs"].get("href") == "/comparison.html"
-                         and node["parent"]["tag"] == "nav"
-                         and node["parent"]["parent"]["tag"] == "header"]
-                self.assertEqual(len(links), 1)
-                self.assertEqual(links[0]["attrs"].get("aria-current"),
-                                 "page" if path == "comparison.html" else None)
+                         and nav["inside"] <= node["start"] < nav["stop"]
+                         and node["attrs"].get("href") in guides]
+                self.assertEqual([link["attrs"]["href"] for link in links], guides)
+                for link in links:
+                    self.assertLess(dropdown["start"], link["start"])
+                    self.assertLess(link["start"], dropdown["stop"])
+                    self.assertEqual(link["attrs"].get("aria-current"),
+                                     "page" if link["attrs"]["href"] == f"/{path}" else None)
 
     def test_language_picker_uses_plain_names_on_guides(self):
         doc = self.pages["comparison.html"]

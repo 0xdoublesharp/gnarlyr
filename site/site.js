@@ -1,3 +1,19 @@
+    const docsMenu = document.querySelector('.docs-menu');
+    if (docsMenu) {
+      document.addEventListener('click', (event) => {
+        if (docsMenu.open && !docsMenu.contains(event.target)) docsMenu.open = false;
+      });
+      docsMenu.addEventListener('focusout', (event) => {
+        if (event.relatedTarget && !docsMenu.contains(event.relatedTarget)) docsMenu.open = false;
+      });
+      docsMenu.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && docsMenu.open) {
+          docsMenu.open = false;
+          docsMenu.querySelector('summary').focus();
+        }
+      });
+    }
+
     function revealLinkedHelp(hash = location.hash) {
       let id;
       try { id = decodeURIComponent(hash.slice(1)); } catch { return; }

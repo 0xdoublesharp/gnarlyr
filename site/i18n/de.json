@@ -976,6 +976,11 @@
       "source": "Comparison",
       "source_sha256": "571527339d0e3e34a6fd5b9c1d776218573a85cc984efb94d0631d47b8aa1d76",
       "translation": "Vergleich"
+    },
+    "home.m143": {
+      "source": "User guide",
+      "source_sha256": "86a2a9ba70bc0260ff9c22d7613e8370450e1b41177832912a82e2c33ea43301",
+      "translation": "Anleitung"
     }
   }
 }
