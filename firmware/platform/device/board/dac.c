@@ -623,23 +623,27 @@ CORE_COLD void dac_path_set_muted(bool mute)
     if (guarded || (chip_analog.filter == DAC_ANALOG_UNKNOWN && !apply_analog(analog))) {
         return;
     }
-    dac_set_pin(NULL, DAC_PIN_MUTE, true);
     uint8_t target = current_volume();
     uint8_t start = target < DAC_VOLUME_MUTED - FADE_IN_FLOOR ? (uint8_t)(target + FADE_IN_FLOOR)
                                                               : DAC_VOLUME_MUTED;
     chip_volume.left = dac_balance_volume(start, balance_left);
     chip_volume.right = dac_balance_volume(start, balance_right);
-    bool written = false;
-    for (int attempt = 0; attempt < 2 && !written; attempt++) {
-        written = dac_set_volume_lr(&BUS, chip_volume.left, chip_volume.right);
+    if (chip_volume.left == chip_volume.right) {
+        dac_set_muted(&BUS, false, chip_volume.left);
+    } else {
+        dac_set_pin(NULL, DAC_PIN_MUTE, true);
+        bool written = false;
+        for (int attempt = 0; attempt < 2 && !written; attempt++) {
+            written = dac_set_volume_lr(&BUS, chip_volume.left, chip_volume.right);
+        }
+        if (!written) {
+            chip_volume.stale = true;
+            output_blocked = true;
+            retried_ms = hal_clock_milliseconds();
+            return;
+        }
+        dac_set_pin(NULL, DAC_PIN_MUTE, false);
     }
-    if (!written) {
-        chip_volume.stale = true;
-        output_blocked = true;
-        retried_ms = hal_clock_milliseconds();
-        return;
-    }
-    dac_set_pin(NULL, DAC_PIN_MUTE, false);
     fade_to(target);
 }
 

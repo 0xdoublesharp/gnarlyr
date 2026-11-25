@@ -535,17 +535,22 @@ CORE_COLD uint8_t dac_balance_volume(uint8_t volume, uint8_t attenuation)
     return sum < DAC_VOLUME_MUTED ? (uint8_t)sum : DAC_VOLUME_MUTED - 1;
 }
 
+CORE_COLD static bool write_stereo_volume(const DacBus *bus, uint8_t left, uint8_t right)
+{
+    return left == right ? dac_set_volume(bus, left) : dac_set_volume_lr(bus, left, right);
+}
+
 CORE_COLD bool dac_fade_volume_lr(const DacBus *bus, DacStereoLevel *level, DacStereoLevel target,
                                   uint32_t step_us)
 {
-    if (level->stale && !dac_set_volume_lr(bus, level->left, level->right)) {
+    if (level->stale && !write_stereo_volume(bus, level->left, level->right)) {
         return false;
     }
     level->stale = false;
     while (level->left != target.left || level->right != target.right) {
         uint8_t left = dac_ramp_next(level->left, target.left);
         uint8_t right = dac_ramp_next(level->right, target.right);
-        if (!dac_set_volume_lr(bus, left, right)) {
+        if (!write_stereo_volume(bus, left, right)) {
             level->stale = true;
             return false;
         }

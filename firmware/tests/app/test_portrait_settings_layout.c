@@ -540,6 +540,7 @@ static void dependent_settings_appear_only_when_their_feature_is_enabled(void)
     CHECK(!clipping->shown(clipping->shown_context));
     CHECK(!timeout->shown(timeout->shown_context));
     store.settings.appearance = APPEARANCE_GRAPHITE;
+    theme.appearance = APPEARANCE_GRAPHITE;
     store.settings.replay_gain_mode = REPLAY_GAIN_TRACK;
     store.settings.standby_enabled = true;
     CHECK(accent->shown(accent->shown_context));
