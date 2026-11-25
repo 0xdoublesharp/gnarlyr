@@ -15,7 +15,8 @@ from echo_image_harness import EchoImageHarness, main
 from echo_emulator.core1 import SAMPLES
 from echo_emulator.core1_bridge import SAMPLE_BYTES
 from echo_emulator.devices import (
-    ADC_CONTROL, CMD_DATA, CMD_START, MMC_CMD, MMC_CMDARG, MMC_FIFO, MMC_STATUS, STATUS_FIFO_EMPTY,
+    ADC_CONTROL, CMD_DATA, CMD_START, CMD_UPDATE_CLOCK_ONLY, MMC_CMD, MMC_CMDARG, MMC_FIFO,
+    MMC_STATUS, STATUS_FIFO_EMPTY,
 )
 from echo_emulator.emmc import MMC_CLKENA
 from echo_emulator.machine import CORE1_RAM_BASE, CORE1_RAM_SIZE, PAGE, RAM_BASE, RAM_SIZE, TRAMPOLINE
@@ -173,7 +174,8 @@ class EchoImageTest(EchoImageHarness):
         self.assert_backend(machine._native)
         sector = b"\x11" * 4 + b"\x12" * (SECTOR - 4)
         card.disk.write(10, sector)
-        for offset, value in ((MMC_CLKENA, 1), (MMC_CMDARG, 10), (MMC_CMD, CMD_START | CMD_DATA | 17)):
+        for offset, value in ((MMC_CLKENA, 1), (MMC_CMD, CMD_START | CMD_UPDATE_CLOCK_ONLY),
+                              (MMC_CMDARG, 10), (MMC_CMD, CMD_START | CMD_DATA | 17)):
             machine.uc.mem_write(SD_MMC + offset, struct.pack("<I", value))
         for _ in range(100):
             status, = struct.unpack("<I", machine.uc.mem_read(SD_MMC + MMC_STATUS, 4))

@@ -36,7 +36,7 @@ EVENT_NAMES = ("key", "screen", "player", "underrun", "output_underrun", "refusa
                "display_fallback", "ladder")
 ENGINE_STOPPED = 0
 SETTLE_MS = 600
-CHECKS = 3
+CHECKS = 4
 CHECK_GAP_MS = 250
 MP3 = PROJECT / "tests" / "fixtures" / "mp3" / "cbr_192_48k_stereo_bare.mp3"
 MP3_REPEATS = 24

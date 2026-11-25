@@ -340,7 +340,8 @@ static bool prepare_data(const MmcHost *host)
     return true;
 }
 
-static bool drain_fifo(const MmcHost *host, uint32_t *words, uint32_t total)
+__attribute__((optimize("O2"))) static bool drain_fifo(const MmcHost *host, uint32_t *words,
+                                                       uint32_t total)
 {
     uint32_t fifo = host->base + MMC_FIFO;
     uint32_t received = 0;
