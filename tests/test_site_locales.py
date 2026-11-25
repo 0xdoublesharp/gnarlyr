@@ -153,6 +153,11 @@ class PublishedLanguageTests(unittest.TestCase):
             with self.subTest(path=path):
                 nav = next(node for node in doc.nodes
                            if node["tag"] == "nav" and node["parent"]["tag"] == "header")
+                top_items = [
+                    node["attrs"]["href"] if node["tag"] == "a" else node["tag"]
+                    for node in doc.nodes if node["parent"] is nav
+                ]
+                self.assertEqual(top_items, ["/firmware.html", "/companion.html", "details", "/install.html"])
                 dropdowns = [node for node in doc.nodes
                              if node["tag"] == "details" and node["parent"] is nav]
                 self.assertEqual(len(dropdowns), 1)
