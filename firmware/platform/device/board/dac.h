@@ -6,7 +6,7 @@
 #include "device/dac_sequence.h"
 #include "hal/audio.h"
 
-HalToneResult dac_path_start(uint32_t sample_rate);
+HalToneResult dac_path_start(uint32_t sample_rate, bool dop);
 void dac_path_stop(void);
 void dac_path_set_fade_service(void (*service)(void));
 void dac_path_output_on(void);

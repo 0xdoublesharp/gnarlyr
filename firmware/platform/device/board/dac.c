@@ -287,7 +287,8 @@ static void dac_delay(void *context, uint32_t microseconds)
     } while (hal_clock_microseconds() - start < microseconds);
 }
 
-static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL};
+static bool dop_mode;
+static const DacBus BUS = {dac_write, dac_read, dac_set_pin, dac_delay, NULL, &dop_mode};
 
 CORE_COLD static void set_soc_clocks(bool on)
 {
@@ -535,6 +536,7 @@ CORE_COLD static void stop_audio_path(void)
 CORE_COLD HalToneResult hal_audio_test_tone(void)
 {
     hal_audio_dma_tone_stop();
+    dop_mode = false;
     const AudioRate *rate = audio_clock_rate(TONE_RATE_HZ);
     HalToneResult result = start_audio_path(rate, i2s_divider_truncated(rate->mclk, rate->rate),
                                             I2S_FORMAT_16_BIT_STEREO, I2S_INTERRUPTS, true);
@@ -546,12 +548,13 @@ CORE_COLD HalToneResult hal_audio_test_tone(void)
     return played ? HAL_TONE_PLAYED : HAL_TONE_STALLED;
 }
 
-CORE_SEAM CORE_COLD HalToneResult dac_path_start(uint32_t sample_rate)
+CORE_SEAM CORE_COLD HalToneResult dac_path_start(uint32_t sample_rate, bool dop)
 {
     const AudioRate *rate = audio_clock_rate(sample_rate);
     if (rate == NULL) {
         return HAL_TONE_SETUP_FAILED;
     }
+    dop_mode = dop;
     return start_audio_path(rate, i2s_divider_rounded(rate->mclk, rate->rate),
                             I2S_FORMAT_32_BIT_WORDS, I2S_INTERRUPTS_FOR_DMA, false);
 }
@@ -589,7 +592,8 @@ static void serving_delay(void *context, uint32_t microseconds)
     wait_serving(microseconds);
 }
 
-static const DacBus SERVING_BUS = {dac_write, dac_read, dac_set_pin, serving_delay, NULL};
+static const DacBus SERVING_BUS = {dac_write,     dac_read, dac_set_pin,
+                                   serving_delay, NULL,     &dop_mode};
 
 CORE_COLD static __attribute__((noinline)) void fade_to(uint8_t target)
 {

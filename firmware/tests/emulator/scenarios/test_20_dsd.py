@@ -67,6 +67,7 @@ class EchoImageTest(EchoImageHarness):
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
                   volume=volume, module_elfs=self.module_elfs)
         bridge = Core1Bridge(rig.audio, {CORE1_DSD: self.elf.with_name("core1_dsd.bin").read_bytes()})
+        rig.machine.stub_symbol("listening_effects_choose", lambda machine: 1 << 8)
         pcm = self.capture_output(rig, frames)
         rig.open_songs()
         rig.play_song(1)
@@ -92,6 +93,7 @@ class EchoImageTest(EchoImageHarness):
                   volume=volume, module_elfs=self.module_elfs)
         program = self.elf.with_name("core1_dsd.bin").read_bytes()
         bridge = Core1Bridge(rig.audio, {CORE1_DSD: program}, instructions_per_us=150)
+        rig.machine.stub_symbol("listening_effects_choose", lambda machine: 1 << 8)
         self.limit_audio_service(rig, 10000)
         played = self.capture_played(rig, frames)
         rig.open_songs()
@@ -106,6 +108,40 @@ class EchoImageTest(EchoImageHarness):
             for channel, frequency in enumerate((1000, 1321)):
                 words = [frame[channel] for frame in played[start:start + window]]
                 self.assertGreater(self.tone_level(words, 88200, frequency), 0.34, (start, channel))
+        self.assert_healthy(rig.session)
+
+    def test_dop64_dma_preserves_markers_and_switches_to_pcm_when_effects_turn_on(self):
+        from dsd_fixture import signal, dff
+        from echo_emulator.core1_bridge import CORE1_DSD, Core1Bridge
+        from echo_emulator.fat_volume import Fat32Volume
+        from echo_emulator.playback import Rig
+        data, _ = signal(2822400, frames=88200)
+        volume = Fat32Volume()
+        volume.add_file("Native.dff", dff(data, 2822400))
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
+                  volume=volume, module_elfs=self.module_elfs)
+        program = self.elf.with_name("core1_dsd.bin").read_bytes()
+        bridge = Core1Bridge(rig.audio, {CORE1_DSD: program}, instructions_per_us=100)
+        effects = [0]
+        rig.machine.stub_symbol("listening_effects_choose", lambda machine: effects[0])
+        frames = self.capture_output(rig, 9000)
+        rig.open_songs()
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        rig.run_for(120)
+        self.assertEqual(176400, rig.audio.rate)
+        self.assertEqual(9000, len(frames))
+        order = bytes(int(f"{value:08b}"[::-1], 2) for value in range(256))
+        for channel in (0, 1):
+            payload = data[channel][:2 * len(frames)].translate(order)
+            for at, frame in enumerate(frames):
+                marker = 0x05 if at % 2 == 0 else 0xFA
+                word = marker << 24 | payload[2 * at] << 16 | payload[2 * at + 1] << 8
+                self.assertEqual(word, frame[channel], (channel, at))
+        effects[0] = 1
+        rig.run_for(600)
+        self.assertEqual(88200, rig.audio.rate)
+        self.assertEqual([CORE1_DSD], bridge.started)
         self.assert_healthy(rig.session)
 
     def test_dsd256_mono_seeks_to_the_saved_pcm_position(self):

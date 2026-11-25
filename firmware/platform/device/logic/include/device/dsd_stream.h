@@ -4,6 +4,8 @@
 
 enum {
     DSD_PCM_RATE = 88200,
+    DSD_DOP_RATE = 176400,
+    DSD64_RATE = 2822400,
     DSD_RING_BYTES = 32768,
     DSD_HEADER_BYTES = 32,
     DSD_BLOCK_BYTES = 4096,
@@ -13,6 +15,8 @@ enum {
     DSD_LANE_HISTORY = 40,
     DSD_LANE_BYTES = DSD_LANE_HISTORY + DSD_BLOCK_BYTES
 };
+
+#define DSD_HEADER_DOP UINT32_C(0x80000000)
 
 typedef struct DsdTrack {
     uint64_t samples;
@@ -29,6 +33,7 @@ typedef struct DsdStream {
     uint8_t header[DSD_HEADER_BYTES];
     uint32_t first;
     uint32_t bytes;
+    bool request_dop;
 } DsdStream;
 
 typedef struct DsdWorkspace {
@@ -69,10 +74,18 @@ typedef struct Core1Dsd {
     uint32_t staged;
     uint32_t slot;
     bool configured;
+    bool dop;
 } Core1Dsd;
 
 bool dsd_probe(FlacInput input, DsdTrack *track);
-bool dsd_stream_start(DsdStream *stream, FlacInput input, uint32_t start_ms, AudioTrackInfo *track);
+bool dsd_stream_start_mode(DsdStream *stream, FlacInput input, uint32_t start_ms,
+                           AudioTrackInfo *track);
+static inline bool dsd_stream_start(DsdStream *stream, FlacInput input, uint32_t start_ms,
+                                    AudioTrackInfo *track)
+{
+    stream->request_dop = false;
+    return dsd_stream_start_mode(stream, input, start_ms, track);
+}
 bool dsd_stream_read(void *context, uint32_t offset, void *buffer, uint32_t length);
 Core1Decoder core1_dsd_decoder(Core1Dsd *dsd, StreamRegion region);
 bool core1_open_dsd(void *context, const char *path, uint32_t start_ms, AudioTrackInfo *track);

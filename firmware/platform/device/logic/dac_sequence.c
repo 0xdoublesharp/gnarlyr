@@ -27,6 +27,9 @@ enum {
 #define HEADPHONE_GAIN 0x080000u
 #define PCM_FILTER 0x090000u
 #define PCM_MUTE 0x090003u
+#define DSD_PATH 0x070004u
+#define DSD_VOLUME_A 0x070001u
+#define SERIAL_RATE 0x01000Bu
 
 enum {
     BALANCED_ATTENUATION_VALUE = 10,
@@ -59,6 +62,11 @@ static const uint32_t BEFORE_MONO[] = {
     WRITE(PCM_VOLUME_A, DAC_VOLUME_MUTED),
     WRITE(0x090003, 0xEC),
     WRITE(0x090004, 0x00),
+};
+
+static const uint32_t DOP_SETUP[] = {
+    WRITE(0x01000C, 0x05), WRITE(0x040012, 0x02), WRITE(DSD_VOLUME_A, DAC_VOLUME_MUTED),
+    WRITE(0x070006, 0xD0), WRITE(DSD_PATH, 0x52),
 };
 
 static const uint8_t MONO_OFFSETS[MONO_ITEMS] = {0x09, 0x0A, 0x0B, 0x0C, 0x0F, 0x10};
@@ -161,6 +169,11 @@ static bool write_both(const DacBus *bus, uint32_t map, uint8_t value)
     return true;
 }
 
+static bool dop_mode(const DacBus *bus)
+{
+    return bus->dop != NULL && *bus->dop;
+}
+
 CORE_COLD static bool write_all(const DacBus *bus, const uint32_t *writes, size_t count)
 {
     for (size_t index = 0; index < count; index++) {
@@ -174,7 +187,7 @@ CORE_COLD static bool write_all(const DacBus *bus, const uint32_t *writes, size_
 CORE_COLD static bool write_channel_values(const DacBus *bus)
 {
     for (int chip = 0; chip < CHIP_COUNT; chip++) {
-        uint8_t value = CHANNEL_VALUES[chip];
+        uint8_t value = CHANNEL_VALUES[chip] - dop_mode(bus);
         if (!bus->write(bus->context, CHIPS[chip], 0x05000A, value) ||
             !bus->write(bus->context, CHIPS[chip], 0x05000B, value)) {
             return false;
@@ -315,7 +328,9 @@ CORE_COLD bool dac_sequence_power_up(const DacBus *bus)
 
 CORE_COLD static bool release_outputs(const DacBus *bus, uint8_t rate_byte)
 {
-    return dac_sequence_power_up(bus) && write_both(bus, 0x01000B, rate_byte);
+    return write_both(bus, SERIAL_RATE, rate_byte) &&
+           (!dop_mode(bus) || write_all(bus, DOP_SETUP, sizeof DOP_SETUP / sizeof DOP_SETUP[0])) &&
+           dac_sequence_power_up(bus);
 }
 
 CORE_COLD DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalog analog)
@@ -332,8 +347,9 @@ CORE_COLD DacResult dac_configure(const DacBus *bus, uint8_t rate_byte, DacAnalo
 
 CORE_COLD bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right)
 {
-    return bus->write(bus->context, DAC_LEFT_ADDRESS, PCM_VOLUME_A, left) &&
-           bus->write(bus->context, DAC_RIGHT_ADDRESS, PCM_VOLUME_A, right);
+    uint32_t map = dop_mode(bus) ? DSD_VOLUME_A : PCM_VOLUME_A;
+    return bus->write(bus->context, DAC_LEFT_ADDRESS, map, left) &&
+           bus->write(bus->context, DAC_RIGHT_ADDRESS, map, right);
 }
 
 CORE_SEAM bool dac_set_volume(const DacBus *bus, uint8_t volume)
@@ -405,7 +421,8 @@ uint8_t dac_volume_value(uint8_t level, DacCurve curve)
 CORE_SEAM void dac_output_on(const DacBus *bus, uint8_t volume)
 {
     run_pin_steps(bus, OUTPUT_ON_PINS, sizeof OUTPUT_ON_PINS / sizeof OUTPUT_ON_PINS[0]);
-    if (!write_channel_values_with_retry(bus) || !set_volume_with_retry(bus, volume)) {
+    if ((!dop_mode(bus) && !write_channel_values_with_retry(bus)) ||
+        !set_volume_with_retry(bus, volume)) {
         return;
     }
     wait_ms(bus, 10);
@@ -425,7 +442,7 @@ CORE_COLD static bool wait_for_power_down(const DacBus *bus)
                 break;
             }
             if (waited_ms >= POWER_DOWN_LIMIT_MS) {
-                return true;
+                return !dop_mode(bus);
             }
             wait_ms(bus, POWER_DOWN_POLL_MS);
             waited_ms += POWER_DOWN_POLL_MS;
@@ -453,7 +470,9 @@ CORE_COLD void dac_output_off(const DacBus *bus)
     run_pin_steps(bus, OUTPUT_OFF_PRE_PINS,
                   sizeof OUTPUT_OFF_PRE_PINS / sizeof OUTPUT_OFF_PRE_PINS[0]);
     dac_set_volume(bus, DAC_VOLUME_MUTED);
-    (void)dac_sequence_power_down(bus);
+    if (dac_sequence_power_down(bus) && dop_mode(bus)) {
+        write_both(bus, DSD_PATH, 0x02);
+    }
     write_both(bus, 0x0B0000, 0x00);
     wait_ms(bus, 10);
     run_pin_steps(bus, OUTPUT_OFF_POST_PINS,

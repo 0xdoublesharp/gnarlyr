@@ -140,7 +140,7 @@ static void fake_delay(void *context, uint32_t microseconds)
 static DacBus fresh_bus(void)
 {
     fake = (FakeBus){.count = 0};
-    return (DacBus){fake_write, fake_read, fake_pin, fake_delay, NULL};
+    return (DacBus){fake_write, fake_read, fake_pin, fake_delay, NULL, NULL};
 }
 
 static int cursor;
@@ -407,6 +407,7 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x180000, 0x45));
     CHECK(next_both(0x010010, 0x00));
+    CHECK(next_both(0x01000B, 0x01));
     CHECK(next_both(0x010010, 0x99));
     CHECK(next_both(0x080032, 0x20));
     CHECK(next_release(LEFT, 0xF6, 0x40));
@@ -416,7 +417,6 @@ static void the_register_sequence_follows_the_facts(void)
     CHECK(next_delay_ms(12));
     CHECK(next_both(0x080032, 0x00));
     CHECK(next_both(0x010010, 0x00));
-    CHECK(next_both(0x01000B, 0x01));
     CHECK_EQUAL(cursor, fake.count);
     CHECK_EQUAL(0xA6, fake.power_control[0]);
     CHECK_EQUAL(0xA6, fake.power_control[1]);
@@ -600,6 +600,60 @@ static void setting_the_volume_writes_pcm_volume_a_on_both_chips(void)
     dac_set_volume(&bus, 0x30);
     CHECK(next_both(0x090002, 0x30));
     CHECK_EQUAL(cursor, fake.count);
+}
+
+static uint8_t last_write(uint8_t address, uint32_t map);
+
+static void dop64_configures_and_clears_the_dsd_path_with_the_port_down(void)
+{
+    DacBus bus = fresh_bus();
+    bool dop = true;
+    bus.dop = &dop;
+    CHECK_EQUAL(DAC_READY, dac_configure(&bus, 5, STOCK_START));
+    bool configured[2] = {false, false};
+    for (int index = 0; index < fake.count; index++) {
+        Op op = fake.ops[index];
+        if (op.kind != OP_WRITE) {
+            continue;
+        }
+        int chip = chip_of(op.address);
+        if (op.map == 0x070004 && op.value == 0x52) {
+            configured[chip] = true;
+        }
+        if (op.map == 0x020000 && (op.value & 0x40) == 0) {
+            CHECK(configured[chip]);
+        }
+    }
+    CHECK(configured[0] && configured[1]);
+    for (int chip = 0; chip < 2; chip++) {
+        uint8_t address = chip == 0 ? LEFT : RIGHT;
+        CHECK_EQUAL(0x05, last_write(address, 0x01000B));
+        CHECK_EQUAL(0x05, last_write(address, 0x01000C));
+        CHECK_EQUAL(0x02, last_write(address, 0x040012));
+        CHECK_EQUAL(chip == 0 ? 0x06 : 0x0E, last_write(address, 0x05000A));
+        CHECK_EQUAL(chip == 0 ? 0x06 : 0x0E, last_write(address, 0x05000B));
+        CHECK_EQUAL(0xD0, last_write(address, 0x070006));
+        CHECK_EQUAL(0xFF, last_write(address, 0x070001));
+    }
+    dac_output_on(&bus, DAC_VOLUME_MUTED);
+    CHECK(dac_set_volume_lr(&bus, 0x30, 0x42));
+    CHECK_EQUAL(0x30, last_write(LEFT, 0x070001));
+    CHECK_EQUAL(0x42, last_write(RIGHT, 0x070001));
+    int begin_shutdown = fake.count;
+    dac_output_off(&bus);
+    int disabled = 0;
+    int down = 0;
+    for (int index = begin_shutdown; index < fake.count; index++) {
+        Op op = fake.ops[index];
+        if (op.kind == OP_WRITE && op.map == 0x020000 && (op.value & 0x50) == 0x50) {
+            down++;
+        }
+        if (op.kind == OP_WRITE && op.map == 0x070004 && op.value == 0x02) {
+            CHECK_EQUAL(2, down);
+            disabled++;
+        }
+    }
+    CHECK_EQUAL(2, disabled);
 }
 
 static void setting_independent_volumes_writes_each_chip(void)
@@ -993,6 +1047,7 @@ int main(void)
         TEST_CASE(muting_holds_the_pin_and_mutes_both_chips),
         TEST_CASE(setting_the_volume_writes_pcm_volume_a_on_both_chips),
         TEST_CASE(setting_independent_volumes_writes_each_chip),
+        TEST_CASE(dop64_configures_and_clears_the_dsd_path_with_the_port_down),
         TEST_CASE(start_up_writes_the_chosen_gain_and_filter_with_the_outputs_powered_down),
         TEST_CASE(an_unknown_filter_starts_with_stock_default_filter),
         TEST_CASE(a_gain_change_powers_the_outputs_down_around_the_register_write),

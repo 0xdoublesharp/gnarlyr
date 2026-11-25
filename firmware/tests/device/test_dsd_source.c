@@ -330,6 +330,66 @@ static uint8_t reversed(uint8_t value)
     return result;
 }
 
+static void dop64_packs_the_same_msb_first_payload_from_dsf_and_dff(void)
+{
+    static const uint8_t RAW[2][4] = {{0x81, 0x4B, 0x23, 0xCE}, {0x93, 0xA6, 0x74, 0x5F}};
+    for (uint32_t layout = 0; layout < 3; layout++) {
+        memset(bytes, 0xff, sizeof bytes);
+        memcpy(bytes, "DSDP", 4);
+        number(4, 2822400, 4, true);
+        number(8, 2, 4, true);
+        number(12, layout, 4, true);
+        number(16, 27, 8, true);
+        number(24, 0, 4, true);
+        number(28, UINT32_C(0x80000000) | (layout == 0 ? 0 : 4096), 4, true);
+        length = 32 + (layout == 0 ? 8 : 8192);
+        for (uint32_t channel = 0; channel < 2; channel++) {
+            for (uint32_t at = 0; at < 4; at++) {
+                uint32_t offset = layout == 0 ? at * 2 + channel : channel * 4096 + at;
+                bytes[32 + offset] = layout == 1 ? reversed(RAW[channel][at]) : RAW[channel][at];
+            }
+        }
+        control = (StreamControl){.generation = 1};
+        StreamRegion region = {
+            .control = &control, .samples = output, .ring = ring, .ring_bytes = DSD_RING_BYTES};
+        Core1Decoder core = core1_dsd_decoder(&decoder, region);
+        core.start(core.context, input(), (FlacInfo){0}, 0, NULL);
+        Core1Block block;
+        Core1DecodeResult result = core.decode(core.context, &block);
+        CHECK_EQUAL(CORE1_DECODED, result);
+        if (result != CORE1_DECODED) {
+            return;
+        }
+        CHECK_EQUAL(2, block.samples);
+        CHECK_EQUAL(0x05814B, (uint32_t)block.channels[0][0] & 0xFFFFFF);
+        CHECK_EQUAL(0x0593A6, (uint32_t)block.channels[1][0] & 0xFFFFFF);
+        CHECK_EQUAL(0xFA23C9, (uint32_t)block.channels[0][1] & 0xFFFFFF);
+        CHECK_EQUAL(0xFA7449, (uint32_t)block.channels[1][1] & 0xFFFFFF);
+        CHECK_EQUAL(CORE1_FINISHED, core.decode(core.context, &block));
+    }
+}
+
+static void only_requested_dsd64_uses_the_176_khz_transport(void)
+{
+    for (unsigned ratio = 1; ratio <= 4; ratio *= 2) {
+        dsf(2822400 * ratio, 1, 64003);
+        for (unsigned request = 0; request <= 1; request++) {
+            DsdStream stream = {.request_dop = request != 0};
+            AudioTrackInfo track;
+            CHECK(dsd_stream_start_mode(&stream, input(), 5, &track));
+            bool dop = request != 0 && ratio == 1;
+            CHECK_EQUAL(dop, track.dop);
+            CHECK_EQUAL(dop ? 176400 : 88200, track.stream.sample_rate);
+            CHECK_EQUAL(dop ? 4001 : (64003 + 32 * ratio - 1) / (32 * ratio),
+                        track.stream.total_samples);
+            CHECK_EQUAL(dop ? 0x80 : 0, stream.header[31]);
+            stream.request_dop = request != 0;
+            CHECK(dsd_stream_start_mode(&stream, input(), 60000, &track));
+            CHECK_EQUAL(dop, track.dop);
+        }
+    }
+}
+
 static void container(uint32_t ratio, uint32_t layout, uint32_t channels)
 {
     uint32_t base = 92;
@@ -641,6 +701,8 @@ int main(void)
         TEST_CASE(dsd_matches_a_double_precision_reference_on_sine_sweep_and_silence),
         TEST_CASE(damaged_dsf_is_refused),
         TEST_CASE(dff_properties_and_damage_are_checked),
+        TEST_CASE(dop64_packs_the_same_msb_first_payload_from_dsf_and_dff),
+        TEST_CASE(only_requested_dsd64_uses_the_176_khz_transport),
         TEST_CASE(containers_play_seek_and_reopen_through_the_shared_ring),
         TEST_CASE(dsd_conversion_is_pinned_bit_for_bit_across_layouts_and_starved_reads),
         TEST_CASE(failed_dsd_opens_and_reads_release_the_source),

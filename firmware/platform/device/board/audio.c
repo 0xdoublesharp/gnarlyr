@@ -114,6 +114,7 @@ static uint32_t position_before_clock_change;
 static AudioEngine engine;
 _Static_assert(offsetof(AudioEngine, produced) == 48, "the emulator follows the audio ring cursor");
 _Static_assert(offsetof(AudioEngine, state) == 44, "the emulator follows the engine state");
+_Static_assert(RING_FRAMES % 2 == 0, "DoP markers alternate across the DMA ring wrap");
 _Static_assert((STRETCH_WORDS + BLOCK_WORDS - 1) / BLOCK_WORDS == STRETCH_BLOCKS,
                "the stretched ring keeps its five DMA items");
 _Static_assert(BLOCK_WORDS + RING_BLOCKS - 1 <= DMA_MAX_BLOCK_WORDS,
@@ -127,6 +128,7 @@ static HalFile file;
 static bool engine_ready;
 static bool path_up;
 static uint32_t path_rate;
+static bool path_dop;
 static bool transferring;
 static uint32_t consumed;
 static uint32_t last_position;
@@ -335,6 +337,10 @@ CORE_COLD static bool open_chosen(void *context, const char *path, uint32_t star
             using_core1 = false;
         }
     } else {
+        if (source_kind == SOURCE_DSD) {
+            dsd_stream.request_dop =
+                audio_engine_dop_allowed(&engine, !board_bluetooth_routed(), engine.track_gain);
+        }
         using_core1 = board_core1_start_stream((Core1Program)source_kind);
         core1_source.clock_mhz = hal_system_clock_mhz();
         if (!using_core1) {
@@ -487,17 +493,18 @@ CORE_COLD static void stop_path(void)
     }
 }
 
-CORE_COLD static bool ensure_path(uint32_t rate)
+CORE_COLD static bool ensure_path(uint32_t rate, bool dop)
 {
-    if (path_up && path_rate == rate) {
+    if (path_up && path_rate == rate && path_dop == dop) {
         return true;
     }
     stop_path();
-    if (dac_path_start(rate) != HAL_TONE_PLAYED) {
+    if (dac_path_start(rate, dop) != HAL_TONE_PLAYED) {
         return false;
     }
     path_up = true;
     path_rate = rate;
+    path_dop = dop;
     dac_path_output_on();
     return true;
 }
@@ -534,7 +541,7 @@ CORE_COLD static bool start_transfer(uint32_t words, bool audible)
 
 CORE_COLD static bool start_output(bool audible)
 {
-    if (!ensure_path(audio_engine_rate(&engine))) {
+    if (!ensure_path(audio_engine_rate(&engine), engine.output_dop)) {
         return false;
     }
     uint32_t started_ms = hal_clock_milliseconds();
@@ -898,6 +905,22 @@ static void change_rate(void)
     restart_output(true, paused);
 }
 
+CORE_COLD static void recheck_dop(void)
+{
+    if (!audio_engine_dop_allowed(&engine, !board_bluetooth_routed(),
+                                  engine.segments[0].replay_gain) ||
+        (engine.decode_track.dop && engine.track_gain != REPLAY_GAIN_UNITY)) {
+        HalAudioStatus status = hal_audio_status();
+        if (status.state != HAL_AUDIO_STOPPED) {
+            if (engine.next_token != status.token &&
+                (engine.segment_count > 1 || engine.rate_pending || engine.draining)) {
+                engine.has_next = true;
+            }
+            seek_to(status.position_ms, status.state == HAL_AUDIO_PAUSED);
+        }
+    }
+}
+
 CORE_COLD static void shut_down_when_idle(void)
 {
     if (audio_engine_status(&engine).state != AUDIO_ENGINE_STOPPED) {
@@ -947,6 +970,9 @@ void hal_audio_service(void)
         return;
     }
     if (transferring) {
+        if (engine.output_dop) {
+            recheck_dop();
+        }
         update_consumed();
         pump(consumed);
         change_rate();
@@ -989,12 +1015,13 @@ CORE_COLD HalToneResult hal_audio_dma_tone_start(uint32_t sample_rate)
         return HAL_TONE_NO_DMAC;
     }
     stop_path();
-    HalToneResult result = dac_path_start(sample_rate);
+    HalToneResult result = dac_path_start(sample_rate, false);
     if (result != HAL_TONE_PLAYED) {
         return result;
     }
     path_up = true;
     path_rate = sample_rate;
+    path_dop = false;
     uint32_t *words = ring();
     int16_t samples[TONE_PERIOD_SAMPLES];
     tone_fill(samples, TONE_PERIOD_SAMPLES, TONE_AMPLITUDE);
@@ -1188,7 +1215,7 @@ CORE_COLD bool board_audio_stream_open(uint32_t rate, void (*service)(void))
     dac_path_set_fade_service(serve_fade);
     board_audio_shut_down();
     clear_ring();
-    return ensure_path(rate);
+    return ensure_path(rate, false);
 }
 
 static uint32_t stream_frame_count(void)

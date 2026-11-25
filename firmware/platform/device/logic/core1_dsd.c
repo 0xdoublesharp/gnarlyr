@@ -79,14 +79,17 @@ static Core1DecodeResult configure(Core1Dsd *dsd)
     dsd->layout = bytes_le32(header + 12);
     dsd->bit_count = bytes_le32(header + 16) | (uint64_t)bytes_le32(header + 20) << 32;
     dsd->first = bytes_le32(header + 24);
+    uint32_t size_flags = bytes_le32(header + 28);
+    dsd->dop = (size_flags & DSD_HEADER_DOP) != 0;
     if (bytes_le32(header) != 0x50445344u ||
-        (rate != 2822400 && rate != 5644800 && rate != 11289600) || dsd->channels < 1 ||
-        dsd->channels > 2 || dsd->layout > 2 ||
-        bytes_le32(header + 28) != (dsd->layout == 0 ? 0u : DSD_BLOCK_BYTES)) {
+        (rate != DSD64_RATE && rate != 5644800 && rate != 11289600) ||
+        (dsd->dop && rate != DSD64_RATE) || dsd->channels < 1 || dsd->channels > 2 ||
+        dsd->layout > 2 ||
+        (size_flags & ~DSD_HEADER_DOP) != (dsd->layout == 0 ? 0u : DSD_BLOCK_BYTES)) {
         return CORE1_FAILED;
     }
-    dsd->ratio = rate / 2822400;
-    uint32_t step = 32 * dsd->ratio;
+    dsd->ratio = rate / DSD64_RATE;
+    uint32_t step = dsd->dop ? 16 : 32 * dsd->ratio;
     uint64_t frames = dsd->bit_count / step + (dsd->bit_count % step != 0);
     if (frames > UINT32_MAX - dsd->first || dsd->input.size < DSD_HEADER_BYTES) {
         return CORE1_FAILED;
@@ -104,6 +107,13 @@ static Core1DecodeResult configure(Core1Dsd *dsd)
     dsd->partial_bits = (uint32_t)(dsd->bit_count % 8);
     dsd->steady_end = dsd->byte_count - (dsd->partial_bits != 0);
     dsd->remaining = (uint32_t)frames;
+    dsd->position = DSD_HEADER_BYTES;
+    dsd->lane_start = 0u - DSD_LANE_HISTORY;
+    dsd->configured = true;
+    if (dsd->dop) {
+        core1_stream_clock(dsd->region, 100);
+        return CORE1_DECODED;
+    }
     dsd->raise = dsd->ratio == 1 ? 8u : dsd->ratio == 2 ? 3u : 0u;
     dsd->lower = dsd->ratio == 4 ? 2u : 0u;
     dsd->coefficients = dsd->ratio == 1   ? DSD_SECOND_1
@@ -113,9 +123,6 @@ static Core1DecodeResult configure(Core1Dsd *dsd)
     dsd->rows = 10 * dsd->ratio;
     core1_stream_clock(dsd->region, dsd->ratio == 1 && dsd->channels == 1 ? 100 : 200);
     tables(dsd);
-    dsd->position = DSD_HEADER_BYTES;
-    dsd->lane_start = 0u - DSD_LANE_HISTORY;
-    dsd->configured = true;
     return CORE1_DECODED;
 }
 
@@ -178,7 +185,9 @@ static Core1DecodeResult packet(Core1Dsd *dsd)
     if (!load(dsd, next, size) || dsd->region.control->generation != dsd->generation) {
         return CORE1_STARVED;
     }
-    carry(dsd, next);
+    if (!dsd->dop) {
+        carry(dsd, next);
+    }
     dsd->lane = next;
     dsd->lane_start = dsd->byte_position - DSD_LANE_HISTORY;
     dsd->position += size;
@@ -380,6 +389,84 @@ static Core1DecodeResult advance(Core1Dsd *dsd)
     return CORE1_DECODED;
 }
 
+static uint8_t dop_byte(const Core1Dsd *dsd, const uint8_t *data, uint32_t position)
+{
+    if (position >= dsd->byte_count) {
+        return 0x69;
+    }
+    uint8_t value = reverse(ordered(dsd, data[position - dsd->lane_start]));
+    if (position == dsd->steady_end && dsd->partial_bits != 0) {
+        unsigned mask = 0xffu >> dsd->partial_bits;
+        value = (uint8_t)((value & ~mask) | (0x69u & mask));
+    }
+    return value;
+}
+
+static uint32_t dop_pair(const uint8_t *bytes, bool lsb_first)
+{
+    if (!lsb_first) {
+        return bytes_be16(bytes);
+    }
+#if defined(__arm__)
+    uint32_t value = bytes_le16(bytes);
+    __asm__("rbit %0, %1" : "=r"(value) : "r"(value));
+    return value >> 16;
+#else
+    return (uint32_t)reverse(bytes[0]) << 8 | reverse(bytes[1]);
+#endif
+}
+
+static int32_t dop_marker(const Core1Dsd *dsd)
+{
+    return ((dsd->first + dsd->staged) & 1u) == 0 ? 0x050000 : -0x060000;
+}
+
+static void dop_frames(const Core1Dsd *dsd, const uint8_t *bytes, int32_t *samples, uint32_t count)
+{
+    bool lsb_first = dsd->layout == 1;
+    int32_t marker = dop_marker(dsd);
+    for (uint32_t frame = 0; frame < count; frame++, bytes += 2) {
+        samples[frame] = marker | (int32_t)dop_pair(bytes, lsb_first);
+        marker ^= -0x10000;
+    }
+}
+
+static __attribute__((noinline)) Core1DecodeResult pack_dop(Core1Dsd *dsd)
+{
+    int32_t (*output)[FLAC_MAX_BLOCK] = dsd->region.samples[dsd->slot];
+    while (dsd->remaining != 0 && dsd->staged < DSD_OUTPUT_FRAMES) {
+        if (dsd->packet_cursor == dsd->packet_frames) {
+            Core1DecodeResult result = packet(dsd);
+            if (result != CORE1_DECODED) {
+                return result;
+            }
+        }
+        uint32_t available = dsd->packet_frames - dsd->packet_cursor;
+        uint32_t position = dsd->byte_position;
+        uint32_t complete = core1_smaller(available, dsd->steady_end - position) / 2;
+        uint32_t count = core1_smaller(complete, DSD_OUTPUT_FRAMES - dsd->staged);
+        bool tail = count == 0;
+        if (tail) {
+            count = 1;
+        }
+        for (uint32_t channel = 0; channel < dsd->channels; channel++) {
+            const uint8_t *data = lane(dsd, channel);
+            int32_t *samples = &output[channel][dsd->staged];
+            if (tail) {
+                *samples = dop_marker(dsd) | (int32_t)dop_byte(dsd, data, position) << 8 |
+                           dop_byte(dsd, data, position + 1);
+            } else {
+                dop_frames(dsd, data + (position - dsd->lane_start), samples, count);
+            }
+        }
+        dsd->packet_cursor += core1_smaller(available, count * 2);
+        dsd->byte_position += count * 2;
+        dsd->remaining -= count;
+        dsd->staged += count;
+    }
+    return CORE1_DECODED;
+}
+
 static Core1DecodeResult decode(void *context, Core1Block *block)
 {
     Core1Dsd *dsd = context;
@@ -389,10 +476,17 @@ static Core1DecodeResult decode(void *context, Core1Block *block)
             return result;
         }
     }
-    while (dsd->remaining != 0 && dsd->staged < DSD_OUTPUT_FRAMES) {
-        Core1DecodeResult result = advance(dsd);
+    if (dsd->dop) {
+        Core1DecodeResult result = pack_dop(dsd);
         if (result != CORE1_DECODED) {
             return result;
+        }
+    } else {
+        while (dsd->remaining != 0 && dsd->staged < DSD_OUTPUT_FRAMES) {
+            Core1DecodeResult result = advance(dsd);
+            if (result != CORE1_DECODED) {
+                return result;
+            }
         }
     }
     if (dsd->staged == 0) {

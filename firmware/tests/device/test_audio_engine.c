@@ -116,6 +116,7 @@ typedef struct ScriptedSource {
     uint32_t rate;
     uint32_t next_rate;
     uint8_t bits;
+    bool dop;
 } ScriptedSource;
 
 static ScriptedSource scripted;
@@ -135,7 +136,8 @@ static bool scripted_open(void *context, const char *path, uint32_t start_ms, Au
         .stream = {.sample_rate = rate,
                    .channels = 2,
                    .bits_per_sample = source_state->bits == 0 ? 16 : source_state->bits,
-                   .max_block = 16}};
+                   .max_block = 16},
+        .dop = source_state->dop && strcmp(path, "second") != 0};
     return true;
 }
 
@@ -182,6 +184,73 @@ static void start_scripted_engine(int waits, int frames)
                                                    .ring_words = RING_WORDS,
                                                    .resample_render = audio_resample_render});
     audio_engine_set_volume(&engine, FULL_VOLUME);
+}
+
+static void dop_requires_wired_output_and_unity_processing(void)
+{
+    start_scripted_engine(0, 0);
+    CHECK(audio_engine_dop_allowed(&engine, true, REPLAY_GAIN_UNITY));
+    CHECK(!audio_engine_dop_allowed(&engine, false, REPLAY_GAIN_UNITY));
+    CHECK(!audio_engine_dop_allowed(&engine, true, REPLAY_GAIN_UNITY / 2));
+    audio_engine_set_headphones(&engine, (HeadphoneAudio){.left = 32768, .right = 32768});
+    CHECK(!audio_engine_dop_allowed(&engine, true, 0));
+    audio_engine_set_headphones(&engine, headphone_audio_defaults());
+    audio_engine_set_speed(&engine, 110);
+    CHECK(!audio_engine_dop_allowed(&engine, true, 0));
+    audio_engine_set_speed(&engine, 100);
+    HalAudioEqualizer curve = {.pre_gain = HAL_AUDIO_UNITY_PRE_GAIN / 2};
+    audio_engine_set_equalizer(&engine, &curve);
+    CHECK(!audio_engine_dop_allowed(&engine, true, 0));
+    curve.band_count = 1;
+    curve.pre_gain = HAL_AUDIO_UNITY_PRE_GAIN;
+    audio_engine_set_equalizer(&engine, &curve);
+    CHECK(!audio_engine_dop_allowed(&engine, true, 0));
+    curve.band_count = 0;
+    audio_engine_set_equalizer(&engine, &curve);
+    HalAudioEffects effects[] = {{.crossfeed = 1}, {.skip_silence = true}, {.speech_boost = true}};
+    for (size_t index = 0; index < sizeof effects / sizeof effects[0]; index++) {
+        audio_engine_set_effects(&engine, effects[index]);
+        CHECK(!audio_engine_dop_allowed(&engine, true, 0));
+    }
+    audio_engine_set_effects(&engine, (HalAudioEffects){0});
+    CHECK(audio_engine_dop_allowed(&engine, true, 0));
+}
+
+static void dop_ring_preserves_payload_and_switches_to_same_rate_pcm(void)
+{
+    start_scripted_engine(0, 1);
+    scripted.rate = 176400;
+    scripted.bits = 24;
+    scripted.dop = true;
+    for (int at = 0; at < 16; at++) {
+        int32_t marker = (at & 1) == 0 ? 0x050000 : -0x060000;
+        scripted.left[at] = marker | 0x1234;
+        scripted.right[at] = marker | 0x5678;
+    }
+    CHECK(play_file("first", 0, 1));
+    CHECK(engine.output_dop);
+    CHECK_EQUAL(0x05696900, ring[0]);
+    CHECK_EQUAL(0xFA696900, ring[2]);
+    engine.fade_in = (AudioFadeRamp){.active = true, .length = 16};
+    queue_file("second", 2);
+    audio_engine_pump(&engine, 0);
+    CHECK_EQUAL(0x05123400, ring[0]);
+    CHECK_EQUAL(0x05567800, ring[1]);
+    CHECK_EQUAL(0xFA123400, ring[2]);
+    CHECK_EQUAL(0xFA567800, ring[3]);
+    audio_engine_pump(&engine, 3);
+    CHECK_EQUAL(0x05696900, ring[0]);
+    CHECK_EQUAL(0xFA696900, ring[2]);
+    CHECK_EQUAL(0x05696900, ring[4]);
+    CHECK_EQUAL(0xFA123400, ring[6]);
+    audio_engine_pump(&engine, 16);
+    uint32_t rate = 0;
+    CHECK(audio_engine_wants_rate(&engine, &rate));
+    CHECK_EQUAL(176400, rate);
+    audio_engine_restart(&engine);
+    CHECK(!engine.output_dop);
+    CHECK_EQUAL(0, ring[0]);
+    CHECK_EQUAL(2, audio_engine_status(&engine).token);
 }
 
 static int32_t expected_at(const Fixture *pcm, uint32_t index)
@@ -1679,6 +1748,8 @@ static void hardware_balance_keeps_unity_and_software_fallback_scales_samples(vo
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(dop_requires_wired_output_and_unity_processing),
+        TEST_CASE(dop_ring_preserves_payload_and_switches_to_same_rate_pcm),
         TEST_CASE(hardware_balance_keeps_unity_and_software_fallback_scales_samples),
         TEST_CASE(a_zero_sleep_deadline_and_rearming_stay_bounded),
         TEST_CASE(arming_sleep_near_the_end_starts_the_shorter_fade_at_full_level),

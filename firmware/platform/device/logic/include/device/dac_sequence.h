@@ -30,6 +30,7 @@ typedef struct DacBus {
     void (*set_pin)(void *context, DacPin pin, bool level);
     void (*delay_us)(void *context, uint32_t microseconds);
     void *context;
+    const bool *dop;
 } DacBus;
 
 typedef enum DacCurve {
