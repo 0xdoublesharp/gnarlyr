@@ -126,6 +126,7 @@ add_library(echo_device_logic STATIC
     core1_stream.c
     core1_vorbis.c
     core1_vorbis_source.c
+    dac_eq.c
     dac_sequence.c
     debug_report.c
     flac_source.c
@@ -217,6 +218,7 @@ set(ECHO_DEVICE_LOGIC_LTO_SOURCES
     board_pins.c
     bt_module.c
     core1_control.c
+    dac_eq.c
     dac_sequence.c
     exfat_create.c
     fat_create.c
