@@ -66,7 +66,10 @@ class CatalogueSafetyTests(unittest.TestCase):
         with mock.patch.object(sys, "path", [str(tool.parent), *sys.path]):
             spec.loader.exec_module(social)
         source = (publisher.SITE / "index.html").read_text()
-        card = next(card for card in json.loads((tool.parent / "site_social.json").read_text())["cards"] if card["page"] == "index.html")
+        config = (tool.parent / "site_social.json").read_text().replace(
+            "{firmware_name}", json.dumps(social.IDENTITY["name"])[1:-1]
+        )
+        card = next(card for card in json.loads(config)["cards"] if card["page"] == "index.html")
         refreshed = social.update_page(source, social.metadata_tags(source, card, f"{locales.SITE_ORIGIN}/assets/social/example.png"))
         self.assertEqual(locales.catalogue(refreshed), locales.catalogue(source))
 
