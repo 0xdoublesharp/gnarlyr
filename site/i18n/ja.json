@@ -147,11 +147,6 @@
       "source_sha256": "9b8beafc811d138c1b7329239b71b8da903bae1e60c1a56ea6d52350e5e67b18",
       "translation": "曲の詳細と再生位置を表示するGnarlyrの再生画面"
     },
-    "home.m018": {
-      "source": "<span class=\"live-dot\" aria-hidden=\"true\"></span> Now Playing, with a little more personality.",
-      "source_sha256": "a94e2020e2a53f86b85cbb705cae23e445bde3f8e0f0769529d9de9d908801db",
-      "translation": "<span class=\"live-dot\" aria-hidden=\"true\"></span> 再生画面に、もう少し個性を。"
-    },
     "home.m019": {
       "source": "Meet your new daily player",
       "source_sha256": "5d7ab504c96f46464ae56714020c27de0cbafdc3d5091d9c31ba55c76b7b5ebe",
@@ -716,6 +711,266 @@
       "source": "Gnarlyr by doublesharp. Built on Podium and EchoPod, with hardware research from ReChord.\n",
       "source_sha256": "3bb0640bd658adfdc1dc4891424bdef410d98a7c604eeb297ba0bbf7232d4988",
       "translation": "Gnarlyr by doublesharp。PodiumとEchoPodを基盤に、ReChordのハードウェア調査を活用しています。\n"
+    },
+    "home.m120": {
+      "source": "Custom themes →",
+      "source_sha256": "1ec0a20fb6dbf66bf582cd143586d2b798938b2c4e9af50526445351d67a379c",
+      "translation": "カスタムテーマ →"
+    },
+    "home.m121": {
+      "source": "Themes",
+      "source_sha256": "43ae3265b99f2f34e9079ca3e2241ca8729718d749b3eaa2a616628dc2d2f751",
+      "translation": "テーマ"
+    },
+    "home.a025": {
+      "source": "Gnarlyr Now Playing Cover screen showing album artwork and audio format",
+      "source_sha256": "7ceb18cc763e92ff07eb9b0fe0e01069edcfefe622ac7921e7b9db92581a1464",
+      "translation": "アルバムアートワークと音声形式を表示するGnarlyrのカバー再生画面"
+    },
+    "home.a026": {
+      "source": "Gnarlyr Now Playing Cover screen showing album artwork and FLAC 24-bit playback",
+      "source_sha256": "38dadfe01a7f489fd6e96506f194f9476d995a81901ae7a783d0176363219dc3",
+      "translation": "アルバムアートワークと24ビットFLAC再生を表示するGnarlyrのカバー再生画面"
+    },
+    "home.a027": {
+      "source": "Gnarlyr Now Playing VU meters screen with Sunset Drive sun",
+      "source_sha256": "c7cf021401444f310bf2a9058dab7f71399c816b74b22811c1c55e3aee49d8de",
+      "translation": "Sunset Driveの太陽を表示するGnarlyrのVUメーター再生画面"
+    },
+    "home.a028": {
+      "source": "Gnarlyr Now Playing VU meters with a striped retro sunset",
+      "source_sha256": "eec9c78251f9969249d168aec6fab4a7a7bec302f8adda67e19bb1d95f129236",
+      "translation": "レトロな縞模様の夕日とGnarlyrのVUメーター"
+    },
+    "home.a029": {
+      "source": "Gnarlyr Now Playing Spectrum screen with Sunset Drive grid",
+      "source_sha256": "7efbbdbffffc229d7a9cc5a6adc99838d985be4e568d3ad869884af0e98ef820",
+      "translation": "Sunset Driveグリッドを表示するGnarlyrのスペクトラム再生画面"
+    },
+    "home.a030": {
+      "source": "Gnarlyr Now Playing Spectrum visualizer with sunset mountains and grid",
+      "source_sha256": "9422433ca654499ab11e255121d0827ed9ba0342b5313e2c1cfbe3989616f1b3",
+      "translation": "夕日の山並みとグリッドを備えたGnarlyrのスペクトラム表示"
+    },
+    "home.a031": {
+      "source": "Now Playing styles",
+      "source_sha256": "82870f1c9ad64af3dc8cff69bed423106185d09887935f2586b2715840451ff9",
+      "translation": "再生画面のスタイル"
+    },
+    "home.m122": {
+      "source": "Cover",
+      "source_sha256": "fa8d84566676ee2ee6627116304e7eef7c9b06875d230435a4b23264fcc34f98",
+      "translation": "カバー"
+    },
+    "home.m123": {
+      "source": "Cassette",
+      "source_sha256": "47da0fc393353756f6622ecd43449dd15d353b500a3bb8b44c201e347190cb3b",
+      "translation": "カセット"
+    },
+    "home.m124": {
+      "source": "VU meters",
+      "source_sha256": "7fe2d11506b4f902ee226982425e96f82089821249cfa4a26506704db0c17881",
+      "translation": "VUメーター"
+    },
+    "home.m125": {
+      "source": "Spectrum",
+      "source_sha256": "fc457d42d767a3f3eb24df58595fb1955b77c813da138fa1784dc45449cd4ca9",
+      "translation": "スペクトラム"
+    },
+    "home.m126": {
+      "source": "04 / THEMES",
+      "source_sha256": "9a315d504f5f11dcf1318c36bdd5ef132c93b9cb35dfbd62ce0a40f28c410392",
+      "translation": "04 / テーマ"
+    },
+    "home.m127": {
+      "source": "Switch the whole look.",
+      "source_sha256": "10f5341fd416d3e2c943dc224524c5e73d9139e1c1adbf8c2dab51b02800ee72",
+      "translation": "見た目ごと切り替える。"
+    },
+    "home.m128": {
+      "source": "Choose from five built-in themes or drop a custom .gtheme pack onto your ECHO for new palettes, screen artwork, and icons—previewed live before you save.",
+      "source_sha256": "4f844021d7e6a1256ee2ebf082b9811cae7d84778e0a526eaf343d2d26f6d42c",
+      "translation": "5つの内蔵テーマから選ぶか、カスタム.gthemeパックをECHOに追加。配色、背景アート、アイコンを保存前にライブでプレビューできます。"
+    },
+    "home.m129": {
+      "source": "Explore custom themes →",
+      "source_sha256": "8a635567284421e7176899cf42a558abdb37139ba3d12187f2ff3f9ca13ad930",
+      "translation": "カスタムテーマを見る →"
+    },
+    "home.a032": {
+      "source": "Gnarlyr Home screen in Neon Noir theme",
+      "source_sha256": "b3824c319128513fa895a434c9c445ac87d67588709d8bcbbcf3864493b4163e",
+      "translation": "Neon NoirテーマのGnarlyrホーム画面"
+    },
+    "home.a033": {
+      "source": "Gnarlyr Home screen in the built-in Neon Noir theme",
+      "source_sha256": "e6ef7f8e86784e843d65efec457be33c707e2d6174e6a41cbc3447831d12e2fc",
+      "translation": "内蔵テーマNeon NoirのGnarlyrホーム画面"
+    },
+    "home.a034": {
+      "source": "Gnarlyr Home screen in Pocket Scope custom theme",
+      "source_sha256": "b844de9ac1e5c4a39b481271cbb9f0408da1e82542e16e1252dddbf70fe99adb",
+      "translation": "カスタムテーマPocket ScopeのGnarlyrホーム画面"
+    },
+    "home.a035": {
+      "source": "Gnarlyr Home screen using the Pocket Scope phosphor-green theme pack",
+      "source_sha256": "49ca760e780dc170ca83561a5db0a3c9f82cc2181fadc6e8de6d3368cdbe92a4",
+      "translation": "蛍光グリーンのテーマパックPocket Scopeを適用したGnarlyrホーム画面"
+    },
+    "home.a036": {
+      "source": "Gnarlyr Home screen in Desktop 98 custom theme",
+      "source_sha256": "0832299cb18be311d481af0971089212eac97ce7bb70f178e328d19f55673e02",
+      "translation": "カスタムテーマDesktop 98のGnarlyrホーム画面"
+    },
+    "home.a037": {
+      "source": "Gnarlyr Home screen using the Desktop 98 classic bevel theme pack",
+      "source_sha256": "a93f97454f2fbc4e61b032531e0fb5a18cb816e17fd592be76337ba3b24b336d",
+      "translation": "クラシックな立体枠テーマパックDesktop 98を適用したGnarlyrホーム画面"
+    },
+    "home.a038": {
+      "source": "Preview player themes",
+      "source_sha256": "ed3dd330530cb29ee0a8b02709c0ca41beb913d639365c165fe496cdf791df0d",
+      "translation": "プレーヤーテーマのプレビュー"
+    },
+    "home.m130": {
+      "source": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#121022\"></i><i style=\"background:#7cede4\"></i><i style=\"background:#f496d6\"></i></span> Neon Noir",
+      "source_sha256": "14c937e55ece557f8e7f4aedf87954b81f1669305fc9f071847da83e46843d52",
+      "translation": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#121022\"></i><i style=\"background:#7cede4\"></i><i style=\"background:#f496d6\"></i></span> Neon Noir"
+    },
+    "home.m131": {
+      "source": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#101814\"></i><i style=\"background:#92e45e\"></i><i style=\"background:#e8c76c\"></i></span> Pocket Scope",
+      "source_sha256": "f54e72b88888bb87ad3f34efb585d85f143957de5065cd6a01d86ae0197dae57",
+      "translation": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#101814\"></i><i style=\"background:#92e45e\"></i><i style=\"background:#e8c76c\"></i></span> Pocket Scope"
+    },
+    "home.m132": {
+      "source": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#d6d4ce\"></i><i style=\"background:#183b72\"></i><i style=\"background:#20232a\"></i></span> Desktop 98",
+      "source_sha256": "8d32d0ae0f2bfeb494b5d9df552a4bb267e0ecc433d983b199eb7a4f58479ec5",
+      "translation": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#d6d4ce\"></i><i style=\"background:#183b72\"></i><i style=\"background:#20232a\"></i></span> Desktop 98"
+    },
+    "home.a039": {
+      "source": "Gnarlyr USB audio DAC screen with live stereo meters",
+      "source_sha256": "ff50e50335324ece6e26bc0f5e10273aad1fb98bd3a6f675b206166959d9be01",
+      "translation": "ライブステレオメーターを表示するGnarlyr USBオーディオDAC画面"
+    },
+    "home.a040": {
+      "source": "Gnarlyr USB audio DAC screen showing 44.1 kHz 24-bit stereo meters",
+      "source_sha256": "e9bb0f8c995282e7afacb00cd07327a2e98f7caa2cfa71664948c13862c59233",
+      "translation": "44.1 kHz 24ビットのステレオメーターを表示するGnarlyr USBオーディオDAC画面"
+    },
+    "home.a041": {
+      "source": "Gnarlyr USB storage screen with wireframe throughput terrain",
+      "source_sha256": "6705aac5b3fff4918e402d3198ae933cdb9f4c7e1fe67c0679242c8e56899b56",
+      "translation": "ワイヤーフレーム転送地形を表示するGnarlyr USBストレージ画面"
+    },
+    "home.a042": {
+      "source": "Gnarlyr USB storage screen showing wireframe transfer graph and drive space",
+      "source_sha256": "bc35475ce98f7e7d4ff2bccc95d4f631fda64be12eaec3c6347bc8d9b03e5164",
+      "translation": "ワイヤーフレーム転送グラフと空き容量を表示するGnarlyr USBストレージ画面"
+    },
+    "home.a043": {
+      "source": "Gnarlyr Portrait Now Playing screen",
+      "source_sha256": "ed696177ae7b00bf251eca8dce95f4db7db71ae081e3a9785c9d36a748b78304",
+      "translation": "縦向きのGnarlyr再生画面"
+    },
+    "home.a044": {
+      "source": "Gnarlyr Now Playing screen in vertical portrait orientation",
+      "source_sha256": "7c21b4e92565d34653bef244705dda6986917574ce3c56a2d3951541c8da4fd4",
+      "translation": "縦向きレイアウトのGnarlyr再生画面"
+    },
+    "home.a045": {
+      "source": "Hardware screen views",
+      "source_sha256": "11a640650b8e4bdae7f4763feae2e1749554f9734995b431658ff0e054e38d8e",
+      "translation": "ハードウェア画面ビュー"
+    },
+    "home.m133": {
+      "source": "Home",
+      "source_sha256": "3a78695388b38b5cceefaf6796b0137877514593543b91af2752d5a17e3d736c",
+      "translation": "ホーム"
+    },
+    "home.m134": {
+      "source": "USB audio",
+      "source_sha256": "cea23ae33f01ad4adef0f2125bb94e7b6fcb9afbd48e7397ea327e7e477def13",
+      "translation": "USBオーディオ"
+    },
+    "home.m135": {
+      "source": "USB storage",
+      "source_sha256": "d6923662a8906cb184b7962eeee2a2e7ffe696d83757cac1b3bc4d700988665d",
+      "translation": "USBストレージ"
+    },
+    "home.m136": {
+      "source": "Portrait",
+      "source_sha256": "f71094c30160d155c9b29fd67e3b6f86ad254003a163da4c24d1f0061b0ed0ad",
+      "translation": "縦向き"
+    },
+    "home.a046": {
+      "source": "Explore Gnarlyr Companion in light mode",
+      "source_sha256": "0dff78f5285b067961f663f0bfe235fe86f409e8dc488ba309acbebc01d66211",
+      "translation": "ライトモードのGnarlyr Companionを見る"
+    },
+    "home.a047": {
+      "source": "Gnarlyr Companion browsing the same album library in light mode",
+      "source_sha256": "9c6b403d909fb37357f26ed6b83d0f8b274e9662b7a50a8fd6bf166edb6b4bdb",
+      "translation": "同じアルバムライブラリをライトモードで表示するGnarlyr Companion"
+    },
+    "home.a048": {
+      "source": "Explore the Gnarlyr Companion mixtape editor",
+      "source_sha256": "ba9d9f5a0d5cdf9f5442ec0e92e70bd59dc5f44ab725296cb38ac94d3d04b3db",
+      "translation": "Gnarlyr Companionのミックステープ編集画面を見る"
+    },
+    "home.a049": {
+      "source": "Gnarlyr Companion editing a two-sided C90 cassette mixtape",
+      "source_sha256": "a5a7775fee5a2e72d66cfb7293072f50201fbb64e2e263c74d23428721f2a90d",
+      "translation": "両面C90カセットのミックステープを編集するGnarlyr Companion"
+    },
+    "home.a050": {
+      "source": "Explore the Gnarlyr Companion theme previewer",
+      "source_sha256": "d532194bb4bc66c7b3c3c3e9f22668ef6b000f1026d79f1349f65b7c6669e26d",
+      "translation": "Gnarlyr Companionのテーマプレビューを見る"
+    },
+    "home.a051": {
+      "source": "Gnarlyr Companion previewing the Pocket Scope theme pack",
+      "source_sha256": "ff0ede9f91b5fe148ce0912834a29f690cf0a7a3fd3cbea318d2e01f2c8b9af4",
+      "translation": "Pocket ScopeテーマパックをプレビューするGnarlyr Companion"
+    },
+    "home.a052": {
+      "source": "Explore the Gnarlyr Companion copy review",
+      "source_sha256": "27177ac12f4185d43d1d9218b5ca967725718d9cc0b4ed70765885ab9985f4dd",
+      "translation": "Gnarlyr Companionのコピー確認画面を見る"
+    },
+    "home.a053": {
+      "source": "Gnarlyr Companion reviewing selected albums before copying",
+      "source_sha256": "c5e3a6b1dbcd22213bc309fed95f44ab33d69fbdc643adc15af09badb1669a9d",
+      "translation": "コピー前に選択したアルバムを確認するGnarlyr Companion"
+    },
+    "home.a054": {
+      "source": "Companion views",
+      "source_sha256": "d3078c1948972f6ae11f635a101838e1d701a682bcac2723586c13a77f6b3bc2",
+      "translation": "Companionの画面"
+    },
+    "home.m137": {
+      "source": "Dark",
+      "source_sha256": "60acc53f13a5d1bf115878c4a785e9a43e8286c4139a8402a6ac7d23966f9153",
+      "translation": "ダーク"
+    },
+    "home.m138": {
+      "source": "Light",
+      "source_sha256": "dbcd5e7bb7a0f538810de44c3efbd813037ee3fa358747bb71fa58e157af45f7",
+      "translation": "ライト"
+    },
+    "home.m139": {
+      "source": "Mixtapes",
+      "source_sha256": "a163510b2bd9f4ad6661cfe0cf3463ed3fe0ca65c41f31a0964449475aeb0679",
+      "translation": "ミックステープ"
+    },
+    "home.m140": {
+      "source": "Themes",
+      "source_sha256": "43ae3265b99f2f34e9079ca3e2241ca8729718d749b3eaa2a616628dc2d2f751",
+      "translation": "テーマ"
+    },
+    "home.m141": {
+      "source": "Copy review",
+      "source_sha256": "aac6266599223b28fdf7004832ecf926275e8e878890d4d81e2138311a457d5d",
+      "translation": "コピー確認"
     }
   }
 }

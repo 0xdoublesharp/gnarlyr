@@ -108,7 +108,7 @@ class PublishedLanguageTests(unittest.TestCase):
 
     def test_only_complete_language_pages_are_published(self):
         self.assertEqual({locale["code"] for locale in self.config["locales"]}, {"en", "es", "de", "ja", "fr", "pt"})
-        self.assertEqual(len(self.pages), 14)
+        self.assertEqual(len(self.pages), 15)
         self.assertTrue(all("data-i18n" not in doc.source for doc in self.pages.values()))
         self.assertFalse(any(path.startswith("i18n/") for path in self.files))
         self.assertNotIn("es/docs.html", self.files)
@@ -141,7 +141,7 @@ class PublishedLanguageTests(unittest.TestCase):
     def test_sitemap_contains_canonical_pages_without_english_duplicates(self):
         root = ET.fromstring(self.files["sitemap.xml"])
         urls = [node.text for node in root.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
-        self.assertEqual(len(urls), 14)
+        self.assertEqual(len(urls), 15)
         self.assertEqual(len(set(urls)), len(urls))
         self.assertIn(f"{self.config['origin']}/ja/", urls)
         self.assertNotIn(f"{self.config['origin']}/index.html", urls)

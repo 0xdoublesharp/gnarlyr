@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { cp, mkdir, mkdtemp, readFile, readdir, rename, rm, statfs, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, statfs, writeFile } from "node:fs/promises";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const identity = JSON.parse(await readFile(join(root, "firmware/identity.json"), "utf8"));
@@ -20,6 +20,15 @@ function option(name, fallback) {
 const source = option("--source-root", resolve(root, `../${identity.name.toLowerCase()}-companion`));
 const configPath = option("--config", join(root, "tools/site_companion_screenshots.json"));
 const config = JSON.parse(await readFile(configPath, "utf8"));
+const siteAssets = join(root, "site/assets/companion");
+const output = option("--output", siteAssets);
+if (output !== siteAssets && !output.startsWith(scratch + sep))
+  throw new Error("Capture output must be the Companion asset directory or under project Scratch");
+const onlyScreens = [];
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === "--only" && args[i + 1]) onlyScreens.push(args[++i]);
+}
+if (onlyScreens.length) config.screens = onlyScreens;
 if (config.licensed_artwork) {
   const result = spawnSync("python3", [join(root, "tools/site_album_art.py")], {
     encoding: "utf8", timeout: 180000, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
@@ -94,7 +103,7 @@ try {
   await writeFile(join(card, `${identity.data_directory}/lang/es.pack`), packBytes());
   await writeFile(join(profile, "library.json"), JSON.stringify({ version: 1, selected: [], theme: "dark", appLanguage: "en" }));
   app = await _electron.launch({ executablePath: electron, args: [join(source, ".build/app")],
-    env: { ...env, [`${identity.id}_TEST_MODE`]: "1", [`${identity.id}_USER_DATA_DIR`]: profile, [`${identity.id}_BACKUP_DIR`]: join(work, "backups") }, timeout: 30000 });
+    env: { ...env, [`${identity.id}_TEST_MODE`]: "1", [`${identity.id}_DISABLE_DISCOVERY`]: "1", [`${identity.id}_USER_DATA_DIR`]: profile, [`${identity.id}_BACKUP_DIR`]: join(work, "backups") }, timeout: 30000 });
   const page = await app.firstWindow();
   page.setDefaultTimeout(15000);
   const errors = [];
@@ -115,121 +124,111 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     rendered.set(`${name}.png`, await page.screenshot({ scale: "css", animations: "disabled" }));
   };
+  const themesOnly = config.screens.length === 1 && config.screens[0] === "themes";
   await page.getByRole("button", { name: "Add music folder" }).waitFor();
   await pick(music);
   await page.getByRole("button", { name: "Add music folder" }).click();
   await page.waitForFunction((count) => document.querySelectorAll(".album-card").length === count, config.albums.length);
-  await page.locator(".album-card").nth(0).click();
-  await page.locator(".album-card").nth(1).click();
-  await page.getByText("2 albums selected", { exact: true }).waitFor();
-  await shot("library-dark");
-  const language = page.locator(".app-language select");
-  assert.equal(await language.locator("option").count(), 14, "System preference and 13 bundled languages");
-  await language.selectOption("es");
-  await page.waitForFunction(() => document.documentElement.lang === "es" && !document.querySelector(".app-language select").disabled);
-  await shot("app-language");
-  await language.selectOption("en");
-  await page.waitForFunction(() => document.documentElement.lang === "en" && !document.querySelector(".app-language select").disabled);
-  await page.getByRole("button", { name: "Switch to light mode" }).click();
-  await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
-  await shot("library-light");
-  await page.getByRole("button", { name: "Switch to dark mode" }).click();
-  await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
-  await pick(target);
-  await page.getByRole("button", { name: "Review copy" }).click();
-  await page.getByRole("dialog").waitFor();
-  await shot("sync-preview");
-  assert.deepEqual(await readdir(target), [], "Preview must not copy files");
-  await page.keyboard.press("Escape");
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
-  stock = await stockFixture();
-  await app.evaluate(installStockCommandMocks, { tree: stock.tree, info: stock.info });
-  await page.getByRole("button", { name: "Your Echo", exact: true }).click();
-  await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
-  await page.locator(".stock-install").evaluate((element) => element.scrollIntoView({ block: "center" }));
-  await shot("first-install");
-  await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
-  await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
-  await page.locator(".recovery-panel").evaluate((element) => element.scrollIntoView({ block: "center" }));
-  await shot("recovery");
-  await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
-  await pick(device.volume);
-  await page.getByRole("button", { name: "Choose player drive" }).click();
-  await page.getByLabel("Brightness", { exact: false }).waitFor();
-  await shot("player-settings");
-  await pick(device.image);
-  await page.getByRole("button", { name: "Choose firmware image" }).click();
-  await page.getByText("Build a1b2c3d", { exact: false }).waitFor();
-  await page.getByRole("button", { name: "Review firmware", exact: true }).click();
-  await page.getByRole("dialog").waitFor();
-  await shot("firmware-review");
-  await page.keyboard.press("Escape");
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "Languages", exact: true }).click();
-  await pick(card);
-  await page.getByRole("button", { name: "Choose microSD drive" }).click();
-  await pick(device.image);
-  await page.getByRole("button", { name: "Choose installed firmware image" }).click();
-  await page.getByRole("button", { name: "Preview Español" }).waitFor();
-  await page.getByRole("button", { name: "Languages", exact: true }).click();
-  await page.getByRole("button", { name: "Preview Español" }).scrollIntoViewIfNeeded();
-  await page.getByRole("button", { name: "Preview Español" }).click();
-  await page.getByRole("dialog").waitFor();
-  await shot("languages");
-  await page.keyboard.press("Escape");
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
-  await cp(music, card, { recursive: true });
-  const theme = join(work, "pocket-scope.gtheme");
-  // Render a pack supported by this app's bundled engine, even when the
-  // firmware checkout has moved to a newer prerelease theme format.
-  const themePin = JSON.parse(await readFile(join(source, "workers/theme-engine.json"), "utf8"));
-  const themeTool = join(source, ".build/echo-sync/source/themes/firmware/tools/theme_pack.py");
-  assert.equal(createHash("sha256").update(await readFile(themeTool)).digest("hex"),
-    themePin.files["firmware/tools/theme_pack.py"]);
-  const themeSource = join(work, "pocket-scope-source");
-  await cp(join(root, "examples/themes/pocket-scope"), themeSource, { recursive: true });
-  const themeManifest = JSON.parse(await readFile(join(themeSource, "theme.json"), "utf8"));
-  // The current app's format-1 builder uses RGB565 without a codec selector.
-  delete themeManifest.codec;
-  await writeFile(join(themeSource, "theme.json"), JSON.stringify(themeManifest));
-  const packed = spawnSync(join(root, "firmware/.venv/bin/python"), [themeTool,
-    themeSource, "--output", theme], { env, encoding: "utf8", timeout: 30000 });
-  assert.equal(packed.status, 0, packed.stderr);
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
-  await pick(theme);
-  await page.getByRole("button", { name: "Open pack", exact: true }).click();
-  await page.getByRole("heading", { name: "Pocket Scope", exact: true }).waitFor();
-  await shot("themes");
-  await page.getByRole("button", { name: "Player library", exact: true }).click();
-  await pick(card);
-  await page.getByRole("button", { name: "Choose music drive", exact: true }).click();
-  await page.getByRole("button", { name: "Review preparation", exact: true }).waitFor();
-  await page.getByLabel("Preparation mode", { exact: true }).selectOption("full");
-  await shot("player-library");
-  await page.getByRole("button", { name: "Review preparation", exact: true }).click();
-  await page.getByRole("dialog", { name: "Ready for your player.", exact: true }).waitFor();
-  await shot("player-library-review");
-  await page.keyboard.press("Escape");
-  await page.getByRole("dialog").waitFor({ state: "hidden" });
-  await page.getByRole("button", { name: "Mixtapes", exact: true }).click();
-  await pick(card);
-  await page.getByRole("button", { name: "Choose music drive", exact: true }).first().click();
-  await page.getByRole("button", { name: "New mixtape", exact: true }).click();
-  await page.getByLabel("Mixtape name", { exact: true }).fill("Night drive");
-  await page.getByLabel("Mixtape format", { exact: true }).selectOption("45");
-  for (const album of config.albums.slice(0, 3)) {
-    await page.locator(".mix-source-tracks > div").filter({ hasText: `${album.artist} · ${album.title}` })
-      .getByRole("button", { name: `Add ${album.tracks[0]}`, exact: true }).click();
+  if (!themesOnly) {
+    await page.locator(".album-card").nth(0).click();
+    await page.locator(".album-card").nth(1).click();
+    await page.getByText("2 albums selected", { exact: true }).waitFor();
+    await shot("library-dark");
+    const language = page.locator(".app-language select");
+    assert.equal(await language.locator("option").count(), 14, "System preference and 13 bundled languages");
+    await language.selectOption("es");
+    await page.waitForFunction(() => document.documentElement.lang === "es" && !document.querySelector(".app-language select").disabled);
+    await shot("app-language");
+    await language.selectOption("en");
+    await page.waitForFunction(() => document.documentElement.lang === "en" && !document.querySelector(".app-language select").disabled);
+    await page.getByRole("button", { name: "Switch to light mode" }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === "light");
+    await shot("library-light");
+    await page.getByRole("button", { name: "Switch to dark mode" }).click();
+    await page.waitForFunction(() => document.documentElement.dataset.theme === "dark");
+    await pick(target);
+    await page.getByRole("button", { name: "Review copy" }).click();
+    await page.getByRole("dialog").waitFor();
+    await shot("sync-preview");
+    assert.deepEqual(await readdir(target), [], "Preview must not copy files");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    stock = await stockFixture();
+    await app.evaluate(installStockCommandMocks, { tree: stock.tree, info: stock.info });
+    await page.getByRole("button", { name: "Your Echo", exact: true }).click();
+    await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
+    await page.locator(".stock-install").evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await shot("first-install");
+    await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
+    await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
+    await page.locator(".recovery-panel").evaluate((element) => element.scrollIntoView({ block: "center" }));
+    await shot("recovery");
+    await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
+    await pick(device.volume);
+    await page.getByRole("button", { name: "Choose player drive" }).click();
+    await page.getByLabel("Brightness", { exact: false }).waitFor();
+    await shot("player-settings");
+    await pick(device.image);
+    await page.getByRole("button", { name: "Choose firmware image" }).click();
+    await page.getByText("Build a1b2c3d", { exact: false }).waitFor();
+    await page.getByRole("button", { name: "Review firmware", exact: true }).click();
+    await page.getByRole("dialog").waitFor();
+    await shot("firmware-review");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Languages", exact: true }).click();
+    await pick(card);
+    await page.getByRole("button", { name: "Choose microSD drive" }).click();
+    await pick(device.image);
+    await page.getByRole("button", { name: "Choose installed firmware image" }).click();
+    await page.getByRole("button", { name: "Preview Español" }).waitFor();
+    await page.getByRole("button", { name: "Languages", exact: true }).click();
+    await page.getByRole("button", { name: "Preview Español" }).scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: "Preview Español" }).click();
+    await page.getByRole("dialog").waitFor();
+    await shot("languages");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await cp(music, card, { recursive: true });
   }
-  await page.getByLabel("Side for track 3", { exact: true }).selectOption("B");
-  await page.locator(".mix-drive").evaluate((element) => element.scrollIntoView({ block: "start" }));
-  await shot("mixtapes");
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  await page.getByRole("button", { name: "Pocket Scope", exact: true }).click();
+  await page.getByRole("heading", { name: "Pocket Scope", exact: true }).waitFor();
+  await page.getByRole("img", { name: "RGB565 artwork" }).waitFor();
+  await page.waitForFunction(() => !document.querySelector(".theme-busy") && !document.body.textContent.includes("Working"));
+  await shot("themes");
+  if (!themesOnly) {
+    await page.getByRole("button", { name: "Player library", exact: true }).click();
+    await pick(card);
+    await page.getByRole("button", { name: /^(Choose music drive|Change drive)$/ }).click();
+    await page.getByRole("button", { name: "Review preparation", exact: true }).waitFor();
+    await page.getByLabel("Preparation mode", { exact: true }).selectOption("full");
+    await shot("player-library");
+    await page.getByRole("button", { name: "Review preparation", exact: true }).click();
+    await page.getByRole("dialog", { name: "Ready for your player.", exact: true }).waitFor();
+    await shot("player-library-review");
+    await page.keyboard.press("Escape");
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await page.getByRole("button", { name: "Mixtapes", exact: true }).click();
+    await pick(card);
+    await page.getByRole("button", { name: /^(Choose music drive|Change music drive)$/ }).first().click();
+    await page.getByRole("button", { name: "New mixtape", exact: true }).click();
+    await page.getByLabel("Mixtape name", { exact: true }).fill("Night drive");
+    await page.getByLabel("Mixtape format", { exact: true }).selectOption("45");
+    for (const album of config.albums.slice(0, 3)) {
+      await page.locator(".mix-source-tracks > div").filter({ hasText: `${album.artist} · ${album.title}` })
+        .getByRole("button", { name: `Add ${album.tracks[0]}`, exact: true }).click();
+    }
+    await page.getByLabel("Side for track 3", { exact: true }).selectOption("B");
+    await page.locator(".mix-drive").evaluate((element) => element.scrollIntoView({ block: "start" }));
+    await shot("mixtapes");
+  }
   assert.deepEqual(errors, []);
   assert.deepEqual(await readFile(join(device.volume, `${identity.data_directory}/settings.bin`)), device.settings);
   assert.equal((await readdir(device.volume)).some((name) => /\.img$/i.test(name)), false);
   assert.equal(rendered.size, config.screens.length);
-  const output = join(root, "site/assets/companion");
   await mkdir(output, { recursive: true });
+  assert.equal(await realpath(output), output, "Capture output must not use symlinks");
   for (const [name, data] of rendered) {
     const staged = join(output, ".capture-" + name);
     await writeFile(staged, data);

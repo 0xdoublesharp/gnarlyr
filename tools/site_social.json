@@ -8,6 +8,7 @@
     {"page":"recovery.html","name":"recovery","label":"Recovery","title":["Back to","the music."],"description":["When the player won’t start.","A guide for the full-size ECHO."]},
     {"page":"build.html","name":"developers","label":"Developer tools","title":["Build it.","Make it yours."],"description":["Source builds and developer tools.","USB workflows and audio internals."]},
     {"page":"languages.html","name":"languages","label":"Language packs","title":["Your player.","Your language."],"description":["Build, check, and edit language packs.","Translate right in your browser."]},
+    {"page":"themes.html","name":"themes","label":"Theme packs","title":["Make your ECHO","look like yours."],"description":["Custom palettes, backgrounds, and icons.","See examples and build your own pack."]},
     {"page":"companion.html","name":"companion","label":"{firmware_name} Companion · desktop beta","title":["Your music.","A bigger view."],"description":["Local music. Player care.","Meet the desktop companion."]}
   ]
 }

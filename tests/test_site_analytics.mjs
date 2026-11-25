@@ -11,7 +11,7 @@ const domain = `${brand}.com`;
 const site = `https://${domain}`;
 const docsTitle = `${identity.name} Docs`;
 const websiteId = '7776169d-25f5-4420-bed8-810b4fbacdc7';
-const pages = ['index', 'firmware', 'docs', 'hardware', 'companion', 'install', 'build', 'recovery', 'languages'];
+const pages = ['index', 'firmware', 'docs', 'hardware', 'companion', 'install', 'build', 'recovery', 'languages', 'themes'];
 const paths = ['/', ...pages.map((page) => `/${page}.html`)];
 
 function visit(overrides = {}) {
