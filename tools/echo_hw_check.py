@@ -483,7 +483,8 @@ def check_report(tool, build, max_underruns, require_dac=False, max_dac_gap_us=N
             check(name, value, [None, allowed], value in (None, allowed))
 
         millivolts = values.get("battery.millivolts")
-        usb_power = values.get("power.usb_power") == 1 or values.get("battery.usb_power") == 1
+        usb_power = (values.get("power.usb_powered") == 1 or values.get("power.usb_power") == 1
+                     or values.get("power.vbus") == 1 or values.get("battery.usb_power") == 1)
         max_mv = 4900 if usb_power else 4500
         check("battery.millivolts", millivolts, f"unknown or 3000..{max_mv} mV",
               millivolts is None or isinstance(millivolts, int) and 3000 <= millivolts <= max_mv)
