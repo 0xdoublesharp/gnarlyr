@@ -53,6 +53,8 @@
         "entry": "scan_record",
         "sources": [
           "src/app/music_check.c",
+          "src/app/music_check_boot.c",
+          "src/app/music_check_version.c",
           "src/app/music_record.c",
           "src/library/music_fingerprint.c"
         ],

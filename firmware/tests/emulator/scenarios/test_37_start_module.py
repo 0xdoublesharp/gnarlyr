@@ -54,6 +54,12 @@ class EchoImageTest(EchoImageHarness):
              machine.reg(UC_ARM_REG_R2) & 255)))
         return applied, ModuleWatch(session)
 
+    def before_splash(self, session):
+        applied, watch = self.watch(session)
+        session.machine.stop_at("app_show_splash")
+        self.assertEqual("reached app_show_splash", session.run_until_reset())
+        return applied, watch
+
     def started(self, session):
         applied, watch = self.watch(session)
         self.assertEqual(session.run_to_home_screen(), "condition met")
@@ -71,7 +77,8 @@ class EchoImageTest(EchoImageHarness):
     def test_a_cold_start_loads_the_headphone_profile_from_the_start_module_once_per_start(self):
         session = self.session(volume=self.profile_volume())
         starts = session.machine.trace("headphone_store_load")
-        applied, watch = self.started(session)
+        applied, watch = self.before_splash(session)
+        self.assertEqual(1, len(starts))
         self.assert_profile_applied(applied)
         loads = self.start_loads(watch)
         self.assertEqual(len(starts), len(loads), [watch.describe(call) for call in watch.loads()])
@@ -146,7 +153,8 @@ class EchoImageTest(EchoImageHarness):
         session = self.session(volume=self.settings_volume())
         reads = session.machine.trace("settings_store_read")
         starts = session.machine.trace("headphone_store_load")
-        _, watch = self.started(session)
+        _, watch = self.before_splash(session)
+        self.assertEqual(1, len(starts))
         self.assertEqual(len(starts), len(reads))
         self.assertEqual(len(starts), len(self.start_loads(watch)),
                          [watch.describe(call) for call in watch.loads()])
@@ -160,8 +168,8 @@ class EchoImageTest(EchoImageHarness):
         starts = machine.trace("headphone_store_load")
         reads = [machine.trace(name) for name in
                  ("player_restore", "favorites_store_read", "spoken_store_read")]
-        _, watch = self.started(session)
-        self.assertTrue(starts)
+        _, watch = self.before_splash(session)
+        self.assertEqual(1, len(starts))
         for calls in reads:
             self.assertEqual(len(starts), len(calls))
         self.assertEqual(len(starts), len(self.start_loads(watch)),

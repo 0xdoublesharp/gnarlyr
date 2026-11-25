@@ -787,7 +787,8 @@ foreach(module IN LISTS ECHO_SCREEN_MODULES)
             favorites_store_read=trial_favorites_store_read
             spoken_store_read=trial_spoken_store_read
             bluetooth_store_load=trial_bluetooth_store_load
-            card_files_prepare_step=trial_card_files_prepare_step)
+            card_files_prepare_step=trial_card_files_prepare_step
+            card_files_start_scan=trial_card_files_start_scan)
     endif()
     if(module STREQUAL "extension")
         target_link_libraries(${module_target}_objects PRIVATE echo_device_logic)

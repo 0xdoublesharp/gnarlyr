@@ -1,5 +1,8 @@
 #include "device/bt_module.h"
 
+#include <stddef.h>
+#include <string.h>
+
 #include "core/deadline.h"
 #include "core/seam.h"
 
@@ -8,6 +11,7 @@ enum {
     SCAN_HEADER_SIZE = 4,
     SCAN_PAYLOAD_LIMIT = 38,
     CONNECTED_HEADER_SIZE = 5,
+    CONNECTED_PAYLOAD_LIMIT = 100,
     SHORT_FRAME_SIZE = 2,
     STATUS_FRAME_SIZE = 3,
     WORD_FRAME_SIZE = 4,
@@ -44,18 +48,18 @@ static void set_state(BtModule *module, HalBluetoothState state, uint32_t now_ms
 CORE_COLD static void restart(BtModule *module, HalBluetoothState state, uint32_t now_ms)
 {
     HalBluetoothStatus *status = &module->status;
-    HalBluetoothLink link = status->link;
-    HalBluetoothDevice devices[HAL_BLUETOOTH_DEVICE_CAPACITY];
-    uint8_t count = status->device_count;
-    uint32_t last_event_ms = module->last_event_ms;
-    for (uint8_t index = 0; index < count; index++) {
-        devices[index] = status->devices[index];
-    }
-    *module = (BtModule){.status = {.state = state, .link = link, .device_count = count}};
-    for (uint8_t index = 0; index < count; index++) {
-        status->devices[index] = devices[index];
-    }
-    module->last_event_ms = last_event_ms;
+    status->state = state;
+    status->version = 0;
+    status->link_status = 0;
+    status->pairing = HAL_BLUETOOTH_PAIRING_NONE;
+    status->streaming = false;
+    status->connected = (HalBluetoothDevice){0};
+    status->found_now = 0;
+    status->remote = (HalBluetoothRemote){0};
+    size_t kept = status->device_count;
+    memset(status->devices + kept, 0, sizeof status->devices - kept * sizeof status->devices[0]);
+    size_t protocol = offsetof(BtModule, chunk);
+    memset((uint8_t *)module + protocol, 0, offsetof(BtModule, last_event_ms) - protocol);
     module->state_since_ms = now_ms;
     module->last_query_ms = now_ms;
 }
@@ -86,24 +90,18 @@ static uint32_t payload_length(const uint8_t *digits)
     return 10u * (uint32_t)(digits[0] - '0') + (uint32_t)(digits[1] - '0');
 }
 
-static uint32_t scan_frame_size(const uint8_t *bytes, uint32_t available)
+static uint32_t numbered_frame_size(const uint8_t *bytes, uint32_t available, uint32_t header,
+                                    uint32_t limit)
 {
-    if (available < SCAN_HEADER_SIZE || !is_digit(bytes[2]) || !is_digit(bytes[3])) {
-        return SCAN_HEADER_SIZE;
+    if (available < header) {
+        return header;
     }
-    uint32_t length = payload_length(bytes + 2);
-    return length >= SCAN_PAYLOAD_LIMIT ? SCAN_HEADER_SIZE : SCAN_HEADER_SIZE + length;
-}
-
-static uint32_t status_frame_size(const uint8_t *bytes, uint32_t available)
-{
-    if (available < STATUS_FRAME_SIZE || bytes[2] != 'O') {
-        return STATUS_FRAME_SIZE;
+    const uint8_t *digits = bytes + header - 2;
+    if (!is_digit(digits[0]) || !is_digit(digits[1])) {
+        return header;
     }
-    if (available < CONNECTED_HEADER_SIZE || !is_digit(bytes[3]) || !is_digit(bytes[4])) {
-        return CONNECTED_HEADER_SIZE;
-    }
-    return CONNECTED_HEADER_SIZE + payload_length(bytes + 3);
+    uint32_t length = payload_length(digits);
+    return length < limit ? header + length : header;
 }
 
 static uint32_t result_frame_size(const uint8_t *bytes, uint32_t available)
@@ -119,9 +117,13 @@ static uint32_t frame_size(const uint8_t *bytes, uint32_t available)
 {
     switch (bytes[1]) {
     case 'S':
-        return scan_frame_size(bytes, available);
+        return numbered_frame_size(bytes, available, SCAN_HEADER_SIZE, SCAN_PAYLOAD_LIMIT);
     case 'Q':
-        return status_frame_size(bytes, available);
+        if (available < STATUS_FRAME_SIZE || bytes[2] != 'O') {
+            return STATUS_FRAME_SIZE;
+        }
+        return numbered_frame_size(bytes, available, CONNECTED_HEADER_SIZE,
+                                   CONNECTED_PAYLOAD_LIMIT);
     case 'T':
     case 'H':
         return result_frame_size(bytes, available);
@@ -438,23 +440,25 @@ void bt_module_receive(BtModule *module, uint8_t byte, uint32_t now_ms)
     }
 }
 
+static void make_frame(BtModuleFrame *frame, uint8_t letter, uint8_t value, uint8_t length)
+{
+    *frame = (BtModuleFrame){.bytes = {'C', letter, '0', value}, .length = length};
+}
+
 static bool command(BtModule *module, char letter, uint32_t now_ms, BtModuleFrame *frame)
 {
     if (letter != 'Q') {
         add_event(module, '>', letter, now_ms);
     }
-    *frame = (BtModuleFrame){.bytes = {'C', (uint8_t)letter, '0', '0', 0}, .length = COMMAND_SIZE};
+    make_frame(frame, (uint8_t)letter, '0', COMMAND_SIZE);
     return true;
 }
 
 static bool address_command(BtModule *module, char letter, uint32_t now_ms, BtModuleFrame *frame)
 {
     add_event(module, '>', letter, now_ms);
-    *frame =
-        (BtModuleFrame){.bytes = {'C', (uint8_t)letter, '0', '6'}, .length = ADDRESS_COMMAND_SIZE};
-    for (uint32_t index = 0; index < ADDRESS_SIZE; index++) {
-        frame->bytes[WORD_FRAME_SIZE + index] = module->target.address[index];
-    }
+    make_frame(frame, (uint8_t)letter, '6', ADDRESS_COMMAND_SIZE);
+    memcpy(frame->bytes + WORD_FRAME_SIZE, module->target.address, ADDRESS_SIZE);
     return true;
 }
 
@@ -569,15 +573,19 @@ static bool query_status(BtModule *module, uint32_t now_ms, BtModuleFrame *frame
     return command(module, 'Q', now_ms, frame);
 }
 
+static void stream_reply(BtModule *module, bool on, uint32_t now_ms, BtModuleFrame *frame)
+{
+    add_event(module, '>', on ? 'Y' : 'N', now_ms);
+    make_frame(frame, 'Y', on ? STREAM_ON_LEVEL : 0, COMMAND_SIZE);
+}
+
 static bool answer_play_report(BtModule *module, uint32_t now_ms, BtModuleFrame *frame)
 {
     if (!module->resend_stream) {
         return false;
     }
     module->resend_stream = false;
-    add_event(module, '>', module->resend_on ? 'Y' : 'N', now_ms);
-    *frame = (BtModuleFrame){.bytes = {'C', 'Y', '0', module->resend_on ? STREAM_ON_LEVEL : 0, 0},
-                             .length = COMMAND_SIZE};
+    stream_reply(module, module->resend_on, now_ms, frame);
     return true;
 }
 
@@ -586,9 +594,7 @@ static void stream_frame(BtModule *module, bool on, uint32_t now_ms, BtModuleFra
     if (on) {
         module->status.link.timeline.stream_ms = now_ms;
     }
-    add_event(module, '>', on ? 'Y' : 'N', now_ms);
-    *frame = (BtModuleFrame){.bytes = {'C', 'Y', '0', on ? STREAM_ON_LEVEL : 0, 0},
-                             .length = COMMAND_SIZE};
+    stream_reply(module, on, now_ms, frame);
 }
 
 static bool send_pending_stream(BtModule *module, uint32_t now_ms, BtModuleFrame *frame)
@@ -668,6 +674,6 @@ CORE_COLD bool bt_module_set_stream(BtModule *module, bool on, uint32_t now_ms,
     }
     module->stream_pending = true;
     add_event(module, '>', notice == PLAY_NOTICE ? '6' : '7', now_ms);
-    *frame = (BtModuleFrame){.bytes = {'C', notice, '0', '0', 0}, .length = COMMAND_SIZE};
+    make_frame(frame, notice, '0', COMMAND_SIZE);
     return true;
 }

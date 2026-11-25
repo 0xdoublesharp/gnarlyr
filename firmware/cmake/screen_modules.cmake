@@ -81,6 +81,8 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/app/start_stores.c
     src/app/bluetooth_store_read.c
     src/app/card_files.c
+    src/app/music_check_boot.c
+    src/app/music_check_version.c
     src/library/favorites_decode.c
     src/playback/bookmarks_decode.c
 )
@@ -156,6 +158,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_equalizer
     platform/device/logic/exfat_list.c
     platform/device/logic/fat_utf8.c
     src/app/music_walk.c
+    src/app/music_check_version.c
     src/app/music_record.c
     src/library/music_fingerprint.c
     src/settings/sound_shaping.c

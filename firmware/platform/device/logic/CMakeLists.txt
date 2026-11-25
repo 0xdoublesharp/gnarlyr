@@ -247,6 +247,7 @@ set(ECHO_DEVICE_LOGIC_LTO_SOURCES ${ECHO_DEVICE_LOGIC_LTO_SOURCES} PARENT_SCOPE)
 if(CMAKE_CROSSCOMPILING)
     set_source_files_properties(
         battery_gauge.c
+        bt_module.c
         card_write.c
         clock_governor.c
         core1_m4a_source.c

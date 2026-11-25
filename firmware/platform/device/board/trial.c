@@ -231,6 +231,12 @@ CORE_SEAM bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *r
     return false;
 }
 
+CardStartScan card_files_start_scan(bool created, bool available, bool rebuilt)
+{
+    const TrialBootModuleEntry *entry = boot_module();
+    return entry != NULL ? entry->card_start_scan(created, available, rebuilt) : (CardStartScan){0};
+}
+
 bool hal_system_settle_user_state(bool requested)
 {
     UsbShared *shared = usb_session_shared();

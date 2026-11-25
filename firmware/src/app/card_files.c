@@ -21,6 +21,7 @@
 #include "playback/mix_catalog.h"
 #include "playback/track_keys.h"
 #include "player.h"
+#include "scan_guard.h"
 #include "settings_store.h"
 #include "spoken_store.h"
 
@@ -142,4 +143,36 @@ bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *report, boo
     }
     *finished = true;
     return false;
+}
+
+static bool library_refused(void)
+{
+    HalFile file;
+    uint8_t magic[4] = {0, 0, 0, 0};
+    if (!hal_file_open(&file, LIBRARY_STORE_PATH)) {
+        return false;
+    }
+    bool read = hal_file_read(file, 0, magic, sizeof magic);
+    hal_file_close(&file);
+    return read && (magic[0] | magic[1] | magic[2] | magic[3]) != 0;
+}
+
+CardStartScan card_files_start_scan(bool created, bool available, bool rebuilt)
+{
+    uint8_t update;
+    if (hal_internal_file_read("/" FIRMWARE_UPDATE_FILE, &update, sizeof update)) {
+        return (CardStartScan){0};
+    }
+    CardStartScan scan = {.checked = true, .covers_pending = music_check_covers_pending()};
+    uint32_t stopped = music_check_interrupted_scans();
+    bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
+    if (created || resume || (stopped == 0 && !available && !rebuilt && library_refused())) {
+        scan.rescan = true;
+        scan.rescan_stops = resume ? (uint8_t)stopped : 0;
+    } else if (stopped == 0 && !rebuilt) {
+        bool new_firmware = music_check_firmware_is_new();
+        scan.covers_pending |= new_firmware;
+        scan.check_music = new_firmware || music_check_generation_moved();
+    }
+    return scan;
 }

@@ -88,6 +88,8 @@ add_library(echo_app STATIC
     language_module.c
     library_rescan.c
     music_check.c
+    music_check_boot.c
+    music_check_version.c
     music_walk.c
     music_record.c
     library_store.c

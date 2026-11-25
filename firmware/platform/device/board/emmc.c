@@ -89,9 +89,8 @@ static void power_controller(void)
     mmc_power_cycle(&EMMC_HOST);
 }
 
-static bool wait_for_ocr(void)
+static bool wait_for_ocr(uint32_t words[4])
 {
-    uint32_t words[4] = {0, 0, 0, 0};
     uint32_t since = hal_clock_milliseconds();
     for (int attempt = 0;
          attempt < OCR_TRIES && !deadline_elapsed(hal_clock_milliseconds(), since, OCR_WAIT_MS);
@@ -113,14 +112,17 @@ static uint32_t cid_serial(const uint32_t cid[4])
     return (cid[1] & 0xFFFFu) << 16 | cid[0] >> 16;
 }
 
-static bool identify(void)
+static void go_idle(uint32_t words[4], bool initialize)
 {
-    uint32_t words[4] = {0, 0, 0, 0};
-    uint32_t none[4] = {0, 0, 0, 0};
+    mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, initialize}, words);
+}
+
+static bool identify(uint32_t words[4])
+{
     mmc_wait_not_busy(&EMMC_HOST);
-    mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, true}, none);
+    go_idle(words, true);
     board_delay_us(IDLE_SETTLE_US);
-    if (!wait_for_ocr() || !command(CMD_ALL_SEND_CID, 0, SD_RESPONSE_LONG, words)) {
+    if (!wait_for_ocr(words) || !command(CMD_ALL_SEND_CID, 0, SD_RESPONSE_LONG, words)) {
         return false;
     }
     emmc.serial = cid_serial(words);
@@ -150,9 +152,8 @@ static bool read_sector_count(void)
     return emmc.sector_count != 0;
 }
 
-static bool select_and_widen(void)
+static bool select_and_widen(uint32_t words[4])
 {
-    uint32_t words[4] = {0, 0, 0, 0};
     mmc_set_clock(&EMMC_HOST, SD_CLOCK_TRANSFER);
     if (!command(CMD_SELECT, RCA_ARGUMENT, SD_RESPONSE_SHORT_BUSY, words) ||
         !command(CMD_SET_BLOCK_LENGTH, BLOCK_LENGTH, SD_RESPONSE_SHORT, words) ||
@@ -236,11 +237,12 @@ bool emmc_volume_write(void *context, uint32_t lba, uint32_t count, const void *
 
 static uint32_t start_once(void)
 {
+    uint32_t words[4];
     power_controller();
-    if (!identify()) {
+    if (!identify(words)) {
         return 1;
     }
-    if (!select_and_widen()) {
+    if (!select_and_widen(words)) {
         return 2;
     }
     started = true;
@@ -296,8 +298,8 @@ void emmc_reset_controller(void)
 
 void emmc_quiesce(void)
 {
-    uint32_t none[4] = {0, 0, 0, 0};
-    mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, false}, none);
+    uint32_t words[4];
+    go_idle(words, false);
 }
 
 bool emmc_volume_start(BlockDevice *device)

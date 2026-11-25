@@ -329,6 +329,15 @@ static void put_known_list(Writer *writer, const char *const *keys, const uint32
     }
 }
 
+static void put_word_list(Writer *writer, const char *const *keys, const void *first, size_t count)
+{
+    const uint8_t *bytes = first;
+    for (size_t index = 0; index < count; index++) {
+        put_unsigned(writer, keys[index], *(const uint32_t *)(const void *)bytes);
+        bytes += sizeof(uint32_t);
+    }
+}
+
 static void put_power(Writer *writer, const DebugReportInput *input)
 {
     static const char *const GAUGE_KEYS[] = {
@@ -612,11 +621,10 @@ static void put_bluetooth(Writer *writer, const HalBluetoothLink *link)
     if (link == NULL) {
         return;
     }
-    const HalBluetoothTimeline *time = &link->timeline;
-    const uint32_t values[] = {time->module_on_ms, time->init_done_ms, time->connect_ms,
-                               time->connected_ms, time->stream_ms,    time->first_audio_ms};
+    _Static_assert(sizeof(HalBluetoothTimeline) == sizeof KEYS / sizeof KEYS[0] * sizeof(uint32_t),
+                   "the Bluetooth report reads the timeline in member order");
     writer->prefix = "bluetooth.";
-    put_known_list(writer, KEYS, values, sizeof values / sizeof values[0], true);
+    put_word_list(writer, KEYS, &link->timeline, sizeof KEYS / sizeof KEYS[0]);
     begin(writer, "reports");
     for (uint32_t index = 0; index < link->event_count; index++) {
         string_builder_append_char(&writer->text, link->events[index][0]);
@@ -733,11 +741,6 @@ static void append_field(StringBuilder *text, const char *name, bool known, uint
     }
 }
 
-static void append_average(StringBuilder *text, const char *name, uint32_t total, uint32_t count)
-{
-    append_field(text, name, count != 0, count != 0 ? total / count : 0);
-}
-
 static void append_share(StringBuilder *text, const char *name, uint32_t part, uint32_t whole)
 {
     bool known = whole >= PERCENT && part <= whole;
@@ -750,31 +753,53 @@ static void append_permille(StringBuilder *text, const char *name, uint32_t part
     append_field(text, name, known, known ? part / (whole / PERMILLE) : 0);
 }
 
-static void append_measured_frames(StringBuilder *text, const DebugMeasure *measure)
-{
-    append_field(text, "frames", true, measure->frames);
-    append_average(text, "frame_avg_us", measure->frame_us, measure->frames);
-    append_field(text, "frame_worst_us", measure->frames != 0, measure->frame_worst_us);
-    append_average(text, "update_avg_us", measure->update_us, measure->frames);
-    append_average(text, "draw_avg_us", measure->draw_us, measure->frames);
-    append_average(text, "send_avg_us", measure->send_us, measure->frames);
-}
+typedef struct MeasureField {
+    const char *key;
+    uint8_t offset;
+    uint8_t known;
+    bool average;
+} MeasureField;
 
-static void append_measured_audio(StringBuilder *text, const DebugMeasure *measure)
+enum {
+    MEASURE_ALWAYS,
+    MEASURE_FRAMES,
+    MEASURE_RUNNING,
+    MEASURE_BLOCKS
+};
+
+#define MEASURE_FIELD(name, member, mode, mean) {name, offsetof(DebugMeasure, member), mode, mean}
+
+static void append_measured_fields(StringBuilder *text, const DebugMeasure *measure)
 {
-    bool running = measure->audio_running != 0;
-    bool decoded = measure->blocks != 0;
-    append_field(text, "audio", true, measure->audio_running);
-    append_field(text, "buffered_ms", running, measure->buffered_ms);
-    append_field(text, "underruns", running, measure->underruns);
-    append_field(text, "output_underruns", true, measure->output_underruns);
-    append_field(text, "blocks", true, measure->blocks);
-    append_average(text, "handoff_avg_us", measure->handoff_us, measure->blocks);
-    append_field(text, "handoff_max_us", decoded, measure->handoff_max_us);
-    append_average(text, "read_avg_us", measure->read_us, measure->blocks);
-    append_field(text, "read_max_us", decoded, measure->read_max_us);
-    append_share(text, "audio_busy_percent", measure->audio_busy_us,
-                 running ? measure->audio_elapsed_us : 0);
+    static const MeasureField FIELDS[] = {
+        MEASURE_FIELD("ms", duration_ms, MEASURE_ALWAYS, false),
+        MEASURE_FIELD("frames", frames, MEASURE_ALWAYS, false),
+        MEASURE_FIELD("frame_avg_us", frame_us, MEASURE_FRAMES, true),
+        MEASURE_FIELD("frame_worst_us", frame_worst_us, MEASURE_FRAMES, false),
+        MEASURE_FIELD("update_avg_us", update_us, MEASURE_FRAMES, true),
+        MEASURE_FIELD("draw_avg_us", draw_us, MEASURE_FRAMES, true),
+        MEASURE_FIELD("send_avg_us", send_us, MEASURE_FRAMES, true),
+        MEASURE_FIELD("audio", audio_running, MEASURE_ALWAYS, false),
+        MEASURE_FIELD("buffered_ms", buffered_ms, MEASURE_RUNNING, false),
+        MEASURE_FIELD("underruns", underruns, MEASURE_RUNNING, false),
+        MEASURE_FIELD("output_underruns", output_underruns, MEASURE_ALWAYS, false),
+        MEASURE_FIELD("blocks", blocks, MEASURE_ALWAYS, false),
+        MEASURE_FIELD("handoff_avg_us", handoff_us, MEASURE_BLOCKS, true),
+        MEASURE_FIELD("handoff_max_us", handoff_max_us, MEASURE_BLOCKS, false),
+        MEASURE_FIELD("read_avg_us", read_us, MEASURE_BLOCKS, true),
+        MEASURE_FIELD("read_max_us", read_max_us, MEASURE_BLOCKS, false),
+    };
+    const uint32_t counts[] = {1, measure->frames, measure->audio_running, measure->blocks};
+    const uint8_t *bytes = (const uint8_t *)measure;
+    for (size_t index = 0; index < sizeof FIELDS / sizeof FIELDS[0]; index++) {
+        const MeasureField *field = &FIELDS[index];
+        uint32_t count = counts[field->known];
+        uint32_t value = *(const uint32_t *)(const void *)(bytes + field->offset);
+        if (field->average && count != 0) {
+            value /= count;
+        }
+        append_field(text, field->key, count != 0, value);
+    }
 }
 
 static void put_measure(Writer *writer, const DebugMeasure *measure)
@@ -782,9 +807,9 @@ static void put_measure(Writer *writer, const DebugMeasure *measure)
     begin(writer, "script.measure");
     string_builder_append(&writer->text, "line=");
     string_builder_append_unsigned(&writer->text, measure->line);
-    append_field(&writer->text, "ms", true, measure->duration_ms);
-    append_measured_frames(&writer->text, measure);
-    append_measured_audio(&writer->text, measure);
+    append_measured_fields(&writer->text, measure);
+    append_share(&writer->text, "audio_busy_percent", measure->audio_busy_us,
+                 measure->audio_running != 0 ? measure->audio_elapsed_us : 0);
     append_share(&writer->text, "core0_busy_percent", measure->clock_us - measure->idle_us,
                  measure->clock_us);
     uint32_t core1_busy = measure->core1_cycles - measure->core1_idle_cycles;
@@ -1202,14 +1227,18 @@ static void put_profile(Writer *writer, const PcProfile *profile)
         put_text(writer, "profile.state", UNKNOWN);
         return;
     }
+    static const char *const KEYS[] = {"samples", "idle", "overlay", "other"};
+    _Static_assert(offsetof(PcProfile, other_samples) - offsetof(PcProfile, samples) ==
+                       (sizeof KEYS / sizeof KEYS[0] - 1) * sizeof(uint32_t),
+                   "the profile report reads the counters in member order");
     put_text(writer, "profile.state", profile_state(profile));
-    put_unsigned(writer, "profile.samples", profile->samples);
-    put_unsigned(writer, "profile.idle", profile->idle_samples);
-    put_unsigned(writer, "profile.overlay", profile->overlay_samples);
-    put_unsigned(writer, "profile.other", profile->other_samples);
-    put_address(writer, "profile.code_base", true, profile->code.base);
-    put_unsigned(writer, "profile.bucket_bytes", 1u << profile->bucket_shift);
-    put_unsigned(writer, "profile.buckets", profile->bucket_count);
+    writer->prefix = "profile.";
+    put_word_list(writer, KEYS, (const uint8_t *)profile + offsetof(PcProfile, samples),
+                  sizeof KEYS / sizeof KEYS[0]);
+    put_address(writer, "code_base", true, profile->code.base);
+    put_unsigned(writer, "bucket_bytes", 1u << profile->bucket_shift);
+    put_unsigned(writer, "buckets", profile->bucket_count);
+    writer->prefix = NULL;
     put_rows(writer, profile);
 }
 

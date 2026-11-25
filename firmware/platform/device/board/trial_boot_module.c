@@ -258,4 +258,5 @@ const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_
                                                       favorites_store_read,
                                                       spoken_store_read,
                                                       bluetooth_store_load,
-                                                      card_files_prepare_step};
+                                                      card_files_prepare_step,
+                                                      card_files_start_scan};

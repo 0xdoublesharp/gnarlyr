@@ -50,7 +50,6 @@
 #include "music_check.h"
 #include "player.h"
 #include "plug_modes.h"
-#include "scan_guard.h"
 #include "screens/charge_screen.h"
 #include "settings/rocker.h"
 #include "settings_choose.h"
@@ -1667,7 +1666,7 @@ static void show_working_notice(StringId title, const char *message, WireShape s
     app_show_notice(i18n_text(title), message);
 }
 
-static void start_playback(bool cold_start)
+CORE_COLD static void start_playback(bool cold_start)
 {
     flush_listening();
     app.listening_loaded = false;
@@ -1718,11 +1717,10 @@ static void open_start_screen(uint32_t start, uint32_t now_ms)
     }
 }
 
-static void build_screens(uint32_t now_ms)
+CORE_COLD static void build_screens(uint32_t now_ms)
 {
-    AppScreensContext context = {
+    static const AppScreensContext INITIAL_CONTEXT = {
         .options = &app.options,
-        .theme = board_theme(),
         .styled_theme = &app.theme,
         .themes = &app.themes,
         .store = &app.library,
@@ -1740,6 +1738,8 @@ static void build_screens(uint32_t now_ms)
         .listening = &app.listening,
         .motion = &app.motion,
     };
+    AppScreensContext context = INITIAL_CONTEXT;
+    context.theme = board_theme();
     Screen *root = app_screens_init(&app.screens, context);
     app.slide.active = false;
     screen_stack_init(&app.stack, root, now_ms);
@@ -1773,34 +1773,6 @@ static void change_language(uint32_t now_ms)
     }
 }
 
-CORE_COLD static bool library_refused(void)
-{
-    HalFile file;
-    uint8_t magic[4] = {0, 0, 0, 0};
-    if (app.library.available || app.library_rebuilt || !hal_file_open(&file, LIBRARY_STORE_PATH)) {
-        return false;
-    }
-    bool read = hal_file_read(file, 0, magic, sizeof magic);
-    hal_file_close(&file);
-    return read && (magic[0] | magic[1] | magic[2] | magic[3]) != 0;
-}
-
-CORE_COLD static void request_start_scan(bool library_created)
-{
-    app.covers_pending = music_check_covers_pending();
-    uint32_t stopped = music_check_interrupted_scans();
-    bool resume = stopped > 0 && stopped <= SCAN_GUARD_RETRIES;
-    if (library_created || resume || (stopped == 0 && library_refused())) {
-        app.rescan_requested = true;
-        app.rescan_stops = resume ? (uint8_t)stopped : 0;
-    } else if (stopped == 0 && !app.library_rebuilt && music_check_firmware_is_new()) {
-        app.covers_pending = true;
-        app.music_check_requested = true;
-    } else if (stopped == 0 && !app.library_rebuilt && music_check_generation_moved()) {
-        app.music_check_requested = true;
-    }
-}
-
 CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
 {
     if (files.headphones_created && app.headphones.load == STORE_UNREADABLE) {
@@ -1814,13 +1786,19 @@ CORE_COLD static void report_card_files(CardFilesReport files, uint32_t now_ms)
         toast_show(&app.toast, i18n_text(STR_STORAGE_FULL), now_ms);
         debug_loop_event(DEBUG_EVENT_STORAGE, DEBUG_STORAGE_FULL);
     }
-    uint8_t update;
-    if (!hal_internal_file_read("/" FIRMWARE_UPDATE_FILE, &update, sizeof update)) {
-        request_start_scan(files.library_created);
+    CardStartScan scan =
+        card_files_start_scan(files.library_created, app.library.available, app.library_rebuilt);
+    if (scan.checked) {
+        app.covers_pending = scan.covers_pending;
     }
+    if (scan.rescan) {
+        app.rescan_requested = true;
+        app.rescan_stops = scan.rescan_stops;
+    }
+    app.music_check_requested |= scan.check_music;
 }
 
-static void start_app(bool power_on)
+CORE_COLD static void start_app(bool power_on)
 {
     extra_font_open(&app.extra_font);
 #ifdef ECHO_USB_OVERLAY_RENDERER

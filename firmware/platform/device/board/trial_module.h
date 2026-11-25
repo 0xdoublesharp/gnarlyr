@@ -18,6 +18,7 @@ struct Favorites;
 struct Bookmarks;
 struct BluetoothSaved;
 struct CardFilesReport;
+struct CardStartScan;
 
 typedef struct TrialBootModuleEntry {
     uint32_t magic;
@@ -32,6 +33,7 @@ typedef struct TrialBootModuleEntry {
     void (*bluetooth_load)(struct BluetoothSaved *saved);
     bool (*card_files_prepare)(size_t *prepare_index, struct CardFilesReport *report, bool charging,
                                bool *finished);
+    struct CardStartScan (*card_start_scan)(bool created, bool available, bool rebuilt);
 } TrialBootModuleEntry;
 
 typedef struct TrialInstall {

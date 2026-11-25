@@ -1,7 +1,9 @@
 #include <string.h>
 
 #include "app/app.h"
+#include "bluetooth_store.h"
 #include "board.h"
+#include "card_files.h"
 #include "check.h"
 #include "device/slot_copy.h"
 #include "favorites_store.h"
@@ -297,6 +299,29 @@ StoreLoad spoken_store_read(Bookmarks *bookmarks)
 {
     (void)bookmarks;
     return STORE_UNSUPPORTED;
+}
+
+void bluetooth_store_load(BluetoothSaved *saved)
+{
+    (void)saved;
+}
+
+bool card_files_prepare_step(size_t *prepare_index, CardFilesReport *report, bool charging,
+                             bool *finished)
+{
+    (void)prepare_index;
+    (void)report;
+    (void)charging;
+    *finished = true;
+    return false;
+}
+
+CardStartScan card_files_start_scan(bool created, bool available, bool rebuilt)
+{
+    (void)created;
+    (void)available;
+    (void)rebuilt;
+    return (CardStartScan){0};
 }
 
 static void boot_retries_a_transient_storage_failure(void)
