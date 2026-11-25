@@ -2,6 +2,7 @@
 """Check the player's debug report and run automated on-player hardware validation."""
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -178,20 +179,27 @@ guard let (deviceID, matchedName) = found else {
     exit(2)
 }
 
-var formatStatus: OSStatus = 0
-var selectedBits: UInt32 = 0
-if wantedBits > 0 {
-    let res = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
-    formatStatus = res.0
-    selectedBits = res.1
-}
 var targetRate = rate
 var rateAddr = AudioObjectPropertyAddress(
     mSelector: kAudioDevicePropertyNominalSampleRate,
     mScope: kAudioObjectPropertyScopeGlobal,
     mElement: kAudioObjectPropertyElementMain)
 let rateStatus = AudioObjectSetPropertyData(deviceID, &rateAddr, 0, nil, UInt32(MemoryLayout<Float64>.size), &targetRate)
-Thread.sleep(forTimeInterval: 0.2)
+Thread.sleep(forTimeInterval: 0.15)
+var formatStatus: OSStatus = 0
+var selectedBits: UInt32 = 0
+if wantedBits > 0 {
+    let res = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
+    formatStatus = res.0
+    selectedBits = res.1
+    Thread.sleep(forTimeInterval: 0.15)
+    if currentPhysicalBits(deviceID) != wantedBits {
+        let retry = configurePhysicalFormat(deviceID, rate: rate, bits: wantedBits)
+        formatStatus = retry.0
+        selectedBits = retry.1
+        Thread.sleep(forTimeInterval: 0.15)
+    }
+}
 let actualBits = currentPhysicalBits(deviceID)
 if selectedBits == 0 {
     selectedBits = actualBits
@@ -519,16 +527,21 @@ def stream_to_dac(rate, amplitude, connect_timeout, stream_timeout, bits=0):
     return {"ok": False, "returncode": result.returncode, "detail": result.stdout.strip()}
 
 
-def wait_for_settled_luns(tool, expect_card=False, settle_seconds=4.0):
+def wait_for_settled_luns(tool, expect_card=False, settle_seconds=6.0):
     """Wait until any attached SD LUN finishes mounting on macOS before ejecting."""
     found = tool.locate()
-    if not expect_card or not found.get("usb") or found["usb"].get("card_volumes"):
+    usb = found.get("usb")
+    if not usb or usb.get("card_volumes"):
+        return found
+    should_wait = expect_card or bool(usb.get("has_card_medium"))
+    if not should_wait:
         return found
     deadline = tool.clock() + settle_seconds
     while tool.clock() < deadline:
         tool.sleep(0.25)
         found = tool.locate()
-        if found.get("usb") and found["usb"].get("card_volumes"):
+        usb = found.get("usb")
+        if usb and usb.get("card_volumes"):
             return found
     return found
 
@@ -583,7 +596,13 @@ def run_storage_transfer_check(tool, size_bytes=STORAGE_TEST_BYTES):
         os.fsync(handle.fileno())
     write_s = max(time.monotonic() - started, 1e-6)
     read_start = time.monotonic()
-    actual = hashlib.sha256(target.read_bytes()).hexdigest()
+    with target.open("rb") as handle:
+        if sys.platform == "darwin":
+            try:
+                fcntl.fcntl(handle.fileno(), 48, 1)
+            except OSError:
+                pass
+        actual = hashlib.sha256(handle.read()).hexdigest()
     read_s = max(time.monotonic() - read_start, 1e-6)
     target.unlink()
     sidecar = target.with_name(f"._{target.name}")

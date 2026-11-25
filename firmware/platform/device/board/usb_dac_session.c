@@ -780,12 +780,17 @@ static void warm_menu_glyphs(void)
         (void)text_width(theme->fonts.body, label);
     }
     (void)text_width(detail, "0123456789");
+    (void)text_width(theme->fonts.title, "0123456789");
     (void)text_width(detail, menu.profile);
     for (size_t index = 0; index < sizeof EXTRAS / sizeof EXTRAS[0]; index++) {
         (void)text_width(detail, i18n_text((StringId)EXTRAS[index]));
     }
+    for (uint32_t code = ' '; code <= '~'; code++) {
+        (void)font_find_glyph(theme->fonts.small, code);
+    }
     (void)font_find_glyph(theme->fonts.title, 0x2026u);
     (void)font_find_glyph(theme->fonts.body, 0x2026u);
+    (void)font_find_glyph(theme->fonts.small, 0x2026u);
     (void)footer_hints_height(theme, (FooterHints){.items = DAC_HINTS + DAC_MENU_HINTS,
                                                    .count = 4,
                                                    .align = FOOTER_ALIGN_START});

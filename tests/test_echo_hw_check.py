@@ -352,6 +352,31 @@ class ReportChecks(unittest.TestCase):
         self.assertEqual(len(result["dac_runs"]), 1)
         self.assertFalse((self.debug / echo_hw_check.STORAGE_TEST_FILE).exists())
 
+    def test_wait_for_settled_luns_waits_when_card_medium_is_attached_unmounted(self):
+        unmounted = {
+            "connected": True, "source": "usb", "volume": str(self.volume),
+            "usb": {"card_volumes": [], "has_card_medium": True},
+        }
+        mounted = {
+            "connected": True, "source": "usb", "volume": str(self.volume),
+            "usb": {"card_volumes": [{"mount_point": "/Volumes/GnarlySD"}], "has_card_medium": True},
+        }
+        calls = [unmounted, mounted]
+        now = [0.0]
+
+        class FakeTool:
+            def locate(self):
+                return calls.pop(0) if len(calls) > 1 else calls[0]
+
+            def clock(self):
+                return now[0]
+
+            def sleep(self, seconds):
+                now[0] += seconds
+
+        found = echo_hw_check.wait_for_settled_luns(FakeTool(), expect_card=False)
+        self.assertEqual(found["usb"]["card_volumes"], [{"mount_point": "/Volumes/GnarlySD"}])
+
 
 class ScriptAndChecklist(unittest.TestCase):
     @patch.object(echo_debug.MacHost, "usb_tree", side_effect=AssertionError("unexpected USB discovery"))

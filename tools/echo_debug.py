@@ -227,6 +227,11 @@ def card_volumes(player):
             for volume in medium_volumes(medium) if volume["mount_point"]]
 
 
+def has_card_medium(player):
+    return any(CARD_MEDIUM.lower() in medium.get("_name", "").lower()
+               for medium in player.get("Media", []))
+
+
 def parse_value(text):
     if text == "unknown":
         return None
@@ -616,7 +621,8 @@ class Tool:
         player = players[0]
         volume = internal_volume(player, self.volume_name)
         usb = {"name": player.get("_name"), "serial": player.get("serial_num"),
-               "internal": volume, "card_volumes": card_volumes(player)}
+               "internal": volume, "card_volumes": card_volumes(player),
+               "has_card_medium": has_card_medium(player)}
         return {"connected": True, "source": "usb", "volume": volume["mount_point"], "usb": usb}
 
     def locate(self):
