@@ -59,36 +59,118 @@ static filter_int filterbuf1280[(1280*3 + FILTER_HISTORY_SIZE) * 2]
                   IBSS_ATTR_DEMAC_INSANEBUF MEM_ALIGN_ATTR;
                   /* 17408 or 34816 bytes */
 
+static DemacFilterHook filter_hook;
+static void *filter_context;
+
+void demac_filter_init(int level)
+{
+    switch (level) {
+    case 2000:
+        init_filter_16_11(FILTERBUF16);
+        break;
+    case 3000:
+        init_filter_64_11(FILTERBUF64);
+        break;
+    case 4000:
+        init_filter_256_13(filterbuf256);
+        init_filter_32_10(FILTERBUF32);
+        break;
+    case 5000:
+        init_filter_1280_15(filterbuf1280);
+        init_filter_256_13(filterbuf256);
+        init_filter_16_11(FILTERBUF32);
+        break;
+    }
+}
+
+static void apply_channel(DemacFilterJob job, int channel)
+{
+    int32_t *samples = job.samples[channel];
+    switch (job.level) {
+    case 2000:
+        apply_filter_16_11(job.version, channel, samples, job.count);
+        break;
+    case 3000:
+        apply_filter_64_11(job.version, channel, samples, job.count);
+        break;
+    case 4000:
+        apply_filter_32_10(job.version, channel, samples, job.count);
+        apply_filter_256_13(job.version, channel, samples, job.count);
+        break;
+    case 5000:
+        apply_filter_16_11(job.version, channel, samples, job.count);
+        apply_filter_256_13(job.version, channel, samples, job.count);
+        apply_filter_1280_15(job.version, channel, samples, job.count);
+        break;
+    }
+}
+
+void demac_filter_apply(DemacFilterJob job)
+{
+    for (int channel = 0; channel < 2; channel++) {
+        if (job.samples[channel] != NULL) {
+            apply_channel(job, channel);
+        }
+    }
+}
+
+static void observe_channel(DemacFilterJob job, int channel, const int32_t *filtered)
+{
+    DemacFilterHistory history = {job.samples[channel], filtered, job.count};
+    switch (job.level) {
+    case 2000:
+        observe_filter_16_11(job.version, channel, history);
+        break;
+    case 3000:
+        observe_filter_64_11(job.version, channel, history);
+        break;
+    case 4000:
+        apply_filter_32_10(job.version, channel, job.samples[channel], job.count);
+        observe_filter_256_13(job.version, channel, history);
+        break;
+    }
+    memcpy(job.samples[channel], filtered, (size_t)job.count * sizeof(*filtered));
+}
+
+void demac_filter_observe(DemacFilterJob job, const int32_t *const filtered[2])
+{
+    for (int channel = 0; channel < 2; channel++) {
+        if (job.samples[channel] != NULL) {
+            observe_channel(job, channel, filtered[channel]);
+        }
+    }
+}
+
+void demac_filter_set_hook(DemacFilterHook hook, void *context)
+{
+    filter_hook = hook;
+    filter_context = context;
+}
+
+void demac_filter_decode(DemacFilterJob job)
+{
+    if (filter_hook == NULL || !filter_hook(filter_context, job)) {
+        demac_filter_apply(job);
+    }
+}
+
+static void decode_filters(const struct ape_ctx_t *ape_ctx, int32_t *decoded0, int32_t *decoded1,
+                           int count)
+{
+    demac_filter_decode((DemacFilterJob){.version = ape_ctx->fileversion,
+                                        .level = ape_ctx->compressiontype,
+                                        .count = count,
+                                        .frame_start = ape_ctx->blocksdecoded == count,
+                                        .samples = {decoded0, decoded1}});
+}
+
 void init_frame_decoder(struct ape_ctx_t* ape_ctx,
                         unsigned char* inbuffer, int* firstbyte,
                         int* bytesconsumed)
 {
     init_entropy_decoder(ape_ctx, inbuffer, firstbyte, bytesconsumed);
-    //printf("CRC=0x%08x\n",ape_ctx->CRC);
-    //printf("Flags=0x%08x\n",ape_ctx->frameflags);
-
     init_predictor_decoder(&ape_ctx->predictor);
-
-    switch (ape_ctx->compressiontype)
-    {
-        case 2000:
-            init_filter_16_11(FILTERBUF16);
-            break;
-
-        case 3000:
-            init_filter_64_11(FILTERBUF64);
-            break;
-
-        case 4000:
-            init_filter_256_13(filterbuf256);
-            init_filter_32_10(FILTERBUF32);
-            break;
-
-        case 5000:
-            init_filter_1280_15(filterbuf1280);
-            init_filter_256_13(filterbuf256);
-            init_filter_16_11(FILTERBUF32);
-    }
+    demac_filter_init(ape_ctx->compressiontype);
 }
 
 int ICODE_ATTR_DEMAC decode_chunk(struct ape_ctx_t* ape_ctx,
@@ -117,26 +199,7 @@ int ICODE_ATTR_DEMAC decode_chunk(struct ape_ctx_t* ape_ctx,
             return 0;
         }
 
-        switch (ape_ctx->compressiontype)
-        {
-            case 2000:
-                apply_filter_16_11(ape_ctx->fileversion,0,decoded0,count);
-                break;
-    
-            case 3000:
-                apply_filter_64_11(ape_ctx->fileversion,0,decoded0,count);
-                break;
-    
-            case 4000:
-                apply_filter_32_10(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_256_13(ape_ctx->fileversion,0,decoded0,count);
-                break;
-    
-            case 5000:
-                apply_filter_16_11(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_256_13(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_1280_15(ape_ctx->fileversion,0,decoded0,count);
-        }
+        decode_filters(ape_ctx, decoded0, NULL, count);
 
         /* Now apply the predictor decoding */
         predictor_decode_mono(&ape_ctx->predictor,decoded0,count);
@@ -169,34 +232,7 @@ int ICODE_ATTR_DEMAC decode_chunk(struct ape_ctx_t* ape_ctx,
             return 0;
         }
 
-        /* Apply filters - compression type 1000 doesn't have any */
-        switch (ape_ctx->compressiontype)
-        {
-            case 2000:
-                apply_filter_16_11(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_16_11(ape_ctx->fileversion,1,decoded1,count);
-                break;
-    
-            case 3000:
-                apply_filter_64_11(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_64_11(ape_ctx->fileversion,1,decoded1,count);
-                break;
-    
-            case 4000:
-                apply_filter_32_10(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_32_10(ape_ctx->fileversion,1,decoded1,count);
-                apply_filter_256_13(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_256_13(ape_ctx->fileversion,1,decoded1,count);
-                break;
-    
-            case 5000:
-                apply_filter_16_11(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_16_11(ape_ctx->fileversion,1,decoded1,count);
-                apply_filter_256_13(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_256_13(ape_ctx->fileversion,1,decoded1,count);
-                apply_filter_1280_15(ape_ctx->fileversion,0,decoded0,count);
-                apply_filter_1280_15(ape_ctx->fileversion,1,decoded1,count);
-        }
+        decode_filters(ape_ctx, decoded0, decoded1, count);
 
         /* Now apply the predictor decoding */
         predictor_decode_stereo(&ape_ctx->predictor,decoded0,decoded1,count);

@@ -10,6 +10,11 @@ echo_add_unit_test(NAME test_alac_accel
     LIBRARIES echo_device_logic
 )
 
+echo_add_unit_test(NAME test_ape_accel
+    SOURCES device/test_ape_accel.c
+    LIBRARIES echo_device_logic
+)
+
 echo_add_unit_test(NAME test_emmc_layout
     SOURCES device/test_emmc_layout.c device/fake_disk.c
     LIBRARIES echo_device_logic

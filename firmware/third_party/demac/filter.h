@@ -25,6 +25,33 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110, USA
 #define _APE_FILTER_H
 
 #include "demac_config.h"
+#include <stdbool.h>
+
+typedef struct DemacFilterJob {
+    int version;
+    int level;
+    int count;
+    bool frame_start;
+    int32_t *samples[2];
+} DemacFilterJob;
+
+typedef bool (*DemacFilterHook)(void *context, DemacFilterJob job);
+
+typedef struct DemacFilterHistory {
+    const int32_t *residuals;
+    const int32_t *filtered;
+    int count;
+} DemacFilterHistory;
+
+void observe_filter_16_11(int version, int channel, DemacFilterHistory history);
+void observe_filter_64_11(int version, int channel, DemacFilterHistory history);
+void observe_filter_256_13(int version, int channel, DemacFilterHistory history);
+
+void demac_filter_init(int level);
+void demac_filter_apply(DemacFilterJob job);
+void demac_filter_observe(DemacFilterJob job, const int32_t *const filtered[2]);
+void demac_filter_set_hook(DemacFilterHook hook, void *context);
+void demac_filter_decode(DemacFilterJob job);
 
 void init_filter_16_11(filter_int* buf);
 void apply_filter_16_11(int fileversion, int channel,
