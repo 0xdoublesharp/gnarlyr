@@ -3581,7 +3581,7 @@
           "key_taken",
           "assets_valid",
           "style_entry_valid",
-          "style_valid",
+          "read_style",
           "head_valid",
           "rows_batch_valid",
           "payloads_valid",
