@@ -11,13 +11,16 @@
 #include "diagnostics_rows.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
+#include "hal/audio.h"
 #include "hal/storage.h"
 #include "hal/system.h"
+#include "headphone_store.h"
 #include "library_store.h"
 #include "music_check.h"
 #include "music_record.h"
 #include "music_walk.h"
 #include "screen_modules.h"
+#include "settings/headphone_file.h"
 #include "settings/settings.h"
 #include "settings_store.h"
 #include "ui/slide.h"
@@ -589,6 +592,51 @@ static void a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_
     choose_from_the_sleep_list();
 }
 
+static void a_dac_headphone_change_restores_the_saved_ceiling_when_settings_cannot_load(void)
+{
+    fake_hal_reset();
+    add_player_files();
+    CHECK_EQUAL(HAL_RESERVE_CREATED,
+                hal_internal_file_reserve(HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES));
+    HeadphoneStore store;
+    headphone_store_load(&store);
+    HeadphoneProfiles profiles = headphone_profiles_defaults();
+    profiles.count = 3;
+    for (int index = 0; index < profiles.count; index++) {
+        profiles.slots[index] = headphone_profile_defaults();
+        profiles.slots[index].volume_ceiling = (uint8_t)(12 + 12 * index);
+        memcpy(profiles.slots[index].name, "Profile", sizeof "Profile");
+    }
+    profiles.current = 1;
+    CHECK_EQUAL(STORE_DONE, headphone_file_save(&store.file, &profiles));
+    now_ms = START_MS;
+    fake_hal_set_milliseconds(now_ms);
+    app_start();
+    wait_ms(20);
+    CHECK_EQUAL(1, app_headphone_profiles()->current);
+    CHECK_EQUAL(24, hal_audio_headphones().ceiling);
+
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, true);
+    HeadphoneProfiles live = *app_headphone_profiles();
+    live.current = 2;
+    hal_audio_set_headphones(headphone_store_parameters(&live));
+    CHECK_EQUAL(36, hal_audio_headphones().ceiling);
+
+    AppDacSettings dac = app_dac_settings();
+    dac.headphones = 2;
+    app_remember_dac(dac);
+    CHECK_EQUAL(24, hal_audio_headphones().ceiling);
+    wait_ms(20);
+    CHECK_EQUAL(1, app_headphone_profiles()->current);
+    CHECK_EQUAL(1, app_dac_settings().headphones);
+    CHECK_EQUAL(24, hal_audio_headphones().ceiling);
+
+    fake_hal_break_module(SCREEN_MODULE_SETTINGS, false);
+    wait_ms(20);
+    CHECK_EQUAL(1, app_headphone_profiles()->current);
+    CHECK_EQUAL(24, hal_audio_headphones().ceiling);
+}
+
 static void open_now_playing_from_all_songs(void)
 {
     select_music_row(MUSIC_ALL_SONGS_ROW);
@@ -1145,6 +1193,7 @@ int main(void)
         TEST_CASE(quick_settings_cycles_from_the_style_settings_chose),
         TEST_CASE(a_menu_hold_shortcut_over_a_value_list_gives_the_slot_back_in_the_same_step),
         TEST_CASE(a_dac_headphone_change_over_a_value_list_gives_the_slot_back_before_drawing),
+        TEST_CASE(a_dac_headphone_change_restores_the_saved_ceiling_when_settings_cannot_load),
         TEST_CASE(a_missing_now_playing_module_is_retried_at_most_every_two_seconds),
         TEST_CASE(a_module_in_the_slot_is_not_loaded_again),
         TEST_CASE(a_resident_screen_opened_from_a_module_screen_needs_no_load),

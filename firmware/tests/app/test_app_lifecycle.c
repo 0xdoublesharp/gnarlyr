@@ -23,6 +23,9 @@ static const uint8_t PARAMETRIC_ACROSS_USB[] = {0, 0x20, 0x0d, 0x25, 0x05, 0x20}
 static const uint8_t UNREADABLE_PROFILES[] = {0x69, 0xf2};
 static const uint8_t CORRUPT_PROFILES[] = {0x69, 0xb2, 0x0d, 0x05, 0x20};
 static const uint8_t MY_TAGS_ACROSS_COVERS[] = {0xde, 0x81, 0x96, 0xad, 0x73, 0xaa};
+static const uint8_t DAC_WITH_DAMAGED_SETTINGS[] = {
+    0x00, 0x30, 0x30, 0x00, 0x00, 0xf4, 0x02, 0x00, 0x02, 0x0d, 0x00, 0x20, 0x40, 0x20, 0x19,
+    0x20, 0x0c, 0x52, 0xa6, 0xf2, 0x55, 0x00, 0x00, 0x40, 0x0d, 0x13, 0x20, 0x22, 0x20, 0x22};
 
 static uint32_t next_random(uint32_t *state)
 {
@@ -67,6 +70,8 @@ int main(int argc, char **argv)
     replay(UNREADABLE_PROFILES, sizeof UNREADABLE_PROFILES, "unreadable profiles");
     replay(CORRUPT_PROFILES, sizeof CORRUPT_PROFILES, "corrupt profiles");
     replay(MY_TAGS_ACROSS_COVERS, sizeof MY_TAGS_ACROSS_COVERS, "my tags across the cover pass");
+    replay(DAC_WITH_DAMAGED_SETTINGS, sizeof DAC_WITH_DAMAGED_SETTINGS,
+           "DAC with damaged Settings");
     const char *count_text = getenv("ECHO_LIFECYCLE_INPUTS");
     int count = count_text != NULL ? atoi(count_text) : GENERATED_INPUTS;
     uint32_t state = 0x6c69666eu;
@@ -85,6 +90,6 @@ int main(int argc, char **argv)
         snprintf(name, sizeof name, "generated %#x", start);
         replay(bytes, sizeof bytes, name);
     }
-    printf("%d inputs passed\n", count + 8);
+    printf("%d inputs passed\n", count + 10);
     return 0;
 }

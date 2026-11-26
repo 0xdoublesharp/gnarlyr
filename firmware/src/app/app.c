@@ -1833,6 +1833,7 @@ CORE_COLD static void start_app(bool power_on)
     (void)hal_system_settle_user_state(false);
     settings_store_load(&app.settings);
     language_load(app.settings.settings.language);
+    app.headphones_chosen = 0;
     headphone_store_load(&app.headphones);
     app.theme = BOARD_THEME;
     theme_runtime_close(&app.themes);
@@ -2065,6 +2066,10 @@ const HeadphoneProfiles *app_headphone_profiles(void)
 
 void app_remember_dac(AppDacSettings settings)
 {
+    if (settings.headphones != app.headphones.profiles.current) {
+        hal_audio_set_headphones(app.headphones.active);
+        app.headphones_chosen = (uint8_t)(settings.headphones + 1);
+    }
     uint8_t rise = hal_audio_gain_rise_db((HalAudioGain)app.settings.settings.gain,
                                           (HalAudioGain)settings.gain);
     if (rise != 0) {
@@ -2078,9 +2083,6 @@ void app_remember_dac(AppDacSettings settings)
     app.settings.settings.gain = (GainLevel)settings.gain;
     app.settings.settings.output = (OutputJack)settings.output;
     settings_store_save(&app.settings);
-    if (settings.headphones != app.headphones.profiles.current) {
-        app.headphones_chosen = (uint8_t)(settings.headphones + 1);
-    }
 }
 
 static void commit_dac_headphones(void)
