@@ -8,6 +8,7 @@ Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds 
 
 ### Install
 
+- **Recommended: Gnarlyr Companion `1.0.0-beta.1`.** Download the desktop app for macOS (Apple Silicon), Windows (x64), or Linux (x86_64) from the [Companion `1.0.0-beta.1` release](https://github.com/0xdoublesharp/gnarlyr/releases/tag/desktop-v1.0.0-beta.1) to install or update firmware, copy music, preview themes, and install official language packs in one click.
 - **Coming from FiiO's firmware.** Download `ECHOECHO.img` and check it against `SHA256SUMS`. Copy it to the top level of internal storage, eject both drives, unplug, and fully power the player off and on.
 - **Updating Gnarlyr.** Copy `GNARLYR.IMG` to the top level of internal storage and eject both drives. Restart when prompted. To confirm the new version, reconnect, write a small file to internal storage, and eject both drives again.
 - **Going back to FiiO.** Use FiiO's `ECHOV200.IMG` and follow the [stock restore steps](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/device-install.md#going-back-to-fiios-firmware).
@@ -28,11 +29,10 @@ Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds 
 - **Bluetooth headphones,** with their own volume, as well as the 3.5 mm and 4.4 mm jacks.
 - **Lower clocks when there's less to do.** The player runs at 96 MHz when idle and from the 24 MHz crystal in standby, and switches the audio clocks off when playback stops. With the screen off, FLAC, WAV, Apple Lossless and MP3 up to 48 kHz play at 96 MHz instead of 200 MHz. Apple Lossless can use the player's audio accelerator, and the FLAC, Apple Lossless, Ogg Vorbis, Opus and WMA decoders do the same work in fewer instructions. Screen-off playback passed on the developer's player. The drop to 96 MHz and use of the Apple Lossless accelerator still need direct player checks. Battery savings haven't been measured.
 - **ReplayGain** (Track, Album or Auto) and four **headphone profiles**, each with trim, balance and a volume limit.
-- **Language packs.** English is built in. Make a pack for your language at <https://gnarlyr.com/languages.html> and copy it to the player.
+- **Language packs.** English is built in. Six prebuilt official language packs (`Deutsch`, `Español`, `Français`, `日本語`, `Português`, `简体中文`) are attached to this release and available in one click inside Gnarlyr Companion. You can also make or customize a pack at <https://gnarlyr.com/languages.html>.
 
 ### Known issues
 
-- The USB control-transfer fix for macOS System Information (`system_profiler`) has emulator coverage and awaits a check on the player.
 - Copy speed is still being improved.
 - Battery life hasn't been measured yet.
 - Two safety nets haven't been tried on a player since their latest fixes: recovery mode by holding Power and Vol+, and the automatic rollback of a broken update.

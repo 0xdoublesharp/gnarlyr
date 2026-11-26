@@ -453,9 +453,9 @@
       "translation": "<span>03</span><div><h3>ライブラリを開く</h3><p>音楽を追加し、プレーヤーが曲を読み込むのを待ちます。</p></div>"
     },
     "home.m103": {
-      "source": "Read the installation guide →",
-      "source_sha256": "1c19d9abfaf5994e2c277a621b519ad988bfadc543dd99c18f911d58004b9f0c",
-      "translation": "インストールガイドを読む →"
+      "source": "Install Gnarlyr →",
+      "source_sha256": "d8cfd6a0d4df828830f0397278b19476bf5b3a7e1953be6bd08d4faeac3c320b",
+      "translation": "Gnarlyrをインストール →"
     },
     "home.m104": {
       "source": "Explore the player guide →",
@@ -816,6 +816,16 @@
       "source": "Venmo ↗",
       "source_sha256": "e7f9b2c7560b676f6932b9da4fd0cdbd902ecef76eb48ef349cb3af518b7091e",
       "translation": "Venmo ↗"
+    },
+    "home.m146": {
+      "source": "Download Companion →",
+      "source_sha256": "bba7ce52aaee257f1b0d6b354e81b4f14dbc45aced1fcf9fc093a9381ac745db",
+      "translation": "Companionをダウンロード →"
+    },
+    "home.m147": {
+      "source": "Download Companion →",
+      "source_sha256": "bba7ce52aaee257f1b0d6b354e81b4f14dbc45aced1fcf9fc093a9381ac745db",
+      "translation": "Companionをダウンロード →"
     }
   }
 }

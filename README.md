@@ -32,9 +32,27 @@ See the [feature guide](https://gnarlyr.com/firmware.html) for details and [know
 
 ## Get Gnarlyr
 
-Gnarlyr 1.0.0 is in development. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published firmware and desktop installers. Firmware releases include checksums and matching source. See the [download reference](docs/downloads.md) for asset names and URLs.
+**Gnarlyr `1.0.0-beta.1`** public beta builds are available on [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases).
 
-Gnarlyr supports the full-size ECHO with a 480 × 222 display. For a first install, follow the [installation guide](https://gnarlyr.com/install.html) and prepare the [recovery procedure for this model](firmware/docs/device-recovery.md).
+### Gnarlyr Companion `1.0.0-beta.1` (Desktop App)
+
+Install or update firmware, copy music, build mixtapes, preview themes, and install official language packs in one click ([Companion guide](https://gnarlyr.com/companion.html)):
+
+- **macOS (Apple Silicon):** [`gnarlyr-desktop-macos-arm64.dmg`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-macos-arm64.dmg) · [`gnarlyr-desktop-macos-arm64.zip`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-macos-arm64.zip)
+- **Windows (x64):** [`gnarlyr-desktop-windows-x64.exe`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-windows-x64.exe)
+- **Linux (x86_64):** [`gnarlyr-desktop-linux-x86_64.AppImage`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-linux-x86_64.AppImage)
+- **Release notes & `SHA256SUMS`:** [`desktop-v1.0.0-beta.1`](https://github.com/0xdoublesharp/gnarlyr/releases/tag/desktop-v1.0.0-beta.1)
+
+### Gnarlyr Firmware `v1.0.0-beta.1`
+
+Download the firmware directly for a manual USB install ([installation guide](https://gnarlyr.com/install.html)):
+
+- **First install from FiiO firmware:** [`ECHOECHO.img`](https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/ECHOECHO.img)
+- **Update existing Gnarlyr:** [`GNARLYR.IMG`](https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/GNARLYR.IMG)
+- **Checksums:** [`SHA256SUMS`](https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/SHA256SUMS)
+- **Release notes & 6 official language packs (`de`, `es`, `fr`, `ja`, `pt`, `zh`):** [`v1.0.0-beta.1`](https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.1)
+
+Gnarlyr supports the full-size ECHO with a 480 × 222 display. Firmware releases include checksums and matching source. See the [download reference](docs/downloads.md) for asset names and URLs, and prepare the [recovery procedure for this model](firmware/docs/device-recovery.md) before a first install.
 
 ## Repository map
 

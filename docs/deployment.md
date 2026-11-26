@@ -2,7 +2,7 @@
 
 The app session owns this static website’s manual publication and DoublePaaS
 runtime. Website deployment does not build, distribute, or flash firmware.
-Firmware source is public at https://github.com/0xdoublesharp/gnarlyr. Public firmware and companion installers are not released yet. The visual Docs guide uses simulator and native-renderer screenshots under `site/assets/screens/`;
+Firmware source is public at https://github.com/0xdoublesharp/gnarlyr. Public beta releases (`v1.0.0-beta.1` firmware and `desktop-v1.0.0-beta.1` Companion installers) are published on GitHub Releases. The visual Docs guide uses simulator and native-renderer screenshots under `site/assets/screens/`;
 regenerate them with `tools/site_screenshots.py` before publishing interface changes.
 
 ## Production
