@@ -1,8 +1,11 @@
 #include "sunset_scene.h"
 
+#include <stddef.h>
+
 enum {
     SUNSET_ARC_STEPS = 32,
     SUNSET_SLAT_PITCH = 9,
+    SUNSET_SLATS_AUTO = UINT8_MAX,
     SUNSET_INSET = 6,
     SUNSET_MARK_ROOM = 12,
     SUNSET_STAR_TOP = 3,
@@ -31,14 +34,31 @@ static int smaller(int first, int second)
     return first < second ? first : second;
 }
 
+static int scene_value(const Theme *theme, ThemeSceneTarget target, int fallback)
+{
+    const ThemeVisualStyle *style = theme->visual_style;
+    return style != NULL && (style->scene_mask & (1u << target)) != 0 ? style->scene[target]
+                                                                      : fallback;
+}
+
 SunsetScene sunset_scene_of(const Theme *theme, Rect stage)
 {
     bool portrait = theme_is_portrait(theme);
     SunsetScene scene = {.stage = stage};
-    scene.horizon = stage.y + stage.height * (portrait ? 64 : 66) / 100;
+    int horizon = scene_value(theme, THEME_SCENE_HORIZON, portrait ? 64 : 66);
+    scene.horizon = stage.y + stage.height * horizon / 100;
     int above = scene.horizon - stage.y;
+    int radius = scene_value(theme, THEME_SCENE_SUN_RADIUS, 0);
     scene.radius = portrait ? smaller(stage.width / 2 - SUNSET_MARK_ROOM, above * 72 / 100)
                             : smaller(stage.width * 22 / 100, above * 80 / 100);
+    if (radius != 0) {
+        int room = above - SUNSET_STAR_TOP - SUNSET_STAR_GAP - 2;
+        scene.radius = smaller(stage.width * radius / 100, room * 10 / 13);
+    }
+    scene.slats = (uint8_t)scene_value(theme, THEME_SCENE_SLATS, SUNSET_SLATS_AUTO);
+    scene.floor_lines = (uint8_t)scene_value(theme, THEME_SCENE_FLOOR_LINES, SUNSET_FLOOR_LINES);
+    scene.rays = (uint8_t)scene_value(theme, THEME_SCENE_RAYS, SUNSET_RAYS);
+    scene.pulse = scene_value(theme, THEME_SCENE_PULSE, 1) != 0;
     scene.sun = (Point){stage.x + stage.width / 2, scene.horizon - scene.radius * 3 / 10};
     scene.bars = (Rect){stage.x + SUNSET_INSET, stage.y + SUNSET_INSET,
                         stage.width - SUNSET_INSET * 2, above - SUNSET_INSET};
@@ -66,11 +86,17 @@ int sunset_scene_half_width(const SunsetScene *scene, int y)
 bool sunset_scene_slat_gap(const SunsetScene *scene, int y)
 {
     int rise = scene->horizon - 1 - y;
-    if (rise < 0 || rise >= scene->radius) {
+    if (rise < 0 || rise >= scene->radius || scene->slats == 0) {
         return false;
     }
     int gap = 1 + (scene->radius - rise) * 4 / scene->radius;
-    return rise % SUNSET_SLAT_PITCH < gap;
+    if (scene->slats == SUNSET_SLATS_AUTO) {
+        return rise % SUNSET_SLAT_PITCH < gap;
+    }
+    int band = rise * scene->slats / scene->radius;
+    int start = (band * scene->radius + scene->slats - 1) / scene->slats;
+    int end = ((band + 1) * scene->radius + scene->slats - 1) / scene->slats;
+    return rise - start < smaller(gap, (end - start) / 2);
 }
 
 Rect sunset_scene_row(const SunsetScene *scene, int side)
@@ -111,8 +137,9 @@ Rect sunset_scene_floor(const SunsetScene *scene)
 int sunset_scene_floor_line(const SunsetScene *scene, int line)
 {
     int span = sunset_scene_floor(scene).height - 4;
-    int steps = (SUNSET_FLOOR_LINES + 1) * (SUNSET_FLOOR_LINES + 1);
-    return scene->horizon + 3 + (line + 1) * (line + 1) * span / steps;
+    int steps = (scene->floor_lines + 1) * (scene->floor_lines + 1);
+    int offset = (line + 1) * (line + 1) * span / steps;
+    return scene->horizon + 3 + (offset > line ? offset : line);
 }
 
 Rect sunset_scene_bar(const SunsetScene *scene, int band)

@@ -62,6 +62,7 @@ typedef struct ThemePack {
     bool low_contrast;
     bool verified;
     ThemeAssetKey assets[THEME_PACK_MAX_ASSETS];
+    ThemeVisualStyle visual_style;
 } ThemePack;
 
 bool theme_pack_open(ThemePack *pack, ByteSource source, uint32_t size, ThemePackCheck check);

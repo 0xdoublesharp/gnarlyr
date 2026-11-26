@@ -2,7 +2,7 @@
   "id": "a9901179-8a1b-4b2a-8203-32be059233f1",
   "name": "Vice 86",
   "author": "Doublesharp originals",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "licence": "CC0-1.0",
   "homepage": "",
   "gallery": "",
@@ -73,10 +73,23 @@
       "orientation": "any"
     },
     {
+      "slot": "cassette_label",
+      "file": "cassette-label-portrait.png",
+      "orientation": "portrait"
+    },
+    {
       "slot": "icon_music",
       "file": "music.png",
       "orientation": "any"
     }
+  ],
+  "style": [
+    {"kind": "scene", "target": "horizon", "value": 59},
+    {"kind": "scene", "target": "sun_radius", "value": 27},
+    {"kind": "scene", "target": "slats", "value": 4},
+    {"kind": "scene", "target": "floor_lines", "value": 8},
+    {"kind": "scene", "target": "rays", "value": 9},
+    {"kind": "wait_frame_ms", "target": "time", "value": 120}
   ],
   "codec": "indexed",
   "dither": "none"

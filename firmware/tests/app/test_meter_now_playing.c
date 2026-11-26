@@ -501,6 +501,50 @@ static void hidden_and_early_ticks_never_sample_or_send(void)
     CHECK_EQUAL(1, fake_hal_visual_reads());
 }
 
+static void a_pack_can_slow_or_speed_up_the_stage_without_pulsing_the_floor(void)
+{
+    for (int interval = 40; interval <= 500; interval += 460) {
+        start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_SPECTRUM);
+        ThemeVisualStyle visual = {.wait_frame_ms = (uint16_t)interval,
+                                   .scene_mask = 1u << THEME_SCENE_PULSE};
+        theme.visual_style = &visual;
+        FrameDiff diff = {0};
+        screen.now_ms = 999;
+        meter_now_playing_animate(&screen, &diff, true);
+        CHECK_EQUAL(1, fake_hal_visual_reads());
+        screen.now_ms += (uint32_t)interval - 1;
+        meter_now_playing_animate(&screen, &diff, true);
+        CHECK_EQUAL(1, fake_hal_visual_reads());
+        screen.now_ms++;
+        meter_now_playing_animate(&screen, &diff, true);
+        CHECK_EQUAL(2, fake_hal_visual_reads());
+        CHECK_EQUAL(0, playing_work_styles()->meter.pulse);
+        theme.visual_style = NULL;
+    }
+}
+
+static void a_pack_controls_the_visible_ray_count_and_floor_brightness(void)
+{
+    Canvas canvas = start(0, TEXT_SIZE_MEDIUM, APPEARANCE_NEON_NOIR, NOW_PLAYING_SPECTRUM);
+    ThemeVisualStyle visual = {.scene_mask = (1u << THEME_SCENE_RAYS) | (1u << THEME_SCENE_PULSE)};
+    theme.visual_style = &visual;
+    playing_work_styles()->meter.pulse = SUNSET_PULSE_STEPS - 1;
+    Color ray = color_between(theme.colors.divider, theme.colors.accent, 1, 3);
+    Color line = color_between(theme.colors.divider, theme.colors.accent, 1, SUNSET_PULSE_STEPS);
+    for (int count = 0; count <= 16; count++) {
+        visual.scene[THEME_SCENE_RAYS] = (uint8_t)count;
+        draw_fresh(&canvas);
+        SunsetScene sun = scene();
+        int visible = 0;
+        for (int x = sun.stage.x; x < sun.stage.x + sun.stage.width; x++) {
+            visible += canvas_pixel_at(&canvas, x, sun.horizon + 1) == ray;
+        }
+        CHECK_EQUAL(count, visible);
+        CHECK_EQUAL(line, canvas_pixel_at(&canvas, sun.stage.x, sunset_scene_floor_line(&sun, 0)));
+    }
+    theme.visual_style = NULL;
+}
+
 static void cover_flow_and_the_styles_take_turns_with_the_playing_work_area(void)
 {
     playing_module_work.owner = PLAYING_WORK_NONE;
@@ -537,6 +581,8 @@ int main(void)
         TEST_CASE(the_vu_floor_pulses_with_bass_but_not_with_treble),
         TEST_CASE(every_theme_draws_the_scenery_in_its_own_colours),
         TEST_CASE(hidden_and_early_ticks_never_sample_or_send),
+        TEST_CASE(a_pack_can_slow_or_speed_up_the_stage_without_pulsing_the_floor),
+        TEST_CASE(a_pack_controls_the_visible_ray_count_and_floor_brightness),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

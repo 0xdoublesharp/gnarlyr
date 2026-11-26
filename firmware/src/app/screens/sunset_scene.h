@@ -9,7 +9,7 @@
 
 enum {
     SUNSET_FLOOR_LINES = 6,
-    SUNSET_RAYS = 6,
+    SUNSET_RAYS = 13,
     SUNSET_STARS = 12,
     SUNSET_PULSE_STEPS = 4,
     SUNSET_SEGMENTS = 17,
@@ -24,6 +24,10 @@ typedef struct SunsetScene {
     int radius;
     Rect bars;
     Rect bed;
+    uint8_t slats;
+    uint8_t floor_lines;
+    uint8_t rays;
+    bool pulse;
 } SunsetScene;
 
 SunsetScene sunset_scene_of(const Theme *theme, Rect stage);

@@ -75,6 +75,22 @@ typedef struct HeaderRoom {
     int16_t shift;
 } HeaderRoom;
 
+typedef enum ThemeSceneTarget {
+    THEME_SCENE_HORIZON,
+    THEME_SCENE_SUN_RADIUS,
+    THEME_SCENE_SLATS,
+    THEME_SCENE_FLOOR_LINES,
+    THEME_SCENE_RAYS,
+    THEME_SCENE_PULSE,
+    THEME_SCENE_TARGETS
+} ThemeSceneTarget;
+
+typedef struct ThemeVisualStyle {
+    uint16_t wait_frame_ms;
+    uint16_t scene_mask;
+    uint8_t scene[THEME_SCENE_TARGETS];
+} ThemeVisualStyle;
+
 typedef struct Theme {
     ThemeColors colors;
     ThemeFonts fonts;
@@ -87,6 +103,7 @@ typedef struct Theme {
     void *art_context;
     bool (*draw_art)(const struct Theme *theme, Canvas *canvas, int slot, Rect area);
     HeaderRoom header_room;
+    const ThemeVisualStyle *visual_style;
 } Theme;
 
 Rect theme_header_area(const Theme *theme);

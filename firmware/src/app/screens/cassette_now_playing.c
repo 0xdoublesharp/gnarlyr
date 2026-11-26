@@ -14,7 +14,9 @@
 enum {
     PHASE_STEPS = 16,
     SPOKES = 3,
-    SINE_SCALE = 16
+    SINE_SCALE = 16,
+    LABEL_WIDTH = 160,
+    LABEL_HEIGHT = 48
 };
 
 static const int8_t SINE[PHASE_STEPS] = {0, 6,  11,  15,  16,  15,  11,  6,
@@ -154,6 +156,13 @@ static void draw_shell(Canvas *canvas, CassetteNowPlayingLayout layout, const Th
     canvas_fill_rect(canvas,
                      (Rect){body.x + 4, body.y + 4, body.width - 8, label_bottom - body.y - 4},
                      theme->colors.backdrop_top);
+    if (theme->draw_art != NULL && label_bottom >= body.y + 6 + LABEL_HEIGHT) {
+        Rect art = {body.x + body.width - 10 - LABEL_WIDTH, label_bottom - 2 - LABEL_HEIGHT,
+                    LABEL_WIDTH, LABEL_HEIGHT};
+        if (!theme_art_draw(theme, canvas, THEME_ART_CASSETTE_LABEL, art)) {
+            canvas_fill_rect(canvas, art, theme->colors.backdrop_top);
+        }
+    }
     Rect rim = {body.x + 2, body.y + 2, body.width - 4, body.height - 4};
     neon_art_frame(canvas, rim, neon_art_ink(theme, theme->colors.accent_alt));
     neon_art_line(canvas, (Point){body.x + 10, label_bottom},

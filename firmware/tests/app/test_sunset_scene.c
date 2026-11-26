@@ -200,6 +200,51 @@ static void the_floor_pulse_jumps_up_and_falls_one_step_a_tick(void)
     CHECK(sunset_scene_pulse(0, 190) < SUNSET_PULSE_STEPS - 1);
 }
 
+static void scene_uses_overrides_and_keeps_the_defaults_for_missing_targets(void)
+{
+    theme = BOARD_THEME;
+    const Rect stage = {12, 25, 160, 200};
+    SunsetScene defaults = sunset_scene_of(&theme, stage);
+    ThemeVisualStyle style = {.scene_mask = 1u << THEME_SCENE_HORIZON,
+                              .scene = {[THEME_SCENE_HORIZON] = 55}};
+    theme.visual_style = &style;
+    SunsetScene partial = sunset_scene_of(&theme, stage);
+    CHECK_EQUAL(stage.y + 110, partial.horizon);
+    CHECK_EQUAL(defaults.radius, partial.radius);
+    CHECK_EQUAL(defaults.slats, partial.slats);
+    CHECK_EQUAL(6, partial.floor_lines);
+    CHECK_EQUAL(13, partial.rays);
+    CHECK(partial.pulse);
+    style.scene_mask = (1u << THEME_SCENE_TARGETS) - 1;
+    style.scene[THEME_SCENE_SUN_RADIUS] = 25;
+    style.scene[THEME_SCENE_FLOOR_LINES] = 8;
+    SunsetScene scene = sunset_scene_of(&theme, stage);
+    CHECK_EQUAL(40, scene.radius);
+    CHECK_EQUAL(8, scene.floor_lines);
+    CHECK_EQUAL(scene.horizon + 3 + 64 * 86 / 81, sunset_scene_floor_line(&scene, 7));
+    CHECK_EQUAL(0, scene.rays);
+    CHECK(!scene.pulse);
+    for (int count = 0; count <= 8; count++) {
+        style.scene[THEME_SCENE_SLATS] = (uint8_t)count;
+        scene = sunset_scene_of(&theme, stage);
+        int gaps = 0;
+        bool previous = false;
+        for (int y = scene.horizon - scene.radius; y < scene.horizon; y++) {
+            bool gap = sunset_scene_slat_gap(&scene, y);
+            gaps += gap && !previous;
+            previous = gap;
+        }
+        CHECK_EQUAL(count, gaps);
+    }
+    style.scene[THEME_SCENE_HORIZON] = 75;
+    style.scene[THEME_SCENE_FLOOR_LINES] = 10;
+    scene = sunset_scene_of(&theme, (Rect){12, 25, 236, 124});
+    for (int line = 1; line < scene.floor_lines; line++) {
+        CHECK(sunset_scene_floor_line(&scene, line) > sunset_scene_floor_line(&scene, line - 1));
+    }
+    theme.visual_style = NULL;
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -212,6 +257,7 @@ int main(void)
         TEST_CASE(bars_share_the_width_and_rise_from_the_horizon),
         TEST_CASE(stars_stay_in_the_sky_clear_of_the_sun),
         TEST_CASE(the_floor_pulse_jumps_up_and_falls_one_step_a_tick),
+        TEST_CASE(scene_uses_overrides_and_keeps_the_defaults_for_missing_targets),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

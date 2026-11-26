@@ -78,6 +78,50 @@ static bool inside(Rect area, int x, int y)
     return x >= area.x && x < area.x + area.width && y >= area.y && y < area.y + area.height;
 }
 
+static Rect label_art;
+static bool art_fails;
+
+static bool draw_label_art(const Theme *active, Canvas *canvas, int slot, Rect area)
+{
+    CHECK_EQUAL(THEME_ART_CASSETTE_LABEL, slot);
+    label_art = area;
+    canvas_fill_rect(canvas, area, active->colors.danger);
+    return !art_fails;
+}
+
+static void pack_label_art_fits_and_a_failed_draw_restores_the_plain_label(void)
+{
+    for (int orientation = 0; orientation < ORIENTATION_COUNT; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Canvas canvas = start_view(orientation, size);
+            cassette_now_playing_draw(&screen, &canvas);
+            memcpy(before, pixels, sizeof pixels);
+            theme.draw_art = draw_label_art;
+            label_art = (Rect){0};
+            art_fails = false;
+            cassette_now_playing_draw(&screen, &canvas);
+            CHECK_EQUAL(160, label_art.width);
+            CHECK_EQUAL(48, label_art.height);
+            CassetteNowPlayingLayout layout = cassette_now_playing_layout(&theme);
+            CHECK(inside(layout.body, label_art.x, label_art.y));
+            CHECK(label_art.y + label_art.height <= layout.window.y - 2);
+            CHECK_EQUAL(theme.colors.danger,
+                        canvas_pixel_at(&canvas, label_art.x + 159, label_art.y + 47));
+            for (int y = 0; y < canvas.bounds.height; y++) {
+                for (int x = 0; x < canvas.bounds.width; x++) {
+                    if (!inside(label_art, x, y)) {
+                        CHECK_EQUAL(before[y * canvas.bounds.width + x],
+                                    canvas_pixel_at(&canvas, x, y));
+                    }
+                }
+            }
+            art_fails = true;
+            cassette_now_playing_draw(&screen, &canvas);
+            CHECK(memcmp(before, pixels, sizeof pixels) == 0);
+        }
+    }
+}
+
 static void reel_frames_change_only_the_two_reel_rectangles(void)
 {
     for (int orientation = 0; orientation < 2; orientation++) {
@@ -180,6 +224,7 @@ static void classic_footer_uses_the_themes_legible_secondary_ink(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(pack_label_art_fits_and_a_failed_draw_restores_the_plain_label),
         TEST_CASE(classic_footer_uses_the_themes_legible_secondary_ink),
         TEST_CASE(reel_frames_change_only_the_two_reel_rectangles),
         TEST_CASE(long_labels_truncate_at_a_complete_character_with_an_ellipsis),

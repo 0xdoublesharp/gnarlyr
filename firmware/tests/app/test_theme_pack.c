@@ -239,6 +239,23 @@ static void style_entries_are_bounded_known_and_unique(void)
     CHECK(!open_as(THEME_PACK_STRUCTURE));
 }
 
+static void a_pack_retains_scene_values_and_timing_and_clears_omitted_entries(void)
+{
+    static const uint8_t entries[] = {1, 4, 0,  0, 1, 0, 62, 0, 1, 2, 0, 0, 3, 0, 244, 1,
+                                      1, 1, 28, 0, 1, 3, 8,  0, 1, 5, 0, 0, 4, 0, 1,   0};
+    static const uint8_t expected[] = {62, 28, 0, 8, 0, 0};
+    build(&TILE, 1, entries, sizeof entries);
+    ThemePack pack;
+    CHECK(open_pack(&pack));
+    CHECK_EQUAL(500, pack.visual_style.wait_frame_ms);
+    CHECK_EQUAL(63, pack.visual_style.scene_mask);
+    CHECK(memcmp(expected, pack.visual_style.scene, sizeof expected) == 0);
+    sample();
+    CHECK(open_pack(&pack));
+    CHECK_EQUAL(0, pack.visual_style.wait_frame_ms);
+    CHECK_EQUAL(0, pack.visual_style.scene_mask);
+}
+
 static void low_contrast_is_a_warning(void)
 {
     sample();
@@ -308,6 +325,7 @@ int main(void)
         TEST_CASE(a_transparent_lossless_icon_passes_the_complete_check),
         TEST_CASE(payloads_are_decode_checked_only_by_the_complete_check),
         TEST_CASE(style_entries_are_bounded_known_and_unique),
+        TEST_CASE(a_pack_retains_scene_values_and_timing_and_clears_omitted_entries),
         TEST_CASE(low_contrast_is_a_warning),
         TEST_CASE(ed25519ph_checks_the_rfc8032_vector_and_rejects_a_changed_signature),
         TEST_CASE(signature_trailers_require_the_exact_framing),

@@ -262,10 +262,11 @@ static bool assets_valid(ThemePack *pack, ByteSource source, const ThemeLayout *
 
 static bool style_entry_valid(uint8_t kind, uint8_t target, uint32_t value)
 {
-    static const uint16_t SCENE_LOW[] = {40, 15, 0, 3, 0, 0};
-    static const uint16_t SCENE_HIGH[] = {75, 35, 8, 10, 16, 1};
+    static const uint8_t SCENE_LOW[THEME_SCENE_TARGETS] = {40, 15, 0, 3, 0, 0};
+    static const uint8_t SCENE_HIGH[THEME_SCENE_TARGETS] = {75, 35, 8, 10, 16, 1};
     if (kind == 1) {
-        return target < 6 && value >= SCENE_LOW[target] && value <= SCENE_HIGH[target];
+        return target < THEME_SCENE_TARGETS && value >= SCENE_LOW[target] &&
+               value <= SCENE_HIGH[target];
     }
     if (kind == 3) {
         return target == 0 && value >= 40 && value <= 500;
@@ -274,20 +275,29 @@ static bool style_entry_valid(uint8_t kind, uint8_t target, uint32_t value)
                          (target == 1 && (value == 4 || value == 6 || value == 8)));
 }
 
-static bool style_valid(ByteSource source, uint32_t offset, uint32_t length)
+static bool read_style(ThemeVisualStyle *style, ByteSource source, uint32_t offset, uint32_t length)
 {
     uint8_t bytes[THEME_PACK_STYLE_MAX_BYTES];
     if (!source.read(source.context, offset, bytes, length)) {
         return false;
     }
     for (uint32_t at = 0; at < length; at += 4) {
-        if (!style_entry_valid(bytes[at], bytes[at + 1], store_get16(bytes + at + 2))) {
+        uint8_t kind = bytes[at];
+        uint8_t target = bytes[at + 1];
+        uint16_t value = store_get16(bytes + at + 2);
+        if (!style_entry_valid(kind, target, value)) {
             return false;
         }
         for (uint32_t before = 0; before < at; before += 4) {
-            if (bytes[before] == bytes[at] && bytes[before + 1] == bytes[at + 1]) {
+            if (bytes[before] == kind && bytes[before + 1] == target) {
                 return false;
             }
+        }
+        if (kind == 1) {
+            style->scene[target] = (uint8_t)value;
+            style->scene_mask |= (uint16_t)(1u << target);
+        } else if (kind == 3) {
+            style->wait_frame_ms = value;
         }
     }
     return true;
@@ -397,7 +407,8 @@ static bool structure_valid(ThemePack *candidate, ByteSource source, const uint8
     uint32_t style = THEME_PACK_HEADER_BYTES + header[19] * (uint32_t)THEME_PACK_ASSET_BYTES;
     ThemeLayout layout = {style + store_get16(header + 494), size - store_get16(header + 492),
                           header[19]};
-    return layout.payload <= layout.end && style_valid(source, style, store_get16(header + 494)) &&
+    return layout.payload <= layout.end &&
+           read_style(&candidate->visual_style, source, style, store_get16(header + 494)) &&
            assets_valid(candidate, source, &layout);
 }
 

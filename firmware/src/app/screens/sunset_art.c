@@ -119,12 +119,13 @@ static void ray_row(const SunsetArt *art, Canvas *canvas, int y, Color ray)
     const SunsetScene *scene = &art->scene;
     Rect floor = sunset_scene_floor(scene);
     int step = SUNSET_RAY_START + (y - scene->horizon) * floor.width / (floor.height * 4);
-    int first = floored(canvas->clip.x - scene->sun.x + step - 1, step);
-    int last = floored(canvas->clip.x + canvas->clip.width - 1 - scene->sun.x, step);
-    first = larger(first, -SUNSET_RAYS);
-    last = smaller(last, SUNSET_RAYS);
+    int center = scene->sun.x - (scene->rays % 2 == 0 ? step / 2 : 0);
+    int first = floored(canvas->clip.x - center + step - 1, step);
+    int last = floored(canvas->clip.x + canvas->clip.width - 1 - center, step);
+    first = larger(first, 1 - (scene->rays + 1) / 2);
+    last = smaller(last, scene->rays / 2);
     for (int index = first; index <= last; index++) {
-        canvas_fill_rect(canvas, (Rect){scene->sun.x + index * step, y, 1, 1}, ray);
+        canvas_fill_rect(canvas, (Rect){center + index * step, y, 1, 1}, ray);
     }
 }
 
@@ -179,12 +180,14 @@ static void grid(const SunsetArt *art, Canvas *canvas)
     if (!rect_is_empty(floor.clip)) {
         canvas_fill_gradient(&floor, area, colors->backdrop_bottom, colors->background);
         Color ray = color_between(colors->divider, colors->accent, 1, 3);
-        for (int y = floor.clip.y; y < floor.clip.y + floor.clip.height; y++) {
-            ray_row(art, &floor, y, ray);
+        if (art->scene.rays > 0) {
+            for (int y = floor.clip.y; y < floor.clip.y + floor.clip.height; y++) {
+                ray_row(art, &floor, y, ray);
+            }
         }
-        Color line = color_between(colors->divider, colors->accent, 1 + art->meter->pulse,
-                                   SUNSET_PULSE_STEPS);
-        for (int index = 0; index < SUNSET_FLOOR_LINES; index++) {
+        int pulse = art->scene.pulse ? art->meter->pulse : 0;
+        Color line = color_between(colors->divider, colors->accent, 1 + pulse, SUNSET_PULSE_STEPS);
+        for (int index = 0; index < art->scene.floor_lines; index++) {
             int y = sunset_scene_floor_line(&art->scene, index);
             canvas_fill_rect(&floor, (Rect){area.x, y, area.width, 1}, line);
         }

@@ -198,7 +198,7 @@ static void render_band(SunsetArt *art, const MeterTick *before, int band)
 static void render_floor(SunsetArt *art)
 {
     Rect floor = sunset_scene_floor(&art->scene);
-    for (int line = 0; line < SUNSET_FLOOR_LINES; line++) {
+    for (int line = 0; line < art->scene.floor_lines; line++) {
         render(art, (Rect){floor.x, sunset_scene_floor_line(&art->scene, line), floor.width, 1});
     }
 }
@@ -270,17 +270,21 @@ static uint8_t energy_of(const AudioVisualLevels *levels, bool vu)
     return energy > levels->band[2] ? energy : levels->band[2];
 }
 
-static void update(NowPlayingScreen *screen, const AudioVisualLevels *levels, uint32_t elapsed)
+static void update(const NowPlayingScreen *screen, const AudioVisualLevels *levels,
+                   uint32_t elapsed, const SunsetArt *art)
 {
     MeterState *state = meter();
-    bool vu = settings_now_playing_style(screen->config.settings) == NOW_PLAYING_VU;
-    if (vu) {
+    if (art->sun_meter) {
         update_needles(state, levels, elapsed, screen->now_ms);
     } else {
         update_bars(state, levels, elapsed, screen->now_ms);
     }
-    uint8_t pulse = sunset_scene_pulse(state->pulse, energy_of(levels, vu));
-    state->pulse = pulse < state->pulse && state->frame % 2 != 0 ? state->pulse : pulse;
+    if (art->scene.pulse) {
+        uint8_t pulse = sunset_scene_pulse(state->pulse, energy_of(levels, art->sun_meter));
+        state->pulse = pulse < state->pulse && state->frame % 2 != 0 ? state->pulse : pulse;
+    } else {
+        state->pulse = 0;
+    }
 }
 
 static bool rest(MeterState *state, FrameDiff *diff)
@@ -297,6 +301,9 @@ static uint32_t look_of(const Theme *theme)
 {
     uint32_t look = hash_update(HASH_START, &theme->colors, sizeof theme->colors);
     look = hash_update(look, &theme->metrics.screen_width, sizeof theme->metrics.screen_width);
+    if (theme->visual_style != NULL) {
+        look = hash_update(look, theme->visual_style, sizeof *theme->visual_style);
+    }
     return hash_update(look, &theme->fonts.title, sizeof theme->fonts.title);
 }
 
@@ -335,17 +342,17 @@ static AudioVisualLevels measure(const NowPlayingScreen *screen, NowPlayingStyle
     return levels;
 }
 
-static void step(NowPlayingScreen *screen, NowPlayingStyle style)
+static void step(NowPlayingScreen *screen, NowPlayingStyle style, uint32_t interval)
 {
     MeterState *state = meter();
-    uint32_t elapsed = state->active ? screen->now_ms - state->updated_ms : AUDIO_VISUAL_FRAME_MS;
+    uint32_t elapsed = state->active ? screen->now_ms - state->updated_ms : interval;
     elapsed = elapsed > METER_LONGEST_STEP_MS ? METER_LONGEST_STEP_MS : elapsed;
     state->active = true;
-    state->frame = screen->now_ms / AUDIO_VISUAL_FRAME_MS;
+    state->frame = screen->now_ms / interval;
     AudioVisualLevels levels = measure(screen, style);
     MeterTick before = tick_of(state);
-    update(screen, &levels, elapsed);
     SunsetArt art = art_of(screen);
+    update(screen, &levels, elapsed, &art);
     if (state->repaint) {
         state->repaint = false;
         render(&art, art.scene.stage);
@@ -366,13 +373,21 @@ CORE_SEAM bool meter_now_playing_animate(NowPlayingScreen *screen, FrameDiff *di
         return rest(state, diff);
     }
     NowPlayingStyle style = settings_now_playing_style(screen->config.settings);
-    bool due = !state->active || state->frame != screen->now_ms / AUDIO_VISUAL_FRAME_MS;
+    const ThemeVisualStyle *visual = screen->config.theme->visual_style;
+    uint32_t interval = visual != NULL ? visual->wait_frame_ms : 0;
+    bool due = !state->active;
+    if (interval == 0) {
+        interval = AUDIO_VISUAL_FRAME_MS;
+        due |= state->frame != screen->now_ms / interval;
+    } else {
+        due |= screen->now_ms - state->updated_ms >= interval;
+    }
     if (due) {
         follow(state, screen, style);
     }
     bool changed = mask_stage(screen, diff);
     if (due) {
-        step(screen, style);
+        step(screen, style, interval);
     }
     return changed;
 }

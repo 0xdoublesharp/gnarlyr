@@ -4,7 +4,7 @@ A `.gtheme` is data: metadata, a complete RGB565 palette, a bounded image direct
 
 ## What the firmware draws
 
-The current firmware applies a pack's palette (all 20 roles), its base theme, the horizon and header-rule flags, and these images: `home` behind Home and the Theme list, `now_playing` behind Now Playing (indexed only), `list` behind list screens, `splash` in the start-up splash, and the icons in the status bar and on Home. It checks and keeps the rest of a valid pack without using it: the `cassette_label` image and every style table entry. The builder and `--check` list those in their JSON `warnings` as not yet drawn or not yet applied, so a pack can carry them now and gain them when the firmware does.
+The firmware applies a pack's full palette, base theme, horizon flag, and header-rule flag. It draws `home` behind Home and the Theme list, indexed `now_playing` behind Now Playing, `list` behind list screens, `splash` in the start-up splash, `cassette_label` on the cassette shell, and icons in the status bar and on Home. VU meters and Spectrum use the `scene` settings and `wait_frame_ms` from the style table. The builder and `--check` warn about the reserved `now_playing` style settings, which the firmware validates for future use.
 
 ## Making and installing a pack
 
@@ -15,7 +15,7 @@ python3 firmware/tools/theme_pack.py examples/themes/pocket-scope --output /Volu
 python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/pocket-scope.gtheme
 ```
 
-The build prints each image's codec, size, compression ratio and PSNR against plain RGB565 conversion, and warns below 30 dB. `--preview DIR` decodes every image in the pack with the player's decoder and writes it as a PNG, transparent parts over a grey checkerboard. It includes images the firmware does not draw yet, such as `cassette_label` (What the firmware draws, above), and shows each image on its own, not on a screen. `--check` runs the same complete validation the player runs when it selects a pack, and refuses lossless Now Playing art as a new installation would.
+The build prints each image's codec, size, compression ratio and PSNR against plain RGB565 conversion, and warns below 30 dB. `--preview DIR` decodes each image to a standalone PNG and shows transparent parts over a grey checkerboard. `--check` runs the same complete validation the player runs when it selects a pack, and refuses lossless Now Playing art as a new installation would.
 
 To preview a pack already on a player, use `--check FILE --installed --preview DIR`. With `--installed`, the tool still checks every image payload, including lossless Now Playing art. The player hides that art and draws the theme background instead, so the tool marks the variant with `"fallback": "theme-background"` in its JSON and exports a solid PNG in the pack's background colour for the slot. Without `--preview`, the same command returns the pack information without exporting PNGs.
 
@@ -153,12 +153,14 @@ The first payload starts right after the style table, the next one right after i
 | 2 | `now_playing` | Same full-screen dimensions and variants; indexed only | No |
 | 3 | `list` | Same full-screen dimensions, or a repeating tile of 1–64 pixels on each side with the tile flag; text size all; tiles may use either orientation | No |
 | 4 | `splash` | Same full-screen dimensions and variants; drawn after `board_power_hold`, in the app splash only | No |
-| 5 | `cassette_label` | 160×48; named reservation for the cassette view, with orientation variants; text size all | No |
+| 5 | `cassette_label` | 160×48; cassette label, with orientation variants; text size all | No |
 | 256 + icon ID | `icon_<name>` | Native icon grid: large 20×20, small 14×14, narrow 9×14; all three text sizes use these fixed boxes; exact size variants may be supplied | Yes |
 
 Icon IDs are the explicit ordinal values of [`../firmware/src/ui/include/ui/icons.h`](../firmware/src/ui/include/ui/icons.h), beginning with Music at 1. Existing IDs must never be reordered or reused. Large icons run Music through Computer, then Info through Delete after the logo. Small icons run Play through Shuffle Small. Bolt, Bluetooth Small, Lock, Song Small and Plug are narrow. Shuffle, Display, Theme, Power, Sleep, Controls, Start, Rescan, Bluetooth, Key Plus, Key Minus, Key Play, Key Menu and Seek keep their IDs and boxes but have no built-in drawing, because no screen shows them; a pack may still carry art for them. `NONE` and `COUNT` are not assets. The builder accepts the corresponding lowercase names, such as `icon_music`, `icon_now_playing`, `icon_play` and `icon_bluetooth_small`.
 
-Home item icons and status icons use these replacements when their destination box fits the native image. A larger box places the image at its top left; a smaller box retains the vector icon. A transparent icon is drawn over what is already there. Other screen icons keep their built-in drawing. Status battery outline/fill and the bolt's charging halo remain palette-driven. The cassette slot has no caller in this branch.
+Home item icons and status icons use these replacements when their destination box fits the native image. A larger box places the image at its top left; a smaller box retains the vector icon. A transparent icon is drawn over what is already there. Other screen icons keep their built-in drawing. Status battery outline/fill and the bolt's charging halo remain palette-driven.
+
+The cassette label is drawn at its native size at the lower right of the label panel, above the reel window and behind the track text. Use a quiet background where the text may overlap the image. The label panel uses the theme's `backdrop_top` colour when the image is absent or unreadable.
 
 Background coordinates are screen coordinates, including during clipped redraws and slides. Home paints the list portion with its Home background; the cover-art side panel retains its cover, caption and base drawing. Now Playing paints its content behind album art, labels and progress. Lists paint their content behind selection and text. The title/status band keeps its solid palette background. Splash art appears beneath the normal splash text. Keep imagery under text quiet: the tool warns about palette contrast, but does not assess arbitrary artwork.
 
@@ -187,13 +189,15 @@ Every payload has the same frame:
 
 ## Style table
 
-The style table follows the directory. Each 4-byte entry is `u8 kind, u8 target, u16 value`; each `(kind, target)` appears once. Unknown kinds or targets and out-of-range values are rejected. Firmware validates the table but no screen uses it yet, and the builder warns that each entry is not yet applied; it reserves these parameters for the planned visualizer stages and Now Playing options:
+The style table follows the directory. Each 4-byte entry is `u8 kind, u8 target, u16 value`, and each `(kind, target)` appears once. The firmware rejects unknown kinds or targets and out-of-range values.
 
 | Kind | Manifest name | Targets and ranges |
 | --- | --- | --- |
-| 1 | `scene` | 0 `horizon` 40–75 (% of the stage), 1 `sun_radius` 15–35 (%), 2 `slats` 0–8, 3 `floor_lines` 3–10, 4 `rays` 0–16, 5 `pulse` 0–1 |
-| 3 | `wait_frame_ms` | 0 `time` 40–500 |
-| 4 | `now_playing` | 0 `align` 0 left, 1 centre; 1 `progress_height` 4, 6 or 8 pixels |
+| 1 | `scene` | 0 `horizon` 40–75% of stage height from the top, 1 `sun_radius` 15–35% of stage width, 2 `slats` 0–8, 3 `floor_lines` 3–10, 4 `rays` 0–16, 5 `pulse` 0 off or 1 on |
+| 3 | `wait_frame_ms` | 0 `time` 40–500 ms between visualizer updates |
+| 4 | `now_playing` | Reserved. 0 `align` 0 left or 1 centre, 1 `progress_height` 4, 6 or 8 pixels |
+
+The VU meters and Spectrum apply each scene setting independently. The sun radius is capped to fit above the horizon. Omitted settings use the built-in geometry and 100 ms update cadence. A `slats` value of zero gives a solid sun, and `rays` set to zero removes the perspective rays. Setting `pulse` to zero keeps the floor lines at a steady brightness while the meters continue to move.
 
 Kind 2 (per-screen colour overrides) is reserved and rejected.
 

@@ -347,12 +347,10 @@ def check(data, verify_key=None, *, installed=False):
     if any("fallback" in asset for asset in info["assets"]):
         info["warnings"].append("now_playing: the player uses the theme background colour in place "
                                 "of lossless artwork")
-    if styles:
-        info["warnings"].append("style: " + ", ".join(style_names(styles)) +
+    unused_styles = [pair for pair in styles if pair[0] == STYLE_KINDS["now_playing"]]
+    if unused_styles:
+        info["warnings"].append("style: " + ", ".join(style_names(unused_styles)) +
                                 " are checked and kept but not yet applied by the firmware")
-    if any(asset["slot"] == SLOTS["cassette_label"] for asset in info["assets"]):
-        info["warnings"].append("cassette_label: the image is checked and kept but not yet drawn "
-                                "by the firmware")
     return info
 
 
@@ -512,7 +510,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--check", type=Path)
     parser.add_argument("--installed", action="store_true", help="check using the player's installed artwork rules")
-    parser.add_argument("--preview", type=Path, help="decode every image, including ones not drawn yet, and write each as a PNG")
+    parser.add_argument("--preview", type=Path, help="decode each image and write it as a PNG")
     parser.add_argument("--sign-key", type=Path, help="32-byte Ed25519 private seed; never included in the pack")
     parser.add_argument("--verify-key", type=Path, help="32-byte public key or 64 hex digits")
     parser.add_argument("--public-key-out", type=Path)

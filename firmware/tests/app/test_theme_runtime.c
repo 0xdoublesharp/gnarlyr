@@ -117,6 +117,51 @@ static void pack_art_draws_with_no_ui_module_loaded(void)
     CHECK(theme.draw_art == NULL);
 }
 
+static Color label_pixel(int x, int y, int index)
+{
+    return (Color)(1000 * (index + 1) + ((x + y) & 1));
+}
+
+static void a_pack_applies_its_style_and_selects_the_cassette_label_orientation(void)
+{
+    static const ThemeFixtureArt art[] = {
+        {THEME_ART_CASSETTE_LABEL, 2, 255, 160, 48, ART_CODEC_INDEXED, 0},
+        {THEME_ART_CASSETTE_LABEL, 1, 255, 160, 48, ART_CODEC_INDEXED, 0},
+    };
+    static const uint8_t style[] = {1, THEME_SCENE_RAYS, 0, 0, 3, 0, 140, 0};
+    static uint8_t bytes[17000];
+    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/themes/label.gtheme";
+    static Color pixels[160 * 48];
+    reset();
+    ThemeFixture fixture = {3, APPEARANCE_CLASSIC, 2, art, label_pixel, style, sizeof style};
+    uint32_t size = theme_fixture_build(bytes, sizeof bytes, &fixture);
+    fake_hal_add_file(path, bytes, size);
+    ThemeRuntime runtime = {0};
+    Theme theme = ECHO_THEME;
+    CHECK(theme_runtime_load(&runtime, "label.gtheme"));
+    theme_runtime_apply(&runtime, &theme);
+    CHECK(theme.visual_style != NULL);
+    CHECK_EQUAL(140, theme.visual_style->wait_frame_ms);
+    CHECK_EQUAL(1u << THEME_SCENE_RAYS, theme.visual_style->scene_mask);
+    CHECK_EQUAL(0, theme.visual_style->scene[THEME_SCENE_RAYS]);
+    Rect area = {12, 20, 160, 48};
+    Canvas canvas = canvas_make(pixels, area);
+    CHECK(theme_art_draw(&theme, &canvas, THEME_ART_CASSETTE_LABEL, area));
+    CHECK_EQUAL(1000, pixels[0]);
+    default_theme_set_orientation(&theme, ORIENTATION_PORTRAIT);
+    CHECK(theme_art_draw(&theme, &canvas, THEME_ART_CASSETTE_LABEL, area));
+    CHECK_EQUAL(2000, pixels[0]);
+    fake_hal_fail_file_reads(path);
+    CHECK(!theme_art_draw(&theme, &canvas, THEME_ART_CASSETTE_LABEL, area));
+    theme_runtime_apply(&runtime, &theme);
+    CHECK(theme.visual_style == NULL);
+    CHECK(theme_runtime_load(&runtime, "first.gtheme"));
+    theme_runtime_apply(&runtime, &theme);
+    CHECK_EQUAL(0, theme.visual_style->wait_frame_ms);
+    CHECK_EQUAL(0, theme.visual_style->scene_mask);
+    theme_runtime_close(&runtime);
+}
+
 static void strips_and_clipped_rectangles_match_a_full_render(void)
 {
     reset();
@@ -749,6 +794,7 @@ int main(void)
         TEST_CASE(a_saved_pack_survives_restart_and_a_damaged_or_missing_pack_falls_back),
         TEST_CASE(applying_a_pack_preserves_fonts_layout_and_all_palette_roles),
         TEST_CASE(pack_art_draws_with_no_ui_module_loaded),
+        TEST_CASE(a_pack_applies_its_style_and_selects_the_cassette_label_orientation),
         TEST_CASE(strips_and_clipped_rectangles_match_a_full_render),
         TEST_CASE(full_images_stream_in_both_orientations_and_missing_art_uses_the_base),
         TEST_CASE(a_lossless_now_playing_image_is_treated_as_absent_and_the_rest_applies),

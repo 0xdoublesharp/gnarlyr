@@ -100,6 +100,7 @@ bool theme_runtime_load(ThemeRuntime *runtime, const char *name)
     }
     theme_runtime_close(runtime);
     runtime->pack.palette = pack->palette;
+    runtime->pack.visual_style = pack->visual_style;
     runtime->pack.base = pack->base;
     runtime->pack.asset_count = pack->asset_count;
     for (int at = 0; at < 16; at++) {

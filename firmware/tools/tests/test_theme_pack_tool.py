@@ -183,23 +183,21 @@ class ThemeToolTests(unittest.TestCase):
             self.assertEqual(1, rejected.returncode)
             self.assertIn("payload header", rejected.stderr)
 
-    def test_style_entries_and_the_cassette_label_warn_that_they_are_not_yet_applied(self):
+    def test_only_unapplied_style_entries_warn(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = self.folder(directory)
             Image.new("RGB", (160, 48), (10, 20, 30)).save(folder / "label.png")
-            self.manifest["style"] = [{"kind": "scene", "target": "sun_radius", "value": 20}]
+            self.manifest["style"] = [{"kind": "scene", "target": "sun_radius", "value": 20},
+                                      {"kind": "wait_frame_ms", "target": "time", "value": 80}]
             self.manifest["assets"] = [{"slot": "cassette_label", "file": "label.png"}]
             self.save(folder)
             warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
-            self.assertTrue(any("scene sun_radius" in text and "not yet applied" in text
-                                for text in warnings), warnings)
-            self.assertTrue(any("cassette_label" in text and "not yet drawn" in text
-                                for text in warnings), warnings)
-            self.manifest["style"] = []
-            self.manifest["assets"] = []
+            self.assertFalse(any("not yet" in text for text in warnings), warnings)
+            self.manifest["style"].append({"kind": "now_playing", "target": "align", "value": 1})
             self.save(folder)
             warnings = theme_pack.check(theme_pack.build(folder))["warnings"]
-            self.assertFalse(any("not yet" in text for text in warnings), warnings)
+            self.assertEqual(["style: now_playing align are checked and kept but not yet applied by the firmware"],
+                             [text for text in warnings if "not yet" in text])
 
     def test_check_reads_at_most_one_byte_past_the_size_limit(self):
         with tempfile.TemporaryDirectory() as directory:

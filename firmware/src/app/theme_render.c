@@ -23,4 +23,5 @@ void theme_runtime_apply(ThemeRuntime *runtime, Theme *theme)
     }
     theme->art_context = runtime;
     theme->draw_art = runtime->active ? theme_art_module_draw : NULL;
+    theme->visual_style = runtime->active ? &runtime->pack.visual_style : NULL;
 }

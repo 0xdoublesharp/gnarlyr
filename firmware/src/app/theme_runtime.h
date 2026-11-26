@@ -9,6 +9,7 @@ typedef struct ThemeArtwork {
     uint8_t base;
     uint8_t asset_count;
     ThemeAssetKey assets[THEME_PACK_MAX_ASSETS];
+    ThemeVisualStyle visual_style;
 } ThemeArtwork;
 
 typedef struct ThemeArtCache {
