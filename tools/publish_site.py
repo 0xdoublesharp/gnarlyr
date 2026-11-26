@@ -11,6 +11,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import struct
 import subprocess
 
 
@@ -20,13 +21,51 @@ PUBLIC_FILES = (
     "index.html", "companion.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
     "styles.css", "site.js", "analytics.js", "favicon.svg", "robots.txt", "sitemap.xml",
     "themes.html", "languages.html", "language-catalog.js", "language-packs.js",
-    "comparison.html", "comparison.js",
+    "comparison.html", "comparison.js", "studio.html", "themes-catalog.json",
+    "studio/art-codec.js", "studio/asset-io.js", "studio/audio.js", "studio/builtins.js", "studio/catalog.js",
+    "studio/echo-font.js", "studio/echo-renderer.js", "studio/gallery.js", "studio/gtheme-codec.js",
+    "studio/palette.js", "studio/png.js", "studio/studio.css", "studio/studio.js", "studio/theme-link.js",
 )
+STUDIO_REDIRECT = "studio/index.html"
+STUDIO_EXAMPLES = ("pocket-scope", "desktop-98", "vice-86")
+STUDIO_FONT_FACES = ("inter_regular_16_latin1", *(f"inter_{weight}_{size}"
+                     for size in (18, 22, 26) for weight in ("regular", "semibold")))
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".svg", ".avif", ".gif"}
 
 
+def studio_resources():
+    for example in STUDIO_EXAMPLES:
+        folder = ROOT / "examples/themes" / example
+        manifest_path = folder / "theme.json"
+        manifest = json.loads(manifest_path.read_text())
+        yield f"studio/examples/{example}/theme.json", manifest_path
+        for name in sorted({entry["file"] for entry in manifest["assets"]}):
+            if not re.fullmatch(r"[a-zA-Z0-9_-]+\.png", name):
+                raise SystemExit(f"Invalid public theme artwork filename: {name}")
+            yield f"studio/examples/{example}/{name}", folder / name
+    fonts = ROOT / "firmware/src/fonts/packs"
+    for face in STUDIO_FONT_FACES:
+        yield f"studio/fonts/{face}.bin", fonts / f"{face}.bin"
+    yield "studio/fonts/OFL.txt", ROOT / "firmware/assets/fonts/inter/OFL.txt"
+
+
+def studio_base_font():
+    # The on-disk 16px pack extends the glyphs compiled into firmware.
+    source = (ROOT / "firmware/src/fonts/fonts.c").read_text()
+    bitmap = source.split("INTER_REGULAR_16_BITMAP[] = {", 1)[1].split("};", 1)[0]
+    glyphs = source.split("INTER_REGULAR_16_GLYPHS[] = {", 1)[1].split("};", 1)[0]
+    atlas = bytes(int(value, 16) for value in re.findall(r"0x([0-9A-F]{2})", bitmap))
+    entries = [tuple(map(int, line.split(","))) for line in re.findall(r"\{([-0-9, ]+)\}", glyphs)]
+    start = 8 + len(entries) * 12
+    if not entries or any(offset + (w * h + 1) // 2 > len(atlas) for _, offset, w, h, _, _, _ in entries):
+        raise SystemExit("Invalid firmware 16px base font")
+    index = b"".join(struct.pack("<HBBbbBBI", code, w, h, left, top, advance, 0, start + offset)
+                     for code, offset, w, h, left, top, advance in entries)
+    return struct.pack("<4sI", b"GF16", len(entries)) + index + atlas
+
+
 def public_files():
-    paths = [SITE / name for name in PUBLIC_FILES]
+    paths = [(name, SITE / name) for name in PUBLIC_FILES]
     assets = SITE / "assets"
     if assets.is_symlink():
         raise SystemExit("site/assets must not be a symlink")
@@ -39,25 +78,30 @@ def public_files():
             if path.suffix.lower() not in IMAGE_SUFFIXES:
                 raise SystemExit(f"Only public images belong under site/assets: {path}")
             relative = path.relative_to(SITE).as_posix()
-            paths.append(path)
+            paths.append((relative, path))
     files = {}
     total = 0
-    for path in paths:
-        relative = path.relative_to(SITE)
+    for relative, path in (*paths, *studio_resources()):
+        parts = Path(relative).parts
         if path.is_symlink() or not path.is_file():
             raise SystemExit(f"Expected a regular public file: {path}")
-        if any(part.startswith(".") for part in relative.parts):
+        if any(part.startswith(".") for part in parts):
             raise SystemExit(f"Refusing hidden asset: {path}")
         data = path.read_bytes()
         total += len(data)
         if total > 64 * 1024 * 1024:
             raise SystemExit("Public site exceeds the 64 MiB publication limit")
-        files[relative.as_posix()] = data
+        files[relative] = data
+    files["studio/fonts/inter_regular_16_core.bin"] = studio_base_font()
     if (SITE / "i18n/locales.json").is_file():
         spec = importlib.util.spec_from_file_location("site_locales", Path(__file__).with_name("site_locales.py"))
         locales = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(locales)
         files = locales.build(files, SITE)
+    redirect = SITE / STUDIO_REDIRECT
+    if redirect.is_symlink() or not redirect.is_file():
+        raise SystemExit(f"Expected a regular Studio redirect file: {redirect}")
+    files[STUDIO_REDIRECT] = redirect.read_bytes()
     assets = {name.encode(): name.encode() + b"?v=" + hashlib.sha256(data).hexdigest()[:12].encode()
               for name, data in files.items() if not name.endswith(".html")}
     def version_link(match):

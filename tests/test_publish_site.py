@@ -40,7 +40,8 @@ class StylesheetPublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="site-style-test-", dir=scratch) as folder:
             site = Path(folder)
             source = b'<link rel="stylesheet" href="styles.css"><p>Guide</p>'
-            for name in publisher.PUBLIC_FILES:
+            for name in (*publisher.PUBLIC_FILES, publisher.STUDIO_REDIRECT):
+                (site / name).parent.mkdir(parents=True, exist_ok=True)
                 (site / name).write_bytes(source if name.endswith(".html") else b"asset")
             with mock.patch.object(publisher, "SITE", site):
                 first = publisher.public_files()
@@ -49,7 +50,7 @@ class StylesheetPublicationTests(unittest.TestCase):
             for files in (first, second):
                 version = hashlib.sha256(files["styles.css"]).hexdigest()[:12].encode()
                 for name in publisher.PUBLIC_FILES:
-                    if name.endswith(".html"):
+                    if name.endswith(".html") and name != publisher.STUDIO_REDIRECT:
                         self.assertIn(b'href="styles.css?v=' + version + b'"', files[name])
                         self.assertEqual((site / name).read_bytes(), source)
             self.assertNotEqual(first["docs.html"], second["docs.html"])
@@ -63,7 +64,8 @@ class StylesheetPublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="site-image-test-", dir=scratch) as folder:
             site = Path(folder)
             source = b'<img src="assets/screen.png"><a href="assets/screen.png">Full size</a><a href="docs.html">Docs</a>'
-            for name in publisher.PUBLIC_FILES:
+            for name in (*publisher.PUBLIC_FILES, publisher.STUDIO_REDIRECT):
+                (site / name).parent.mkdir(parents=True, exist_ok=True)
                 (site / name).write_bytes(source if name.endswith(".html") else b"asset")
             (site / "assets").mkdir()
             image = site / "assets/screen.png"
@@ -86,7 +88,8 @@ class StylesheetPublicationTests(unittest.TestCase):
         scratch = Path("/Volumes/Scratch/SnowskyEcho/tmp")
         with tempfile.TemporaryDirectory(prefix="site-companion-test-", dir=scratch) as folder:
             site = Path(folder)
-            for name in publisher.PUBLIC_FILES:
+            for name in (*publisher.PUBLIC_FILES, publisher.STUDIO_REDIRECT):
+                (site / name).parent.mkdir(parents=True, exist_ok=True)
                 (site / name).write_bytes(b"public file")
             (site / "README.md").write_bytes(b"private deployment notes")
             for name in ("assets/companion/library-dark.png", "assets/social/companion-123456789abc.png"):

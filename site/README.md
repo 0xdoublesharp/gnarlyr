@@ -8,6 +8,7 @@ Open `index.html` directly to preview the English site. The site is static HTML,
 | [Docs](docs.html), [Install](install.html), and [Recovery](recovery.html) | Using the player, installing and updating firmware, and recovering the full-size ECHO |
 | [Hardware](hardware.html) and [Build](build.html) | ECHO specifications, source builds, and developer tools |
 | [Companion](companion.html), [Languages](languages.html), and [Themes](themes.html) | The desktop beta, browser language builder, and theme packs |
+| [Theme Studio](studio.html) | RGB565 palette, artwork, icon and pack editor |
 
 All pages share `styles.css` and `site.js`. The script copies commands and opens linked help sections. The installation steps and expandable help also work without JavaScript. The home page uses the Sunset Drive horizon and simulator captures of Now Playing.
 
@@ -101,11 +102,17 @@ For a review build, use a task-owned Scratch directory:
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 tools/site_locales.py render --output /Volumes/Scratch/SnowskyEcho/reports/site-i18n/public
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=tools python3 -m unittest discover -s tests -p 'test_*site*.py'
-node --test tests/test_site_analytics.mjs
+node --test tests/test_site_analytics.mjs tests/test_theme_studio_codec.mjs
 ```
 
 The normal publisher builds language pages in memory, so translated HTML and
 copies of shared assets are not committed. The static runtime is unchanged.
+
+## Theme Studio and gallery
+
+Use the review build above to preview Studio. The publisher bundles its modules, the Inter bitmap faces and the source folders behind the gallery presets. The code and fonts are served by the site. Imported artwork and audio are processed in the browser.
+
+Curators maintain creator profiles, remix lineage and optional aggregate counts in `themes-catalog.json`. The gallery shows counts once they are available. A gallery entry's source points at an allowlisted example folder. Add source assets under `examples/themes/` and allowlist the folder in the publisher when adding a theme.
 
 ## Link preview images
 

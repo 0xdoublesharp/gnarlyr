@@ -244,3 +244,15 @@ python3 firmware/tools/theme_pack.py --check /Volumes/Scratch/SnowskyEcho/signed
 Without a matching public key, `--check` reports `unknown-key` while checking all ordinary data. With a matching key it verifies the signature and fails on a forgery. Firmware verification uses pinned Monocypher 4.0.2 in the cold module, never resident code. `theme_trusted_keys.h` holds a build-time list of at most four key IDs/public keys; it ships empty until the owner provisions gallery keys. Thus this build does not award Verified badges. Adding keys requires a fresh size-budget check; unused verification code is discarded when there are no keys.
 
 A valid signature by a trusted key earns Verified in the list once the pack has had its complete check (when highlighted or selected). Unsigned, unknown-key and invalid-signature packs remain usable without that badge. A malformed signature envelope fails structural validation. Verified means attribution to a trusted signing key, not ownership, safety certification, payment or permission to run code. There is no DRM, entitlement lookup, network check or lock. A future gallery/editor and trust-key publication/revocation policy are separate work.
+
+## Studio sharing links
+
+[Theme Studio](https://gnarlyr.com/studio.html) builds and opens v2 packs locally. A Studio source ZIP contains a manifest and PNGs that `theme_pack.py` can build. Keep the `.gtheme` itself if you need to preserve the original compression or signature.
+
+A Studio share link uses `#p=<token>`. The Companion handoff URI uses `gnarlyr://theme?p=<token>`. The 60-character token encodes 45 bytes with unpadded base64url. Its first 40 bytes are the 20 palette colors in the order above, most significant byte first. The last five bytes are an unsigned big-endian integer:
+
+1. Start with `base × 4 + (horizon ? 1 : 0) + (header_rule ? 2 : 0)`.
+2. Visit the nine style targets in ascending `(kind, target)` order. Multiply the integer by one plus the number of legal values for that target. Then add zero if there is no override, or the one-based index of its value in ascending order.
+3. To decode, reverse step 2 with division and remainder. The remaining integer must be in 0–19.
+
+Links carry colors and styling. Artwork, icons and metadata such as author and licence travel with the pack. An optional `ref` URL parameter credits the creator for the current site visit.

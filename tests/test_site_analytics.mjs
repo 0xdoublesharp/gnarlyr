@@ -11,9 +11,10 @@ const domain = `${brand}.com`;
 const site = `https://${domain}`;
 const repository = `https://github.com/0x${maker}/${brand}`;
 const languageBuilderEvent = `${brand}:language-builder`;
+const studioEvent = `${brand}:studio`;
 const docsTitle = `${identity.name} Docs`;
 const websiteId = '7776169d-25f5-4420-bed8-810b4fbacdc7';
-const pages = ['index', 'firmware', 'docs', 'hardware', 'companion', 'install', 'build', 'recovery', 'languages', 'themes', 'comparison'];
+const pages = ['index', 'firmware', 'docs', 'hardware', 'companion', 'install', 'build', 'recovery', 'languages', 'themes', 'comparison', 'studio'];
 const paths = ['/', ...pages.map((page) => `/${page}.html`)];
 
 function visit(overrides = {}) {
@@ -28,7 +29,7 @@ function visit(overrides = {}) {
       currentScript: { dataset: { domain, websiteId, paths: paths.join(',') } },
       referrer: 'https://search.example/results?q=private#secret',
     },
-    URL, AbortSignal: { timeout: (ms) => ms },
+    URL, URLSearchParams, AbortSignal: { timeout: (ms) => ms },
     fetch: (url, options) => {
       calls.push({ url, ...options, body: JSON.parse(options.body) });
       return Promise.resolve();
@@ -379,4 +380,45 @@ test('the language builder reports downloaded packs and verified official import
     downloadEvent,
     ['language_builder', { action: 'load-starter', code: 'es' }],
   ], '/languages.html');
+});
+
+test('creator referrals persist per visit and only attach to download and Studio export events', () => {
+  const values = new Map();
+  const sessionStorage = { getItem: (key) => values.get(key), setItem: (key, value) => values.set(key, value) };
+  const arrival = visit({ location: new URL(`${site}/themes.html?ref=Pocket_Scope`), sessionStorage });
+  expectEvents(arrival, [], '/themes.html');
+  const studio = visit({ location: new URL(`${site}/studio.html#p=opaque&ref=invalid%20handle`), sessionStorage });
+  studio.emit(studioEvent, { detail: { name: 'studio_export', format: 'gtheme', private: 'local-file' } });
+  studio.emit(studioEvent, { detail: { name: 'theme_share', format: 'link' } });
+  studio.emit(studioEvent, { detail: { name: 'studio_export', format: 'local-file' } });
+  clickLink(studio, link('/download/test.gtheme'));
+  expectEvents(studio, [
+    ['studio_export', { format: 'gtheme', ref: 'pocket_scope' }],
+    ['theme_share', { format: 'link', ref: 'pocket_scope' }],
+    ['download', { kind: 'theme', asset: 'test.gtheme', platform: 'all', version: 'direct', ref: 'pocket_scope' }],
+  ], '/studio.html');
+  assert.doesNotMatch(JSON.stringify(studio.calls), /opaque|local-file|invalid/);
+});
+
+test('referral handles reject invalid characters and are never stored when tracking is disabled', () => {
+  for (const handle of ['a', 'a'.repeat(33), 'email@example.org', 'path/name', 'name\n', 'name ']) {
+    const sessionStorage = { getItem: () => handle, setItem: () => assert.fail('invalid ref stored') };
+    const session = visit({ location: new URL(`${site}/studio.html?ref=${encodeURIComponent(handle)}`), sessionStorage });
+    session.emit(studioEvent, { detail: { name: 'theme_share', format: 'link' } });
+    expectEvents(session, [['theme_share', { format: 'link' }]], '/studio.html');
+  }
+  const sessionStorage = { getItem: () => assert.fail('opt-out read'), setItem: () => assert.fail('opt-out write') };
+  const disabled = visit({ location: new URL(`${site}/studio.html?ref=valid`), navigator: { doNotTrack: '1' }, sessionStorage });
+  assert.equal(disabled.calls.length, 0);
+});
+
+
+test('shared theme links attribute only the sanitized handle, even when session storage is unavailable', () => {
+  const session = visit({
+    location: new URL(`${site}/studio.html#p=palette_token&ref=Mix_Tape`),
+    sessionStorage: { getItem: () => { throw new Error('storage unavailable'); } },
+  });
+  session.emit(studioEvent, { detail: { name: 'theme_share', format: 'companion' } });
+  expectEvents(session, [['theme_share', { format: 'companion', ref: 'mix_tape' }]], '/studio.html');
+  assert.doesNotMatch(JSON.stringify(session.calls), /palette_token/);
 });
