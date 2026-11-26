@@ -2,6 +2,7 @@
 import hashlib
 import json
 from pathlib import Path
+import sys
 import urllib.request
 
 CATALOG = Path(__file__).with_name("site_album_art.json")
@@ -38,4 +39,5 @@ def albums(indices=None):
 
 
 if __name__ == "__main__":
-    print(json.dumps(albums()))
+    indices = [int(index) for index in sys.argv[1:]]
+    print(json.dumps(albums(indices or None)))
