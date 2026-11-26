@@ -17,7 +17,7 @@ function option(name, fallback) {
   if (!args[index + 1] || args[index + 1].startsWith("--")) throw new Error(`Missing ${name} value`);
   return resolve(args[index + 1]);
 }
-const source = option("--source-root", resolve(root, "../gnarlyr-desktop"));
+const source = option("--source-root", resolve(root, "..", `${identity.id.toLowerCase()}-desktop`));
 const configPath = option("--config", join(root, "tools/site_companion_screenshots.json"));
 const config = JSON.parse(await readFile(configPath, "utf8"));
 const siteAssets = join(root, "site/assets/companion");
@@ -170,7 +170,7 @@ try {
     await app.evaluate(installStockCommandMocks, { tree: stock.tree, info: stock.info });
     const version = "1.0.0-beta.1";
     const tag = `v${version}`;
-    const releases = "https://github.com/0xdoublesharp/gnarlyr/releases";
+    const releases = "https://example.invalid/releases";
     await app.evaluate(installUiReply, {
       channel: "firmware:releases",
       reply: { value: [{

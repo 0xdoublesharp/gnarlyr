@@ -9,6 +9,8 @@ const brand = identity.name.toLowerCase();
 const maker = identity.manufacturer.toLowerCase();
 const domain = `${brand}.com`;
 const site = `https://${domain}`;
+const repository = `https://github.com/0x${maker}/${brand}`;
+const languageBuilderEvent = `${brand}:language-builder`;
 const docsTitle = `${identity.name} Docs`;
 const websiteId = '7776169d-25f5-4420-bed8-810b4fbacdc7';
 const pages = ['index', 'firmware', 'docs', 'hardware', 'companion', 'install', 'build', 'recovery', 'languages', 'themes', 'comparison'];
@@ -114,7 +116,7 @@ test('validation hosts, local files, health probes, and unknown pages do not col
     `${site}/not-a-page`, `${site}/assets/screens/home.png`,
   ]) {
     const session = visit({ location: new URL(url) });
-    clickLink(session, link('https://github.com/0xdoublesharp/gnarlyr'));
+    clickLink(session, link(repository));
     assert.equal(session.calls.length, 0, url);
   }
 });
@@ -145,8 +147,8 @@ test('privacy preferences and unavailable local storage suppress collection', ()
     { localStorage: new Proxy({}, { get() { throw Error('denied'); } }) },
   ]) {
     const session = visit({ location: new URL(site + '/languages.html'), ...overrides });
-    clickLink(session, link('https://github.com/0xdoublesharp/gnarlyr'));
-    session.emit('gnarlyr:language-builder', { detail: { action: 'download-pack', code: 'es' } });
+    clickLink(session, link(repository));
+    session.emit(languageBuilderEvent, { detail: { action: 'download-pack', code: 'es' } });
     assert.equal(session.calls.length, 0);
   }
 });
@@ -160,7 +162,7 @@ test('changing a privacy preference applies to subsequent interactions', () => {
   disabled = '1';
   const target = { tagName: 'SELECT', id: 'comparison-players', value: 'echo' };
   session.emit('change', { target });
-  clickLink(session, link('https://github.com/0xdoublesharp/gnarlyr'));
+  clickLink(session, link(repository));
   expectEvents(session, [], '/comparison.html');
 });
 
@@ -171,7 +173,7 @@ test('a failed collector does not interrupt the page', async () => {
   ]) {
     let attempts = 0;
     const session = visit({ fetch: () => { attempts++; return fail(); } });
-    assert.doesNotThrow(() => clickLink(session, link('https://github.com/0xdoublesharp/gnarlyr')));
+    assert.doesNotThrow(() => clickLink(session, link(repository)));
     assert.equal(attempts, 2);
   }
   await new Promise((resolve) => setImmediate(resolve));
@@ -179,20 +181,20 @@ test('a failed collector does not interrupt the page', async () => {
 
 test('release and direct download clicks send one event with artifact metadata', () => {
   const session = visit();
-  const releases = 'https://github.com/0xdoublesharp/gnarlyr/releases/download/';
+  const releases = `${repository}/releases/download/`;
   const firmwareTag = 'v1.0.0-beta.1';
   const desktopTag = 'desktop-v1.0.0-beta.1';
   const downloads = [
-    [desktopTag, 'gnarlyr-desktop-macos-arm64.dmg', 'companion', 'macos-arm64'],
-    [desktopTag, 'gnarlyr-desktop-macos-arm64.zip', 'companion', 'macos-arm64'],
-    [desktopTag, 'gnarlyr-desktop-windows-x64.exe', 'companion', 'windows-x64'],
-    [desktopTag, 'gnarlyr-desktop-linux-x86_64.AppImage', 'companion', 'linux-x86_64'],
+    [desktopTag, `${brand}-desktop-macos-arm64.dmg`, 'companion', 'macos-arm64'],
+    [desktopTag, `${brand}-desktop-macos-arm64.zip`, 'companion', 'macos-arm64'],
+    [desktopTag, `${brand}-desktop-windows-x64.exe`, 'companion', 'windows-x64'],
+    [desktopTag, `${brand}-desktop-linux-x86_64.AppImage`, 'companion', 'linux-x86_64'],
     [firmwareTag, 'ECHOECHO.img', 'firmware', 'echo'],
-    ['direct', 'GNARLYR.IMG', 'firmware', 'echo'],
+    ['direct', identity.update_file, 'firmware', 'echo'],
     [firmwareTag, 'vice-86.gtheme', 'theme', 'all'],
     ['direct', 'es.pack', 'language-pack', 'all'],
     [firmwareTag, 'SHA256SUMS', 'checksum', 'all'],
-    [firmwareTag, 'gnarlyr-source.tar.gz', 'source', 'all'],
+    [firmwareTag, `${brand}-source.tar.gz`, 'source', 'all'],
     [firmwareTag, 'firmware.json', 'other', 'all'],
     ['direct', 'examples.zip', 'other', 'all'],
   ];
@@ -200,7 +202,7 @@ test('release and direct download clicks send one event with artifact metadata',
     const url = version === 'direct' ? '/files/' : releases + version + '/';
     clickLink(session, link(url + asset + '?lookup=private#secret'));
   }
-  clickLink(session, link('https://github.com/0xdoublesharp/gnarlyr/archive/refs/tags/v1.2.3.zip'));
+  clickLink(session, link(`${repository}/archive/refs/tags/v1.2.3.zip`));
   expectEvents(session, [
     ...downloads.map(([version, asset, kind, platform]) => ['download', { kind, asset, platform, version }]),
     ['download', { kind: 'source', asset: 'v1.2.3.zip', platform: 'all', version: 'v1.2.3' }],
@@ -220,7 +222,7 @@ test('retailer clicks report the product and placement without the offer or affi
   ];
   for (const [path, href, selectors, retailer, placement, product] of cases) {
     const session = visit({ location: new URL(site + path) });
-    clickLink(session, link(href + '?tag=doublesharp-20#private', {}, selectors));
+    clickLink(session, link(href + `?tag=${maker}-20#private`, {}, selectors));
     expectEvents(session, [['retailer_click', { retailer, placement, product }]], path);
   }
 });
@@ -228,11 +230,11 @@ test('retailer clicks report the product and placement without the offer or affi
 test('outbound links send one category and hostname without the destination path', () => {
   const session = visit();
   const links = [
-    ['https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.1', 'github-releases'],
-    ['https://github.com/0xdoublesharp/gnarlyr/issues/new', 'github-issues'],
-    ['https://github.com/0xdoublesharp/gnarlyr/blob/main/firmware/README.md', 'github-source'],
-    ['https://github.com/sponsors/doublesharp', 'sponsor'],
-    ['https://venmo.com/u/doublesharp', 'sponsor'],
+    [`${repository}/releases/tag/v1.0.0-beta.1`, 'github-releases'],
+    [`${repository}/issues/new`, 'github-issues'],
+    [`${repository}/blob/main/firmware/README.md`, 'github-source'],
+    [`https://github.com/sponsors/${maker}`, 'sponsor'],
+    [`https://venmo.com/u/${maker}`, 'sponsor'],
     ['https://forum.fiio.com/note/showNoteContent.do', 'fiio'],
     ['https://podium-echo.online/changelog', 'community'],
     ['https://github.com/BasilSkyWalk/echopod/releases', 'community'],
@@ -242,7 +244,7 @@ test('outbound links send one category and hostname without the destination path
     ['https://amazon.com.example/private', 'reference'],
   ];
   for (const [href] of links) clickLink(session, link(href + '?token=private#secret'));
-  for (const href of ['#internal', '/install.html', 'mailto:private@example.com', 'blob:https://gnarlyr.com/private']) {
+  for (const href of ['#internal', '/install.html', 'mailto:private@example.com', `blob:${site}/private`]) {
     clickLink(session, link(href));
   }
   expectEvents(session, links.map(([href, category]) => ['outbound_link', { category, host: new URL(href).hostname }]));
@@ -307,8 +309,8 @@ test('the language builder bridge sends only its fixed action and a short normal
     ['download-pack', 'x'], ['download-pack', 'es\n'], ['download-pack', 'es?private'],
   ]) {
     const event = { detail: { action, code, text: 'private translations', file: 'secret.pack' } };
-    session.emit('gnarlyr:language-builder', event);
-    otherPage.emit('gnarlyr:language-builder', event);
+    session.emit(languageBuilderEvent, event);
+    otherPage.emit(languageBuilderEvent, event);
   }
   expectEvents(session, [
     ['language_builder', { action: 'load-starter', code: 'es' }],
