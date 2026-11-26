@@ -1,6 +1,8 @@
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -102,6 +104,21 @@ class StylesheetPublicationTests(unittest.TestCase):
             self.assertIn("assets/companion/library-dark.png", files)
             self.assertIn("assets/social/companion-123456789abc.png", files)
             self.assertNotIn("README.md", files)
+
+
+class StudioPublicationTests(unittest.TestCase):
+    def test_vice_86_preset_uses_the_firmware_example_and_its_artwork(self):
+        with mock.patch.object(sys, "path", [str(publisher.ROOT / "tools"), *sys.path]):
+            files = publisher.public_files()
+        catalog = json.loads(files["themes-catalog.json"])
+        preset = next(theme for theme in catalog["themes"] if theme["id"] == "vice-86")
+        source = publisher.ROOT / "examples/themes/vice-86"
+        manifest = files[preset["source"]]
+        self.assertEqual(manifest, (source / "theme.json").read_bytes())
+        prefix = Path(preset["source"]).parent
+        for name in {asset["file"] for asset in json.loads(manifest)["assets"]}:
+            with self.subTest(asset=name):
+                self.assertEqual(files[(prefix / name).as_posix()], (source / name).read_bytes())
 
 
 if __name__ == "__main__":
