@@ -267,6 +267,15 @@
   const error = byId("language-error");
   const ready = byId("pack-ready");
   const download = byId("download-pack");
+  // SHA256SUMS from the v1.0.0-beta.1 release linked on the page.
+  const officialPacks = new Map([
+    ["de", "48351dc9ef9fdb9ca074a33b8ffef0543b78656b54273c8d5fd3fea1adb19f7e"],
+    ["es", "7246d73688bb75ec31da5b2c9bd1d6ee2816e0c093c051426a95003aaba57661"],
+    ["fr", "90625daadb18a358cdbdb7d94a9886f64bca5967069a86ccfc49f8e018d6992c"],
+    ["ja", "764ad4d08b3396669785d44c480c4a43dadf9f6668f6099ceb913ccc3799af96"],
+    ["pt", "b0a6be21c9921464431da6b6b8852b6599ba524db91fdbc7485b2dda0af5b7cd"],
+    ["zh", "d8d7ddbae1bb1f4fc0fc1e0a6771cf138f21451ba93484eecb0bd345edd2c67e"],
+  ]);
   let pending = null;
   let imported = null;
   let reading = 0;
@@ -293,6 +302,22 @@
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function trackBuilder(action, code) {
+    try {
+      document.dispatchEvent(new CustomEvent("gnarlyr:language-builder", {detail: {action, code}}));
+    } catch { /* Analytics must not interrupt the editor. */ }
+  }
+
+  async function trackOfficialStarter(code, bytes) {
+    const expected = officialPacks.get(code);
+    if (!expected) return;
+    try {
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+      const hash = Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join("");
+      if (hash === expected) trackBuilder("load-starter", code);
+    } catch { /* Pack editing works without Web Crypto. */ }
   }
 
   async function readFile(file, limit) {
@@ -329,7 +354,10 @@
     }
   });
   download.addEventListener("click", () => {
-    if (pending) saveFile(`${pending.code}.pack`, pending.bytes, "application/octet-stream");
+    if (!pending) return;
+    const {code, bytes} = pending;
+    saveFile(`${code}.pack`, bytes, "application/octet-stream");
+    trackBuilder("download-pack", code);
   });
   byId("download-template").addEventListener("click", () => {
     try {
@@ -368,7 +396,7 @@
       const bytes = await readFile(event.target.files[0], catalogue().file_limit);
       if (!bytes || version !== reading) return;
       const pack = inspectPack(bytes);
-      imported = pack;
+      imported = {pack, bytes};
       byId("inspection-summary").textContent = `${pack.name} · ${pack.code} · ${pack.size.toLocaleString()} file bytes${pack.memory ? ` · ${pack.memory.toLocaleString()} bytes of player memory` : ""}`;
       status.textContent = "This pack matches the current template and the player's supported characters.";
       result.hidden = false;
@@ -379,13 +407,15 @@
   });
   byId("edit-pack").addEventListener("click", () => {
     if (!imported) return;
+    const {pack, bytes} = imported;
     invalidate();
-    codeInput.value = imported.code;
-    nameInput.value = imported.name;
-    textInput.value = catalogue().entries.map(entry => `${entry.id} = ${imported.texts[entry.id].replaceAll("\n", "\\n")}`).join("\n");
+    codeInput.value = pack.code;
+    nameInput.value = pack.name;
+    textInput.value = catalogue().entries.map(entry => `${entry.id} = ${pack.texts[entry.id].replaceAll("\n", "\\n")}`).join("\n");
     byId("translation-status").textContent = "Pack loaded into the editor. Your original file is unchanged.";
     form.scrollIntoView({behavior: "auto", block: "start"});
     textInput.focus({preventScroll: true});
+    void trackOfficialStarter(pack.code, bytes);
   });
   try {
     catalogue();

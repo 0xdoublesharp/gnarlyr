@@ -184,7 +184,15 @@ The browser language builder and desktop importer support the firmware’s initi
 
 ## Analytics
 
-Public pages load the deferred `analytics.js` sender for the shared Umami service. It collects pageviews only on production HTTPS at `gnarlyr.com`, excludes health probes and unknown routes, respects Do Not Track, Global Privacy Control, and the `umami.disabled` browser preference, and omits URL query strings and fragments. Referrers retain only their origin. Session recording is disabled. Run `node --test tests/test_site_analytics.mjs` for the behavior and page-integration checks.
+Public pages, including `/comparison.html` and the translated homepages, send pageviews and interaction events to the shared Umami service on production HTTPS at `gnarlyr.com`.
+
+- `download`, `retailer_click`, and `outbound_link` count clicks on files, retailer offers, and external resources.
+- `preview_tab`, `comparison_filter`, `command_copy`, `lightbox_open`, and `language_switch` record which controls visitors use.
+- `language_builder` records when a visitor opens an official release pack in the editor or downloads a built pack. It sends the action and a recognized language code. Other valid codes are grouped as `custom`.
+
+Do Not Track, Global Privacy Control, the `umami.disabled` browser preference, and unavailable local storage suppress collection. The sender omits cookies, URL query strings and fragments, retailer affiliate data, clipboard contents, and translation text. Referrers contain only their origin. Session recording is disabled.
+
+Run `node --test tests/test_site_analytics.mjs` to check the routes, event payloads, and privacy controls.
 
 ## Album artwork in screenshots
 
