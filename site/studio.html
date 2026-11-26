@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Design a Gnarlyr theme on a live ECHO preview. Edit RGB565 colors, test artwork, and export a theme pack from your browser.">
+  <link rel="canonical" href="https://gnarlyr.com/studio.html">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="studio/studio.css">
+  <title>Theme Studio — Gnarlyr</title>
+  <script src="analytics.js" defer data-website-id="7776169d-25f5-4420-bed8-810b4fbacdc7" data-domain="gnarlyr.com" data-paths="/,/index.html,/firmware.html,/docs.html,/hardware.html,/companion.html,/install.html,/build.html,/recovery.html,/languages.html,/themes.html,/comparison.html,/studio.html"></script>
+  <script src="site.js" defer></script>
+  <script type="module" src="studio/studio.js"></script>
+</head>
+<body class="theme-studio">
+  <a class="skip" href="#main">Skip to content</a>
+<header class="header wrap">
+  <a class="brand" href="index.html" aria-label="Gnarlyr home">
+    <img class="brand-mark" src="assets/brand/sunset-disc.svg" width="32" height="32" alt="" aria-hidden="true">
+    <span class="wordmark">GNARLYR<span class="brand-dot">.</span></span>
+  </a>
+  <nav aria-label="Main navigation"><a href="firmware.html">Features</a><a href="companion.html">Companion App</a>
+  <details class="docs-menu">
+    <summary>Docs</summary>
+    <div class="docs-menu-links"><a href="docs.html">User guide</a><a href="hardware.html">Hardware</a><a href="comparison.html">Comparison</a></div>
+  </details>
+  <a href="install.html" class="nav-cta">Install</a></nav>
+</header>
+
+  <main class="studio-wrap" id="main">
+    <div class="studio-intro">
+      <div>
+        <h1>Theme Studio<span>.</span></h1>
+        <p>Design a theme for your ECHO. Your artwork and audio stay on this device.</p>
+      </div>
+      <div class="studio-actions">
+        <a class="studio-control" href="themes.html#gallery">Theme gallery</a>
+        <label class="studio-file"><span>Open .gtheme</span><input id="pack-file" type="file" accept=".gtheme"></label>
+        <button type="button" class="studio-primary" id="download-pack">Download .gtheme</button>
+      </div>
+    </div>
+    <noscript><p>Theme Studio needs JavaScript to open and build packs.</p></noscript>
+    <div class="studio-workspace" id="workspace">
+      <section class="studio-preview" aria-label="Theme preview">
+        <div class="studio-bar" aria-label="Preview views">
+          <button type="button" aria-pressed="true" data-view="preview">Preview</button>
+          <button type="button" aria-pressed="false" data-view="preflight">Preflight / Stress-test</button>
+          <span id="display-resolution" class="studio-resolution">480 × 222</span>
+        </div>
+        <div id="view-preview">
+          <div class="studio-view-controls">
+            <label>Screen <select id="screen"></select></label>
+            <label>Mode <select id="mode"></select></label>
+            <label>Orientation <select id="orientation"></select></label>
+            <label>Text size <select id="text-size"></select></label>
+          </div>
+          <div class="studio-stage" id="stage">
+            <div class="echo-body" id="echo-body">
+              <div class="echo-bezel"><canvas id="echo" width="480" height="222" tabindex="0" aria-label="ECHO preview. Click a text or color region to select its palette role."></canvas></div>
+              <div class="echo-mark" aria-hidden="true">SNOWSKY <strong>ECHO</strong></div>
+            </div>
+          </div>
+          <div class="studio-deck">
+            <div class="studio-hardware" aria-label="ECHO buttons">
+              <button type="button" data-key="up" title="Arrow Up">Vol+</button>
+              <button type="button" data-key="down" title="Arrow Down">Vol−</button>
+              <button type="button" data-key="play" title="Enter">Play</button>
+              <button type="button" data-key="back" title="Escape">Back</button>
+              <button type="button" data-key="menu" title="M">Menu</button>
+            </div>
+            <label class="studio-toggle"><input type="checkbox" id="contrast"> Contrast overlay</label>
+          </div>
+          <ul id="contrast-results" class="studio-findings" aria-label="Low contrast text" hidden></ul>
+          <div class="studio-audio" id="audio-drop">
+            <div>
+              <h2>Play your own song</h2>
+              <p id="audio-status">Drop audio here to drive the visualizers.</p>
+            </div>
+            <div class="studio-actions">
+              <label class="studio-file"><span>Choose audio</span><input id="audio-file" type="file" accept="audio/*,.flac,.m4a,.opus,.ogg,.wav,.mp3"></label>
+              <button type="button" id="audio-demo">Play synth demo</button>
+              <button type="button" id="audio-stop" disabled>Pause</button>
+            </div>
+          </div>
+        </div>
+        <div id="view-preflight" hidden>
+          <div class="studio-preflight-head">
+            <h2>Stress-test your theme</h2>
+            <button type="button" id="run-preflight">Run preflight</button>
+          </div>
+          <p id="preflight-status" role="status"></p>
+          <div id="contact-sheet" class="studio-contact-sheet"></div>
+        </div>
+      </section>
+
+      <aside class="studio-inspector" aria-label="Theme editor">
+        <div class="studio-bar studio-edit-bar">
+          <strong id="current-theme">Neon Noir</strong>
+          <button type="button" id="undo" title="Undo (Ctrl or Command + Z)">Undo</button>
+          <button type="button" id="redo" title="Redo (Ctrl or Command + Shift + Z)">Redo</button>
+        </div>
+        <div class="studio-tabs" role="tablist" aria-label="Theme editor panels">
+          <button type="button" id="tab-palette" role="tab" aria-controls="panel-palette" aria-selected="true" data-panel="palette">Palette</button>
+          <button type="button" id="tab-artwork" role="tab" aria-controls="panel-artwork" aria-selected="false" tabindex="-1" data-panel="artwork">Artwork</button>
+          <button type="button" id="tab-icons" role="tab" aria-controls="panel-icons" aria-selected="false" tabindex="-1" data-panel="icons">Icons</button>
+          <button type="button" id="tab-style" role="tab" aria-controls="panel-style" aria-selected="false" tabindex="-1" data-panel="style">Style</button>
+          <button type="button" id="tab-details" role="tab" aria-controls="panel-details" aria-selected="false" tabindex="-1" data-panel="details">Details</button>
+        </div>
+        <section id="panel-palette" class="studio-panel" role="tabpanel" aria-labelledby="tab-palette">
+          <h2>Starter palette</h2>
+          <label class="studio-field"><span>Preset</span><select id="preset"></select></label>
+          <div class="studio-seed-colors" id="seed-colors"></div>
+          <div class="studio-actions">
+            <button type="button" id="generate-palette">Generate palette</button>
+            <label class="studio-file"><span>Colors from a photo</span><input id="palette-photo" type="file" accept="image/*"></label>
+          </div>
+          <div class="studio-rule"></div>
+          <h2>Fine-tune RGB565 roles</h2>
+          <div id="palette-roles"></div>
+        </section>
+        <section id="panel-artwork" class="studio-panel" role="tabpanel" aria-labelledby="tab-artwork" hidden>
+          <h2>Artwork variants</h2>
+          <p class="studio-help">Upload PNGs at the size shown. Backgrounds and cassette labels need to be opaque.</p>
+          <div class="studio-fields">
+            <label class="studio-field"><span>Asset</span><select id="art-slot"></select></label>
+            <label class="studio-field"><span>Orientation</span><select id="art-orientation"></select></label>
+            <label class="studio-field"><span>Encoding</span><select id="art-codec"></select></label>
+            <label class="studio-toggle" id="art-tile-label"><input type="checkbox" id="art-tile"> Repeat as tile</label>
+          </div>
+          <p class="studio-help" id="art-guidance"></p>
+          <div class="studio-actions">
+            <label class="studio-file"><span>Upload PNG</span><input id="art-file" type="file" accept="image/png,.png"></label>
+            <button type="button" id="remove-art">Remove variant</button>
+          </div>
+          <ul id="asset-list" class="studio-assets" aria-label="Pack artwork"></ul>
+        </section>
+        <section id="panel-icons" class="studio-panel" role="tabpanel" aria-labelledby="tab-icons" hidden>
+          <h2>Pixel-grid icon editor</h2>
+          <div class="studio-fields">
+            <label class="studio-field"><span>Icon slot</span><select id="icon-slot"></select></label>
+            <label class="studio-field"><span>Orientation</span><select id="icon-orientation"></select></label>
+            <label class="studio-field"><span>Text size</span><select id="icon-text-size"></select></label>
+            <label class="studio-field"><span>Zoom</span><select id="icon-zoom"><option>4×</option><option selected>8×</option></select></label>
+          </div>
+          <p id="icon-guidance" class="studio-help"></p>
+          <div class="icon-pad"><canvas id="icon-grid" tabindex="0" aria-label="Icon grid. Use arrow keys to move and Space to draw."></canvas></div>
+          <div class="studio-fields">
+            <label class="studio-field"><span>Ink</span><input type="color" id="icon-color" value="#7cede4"></label>
+            <label class="studio-field"><span>Opacity</span><input type="range" id="icon-opacity" min="1" max="15" value="15"></label>
+            <label class="studio-toggle"><input type="checkbox" id="icon-erase"> Erase</label>
+          </div>
+          <div class="studio-actions">
+            <label class="studio-file"><span>Import PNG</span><input id="icon-file" type="file" accept="image/png,.png"></label>
+            <button type="button" id="remove-icon">Remove icon variant</button>
+          </div>
+        </section>
+        <section id="panel-style" class="studio-panel" role="tabpanel" aria-labelledby="tab-style" hidden>
+          <h2>Stage style</h2>
+          <p class="studio-help">Scene settings and cassette labels are stored in the pack. Current firmware reserves them for a future release.</p>
+          <div class="studio-fields">
+            <label class="studio-field"><span>Base theme</span><select id="base"></select></label>
+            <label class="studio-toggle"><input type="checkbox" id="horizon"> Horizon grid</label>
+            <label class="studio-toggle"><input type="checkbox" id="header_rule"> Header rule</label>
+          </div>
+          <div id="style-controls" class="studio-rule"></div>
+        </section>
+        <section id="panel-details" class="studio-panel" role="tabpanel" aria-labelledby="tab-details" hidden>
+          <h2>Pack details</h2>
+          <div id="metadata-fields" class="studio-fields studio-metadata"></div>
+          <label class="studio-field"><span>Creator handle for shared links</span><input id="creator" type="text" maxlength="32" placeholder="your-handle" autocomplete="off" spellcheck="false"></label>
+          <p id="remix-credit" class="studio-help" hidden></p>
+          <button type="button" id="fork-pack">Create remix identity</button>
+        </section>
+      </aside>
+    </div>
+
+    <section class="studio-export" aria-label="Pack size, performance and sharing">
+      <div class="studio-explain">
+        <h2>Pack and playback</h2>
+        <p id="pack-size" class="studio-size" aria-live="polite"></p>
+        <meter id="pack-meter" min="0" max="2097152" value="512" aria-label="Encoded pack bytes"></meter>
+        <p id="cpu-load"></p>
+        <p class="studio-help">Core 0 busy time from emulated playback with a scrolling title. Indexed art increases CPU use while the screen is on. Battery runtime varies.</p>
+      </div>
+      <div class="studio-share">
+        <h2>Export and share</h2>
+        <div class="studio-actions">
+          <button type="button" id="copy-link">Copy theme link</button>
+          <button type="button" id="social-card">Download showcase PNG</button>
+          <button type="button" id="download-source">Download source ZIP</button>
+          <a id="open-companion" class="studio-control" href="companion.html">Open in Companion</a>
+          <button type="button" id="submit-gallery">Submit to gallery</button>
+        </div>
+        <p class="studio-help">Theme links and Companion links carry the palette and style. Download the .gtheme to include artwork, icons and metadata or use Companion’s Open pack command.</p>
+        <input id="share-url" class="studio-share-url" type="url" aria-label="Theme link" readonly hidden>
+      </div>
+    </section>
+    <p class="studio-status" id="studio-status" role="status" aria-live="polite" hidden></p>
+  </main>
+
+  <dialog id="gallery-dialog" class="studio-dialog">
+    <form method="dialog" class="studio-actions studio-dialog-head">
+      <h2>Submit to the gallery</h2>
+      <button aria-label="Close submission form">Close</button>
+    </form>
+    <p>Include your theme pack and source ZIP in the issue. A curator will review your submission.</p>
+    <label class="studio-field"><span>Remix credit</span><input id="submission-credit" type="text" placeholder="Original theme and creator, if applicable"></label>
+    <label class="studio-toggle"><input type="checkbox" id="licence-attestation"> I can share every asset under the stated licence and have credited remixed work.</label>
+    <label class="studio-field"><span>Submission summary</span><textarea id="submission-summary" rows="8" readonly></textarea></label>
+    <button type="button" id="gallery-issue" class="studio-primary" disabled>Prepare GitHub issue</button>
+  </dialog>
+</body>
+</html>

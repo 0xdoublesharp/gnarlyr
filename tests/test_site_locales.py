@@ -31,7 +31,8 @@ class LocalizedPublicationTests(unittest.TestCase):
                     '<link rel="stylesheet" href="styles.css"></head><body>'
                     '<header><nav><a href="docs.html" data-i18n="home.docs">Docs</a></nav></header>'
                     '<h1 data-i18n="home.heading">Your music.</h1></body></html>')
-            for name in publisher.PUBLIC_FILES:
+            for name in (*publisher.PUBLIC_FILES, publisher.STUDIO_REDIRECT):
+                (site / name).parent.mkdir(parents=True, exist_ok=True)
                 (site / name).write_text(page if name.endswith(".html") else "asset")
             (site / "i18n").mkdir()
             (site / "i18n/locales.json").write_text(json.dumps({
@@ -107,11 +108,11 @@ class PublishedLanguageTests(unittest.TestCase):
     def setUpClass(cls):
         cls.files = publisher.public_files()
         cls.config = locales.configuration(publisher.SITE)
-        cls.pages = {path: locales.Document(data.decode()) for path, data in cls.files.items() if path.endswith(".html")}
+        cls.pages = {path: locales.Document(data.decode()) for path, data in cls.files.items() if path.endswith(".html") and path != publisher.STUDIO_REDIRECT}
 
     def test_only_complete_language_pages_are_published(self):
         self.assertEqual({locale["code"] for locale in self.config["locales"]}, {"en", "es", "de", "ja", "fr", "pt"})
-        self.assertEqual(len(self.pages), 16)
+        self.assertEqual(len(self.pages), 17)
         self.assertTrue(all("data-i18n" not in doc.source for doc in self.pages.values()))
         self.assertFalse(any(path.startswith("i18n/") for path in self.files))
         self.assertNotIn("es/docs.html", self.files)
@@ -144,7 +145,7 @@ class PublishedLanguageTests(unittest.TestCase):
     def test_sitemap_contains_canonical_pages_without_english_duplicates(self):
         root = ET.fromstring(self.files["sitemap.xml"])
         urls = [node.text for node in root.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
-        self.assertEqual(len(urls), 16)
+        self.assertEqual(len(urls), 17)
         self.assertEqual(len(set(urls)), len(urls))
         self.assertIn(f"{self.config['origin']}/ja/", urls)
         self.assertNotIn(f"{self.config['origin']}/index.html", urls)

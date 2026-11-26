@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "creators": [
+    { "handle": "doublesharp", "name": "Doublesharp originals", "url": "https://doublesharp.com" }
+  ],
+  "themes": [
+    {
+      "id": "pocket-scope",
+      "name": "Pocket Scope",
+      "creator": "doublesharp",
+      "licence": "CC0-1.0",
+      "remixedFrom": null,
+      "counts": { "downloads": null, "remixes": null },
+      "source": "studio/examples/pocket-scope/theme.json"
+    },
+    {
+      "id": "desktop-98",
+      "name": "Desktop 98",
+      "creator": "doublesharp",
+      "licence": "CC0-1.0",
+      "remixedFrom": null,
+      "counts": { "downloads": null, "remixes": null },
+      "source": "studio/examples/desktop-98/theme.json"
+    },
+    {
+      "id": "vice-86",
+      "name": "Vice 86",
+      "creator": "doublesharp",
+      "licence": "CC0-1.0",
+      "remixedFrom": null,
+      "counts": { "downloads": null, "remixes": null },
+      "source": "studio/examples/vice-86/theme.json"
+    }
+  ]
+}

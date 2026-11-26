@@ -39,8 +39,8 @@ jobs:
           if [ -n "$label" ]; then echo "ECHO_BUILD_TAG=$label" >> "$GITHUB_ENV"; fi
       - name: Check public host tools and website
         run: python3 -m unittest discover -s tests
-      - name: Check website analytics
-        run: node --test tests/test_site_analytics.mjs
+      - name: Check website analytics and Theme Studio
+        run: node --test tests/test_site_analytics.mjs tests/test_theme_studio_codec.mjs
       - name: Check firmware host tools before ARM scenarios
         run: python3 tools/firmware.py test --jobs 4 --regex '^tools_unit_tests$'
       - name: Check generated assets

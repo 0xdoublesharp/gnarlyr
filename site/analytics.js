@@ -20,10 +20,32 @@
     referrer,
   };
 
+  function trackingEnabled() {
+    return navigator.doNotTrack !== '1' && navigator.doNotTrack !== 'yes' &&
+      !navigator.globalPrivacyControl && !localStorage.getItem('umami.disabled');
+  }
+
+  const referralKey = 'gnarlyr.theme-referral';
+  const validHandle = (handle) => typeof handle === 'string' &&
+    handle.length >= 2 && handle.length <= 32 && !/[^a-z0-9_-]/i.test(handle);
+  const attributed = new Set(['download', 'studio_export', 'theme_share']);
+  let referral;
+  try {
+    if (trackingEnabled()) {
+      const current = new URL(location.href);
+      const query = current.searchParams.get('ref');
+      const hash = page.url === '/studio.html' ? new URLSearchParams(current.hash.slice(1)).get('ref') : null;
+      referral = [query, hash].find(validHandle)?.toLowerCase();
+      const stored = sessionStorage.getItem(referralKey);
+      if (validHandle(stored)) referral = stored.toLowerCase();
+      else if (referral) sessionStorage.setItem(referralKey, referral);
+    }
+  } catch { /* Storage restrictions leave the page usable. */ }
+
   function send(name, data) {
     try {
-      if (navigator.doNotTrack === '1' || navigator.doNotTrack === 'yes' ||
-          navigator.globalPrivacyControl || localStorage.getItem('umami.disabled')) return;
+      if (!trackingEnabled()) return;
+      if (referral && attributed.has(name)) data = { ...data, ref: referral };
 
       const payload = name ? { ...page, name, data } : page;
       void fetch('https://umami.apps.doublesharp.com/api/send', {
@@ -207,6 +229,17 @@
           code.length >= 2 && code.length <= 8 && !/[^a-z0-9-]/i.test(code)) {
         send('language_builder', { action, code: languageCode(code) });
       }
+    });
+  }
+
+  if (page.url === '/studio.html') {
+    const formats = new Map([
+      ['studio_export', new Set(['gtheme', 'source', 'showcase'])],
+      ['theme_share', new Set(['link', 'companion', 'gallery'])],
+    ]);
+    document.addEventListener('gnarlyr:studio', ({ detail }) => {
+      const { name, format } = detail || {};
+      if (formats.get(name)?.has(format)) send(name, { format });
     });
   }
 

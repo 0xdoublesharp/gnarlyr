@@ -13,8 +13,9 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
   <script src="site.js" defer></script>
+  <script type="module" src="studio/gallery.js"></script>
   <title>Custom themes — Gnarlyr</title>
-  <script src="analytics.js" defer data-website-id="7776169d-25f5-4420-bed8-810b4fbacdc7" data-domain="gnarlyr.com" data-paths="/,/index.html,/firmware.html,/docs.html,/hardware.html,/companion.html,/install.html,/build.html,/recovery.html,/languages.html,/themes.html,/comparison.html"></script>
+  <script src="analytics.js" defer data-website-id="7776169d-25f5-4420-bed8-810b4fbacdc7" data-domain="gnarlyr.com" data-paths="/,/index.html,/firmware.html,/docs.html,/hardware.html,/companion.html,/install.html,/build.html,/recovery.html,/languages.html,/themes.html,/comparison.html,/studio.html"></script>
 <meta property="og:site_name" content="Gnarlyr">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="https://gnarlyr.com/assets/social/themes-a02f79c30c0e.png">
@@ -49,7 +50,8 @@
     <h1 class="page-title">Theme packs for Gnarlyr</h1>
     <p>A <code>.gtheme</code> pack changes colors, backgrounds, and icons. Explore Pocket Scope, Desktop 98, and Vice 86. Build or preview a pack offline, then copy it to your ECHO over USB. Select a screenshot to see it at full size.</p>
     <div class="actions">
-      <a class="button" href="#make-a-theme">How to make a theme ↓</a>
+      <a class="button" href="studio.html">Open Theme Studio →</a>
+      <a class="text-link" href="#make-a-theme">Build a pack by hand ↓</a>
       <a class="text-link" href="#gallery">See custom themes →</a>
     </div>
   </div>
@@ -188,6 +190,7 @@
           </div>
         </article>
 
+        <div id="catalog-themes"></div>
         <div class="screen-grid">
           <article class="screen-card">
             <div class="screen-heading">
@@ -204,6 +207,11 @@
             </div>
           </article>
         </div>
+      </section>
+
+      <section class="doc-section" id="creators" aria-labelledby="creators-title" hidden>
+        <h2 id="creators-title">Theme creators</h2>
+        <div id="creator-profiles"></div>
       </section>
 
       <section class="doc-section" id="make-a-theme" aria-labelledby="make-a-theme-title">
