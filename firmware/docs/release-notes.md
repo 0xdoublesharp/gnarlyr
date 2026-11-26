@@ -26,7 +26,7 @@ Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds 
 - **Formats.** FLAC, MP3, WAV, AIFF, AAC and Apple Lossless (`.m4a`, `.m4b` audiobooks with chapters), Ogg Vorbis, Opus, APE, WMA, and DSD (DSF/DFF, played as PCM). Also CUE sheets and M3U playlists, at up to 192 kHz.
 - **Parametric EQ and sound controls.** Use up to ten filters, or import AutoEQ files. Sound shaping offers seven simple controls. Also crossfeed, playback speed from 0.5× to 3× at the same pitch, fades between shuffled songs, and Skip silence and Speech boost for audiobooks and podcasts.
 - **Bluetooth headphones,** with their own volume, as well as the 3.5 mm and 4.4 mm jacks.
-- **Lower clocks when there's less to do.** The player runs at 96 MHz when idle and from the 24 MHz crystal in standby, and switches the audio clocks off when playback stops. With the screen off, FLAC, WAV, Apple Lossless and MP3 up to 48 kHz play at 96 MHz instead of 200 MHz. Apple Lossless can use the player's audio accelerator, and the FLAC, Apple Lossless, Ogg Vorbis, Opus and WMA decoders do the same work in fewer instructions. Lower-clock playback and the Apple Lossless accelerator haven't been checked on a player yet, and battery life and the savings haven't been measured.
+- **Lower clocks when there's less to do.** The player runs at 96 MHz when idle and from the 24 MHz crystal in standby, and switches the audio clocks off when playback stops. With the screen off, FLAC, WAV, Apple Lossless and MP3 up to 48 kHz play at 96 MHz instead of 200 MHz. Apple Lossless can use the player's audio accelerator, and the FLAC, Apple Lossless, Ogg Vorbis, Opus and WMA decoders do the same work in fewer instructions. Screen-off playback passed on the developer's player. The drop to 96 MHz and use of the Apple Lossless accelerator still need direct player checks. Battery savings haven't been measured.
 - **ReplayGain** (Track, Album or Auto) and four **headphone profiles**, each with trim, balance and a volume limit.
 - **Language packs.** English is built in. Make a pack for your language at <https://gnarlyr.com/languages.html> and copy it to the player.
 
@@ -38,7 +38,7 @@ Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds 
 - Two safety nets haven't been tried on a player since their latest fixes: recovery mode by holding Power and Vol+, and the automatic rollback of a broken update.
 - Settings reset to their defaults if you come from a Gnarlyr development build.
 - Ogg, Opus, APE, WMA and DSD playback, and Bluetooth, have had the least listening on a player. Reports on them are especially welcome.
-- Lower-clock screen-off playback, the Apple Lossless accelerator, rescans that reuse saved tags and the updating USB free space haven't been checked on a player yet.
+- The developer's player correctly reported an unchanged library as up to date. Tag reuse after files change and the USB screen's free-space updates still need player checks.
 
 To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues>. Include the version from Settings → About → Firmware, what you did and what happened. Attach the report files from the hidden `.gnarlyr/debug` folder on the player's internal drive. The full list is in [known issues](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/known-issues.md#beta-testers).
 

@@ -7,7 +7,7 @@
   <a href="https://gnarlyr.com"><img src="https://img.shields.io/badge/website-gnarlyr.com-65d6b4" alt="Gnarlyr.com"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-65d6b4" alt="Contributions welcome"></a>
 </p>
-<p align="center"><a href="https://gnarlyr.com">Website</a> · <a href="https://gnarlyr.com/docs.html">Player guide</a> · <a href="https://github.com/0xdoublesharp/gnarlyr/releases">Downloads</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+<p align="center"><a href="https://gnarlyr.com">Website</a> · <a href="https://gnarlyr.com/docs.html">Player guide</a> · <a href="https://github.com/0xdoublesharp/gnarlyr/releases">Downloads</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="#support-gnarlyr">Support</a></p>
 
 Gnarlyr adds Cover Flow, an editable play queue, mixtapes, language packs, and sound controls to the full-size ECHO. The same portable C application runs on the player and in an SDL simulator. An ARM emulator tests the firmware image.
 
@@ -83,6 +83,10 @@ python3 tools/firmware.py test --group host --list
 Bug reports, focused fixes, translations, and clearer guides are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for checks, commit conventions, and pull requests, and the [language-pack guide](docs/language-packs.md) for translation and display checks.
 
 Report vulnerabilities with [private security reporting](https://github.com/0xdoublesharp/gnarlyr/security/advisories/new). Community expectations are in the [code of conduct](CODE_OF_CONDUCT.md).
+
+## Support Gnarlyr
+
+Gnarlyr is free and open source. If it makes your ECHO more enjoyable to use, you can support ongoing development through [GitHub Sponsors](https://github.com/sponsors/doublesharp) or [Venmo (`@doublesharp`)](https://venmo.com/u/doublesharp).
 
 ## Stock firmware analysis
 

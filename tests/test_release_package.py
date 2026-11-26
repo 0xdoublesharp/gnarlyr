@@ -7,6 +7,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 import firmware
 import release_package as release
+from echo_language import pack_tools
 
 VERSION = release.IDENTITY["version"]
 COMMIT = "c" * 40
@@ -47,17 +48,36 @@ class PackageTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.base = Path(self.temporary.name)
         self.dist = self.base / "dist"
+        self.languages = self.base / "lang"
+        self.languages.mkdir()
         self.source = self.base / "source.tar.gz"
         self.source.write_bytes(b"source")
         self.tag = f"v{VERSION}-beta.1"
 
-    def package(self, build="beta.1", tag=None):
+    def built_image(self, build):
         path = self.base / "built.img"
         path.write_bytes(image(build))
-        return release.package(path, self.source, self.dist, COMMIT, tag or self.tag)
+        return path
+
+    def package(self, build="beta.1", tag=None):
+        return release.package(self.built_image(build), self.source, self.dist, COMMIT,
+                               tag or self.tag, languages_dir=self.languages)
 
     def verify(self, tag=None):
-        return release.verify(self.dist, tag or self.tag, COMMIT)
+        return release.verify(self.dist, tag or self.tag, COMMIT, languages_dir=self.languages)
+
+    def add_translations(self):
+        catalogue = release.ROOT / "firmware/assets/lang/en.txt"
+        (self.languages / "en.txt").write_bytes(catalogue.read_bytes())
+        (self.languages / "qps.txt").write_text("This test file must never be parsed.")
+        for code, name in (("ko", "한국어"), ("de", "Deutsch")):
+            (self.languages / f"{code}.txt").write_text(f"STR_LANGUAGE_NAME = {name}\n", encoding="utf-8")
+
+    def write_manifest(self, manifest):
+        (self.dist / release.MANIFEST).write_text(json.dumps(manifest))
+        sums = self.dist / release.SUMS
+        names = [line.split("  ", 1)[1] for line in sums.read_text().splitlines()]
+        sums.write_text("".join(f"{release.digest(self.dist / name)}  {name}\n" for name in names))
 
     def test_a_pre_release_package_names_its_release_and_verifies(self):
         manifest = self.package()
@@ -67,7 +87,90 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(self.dist.joinpath(STOCK).read_bytes(), self.dist.joinpath(release.IMAGE).read_bytes())
         sums = [line.split("  ")[1] for line in self.dist.joinpath(release.SUMS).read_text().splitlines()]
         self.assertEqual(sums, [release.IMAGE, STOCK, release.source_name(), release.MANIFEST])
+        self.assertEqual(manifest["language_packs"], [])
         self.assertEqual(self.verify()["commit"], COMMIT)
+
+    def test_packaging_uses_the_repository_languages_by_default(self):
+        manifest = release.package(self.built_image("beta.1"), self.source, self.dist, COMMIT, self.tag)
+        sources = release.ROOT / "firmware/assets/lang"
+        codes = sorted(path.stem for path in sources.glob("*.txt")
+                       if path.is_file() and path.stem not in {"en", "qps"})
+        self.assertIn("language_packs", manifest)
+        self.assertEqual([entry["code"] for entry in manifest["language_packs"]], codes)
+        self.assertEqual(release.verify(self.dist, self.tag, COMMIT), manifest)
+
+    def test_packs_are_built_in_code_order_and_listed_in_both_manifests(self):
+        self.add_translations()
+        manifest = self.package()
+        tools = pack_tools(release.ROOT)
+        sums = (self.dist / release.SUMS).read_text().splitlines()
+        expected = []
+        for code, name, needs_extra_font in (("de", "Deutsch", False), ("ko", "한국어", True)):
+            filename = f"{code}.pack"
+            path = self.dist / filename
+            data = path.read_bytes()
+            self.assertEqual(data, tools.language_pack(code, self.languages, layout=tools.LAYOUT_HEADER))
+            asset = {"sha256": release.digest(path), "bytes": len(data)}
+            self.assertEqual(manifest["files"][filename], asset)
+            self.assertIn(f"{asset['sha256']}  {filename}", sums)
+            expected.append({"code": code, "name": name, "file": filename,
+                             "needs_extra_font": needs_extra_font, **asset})
+        self.assertEqual(manifest["language_packs"], expected)
+        self.assertEqual(list(manifest["files"])[-2:], ["de.pack", "ko.pack"])
+        self.assertEqual(self.verify(), manifest)
+
+    def test_a_changed_pack_fails_verification(self):
+        self.add_translations()
+        self.package()
+        pack = self.dist / "de.pack"
+        data = pack.read_bytes()
+        pack.write_bytes(data[:-1] + bytes([data[-1] ^ 1]))
+        with self.assertRaisesRegex(ValueError, r"de\.pack: SHA-256"):
+            self.verify()
+
+    def test_a_missing_pack_fails_verification(self):
+        self.add_translations()
+        self.package()
+        (self.dist / "de.pack").unlink()
+        with self.assertRaisesRegex(ValueError, r"missing.*de\.pack"):
+            self.verify()
+
+    def test_an_unexpected_file_fails_verification(self):
+        self.package()
+        (self.dist / "unexpected.pack").write_bytes(b"extra")
+        with self.assertRaisesRegex(ValueError, r"unexpected.*unexpected\.pack"):
+            self.verify()
+
+    def test_a_pack_missing_from_checksums_fails_verification(self):
+        self.add_translations()
+        self.package()
+        sums = self.dist / release.SUMS
+        sums.write_text("".join(line for line in sums.read_text().splitlines(keepends=True)
+                                if not line.endswith("  de.pack\n")))
+        with self.assertRaisesRegex(ValueError, r"SHA256SUMS.*missing.*de\.pack"):
+            self.verify()
+
+    def test_a_pack_missing_from_the_manifest_files_fails_verification(self):
+        self.add_translations()
+        manifest = self.package()
+        del manifest["files"]["de.pack"]
+        self.write_manifest(manifest)
+        with self.assertRaisesRegex(ValueError, r"files.*missing.*de\.pack"):
+            self.verify()
+
+    def test_language_metadata_that_disagrees_with_a_pack_fails_verification(self):
+        self.add_translations()
+        manifest = self.package()
+        for field, incorrect in (("code", "fr"), ("name", "French"), ("file", "fr.pack"),
+                                 ("sha256", "0" * 64), ("bytes", 5), ("needs_extra_font", True)):
+            with self.subTest(field=field):
+                entry = manifest["language_packs"][0]
+                original = entry[field]
+                entry[field] = incorrect
+                self.write_manifest(manifest)
+                with self.assertRaisesRegex(ValueError, "language_packs"):
+                    self.verify()
+                entry[field] = original
 
     def test_an_image_built_without_the_label_is_refused(self):
         with self.assertRaisesRegex(ValueError, "ECHO_BUILD_TAG=beta.1"):
@@ -94,9 +197,7 @@ class PackageTests(unittest.TestCase):
         self.dist.joinpath(STOCK).write_bytes(b"other")
         manifest = json.loads(self.dist.joinpath(release.MANIFEST).read_text())
         manifest["files"][STOCK] = {"sha256": release.digest(self.dist / STOCK), "bytes": 5}
-        self.dist.joinpath(release.MANIFEST).write_text(json.dumps(manifest))
-        sums = "".join(f"{release.digest(self.dist / name)}  {name}\n" for name in (release.IMAGE, STOCK, release.source_name(), release.MANIFEST))
-        self.dist.joinpath(release.SUMS).write_text(sums)
+        self.write_manifest(manifest)
         with self.assertRaisesRegex(ValueError, "not a copy"):
             self.verify()
 

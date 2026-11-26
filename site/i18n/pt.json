@@ -806,6 +806,16 @@
       "source": "User guide",
       "source_sha256": "86a2a9ba70bc0260ff9c22d7613e8370450e1b41177832912a82e2c33ea43301",
       "translation": "Guia do usuário"
+    },
+    "home.m144": {
+      "source": "GitHub Sponsors ↗",
+      "source_sha256": "8d52610e612ffc53a7e71f2efa90e3d4dfef44b53687a81bdc1d040b2e3437c3",
+      "translation": "GitHub Sponsors ↗"
+    },
+    "home.m145": {
+      "source": "Venmo ↗",
+      "source_sha256": "e7f9b2c7560b676f6932b9da4fd0cdbd902ecef76eb48ef349cb3af518b7091e",
+      "translation": "Venmo ↗"
     }
   }
 }

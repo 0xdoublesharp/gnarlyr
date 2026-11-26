@@ -6052,7 +6052,8 @@ static void back_on_the_charge_screen_prompt_goes_back_to_charging(void)
     step();
     tap(KEY_BACK);
     CHECK(app_charging());
-    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(1, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
 }
 
 static void connecting_from_the_charge_screen_prompt_keeps_charging(void)

@@ -205,7 +205,7 @@ set_target_properties(echo_core1_ape PROPERTIES
     LINK_DEPENDS ${ECHO_CORE1_APE_LINKER_SCRIPT}
 )
 target_include_directories(echo_core1_ape PRIVATE board)
-target_link_libraries(echo_core1_ape PRIVATE echo_device_logic echo_demac echo_options gcc)
+target_link_libraries(echo_core1_ape PRIVATE echo_device_logic echo_options gcc)
 target_link_options(echo_core1_ape PRIVATE
     -fno-lto
     -T${ECHO_CORE1_APE_LINKER_SCRIPT}

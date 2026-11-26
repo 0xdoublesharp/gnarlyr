@@ -1,5 +1,5 @@
 set(ECHO_DEMAC_DIR ${PROJECT_SOURCE_DIR}/third_party/demac)
-add_library(echo_demac STATIC
+add_library(echo_demac OBJECT
     ${ECHO_DEMAC_DIR}/crc.c
     ${ECHO_DEMAC_DIR}/decoder.c
     ${ECHO_DEMAC_DIR}/entropy.c

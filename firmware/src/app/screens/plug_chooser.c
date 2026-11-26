@@ -383,6 +383,10 @@ static ScreenAction handle_key(void *context, KeyEvent event, uint32_t now_ms)
     ListSelection selection = {.select = select_row, .hold = hold_row, .context = chooser};
     ScreenAction action = list_navigation_handle(&chooser->list, event, now_ms, selection);
     keep_focus_shown(chooser);
+    if (event.key == KEY_BACK && action.type == SCREEN_ACTION_POP &&
+        chooser->config.state.place == PLUG_PLACE_PROMPT) {
+        chooser->config.choose(chooser->config.context, PLUG_MODE_CHARGE, false);
+    }
     return action;
 }
 

@@ -190,12 +190,25 @@ static void holding_play_always_does_this_and_says_so(void)
     CHECK(strcmp("Always: USB audio (DAC)", toast.text) == 0);
 }
 
-static void back_leaves_the_prompt_without_a_request(void)
+static void back_leaves_the_prompt_in_charge_mode(void)
 {
-    Screen *screen = open_chooser(true);
+    start(ON_A_CABLE);
+    hal_power_set_battery_care(PLUG_CARE_USB);
+    Screen *screen = settings_screens_usb_modes(&screens, true);
+    screen->enter(screen->context, 0);
     CHECK_EQUAL(SCREEN_ACTION_POP, press(screen, KEY_BACK, 100).type);
-    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(1, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(HAL_USB_MODE_PLAYER, fake_hal_requested_usb_mode());
     CHECK_EQUAL(PLUG_CARE_FULL, fake_hal_battery_care_mode());
+    CHECK_EQUAL(PLUG_MODE_ASK, plug_mode_saved(&store.settings));
+
+    start(ON_A_CABLE);
+    hal_power_set_battery_care(PLUG_CARE_USB);
+    Screen *manual = settings_screens_usb_modes(&screens, false);
+    manual->enter(manual->context, 0);
+    CHECK_EQUAL(SCREEN_ACTION_POP, press(manual, KEY_BACK, 100).type);
+    CHECK_EQUAL(0, fake_hal_usb_mode_requests());
+    CHECK_EQUAL(PLUG_CARE_USB, fake_hal_battery_care_mode());
 }
 
 static void usb_mode_opened_by_hand_neither_counts_down_nor_lapses(void)
@@ -601,7 +614,7 @@ int main(void)
         TEST_CASE(one_press_of_play_connects_to_the_computer),
         TEST_CASE(play_on_usb_power_holds_charging_off_without_changing_the_saved_answer),
         TEST_CASE(holding_play_always_does_this_and_says_so),
-        TEST_CASE(back_leaves_the_prompt_without_a_request),
+        TEST_CASE(back_leaves_the_prompt_in_charge_mode),
         TEST_CASE(usb_mode_opened_by_hand_neither_counts_down_nor_lapses),
         TEST_CASE(usb_mode_marks_play_on_usb_power_while_charging_is_held_off),
         TEST_CASE(a_low_battery_shows_why_usb_power_charges_first),
