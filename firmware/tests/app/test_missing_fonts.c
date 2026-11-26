@@ -246,6 +246,18 @@ static void about_draws_the_count_as_its_notice(void)
     about_layout_notice(NULL);
 }
 
+static void invisible_joiners_and_variation_selectors_are_ignored(void)
+{
+    static const char *const names[] = {"Track \xE2\x80\x8D\xEF\xB8\x8F\xEF\xBB\xBF"};
+    start();
+    add_library(names, 1);
+    missing_fonts_record(work, sizeof work, theme.fonts.body);
+    uint32_t size = 0;
+    CHECK(fake_hal_file_bytes(MISSING_FONTS_PATH, &size) == NULL);
+    CHECK(fake_hal_file_bytes(MISSING_FONTS_COUNT_PATH, &size) == NULL);
+    CHECK_EQUAL(0, missing_fonts_names(theme.fonts.body));
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -255,6 +267,7 @@ int main(void)
         TEST_CASE(too_little_memory_or_a_damaged_library_records_nothing),
         TEST_CASE(choosing_about_in_settings_counts_the_names_for_its_notice),
         TEST_CASE(about_draws_the_count_as_its_notice),
+        TEST_CASE(invisible_joiners_and_variation_selectors_are_ignored),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

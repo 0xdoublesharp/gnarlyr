@@ -150,6 +150,7 @@ STR_LANGUAGE = Language
 STR_LANGUAGE_FALLBACK = {0} ({1})
 STR_NEEDS_FONTS = needs fonts
 STR_LANGUAGE_NEEDS_FONTS = {0} needs fonts. Connect to a computer to add them.
+STR_LANGUAGE_ADD_PACKS = Add more languages with the companion app or language packs.
 STR_NAMES_NEED_FONTS_ONE = {0} name needs fonts. Connect to a computer to add them.
 STR_NAMES_NEED_FONTS = {0} names need fonts. Connect to a computer to add them.
 STR_LANGUAGE_ENGLISH = English

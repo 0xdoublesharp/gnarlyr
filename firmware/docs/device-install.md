@@ -33,7 +33,9 @@ FiiO's installer (module 8, `0x0307f79c`) checks two things: `RKnanoFW` at offse
 
 The release's `ECHOECHO.img` and `GNARLYR.IMG` are the same file. Gnarlyr's own updater reads both names and tells its own images from FiiO's by their contents, so either name works for a later update.
 
-FiiO's FAT seek path can treat a fragmented file as contiguous when a file descriptor retains its contiguous-file flag through reset and open. A contiguous copy avoids that failing seek. FiiO deletes the update file after failures too, so a missing image alone does not confirm installation; check the running firmware.
+FiiO's FAT32 `FileOpen` (`0x03058fae`) leaves the file descriptor's contiguous-file flag at `+0x260` uninitialized (the exFAT branch sets it; the FAT32 branch does not). When bit 1 (`& 2`) is stale in RAM, `FileSeek(0x44C000)` (`0x03059786`) skips walking the FAT chain and computes `start_cluster + offset`, failing the header-copy comparison at `0x0307f894` on any fragmented file.
+
+On macOS, UserFS `msdos` silently ignores `F_ALLOCATECONTIG` in `F_PREALLOCATE` and still scatters new files into low free holes while reporting success. Both `tools/echo_debug.py first-install` and Gnarlyr Companion avoid this by scanning the volume's highest occupied FAT32 cluster (`st_ino`), holding an open temporary `F_PREALLOCATE` pad file over the fragmented prefix (metadata-only, no data written), copying `ECHOECHO.img`, and checking post-close `lstat().st_ino` to verify that `ECHOECHO.img` landed strictly past every existing file before unlinking the pad and removing `._ECHOECHO.img`. FiiO deletes the update file after failures too, so a missing image alone does not confirm installation; check the running firmware. Note also that FiiO's screen stays on "USB connected" after macOS ejects both drives; unplugging USB exits USB mode and triggers the update.
 
 ## Later updates: Gnarlyr's own updater
 

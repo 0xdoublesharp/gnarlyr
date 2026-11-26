@@ -220,6 +220,28 @@ static void an_external_pack_clears_when_its_menu_glyphs_are_available(void)
     check_unlisted_pack_fonts(false);
 }
 
+static void only_english_shows_how_to_add_language_packs(void)
+{
+    fake_hal_reset();
+    i18n_detach();
+    font_pack_detach_extra();
+    font_pack_attach((FontPackReader){read_nothing, NULL}, memory, sizeof memory);
+    uint32_t size = test_pack_build(english, (TestPackLanguage){"en", "English", NULL});
+    fake_hal_add_language_pack(0, english, size);
+    theme = BOARD_THEME;
+    CHECK(language_load("en"));
+    language_list_for_picker(&languages, &theme);
+    CHECK_EQUAL(1, languages.count);
+    chosen = -1;
+    LanguagePickerConfig config = {&languages, choose, &chosen, &theme};
+    Screen *screen = language_picker_init(&picker, config);
+    screen->enter(screen->context, 0);
+    char notice[LANGUAGE_NOTICE_BYTES];
+    const char *text = language_picker_notice(&picker, notice, sizeof notice);
+    CHECK(text != NULL &&
+          strcmp("Add more languages with the companion app or language packs.", text) == 0);
+}
+
 static void the_exonym_matches_the_primary_language_code(void)
 {
     i18n_detach();
@@ -239,6 +261,7 @@ int main(void)
         TEST_CASE(a_language_the_extra_font_covers_is_an_ordinary_row),
         TEST_CASE(a_built_in_pack_clears_when_its_menu_glyphs_are_available),
         TEST_CASE(an_external_pack_clears_when_its_menu_glyphs_are_available),
+        TEST_CASE(only_english_shows_how_to_add_language_packs),
         TEST_CASE(the_exonym_matches_the_primary_language_code),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

@@ -114,14 +114,17 @@ static void build_label(LanguagePicker *picker, int index)
 const char *language_picker_notice(const LanguagePicker *picker, char *text, uint32_t capacity)
 {
     int index = picker->explained;
-    if (index < 0 || index != picker->list.selected) {
-        return NULL;
+    if (index >= 0 && index == picker->list.selected) {
+        const char *exonym = drawable_name(picker, index);
+        StringBuilder notice = string_builder_make(text, capacity);
+        i18n_format_text(&notice, STR_LANGUAGE_NEEDS_FONTS,
+                         exonym != NULL ? exonym : picker->config.languages->codes[index]);
+        return text;
     }
-    const char *exonym = drawable_name(picker, index);
-    StringBuilder notice = string_builder_make(text, capacity);
-    i18n_format_text(&notice, STR_LANGUAGE_NEEDS_FONTS,
-                     exonym != NULL ? exonym : picker->config.languages->codes[index]);
-    return text;
+    if (picker->config.languages->count <= 1) {
+        return i18n_text(STR_LANGUAGE_ADD_PACKS);
+    }
+    return NULL;
 }
 
 static ScreenAction choose_language(void *context, int index)

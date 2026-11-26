@@ -11,6 +11,47 @@ import echo_debug as debug
 import make_image
 
 STOCK_UPDATE_FILE = "ECHOECHO.img"
+FAT32_MAX_CLUSTER = 0x0FFFFFF8
+
+
+def fat_volume_layout(root):
+    cluster_bytes = 0
+    max_end_cluster = 0
+    used_bytes = 0
+    entries = []
+    queue = [(root, 0)]
+    while queue and len(entries) < 20_000:
+        current, depth = queue.pop(0)
+        if depth > 8:
+            continue
+        try:
+            children = list(current.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            try:
+                info = child.lstat()
+            except OSError:
+                continue
+            if child.is_symlink():
+                continue
+            is_dir = child.is_dir()
+            size = info.st_size
+            if is_dir and 512 <= size <= 32768 and (size & (size - 1)) == 0:
+                cluster_bytes = min(cluster_bytes, size) if cluster_bytes else size
+            entries.append((info.st_ino, size))
+            if is_dir and depth < 8:
+                queue.append((child, depth + 1))
+    cluster = cluster_bytes or 4096
+    for ino, size in entries:
+        rounded = ((max(size, 1) + cluster - 1) // cluster) * cluster
+        used_bytes += rounded
+        if 2 <= ino < FAT32_MAX_CLUSTER:
+            span = max(1, (max(size, 1) + cluster - 1) // cluster)
+            end = ino + span - 1
+            if end > max_end_cluster:
+                max_end_cluster = end
+    return cluster, max_end_cluster, used_bytes
 
 
 class MacInstallIO:
@@ -18,10 +59,11 @@ class MacInstallIO:
         if sys.platform != "darwin":
             raise debug.DebugError("platform_not_supported", "First-install preparation currently requires macOS")
 
-    def allocate(self, stream, size):
+    def allocate(self, stream, size, contiguous=True):
         import fcntl
+        flags = 6 if contiguous else 4  # F_ALLOCATECONTIG|F_ALLOCATEALL vs F_ALLOCATEALL
         try:
-            request = struct.pack("=IIqqq", 6, 3, 0, size, 0)
+            request = struct.pack("=IIqqq", flags, 3, 0, size, 0)
             allocated = struct.unpack("=IIqqq", fcntl.fcntl(stream.fileno(), 42, request))[4]
         except OSError as error:
             raise debug.DebugError("contiguous_allocation_failed", str(error)) from error
@@ -126,13 +168,74 @@ def prepare(tool, image):
     check_pending(root)
     target = root / STOCK_UPDATE_FILE
     created, remounting = False, False
+    is_msdos = False
+    if hasattr(io, "info"):
+        try:
+            is_msdos = io.info(root).get("FilesystemType") == "msdos"
+        except debug.DebugError:
+            is_msdos = False
     try:
-        with target.open("xb") as stream:
-            created = True
-            allocated = io.allocate(stream, len(data))
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
+        if is_msdos:
+            # macOS UserFS msdos silently ignores F_ALLOCATECONTIG and scatters
+            # files into low free holes. Hold an open F_PREALLOCATE pad file
+            # covering the fragmented prefix so ECHOECHO.img lands past every
+            # existing cluster (proven by post-close lstat().st_ino).
+            cluster, max_end, used = fat_volume_layout(root)
+            stat = os.statvfs(root)
+            free_bytes = stat.f_bavail * stat.f_frsize
+            max_pad = max(0, free_bytes - 16 * 1024 * 1024)
+            pad_bytes = (
+                min(max_pad, max(32 * 1024 * 1024, max_end * cluster - used + 32 * 1024 * 1024))
+                if max_end > 0 and max_pad > 0 else 0
+            )
+            pad_path = root / f".first-install-pad-{os.getpid()}.tmp"
+            pad_sidecar = root / f"._{pad_path.name}"
+            allocated = 0
+            try:
+                for _ in range(4):
+                    pad_stream = None
+                    try:
+                        if pad_bytes > 0:
+                            pad_stream = pad_path.open("xb")
+                            io.allocate(pad_stream, pad_bytes, contiguous=False)
+                        with target.open("xb") as stream:
+                            created = True
+                            allocated = io.allocate(stream, len(data))
+                            stream.write(data)
+                            stream.flush()
+                            os.fsync(stream.fileno())
+                    finally:
+                        if pad_stream is not None:
+                            pad_stream.close()
+                        pad_path.unlink(missing_ok=True)
+                        pad_sidecar.unlink(missing_ok=True)
+                    start_cluster = target.lstat().st_ino
+                    if max_end == 0 or (max_end < start_cluster < FAT32_MAX_CLUSTER):
+                        (root / f"._{STOCK_UPDATE_FILE}").unlink(missing_ok=True)
+                        break
+                    target.unlink(missing_ok=True)
+                    created = False
+                    if pad_bytes >= max_pad or max_pad <= 0:
+                        raise debug.DebugError(
+                            "contiguous_allocation_failed",
+                            "The image could not be placed in contiguous tail storage; free space and retry",
+                        )
+                    pad_bytes = min(max_pad, max(pad_bytes * 2, 64 * 1024 * 1024))
+                else:
+                    raise debug.DebugError(
+                        "contiguous_allocation_failed",
+                        "The image could not be placed in contiguous tail storage; free space and retry",
+                    )
+            finally:
+                pad_path.unlink(missing_ok=True)
+                pad_sidecar.unlink(missing_ok=True)
+        else:
+            with target.open("xb") as stream:
+                created = True
+                allocated = io.allocate(stream, len(data))
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
         if io.digest(target) != digest:
             raise debug.DebugError("copy_mismatch", "The uncached image readback does not match")
         remounting = True

@@ -18,7 +18,9 @@ const char MISSING_FONTS_COUNT_PATH[] =
 
 bool missing_fonts_undrawable(const Font *font, uint32_t codepoint)
 {
-    if (codepoint < 0x20 || (codepoint >= 0x7F && codepoint < 0xA0) || codepoint > 0xFFFF ||
+    if (codepoint < 0x20 || (codepoint >= 0x7F && codepoint < 0xA0) ||
+        (codepoint >= 0x200B && codepoint <= 0x200F) ||
+        (codepoint >= 0xFE00 && codepoint <= 0xFE0F) || codepoint == 0xFEFF || codepoint > 0xFFFF ||
         codepoint == UTF8_REPLACEMENT_CHARACTER) {
         return false;
     }
