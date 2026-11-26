@@ -11,8 +11,8 @@ static void bind(AppScreens *screens)
     card_format_screen_bind(&screens->modules.format.card, config);
 #ifdef ECHO_DEBUG_LOOP
     key_test_screen_init(&screens->modules.format.key_test, screens->context.theme);
-    diagnostics_menu_build(screens, screens->context.options, screens->context.theme);
 #endif
+    diagnostics_menu_build(screens, screens->context.options, screens->context.theme);
 }
 
 const ScreenModuleEntry FORMAT_MODULE_ENTRY = SCREEN_MODULE_ENTRY(SCREEN_MODULE_FORMAT, bind);

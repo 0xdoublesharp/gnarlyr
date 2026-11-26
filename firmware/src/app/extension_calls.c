@@ -82,12 +82,6 @@ CORE_SEAM bool theme_art_module_draw(const Theme *theme, Canvas *canvas, int slo
     return code != NULL && code->theme_draw(theme, canvas, slot, area);
 }
 
-bool hal_clock_set_wall(HalWallTime time)
-{
-    const ExtensionModuleEntry *code = extension();
-    return code != NULL && code->clock_set(time);
-}
-
 bool hal_clock_restore_wall(int16_t offset_minutes)
 {
     const ExtensionModuleEntry *code = extension();

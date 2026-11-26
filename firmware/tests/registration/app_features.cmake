@@ -109,6 +109,7 @@ echo_add_unit_test(NAME test_set_clock
 )
 echo_add_unit_test(NAME test_clock_write
     SOURCES app/test_clock_write.c ${PROJECT_SOURCE_DIR}/src/app/extension_calls.c
+        ${PROJECT_SOURCE_DIR}/src/app/clock_set_call.c
     LIBRARIES echo_app
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )

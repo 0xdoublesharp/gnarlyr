@@ -14,6 +14,13 @@ static const MenuConfig *built(void)
     return &app_screens_about(&screens)->diagnostics.config;
 }
 
+static void release_about_belongs_to_the_format_module(void)
+{
+    built();
+    CHECK_EQUAL(SCREEN_MODULE_FORMAT,
+                screen_modules_of(&screens, &app_screens_about(&screens)->diagnostics.screen));
+}
+
 static bool has_row(const MenuConfig *menu, const char *label)
 {
     for (int index = 0; index < menu->item_count; index++) {
@@ -63,6 +70,7 @@ static void every_value_row_reads_without_a_selection(void)
 int main(void)
 {
     static const TestCase cases[] = {
+        TEST_CASE(release_about_belongs_to_the_format_module),
         TEST_CASE(the_release_menu_keeps_only_the_safe_rows),
         TEST_CASE(the_release_menu_has_no_tests_that_act_on_the_hardware),
         TEST_CASE(every_value_row_reads_without_a_selection),

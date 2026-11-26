@@ -138,9 +138,6 @@ typedef struct ViewsModuleScreens {
     CassetteFlipScreen cassette_flip;
     ClockScreen clock;
     CalendarScreen calendar;
-#ifndef ECHO_DEBUG_LOOP
-    AboutScreens about;
-#endif
     LyricsScreen lyrics;
     ThemePicker themes;
     TrackQuestion delete_question;
@@ -150,8 +147,8 @@ typedef struct FormatModuleScreens {
     CardFormatScreen card;
 #ifdef ECHO_DEBUG_LOOP
     KeyTestScreen key_test;
-    AboutScreens about;
 #endif
+    AboutScreens about;
 } FormatModuleScreens;
 
 typedef struct SettingsModuleScreens {
@@ -215,20 +212,11 @@ Screen *app_screens_build_menu(MenuScreen *menu, StringId title, const MenuItem 
                                const Theme *theme);
 void diagnostics_menu_build(AppScreens *screens, AppOptions *options, const Theme *theme);
 
-#ifdef ECHO_DEBUG_LOOP
 #define APP_ABOUT_MODULE SCREEN_MODULE_FORMAT
 
 static inline AboutScreens *app_screens_about(AppScreens *screens)
 {
     return &screens->modules.format.about;
 }
-#else
-#define APP_ABOUT_MODULE SCREEN_MODULE_VIEWS
-
-static inline AboutScreens *app_screens_about(AppScreens *screens)
-{
-    return &screens->modules.views.about;
-}
-#endif
 int app_screens_start_path(AppScreens *screens, StartScreen start, Screen **path);
 ScreenAction app_screens_artist_keys(void *context, KeyEvent event, uint32_t now_ms);

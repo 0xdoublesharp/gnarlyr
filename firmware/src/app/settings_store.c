@@ -125,11 +125,6 @@ void settings_capture(Settings *settings, PlayerStatus playback)
     settings->repeat = playback.repeat;
 }
 
-void settings_store_capture(SettingsStore *store, PlayerStatus playback)
-{
-    settings_capture(&store->settings, playback);
-}
-
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed)
 {
     const Settings *settings = &store->settings;

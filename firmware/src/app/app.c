@@ -529,7 +529,7 @@ static void set_display(bool on)
 __attribute__((noinline)) static CORE_COLD void capture_settings(void)
 {
     if (!app.prepare_pending || app.headphones.active.ceiling != 0) {
-        settings_store_capture(&app.settings, player_status(&app.player));
+        settings_capture(&app.settings.settings, player_status(&app.player));
     }
 }
 

@@ -6,6 +6,73 @@
 
 static const FormatChain CHAIN = {.current = VERSION, .steps = NULL};
 
+static uint8_t home_item(const uint8_t *packed, int index)
+{
+    return (packed[index / 2] >> (NIBBLE_BITS * (index & 1))) & NIBBLE_MASK;
+}
+
+static int home_stored_count(const uint8_t *packed)
+{
+    unsigned seen = 0;
+    int count = 0;
+    for (int index = 0; index < SETTINGS_HOME_ORDER_SLOTS; index++) {
+        seen |= 1u << home_item(packed, index);
+        count = seen == (2u << index) - 1 ? index + 1 : count;
+    }
+    for (int index = count; index < SETTINGS_HOME_ORDER_SLOTS; index++) {
+        if (home_item(packed, index) != 0) {
+            return 0;
+        }
+    }
+    return count;
+}
+
+bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden)
+{
+    int stored = home_stored_count(packed);
+    unsigned mask = packed[HOME_HIDDEN_PACKED] | (unsigned)packed[HOME_HIDDEN_PACKED + 1] << 8;
+    unsigned hideable = ((1u << stored) - 1) & ~(1u << SETTINGS_HOME_SETTINGS_ITEM);
+    if (stored < SETTINGS_HOME_FIRST_ITEM_COUNT || (mask & ~hideable) != 0) {
+        return false;
+    }
+    int count = 0;
+    for (int index = 0; index < stored; index++) {
+        uint8_t item = home_item(packed, index);
+        if (item < item_count) {
+            order[count++] = item;
+        }
+    }
+    for (; count < item_count; count++) {
+        order[count] = (uint8_t)count;
+    }
+    *hidden = (uint16_t)(mask & ((1u << item_count) - 1));
+    return true;
+}
+
+static void settings_read_extension(const uint8_t *extension, Settings *settings)
+{
+    settings->status_items = extension[STATUS_ITEMS_BYTE] & STATUS_ITEMS_BITS;
+    settings->battery_care =
+        (uint8_t)((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT);
+    uint8_t comfort = extension[COMFORT_BYTE];
+    settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
+    settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
+    settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
+    settings->clock_offset_minutes = settings_clock_offset(extension);
+    settings->power_on_flags = extension[POWER_ON_BYTE] & POWER_ON_BITS;
+    settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
+    settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
+    settings->transition_tenths = extension[TRANSITION_BYTE];
+    settings->playback_speed = (uint8_t)(SETTINGS_SPEED_NORMAL + (int8_t)extension[SPEED_BYTE]);
+    settings->style_flags = extension[STYLE_FLAGS_BYTE] & STYLE_HIGH_BIT;
+    settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
+                         settings->home_order, &settings->home_hidden);
+    settings->dac_filter = extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK;
+    settings->skip_silence = (extension[SPOKEN_BYTE] & SKIP_SILENCE_BIT) != 0;
+    settings->speech_boost = (extension[SPOKEN_BYTE] & SPEECH_BOOST_BIT) != 0;
+    settings->crossfeed = (extension[CROSSFEED_BYTE] >> CROSSFEED_SHIFT) & CROSSFEED_MASK;
+}
+
 static bool magic_valid(const uint8_t *bytes)
 {
     for (int index = 0; index < MAGIC_SIZE; index++) {

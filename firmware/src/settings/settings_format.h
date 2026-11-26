@@ -91,27 +91,3 @@ static inline int16_t settings_clock_offset(const uint8_t *extension)
         extension[CLOCK_OFFSET_BYTE] | (uint16_t)((uint16_t)extension[CLOCK_OFFSET_BYTE + 1] << 8);
     return (int16_t)(offset <= INT16_MAX ? offset : (int32_t)offset - 65536);
 }
-
-static inline void settings_read_extension(const uint8_t *extension, Settings *settings)
-{
-    settings->status_items = extension[STATUS_ITEMS_BYTE] & STATUS_ITEMS_BITS;
-    settings->battery_care =
-        (uint8_t)((extension[BATTERY_CARE_BYTE] & BATTERY_CARE_MASK) >> BATTERY_CARE_SHIFT);
-    uint8_t comfort = extension[COMFORT_BYTE];
-    settings->rewind_on_resume = (comfort & REWIND_BIT) != 0;
-    settings->safe_start_volume = (comfort & SAFE_START_BIT) != 0;
-    settings->clock_24h = (comfort & CLOCK_24H_BIT) != 0;
-    settings->clock_offset_minutes = settings_clock_offset(extension);
-    settings->power_on_flags = extension[POWER_ON_BYTE] & POWER_ON_BITS;
-    settings->track_transition = (TrackTransition)(comfort >> TRANSITION_SHIFT);
-    settings->safe_start_volume_level = extension[SAFE_LEVEL_BYTE];
-    settings->transition_tenths = extension[TRANSITION_BYTE];
-    settings->playback_speed = (uint8_t)(SETTINGS_SPEED_NORMAL + (int8_t)extension[SPEED_BYTE]);
-    settings->style_flags = extension[STYLE_FLAGS_BYTE] & STYLE_HIGH_BIT;
-    settings_home_unpack(extension + HOME_ORDER_BYTE, SETTINGS_HOME_ITEM_COUNT,
-                         settings->home_order, &settings->home_hidden);
-    settings->dac_filter = extension[DAC_FILTER_BYTE] & DAC_FILTER_MASK;
-    settings->skip_silence = (extension[SPOKEN_BYTE] & SKIP_SILENCE_BIT) != 0;
-    settings->speech_boost = (extension[SPOKEN_BYTE] & SPEECH_BOOST_BIT) != 0;
-    settings->crossfeed = (extension[CROSSFEED_BYTE] >> CROSSFEED_SHIFT) & CROSSFEED_MASK;
-}

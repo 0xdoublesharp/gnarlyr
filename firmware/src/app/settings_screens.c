@@ -927,7 +927,7 @@ static ScreenAction reset_buttons_with_feedback(void *context)
             (uint8_t)settings_default_button_action((PlaybackButton)index);
     }
     store->settings.long_press_action = 0;
-    settings_store_capture(store, player_status(settings->player));
+    settings_capture(&store->settings, player_status(settings->player));
     StringId message = settings_store_save(store) ? STR_DONE : STR_SETTINGS_NOT_SAVED;
     toast_show(settings->toast, i18n_text(message), hal_clock_milliseconds());
     return screen_action_none();

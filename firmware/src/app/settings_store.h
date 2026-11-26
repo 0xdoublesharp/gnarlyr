@@ -26,7 +26,6 @@ void settings_store_load(SettingsStore *store);
 void settings_store_read(SettingsStore *store);
 bool settings_store_save(SettingsStore *store);
 bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset);
-void settings_store_capture(SettingsStore *store, PlayerStatus playback);
 void settings_capture(Settings *settings, PlayerStatus playback);
 bool settings_store_publish(SettingsStore *store, const Settings *next);
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed);

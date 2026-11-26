@@ -63,7 +63,7 @@ static void start_loud(void)
 {
     reset();
     player_change_volume(&player, 60);
-    settings_store_capture(&settings, player_status(&player));
+    settings_capture(&settings.settings, player_status(&player));
     CHECK(settings_store_save(&settings));
 }
 

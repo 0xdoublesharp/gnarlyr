@@ -21,7 +21,7 @@ static const Settings *settings_of(const void *context)
 
 void settings_action_save(SettingsContext *context)
 {
-    settings_store_capture(context->store, player_status(context->player));
+    settings_capture(&context->store->settings, player_status(context->player));
     if (!settings_store_save(context->store)) {
         toast_show(context->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
     }

@@ -277,6 +277,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_settings
     src/app/screens/plug_art.c
     src/gfx/wireframe.c
     src/app/screens/set_clock_screen.c
+    src/app/clock_set_call.c
     src/core/calendar.c
     src/app/settings_actions.c
     src/app/settings_preview.c
@@ -327,6 +328,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_listening
     src/playback/listening_recap.c
     src/playback/smart_list.c
     src/playback/track_keys.c
+    src/playback/store_progress.c
     src/playback/listening_export.c
     src/playback/listening_clear.c
     src/app/listening_clear.c
@@ -343,7 +345,7 @@ set(ECHO_SCREEN_MODULE_ABOUT_SOURCES
     platform/device/logic/headset_monitor_reading.c
 )
 if(ECHO_RELEASE)
-    list(APPEND ECHO_SCREEN_MODULE_SOURCES_views src/app/diagnostics_menu_release.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
+    list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/diagnostics_menu_release.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
 else()
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_format src/app/diagnostics_menu.c ${ECHO_SCREEN_MODULE_ABOUT_SOURCES})
     list(APPEND ECHO_SCREEN_MODULE_SOURCES_format

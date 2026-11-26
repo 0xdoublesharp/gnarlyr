@@ -10,9 +10,6 @@ static void bind(AppScreens *screens)
     const AppScreensContext *context = &screens->context;
     ViewsModuleScreens *own = &screens->modules.views;
     theme_picker_init(&own->themes, screens);
-#ifndef ECHO_DEBUG_LOOP
-    diagnostics_menu_build(screens, context->options, context->theme);
-#endif
     calendar_screen_init(&own->calendar, (CalendarScreenConfig){.theme = context->theme});
     clock_screen_init(&own->clock, (ClockScreenConfig){.theme = context->theme,
                                                        .settings = &context->settings->settings,

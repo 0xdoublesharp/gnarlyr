@@ -6,17 +6,6 @@
 #include "core/record.h"
 #include "equalizer_peak.h"
 
-static const uint8_t DEFAULT_EXTENSION[EXTENSION_SIZE] = {
-    [COMFORT_BYTE] =
-        REWIND_BIT | SAFE_START_BIT | CLOCK_24H_BIT | TRACK_TRANSITION_OFF << TRANSITION_SHIFT,
-    [SAFE_LEVEL_BYTE] = SETTINGS_DEFAULT_SAFE_START_VOLUME,
-    [TRANSITION_BYTE] = SETTINGS_DEFAULT_TRANSITION_TENTHS,
-    [HOME_ORDER_BYTE] = 0x60,
-    0x75,
-    0x98,
-    0x21,
-    0x43,
-    [HOME_HIDDEN_BYTE] = (1u << 1) | (1u << 2)};
 static const uint16_t TIMEOUT_SECONDS[SCREEN_TIMEOUT_OPTION_COUNT] = {10, 20, 30, 60, 120, 300, 0};
 static const uint8_t SLEEP_MINUTES[SLEEP_TIMER_OPTION_COUNT] = {0, 15, 30, 45, 60, 90, 120};
 static const uint8_t AUTO_OFF_MINUTES[AUTO_OFF_OPTION_COUNT] = {0, 1, 5, 10};
@@ -29,49 +18,6 @@ static const int8_t PRESET_GAINS[EQUALIZER_PRESET_COUNT][CURVE_FREQUENCIES] = {
     [EQUALIZER_JAZZ] = {0, 4, 0, -6, 4, 1, 6},  [EQUALIZER_UNIQUE] = {0, 3, 0, 0, -3, 3, 0}};
 static const uint16_t PRESET_PRE_GAINS[EQUALIZER_PRESET_COUNT] = {
     SETTINGS_UNITY_PRE_GAIN, 21504, 14336, 20480, 20480, 14336, 14336, 12288};
-
-static uint8_t home_item(const uint8_t *packed, int index)
-{
-    return (packed[index / 2] >> (NIBBLE_BITS * (index & 1))) & NIBBLE_MASK;
-}
-
-static int home_stored_count(const uint8_t *packed)
-{
-    unsigned seen = 0;
-    int count = 0;
-    for (int index = 0; index < SETTINGS_HOME_ORDER_SLOTS; index++) {
-        seen |= 1u << home_item(packed, index);
-        count = seen == (2u << index) - 1 ? index + 1 : count;
-    }
-    for (int index = count; index < SETTINGS_HOME_ORDER_SLOTS; index++) {
-        if (home_item(packed, index) != 0) {
-            return 0;
-        }
-    }
-    return count;
-}
-
-bool settings_home_unpack(const uint8_t *packed, int item_count, uint8_t *order, uint16_t *hidden)
-{
-    int stored = home_stored_count(packed);
-    unsigned mask = packed[HOME_HIDDEN_PACKED] | (unsigned)packed[HOME_HIDDEN_PACKED + 1] << 8;
-    unsigned hideable = ((1u << stored) - 1) & ~(1u << SETTINGS_HOME_SETTINGS_ITEM);
-    if (stored < SETTINGS_HOME_FIRST_ITEM_COUNT || (mask & ~hideable) != 0) {
-        return false;
-    }
-    int count = 0;
-    for (int index = 0; index < stored; index++) {
-        uint8_t item = home_item(packed, index);
-        if (item < item_count) {
-            order[count++] = item;
-        }
-    }
-    for (; count < item_count; count++) {
-        order[count] = (uint8_t)count;
-    }
-    *hidden = (uint16_t)(mask & ((1u << item_count) - 1));
-    return true;
-}
 
 Settings settings_defaults(void)
 {
@@ -95,10 +41,18 @@ Settings settings_defaults(void)
         .orientation = ORIENTATION_LANDSCAPE,
         .replay_gain_mode = REPLAY_GAIN_OFF,
         .prevent_clipping = true,
+        .standby_power_off_option = 1,
+        .startup_animation = true,
+        .rewind_on_resume = true,
+        .safe_start_volume = true,
+        .clock_24h = true,
+        .track_transition = TRACK_TRANSITION_OFF,
+        .safe_start_volume_level = SETTINGS_DEFAULT_SAFE_START_VOLUME,
+        .transition_tenths = SETTINGS_DEFAULT_TRANSITION_TENTHS,
+        .playback_speed = SETTINGS_SPEED_NORMAL,
+        .home_order = {0, 6, 5, 7, 8, 9, 1, 2, 3, 4},
+        .home_hidden = (1u << 1) | (1u << 2),
     };
-    settings.standby_power_off_option = 1;
-    settings.startup_animation = true;
-    settings_read_extension(DEFAULT_EXTENSION, &settings);
     return settings;
 }
 

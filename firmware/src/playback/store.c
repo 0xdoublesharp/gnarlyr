@@ -15,10 +15,6 @@ enum {
 };
 
 enum {
-    PROGRESS_EXACT_BYTES = 0x1000000
-};
-
-enum {
     STAGE_INVALIDATE,
     STAGE_WRITE,
     STAGE_VERIFY,
@@ -294,19 +290,6 @@ void store_write_abort(StoreWrite *job)
     if (job->result == STORE_WORKING) {
         job->result = STORE_FAILED;
     }
-}
-
-uint8_t store_write_progress(const StoreWrite *job)
-{
-    uint32_t bytes = job->header.bytes;
-    if (job->result == STORE_DONE) {
-        return 100;
-    }
-    if (bytes == 0) {
-        return 0;
-    }
-    uint32_t half = job->written.position / 2 + job->verified.position / 2;
-    return (uint8_t)(bytes < PROGRESS_EXACT_BYTES ? half * 100 / bytes : half / (bytes / 100));
 }
 
 static StoreLoad load_bank(const StorePair *pair, uint8_t bank, StoreHeader *header)
