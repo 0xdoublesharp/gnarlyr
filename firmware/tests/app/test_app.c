@@ -6,6 +6,7 @@
 #include "app/extension.h"
 #include "app_internal.h"
 #include "app_screens.h"
+#include "battery_model.h"
 #include "board_layout.h"
 #include "card_files.h"
 #include "check.h"
@@ -8770,7 +8771,7 @@ static Rect left_of_battery(void)
     return (Rect){body.x - 60, body.y, 56, body.height};
 }
 
-static void battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart(void)
+static void battery_readout_choice_saves_all_three_modes(void)
 {
     start_app_with_library();
     fake_hal_set_battery((HalBattery){.known = true, .percent = HALF_BATTERY});
@@ -8780,14 +8781,92 @@ static void battery_percentage_choice_shows_the_level_beside_the_battery_and_sur
     move_down(STATUS_BAR_BATTERY_PERCENT_INDEX);
     CHECK(!area_has_color(left_of_battery(), ink));
     tap(KEY_PLAY);
+    CHECK(title_is("Battery readout"));
+    move_down(1);
+    tap(KEY_PLAY);
     CHECK(title_is("Status bar"));
     CHECK(area_has_color(left_of_battery(), ink));
     Settings chosen;
     CHECK(saved_settings(&chosen));
     CHECK(chosen.battery_percent);
+    tap(KEY_PLAY);
+    CHECK(title_is("Battery readout"));
+    move_down(1);
+    tap(KEY_PLAY);
+    SettingsStore loaded;
+    settings_store_load(&loaded);
+    CHECK(loaded.settings.battery_percent);
+    CHECK(loaded.battery.show_time);
+    CHECK(area_has_color(left_of_battery(), ink));
+
+    tap(KEY_PLAY);
+    CHECK(title_is("Battery readout"));
+    move_up(2);
+    tap(KEY_PLAY);
+    settings_store_load(&loaded);
+    CHECK(!loaded.settings.battery_percent);
+    CHECK(!loaded.battery.show_time);
     restart_app();
     CHECK(saved_settings(&chosen));
-    CHECK(chosen.battery_percent);
+    CHECK(!chosen.battery_percent);
+}
+
+static void check_time_left_label(const char *label, bool compact)
+{
+    static Color pixels[FULL_FRAME_PIXELS];
+    Theme theme = *app_theme();
+    CHECK_EQUAL(compact, theme.status_bar_compact);
+    StatusBarState state = {
+        .battery_known = true, .battery_percent = HALF_BATTERY, .percent = label};
+    Canvas canvas = canvas_make(pixels, (Rect){0, 0, HAL_DISPLAY_WIDTH, HAL_DISPLAY_HEIGHT});
+    header_draw(&canvas, &theme, "");
+    status_bar_draw(&canvas, &theme, state);
+    Rect area = compact ? status_bar_battery_body(&theme)
+                        : status_bar_item_area(&theme, &state, STATUS_BAR_PERCENT);
+    CHECK(area.width > 0);
+    for (int y = area.y; y < area.y + area.height; y++) {
+        for (int x = area.x; x < area.x + area.width; x++) {
+            CHECK_EQUAL(canvas_pixel_at(&canvas, x, y), fake_hal_pixel(x, y));
+        }
+    }
+}
+
+static void the_battery_estimate_refreshes_both_status_bar_layouts_at_the_same_percent(void)
+{
+    for (int compact = 0; compact < 2; compact++) {
+        start_app_with_library();
+        SettingsStore saved;
+        settings_store_load(&saved);
+        saved.settings.battery_percent = true;
+        saved.settings.status_bar_compact = compact != 0;
+        saved.settings.screen_timeout = SCREEN_TIMEOUT_OPTION_COUNT - 1;
+        saved.settings.auto_off = 0;
+        CHECK(settings_store_save(&saved));
+        saved.battery = (BatteryEstimate){.show_time = true,
+                                          .habit = 400,
+                                          .rate = {[BATTERY_LOAD_SCREEN] = 400},
+                                          .learned = {[BATTERY_LOAD_SCREEN] = 2},
+                                          .dirty = true};
+        CHECK(battery_model_save(&saved.battery));
+        app_reset_for_test();
+        restart_app();
+        fake_hal_set_battery(
+            (HalBattery){.known = true, .percent = HALF_BATTERY, .millivolts = 3861});
+        wait_ms(500);
+        check_time_left_label("50%", compact != 0);
+        int loads = fake_hal_module_loads();
+        for (int i = 0; i < 4; i++) {
+            wait_ms(BATTERY_ESTIMATE_SAMPLE_MS);
+        }
+        check_time_left_label("~13h", compact != 0);
+        for (uint16_t mv = 3841; mv >= 3761; mv -= 20) {
+            fake_hal_set_battery(
+                (HalBattery){.known = true, .percent = HALF_BATTERY, .millivolts = mv});
+            wait_ms(BATTERY_ESTIMATE_SAMPLE_MS);
+        }
+        check_time_left_label("~11h", compact != 0);
+        CHECK_EQUAL(loads, fake_hal_module_loads());
+    }
 }
 
 static void the_status_bar_shows_the_set_time_and_nothing_without_one(void)
@@ -9359,8 +9438,8 @@ int main(void)
         TEST_CASE(normalization_choices_apply_and_survive_restart),
         TEST_CASE(normalization_previews_current_and_queued_audio_and_back_restores_it),
         TEST_CASE(clipping_toggles_inline_and_updates_current_and_queued_audio),
-        TEST_CASE(
-            battery_percentage_choice_shows_the_level_beside_the_battery_and_survives_restart),
+        TEST_CASE(battery_readout_choice_saves_all_three_modes),
+        TEST_CASE(the_battery_estimate_refreshes_both_status_bar_layouts_at_the_same_percent),
         TEST_CASE(the_status_bar_shows_the_set_time_and_nothing_without_one),
         TEST_CASE(date_and_time_opens_next_to_clock_format),
         TEST_CASE(saving_date_and_time_refreshes_the_status_bar_without_restarting),

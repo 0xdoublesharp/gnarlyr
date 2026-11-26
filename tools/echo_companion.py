@@ -60,6 +60,10 @@ STATUS_SPECS = (
 )
 
 
+BATTERY_READOUT_SPEC = ("battery_percent", "STR_BATTERY_READOUT", "BATTERY_READOUT_OPTIONS", ("off", "on"),
+                        ("STR_OFF", "STR_BATTERY_READOUT_PERCENT"), 5, 8, 3, 0)
+
+
 def array_source(source, name):
     match = re.search(r"\b" + name + r"\s*\[[^]]*\]\s*=\s*\{([^}]+)\}", source)
     if match is None:
@@ -82,12 +86,15 @@ class Layout:
         plug_spec = PLUG_SPEC
         if PLUG_SPEC[1] in titles and "STR_PLUG_CARE_80" in array_source(self.ui, PLUG_SPEC[2]):
             plug_spec = PLUG_SPEC_CARE_80
-        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_CARE_SPEC, plug_spec)
+        self.specs = SPECS + tuple(spec for spec in (CLOCK_SPEC, *STATUS_SPECS, BATTERY_READOUT_SPEC, BATTERY_CARE_SPEC, plug_spec)
                                    if spec[1] in titles)
         for spec in self.specs:
             body = array_source(self.ui, spec[2])
             actual = tuple(re.findall(r"\bSTR_[A-Z0-9_]+\b", body)) if spec[4] else tuple(re.findall(r'"([0-9]+)"', body))
-            if actual != (spec[4] or spec[3]) or not re.search(r"\{\s*" + spec[1] + r"\s*,", self.ui):
+            expected = spec[4] or spec[3]
+            if spec is BATTERY_READOUT_SPEC:
+                expected += ("STR_BATTERY_READOUT_TIME",)
+            if actual != expected or not re.search(r"\{\s*" + spec[1] + r"\s*,", self.ui):
                 raise ValueError("the installed settings choices have changed")
 
     def title_ids(self):

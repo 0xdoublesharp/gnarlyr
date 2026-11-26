@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "app/app.h"
+#include "battery_model.h"
 #include "bluetooth_store.h"
 #include "core/i18n.h"
 #include "core/string_builder.h"
@@ -45,6 +46,7 @@ static const CardFile CARD_FILES[] = {
     {LIBRARY_SCRATCH_PATH, SCRATCH_FILE_BYTES, false},
     {SETTINGS_STORE_PATH, SMALL_FILE_BYTES, true},
     {SETTINGS_BUTTONS_PATH, SETTINGS_BUTTONS_FILE_SIZE, true},
+    {BATTERY_MODEL_PATH, BATTERY_MODEL_BYTES, true},
     {HEADPHONE_STORE_PATH, HEADPHONE_FILE_BYTES, true},
     {PLAYER_SESSION_PATH, SMALL_FILE_BYTES, false},
     {PLAYER_ORDER_PATH, TRACK_ORDER_FILE_BYTES, false},

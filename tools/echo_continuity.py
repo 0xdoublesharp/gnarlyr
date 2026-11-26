@@ -11,7 +11,7 @@ import struct
 from pathlib import Path
 
 INTERNAL_FILES = ("settings.bin", "buttons.bin", "headphones.bin", "parametric.bin", "theme.bin",
-                  "discovery.bin", "eq_slots.bin")
+                  "discovery.bin", "eq_slots.bin", "battery_model.bin")
 MUSIC_FILES = ("bluetooth.bin", "session.bin", "order.bin", "mixes.bin", "moments.bin", "listens.bin",
                "recap.bin", "track_keys.bin", "favorites.bin", "bookmarks.bin", "tags-a.bin", "tags-b.bin",
                "favorite_added.bin", "hidden.bin")

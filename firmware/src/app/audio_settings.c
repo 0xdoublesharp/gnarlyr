@@ -12,7 +12,7 @@ static void set_volumes(SettingsStore *store, Player *player, uint8_t music, uin
 
 static AudioSettingsResult save(SettingsStore *store, Player *player, bool kept)
 {
-    settings_capture(&store->settings, player_status(player));
+    settings_capture(&store->settings, player);
     return settings_store_save(store) && kept ? AUDIO_SETTINGS_SAVED : AUDIO_SETTINGS_NOT_SAVED;
 }
 

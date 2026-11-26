@@ -116,6 +116,7 @@ static void gather(DebugReportInput *input, const UsbShared *shared, uint32_t re
     input->clock_us = wide_clock_us(uptime_ms, low_us);
     input->idle_us = board_idle_microseconds();
     input->battery = battery;
+    input->battery_estimate = app_battery_estimate();
     input->power = power_now(battery.charging);
     input->start = hal_system_start_info();
     input->usb = shared->last_session;

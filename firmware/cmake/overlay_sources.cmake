@@ -7,6 +7,7 @@ set(ECHO_RESCAN_OVERLAY_APP_SOURCES
 set(ECHO_USB_OVERLAY_APP_SOURCES
     src/app/debug_frames.c
     src/app/debug_runner_begin.c
+    src/app/screens/charge_level_text.c
     src/app/screens/usb_dac_menu.c
     src/app/screens/usb_meter.c
     src/app/screens/usb_screen.c

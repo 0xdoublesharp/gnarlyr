@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "hal/power.h"
 #include "language.h"
 #include "ui/screen.h"
 #include "ui/theme.h"
@@ -18,8 +19,9 @@ typedef enum ScreenModule {
     SCREEN_MODULE_EQUALIZER = 9,
     SCREEN_MODULE_PLAYING = 11,
     SCREEN_MODULE_COUNT,
-    SCREEN_MODULE_FORMAT = 17,
-    SCREEN_MODULE_STAGE = 16
+    SCREEN_MODULE_TRIAL = 15,
+    SCREEN_MODULE_STAGE = 16,
+    SCREEN_MODULE_FORMAT = 17
 } ScreenModule;
 
 #define SCREEN_MODULE_MAGIC(module) (0x004D5344u | (uint32_t)(module) << 24)
@@ -31,15 +33,20 @@ typedef struct ScreenModuleEntry {
     void (*art_draw)(void *context, Canvas *canvas, Rect area);
     bool (*use_language)(uint32_t module);
     void (*reload)(struct AppScreens *screens);
+    void (*battery_follow)(struct AppScreens *screens, HalBattery battery, uint32_t now_ms,
+                           bool display_on);
 } ScreenModuleEntry;
+
+void battery_follow(struct AppScreens *screens, HalBattery battery, uint32_t now_ms,
+                    bool display_on);
 
 #define SCREEN_MODULE_ENTRY(number, bind_fn)                                                       \
     {SCREEN_MODULE_MAGIC(number), (bind_fn), home_art_update, home_art_draw,                       \
-     language_use_module,         NULL}
+     language_use_module,         NULL,      battery_follow}
 
 #define SCREEN_MODULE_RELOADING_ENTRY(number, bind_fn, reload_fn)                                  \
-    {SCREEN_MODULE_MAGIC(number), (bind_fn),  home_art_update, home_art_draw,                      \
-     language_use_module,         (reload_fn)}
+    {SCREEN_MODULE_MAGIC(number), (bind_fn),   home_art_update, home_art_draw,                     \
+     language_use_module,         (reload_fn), battery_follow}
 
 void screen_modules_prepare_home(struct AppScreens *screens);
 void screen_modules_cancel_previews(struct AppScreens *screens);

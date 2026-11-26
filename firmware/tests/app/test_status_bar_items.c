@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <string.h>
 
 #include "check.h"
@@ -5,6 +6,7 @@
 #include "gfx/text.h"
 #include "hal/display.h"
 #include "screen_snapshot.h"
+#include "test_pack.h"
 #include "ui/brand_mark.h"
 #include "ui/header.h"
 #include "ui/status_bar.h"
@@ -423,12 +425,61 @@ static void the_header_draws_the_same_whole_or_in_strips(void)
     }
 }
 
+static void official_battery_times_fit_compact_text_in_every_language_and_size(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    static const char *const PACKS[] = {"de", "es", "fr", "ja", "pt", "zh"};
+    for (unsigned i = 0; i < sizeof PACKS / sizeof PACKS[0]; i++) {
+        char path[1024];
+        snprintf(path, sizeof path, "%s/%s.pack", ECHO_STATUS_PACKS, PACKS[i]);
+        uint32_t bytes = test_pack_load(path, pack, sizeof pack);
+        CHECK(i18n_attach(pack, bytes));
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            Theme theme = theme_for(ORIENTATION_LANDSCAPE, size, true);
+            char text[STATUS_BAR_PERCENT_CAPACITY];
+            status_bar_battery_text(&theme, text,
+                                    (StatusBatteryText){.minutes = 95, .percent = 50});
+            CHECK(strcmp(text, "~95m") == 0);
+            CHECK(text_width(theme.fonts.small, text) <= 47);
+            status_bar_battery_text(
+                &theme, text, (StatusBatteryText){.minutes = 9000, .hours = 99, .percent = 50});
+            CHECK(strcmp(text, "~99h") == 0);
+            CHECK(text_width(theme.fonts.small, text) <= 47);
+        }
+        i18n_detach();
+    }
+}
+
+static void wide_time_text(char const *english, char *text, size_t capacity)
+{
+    snprintf(text, capacity, "%s", strcmp(english, "~{0}h") == 0 ? "{0}WWWWW" : english);
+}
+
+static void compact_uses_percent_when_time_text_exceeds_its_available_width(void)
+{
+    static uint8_t pack[TEST_PACK_CAPACITY];
+    uint32_t bytes = test_pack_build(pack, (TestPackLanguage){"en", "English", wide_time_text});
+    CHECK(i18n_attach(pack, bytes));
+    Theme theme = theme_for(ORIENTATION_LANDSCAPE, TEXT_SIZE_MEDIUM, false);
+    char text[STATUS_BAR_PERCENT_CAPACITY];
+    StatusBatteryText input = {.minutes = 120, .hours = 2, .percent = 50};
+    status_bar_battery_text(&theme, text, input);
+    CHECK(strcmp(text, "2WWWWW") == 0);
+    CHECK(text_width(theme.fonts.small, text) > 47);
+    default_theme_set_status_bar(&theme, true);
+    status_bar_battery_text(&theme, text, input);
+    CHECK(strcmp(text, "50%") == 0);
+    i18n_detach();
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(crowded_status_icons_leave_long_titles_untouched),
         TEST_CASE(the_header_draws_the_same_whole_or_in_strips),
         TEST_CASE(compact_reclaims_space_and_keeps_the_combined_battery),
+        TEST_CASE(official_battery_times_fit_compact_text_in_every_language_and_size),
+        TEST_CASE(compact_uses_percent_when_time_text_exceeds_its_available_width),
         TEST_CASE(every_orientation_and_text_size_respects_fitting_priority),
         TEST_CASE(a_long_title_keeps_only_the_logo_the_lock_and_the_battery),
         TEST_CASE(the_title_outranks_every_optional_item),

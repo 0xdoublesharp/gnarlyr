@@ -280,6 +280,13 @@ class CompanionSettings(VolumeCase):
         self.assertEqual(changed[54:], checked(changed)[54:])
         self.assertEqual(changed[58:], before[58:])
 
+    def test_battery_readout_keeps_version_one_text_enable_bit(self):
+        tool, _ = self.tool(self.change(5, 0x0C))
+        result = tool.settings_set("battery_percent", "on")
+        self.assertTrue(result["verified"])
+        self.assertIn("set Battery readout=Percent\n", self.sent[0])
+        self.assertEqual(self.path.read_bytes()[4:6], bytes([1, 0x0C]))
+
     def test_when_plugged_in_reads_the_saved_answer_and_usb_power(self):
         for flags, care, expected in ((0x04, 0, "ask"), (0x14, 0, "computer"), (0x24, 0, "charge"),
                                       (0x24, 0x10, "run_from_usb"), (0x34, 0, "dac"),

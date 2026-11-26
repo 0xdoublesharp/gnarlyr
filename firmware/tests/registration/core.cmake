@@ -42,3 +42,5 @@ echo_add_unit_test(NAME test_debug_log SOURCES core/test_debug_log.c LIBRARIES e
 echo_add_unit_test(NAME test_debug_script SOURCES core/test_debug_script.c LIBRARIES echo_core)
 
 echo_add_unit_test(NAME test_audio_visual SOURCES core/test_audio_visual.c LIBRARIES echo_core m)
+
+echo_add_unit_test(NAME test_battery_estimate SOURCES core/test_battery_estimate.c LIBRARIES echo_core)

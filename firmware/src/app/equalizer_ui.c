@@ -37,7 +37,7 @@ static void message(EqualizerUi *ui, bool saved, int slot)
 
 static bool save(EqualizerUi *ui, Settings *next)
 {
-    settings_capture(next, player_status(ui->player));
+    settings_capture(next, ui->player);
     if (!settings_store_publish(ui->store, next)) {
         toast_show(ui->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
         return false;

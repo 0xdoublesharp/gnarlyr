@@ -273,7 +273,6 @@ set(ECHO_OVERLAY_IMPORTS
     app_theme_pack_active
     app_theme
     charge_screen_text
-    charge_screen_level_text
     charge_screen_usb_title
     brand_mark_draw
     canvas_fill_rect
@@ -404,6 +403,7 @@ set(ECHO_OVERLAY_IMPORTS
 )
 if(NOT ECHO_RELEASE)
     list(APPEND ECHO_OVERLAY_IMPORTS
+        app_battery_estimate
         app_debug_frame_sources
         draw_profile_average_us
         frame_stats_average_us
@@ -587,6 +587,7 @@ set(ECHO_USB_OVERLAY_LINKER_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/overlay/usb_overl
 add_executable(echo_usb_overlay
     overlay/usb_overlay.c
     ${PROJECT_SOURCE_DIR}/src/app/extra_font_usb.c
+    ${PROJECT_SOURCE_DIR}/src/app/screens/charge_level_text.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_screen.c
     ${PROJECT_SOURCE_DIR}/src/app/screens/usb_meter.c
     ${PROJECT_SOURCE_DIR}/src/app/home_art_backdrop.c

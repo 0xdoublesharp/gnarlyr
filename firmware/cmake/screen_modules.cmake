@@ -79,6 +79,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     src/settings/headphone_file.c
     src/settings/headphone_profile.c
     src/app/settings_store_read.c
+    src/app/battery_model_read.c
     src/settings/settings_decode.c
     src/app/player_restore.c
     src/app/start_stores.c
@@ -215,6 +216,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/app/modules/views_module.c
     src/app/screens/charge_rate.c
     src/app/screens/charge_art.c
+    src/app/screens/charge_level_text.c
     src/app/screens/lyrics_screen.c
     src/library/lyrics.c
     src/app/mixtape_store.c
@@ -241,7 +243,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_views
     src/ui/confirm_screen.c
 )
 set(ECHO_SCREEN_MODULE_UI_SOURCES src/app/home_art.c src/app/home_art_backdrop.c
-    src/app/language_module.c)
+    src/app/language_module.c src/app/battery_follow.c src/core/battery_estimate.c)
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_playing ${ECHO_SCREEN_MODULE_UI_SOURCES})
 list(APPEND ECHO_SCREEN_MODULE_SOURCES_stage ${ECHO_SCREEN_MODULE_UI_SOURCES})
 set(ECHO_SCREEN_MODULE_FAST_SOURCES src/gfx/image_quad.c)

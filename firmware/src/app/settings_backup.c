@@ -23,6 +23,9 @@ static ScreenAction restore(SettingsScreens *screens, int position)
     if (screens->context.format_prepare != NULL) {
         screens->context.format_prepare();
     }
+    if (screens->context.store != NULL) {
+        screens->context.store->battery = (BatteryEstimate){0};
+    }
     if (screens->context.reload != NULL) {
         screens->context.reload(STR_SETTINGS_RESTORED);
     }

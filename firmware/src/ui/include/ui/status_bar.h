@@ -65,6 +65,14 @@ typedef struct StatusBarState {
     bool hides_charging;
 } StatusBarState;
 
+typedef struct StatusBatteryText {
+    uint16_t minutes;
+    uint8_t hours;
+    uint8_t percent;
+} StatusBatteryText;
+
+void status_bar_battery_text(const Theme *theme, char *text, StatusBatteryText battery);
+
 typedef struct StatusBarLayout {
     Rect areas[STATUS_BAR_SLOTS];
     uint16_t items;

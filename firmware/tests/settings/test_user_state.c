@@ -207,10 +207,20 @@ static void the_settings_entry_tracks_the_settings_format_version(void)
     CHECK_EQUAL(FORMAT_AGE_INVALID, user_state_age(&kind, bytes, sizeof bytes));
 }
 
+static void the_battery_model_is_backed_up_on_internal_storage(void)
+{
+    reset();
+    FakeFile *model = put_data(USER_STATE_INTERNAL, "", "battery_model.bin", 32);
+    memcpy(model->bytes, "DSBR\1\0", 6);
+    CHECK(user_state_backup(&IO, "battery-model"));
+    CHECK(same_file(model, find_data(USER_STATE_INTERNAL, "backup/1/", "battery_model.bin")));
+    CHECK(find_data(USER_STATE_MUSIC, "backup/1/", "battery_model.bin") == NULL);
+}
+
 static void every_version_header_boundary_is_classified(void)
 {
     char name[USER_STATE_NAME_CAPACITY];
-    UserStateKind kind = user_state_kind(8, name);
+    UserStateKind kind = user_state_kind(9, name);
     CHECK_EQUAL(0, strcmp(name, "session.bin"));
     uint8_t head[] = {'D', 'S', 'S', 'J', 1, 0};
     CHECK_EQUAL(FORMAT_AGE_INVALID, user_state_age(&kind, head, sizeof head - 1));
@@ -606,6 +616,7 @@ int main(void)
         TEST_CASE(the_catalogue_names_every_user_file_once),
         TEST_CASE(the_settings_entry_tracks_the_settings_format_version),
         TEST_CASE(every_version_header_boundary_is_classified),
+        TEST_CASE(the_battery_model_is_backed_up_on_internal_storage),
         TEST_CASE(an_overlong_state_path_is_refused),
         TEST_CASE(a_copy_moves_every_byte_through_a_small_buffer_and_checks_it),
         TEST_CASE(a_copy_refuses_an_unusable_buffer_before_creating_the_target),

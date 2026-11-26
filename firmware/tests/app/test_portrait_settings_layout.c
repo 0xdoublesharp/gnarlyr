@@ -218,7 +218,7 @@ static void status_bar_choices_fit_every_size_and_orientation_and_save_independe
                       theme.metrics.screen_width - 2 * theme.metrics.padding);
                 CHECK(item->value(item->context) != NULL);
                 ScreenAction action = item->select(item->context);
-                bool opens = row >= 4;
+                bool opens = row >= 3;
                 CHECK_EQUAL(opens, item->opens);
                 CHECK_EQUAL(opens, action.target != NULL);
             }
@@ -464,9 +464,10 @@ static int times_offered(const char *label)
     return times;
 }
 
-static void every_former_settings_row_is_in_exactly_one_group(void)
+static void every_settings_row_is_in_exactly_one_group(void)
 {
     static const StringId rows[] = {STR_SHUFFLE,
+                                    STR_BATTERY_TIME,
                                     STR_REPEAT,
                                     STR_BLUETOOTH,
                                     STR_SLEEP_TIMER,
@@ -572,7 +573,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(settings_open_on_nine_groups_with_language_fourth_and_about_last),
-        TEST_CASE(every_former_settings_row_is_in_exactly_one_group),
+        TEST_CASE(every_settings_row_is_in_exactly_one_group),
         TEST_CASE(dependent_settings_appear_only_when_their_feature_is_enabled),
         TEST_CASE(resetting_buttons_persists_the_defaults_and_shows_feedback),
         TEST_CASE(status_bar_choices_fit_every_size_and_orientation_and_save_independently),

@@ -26,6 +26,7 @@ static const UserStateKind FILES[] = {
     STORE_FILE("theme.bin", USER_STATE_INTERNAL, 'D', 'S', 'T', 'S'),
     {"discovery.bin", USER_STATE_INTERNAL, {'D', 'S', 'D', 'V'}, 4, 4, 1, 1},
     PLAIN_FILE("eq_slots.bin", USER_STATE_INTERNAL),
+    STORE_FILE("battery_model.bin", USER_STATE_INTERNAL, 'D', 'S', 'B', 'R'),
     {"bluetooth.bin", USER_STATE_MUSIC, {'B', 'T', 0, 0}, 2, 2, 1, 1},
     STORE_FILE("session.bin", USER_STATE_MUSIC, 'D', 'S', 'S', 'J'),
     STORE_FILE("order.bin", USER_STATE_MUSIC, 'D', 'S', 'T', 'O'),

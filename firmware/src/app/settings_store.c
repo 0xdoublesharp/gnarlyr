@@ -46,6 +46,12 @@ static void remember(SettingsStore *store, const uint8_t *bytes)
 
 void settings_store_load(SettingsStore *store)
 {
+    store->battery = (BatteryEstimate){0};
+    settings_store_reload(store);
+}
+
+void settings_store_reload(SettingsStore *store)
+{
     settings_store_read(store);
     store->parametric = (ParametricStore){0};
     store->equalizer_slot = -1;
@@ -117,12 +123,12 @@ bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset)
     return true;
 }
 
-void settings_capture(Settings *settings, PlayerStatus playback)
+void settings_capture(Settings *settings, const Player *player)
 {
-    settings->volume = playback.wired_volume;
-    settings->bluetooth_volume = playback.bluetooth_volume;
-    settings->shuffle = playback.shuffle;
-    settings->repeat = playback.repeat;
+    settings->volume = player->volume;
+    settings->bluetooth_volume = player->bluetooth_volume;
+    settings->shuffle = player->shuffle;
+    settings->repeat = player->repeat;
 }
 
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed)

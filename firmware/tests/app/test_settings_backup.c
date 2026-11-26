@@ -108,6 +108,20 @@ static void the_older_backup_requests_the_other_slot(void)
     CHECK_EQUAL(1, mark[USER_STATE_MARK_REQUEST_AT]);
 }
 
+static void a_restore_reloads_the_battery_model_with_the_other_saved_settings(void)
+{
+    reset();
+    SettingsStore store = {.battery = {.loaded = true, .dirty = true, .habit = 600}};
+    screens.context.store = &store;
+    write_backups(1);
+    write_mark();
+    (void)open_backups();
+    screens.backup_items[0].select(screens.backup_items[0].context);
+    CHECK(!store.battery.loaded);
+    CHECK(!store.battery.dirty);
+    CHECK_EQUAL(0, store.battery.habit);
+}
+
 static void a_missing_or_unwritable_mark_reports_failure_without_reloading(void)
 {
     for (int failure = 0; failure < 2; failure++) {
@@ -147,6 +161,7 @@ int main(void)
         TEST_CASE(restore_is_hidden_without_a_valid_backup_list),
         TEST_CASE(backups_are_shown_newest_first_and_restore_the_requested_slot),
         TEST_CASE(the_older_backup_requests_the_other_slot),
+        TEST_CASE(a_restore_reloads_the_battery_model_with_the_other_saved_settings),
         TEST_CASE(a_missing_or_unwritable_mark_reports_failure_without_reloading),
         TEST_CASE(a_backup_removed_after_opening_cannot_request_an_invalid_slot),
     };

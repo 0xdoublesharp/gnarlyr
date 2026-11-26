@@ -177,6 +177,11 @@ echo_add_unit_test(NAME test_scan_guard
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+echo_add_unit_test(NAME test_battery_model
+    SOURCES app/test_battery_model.c app/fake_hal.c
+    LIBRARIES echo_app echo_library_fixtures
+    PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
+)
 echo_add_unit_test(NAME test_stores
     SOURCES app/test_stores.c app/fake_hal.c
     LIBRARIES echo_app echo_library_fixtures

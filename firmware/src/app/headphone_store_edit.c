@@ -25,7 +25,7 @@ bool headphone_store_commit(HeadphoneStore *store, const HeadphoneProfiles *prof
     store->file.file = headphone_store_file();
     Settings kept = settings->settings;
     Settings lowered = kept;
-    settings_capture(&lowered, player_status(player));
+    settings_capture(&lowered, player);
     lowered.volume = headphone_audio_switch_volume(store->active, next, player->volume);
     lowered.dac_volume = headphone_audio_switch_volume(store->active, next, kept.dac_volume);
     if (!settings_store_publish(settings, &lowered)) {

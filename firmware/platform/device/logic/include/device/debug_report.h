@@ -104,6 +104,7 @@ typedef struct DebugReportInput {
     const uint64_t *boot_us;
     Standby standby;
     HalBattery battery;
+    const struct BatteryEstimate *battery_estimate;
     DebugReportPower power;
     HalStartInfo start;
     HalUsbLast usb;

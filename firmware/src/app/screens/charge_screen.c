@@ -38,16 +38,6 @@ void charge_screen_text(HalBattery battery, char *text, size_t capacity)
     string_builder_append(&builder, i18n_text(power_state(battery)));
 }
 
-void charge_screen_level_text(HalBattery battery, char *text, size_t capacity)
-{
-    StringBuilder builder = string_builder_make(text, capacity);
-    if (battery.known) {
-        i18n_format_counts(&builder, STR_POWER_PERCENT, (uint32_t)shown_percent(battery), 0);
-    } else {
-        string_builder_append(&builder, i18n_text(STR_POWER_UNKNOWN));
-    }
-}
-
 bool app_usb_battery_changed(HalBattery before, HalBattery after)
 {
     return before.known != after.known || before.charging != after.charging ||

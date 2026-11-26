@@ -113,6 +113,9 @@ add_library(echo_app STATIC
     settings_actions.c
     screens/quick_settings_screen.c
     settings_store.c
+    battery_model.c
+    battery_model_read.c
+    battery_follow.c
     settings_store_read.c
     audio_settings.c
     parametric_calls.c
@@ -163,7 +166,7 @@ else()
         screens/key_test_screen.c)
 endif()
 if(ECHO_BUILD_DEVICE)
-    target_sources(echo_app PRIVATE extension_calls.c clock_set_call.c)
+    target_sources(echo_app PRIVATE extension_calls.c clock_set_call.c screens/charge_level_text.c)
     target_compile_definitions(echo_app PRIVATE ECHO_USB_OVERLAY_RENDERER)
 else()
     list(TRANSFORM ECHO_RESCAN_OVERLAY_APP_SOURCES PREPEND ${PROJECT_SOURCE_DIR}/ OUTPUT_VARIABLE

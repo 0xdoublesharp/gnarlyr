@@ -8,6 +8,7 @@
 
 enum {
     FRAME = 1,
+    COMPACT_BATTERY_TEXT_WIDTH = 47,
     BORDER_DIVISOR = 8,
     FILL_GAP = 1,
     NUB_DIVISOR = 5,
@@ -153,6 +154,24 @@ static void draw_bolt(Canvas *canvas, const Theme *theme, Rect body, StatusBatte
     draw_icon(&inside, theme, (StatusIcon){look.sign, bolt, look.bolt});
 }
 
+void status_bar_battery_text(const Theme *theme, char *text, StatusBatteryText battery)
+{
+    StringBuilder builder = string_builder_make(text, STATUS_BAR_PERCENT_CAPACITY);
+    if (battery.minutes != 0) {
+        i18n_format_counts(&builder,
+                           battery.hours ? STR_BATTERY_HOURS_SHORT : STR_BATTERY_MINUTES_SHORT,
+                           battery.hours ? battery.hours : battery.minutes, 0);
+        if (!builder.overflowed &&
+            (!theme->status_bar_compact ||
+             text_width(theme->fonts.small, text) <= COMPACT_BATTERY_TEXT_WIDTH)) {
+            return;
+        }
+        builder = string_builder_make(text, STATUS_BAR_PERCENT_CAPACITY);
+    }
+    i18n_format_counts(&builder, STR_POWER_PERCENT,
+                       battery.percent > FULL_PERCENT ? FULL_PERCENT : battery.percent, 0);
+}
+
 static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarState *state)
 {
     StatusBatteryLook look = status_bar_battery_look(theme, *state);
@@ -182,11 +201,11 @@ static void draw_battery(Canvas *canvas, const Theme *theme, const StatusBarStat
                             nub_width(body.height), terminal_height},
                      look.outline);
     if (theme->status_bar_compact) {
-        char text[STATUS_BAR_PERCENT_CAPACITY];
-        StringBuilder builder = string_builder_make(text, sizeof text);
-        i18n_format_counts(&builder, STR_POWER_PERCENT, state->battery_percent, 0);
-        label_draw(canvas, (TextStyle){theme->fonts.small, look.outline, false},
-                   (Label){{body.x + 5, body.y, body.width - 21, body.height - 2}, text});
+        if (state->percent != NULL) {
+            label_draw(canvas, (TextStyle){theme->fonts.small, look.outline, false},
+                       (Label){{body.x + 5, body.y, COMPACT_BATTERY_TEXT_WIDTH, body.height - 2},
+                               state->percent});
+        }
         body.x += body.width - 14;
         body.width = 12;
     }

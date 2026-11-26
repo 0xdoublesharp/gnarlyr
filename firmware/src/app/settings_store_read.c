@@ -1,5 +1,7 @@
 #include "settings_store.h"
 
+#include "battery_model.h"
+
 #include "hal/storage.h"
 
 static void read_values(SettingsStore *store)
@@ -30,9 +32,21 @@ static void read_buttons(SettingsStore *store)
     }
 }
 
+static void read_battery_model(BatteryEstimate *estimate)
+{
+    if (!estimate->loaded) {
+        uint8_t bytes[BATTERY_MODEL_BYTES];
+        if (hal_internal_file_read(BATTERY_MODEL_PATH, bytes, sizeof bytes)) {
+            battery_model_decode(estimate, bytes);
+        }
+        estimate->loaded = true;
+    }
+}
+
 void settings_store_read(SettingsStore *store)
 {
     store->unread = false;
     read_values(store);
     read_buttons(store);
+    read_battery_model(&store->battery);
 }

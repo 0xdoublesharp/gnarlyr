@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "core/battery_estimate.h"
 #include "parametric_store.h"
 #include "player.h"
 #include "settings/settings.h"
@@ -13,6 +14,7 @@ extern const char SETTINGS_BUTTONS_PATH[];
 typedef struct SettingsStore {
     Settings settings;
     ParametricStore parametric;
+    BatteryEstimate battery;
     int8_t equalizer_slot;
     uint8_t saved[SETTINGS_FILE_SIZE];
     bool has_saved;
@@ -23,10 +25,11 @@ typedef struct SettingsStore {
 } SettingsStore;
 
 void settings_store_load(SettingsStore *store);
+void settings_store_reload(SettingsStore *store);
 void settings_store_read(SettingsStore *store);
 bool settings_store_save(SettingsStore *store);
 bool settings_store_set_clock_offset(SettingsStore *store, int16_t offset);
-void settings_capture(Settings *settings, PlayerStatus playback);
+void settings_capture(Settings *settings, const Player *player);
 bool settings_store_publish(SettingsStore *store, const Settings *next);
 void settings_store_restore_playback(const SettingsStore *store, Player *player, uint32_t seed);
 void settings_store_apply_hardware(const Settings *settings);

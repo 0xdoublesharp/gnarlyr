@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/battery_estimate.h"
 #include "core/key.h"
 #include "core/key_script.h"
 #include "core/string_builder.h"
@@ -384,6 +385,31 @@ static const char *reading_source(bool from_gauge, bool known)
         return UNKNOWN;
     }
     return from_gauge ? "gauge" : "start_up_sample";
+}
+
+static void put_estimate_classes(Writer *writer, const char *key, const BatteryEstimate *estimate,
+                                 bool rates)
+{
+    begin(writer, key);
+    for (unsigned i = 0; i < BATTERY_LOAD_COUNT; i++) {
+        if (i != 0) {
+            string_builder_append_char(&writer->text, ',');
+        }
+        string_builder_append_unsigned(&writer->text,
+                                       rates ? estimate->rate[i] : estimate->learned[i]);
+    }
+    finish(writer);
+}
+
+static void put_battery_estimate(Writer *writer, const BatteryEstimate *estimate)
+{
+    if (estimate != NULL) {
+        put_unsigned(writer, "battery.estimate_min", estimate->shown_minutes);
+        put_unsigned(writer, "battery.estimate_class", estimate->active_class);
+        put_unsigned(writer, "battery.estimate_habit", estimate->habit);
+        put_estimate_classes(writer, "battery.estimate_rates", estimate, true);
+        put_estimate_classes(writer, "battery.estimate_learned", estimate, false);
+    }
 }
 
 static void put_battery(Writer *writer, const DebugReportInput *input)
@@ -1487,6 +1513,7 @@ uint32_t debug_report_format(const DebugReportInput *input, char *text, uint32_t
     Writer writer = {.text = string_builder_make(text, capacity - DEBUG_REPORT_TAIL_BYTES)};
     put_system(&writer, input);
     put_battery(&writer, input);
+    put_battery_estimate(&writer, input->battery_estimate);
     put_power(&writer, input);
     put_start(&writer, &input->start);
     put_boot(&writer, input->boot_us);

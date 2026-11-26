@@ -118,11 +118,23 @@ echo_add_unit_test(NAME test_cassette_flip
     LIBRARIES echo_app echo_library_fixtures
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/gfx
 )
+set(ECHO_STATUS_PACK_OUTPUTS "")
+foreach(language de es fr ja pt zh)
+    if(language IN_LIST ECHO_LANGUAGES)
+        set(pack ${CMAKE_BINARY_DIR}/lang/${language}.pack)
+    else()
+        echo_add_language_pack(${language} pack)
+    endif()
+    list(APPEND ECHO_STATUS_PACK_OUTPUTS ${pack})
+endforeach()
+add_custom_target(echo_status_packs DEPENDS ${ECHO_STATUS_PACK_OUTPUTS})
 echo_add_unit_test(NAME test_status_bar_items
     SOURCES app/test_status_bar_items.c support/screen_snapshot.c
-    LIBRARIES echo_app
+    LIBRARIES echo_app echo_test_pack
     PRIVATE_INCLUDES ${PROJECT_SOURCE_DIR}/src/app
 )
+target_compile_definitions(test_status_bar_items PRIVATE ECHO_STATUS_PACKS="${CMAKE_BINARY_DIR}/lang")
+add_dependencies(test_status_bar_items echo_status_packs)
 
 add_test(NAME theme_pack_tool
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/tests/test_theme_pack_tool.py --validator $<TARGET_FILE:theme_pack_tool>)

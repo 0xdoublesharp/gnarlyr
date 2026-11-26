@@ -1,6 +1,7 @@
 #include "settings_screens.h"
 #include "app/app.h"
 #include "audio_settings.h"
+#include "battery_model.h"
 #include "missing_fonts.h"
 #include "settings_actions.h"
 
@@ -72,6 +73,8 @@ static const StringId *const USB_MODE_OPTIONS = USB_ANSWER_OPTIONS + MODE_ROW_FI
 static const StringId REPLAY_GAIN_OPTIONS[REPLAY_GAIN_MODE_COUNT] = {
     STR_OFF, STR_REPLAY_GAIN_TRACK, STR_REPLAY_GAIN_ALBUM, STR_REPLAY_GAIN_AUTO};
 static const StringId OFF_ON_OPTIONS[] = {STR_OFF, STR_ON};
+static const StringId BATTERY_READOUT_OPTIONS[] = {STR_OFF, STR_BATTERY_READOUT_PERCENT,
+                                                   STR_BATTERY_READOUT_TIME};
 static const StringId STATUS_LAYOUT_OPTIONS[] = {STR_STATUS_STANDARD, STR_STATUS_COMPACT};
 
 static const StringId BATTERY_STYLE_OPTIONS[] = {STR_BATTERY_SOLID, STR_BATTERY_SEGMENTED};
@@ -432,15 +435,89 @@ static void choose_prevent_clipping(void *context, int index)
     settings_action_apply_replay_gain(context);
 }
 
-static int current_battery_percent(const void *context)
+static int current_battery_readout(const void *context)
 {
-    return settings_of(context)->battery_percent ? 1 : 0;
+    const SettingsContext *settings = context;
+    return settings->store->settings.battery_percent ? 1 + settings->store->battery.show_time : 0;
 }
 
-static void choose_battery_percent(void *context, int index)
+static bool save_battery_model(SettingsContext *settings)
 {
-    editable_settings(context)->battery_percent = index != 0;
-    settings_action_save(context);
+    if (battery_model_save(&settings->store->battery)) {
+        return true;
+    }
+    toast_show(settings->toast, i18n_text(STR_SETTINGS_NOT_SAVED), hal_clock_milliseconds());
+    return false;
+}
+
+static void choose_battery_readout(void *context, int index)
+{
+    SettingsContext *settings = context;
+    BatteryEstimate *estimate = &settings->store->battery;
+    estimate->dirty |= estimate->show_time != (index == 2);
+    estimate->show_time = index == 2;
+    editable_settings(settings)->battery_percent = index != 0;
+    settings_action_save(settings);
+    save_battery_model(settings);
+}
+
+static const char *battery_time_value(const void *context)
+{
+    const SettingsScreens *screens = context;
+    HalBattery battery = hal_power_battery();
+    if (battery.usb_power) {
+        return i18n_text(battery.charging ? STR_CHARGING : STR_POWER_USB);
+    }
+    uint16_t minutes = screens->context.store->battery.shown_minutes;
+    if (!battery.known || minutes == 0) {
+        return i18n_text(STR_BATTERY_LEARNING);
+    }
+    static char value[SETTINGS_MESSAGE_CAPACITY];
+    StringBuilder message = string_builder_make(value, sizeof value);
+    if (minutes >= 60) {
+        i18n_format_counts(&message, STR_BATTERY_ABOUT_HOURS, minutes / 60, minutes % 60);
+    } else {
+        i18n_format_counts(&message, STR_BATTERY_ABOUT_MINUTES, minutes, 0);
+    }
+    return message.buffer;
+}
+
+static int keep_battery_estimate(const void *context)
+{
+    (void)context;
+    return 0;
+}
+
+static void choose_battery_reset(void *context, int index)
+{
+    if (index == 0) {
+        return;
+    }
+    SettingsContext *settings = context;
+    BatteryEstimate *estimate = &settings->store->battery;
+    *estimate = (BatteryEstimate){.show_time = estimate->show_time,
+                                  .loaded = estimate->loaded,
+                                  .on_usb = estimate->on_usb,
+                                  .usb_start_ms = estimate->usb_start_ms,
+                                  .dirty = true};
+    if (save_battery_model(settings)) {
+        toast_show(settings->toast, i18n_text(STR_BATTERY_ESTIMATE_RESET),
+                   hal_clock_milliseconds());
+    }
+}
+
+static ScreenAction choose_battery_time(void *context)
+{
+    static const StringId OPTIONS[] = {STR_BATTERY_KEEP, STR_BATTERY_RESET_ESTIMATE};
+    SettingsScreens *screens = context;
+    ChoiceConfig config = {.title = i18n_text(STR_BATTERY_TIME),
+                           .option_ids = OPTIONS,
+                           .option_count = 2,
+                           .current = keep_battery_estimate,
+                           .choose = choose_battery_reset,
+                           .context = &screens->context,
+                           .theme = screens->theme};
+    return screen_action_push(choice_screen_init(&screens->choice, config));
 }
 
 static int current_rewind(const void *context)
@@ -714,8 +791,8 @@ static const SettingChoice CHOICES[SETTINGS_CHOICE_COUNT] = {
     {STR_USB_MODE, USB_MODE_OPTIONS, MODE_ROW_COUNT, current_usb_mode, choose_usb_mode, NULL, NULL},
     {STR_THEME, THEME_OPTIONS, APPEARANCE_THEME_COUNT, current_appearance, choose_appearance, NULL,
      NULL},
-    {STR_BATTERY_PERCENTAGE, OFF_ON_OPTIONS, 2, current_battery_percent, choose_battery_percent,
-     NULL, NULL},
+    {STR_BATTERY_READOUT, BATTERY_READOUT_OPTIONS, 3, current_battery_readout,
+     choose_battery_readout, NULL, NULL},
     {STR_PLAYBACK_SPEED, SETTINGS_SPEED_LABELS, SETTINGS_SPEED_COUNT, settings_action_current_speed,
      settings_action_choose_speed, NULL, NULL},
     {STR_REWIND_ON_RESUME, OFF_ON_OPTIONS, 2, current_rewind, choose_rewind, NULL, NULL},
@@ -927,7 +1004,7 @@ static ScreenAction reset_buttons_with_feedback(void *context)
             (uint8_t)settings_default_button_action((PlaybackButton)index);
     }
     store->settings.long_press_action = 0;
-    settings_capture(&store->settings, player_status(settings->player));
+    settings_capture(&store->settings, settings->player);
     StringId message = settings_store_save(store) ? STR_DONE : STR_SETTINGS_NOT_SAVED;
     toast_show(settings->toast, i18n_text(message), hal_clock_milliseconds());
     return screen_action_none();
@@ -1032,6 +1109,7 @@ static const uint8_t ROW_CHOICES[SETTINGS_ITEM_COUNT] = {
     SETTINGS_STANDBY_CHOICE,
     SETTINGS_STANDBY_CHOICE + 1,
     27,
+    ROW_SPECIAL,
     ROW_SPECIAL,
     18,
     26,
@@ -1186,6 +1264,11 @@ static MenuItem opening(StringId label, ScreenAction (*select)(void *), void *co
 
 static void bind_special_rows(SettingsScreens *screens)
 {
+    screens->items[SETTINGS_BATTERY_TIME_ITEM] = (MenuItem){.label = i18n_text(STR_BATTERY_TIME),
+                                                            .select = choose_battery_time,
+                                                            .value = battery_time_value,
+                                                            .context = screens,
+                                                            .opens = true};
     SettingsContext *context = &screens->context;
     bind_card_rows(screens);
     bind_headphones(screens);

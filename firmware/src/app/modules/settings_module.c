@@ -12,7 +12,7 @@ static bool home_changed(void *context)
 {
     AppScreens *screens = context;
     SettingsStore *store = screens->context.settings;
-    settings_capture(&store->settings, player_status(screens->context.player));
+    settings_capture(&store->settings, screens->context.player);
     bool saved = settings_store_save(store);
     if (!saved) {
         toast_show(screens->context.toast, i18n_text(STR_SETTINGS_NOT_SAVED),

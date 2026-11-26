@@ -82,3 +82,4 @@ bool app_preparing(void);
 void app_reload(StringId toast);
 
 const Standby *app_standby(void);
+const struct BatteryEstimate *app_battery_estimate(void);

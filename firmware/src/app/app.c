@@ -6,6 +6,7 @@
 #include "ab_repeat.h"
 #include "app_internal.h"
 #include "app_screens.h"
+#include "battery_model.h"
 #include "bluetooth_link.h"
 #include "board_layout.h"
 #include "card_files.h"
@@ -529,7 +530,7 @@ static void set_display(bool on)
 __attribute__((noinline)) static CORE_COLD void capture_settings(void)
 {
     if (!app.prepare_pending || app.headphones.active.ceiling != 0) {
-        settings_capture(&app.settings.settings, player_status(&app.player));
+        settings_capture(&app.settings.settings, &app.player);
     }
 }
 
@@ -537,6 +538,7 @@ static void save_settings(void)
 {
     capture_settings();
     settings_store_save(&app.settings);
+    battery_model_save(&app.settings.battery);
 }
 
 static ListeningObservation listening_observation(void)
@@ -1193,6 +1195,21 @@ static void announce_usb_power(bool usb_power, uint32_t now_ms)
     }
 }
 
+#ifdef ECHO_DEBUG_LOOP
+const BatteryEstimate *app_battery_estimate(void)
+{
+    return &app.settings.battery;
+}
+#endif
+
+static void follow_battery(HalBattery battery, uint32_t now_ms)
+{
+    const ScreenModuleEntry *entry = hal_system_loaded_module();
+    if (entry != NULL && entry->magic != SCREEN_MODULE_MAGIC(SCREEN_MODULE_TRIAL)) {
+        entry->battery_follow(&app.screens, battery, now_ms, app.display_on);
+    }
+}
+
 static bool battery_empty(uint32_t now_ms)
 {
     if (!deadline_reached(now_ms, app.battery_check_ms)) {
@@ -1200,6 +1217,7 @@ static bool battery_empty(uint32_t now_ms)
     }
     app.battery_check_ms = now_ms + BATTERY_CHECK_MS;
     HalBattery battery = hal_power_battery();
+    follow_battery(battery, now_ms);
     announce_usb_power(battery.usb_power, now_ms);
     app.usb_power = battery.usb_power;
     LowBatteryReading reading = {
@@ -1497,7 +1515,13 @@ static const char *battery_text(HalBattery battery)
     if (!app.settings.settings.battery_percent) {
         return NULL;
     }
-    charge_screen_level_text(battery, app.battery_text, sizeof app.battery_text);
+    const BatteryEstimate *estimate = &app.settings.battery;
+    status_bar_battery_text(board_theme(), app.battery_text,
+                            (StatusBatteryText){.percent = battery.percent,
+                                                .minutes = estimate->show_time && !battery.usb_power
+                                                               ? estimate->shown_minutes
+                                                               : 0,
+                                                .hours = estimate->shown_hours});
     return app.battery_text;
 }
 
@@ -1831,7 +1855,7 @@ CORE_COLD static void start_app(bool power_on)
     app.prepare_index = 0;
     app.prepare_report = (CardFilesReport){0};
     (void)hal_system_settle_user_state(false);
-    settings_store_load(&app.settings);
+    settings_store_reload(&app.settings);
     language_load(app.settings.settings.language);
     app.headphones_chosen = 0;
     headphone_store_load(&app.headphones);
@@ -1871,7 +1895,7 @@ int16_t app_clock_offset(void)
 CORE_SEAM CORE_COLD bool app_store_clock_offset(int16_t offset, bool from_storage)
 {
     if (from_storage) {
-        settings_store_load(&app.settings);
+        settings_store_reload(&app.settings);
     } else {
         capture_settings();
     }
@@ -2224,6 +2248,7 @@ static void charge_step(uint32_t now_ms)
         HalBattery battery = hal_power_battery();
         app.render_wanted |= app_usb_battery_changed(app.charge_battery, battery);
         app.charge_battery = battery;
+        follow_battery(battery, now_ms);
         const ViewsModuleEntry *entry =
             (const ViewsModuleEntry *)screen_modules_use(&app.screens, SCREEN_MODULE_VIEWS);
         if (entry != NULL) {
@@ -2363,7 +2388,8 @@ static uint32_t view_stamp(uint32_t *position)
         status.place.total,
         app.settings.settings.status_items | (uint32_t)app.settings.settings.battery_percent << 8,
         battery.known,
-        battery.percent,
+        battery.percent | (uint32_t)app.settings.battery.shown_minutes << 8 |
+            (uint32_t)app.settings.battery.shown_hours << 24,
         battery.charging,
         battery.charge_disabled,
         battery.usb_power,
