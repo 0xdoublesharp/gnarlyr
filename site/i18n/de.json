@@ -826,6 +826,31 @@
       "source": "Download Companion →",
       "source_sha256": "bba7ce52aaee257f1b0d6b354e81b4f14dbc45aced1fcf9fc093a9381ac745db",
       "translation": "Companion herunterladen →"
+    },
+    "home.a055": {
+      "source": "Gnarlyr Home screen in the Vice 86 theme",
+      "source_sha256": "153b3dec873c271dbce3365d1943af829c0b4b12197bcdce3d825e216701ccfc",
+      "translation": "Gnarlyr-Startbildschirm im Design Vice 86"
+    },
+    "home.a056": {
+      "source": "Gnarlyr Home screen with the Vice 86 sunset and palm silhouettes",
+      "source_sha256": "45ecf095dfbec5ad7811fb21c67aac5b1f78e8a89e290473a58758fc9b6d95bc",
+      "translation": "Gnarlyr-Startbildschirm mit Sonnenuntergang und Palmensilhouetten aus Vice 86"
+    },
+    "home.m148": {
+      "source": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#120b1e\"></i><i style=\"background:#ff5faa\"></i><i style=\"background:#70f3eb\"></i></span> Vice 86",
+      "source_sha256": "228f471719bd5a7dd4b405170b97a9a81609f765612cd6b1ddd990b6b57eefe3",
+      "translation": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#120b1e\"></i><i style=\"background:#ff5faa\"></i><i style=\"background:#70f3eb\"></i></span> Vice 86"
+    },
+    "home.m149": {
+      "source": "<strong>Offline Last.fm scrobbling →</strong><span>Export .scrobbler.log from Recap and submit it from your computer. Plays logged with the clock set have UTC timestamps.</span>",
+      "source_sha256": "fe1e0882b1557d8dc6843baf69943bf140195e236b6f817e552ef38f6ec8d365",
+      "translation": "<strong>Offline-Scrobbling für Last.fm →</strong><span>Exportiere .scrobbler.log aus Recap und reiche die Datei am Computer ein. Wenn die Uhr beim Hören gestellt war, haben die abgespielten Titel UTC-Zeitstempel.</span>"
+    },
+    "home.m150": {
+      "source": "<strong>Return to FiiO firmware →</strong><span>Copy one file, ECHOV200.IMG, to internal storage and eject the player’s drives.</span>",
+      "source_sha256": "0ea29ae98d0a8bccb8ee68a70cfc4c0ac311972ea37056ee84cda3bd5f0632de",
+      "translation": "<strong>Zurück zur FiiO-Firmware →</strong><span>Kopiere ECHOV200.IMG in den internen Speicher und wirf die Laufwerke des Players aus. Du brauchst nur diese eine Datei.</span>"
     }
   }
 }

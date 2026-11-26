@@ -1,0 +1,83 @@
+{
+  "id": "a9901179-8a1b-4b2a-8203-32be059233f1",
+  "name": "Vice 86",
+  "author": "Doublesharp originals",
+  "version": "1.0.0",
+  "licence": "CC0-1.0",
+  "homepage": "",
+  "gallery": "",
+  "base": "neon",
+  "horizon": false,
+  "header_rule": true,
+  "palette": {
+    "background": "#120b1e",
+    "text": "#ffeef8",
+    "text_secondary": "#e0c8ed",
+    "text_tertiary": "#e0c8ed",
+    "selection_background": "#482044",
+    "selection_top": "#ff5faa",
+    "selection_shine": "#ffc08b",
+    "selection_text": "#fff5fb",
+    "header_background": "#251234",
+    "header_top": "#70f3eb",
+    "header_text": "#ffeef8",
+    "divider": "#513059",
+    "scrollbar_thumb": "#ff5faa",
+    "danger": "#ff8d94",
+    "success": "#70f3eb",
+    "chevron": "#e0b2dd",
+    "accent": "#70f3eb",
+    "accent_alt": "#ff5faa",
+    "backdrop_top": "#120b1e",
+    "backdrop_bottom": "#21122f"
+  },
+  "assets": [
+    {
+      "slot": "home",
+      "file": "home-landscape.png",
+      "orientation": "landscape"
+    },
+    {
+      "slot": "now_playing",
+      "file": "now_playing-landscape.png",
+      "orientation": "landscape"
+    },
+    {
+      "slot": "splash",
+      "file": "splash-landscape.png",
+      "orientation": "landscape"
+    },
+    {
+      "slot": "home",
+      "file": "home-portrait.png",
+      "orientation": "portrait"
+    },
+    {
+      "slot": "now_playing",
+      "file": "now_playing-portrait.png",
+      "orientation": "portrait"
+    },
+    {
+      "slot": "splash",
+      "file": "splash-portrait.png",
+      "orientation": "portrait"
+    },
+    {
+      "slot": "list",
+      "file": "list.png",
+      "orientation": "any"
+    },
+    {
+      "slot": "cassette_label",
+      "file": "cassette-label.png",
+      "orientation": "any"
+    },
+    {
+      "slot": "icon_music",
+      "file": "music.png",
+      "orientation": "any"
+    }
+  ],
+  "codec": "indexed",
+  "dither": "none"
+}

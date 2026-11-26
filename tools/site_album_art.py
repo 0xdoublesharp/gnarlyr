@@ -9,13 +9,14 @@ ROOT = CATALOG.parent.parent
 CACHE = Path("/Volumes/Scratch/SnowskyEcho/tmp/site-refresh/art")
 
 
-def albums():
+def albums(indices=None):
     if not Path("/Volumes/Scratch").is_mount():
         raise ValueError("Mount Scratch before preparing screenshot artwork")
     CACHE.mkdir(parents=True, exist_ok=True)
-    catalog = json.loads(CATALOG.read_text())
+    catalog = json.loads(CATALOG.read_text())["albums"]
     result = []
-    for album in catalog["albums"]:
+    for index in range(len(catalog)) if indices is None else indices:
+        album = catalog[index]
         path = CACHE / (album["sha256"] + ".jpg")
         data = path.read_bytes() if path.is_file() else None
         if data is None and album.get("artwork_file"):

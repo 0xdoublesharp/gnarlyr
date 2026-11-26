@@ -117,9 +117,12 @@ def create_demo(config, work, env, source_root=ROOT):
     card.mkdir()
     demo = config.get("demo", {})
     tracks = demo.get("tracks", [])
-    artwork = artwork_albums() if demo.get("licensed_artwork") else None
     if not 1 <= len(tracks) <= 32:
         raise ValueError("Demo needs 1–32 tracks")
+    artwork = {}
+    if demo.get("licensed_artwork"):
+        indices = sorted({track["album_index"] for track in tracks})
+        artwork = dict(zip(indices, artwork_albums(indices), strict=True))
     for index, track in enumerate(tracks):
         if artwork:
             album = artwork[track["album_index"]]

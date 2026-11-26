@@ -77,11 +77,16 @@ def main():
         path = themes / (info["id"] + ".gtheme")
         path.write_bytes(data)
         packs[source.name] = path
-    views = {"home": "", "list": "play", "now-playing": ",".join(["play"] + ["down"] * 7 + ["play", "play"]),
-             "settings": "down,play", "theme-picker": ",".join(["down", "play"] + ["down"] * 22 + ["play"])}
+    views = {
+        "home": ("Home", ""),
+        "list": ("Music", "play"),
+        "now-playing": ("Now Playing", ",".join(["play"] + ["down"] * 7 + ["play", "play"])),
+        "settings": ("Settings", "up,play"),
+        "theme-picker": ("Theme", "up,play,down,down,play,down,down,play"),
+    }
     captures = []
     for name, pack in packs.items():
-        for view, keys in views.items():
+        for view, (expected, keys) in views.items():
             for orientation in range(2):
                 for size in range(3):
                     stem = f"{name}-{view}-{'portrait' if orientation else 'landscape'}-{('small','medium','large')[size]}"
@@ -91,8 +96,6 @@ def main():
                     mapped = ",".join({"up": "down", "down": "up"}.get(key, key)
                                       for key in keys.split(",")) if orientation == 1 else keys
                     log = run_sim(args, card, state, mapped, bmp, max(280, 110 + len(keys.split(',')) * 10))
-                    expected = {"home": IDENTITY.short_name, "list": "Music", "now-playing": "Now Playing",
-                                "settings": "Settings", "theme-picker": "Theme"}[view]
                     if not log.startswith(expected + ":"):
                         raise ValueError(f"{stem}: expected {expected}, saw {log}")
                     png = output / (stem + ".png")

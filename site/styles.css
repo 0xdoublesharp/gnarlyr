@@ -924,6 +924,7 @@ footer p { margin-top: 12px; max-width: 760px; }
 }
 .theme-strip[data-active-theme="pocket-scope"] { --strip-glow: rgba(146, 228, 94, 0.17); border-color: rgba(146, 228, 94, 0.34); }
 .theme-strip[data-active-theme="desktop-98"] { --strip-glow: rgba(110, 158, 230, 0.18); border-color: rgba(168, 194, 235, 0.32); }
+.theme-strip[data-active-theme="vice-86"] { --strip-glow: rgba(255, 95, 170, 0.19); border-color: rgba(255, 95, 170, 0.36); }
 .theme-strip-copy .eyebrow { color: var(--mint); margin-bottom: 10px; }
 .theme-strip-copy h3 { font-size: clamp(22px, 2.4vw, 28px); line-height: 1.22; letter-spacing: -0.025em; margin-bottom: 12px; }
 .theme-strip-copy > p:not(.eyebrow) { color: var(--muted); font-size: 15px; line-height: 1.72; max-width: 46ch; }
