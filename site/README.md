@@ -166,12 +166,12 @@ The supplied product screenshots identify all three as the Snowsky ECHO. Keep th
 The Companion page, screenshots, and social card are public. Shared navigation, the home-page promotion, and the sitemap link to it. The desktop screenshots are product assets under `site/assets/companion/`; they use a sample music library and synthetic player folders, never the owner’s player. Desktop images use a window frame rather than the firmware’s player outline.
 
 ```sh
-node tools/site_companion_screenshots.mjs --source-root /path/to/gnarlyr-companion
+node tools/site_companion_screenshots.mjs --source-root /path/to/gnarlyr-desktop
 ```
 
-Without `--source-root`, the script uses `../gnarlyr-companion` beside this checkout.
+Without `--source-root`, the script uses `../gnarlyr-desktop` beside this checkout.
 
-Requires Node 24+, ffmpeg and the companion’s installed dependencies. `tools/site_companion_screenshots.json` configures the viewport and thirteen captured views. The script rebuilds the app, launches its actual Electron interface with isolated Scratch user data, drives the GUI and confirms that sync preview changes no files, settings stay unchanged and no firmware is staged. All thirteen views render before public images are replaced. `--no-build` explicitly reuses an existing build; `--config` selects a different capture configuration. Dependencies come from the companion checkout’s existing installation. The capture checks for its estimated 1 GiB of working space before building and while creating sample albums; normal runs also follow the shared resource preflight. Use `--output` with a path under the project's Scratch directory to review the captures before replacing the site assets. The scenes include a Spanish interface and the player-library preparation review. The header uses the Sunset Disc, and the Themes fixture is built with the app’s hash-pinned theme tooling.
+Requires Node 24+, ffmpeg and the companion’s installed dependencies. `tools/site_companion_screenshots.json` configures the viewport, sample artwork, and fourteen views, including the Theme Store, an individual theme preview, and a Spanish interface. The script rebuilds the app and drives the Electron interface with isolated Scratch user data. It confirms that sync preview changes no files, settings stay unchanged, and no firmware is staged. It renders all requested views before replacing any public images. `--no-build` reuses an existing build and `--config` selects a different capture configuration. The capture checks for 1 GiB of working space before building and while creating sample albums. Use `--output` under the project's Scratch directory to review the captures before replacing the site assets. After updating the images, run `python3 tools/site_social.py` to refresh the Companion and Recovery link previews.
 
 The desktop app is developed in the private `gnarlyr-desktop` repository. The public page previews the beta. Add versioned [release assets](https://github.com/0xdoublesharp/gnarlyr/releases) when installers are ready. See the [desktop publishing requirements](../docs/downloads.md#desktop) for signing and distribution terms.
 

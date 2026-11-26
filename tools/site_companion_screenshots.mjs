@@ -17,7 +17,7 @@ function option(name, fallback) {
   if (!args[index + 1] || args[index + 1].startsWith("--")) throw new Error(`Missing ${name} value`);
   return resolve(args[index + 1]);
 }
-const source = option("--source-root", resolve(root, `../${identity.name.toLowerCase()}-companion`));
+const source = option("--source-root", resolve(root, "../gnarlyr-desktop"));
 const configPath = option("--config", join(root, "tools/site_companion_screenshots.json"));
 const config = JSON.parse(await readFile(configPath, "utf8"));
 const siteAssets = join(root, "site/assets/companion");
@@ -30,7 +30,7 @@ for (let i = 0; i < args.length; i++) {
 }
 if (onlyScreens.length) config.screens = onlyScreens;
 if (config.licensed_artwork) {
-  const result = spawnSync("python3", [join(root, "tools/site_album_art.py")], {
+  const result = spawnSync("python3", [join(root, "tools/site_album_art.py"), ...(config.artwork_indices ?? []).map(String)], {
     encoding: "utf8", timeout: 180000, env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
   });
   assert.equal(result.status, 0, result.stderr);
@@ -39,7 +39,8 @@ if (config.licensed_artwork) {
 assert.equal(config.version, 1);
 assert(config.viewport.width >= 900 && config.viewport.width <= 1600);
 assert(config.viewport.height >= 700 && config.viewport.height <= 1200);
-const known = new Set(["library-dark", "library-light", "app-language", "sync-preview", "player-library", "player-library-review", "player-settings", "firmware-review", "languages", "themes", "mixtapes", "first-install", "recovery"]);
+const themeScreens = ["theme-store", "themes"];
+const known = new Set(["library-dark", "library-light", "app-language", "sync-preview", "player-library", "player-library-review", "player-settings", "firmware-review", "languages", ...themeScreens, "mixtapes", "first-install", "recovery"]);
 assert(config.screens.length && config.screens.every((name) => known.has(name)));
 assert.equal(new Set(config.screens).size, config.screens.length);
 assert(config.albums.length >= 2 && config.albums.length <= 12);
@@ -67,8 +68,7 @@ try {
     const result = spawnSync(process.execPath, [join(source, "tools/build.mjs")], {
       cwd: source, env, encoding: "utf8", timeout: 180000,
     });
-    await writeFile(join(work, "build.log"), (result.stdout ?? "") + (result.stderr ?? ""));
-    assert.equal(result.status, 0, `Companion build failed; see ${join(work, "build.log")}`);
+    assert.equal(result.status, 0, `Companion build failed: ${result.error ?? ""}\n${result.stdout ?? ""}${result.stderr ?? ""}`);
   }
   await checkSpace();
   const require = createRequire(join(source, "package.json"));
@@ -78,6 +78,7 @@ try {
   const { deviceFixture } = await import(pathToFileURL(join(source, "tools/fixture.mjs")).href);
   const { imageLanguages, packBytes } = await import(pathToFileURL(join(source, "tests/language-fixture.ts")).href);
   const { stockFixture, installStockCommandMocks } = await import(pathToFileURL(join(source, "tools/stock-fixture.mjs")).href);
+  const { installUiReply } = await import(pathToFileURL(join(source, "tools/ui-ipc-fixture.mjs")).href);
   device = await deviceFixture();
   await rename(device.volume, join(device.root, identity.name));
   device.volume = join(device.root, identity.name);
@@ -124,7 +125,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     rendered.set(`${name}.png`, await page.screenshot({ scale: "css", animations: "disabled" }));
   };
-  const themesOnly = config.screens.length === 1 && config.screens[0] === "themes";
+  const themesOnly = config.screens.every((name) => themeScreens.includes(name));
   await page.getByRole("button", { name: "Add music folder" }).waitFor();
   await pick(music);
   await page.getByRole("button", { name: "Add music folder" }).click();
@@ -153,11 +154,36 @@ try {
     assert.deepEqual(await readdir(target), [], "Preview must not copy files");
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "hidden" });
+  }
+  await page.getByRole("button", { name: "Themes", exact: true }).click();
+  const themeStore = page.getByRole("region", { name: "Theme Store" });
+  await themeStore.getByRole("heading", { name: "Vice 86", exact: true }).waitFor();
+  await themeStore.getByRole("img").evaluateAll((images) => Promise.all(images.map((image) => image.decode())));
+  await shot("theme-store");
+  await themeStore.getByRole("button", { name: "Preview Pocket Scope", exact: true }).click();
+  const themePreview = page.getByRole("region", { name: "Theme preview" });
+  await themePreview.getByRole("heading", { name: "Pocket Scope", exact: true }).waitFor();
+  await themePreview.getByRole("img", { name: "RGB565 artwork" }).evaluate((image) => image.decode());
+  await shot("themes");
+  if (!themesOnly) {
     stock = await stockFixture();
     await app.evaluate(installStockCommandMocks, { tree: stock.tree, info: stock.info });
+    const version = "1.0.0-beta.1";
+    const tag = `v${version}`;
+    const releases = "https://github.com/0xdoublesharp/gnarlyr/releases";
+    await app.evaluate(installUiReply, {
+      channel: "firmware:releases",
+      reply: { value: [{
+        id: tag, tag, version, title: `${identity.name} ${version}`,
+        url: `${releases}/tag/${tag}`, prerelease: true, assetName: "ECHOECHO.img",
+        downloadUrl: `${releases}/download/${tag}/ECHOECHO.img`,
+      }] },
+    });
     await page.getByRole("button", { name: "Your Echo", exact: true }).click();
     await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
-    await page.locator(".stock-install").evaluate((element) => element.scrollIntoView({ block: "center" }));
+    const firstInstall = page.locator(".stock-install .settings-card");
+    await firstInstall.getByRole("button", { name: "Download and review", exact: true }).waitFor();
+    await firstInstall.evaluate((element) => element.scrollIntoView({ block: "center" }));
     await shot("first-install");
     await page.getByRole("button", { name: `Installing ${identity.name} for the first time?` }).click();
     await page.getByRole("button", { name: "Recover an Echo that won’t start", exact: true }).click();
@@ -190,14 +216,6 @@ try {
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "hidden" });
     await cp(music, card, { recursive: true });
-  }
-  await page.getByRole("button", { name: "Themes", exact: true }).click();
-  await page.getByRole("button", { name: "Pocket Scope", exact: true }).click();
-  await page.getByRole("heading", { name: "Pocket Scope", exact: true }).waitFor();
-  await page.getByRole("img", { name: "RGB565 artwork" }).waitFor();
-  await page.waitForFunction(() => !document.querySelector(".theme-busy") && !document.body.textContent.includes("Working"));
-  await shot("themes");
-  if (!themesOnly) {
     await page.getByRole("button", { name: "Player library", exact: true }).click();
     await pick(card);
     await page.getByRole("button", { name: /^(Choose music drive|Change drive)$/ }).click();
@@ -205,7 +223,7 @@ try {
     await page.getByLabel("Preparation mode", { exact: true }).selectOption("full");
     await shot("player-library");
     await page.getByRole("button", { name: "Review preparation", exact: true }).click();
-    await page.getByRole("dialog", { name: "Ready for your player.", exact: true }).waitFor();
+    await page.getByRole("dialog", { name: "Review preparation", exact: true }).waitFor();
     await shot("player-library-review");
     await page.keyboard.press("Escape");
     await page.getByRole("dialog").waitFor({ state: "hidden" });

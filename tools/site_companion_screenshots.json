@@ -14,10 +14,12 @@
     "player-settings",
     "firmware-review",
     "languages",
+    "theme-store",
     "themes",
     "mixtapes",
     "first-install",
     "recovery"
   ],
-  "licensed_artwork": true
+  "licensed_artwork": true,
+  "artwork_indices": [0, 1, 2, 10]
 }
