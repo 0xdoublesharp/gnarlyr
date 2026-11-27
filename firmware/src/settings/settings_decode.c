@@ -284,5 +284,6 @@ bool settings_buttons_decode(const uint8_t *bytes, uint32_t length, Settings *se
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
         settings->button_actions[index] = bytes[8 + index];
     }
+    settings->headset_hold_volume = (bytes[BUTTONS_FLAGS_FIELD] & HEADSET_HOLD_VOLUME_BIT) != 0;
     return true;
 }

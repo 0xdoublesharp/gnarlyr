@@ -10,6 +10,7 @@ enum {
     HEADSET_REMOTE_SETTLE_MS = 500,
     HEADSET_REMOTE_PLUG_CHANGE_MS = 1000,
     HEADSET_REMOTE_LONG_PRESS_MS = 400,
+    HEADSET_REMOTE_REPEAT_MS = 120,
     HEADSET_REMOTE_CLICK_GAP_MS = 300,
     HEADSET_REMOTE_MAX_CLICKS = 3
 };
@@ -24,6 +25,7 @@ typedef struct HeadsetRemote {
     HalHeadsetButton held;
     uint32_t held_ms;
     bool long_sent;
+    bool hold_repeats_volume;
     uint8_t clicks;
     uint32_t click_ms;
     uint8_t head;
@@ -33,6 +35,7 @@ typedef struct HeadsetRemote {
 
 HalHeadsetButton headset_remote_button(uint16_t level);
 void headset_remote_init(HeadsetRemote *remote);
+void headset_remote_set_hold_volume(HeadsetRemote *remote, bool repeat_volume);
 void headset_remote_sample(HeadsetRemote *remote, uint16_t level, bool plugged, uint32_t time_ms);
 bool headset_remote_next(HeadsetRemote *remote, HalHeadsetCommand *command);
 bool headset_remote_no_mic(const HeadsetRemote *remote);

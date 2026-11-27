@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from echo_image_harness import (
     EchoImageHarness,
+    buttons_file,
     main,
     IDENTITY,
     english,
@@ -149,8 +150,10 @@ class EchoImageTest(EchoImageHarness):
     def test_a_settings_restore_keeps_its_result_text_after_the_module_is_replaced(self):
         from echo_emulator.playback import Rig
         saved = self.custom_settings()
+        buttons = buttons_file({}, headset_hold_volume=True)
         volume = self.player_volume(
             [("settings.bin", self.saved_settings(0, 20, 0)), ("backup/1/settings.bin", saved),
+             ("backup/1/buttons.bin", buttons),
              ("backup/list.bin", backup_list(["1.0.0-aaaa1111", ""], 0)),
              ("continuity.bin", mark(build_of(self.image)))], folders=["backup", "backup/1"])
         rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf,
@@ -160,6 +163,7 @@ class EchoImageTest(EchoImageHarness):
         rig.press("play")
         self.assertEqual(0, rig.machine.watchdog_resets)
         self.assertEqual(saved, self.read(rig.session, "settings.bin"))
+        self.assertEqual(buttons, self.read(rig.session, "buttons.bin"))
         self.assertEqual(english("STR_SETTINGS_RESTORED"), toasts[-1])
         self.assert_healthy(rig.session)
 

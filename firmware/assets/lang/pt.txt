@@ -1039,3 +1039,6 @@ STR_THEME_CREDIT = {0} · {1}
 STR_GAIN_MEDIUM = Médio
 STR_PLUG_CARE_80 = Proteger bateria (80%)
 STR_PLUG_CARE_80_LINE = Para de carregar perto de 80% enquanto você ouve.
+STR_BUTTON_HEADSET_VOL_HOLD = Segure vol. do fone
+STR_BUTTON_SKIP_TRACKS = Trocar de faixa
+STR_BUTTON_REPEAT_VOLUME = Ajuste contínuo

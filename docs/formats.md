@@ -104,7 +104,7 @@ These files use the two-bank 512-byte block of [playback-store.md](../firmware/d
 | `covers.bin` | `DSCV`, 1 | |
 | library gain table | `DSRG`, 1 | appended to `library.db`; [replay-gain.md](../firmware/docs/replay-gain.md) |
 | `favorites.bin` | `DSFV`, 1 | |
-| `buttons.bin` | `DSBT`, 1 | 32 bytes, FNV-1a at 28 |
+| `buttons.bin` | `DSBT`, 1 | 32 bytes, FNV-1a at 28. Byte 6 bit 0 selects inline headset volume hold (0 skips tracks, 1 repeats volume). |
 | `battery_model.bin` | `DSBR`, 1 | 32 bytes, FNV-1a at 28 |
 | `bluetooth.bin` | `BT`, 1 | 234 bytes: version at 2, enabled at 3 (0–1), count at 4 (0–6), six 38-byte devices from 5, output at 233 (0–1) |
 | `time.bin` | `DSTM`, 1 | |

@@ -254,6 +254,7 @@ void settings_buttons_encode(const Settings *settings, uint8_t *bytes)
     }
     bytes[4] = 1;
     bytes[5] = PLAYBACK_BUTTON_COUNT;
+    bytes[BUTTONS_FLAGS_FIELD] = settings->headset_hold_volume ? HEADSET_HOLD_VOLUME_BIT : 0;
     for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
         bytes[8 + index] = (uint8_t)settings_button_action(settings, (PlaybackButton)index);
     }

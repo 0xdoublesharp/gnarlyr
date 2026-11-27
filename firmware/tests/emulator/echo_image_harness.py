@@ -216,9 +216,10 @@ def seal_settings(data):
     return bytes(data)
 
 
-def buttons_file(actions):
+def buttons_file(actions, *, headset_hold_volume=False):
     data = bytearray(BUTTONS_FILE_BYTES)
     data[0:6] = b"DSBT" + bytes((1, PLAYBACK_BUTTON_COUNT))
+    data[6] = int(headset_hold_volume)
     for button, action in actions.items():
         data[8 + button] = action
     data[28:32] = struct.pack("<I", fnv1a(data[:28]))

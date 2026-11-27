@@ -186,6 +186,13 @@ bool hal_input_next_headset_command(HalHeadsetCommand *command)
     return found;
 }
 
+void hal_input_set_headset_hold_volume(bool repeat_volume)
+{
+    uint32_t primask = irq_save();
+    headset_remote_set_hold_volume(&headset.remote, repeat_volume);
+    irq_restore(primask);
+}
+
 CORE_SEAM CORE_COLD void board_wait_for_power_hold(uint32_t hold_ms)
 {
     uint32_t pressed_at_ms = hal_clock_milliseconds();

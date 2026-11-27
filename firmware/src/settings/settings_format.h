@@ -83,6 +83,11 @@ enum {
     MILLISECONDS_PER_SECOND = 1000
 };
 
+enum {
+    BUTTONS_FLAGS_FIELD = 6,
+    HEADSET_HOLD_VOLUME_BIT = 1
+};
+
 static const uint8_t SETTINGS_MAGIC[MAGIC_SIZE] = {'D', 'S', 'S', 'T'};
 
 static inline int16_t settings_clock_offset(const uint8_t *extension)

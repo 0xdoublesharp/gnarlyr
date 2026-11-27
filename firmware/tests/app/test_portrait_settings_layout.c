@@ -34,8 +34,9 @@ static bool choose_control(DebugSpan title, DebugSpan option)
     return settings_choose_button(&BUTTON_CHOICES, &buttons, title, option);
 }
 
-static void settings_changed(void *context)
+static void settings_changed(void *context, bool defaults_restored)
 {
+    (void)defaults_restored;
     CHECK(context == &changed_count);
     changed_count++;
 }
@@ -578,6 +579,8 @@ static void resetting_buttons_persists_the_defaults_and_shows_feedback(void)
     open_grouped();
     store.settings.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NEXT;
     store.settings.long_press_action = 4;
+    store.settings.headset_hold_volume = true;
+    hal_input_set_headset_hold_volume(true);
     CHECK(settings_store_save(&store));
     const MenuItem *reset = &grouped.buttons.items[BUTTON_ROW_RESET];
     CHECK_EQUAL(LIST_ROW_DANGER_DIVIDED, reset->role);
@@ -587,6 +590,40 @@ static void resetting_buttons_persists_the_defaults_and_shows_feedback(void)
     settings_store_load(&loaded);
     CHECK_EQUAL(BUTTON_ACTION_DEFAULT, loaded.settings.button_actions[PLAYBACK_PLAY_TAP]);
     CHECK_EQUAL(0, loaded.settings.long_press_action);
+    CHECK(!loaded.settings.headset_hold_volume);
+    CHECK(!store.settings.headset_hold_volume);
+    CHECK(!fake_hal_headset_hold_volume());
+}
+
+static void the_headset_row_toggles_with_play_and_saves_each_mode(void)
+{
+    open_grouped();
+    const MenuItem *group = &grouped.groups[SETTINGS_GROUP_BUTTONS];
+    ScreenAction action = group->select(group->context);
+    CHECK_EQUAL(SCREEN_ACTION_PUSH, action.type);
+    MenuScreen *menu = &grouped.buttons.menu;
+    CHECK(action.target == &menu->screen);
+    const MenuItem *row = &grouped.buttons.items[BUTTON_ROW_HEADSET_HOLD];
+    CHECK(row->label != NULL && strcmp(row->label, "Headset Vol hold") == 0);
+    CHECK(row->value != NULL);
+    if (row->value == NULL) {
+        return;
+    }
+    CHECK(strcmp(row->value(row->context), "Skip tracks") == 0);
+    CHECK(!row->opens);
+    menu->screen.enter(menu, 0);
+    list_view_select(&menu->list, BUTTON_ROW_HEADSET_HOLD, 0);
+    const KeyEvent play = {.key = KEY_PLAY, .gesture = KEY_GESTURE_PRESS};
+    static const char *const values[] = {"Repeat volume", "Skip tracks"};
+    for (int index = 0; index < 2; index++) {
+        action = menu->screen.handle_key(menu, play, (uint32_t)index);
+        CHECK_EQUAL(SCREEN_ACTION_NONE, action.type);
+        CHECK(strcmp(row->value(row->context), values[index]) == 0);
+        CHECK_EQUAL(index == 0, fake_hal_headset_hold_volume());
+        SettingsStore loaded = {0};
+        settings_store_load(&loaded);
+        CHECK_EQUAL(index == 0, loaded.settings.headset_hold_volume);
+    }
 }
 
 int main(void)
@@ -597,6 +634,7 @@ int main(void)
         TEST_CASE(every_settings_row_is_in_exactly_one_group),
         TEST_CASE(dependent_settings_appear_only_when_their_feature_is_enabled),
         TEST_CASE(resetting_buttons_persists_the_defaults_and_shows_feedback),
+        TEST_CASE(the_headset_row_toggles_with_play_and_saves_each_mode),
         TEST_CASE(status_bar_choices_fit_every_size_and_orientation_and_save_independently),
         TEST_CASE(value_rows_get_a_separate_line_in_large_portrait),
         TEST_CASE(every_control_label_and_value_is_shown_whole_in_portrait),

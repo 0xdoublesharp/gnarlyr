@@ -980,4 +980,7 @@ static const char *const STRINGS_ENGLISH[STRING_COUNT] = {
     [STR_GAIN_MEDIUM] = "Medium",
     [STR_PLUG_CARE_80] = "Battery care (80%)",
     [STR_PLUG_CARE_80_LINE] = "Stops charging around 80% while you listen.",
+    [STR_BUTTON_HEADSET_VOL_HOLD] = "Headset Vol hold",
+    [STR_BUTTON_SKIP_TRACKS] = "Skip tracks",
+    [STR_BUTTON_REPEAT_VOLUME] = "Repeat volume",
 };

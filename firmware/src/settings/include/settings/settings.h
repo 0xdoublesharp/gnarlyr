@@ -236,6 +236,7 @@ typedef struct Settings {
     bool speech_boost;
     uint8_t playback_speed;
     uint8_t style_flags;
+    bool headset_hold_volume;
 } Settings;
 
 typedef struct SettingsEqualizerCurve {

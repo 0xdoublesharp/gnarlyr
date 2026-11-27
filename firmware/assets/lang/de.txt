@@ -1039,3 +1039,6 @@ STR_THEME_CREDIT = {0} · {1}
 STR_GAIN_MEDIUM = Mittel
 STR_PLUG_CARE_80 = Akkuschonung (80%)
 STR_PLUG_CARE_80_LINE = Stoppt das Laden beim Hören bei etwa 80%.
+STR_BUTTON_HEADSET_VOL_HOLD = Headset-Vol. halten
+STR_BUTTON_SKIP_TRACKS = Titel wechseln
+STR_BUTTON_REPEAT_VOLUME = Vol. weiterregeln

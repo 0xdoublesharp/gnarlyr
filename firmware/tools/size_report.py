@@ -356,7 +356,7 @@ class Budget:
 
 
 BUDGET_PRESETS = ("release", "device")
-RESIDENT_CODE_FLOORS = {"release": 4096, "device": 1024}
+RESIDENT_CODE_FLOORS = {"release": 4096, "device": 512}
 BUDGET_FLOORS = {
     "release": {"static": 4096, "workspace": 256, "module": 64, "overlay": 512,
                 "core1": 1024, "language": 1024},

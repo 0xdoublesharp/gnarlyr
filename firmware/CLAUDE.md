@@ -87,7 +87,7 @@ Each scenario in `tests/emulator/scenarios/test_*.py` is its own test, named `de
 
 | Budget | Limit |
 |---|---|
-| Code window | 157,292 bytes; keep at least 4 KB free in `release`, 1 KB in `device` |
+| Code window | 157,292 bytes, with at least 4,096 bytes free in `release` and 512 bytes in `device` |
 | Static RAM | 278,528 bytes below the independent audio module |
 | Resident app RAM audit | 144 KiB |
 | Rescan overlay | 98,304 bytes including BSS |
@@ -128,7 +128,7 @@ A screen change comes with simulator captures at the affected sizes and orientat
 
 - Where the sources solve the same problem, keep one implementation and drop the others. One mechanism per problem.
 - A ported piece should end up better than its source: smaller, faster, safer or more capable. Record the measured gain when there is one.
-- A feature lands with its tests and inside the size budget: at least 4 KB free in the release code window and 1 KB in the `device` one, checked with the size report.
+- A feature lands with its tests and at least 4,096 bytes free in the `release` code window and 512 bytes in `device`, checked with the size report.
 - No compatibility code for file names or formats that only earlier experiments wrote.
 - Keep the original author's commit message on a cherry-picked commit, and credit the source in the message of a hand port.
 

@@ -110,6 +110,11 @@ HalHeadsetReading hal_input_headset_reading(void)
     return (HalHeadsetReading){.known = false};
 }
 
+void hal_input_set_headset_hold_volume(bool repeat_volume)
+{
+    (void)repeat_volume;
+}
+
 uint16_t hal_input_key_adc(void)
 {
     return ladder_ready ? ladder.reading : KEY_LADDER_IDLE_READING;

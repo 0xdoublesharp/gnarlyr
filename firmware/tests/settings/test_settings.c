@@ -6,6 +6,7 @@
 
 enum {
     VERSION_FIELD = 4,
+    BUTTONS_FLAGS_FIELD = 6,
     BRIGHTNESS_FIELD = 6,
     USB_MODE_FIELD = 15,
     DAC_VOLUME_FIELD = 16,
@@ -80,6 +81,7 @@ static void defaults_are_comfortable(void)
     }
     CHECK_EQUAL(TEXT_SIZE_MEDIUM, settings.text_size);
     CHECK_EQUAL(ORIENTATION_LANDSCAPE, settings.orientation);
+    CHECK(!settings.headset_hold_volume);
 }
 
 static void auto_off_options_are_stocks(void)
@@ -1366,10 +1368,48 @@ static void the_stored_bytes_stay_those_of_the_current_layout(void)
     CHECK(settings_buttons_decode(GOLDEN_BUTTONS, sizeof GOLDEN_BUTTONS, &decoded));
 }
 
+static void headset_hold_mode_round_trips_in_the_buttons_record(void)
+{
+    Settings sample = golden_sample();
+    sample.headset_hold_volume = true;
+    sample.button_actions[PLAYBACK_PLAY_TAP] = BUTTON_ACTION_NEXT;
+    uint8_t values[SETTINGS_FILE_SIZE];
+    uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
+    settings_encode(&sample, values);
+    settings_buttons_encode(&sample, buttons);
+    CHECK(memcmp(GOLDEN_SETTINGS, values, sizeof values) == 0);
+    CHECK(!settings_file_newer(values, sizeof values));
+    CHECK_EQUAL(1, buttons[VERSION_FIELD]);
+    CHECK_EQUAL(1, buttons[BUTTONS_FLAGS_FIELD]);
+
+    Settings decoded = settings_defaults();
+    CHECK(settings_decode(values, sizeof values, &decoded));
+    CHECK(settings_buttons_decode(buttons, sizeof buttons, &decoded));
+    CHECK(decoded.headset_hold_volume);
+    CHECK_EQUAL(BUTTON_ACTION_NEXT, settings_button_action(&decoded, PLAYBACK_PLAY_TAP));
+
+    buttons[BUTTONS_FLAGS_FIELD] = 0;
+    CHECK(!settings_buttons_decode(buttons, sizeof buttons, &decoded));
+    CHECK(decoded.headset_hold_volume);
+}
+
+static void legacy_settings_and_button_records_default_to_skipping_tracks(void)
+{
+    Settings decoded = settings_defaults();
+    decoded.headset_hold_volume = true;
+    CHECK(settings_decode(GOLDEN_SETTINGS, sizeof GOLDEN_SETTINGS, &decoded));
+    CHECK(!decoded.headset_hold_volume);
+    decoded.headset_hold_volume = true;
+    CHECK(settings_buttons_decode(GOLDEN_BUTTONS, sizeof GOLDEN_BUTTONS, &decoded));
+    CHECK(!decoded.headset_hold_volume);
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_stored_bytes_stay_those_of_the_current_layout),
+        TEST_CASE(headset_hold_mode_round_trips_in_the_buttons_record),
+        TEST_CASE(legacy_settings_and_button_records_default_to_skipping_tracks),
         TEST_CASE(all_four_styles_use_only_their_two_allocated_bits),
         TEST_CASE(cassette_style_and_other_e13_flags_survive_saving),
         TEST_CASE(battery_care_owns_only_e14_bits_three_and_four),
