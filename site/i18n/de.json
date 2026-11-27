@@ -545,12 +545,12 @@
     "home.m120": {
       "source": "Custom themes →",
       "source_sha256": "1ec0a20fb6dbf66bf582cd143586d2b798938b2c4e9af50526445351d67a379c",
-      "translation": "Eigene Themes →"
+      "translation": "Eigene Designs →"
     },
     "home.m121": {
       "source": "Themes",
       "source_sha256": "43ae3265b99f2f34e9079ca3e2241ca8729718d749b3eaa2a616628dc2d2f751",
-      "translation": "Themes"
+      "translation": "Eigene Designs"
     },
     "home.a025": {
       "source": "Gnarlyr Now Playing Cover screen showing album artwork and audio format",
@@ -620,7 +620,7 @@
     "home.m129": {
       "source": "Explore custom themes →",
       "source_sha256": "8a635567284421e7176899cf42a558abdb37139ba3d12187f2ff3f9ca13ad930",
-      "translation": "Eigene Themes entdecken →"
+      "translation": "Eigene Designs entdecken →"
     },
     "home.a032": {
       "source": "Gnarlyr Home screen in Neon Noir theme",
@@ -655,7 +655,7 @@
     "home.a038": {
       "source": "Preview player themes",
       "source_sha256": "ed3dd330530cb29ee0a8b02709c0ca41beb913d639365c165fe496cdf791df0d",
-      "translation": "Player-Themes ansehen"
+      "translation": "Designs für den Player ansehen"
     },
     "home.m130": {
       "source": "<span class=\"deck-swatch\" aria-hidden=\"true\"><i style=\"background:#121022\"></i><i style=\"background:#7cede4\"></i><i style=\"background:#f496d6\"></i></span> Neon Noir",
@@ -790,7 +790,7 @@
     "home.m140": {
       "source": "Themes",
       "source_sha256": "43ae3265b99f2f34e9079ca3e2241ca8729718d749b3eaa2a616628dc2d2f751",
-      "translation": "Themes"
+      "translation": "Eigene Designs"
     },
     "home.m141": {
       "source": "Copy review",
