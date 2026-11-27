@@ -126,9 +126,11 @@ and modules are allocated after that bank. Other core-1 offsets are unchanged.
 ## DoP64
 
 Local mono or stereo DSD64 can use the wired outputs at a 176.4 kHz
-carrier rate when digital and headphone gains are at unity and EQ, Crossfeed,
-speed changes, and other sample processing are bypassed. The core-1 decoder
-requests 50 MHz for DoP64 in [`core1_dsd.c`](../platform/device/logic/core1_dsd.c#L113).
+carrier rate when digital gain and effective ReplayGain are at unity, headphone trim
+and balance are neutral, speed is Normal, and EQ, Crossfeed, Skip silence, and Speech
+boost are off. No sleep fade can be active, and no track fade can be queued.
+The core-1 decoder requests 50 MHz for DoP64 in
+[`core1_dsd.c`](../platform/device/logic/core1_dsd.c#L114).
 Local playback uses 88.2 kHz PCM conversion when the DoP64 conditions are not met.
 
 High-Speed UAC2 accepts stereo DoP64 at 176.4 kHz in 24- or 32-bit samples

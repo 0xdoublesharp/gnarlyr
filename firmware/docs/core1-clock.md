@@ -61,7 +61,7 @@ startup. Every program serves its stream through `core1_serve`, which installs
 request to 100 MHz on adoption or cancellation, so a seek or a track change within
 the same program starts at 100 MHz whatever the clock was before. The DSD, Vorbis
 and APE programs also install the request in their decoders' own regions. After
-validating its transport header, [`core1_dsd.c`](../platform/device/logic/core1_dsd.c#L113)
+validating its transport header, [`core1_dsd.c`](../platform/device/logic/core1_dsd.c#L114)
 requests 50 MHz for DoP64 or 100 or 200 MHz for PCM conversion. Vorbis and APE
 request 200 MHz where needed after validating their setup or stream header.
 Requests never depend on untrusted filename extensions.

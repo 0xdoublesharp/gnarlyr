@@ -6,7 +6,7 @@ None of this has run on a player yet.
 
 ## Where the lists live
 
-One Music entry, Smart Lists, between Cover Flow and Songs by default, opens a menu with the five lists. A single entry keeps the Music menu short (twelve rows), groups the lists that share the same wait, empty state and cache, and keeps them in one module. Home is not changed.
+One Music entry, Smart Lists, between Cover Flow and All songs by default, opens a menu with the five lists. A single entry keeps the Music menu short (twelve rows), groups the lists that share the same wait, empty state and cache, and keeps them in one module. Home is not changed.
 
 ## Rules
 

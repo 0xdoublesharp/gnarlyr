@@ -15,7 +15,7 @@ The file is 78 bytes, inside a 4 KB reserved file. Only the copy on internal sto
 | 5 | flags: bits 0–1 ReplayGain (Off, Track, Album, Auto), bit 2 prevent clipping, bit 3 battery percent, bits 4–5 plug-in answer (Ask, Storage, Charge, DAC) | bits 6–7 zero |
 | 6 | brightness | 1–10 |
 | 7 | screen timeout option | 0–6 |
-| 8 | gain | 0–1 |
+| 8 | gain | 0–2 (0 = Low, 1 = High, 2 = Medium) |
 | 9 | output | 0–2 |
 | 10 | start screen | 0–6 |
 | 11 | shuffle | 0–2 |
@@ -49,7 +49,7 @@ The extension block:
 | E9–E10 | Home hidden mask; only stored items other than Settings (item 3) may be hidden |
 | E11–E12 | UTC offset in minutes, signed, −720 to 840 |
 | E13 | status bar items; bit 4 power-on behaviour, bit 5 cassette style, bit 6 skip silence, bit 7 speech boost |
-| E14 | bits 0–2 DAC filter (0–4), bits 3–4 battery care (0–2), bits 5–6 crossfeed, bit 7 Now Playing style high bit |
+| E14 | bits 0–2 DAC filter (0–4), bits 3–4 battery care 0–3 (0 = Full, 1 = reserved and charges normally, 2 = Run from USB power, 3 = Battery care (80%)), bits 5–6 crossfeed, bit 7 Now Playing style high bit |
 | E15 | reserved, zero |
 
 The second block: F0 bit 0 compact status bar, bit 1 standby, bits 2–3 standby power-off option (0–2), bit 4 start and stop animation off, bits 5–7 zero; F1 long-press action in bits 0–2, bits 3–7 zero; F2 Bluetooth volume, 0–60; F3–F15 zero.
