@@ -713,8 +713,14 @@ class CatalogueExportTest(unittest.TestCase):
                           "catalogue_hash": lang_pack.layout_hash(lang_pack.resident_segments(CATALOGUE)),
                           "entries": [{"id": name, "english": text} for name, text in CATALOGUE],
                           "segments": [{"module": 0, "ids": [name for name, _ in CATALOGUE]}],
-                          "glyphs": sorted(DRAWABLE)}, info)
+                          "glyphs": sorted(DRAWABLE), "extra_glyph_ranges": []}, info)
         self.assertEqual(info, json.loads(json.dumps(info)))
+
+    def test_catalogue_coverage_merges_adjacent_codepoints_into_sorted_inclusive_ranges(self):
+        coverage = {0x143, 0x142, 0xAC00, 0x141, 0x145}
+        info = lang_pack.catalogue_info(CATALOGUE, DRAWABLE, coverage=coverage)
+        self.assertEqual([[0x141, 0x143], [0x145, 0x145], [0xAC00, 0xAC00]],
+                         info["extra_glyph_ranges"])
 
     def test_browser_export_is_deterministic_and_checkable(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -725,9 +731,13 @@ class CatalogueExportTest(unittest.TestCase):
             prefix = "globalThis.LANGUAGE_CATALOGUE = "
             self.assertTrue(first.startswith(prefix))
             catalogue = lang_pack.read_catalogue()
+            coverage = lang_pack.coverage_characters()
+            info = json.loads(first[len(prefix):].rstrip(";\n"))
             self.assertEqual(lang_pack.catalogue_info(catalogue, lang_pack.drawable_characters(),
-                                                      lang_pack.string_segments(catalogue)),
-                             json.loads(first[len(prefix):].rstrip(";\n")))
+                                                      lang_pack.string_segments(catalogue), coverage),
+                             info)
+            self.assertEqual(coverage, lang_pack.range_characters(info["extra_glyph_ranges"]))
+            self.assertLess(len(info["extra_glyph_ranges"]), len(coverage))
             self.assertEqual(0, lang_pack.main(arguments))
             self.assertEqual(first, destination.read_text(encoding="utf-8"))
             self.assertEqual(0, lang_pack.main(arguments + ["--check"]))
@@ -738,7 +748,8 @@ class CatalogueExportTest(unittest.TestCase):
         destination = ROOT.parent / "site/language-catalog.js"
         catalogue = lang_pack.read_catalogue()
         self.assertEqual(lang_pack.browser_source(catalogue, lang_pack.drawable_characters(),
-                                                  lang_pack.string_segments(catalogue)),
+                                                  lang_pack.string_segments(catalogue),
+                                                  lang_pack.coverage_characters()),
                          destination.read_text(encoding="utf-8"),
                          "Regenerate with python3 tools/firmware.py regen from the repository root")
 

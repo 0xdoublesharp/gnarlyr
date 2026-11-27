@@ -3,6 +3,7 @@
   const encoder = new TextEncoder();
   const decoder = new TextDecoder("utf-8", {fatal: true, ignoreBOM: true});
   const headerBytes = 56;
+  const needsExtraFont = 1;
 
   function fail(message) {
     throw new Error(message);
@@ -53,6 +54,8 @@
 
   function checkTexts(texts, info) {
     const drawable = new Set(info.glyphs);
+    const extra = info.extra_glyph_ranges ?? [];
+    let needsExtra = false;
     for (const entry of info.entries) {
       const text = texts[entry.id];
       if (!text) fail(`${entry.id} must not be empty.`);
@@ -61,12 +64,15 @@
       }
       for (const character of text) {
         const point = character.codePointAt(0);
-        if (character !== "\n" && !drawable.has(point)) {
+        if (character === "\n" || drawable.has(point)) continue;
+        if (!extra.some(([first, last]) => point >= first && point <= last)) {
           fail(`${entry.id} uses a character the player cannot display: U+${point.toString(16).toUpperCase().padStart(4, "0")}.`);
         }
+        needsExtra = true;
       }
       encode(text, entry.id);
     }
+    return needsExtra;
   }
 
   function trimText(text) {
@@ -138,7 +144,7 @@
     }
     translations[info.name_id] = name;
     const texts = Object.fromEntries(info.entries.map(entry => [entry.id, translations[entry.id] || entry.english]));
-    checkTexts(texts, info);
+    const needsExtra = checkTexts(texts, info);
     const blocks = info.segments.map(segment => textBlock(segment.ids, texts));
     const start = indexEnd(blocks.length);
     const size = start + blocks.reduce((total, block) => total + block.length, 0);
@@ -157,6 +163,7 @@
     bytes.set(encode(code, "Language code"), 20);
     bytes.set(encode(name, "Language name"), 20 + info.code_bytes);
     view.setUint16(headerBytes, blocks.length, true);
+    view.setUint16(headerBytes + 2, needsExtra ? needsExtraFont : 0, true);
     let cursor = start;
     blocks.forEach((block, index) => {
       const row = headerBytes + indexBytes + index * rowBytes;
@@ -206,13 +213,12 @@
       fail(`This is not a version ${info.version} language pack. Build it again with the current template.`);
     }
     const segments = view.getUint16(headerBytes, true);
+    const flags = view.getUint16(headerBytes + 2, true);
     const start = indexEnd(segments);
-    if (size !== bytes.length || size > info.file_limit || bytes.length < start || view.getUint16(headerBytes + 2, true) > 1) {
+    if (size !== bytes.length || size > info.file_limit || bytes.length < start) {
       fail("This language pack has an invalid size or is incomplete.");
     }
-    if (view.getUint16(headerBytes + 2, true) === 1) {
-      fail("This pack needs the player's extra fonts, which this page cannot check. Use the language tools.");
-    }
+    if (flags > needsExtraFont) fail("This language pack has unsupported flags. Build it again with the current template.");
     if (view.getUint32(16, true) !== checksum(bytes, start)) fail("This language pack's checksum does not match. Copy or build it again.");
     if (count !== info.entries.length || view.getUint32(12, true) !== info.catalogue_hash || segments !== info.segments.length) {
       fail("This pack belongs to a different firmware template. Rebuild it with the current template.");
@@ -245,9 +251,12 @@
     const memory = memoryNeed(start + sizes[0], sizes.slice(1), info);
     if (memory > info.pack_limit) fail(`This pack needs ${memory.toLocaleString()} bytes of player memory; the player has ${info.pack_limit.toLocaleString()}.`);
     if (texts[info.name_id] !== name) fail("The pack's native name does not match its language-name text.");
-    checkTexts(texts, info);
+    const needsExtra = flags === needsExtraFont;
+    if (checkTexts(texts, info) !== needsExtra) {
+      fail("This language pack's extra-font flag does not match its characters.");
+    }
     return {code, name, version: info.version, count, size, memory, catalogue_hash: info.catalogue_hash,
-      segments: rows, needs_extra_font: false, texts};
+      segments: rows, needs_extra_font: needsExtra, texts};
   }
 
   function templateText(value) {
@@ -267,6 +276,7 @@
   const error = byId("language-error");
   const ready = byId("pack-ready");
   const download = byId("download-pack");
+  const extraFontHelp = "This pack needs the player's extra.font file. With the player connected over USB, use Gnarlyr Companion or run python3 tools/echo_sync.py from the firmware folder.";
   // SHA256SUMS from the v1.0.0-beta.2 release linked on the page.
   const officialPacks = new Map([
     ["de", "f70aab848b894cb886747b317dedcb27d79000b4515ade1b68341d6d6690e249"],
@@ -283,6 +293,10 @@
   function showError(message) {
     error.textContent = message;
     error.hidden = false;
+  }
+
+  function packSummary(pack) {
+    return `${pack.name} · ${pack.code} · ${pack.size.toLocaleString()} file bytes${pack.memory ? ` · ${pack.memory.toLocaleString()} bytes of player memory` : ""}`;
   }
 
   function invalidate() {
@@ -346,7 +360,7 @@
       const bytes = buildPack(codeInput.value.trim(), nameInput.value.trim(), textInput.value);
       const pack = inspectPack(bytes);
       pending = {bytes, code: pack.code};
-      byId("pack-summary").textContent = `${pack.name} · ${pack.code} · ${pack.size.toLocaleString()} file bytes${pack.memory ? ` · ${pack.memory.toLocaleString()} bytes of player memory` : ""}`;
+      byId("pack-summary").textContent = packSummary(pack) + (pack.needs_extra_font ? `. ${extraFontHelp}` : "");
       ready.hidden = false;
       download.disabled = false;
     } catch (problem) {
@@ -397,8 +411,9 @@
       if (!bytes || version !== reading) return;
       const pack = inspectPack(bytes);
       imported = {pack, bytes};
-      byId("inspection-summary").textContent = `${pack.name} · ${pack.code} · ${pack.size.toLocaleString()} file bytes${pack.memory ? ` · ${pack.memory.toLocaleString()} bytes of player memory` : ""}`;
-      status.textContent = "This pack matches the current template and the player's supported characters.";
+      byId("inspection-summary").textContent = packSummary(pack);
+      status.textContent = pack.needs_extra_font ? extraFontHelp :
+        "This pack matches the current template and the player's supported characters.";
       result.hidden = false;
       byId("edit-pack").disabled = false;
     } catch (problem) {

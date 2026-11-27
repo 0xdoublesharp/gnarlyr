@@ -360,6 +360,7 @@ test('the language builder reports downloaded packs and verified official import
   environment.document.getElementById('translation-text').value = 'STR_SETTINGS = Private translation';
   fields.get('language-builder').emit('submit', { preventDefault() {} });
   expectEvents(session, [], '/languages.html');
+  assert.doesNotMatch(fields.get('pack-summary').textContent, /extra\.font/);
   fields.get('download-pack').emit('click');
   assert.deepEqual(downloads, ['es.pack']);
   const downloadEvent = ['language_builder', { action: 'download-pack', code: 'es' }];
@@ -368,6 +369,7 @@ test('the language builder reports downloaded packs and verified official import
   const pack = environment.LanguagePacks.buildPack('es', 'Español', '');
   const file = { size: pack.byteLength, arrayBuffer: async () => pack.buffer };
   await fields.get('pack-file').emit('change', { target: { files: [file] } });
+  assert.doesNotMatch(fields.get('inspection-status').textContent, /extra\.font/);
   fields.get('edit-pack').emit('click');
   await new Promise((resolve) => setImmediate(resolve));
   expectEvents(session, [downloadEvent], '/languages.html');
@@ -380,6 +382,19 @@ test('the language builder reports downloaded packs and verified official import
     downloadEvent,
     ['language_builder', { action: 'load-starter', code: 'es' }],
   ], '/languages.html');
+
+  fields.get('language-code').value = 'pl';
+  fields.get('language-name').value = 'Polski';
+  fields.get('translation-text').value = 'STR_CHIP_VOL = Głośność';
+  fields.get('language-builder').emit('submit', { preventDefault() {} });
+  const extraFontHelp = /needs .*extra\.font.*USB.*Companion.*python3 tools\/echo_sync\.py/;
+  assert.match(fields.get('pack-summary').textContent, extraFontHelp);
+  assert.equal(fields.get('download-pack').disabled, false);
+  const polish = environment.LanguagePacks.buildPack('pl', 'Polski', 'STR_CHIP_VOL = Głośność');
+  const polishFile = { size: polish.byteLength, arrayBuffer: async () => polish.buffer };
+  await fields.get('pack-file').emit('change', { target: { files: [polishFile] } });
+  assert.match(fields.get('inspection-status').textContent, extraFontHelp);
+  assert.equal(fields.get('edit-pack').disabled, false);
 });
 
 test('creator referrals persist per visit and only attach to download and Studio export events', () => {

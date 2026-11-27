@@ -6,6 +6,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,7 +19,11 @@ NODE_SCRIPT = r"""
 const fs = require("node:fs");
 const vm = require("node:vm");
 const input = JSON.parse(fs.readFileSync(0, "utf8"));
-globalThis.LANGUAGE_CATALOGUE = input.catalogue;
+if (input.catalogue) {
+  globalThis.LANGUAGE_CATALOGUE = input.catalogue;
+} else {
+  vm.runInThisContext(fs.readFileSync(process.argv[2], "utf8"));
+}
 vm.runInThisContext(fs.readFileSync(process.argv[1], "utf8"));
 try {
   const api = globalThis.LanguagePacks;
@@ -47,11 +52,13 @@ class LanguageBrowserTests(unittest.TestCase):
         cls.catalogue = lang_pack.read_catalogue()
         cls.drawable = lang_pack.drawable_characters()
         cls.segments = lang_pack.string_segments(cls.catalogue)
+        cls.coverage = lang_pack.coverage_characters()
         cls.metadata = lang_pack.catalogue_info(cls.catalogue, cls.drawable, cls.segments)
 
     def browser(self, operation, **values):
-        payload = {"operation": operation, "catalogue": self.metadata, **values}
-        result = subprocess.run([NODE, "-e", NODE_SCRIPT, str(ROOT / "site/language-packs.js")],
+        payload = {"operation": operation, **values}
+        result = subprocess.run([NODE, "-e", NODE_SCRIPT, str(ROOT / "site/language-packs.js"),
+                                 str(ROOT / "site/language-catalog.js")],
                                 input=json.dumps(payload), text=True, capture_output=True,
                                 check=True)
         return json.loads(result.stdout)
@@ -64,7 +71,8 @@ class LanguageBrowserTests(unittest.TestCase):
                                     {"STR_LANGUAGE_NAME": "Español", **translations}, self.segments)
 
     def validate(self, data):
-        return lang_pack.validate_pack(data, self.catalogue, self.drawable, self.segments)
+        return lang_pack.validate_pack(data, self.catalogue, self.drawable, self.segments,
+                                       coverage=self.coverage)
 
     def seal(self, data):
         total = struct.unpack_from("<H", data, 56)[0]
@@ -90,6 +98,57 @@ class LanguageBrowserTests(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(base64.b64decode(result["result"]["pack"]),
                          self.pack(STR_SETTINGS="Ajustes"))
+
+    def test_polish_pack_matches_python_byte_for_byte_with_extra_font(self):
+        text = "STR_LANGUAGE_NAME = Polski\nSTR_CHIP_VOL = Głośność\nSTR_SETTINGS = ĄąĆćĘęŁłŃńÓóŚśŹźŻż\n"
+        with tempfile.TemporaryDirectory() as directory:
+            languages = Path(directory)
+            shutil.copyfile(lang_pack.LANGUAGES / "en.txt", languages / "en.txt")
+            (languages / "pl.txt").write_text(text, encoding="utf-8")
+            expected = lang_pack.language_pack("pl", languages)
+        response = self.browser("build", code="pl", name="Polski", text=text)
+        self.assertTrue(response["ok"], response)
+        pack = base64.b64decode(response["result"]["pack"])
+        self.assertEqual(pack, expected)
+        self.assertEqual(struct.unpack_from("<H", pack, lang_pack.HEADER.size + 2), (1,))
+        info = self.validate(pack)
+        self.assertTrue(info["needs_extra_font"])
+        self.assertEqual(response["result"]["info"], info)
+
+    def test_korean_pack_uses_extra_font_coverage(self):
+        response = self.browser("build", code="ko", name="한국어", text="STR_SETTINGS = 설정")
+        self.assertTrue(response["ok"], response)
+        self.assertTrue(response["result"]["info"]["needs_extra_font"])
+
+    def test_builtin_only_pack_leaves_flag_clear_with_or_without_extra_ranges(self):
+        legacy = {key: value for key, value in self.metadata.items() if key != "extra_glyph_ranges"}
+        for values in ({}, {"catalogue": legacy}):
+            with self.subTest(legacy=bool(values)):
+                response = self.browser("build", code="en", name="English", text="", **values)
+                self.assertTrue(response["ok"], response)
+                pack = base64.b64decode(response["result"]["pack"])
+                self.assertEqual(struct.unpack_from("<H", pack, lang_pack.HEADER.size + 2), (0,))
+                self.assertFalse(response["result"]["info"]["needs_extra_font"])
+                self.assertEqual(response["result"]["info"], self.validate(pack))
+
+    def test_unsupported_characters_report_the_codepoint(self):
+        response = self.browser("build", code="en", name="English", text="STR_SETTINGS = Music 🎵")
+        self.assertFalse(response["ok"], response)
+        self.assertIn("STR_SETTINGS", response["message"])
+        self.assertIn("U+1F3B5", response["message"])
+        with self.assertRaisesRegex(lang_pack.PackError, r"U\+1F3B5"):
+            self.validate(self.pack(STR_SETTINGS="Music 🎵"))
+
+    def test_inspection_rejects_both_extra_font_flag_mismatches(self):
+        for text, flags in (("Głośność", 0), ("Volume", 1)):
+            with self.subTest(text=text, flags=flags):
+                pack = bytearray(self.pack(STR_CHIP_VOL=text))
+                struct.pack_into("<H", pack, lang_pack.HEADER.size + 2, flags)
+                self.seal(pack)
+                with self.assertRaisesRegex(lang_pack.PackError, "extra-font flag does not match"):
+                    self.validate(pack)
+                self.assertEqual(self.inspect(pack), {"ok": False,
+                    "message": "This language pack's extra-font flag does not match its characters."})
 
     def test_placeholder_reordering_and_repetition_match_python_semantics(self):
         result = self.browser("build", code="es", name="Español",
@@ -149,7 +208,8 @@ class LanguageBrowserTests(unittest.TestCase):
             changed[offset] ^= 1
             cases.append(bytes(changed))
         body = lang_pack.index_size(len(self.segments)) + 2 * len(self.segments[0][1])
-        fields = ((4, 0), (4, 2), (56, 1), (56, len(self.segments) + 1), (58, 1), (60, 3), (62, 1), (76, 9))
+        fields = ((4, 0), (4, 2), (56, 1), (56, len(self.segments) + 1),
+                  (58, 1), (58, 2), (58, 3), (60, 3), (62, 1), (76, 9))
         for field, value in fields:
             changed = bytearray(valid)
             struct.pack_into("<H", changed, field, value)

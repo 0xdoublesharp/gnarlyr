@@ -509,7 +509,17 @@ def validate_pack(data, catalogue, drawable, segments=None, limit=PACK_LIMIT, co
     return {**info, "texts": texts}
 
 
-def catalogue_info(catalogue, drawable, segments=None):
+def glyph_ranges(coverage):
+    ranges = []
+    for point in sorted(coverage):
+        if ranges and point == ranges[-1][1] + 1:
+            ranges[-1][1] = point
+        else:
+            ranges.append([point, point])
+    return ranges
+
+
+def catalogue_info(catalogue, drawable, segments=None, coverage=frozenset()):
     segments = segments if segments is not None else resident_segments(catalogue)
     return {"version": VERSION, "magic": MAGIC.decode("ascii"), "pack_limit": PACK_LIMIT,
             "file_limit": FILE_LIMIT, "memory_align": MEMORY_ALIGN,
@@ -517,11 +527,11 @@ def catalogue_info(catalogue, drawable, segments=None):
             "name_id": NAME_ID, "catalogue_hash": layout_hash(segments),
             "entries": [{"id": name, "english": text} for name, text in catalogue],
             "segments": [{"module": module, "ids": names} for module, names in segments],
-            "glyphs": sorted(drawable)}
+            "glyphs": sorted(drawable), "extra_glyph_ranges": glyph_ranges(coverage)}
 
 
-def browser_source(catalogue, drawable, segments=None):
-    info = catalogue_info(catalogue, drawable, segments)
+def browser_source(catalogue, drawable, segments=None, coverage=frozenset()):
+    info = catalogue_info(catalogue, drawable, segments, coverage)
     return "globalThis.LANGUAGE_CATALOGUE = " + json.dumps(
         info, sort_keys=True, ensure_ascii=True, separators=(",", ":")) + ";\n"
 
@@ -639,7 +649,8 @@ def write_pack(arguments):
 
 def write_catalogue(arguments):
     catalogue = read_catalogue(arguments.languages)
-    source = browser_source(catalogue, drawable_characters(), string_segments(catalogue))
+    source = browser_source(catalogue, drawable_characters(), string_segments(catalogue),
+                            coverage_characters())
     path = arguments.export_catalogue
     if arguments.check:
         if not path.exists() or path.read_text(encoding="utf-8") != source:
@@ -661,7 +672,7 @@ def parse_arguments(argv):
     parser.add_argument("--check", action="store_true",
                         help="fail if the committed headers differ from a fresh build")
     parser.add_argument("--export-catalogue", type=Path,
-                        help="write the browser catalogue and drawable glyphs as JavaScript")
+                        help="write the browser catalogue, built-in glyphs and extra-font coverage as JavaScript")
     parser.add_argument("--pack", help=f"language code to pack; {PSEUDO} is the test language")
     parser.add_argument("--output", type=Path, help="pack file to write")
     parser.add_argument("--layout", type=Path,
