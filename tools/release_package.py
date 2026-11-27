@@ -83,7 +83,8 @@ def language_metadata(code, data, asset):
             "needs_extra_font": info["needs_extra_font"]}
 
 
-def package(image, source, dist, commit, tag=None, *, languages_dir=LANGUAGES):
+def package(image, source, dist, commit, tag=None, *, languages_dir=LANGUAGES, extra_assets=()):
+    extra_assets = tuple(extra_assets)
     build_label = label(tag) if tag else ""
     data = image.read_bytes()
     if build_label and image_build(data) != build_label:
@@ -96,12 +97,19 @@ def package(image, source, dist, commit, tag=None, *, languages_dir=LANGUAGES):
         except tools.PackError as error:
             raise ValueError(f"{code}.txt: {error}") from error
 
+    reserved = {IMAGE, STOCK_IMAGE, source_name(), MANIFEST, SUMS, *(f"{code}.pack" for code in packs)}
+    for path in extra_assets:
+        if path.name in reserved:
+            raise ValueError(f"Duplicate release asset: {path.name}")
+        reserved.add(path.name)
     dist.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(image, dist / IMAGE)
     shutil.copyfile(image, dist / STOCK_IMAGE)
     shutil.copyfile(source, dist / source_name())
+    for path in extra_assets:
+        shutil.copyfile(path, dist / path.name)
     files = {name: {"sha256": digest(dist / name), "bytes": (dist / name).stat().st_size}
-             for name in (IMAGE, STOCK_IMAGE, source_name())}
+             for name in (IMAGE, STOCK_IMAGE, source_name(), *(path.name for path in extra_assets))}
     language_packs = []
     for code, pack in packs.items():
         name = f"{code}.pack"
@@ -147,10 +155,10 @@ def check_sums(dist, expected):
     return listed
 
 
-def verify(dist, tag, commit, *, languages_dir=LANGUAGES):
+def verify(dist, tag, commit, *, languages_dir=LANGUAGES, extra_assets=()):
     build_label = label(tag)
     codes = language_codes(languages_dir)
-    assets = {IMAGE, STOCK_IMAGE, source_name(), *(f"{code}.pack" for code in codes)}
+    assets = {IMAGE, STOCK_IMAGE, source_name(), *(f"{code}.pack" for code in codes), *extra_assets}
     expected = assets | {MANIFEST, SUMS}
     paths = list(dist.iterdir())
     check_names(dist, {path.name for path in paths}, expected)

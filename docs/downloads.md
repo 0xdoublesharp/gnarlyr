@@ -20,6 +20,22 @@ A tag is `v` plus the version in `firmware/identity.json` (`v1.0.0`), or that pl
 
 CI artifacts expire after seven days, so finish the device checks and publication within that time.
 
+### Prepare and review a draft
+
+Use the release conductor to build a local candidate and review its GitHub draft. Run the CI and player checks above and get owner approval before promotion. Start from the committed release source and use the firmware toolchain and an authenticated GitHub CLI.
+
+```sh
+python3 tools/release.py prepare <tag> --dry-run
+python3 tools/release.py prepare <tag>
+python3 tools/release.py stage <tag>
+python3 tools/release.py smoke <tag>
+python3 tools/release.py promote <tag> --channel nightly
+```
+
+`prepare` checks the changelog, compares the candidate version with the comparison page and theme catalog, and verifies that the install and language pages agree on their pinned firmware release. It saves both images under `/Volumes/Scratch/SnowskyEcho/releases/<tag>/<commit>`. The `assets/` subdirectory holds the image selected for the tag, its first-install alias, matching source, official language and theme packs, `firmware.json`, and `SHA256SUMS`. Use `--directory` on `prepare` and `stage` to choose another directory on Scratch.
+
+`stage` keeps the release private as a GitHub draft. `smoke` downloads the draft assets with the authenticated CLI and verifies their checksums and pack formats. `promote` repeats smoke before publishing. A tag with a build label defaults to the nightly channel and a plain version defaults to stable. Select `--channel stable` to mark the published release stable. Add `--deploy-site` only when the same commit's static site is also approved for publication. The conductor runs the [site publisher](deployment.md#publish-content) after publishing firmware.
+
 The first published stable firmware release makes these URLs available:
 
 ```text
