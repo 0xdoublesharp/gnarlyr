@@ -1182,15 +1182,6 @@ static ScreenAction open_about(void *context)
     return screens->about != NULL ? screen_action_push(screens->about) : screen_action_none();
 }
 
-static const char *text_size_value(const void *context)
-{
-    const MenuItem *row = context;
-    const SettingsScreens *screens =
-        (const SettingsScreens *)(const void *)((const char *)(row - group_of(row)) -
-                                                offsetof(SettingsScreens, groups));
-    return choice_value(&screens->entries[SETTINGS_TEXT_SIZE_CHOICE]);
-}
-
 static void bind_choice_rows(SettingsScreens *screens)
 {
     for (int index = 0; index < SETTINGS_CHOICE_COUNT; index++) {
@@ -1222,7 +1213,6 @@ static void bind_groups(SettingsScreens *screens, Screen *buttons)
                                             .opens = true,
                                             .icon = (uint8_t)GROUP_ICONS[group]};
     }
-    screens->groups[SETTINGS_GROUP_DISPLAY].value = text_size_value;
     screens->groups[SETTINGS_GROUP_LANGUAGE].select = open_language;
     screens->groups[SETTINGS_GROUP_LANGUAGE].context = screens;
     screens->groups[SETTINGS_GROUP_LANGUAGE].value = describe_current_language;

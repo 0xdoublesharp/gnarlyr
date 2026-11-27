@@ -66,7 +66,8 @@ static const char *row_label(const void *context, int index)
 static bool row_opens(const void *context, int index)
 {
     (void)index;
-    return ((const MixtapeUi *)context)->mode == MIXTAPE_LIST;
+    const MixtapeUi *ui = context;
+    return ui->mode == MIXTAPE_LIST || ui->mode == MIXTAPE_PICK;
 }
 
 static void fit_list(MixtapeUi *ui)

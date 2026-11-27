@@ -481,7 +481,7 @@ static void invalid_slots_and_busy_stores_refuse_new_work(void)
     CHECK(!mixtape_ui_busy(&ui));
 }
 
-static void only_list_rows_show_a_chevron_and_long_labels_wrap(void)
+static void rows_opening_a_tape_or_picker_show_a_chevron(void)
 {
     save_album();
     open_ui();
@@ -490,6 +490,11 @@ static void only_list_rows_show_a_chevron_and_long_labels_wrap(void)
     CHECK(ui.model.opens(&ui, ui.model.count(&ui) - 1));
     choose(2);
     CHECK_EQUAL(MIXTAPE_ACTIONS, ui.mode);
+    CHECK(!ui.model.opens(&ui, 0));
+    ui.mode = MIXTAPE_PICK;
+    CHECK(ui.model.opens(&ui, 0));
+    CHECK(ui.model.opens(&ui, ui.model.count(&ui) - 1));
+    ui.mode = MIXTAPE_SIDE;
     CHECK(!ui.model.opens(&ui, 0));
 }
 
@@ -543,7 +548,7 @@ int main(void)
         TEST_CASE(cancelling_a_save_or_rename_returns_to_the_list),
         TEST_CASE(an_empty_mixtape_can_be_named_renamed_and_deleted_without_playback),
         TEST_CASE(editing_and_replacing_a_mixtape_preserves_duplicates_across_a_rescan),
-        TEST_CASE(only_list_rows_show_a_chevron_and_long_labels_wrap),
+        TEST_CASE(rows_opening_a_tape_or_picker_show_a_chevron),
         TEST_CASE(a_short_list_shows_the_cassette_on_the_grid_only_in_portrait),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));

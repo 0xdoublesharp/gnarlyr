@@ -441,9 +441,29 @@ static void settings_open_on_nine_groups_with_language_fourth_and_about_last(voi
     CHECK_EQUAL(ICON_GLOBE, menu->model.icon(menu, SETTINGS_GROUP_LANGUAGE));
     CHECK(strcmp(i18n_text(STR_LANGUAGE_NAME), menu->model.detail(menu, SETTINGS_GROUP_LANGUAGE)) ==
           0);
-    CHECK(strcmp(i18n_text((StringId)(STR_SIZE_SMALL + store.settings.text_size)),
-                 menu->model.detail(menu, SETTINGS_GROUP_DISPLAY)) == 0);
-    CHECK(menu->model.detail(menu, SETTINGS_GROUP_SOUND) == NULL);
+    CHECK(menu->model.opens(menu, SETTINGS_GROUP_LANGUAGE));
+}
+
+static void settings_categories_show_only_a_submenu_chevron(void)
+{
+    static const int nested[] = {SETTINGS_HEADPHONES_ITEM, SETTINGS_CUSTOM_EQ_ITEM,
+                                 SETTINGS_PARAMETRIC_ITEM, SETTINGS_STATUS_BAR_ITEM,
+                                 SETTINGS_HOME_ITEM,       SETTINGS_HIDDEN_ITEM,
+                                 SETTINGS_RESTORE_ITEM};
+    open_grouped();
+    MenuScreen *menu = &grouped.menu;
+    for (int row = 0; row < SETTINGS_GROUP_COUNT; row++) {
+        if (row != SETTINGS_GROUP_LANGUAGE) {
+            CHECK(grouped.groups[row].opens);
+            CHECK(grouped.groups[row].value == NULL);
+            CHECK(menu->model.opens(menu, row));
+            CHECK(menu->model.detail(menu, row) == NULL);
+        }
+    }
+    for (size_t index = 0; index < sizeof nested / sizeof nested[0]; index++) {
+        CHECK(grouped.items[nested[index]].opens);
+        CHECK(grouped.items[nested[index]].value == NULL);
+    }
 }
 
 static int times_offered(const char *label)
@@ -573,6 +593,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(settings_open_on_nine_groups_with_language_fourth_and_about_last),
+        TEST_CASE(settings_categories_show_only_a_submenu_chevron),
         TEST_CASE(every_settings_row_is_in_exactly_one_group),
         TEST_CASE(dependent_settings_appear_only_when_their_feature_is_enabled),
         TEST_CASE(resetting_buttons_persists_the_defaults_and_shows_feedback),

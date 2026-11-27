@@ -37,7 +37,7 @@ Audiobooks, Podcasts and Up Next are hidden on Home by default. Audiobooks and P
 
 ## Settings
 
-Settings opens on nine groups, each with an icon: **Sound** (output, gain, equalizers, headphone profiles, crossfeed, ReplayGain, DAC filter), **Playback** (shuffle, repeat, speed, transitions, rewind on resume, skip silence, speech boost, safe start volume, sleep timer), **Display & text** (text size, orientation, theme, accent colour, brightness, screen timeout, status bar, Now Playing style, Home screen, start screen, clock), **Language**, **Power & battery** (auto off, standby, power on), **Connections** (when plugged in, USB mode, Bluetooth), **Buttons**, **Library** (rescan, hidden tracks, the card, backups) and **About**, last. Display & text shows the text size and Language the language in use. Language is always fourth, with a globe, so you can find it in a language you can't read.
+Settings opens on nine groups, each with an icon: **Sound** (output, gain, equalizers, headphone profiles, crossfeed, ReplayGain, DAC filter), **Playback** (shuffle, repeat, speed, transitions, rewind on resume, skip silence, speech boost, safe start volume, sleep timer), **Display & text** (text size, orientation, theme, accent colour, brightness, screen timeout, status bar, Now Playing style, Home screen, start screen, clock), **Language**, **Power & battery** (auto off, standby, power on), **Connections** (when plugged in, USB mode, Bluetooth), **Buttons**, **Library** (rescan, hidden tracks, the card, backups) and **About**, last. Each group has a chevron. Language also shows the language in use. Language is always fourth, with a globe, so you can find it in a language you can't read.
 
 ## Your music
 

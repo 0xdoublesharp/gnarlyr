@@ -5,6 +5,7 @@
 #include "equalizer_plot.h"
 #include "ui/footer_hints.h"
 #include "ui/header.h"
+#include "ui/icons.h"
 #include "ui/label.h"
 #include "ui/navigation.h"
 
@@ -45,6 +46,12 @@ static const char *detail(const void *context, int index)
 {
     const ParametricScreen *editor = context;
     return editor->details[index];
+}
+
+static bool opens_filter(const void *context, int index)
+{
+    const ParametricScreen *editor = context;
+    return !editor->shaping_mode && editor->filter < 0 && index < editor->working.count;
 }
 
 static void format_q(StringBuilder *builder, uint16_t q)
@@ -279,6 +286,13 @@ static void draw_rows(ParametricScreen *editor, Canvas *canvas, Rect area)
         }
         bounds.x += theme->metrics.padding / 2;
         bounds.width -= theme->metrics.padding;
+        if (editor->model.opens(editor, index)) {
+            int width = list_view_chevron_width(theme);
+            Rect box = {bounds.x + bounds.width - width, bounds.y, width, bounds.height};
+            Color color = theme->colors.chevron;
+            icon_draw(canvas, ICON_CHEVRON, box, (IconInk){color, color});
+            bounds.width -= width + theme->metrics.detail_gap;
+        }
         const Font *font = text_width(theme->fonts.body, editor->labels[index]) <= bounds.width
                                ? theme->fonts.body
                                : theme->fonts.small;
@@ -330,8 +344,7 @@ static void draw(void *context, Canvas *canvas)
     StringBuilder builder = string_builder_make(text, sizeof text);
     summary(editor, &builder);
     bool portrait = theme_is_portrait(theme);
-    bool filter_summary = !editor->shaping_mode && editor->filter < 0 &&
-                          editor->list.selected < editor->working.count;
+    bool filter_summary = opens_filter(editor, editor->list.selected);
     const char *detail_text =
         portrait && !filter_summary ? editor->details[editor->list.selected] : text;
     layout.primary.height = portrait ? layout.primary.height : small;
@@ -408,7 +421,8 @@ Screen *parametric_screen_init(ParametricScreen *editor, ParametricScreenConfig 
                                  .slot = config.slot,
                                  .labels = labels,
                                  .details = details};
-    editor->model = (ListModel){.context = editor, .count = rows, .label = label, .detail = detail};
+    editor->model = (ListModel){
+        .context = editor, .count = rows, .label = label, .detail = detail, .opens = opens_filter};
     list_view_init(&editor->list, &editor->model, config.theme, 0);
     editor->screen = (Screen){.title = i18n_text(STR_PEQ),
                               .context = editor,

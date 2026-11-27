@@ -57,6 +57,11 @@ static void add_edit_cancel_keep_and_remove_work_with_buttons(void)
     CHECK_EQUAL(1, settings.parametric.count);
     CHECK_EQUAL(1, committed);
     CHECK_EQUAL(0, editor.filter);
+    CHECK(!editor.model.opens(&editor, 0));
+    key(KEY_BACK);
+    CHECK(editor.model.opens(&editor, 0));
+    CHECK(!editor.model.opens(&editor, 2));
+    key(KEY_PLAY);
     key(KEY_VOLUME_UP);
     key(KEY_VOLUME_UP);
     key(KEY_VOLUME_UP);
