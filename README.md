@@ -33,6 +33,7 @@ See the [feature guide](https://gnarlyr.com/firmware.html) for details and [know
 ## Get Gnarlyr
 
 **Gnarlyr `1.0.0-beta.1`** public beta builds are available on [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases).
+See the [changelog](CHANGELOG.md) for firmware release history and upcoming changes.
 
 ### Gnarlyr Companion `1.0.0-beta.1` (Desktop App)
 
