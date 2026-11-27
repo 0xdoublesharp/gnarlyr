@@ -1,22 +1,23 @@
 # Gnarlyr design system
 
-This is the adopted design for Gnarlyr's screens. New and changed screens follow it. The two reference sheets and the three screen sheets in `design/` are the visual record; this text states the same rules in words. Where the text and a sheet seem to differ, the sheet is the record and this text needs correcting.
+This is the adopted design for Gnarlyr's screens. New and changed screens follow it. The two reference sheets and three screen sheets in `design/` capture the original design targets. The status notes record changes made after they were drawn.
 
 ## Status
 
 - Adopted on 2026-11-21.
-- Deferred to beta.2 are the search letter strip, live preview, and results (L09/L09b), the EQ caption rewrite (L13), and the Recap empty-state art (L14).
-- Also deferred to beta.2: the missing-fonts notice as a band under lists (L06). In beta.1 the notice is drawn inline in About.
+- Beta.2 shipped after these sheets were drawn. The search letter strip, live preview, and results (L09/L09b), EQ caption rewrite (L13), Recap empty-state art (L14), and a missing-fonts band under lists (L06) were design targets. The firmware shows the missing-fonts notice in About.
 - Also deferred: the file and history-device drawings beside the Delete file? and Clear history? confirms (L07b, L10). The confirm screen is built into the views and listening modules, and views has too little room left on the `device` image for both drawings. Mixtapes in portrait (P04) shows today's cassette art on the grid instead of a new wire cassette, without the help line under it.
-- The sheets are HTML mockups rendered at the panel's real size (480 × 222 landscape, 222 × 480 portrait) in English, German and Japanese. They reuse some of today's firmware, such as the battery and the ported drawings, but the design as a set is not implemented yet. Where today's firmware behaves differently, [architecture.md](architecture.md) and [user-guide.md](user-guide.md) describe what it does now, and this document describes the target.
+- The sheets are HTML mockups rendered at the panel's real size (480 × 222 landscape, 222 × 480 portrait) in English, German, and Japanese. Some screens share artwork and controls with the firmware. Where today's firmware behaves differently, [architecture.md](architecture.md) and [user-guide.md](user-guide.md) describe what it does now, and this document describes the target.
 - Done for beta.1: the plug-in countdown pause (the first Vol press stops the count and the header says "Auto-charge paused"), the Buttons naming in Settings (Settings → Buttons, with "Menu hold everywhere" and "Screen action"), and the strings the mockups introduce.
 - Pending firmware work the design depends on:
   - **Native-name glyphs in language packs.** Until a pack can draw a language's own name, Language shows a drawable name in the UI language, such as "Korean (ko)".
   - **Two-line rows, option A first.** A list decides once, on entry and from a width test, whether its rows are two-line, so all its rows stay the same height. True per-row heights (option B) are not the first step.
   - **Three-line rows.** Wrapped rows stop at two lines, so a portrait label that needs three (P04 in German) is cut with an ellipsis. A row whose value drops under its label keeps the label on one line.
-  - **Button cells marked ³** in the [button table](#button-behaviour-by-context) are proposed and not confirmed in the firmware.
+  - **Menu in pickers and Hold Back on confirmations.** The [button table](#button-behaviour-by-context) records the proposed behavior for these controls.
 
 ![Interaction system sheet](design/S00-system.png)
+
+This sheet predates the implemented auto-charge pause.
 
 ![Layout system sheet](design/S01-layout.png)
 
@@ -271,7 +272,7 @@ Now Playing chords: hold Play + Vol skips a track; hold Menu + Vol seeks 10 s, a
 
 ² Defaults. Settings → Buttons reassigns the Now Playing taps and holds, and a changed value says "Custom".
 
-³ Proposed, not yet confirmed in the firmware. The auto-charge pause is pending firmware work. Menu in pickers follows the list rule. Hold Back on a confirm goes Home and dismisses the dialog without acting.
+³ The first volume press pauses auto-charge in [the plug-in chooser](../src/app/screens/plug_chooser.c#L343). The other marked cells record the design targets: Menu in pickers follows the list rule, and Hold Back on a confirm goes Home and dismisses the dialog without acting.
 
 **Text entry.** The A–Z strip and All characters form one Vol-driven focus group: Vol+ walks A to Z, then All characters, and Vol− walks back. A chevron at the strip's edge points to the letters out of view. Letters with no results are greyed; the bright ones are the suggested next letters. The count is live. The Play hint follows focus: "Add" on a letter, "Open" on All characters.
 

@@ -1,11 +1,12 @@
 # Calculation-core clock
 
 Core 1 starts at 100 MHz while audio holds the PLL at 200 MHz. Its programs may
-select PLL / 1 for 200 MHz decode work. DSD64 mono uses 100 MHz; DSD64 stereo,
-DSD128 and mono DSD256 use 200 MHz. Vorbis above 96 kHz uses 200 MHz. APE
+select PLL / 1 for 200 MHz decode work or PLL / 4 for 50 MHz DoP64 transport.
+For PCM conversion, DSD64 mono uses 100 MHz, and DSD64 stereo, DSD128, and mono
+DSD256 use 200 MHz. Vorbis above 96 kHz uses 200 MHz. APE
 Fast stereo above 96 kHz and Normal stereo above 48 kHz use 200 MHz. Other
-programs retain 100 MHz. These clocks provide two or four million cycles per
-20 ms, respectively. During light screen-off playback core 0 lowers the PLL to
+programs retain 100 MHz. At 50, 100, and 200 MHz, the ideal budgets per 20 ms
+are one, two, and four million cycles, respectively. During light screen-off playback core 0 lowers the PLL to
 96 MHz, and core 1 then runs at 96 MHz at most (below). Instructions are not cycles: the emulator does not model
 Cortex-M3 instruction timing, SRAM waits, storage contention or power draw.
 
@@ -59,9 +60,10 @@ startup. Every program serves its stream through `core1_serve`, which installs
 `StreamRegion.request_clock` and `StreamRegion.hurry_clock`; the stream resets the
 request to 100 MHz on adoption or cancellation, so a seek or a track change within
 the same program starts at 100 MHz whatever the clock was before. The DSD, Vorbis
-and APE programs also install the request in their decoders' own regions and raise
-it to 200 MHz where their format needs it: DSD after validating its transport
-header, Vorbis after validating its setup, APE after validating its stream header.
+and APE programs also install the request in their decoders' own regions. After
+validating its transport header, [`core1_dsd.c`](../platform/device/logic/core1_dsd.c#L113)
+requests 50 MHz for DoP64 or 100 or 200 MHz for PCM conversion. Vorbis and APE
+request 200 MHz where needed after validating their setup or stream header.
 Requests never depend on untrusted filename extensions.
 
 Within that ceiling a clock governor (`core1_pace`, `ClockGovernorLimits`) measures

@@ -20,7 +20,7 @@ A missing or damaged settings file requires a normal settings save on the player
 
 ## First install from FiiO
 
-The usual first install is download `ECHOECHO.img`, copy it to the internal drive, eject both drives and restart normally. After Gnarlyr starts, the desktop companion can manage music, supported settings, languages and later firmware images; its current beta uses manual drive selection and ejection.
+The usual first install is download `ECHOECHO.img`, copy it to the internal drive, eject both drives and restart normally. After Gnarlyr starts, the desktop companion can manage music, supported settings, languages, and later firmware images. Gnarlyr Companion offers **Find my Echo** to detect the player's drives and supports verified in-app eject on macOS. You can also select and eject the drives manually.
 
 If FiiO briefly shows Updating then returns to stock, macOS has an optional copy helper:
 

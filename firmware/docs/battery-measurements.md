@@ -86,7 +86,7 @@ Firmware controls the dynamic work, clock gates, output supplies, radio power, b
 
 `standby current = retained-SoC/RAM leakage + retained clocks + regulator losses + RTC + card idle + wake work`
 
-The existing paused state retains a running PLL/peripheral domains and 200 timer interrupts per second. A verified key-only state could remove timer/ADC work and more clocks. Its current cannot be inferred in mA from instruction counts: the static domains, card and regulators must be measured. Switched-off current still includes the RTC/always-on supply and leakage; measure it separately instead of assuming zero.
+The paused, screen-off baseline shuts down the PLL and runs from the 24 MHz crystal while retaining peripheral domains and, with Bluetooth off, 200 timer interrupts per second. A verified key-only state could remove timer/ADC work and more clocks. Its current cannot be inferred in mA from instruction counts: the static domains, card and regulators must be measured. Switched-off current still includes the RTC/always-on supply and leakage; measure it separately instead of assuming zero.
 
 The parent's measurement sequence is:
 

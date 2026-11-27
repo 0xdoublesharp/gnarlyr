@@ -406,7 +406,7 @@ Power can be cut after every step, up to `MaxCuts` times. Optionally, a slot wri
 - FiiO's stock image. It takes the same both-slot path as `BOTHSLOT.REQ`.
 - `ALREADY_INSTALLED`, modelled as "the file's image is the valid one in slot 1".
 - All user-state files but one.
-- Settings restore requests from Settings → Backups and from `echo_debug.py`.
+- Settings restore requests from Settings → Library → Backups and from `echo_debug.py`.
 - Time: 20 s settling is an event.
 - The trial diagnostics.
 
@@ -421,7 +421,7 @@ Power can be cut after every step, up to `MaxCuts` times. Optionally, a slot wri
 | `SettingsAvailable` | invariant | `settings.bin`, its `newer/` copy, or a named backup holds a valid generation |
 | `RollbackRestoresImage` | invariant | after a rollback start, until that start's first USB session, slot 1 holds slot 2's image |
 | `RollbackRestoresSettings` | invariant (as worded) | after a rollback, `settings.bin` equals what the previous build had when the trial build first started |
-| `PreviousSettingsRecoverable` | invariant (design intent) | after a rollback, that content is in `settings.bin` or in a named backup slot, so Settings → Backups can restore it |
+| `PreviousSettingsRecoverable` | invariant (design intent) | after a rollback, that content is in `settings.bin` or in a named backup slot, so Settings → Library → Backups can restore it |
 | `RestoredBuildCanSave` | invariant | a build running with no trial (no record, or a rolled-back record) can write its settings (the file is not of a later format) |
 | `RollbackPassDone` | invariant | the app never runs while a rolled-back record is still in place, so the continuity pass always ran before the record went |
 | `TrialResolves` | liveness | a running trial eventually leaves *running*: it is promoted, rolled back, or replaced by another install |
@@ -535,21 +535,21 @@ Every core 0 and core 1 step has weak fairness. Stopping and opening streams are
 | `core_handoff_reorder` | `LoadsReorder = TRUE` | passed | passed | 79,712 (38,368), depth 85 | 25 s |
 | `core_handoff_reorder_before` | same, `ReleaseFenced = FALSE`, `NoSlotReadWhileWritten` | violated: `NoSlotReadWhileWritten` | violated as expected | 2,621 (1,382), 19 steps | 6 s |
 
-**Model-to-code mapping** (`751de675`, `platform/device/logic/core1_stream.c` unless named).
+**Model-to-code mapping** (current source lines in `platform/device/logic/core1_stream.c` unless named). The results above are the historical model runs.
 
 | Model action | Code |
 |---|---|
-| `C1Check` | `core1_stream_step` `:295`, generation read `:299`, `adopt` `:131` |
-| `C1Act` | slot state `:312`, held block `:315`, publish when short of room `:320` |
-| `C1TakeHeld`, `C1Take` | `take` `:235`, `append` `:210`, `core_0_waiting` `:229`, `publish_slot` `:170` (fence `:177` before `state = FULL` `:178`), `finish` `:183` |
-| `C1Decode` | `decode_next` `:264` with `next_block` `:255` (in-place output) |
-| `C1Recheck` | `:269` |
-| `C0Stop` | `core1_source_stop` `:349`, `generation = 0` `:353` |
-| `C0Open` | fields, fence, `generation =` at `core1_m4a_source.c:57`, `core1_open_flac.c:37`, `core1_open_mp3.c:63`, `core1_ogg_source.c:42`, `core1_ape_source.c:20`, `core1_wma_source.c:24`, `core1_dsd_source.c:50` |
-| `C0Drop` | `drop_stale_slots` `:372`, called at `:388` and `:439` |
-| `C0Look` | `next_frame` `:431`, state `:441`, fence `:444`, generation check `:445` |
-| `C0Read`, `C0LateRead` | `audio_engine.c:620` `copy_pending` reading `frame.left`/`right` |
-| `C0Release` | `audio_engine.c:126` → `release_frame` `:476` → `advance_slot` `:424`, release fence `:426` |
+| `C1Check` | `core1_stream_step` `:332`, generation read `:336`, `adopt` `:168` |
+| `C1Act` | slot state `:349`, held block `:352`, publish when short of room `:358` |
+| `C1TakeHeld`, `C1Take` | `take` `:272`, `append` `:247`, `core_0_waiting` `:266`, `publish_slot` `:207` (fence `:214` before `state = STREAM_SLOT_FULL` `:215`), `finish` `:220` |
+| `C1Decode` | `decode_next` `:301` with `next_block` `:292` (in-place output) |
+| `C1Recheck` | `decode_next` generation check `:306` |
+| `C0Stop` | `core1_source_stop` `:386`, `generation = 0` `:390` |
+| `C0Open` | fields, fence, `generation =` at `core1_m4a_source.c:56`, `core1_open_flac.c:41`, `core1_open_mp3.c:63`, `core1_ogg_source.c:42`, `core1_ape_source.c:20`, `core1_wma_source.c:24`, `core1_dsd_source.c:50` |
+| `C0Drop` | `drop_stale_slots` `:409`, called at `:425` and `:482` |
+| `C0Look` | `next_frame` `:474`, state `:484`, fence `:487`, generation check `:488` |
+| `C0Read`, `C0LateRead` | `copy_pending` at `audio_engine.c:669` calls `copy_until_limit` at `:609`. The PCM span reads `frame.left` and `frame.right` at `:478` |
+| `C0Release` | `audio_engine.c:139` → `release_frame` `:519` → `advance_slot` `:467`, release fence `:469` |
 
 `core1_pace` sets clocks and rest lengths only. It changes how long each step takes, not what the steps do. In the model it appears only as the fairness of core 1's steps: core 1 always runs its next step eventually.
 
@@ -593,7 +593,7 @@ Each expected violation documents one behaviour of the code. Every step of each 
 **The owner's properties, as worded, that the design does not keep.**
 
 - `update_trial_waits`: a trial build that keeps working stays on trial until a confirming USB session. Without one, the trial never ends, by design. Under the owner-confirms fairness, `TrialResolves` and `TrialEnds` hold.
-- `update_settings_literal`: after a rollback, `settings.bin` keeps the trial build's changes when the format is unchanged. A later format is set aside, and that file starts from defaults. It is not restored to the pre-trial content. `PreviousSettingsRecoverable` holds: the pre-trial content stays in a named backup slot for Settings → Backups.
+- `update_settings_literal`: after a rollback, `settings.bin` keeps the trial build's changes when the format is unchanged. A later format is set aside, and that file starts from defaults. It is not restored to the pre-trial content. `PreviousSettingsRecoverable` holds: the pre-trial content stays in a named backup slot for Settings → Library → Backups.
 - `update_both_request_literal`: with `BOTHSLOT.REQ`, both slots hold the new build and there is no backup, as `device-install.md` says.
 
 None of these results has been checked on the player.

@@ -32,7 +32,7 @@
 `session_journal_open` returns ready with the newest record that passes every check, and its state:
 
 - the block is ready and its binding is the fingerprint given; a record of another library counts as empty;
-- the payload is 268 bytes, both embedded encodings decode and carry the same fingerprint;
+- the payload is 280 bytes, including 12 bytes of cassette state, and both embedded encodings decode and carry the same fingerprint;
 - the track and every queued index are below the track limit given, and the queue kind's requirements hold.
 
 If the newest record fails, the other one is used. With no record to use the result is corrupt when one was damaged, otherwise empty; unreadable and unsupported set `needs_reload`. The caller's state is written only on ready.

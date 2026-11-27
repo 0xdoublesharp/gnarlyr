@@ -6,11 +6,11 @@ None of this has run on a player yet.
 
 ## Where the lists live
 
-One Music entry, Smart Lists, between Favorites and My tags, opens a menu with the five lists. A single entry keeps the Music menu short (twelve rows), groups the lists that share the same wait, empty state and cache, and keeps them in one module. Home is not changed.
+One Music entry, Smart Lists, between Cover Flow and Songs by default, opens a menu with the five lists. A single entry keeps the Music menu short (twelve rows), groups the lists that share the same wait, empty state and cache, and keeps them in one module. Home is not changed.
 
 ## Rules
 
-The player has no calendar clock, so "recent" and "a long while" are measured in plays and library updates, never in dates. A play is any record in the listening log; a listen is a play that ran for at least half the song, or finished when its length is unknown (`listening_play_listened`). A song is a music track of the library (spoken word is left out, as in every Music list). Songs are matched to plays by their identity key: the path, start and end that mixtapes use (`mix_identity_hash`), so the parts of a CUE file are separate songs and a rescan does not change a song's key.
+The lists rank by play sequence and library updates independently of the player's wall clock. A play is any record in the listening log; a listen is a play that ran for at least half the song, or finished when its length is unknown (`listening_play_listened`). A song is a music track of the library (spoken word is left out, as in every Music list). Songs are matched to plays by their identity key: the path, start and end that mixtapes use (`mix_identity_hash`), so the parts of a CUE file are separate songs and a rescan does not change a song's key.
 
 | List | Songs in it | Order |
 |---|---|---|
