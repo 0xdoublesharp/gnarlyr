@@ -20,6 +20,8 @@ Changes to Gnarlyr firmware for the full-size SNOWSKY ECHO, its website, and its
 
 ### Fixed
 
+- Reject malformed FAT long filenames that could corrupt memory while reading a drive.
+- Keep album and artist text readable in Cover Flow when a custom theme uses dark title text.
 - Removed the misleading **Medium** text-size value from **Settings → Display & text** and added submenu chevrons to cassette rows in **Add to tape** and to existing **Parametric EQ** filters.
 - Adjusted Theme Studio’s Cassette preview to keep track text clear of custom labels in landscape and portrait. Long text now ends with an ellipsis when space runs out.
 - Corrected the feature, player, hardware, and comparison guides to match beta.1 behavior and flag outstanding player checks.

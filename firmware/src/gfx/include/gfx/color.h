@@ -21,6 +21,14 @@ Color color_from_rgb(uint8_t red, uint8_t green, uint8_t blue);
 Color color_blend(Color background, Color foreground, uint8_t alpha);
 Color color_between(Color from, Color to, int step, int steps);
 
+static inline int color_luma(Color color)
+{
+    int red = (color >> 11) * 255 / 31;
+    int green = (color >> 5 & 63) * 255 / 63;
+    int blue = (color & 31) * 255 / 31;
+    return (54 * red + 183 * green + 19 * blue) >> 8;
+}
+
 static inline Color color_scale(Color color, unsigned light)
 {
     if (light >= COLOR_LIGHT_FULL) {

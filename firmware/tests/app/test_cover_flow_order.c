@@ -433,6 +433,48 @@ static void the_strip_draws_its_covers_and_text_in_every_screen_layout(void)
     }
 }
 
+static bool line_has_ink(const Canvas *canvas, int top, int height, Color ink)
+{
+    for (int y = top; y < top + height; y++) {
+        for (int x = 0; x < canvas->bounds.width; x++) {
+            if (canvas_pixel_at(canvas, x, y) == ink) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void cover_flow_draws_readable_ink_on_its_dark_backdrop(void)
+{
+    start_flow(fixture_library_open(&fixture));
+    settle_flow(0);
+    Theme theme = BOARD_THEME;
+    flow.config.theme = &theme;
+    Color black = COLOR_RGB(0, 0, 0);
+    Color white = COLOR_RGB(255, 255, 255);
+    Color light = COLOR_RGB(255, 240, 160);
+    for (int orientation = 0; orientation < 2; orientation++) {
+        for (int size = 0; size < TEXT_SIZE_COUNT; size++) {
+            default_theme_set_text_size(&theme, (TextSize)size);
+            default_theme_set_orientation(&theme, (Orientation)orientation);
+            const CoverFlowTextLayout *text = board_cover_flow_text_layout(&theme);
+            Canvas canvas = canvas_make(
+                pixels, (Rect){0, 0, theme.metrics.screen_width, theme.metrics.screen_height});
+            theme.colors.header_text = COLOR_RGB(32, 40, 64);
+            screen->draw(screen->context, &canvas);
+            CHECK(line_has_ink(&canvas, text->title_top, text->line_height, white));
+            CHECK(line_has_ink(&canvas, text->artist_top, text->line_height,
+                               color_blend(black, white, 10)));
+            theme.colors.header_text = light;
+            screen->draw(screen->context, &canvas);
+            CHECK(line_has_ink(&canvas, text->title_top, text->line_height, light));
+            CHECK(line_has_ink(&canvas, text->artist_top, text->line_height,
+                               color_blend(black, light, 10)));
+        }
+    }
+}
+
 int main(void)
 {
     static const TestCase cases[] = {
@@ -455,6 +497,7 @@ int main(void)
         TEST_CASE(an_artist_strip_explains_holding_play_once),
         TEST_CASE(each_strip_frame_reads_at_most_one_new_cover),
         TEST_CASE(the_strip_draws_its_covers_and_text_in_every_screen_layout),
+        TEST_CASE(cover_flow_draws_readable_ink_on_its_dark_backdrop),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
 }

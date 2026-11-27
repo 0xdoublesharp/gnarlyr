@@ -25,7 +25,8 @@ enum {
     REFLECTION_LIGHT = 80,
     FLOOR_LEVEL = 16,
     FLOOR_GAP = 6,
-    DETAIL_ALPHA = 176,
+    DETAIL_ALPHA = 10,
+    TEXT_MIN_LUMA_DELTA = 128,
     RANDOM_POSITION = 0,
     RANDOM_SLOTS = 1,
     SHUFFLE_SIZE = PLAYING_SHUFFLE_SIZE,
@@ -555,16 +556,21 @@ static void draw_line(const CoverFlowScreen *flow, Canvas *canvas, Label label, 
     label_draw_scrolling(canvas, style, label, (Marquee){.offset = offset, .gap = timing.gap_px});
 }
 
+static Color backdrop_ink(Color ink, Color fallback)
+{
+    return color_luma(ink) - color_luma(BACKDROP) >= TEXT_MIN_LUMA_DELTA ? ink : fallback;
+}
+
 static void draw_text(const CoverFlowScreen *flow, Canvas *canvas)
 {
     const Theme *theme = flow->config.theme;
     const CoverFlowTextLayout *layout = board_cover_flow_text_layout(theme);
     int padding = theme->metrics.padding;
     int width = theme->metrics.screen_width - 2 * padding;
-    Color ink = theme->colors.header_text;
+    Color ink = backdrop_ink(theme->colors.header_text, COLOR_RGB(255, 255, 255));
+    Color detail_ink = backdrop_ink(color_blend(BACKDROP, ink, DETAIL_ALPHA), ink);
     TextStyle title = {.font = theme->fonts.title, .color = ink};
-    TextStyle artist = {.font = theme->fonts.body,
-                        .color = color_blend(BACKDROP, ink, DETAIL_ALPHA)};
+    TextStyle artist = {.font = theme->fonts.body, .color = detail_ink};
     Rect title_area = {padding, layout->title_top, width, layout->line_height};
     Rect artist_area = {padding, layout->artist_top, width, layout->line_height};
     draw_line(flow, canvas, (Label){title_area, flow->title}, title);

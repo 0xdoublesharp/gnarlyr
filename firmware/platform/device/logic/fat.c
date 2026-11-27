@@ -16,10 +16,10 @@ void fat_collect_long_name(FatVolume *volume, LongName *name, const uint8_t *ent
 {
     uint8_t ordinal = entry[0] & LONG_NAME_ORDINAL_MASK;
     if ((entry[0] & LONG_NAME_LAST) != 0) {
-        *name = (LongName){ordinal >= 1 && ordinal <= LONG_NAME_MAX_ENTRIES,
-                           entry[LONG_NAME_CHECKSUM], ordinal, ordinal, position};
+        *name = (LongName){true, entry[LONG_NAME_CHECKSUM], ordinal, ordinal, position};
     }
-    if (!name->valid || ordinal != name->expected || entry[LONG_NAME_CHECKSUM] != name->checksum) {
+    if (ordinal < 1 || ordinal > LONG_NAME_MAX_ENTRIES || !name->valid ||
+        ordinal != name->expected || entry[LONG_NAME_CHECKSUM] != name->checksum) {
         name->valid = false;
         return;
     }

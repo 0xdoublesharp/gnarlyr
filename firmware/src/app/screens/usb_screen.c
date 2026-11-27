@@ -296,14 +296,6 @@ static bool linked(const UsbPainter *painter)
     return painter->status.view == APP_USB_STORAGE && usb_screen_shows_traffic(scene);
 }
 
-static int color_luma(Color color)
-{
-    int red = (color >> 11) * 255 / 31;
-    int green = (color >> 5 & 63) * 255 / 63;
-    int blue = (color & 31) * 255 / 31;
-    return (54 * red + 183 * green + 19 * blue) >> 8;
-}
-
 static Color warning_ink(const ThemeColors *colors)
 {
     int gap = color_luma(colors->danger) - color_luma(colors->header_background);

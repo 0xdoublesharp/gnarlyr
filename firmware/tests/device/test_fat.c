@@ -6,6 +6,7 @@
 #include "check.h"
 #include "core/bytes.h"
 #include "device/fat.h"
+#include "fat_entry.h"
 #include "fat_layout.h"
 #include "sparse_card.h"
 
@@ -113,6 +114,27 @@ static void fat32_files_read_back_their_bytes(void)
     check_file(card, LONG_NAME_PATH, 5, 20000);
     check_file(card, EMOJI_PATH, 6, 1500);
     sparse_card_free(&card->sparse);
+}
+
+static void a_zero_ordinal_after_a_complete_long_name_preserves_the_volume(void)
+{
+    FatVolume volume = {0};
+    LongName name = {0};
+    uint8_t entry[ENTRY_SIZE] = {[0] = LONG_NAME_LAST | 1,
+                                 [1] = 'A',
+                                 [ATTRIBUTES] = ATTRIBUTE_LONG_NAME,
+                                 [LONG_NAME_CHECKSUM] = 91};
+    memset(volume.fat_sector, 0xA5, sizeof volume.fat_sector);
+    fat_collect_long_name(&volume, &name, entry, 0);
+    CHECK(name.valid);
+    CHECK_EQUAL(0, name.expected);
+    CHECK_EQUAL('A', volume.long_name[0]);
+    FatVolume before;
+    memcpy(&before, &volume, sizeof before);
+    entry[0] = 0x20;
+    fat_collect_long_name(&volume, &name, entry, 1);
+    CHECK(memcmp(&before, &volume, sizeof volume) == 0);
+    CHECK(!name.valid);
 }
 
 static void a_folder_spanning_many_clusters_is_searched_to_its_end(void)
@@ -1054,6 +1076,7 @@ int main(void)
         TEST_CASE(a_folder_opened_from_its_listing_lists_what_its_path_lists),
         TEST_CASE(a_lent_window_keeps_the_parent_folder_cached_while_children_are_listed),
         TEST_CASE(fat32_files_read_back_their_bytes),
+        TEST_CASE(a_zero_ordinal_after_a_complete_long_name_preserves_the_volume),
         TEST_CASE(a_folder_spanning_many_clusters_is_searched_to_its_end),
         TEST_CASE(reads_at_offsets_cross_sector_and_cluster_boundaries),
         TEST_CASE(reads_past_the_end_fail),
