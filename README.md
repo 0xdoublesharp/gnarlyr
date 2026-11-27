@@ -3,8 +3,11 @@
 <p align="center"><strong>Your music. Your player.</strong><br>Open firmware for the full-size SNOWSKY (FiiO) ECHO.</p>
 <p align="center">
   <a href="https://github.com/0xdoublesharp/gnarlyr/actions/workflows/ci.yml"><img src="https://github.com/0xdoublesharp/gnarlyr/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="https://github.com/0xdoublesharp/gnarlyr/releases"><img src="https://img.shields.io/github/v/release/0xdoublesharp/gnarlyr?include_prereleases&amp;label=release&amp;color=65d6b4" alt="Latest release"></a>
+  <a href="https://github.com/0xdoublesharp/gnarlyr/releases"><img src="https://img.shields.io/github/downloads/0xdoublesharp/gnarlyr/total?color=7c6af7" alt="Total downloads"></a>
   <a href="firmware/LICENSE"><img src="https://img.shields.io/badge/firmware-GPL--3.0--or--later-blue" alt="Firmware: GPL-3.0-or-later"></a>
   <a href="https://gnarlyr.com"><img src="https://img.shields.io/badge/website-gnarlyr.com-65d6b4" alt="Gnarlyr.com"></a>
+  <a href="https://gnarlyr.com/studio.html"><img src="https://img.shields.io/badge/Theme%20Studio-open-7c6af7" alt="Theme Studio"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/contributions-welcome-65d6b4" alt="Contributions welcome"></a>
 </p>
 <p align="center"><a href="https://gnarlyr.com">Website</a> · <a href="https://gnarlyr.com/docs.html">Player guide</a> · <a href="https://github.com/0xdoublesharp/gnarlyr/releases">Downloads</a> · <a href="CONTRIBUTING.md">Contribute</a> · <a href="#support-gnarlyr">Support</a></p>
@@ -22,38 +25,29 @@ Gnarlyr adds Cover Flow, an editable play queue, mixtapes, language packs, and s
 
 ## What you can do
 
-- Browse by album cover, artist, album artist, genre, folder, playlist, or favorite. Play individual CUE tracks and audiobook chapters.
+- Browse by album cover, artist, album artist, genre, folder, playlist, or favorite. Play individual CUE tracks.
 - Reorder Up Next, save mixtapes, shuffle by song or album, and resume where you left off.
+- Keep your place in podcasts and audiobooks, jump between audiobook chapters, and use spoken-word playback controls.
 - Tune the sound with graphic or parametric EQ, ReplayGain, clipping prevention, and headphone profiles.
 - Change the text size, screen orientation, theme, buttons, and language.
+- Build, preview, and share custom theme packs in [Theme Studio](https://gnarlyr.com/studio.html).
 - Pair Bluetooth headphones, copy music over USB, or use the player as a USB DAC.
 
 See the [feature guide](https://gnarlyr.com/firmware.html) for details and [known issues](firmware/docs/known-issues.md) for device validation and remaining limitations.
 
 ## Get Gnarlyr
 
-**Gnarlyr `1.0.0-beta.1`** public beta builds are available on [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases).
-See the [changelog](CHANGELOG.md) for firmware release history and upcoming changes.
+Find Gnarlyr Companion and firmware on [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases). See the [changelog](CHANGELOG.md) for firmware release history and upcoming changes.
 
-### Gnarlyr Companion `1.0.0-beta.1` (Desktop App)
+### Gnarlyr Companion
 
-Install or update firmware, copy music, build mixtapes, preview themes, and install official language packs in one click ([Companion guide](https://gnarlyr.com/companion.html)):
+Open the latest `desktop-v*` release and choose the installer for macOS (Apple Silicon), Windows (x64), or Linux (x86_64). Verify the download against `SHA256SUMS` in the same release. Use [Gnarlyr Companion](https://gnarlyr.com/companion.html) to install or update firmware, copy music, build mixtapes, preview themes, and install official language packs.
 
-- **macOS (Apple Silicon):** [`gnarlyr-desktop-macos-arm64.dmg`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-macos-arm64.dmg) · [`gnarlyr-desktop-macos-arm64.zip`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-macos-arm64.zip)
-- **Windows (x64):** [`gnarlyr-desktop-windows-x64.exe`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-windows-x64.exe)
-- **Linux (x86_64):** [`gnarlyr-desktop-linux-x86_64.AppImage`](https://github.com/0xdoublesharp/gnarlyr/releases/download/desktop-v1.0.0-beta.1/gnarlyr-desktop-linux-x86_64.AppImage)
-- **Release notes & `SHA256SUMS`:** [`desktop-v1.0.0-beta.1`](https://github.com/0xdoublesharp/gnarlyr/releases/tag/desktop-v1.0.0-beta.1)
+### Gnarlyr firmware
 
-### Gnarlyr Firmware `v1.0.0-beta.1`
+Open the latest `v*` firmware release. Use `ECHOECHO.img` for a first install from FiiO firmware or `GNARLYR.IMG` to update Gnarlyr. Find the six official language packs (`de`, `es`, `fr`, `ja`, `pt`, and `zh`), `.gtheme` packs, matching source, and `SHA256SUMS` in the release assets. Verify your downloads and follow the [installation guide](https://gnarlyr.com/install.html).
 
-Download the firmware directly for a manual USB install ([installation guide](https://gnarlyr.com/install.html)):
-
-- **First install from FiiO firmware:** [`ECHOECHO.img`](https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/ECHOECHO.img)
-- **Update existing Gnarlyr:** [`GNARLYR.IMG`](https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/GNARLYR.IMG)
-- **Checksums:** [`SHA256SUMS`](https://github.com/0xdoublesharp/gnarlyr/releases/download/v1.0.0-beta.1/SHA256SUMS)
-- **Release notes & 6 official language packs (`de`, `es`, `fr`, `ja`, `pt`, `zh`):** [`v1.0.0-beta.1`](https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.1)
-
-Gnarlyr supports the full-size ECHO with a 480 × 222 display. Firmware releases include checksums and matching source. See the [download reference](docs/downloads.md) for asset names and URLs, and prepare the [recovery procedure for this model](firmware/docs/device-recovery.md) before a first install.
+Gnarlyr supports the full-size ECHO with a 480 × 222 display. See the [download reference](docs/downloads.md) for asset details, and prepare the [recovery procedure for this model](firmware/docs/device-recovery.md) before a first install.
 
 ## Repository map
 
