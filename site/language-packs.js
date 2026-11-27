@@ -267,14 +267,14 @@
   const error = byId("language-error");
   const ready = byId("pack-ready");
   const download = byId("download-pack");
-  // SHA256SUMS from the v1.0.0-beta.1 release linked on the page.
+  // SHA256SUMS from the v1.0.0-beta.2 release linked on the page.
   const officialPacks = new Map([
-    ["de", "48351dc9ef9fdb9ca074a33b8ffef0543b78656b54273c8d5fd3fea1adb19f7e"],
-    ["es", "7246d73688bb75ec31da5b2c9bd1d6ee2816e0c093c051426a95003aaba57661"],
-    ["fr", "90625daadb18a358cdbdb7d94a9886f64bca5967069a86ccfc49f8e018d6992c"],
-    ["ja", "764ad4d08b3396669785d44c480c4a43dadf9f6668f6099ceb913ccc3799af96"],
-    ["pt", "b0a6be21c9921464431da6b6b8852b6599ba524db91fdbc7485b2dda0af5b7cd"],
-    ["zh", "d8d7ddbae1bb1f4fc0fc1e0a6771cf138f21451ba93484eecb0bd345edd2c67e"],
+    ["de", "f70aab848b894cb886747b317dedcb27d79000b4515ade1b68341d6d6690e249"],
+    ["es", "10596e03145a575910d120ddd8c8c7a78ea64d23501c78f3eddd5193ed5974f3"],
+    ["fr", "be7c24e8cfa64480d12b1fca250b4447a989389accd899530dc21d20e0a813cf"],
+    ["ja", "051cce29d4b5b6d177b7ad9c7d6831b7e1d8700897ae0a51ba7ca9738c201021"],
+    ["pt", "d31e0cadf632cf907e109d3a943f698215c38cfbd89a21226659c19887ca5156"],
+    ["zh", "f56e301b90f3ec3014ed2e6d6825ade1f9181fdd4417d2ec7c3039c1783a206e"],
   ]);
   let pending = null;
   let imported = null;

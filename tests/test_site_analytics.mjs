@@ -372,7 +372,7 @@ test('the language builder reports downloaded packs and verified official import
   await new Promise((resolve) => setImmediate(resolve));
   expectEvents(session, [downloadEvent], '/languages.html');
 
-  digest = Buffer.from('7246d73688bb75ec31da5b2c9bd1d6ee2816e0c093c051426a95003aaba57661', 'hex');
+  digest = Buffer.from('10596e03145a575910d120ddd8c8c7a78ea64d23501c78f3eddd5193ed5974f3', 'hex');
   await fields.get('pack-file').emit('change', { target: { files: [file] } });
   fields.get('edit-pack').emit('click');
   await new Promise((resolve) => setImmediate(resolve));

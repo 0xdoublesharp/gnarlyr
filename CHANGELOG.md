@@ -2,7 +2,7 @@
 
 Changes to Gnarlyr firmware for the full-size SNOWSKY ECHO, its website, and its tools. Release dates use GitHub’s UTC publication dates.
 
-## [1.0.0-beta.2] - Unreleased
+## [1.0.0-beta.2] - 2026-11-27
 
 ### Added
 
@@ -62,7 +62,7 @@ Alpha for end-to-end Companion testing. See the [alpha.2 release notes].
 
 - Published the first alpha for testing Companion’s first-install and update workflows on the full-size ECHO. The release included both firmware images, matching source, and checksums.
 
-[1.0.0-beta.2]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.1...main
+[1.0.0-beta.2]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.1...v1.0.0-beta.2
 [1.0.0-beta.1]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-alpha.2...v1.0.0-beta.1
 [1.0.0-alpha.2]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-alpha.1...v1.0.0-alpha.2
 [1.0.0-alpha.1]: https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-alpha.1
