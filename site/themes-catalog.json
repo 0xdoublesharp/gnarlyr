@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "creators": [
+    {
+      "handle": "doublesharp",
+      "name": "Doublesharp originals",
+      "url": "https://doublesharp.com"
+    }
+  ],
+  "themes": [
+    {
+      "id": "vice-86",
+      "uuid": "a9901179-8a1b-4b2a-8203-32be059233f1",
+      "name": "Vice 86",
+      "version": "1.0.0",
+      "tagline": "Neon palms, striped sunset, and turquoise highlights.",
+      "creator": "doublesharp",
+      "licence": "CC0-1.0",
+      "swatches": [
+        "#100819",
+        "#211031",
+        "#4a2042",
+        "#73f3ef",
+        "#ff5dad"
+      ],
+      "previewUrl": "assets/screens/theme-vice-86.png",
+      "downloadUrl": "themes/packs/vice-86.gtheme",
+      "sha256": "b91690fc419a158d0da86ee67c709d589f09aefa7aecab11a99e58ad8cf48220",
+      "remixedFrom": null,
+      "counts": {
+        "downloads": null,
+        "remixes": null
+      },
+      "source": "studio/examples/vice-86/theme.json"
+    },
+    {
+      "id": "pocket-scope",
+      "uuid": "c579606c-e2cc-45f6-87a8-3551008c47e2",
+      "name": "Pocket Scope",
+      "version": "1.0.0",
+      "tagline": "Dark phosphor instrument panel with green and gold accents.",
+      "creator": "doublesharp",
+      "licence": "CC0-1.0",
+      "swatches": [
+        "#101810",
+        "#294531",
+        "#294531",
+        "#94e75a",
+        "#efc66b"
+      ],
+      "previewUrl": "assets/screens/theme-pocket-scope.png",
+      "downloadUrl": "themes/packs/pocket-scope.gtheme",
+      "sha256": "f8d1fb6e1a86c2bb0eda198945855cc00ef0ce0bcc2717628db37c81fc346f38",
+      "remixedFrom": null,
+      "counts": {
+        "downloads": null,
+        "remixes": null
+      },
+      "source": "studio/examples/pocket-scope/theme.json"
+    },
+    {
+      "id": "desktop-98",
+      "uuid": "da4a2305-c94c-4e3e-a670-c54c82c06392",
+      "name": "Desktop 98",
+      "version": "1.0.0",
+      "tagline": "Warm grey surfaces, navy title bars, and beveled pixel chrome.",
+      "creator": "doublesharp",
+      "licence": "CC0-1.0",
+      "swatches": [
+        "#d6d7ce",
+        "#193973",
+        "#193973",
+        "#103d73",
+        "#eff3ff"
+      ],
+      "previewUrl": "assets/screens/theme-desktop-98.png",
+      "downloadUrl": "themes/packs/desktop-98.gtheme",
+      "sha256": "e8208e88c47a12cb04b503ac134f032f7d84a6e1e9ffd64db8b9cafb943bbc00",
+      "remixedFrom": null,
+      "counts": {
+        "downloads": null,
+        "remixes": null
+      },
+      "source": "studio/examples/desktop-98/theme.json"
+    }
+  ],
+  "collectors": {
+    "pass-the-tape": {
+      "name": "Pass the Tape",
+      "palette": "v2.1863.ff9a.f58a.3e55"
+    },
+    "theme-maker": {
+      "name": "Theme Maker",
+      "palette": "v2.10a5.ef7f.65ff.b9df"
+    },
+    "default": {
+      "name": "Collector’s Tape",
+      "palette": "v2.21a4.ffbb.fe05.8791"
+    }
+  }
+}
