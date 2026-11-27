@@ -239,3 +239,35 @@ test('renderer clips artwork to the native regions and measures contrast against
     assert.equal(a.pixels.length, 480 * 222);
   }
 });
+
+test('Cassette keeps the right-aligned label clear of track metadata', async () => {
+  const { renderEcho } = await import(new URL('echo-renderer.js', studio));
+  const { textRun } = await import(new URL('echo-font.js', studio));
+  assert.equal(textRun('Late Night Signals', { x: 0, y: 0, width: 90, height: 28 }, 22, true, 'left', true).text, 'Late N…');
+  const art = asset('cassette_label', 160, 48, { orientation: 'any' });
+  art.pixels.fill(0xffff);
+  const base = { ...theme, assets: [art] };
+  for (const orientation of ['landscape', 'portrait']) {
+    for (const textSize of ['small', 'medium', 'large']) {
+      const frame = renderEcho(base, { screen: 'now_playing', mode: 'cassette', orientation, textSize,
+        artist: 'The Night Drive Tour Ensemble' });
+      const x = frame.width - 12 - 10 - art.width;
+      const firstPixel = frame.pixels.indexOf(0xffff);
+      assert.ok(firstPixel >= 0);
+      const y = Math.floor(firstPixel / frame.width);
+      if (orientation === 'landscape') assert.equal(y, 64);
+      for (let row = y; row < y + art.height; row++) {
+        assert.ok(frame.pixels.subarray(row * frame.width + x, row * frame.width + x + art.width)
+          .every((pixel) => pixel === 0xffff), `${orientation}, ${textSize}: label artwork is unobstructed`);
+      }
+      const [title, artist, album] = frame.labels.filter(({ value }) =>
+        ['Late Night Signals', 'The Night Drive Tour Ensemble', 'After Hours'].includes(value));
+      assert.ok(title && artist);
+      if (orientation === 'portrait' || textSize !== 'large') assert.ok(album);
+      for (const label of [title, artist, album].filter(Boolean)) {
+        assert.ok(label.x + label.width <= x || label.y + label.height <= y,
+          `${orientation}, ${textSize}: ${label.value} is clear of the artwork`);
+      }
+    }
+  }
+});

@@ -94,11 +94,11 @@ class Surface {
     }
   }
 
-  label(value, x, y, width, height, role, size, { bold = false, align = 'left', under = 'background' } = {}) {
+  label(value, x, y, width, height, role, size, { bold = false, align = 'left', under = 'background', ellipsize = false } = {}) {
     if (!value || width < 1 || height < 1) return;
     const ink = this.palette[roleIndex[role]];
     const bounds = { x, y, width, height };
-    const run = textRun(value, bounds, size, bold, align);
+    const run = textRun(value, bounds, size, bold, align, ellipsize);
     let contrast = Infinity;
     let low = 0;
     const a = luminance(ink) + 3251;
@@ -114,7 +114,7 @@ class Surface {
       }
     }
     this.labels.push({ ...bounds, x: run.pen, width: run.width, value, role, under, contrast, low });
-    drawText(this, value, bounds, ink, run);
+    drawText(this, bounds, ink, run);
   }
 
   image(asset, x, y, width, height, screenCoordinates = false, role = none) {
@@ -377,8 +377,18 @@ function reelPoint(x, y, phase, radius) {
 }
 
 function cassette(surface, art, portrait, options, get, style, title, size) {
-  const { x, y, width: w, height: h } = art;
+  const { x, y, width: w } = art;
   const p = surface.palette;
+  const label = get('cassette_label');
+  const labelWidth = 160;
+  const labelHeight = 48;
+  const line = size + descents[size];
+  const albumHeight = 18;
+  const metadataTop = y + 6;
+  const reelOffset = portrait ? Math.floor(art.height * 4 / 7) : art.height - 46;
+  // Portrait has room below the shell, but too little width for text beside the label.
+  const extraHeight = portrait && label ? Math.max(0, 6 + line * 2 + albumHeight + labelHeight + 6 - reelOffset) : 0;
+  const h = art.height + extraHeight;
   for (let row = 0; row < h; row++) {
     surface.fill(x, y + row, w, 1, interpolate(p[18], p[19], row, h), roleIndex.backdrop_top);
   }
@@ -386,19 +396,25 @@ function cassette(surface, art, portrait, options, get, style, title, size) {
   const reelSize = portrait ? 48 : 38;
   const reelX = x + (w >> 1);
   const gap = portrait ? 14 : 50;
-  const reelTop = y + (portrait ? Math.floor(h * 4 / 7) : h - 46);
+  const reelTop = y + reelOffset + extraHeight;
   surface.role(x + 4, y + 4, w - 8, reelTop - y - 8, 'backdrop_top');
   surface.role(reelX - gap - reelSize - 6, reelTop - 2, gap * 2 + reelSize * 2 + 12, reelSize + 4, 'backdrop_top');
   surface.frame(reelX - gap - reelSize - 6, reelTop - 2, gap * 2 + reelSize * 2 + 12, reelSize + 4, p[16]);
   surface.line(x + 10, reelTop - 4, x + w - 10, reelTop - 4, p[16]);
-  const label = get('cassette_label');
-  if (label) surface.image(label, x + ((w - 160) >> 1), y + 8, 160, 48, false, roleIndex.backdrop_top);
-  else {
-    const line = size + descents[size];
-    const bold = { bold: true, under: 'backdrop_top', align: style.align ? 'center' : 'left' };
-    surface.label(title, x + 18, y + 6, w - 36, line, 'text', size, bold);
-    surface.label(options.artist || 'The Night Drive', x + 18, y + 6 + line, w - 36, Math.min(line, reelTop - y - 12 - line), 'accent', size, { ...bold, bold: false });
-    if (portrait) surface.label('After Hours', x + 18, y + 6 + line * 2, w - 36, 20, 'text_secondary', 16, { under: 'backdrop_top' });
+  const labelBottom = reelTop - 4;
+  const labelX = x + w - 10 - labelWidth;
+  if (label && labelBottom >= metadataTop + labelHeight) {
+    surface.image(label, labelX, labelBottom - 2 - labelHeight, labelWidth, labelHeight, false, roleIndex.backdrop_top);
+  }
+  const metadata = { under: 'backdrop_top', align: style.align ? 'center' : 'left', ellipsize: true };
+  const metadataX = x + 18;
+  const metadataWidth = portrait || !label ? w - 36 : labelX - metadataX - 8;
+  surface.label(title, metadataX, metadataTop, metadataWidth, line, 'text', size, { ...metadata, bold: true });
+  if (metadataTop + line * 2 <= labelBottom) {
+    surface.label(options.artist || 'The Night Drive', metadataX, metadataTop + line, metadataWidth, line, 'accent', size, metadata);
+  }
+  if (metadataTop + line * 2 + albumHeight <= labelBottom) {
+    surface.label('After Hours', metadataX, metadataTop + line * 2, metadataWidth, albumHeight, 'text_secondary', 16, metadata);
   }
   for (const [index, cx] of [reelX - gap - reelSize / 2, reelX + gap + reelSize / 2].entries()) {
     const cy = reelTop + (reelSize >> 1);
@@ -415,6 +431,7 @@ function cassette(surface, art, portrait, options, get, style, title, size) {
     for (let spoke = 0; spoke < 3; spoke++) surface.line(cx, cy, ...reelPoint(cx, cy, phase + Math.floor(spoke * 16 / 3), max - 5), p[16]);
     surface.disc(cx, cy, 2, p[1]);
   }
+  return extraHeight;
 }
 
 function playingFrame(width, height, portrait, staged, large) {
@@ -444,7 +461,7 @@ function drawPlaying(surface, theme, get, options, size, portrait) {
   surface.image(get('now_playing'), 0, 30, w, h - 30, true, roleIndex.background);
   const { art, column, bar, time } = playingFrame(w, h, portrait, mode !== 'cover', size === 26);
   if (mode === 'cassette') {
-    cassette(surface, portrait ? art : { x: 12, y: 34, width: w - 24, height: 130 }, portrait, options, get, style, title, size);
+    column.y += cassette(surface, portrait ? art : { x: 12, y: 34, width: w - 24, height: 130 }, portrait, options, get, style, title, size);
   } else if (mode === 'cover') {
     cover(surface, theme, art.x, art.y, art.height, options.missingCover);
   } else {

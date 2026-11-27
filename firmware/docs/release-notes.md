@@ -1,6 +1,14 @@
 # Gnarlyr release notes
 
-Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. The `1.0.0-beta.1` notes are prepared for the first public beta. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
+Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
+
+## 1.0.0-beta.2 (public beta)
+
+- **Battery time left.** In Settings → Display & text → Status bar, set Battery readout to Time left. Settings → Power & battery → Battery time shows the estimate and lets you reset what the player has learned.
+- **Theme Studio.** Build, preview, and download `.gtheme` packs in your browser. Packs can add a 160 × 48 Cassette label and customize the stage in VU meters and Spectrum. Vice 86 v1.0.1 includes both. [Open Theme Studio](https://gnarlyr.com/studio.html).
+- **Language packs.** Use the six official packs attached to this release with beta.2. English is built in.
+
+Check the image against `SHA256SUMS` and follow the [ECHO installation guide](https://gnarlyr.com/install.html). Player checks are pending for the battery estimate, cassette artwork, and stage settings.
 
 ## 1.0.0-beta.1 (public beta)
 

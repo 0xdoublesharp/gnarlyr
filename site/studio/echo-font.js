@@ -48,22 +48,36 @@ export function loadTextSize(size) {
     loadFace(22, true), ...(size === 26 ? [loadFace(22, false)] : [])]);
 }
 
-export function textRun(value, area, size, bold, align) {
+export function textRun(value, area, size, bold, align, ellipsize = false) {
   const glyphs = faces.get(size + '/' + Number(bold));
   const advance = Math.floor(size * 0.55);
   const glyphFor = (letter) => glyphs?.get(letter.codePointAt(0)) ?? glyphs?.get(63);
-  const measure = (text) => [...text].reduce((width, letter) => width + (glyphFor(letter)?.advance ?? advance), 0);
+  const advanceOf = (letter) => glyphFor(letter)?.advance ?? advance;
+  let text = value;
+  let width = [...text].reduce((sum, letter) => sum + advanceOf(letter), 0);
+  if (ellipsize && width > area.width) {
+    const ellipsis = '…';
+    text = '';
+    width = advanceOf(ellipsis);
+    for (const letter of value) {
+      const step = advanceOf(letter);
+      if (width + step > area.width) break;
+      text += letter;
+      width += step;
+    }
+    text = text.trimEnd() + ellipsis;
+    width = [...text].reduce((sum, letter) => sum + advanceOf(letter), 0);
+  }
   const baseline = area.y + Math.trunc((area.height - size - descents[size]) / 2) + size;
-  const width = measure(value);
   const pen = area.x + (align === 'center' ? Math.max(0, (area.width - width) >> 1) :
     align === 'right' ? Math.max(0, area.width - width) : 0);
-  return { pen, width: Math.min(width, area.width), baseline, advance, glyphFor };
+  return { text, pen, width: Math.min(width, area.width), baseline, advance, glyphFor };
 }
 
-export function drawText(surface, value, area, ink, run) {
-  const { baseline, advance, glyphFor } = run;
+export function drawText(surface, area, ink, run) {
+  const { text, baseline, advance, glyphFor } = run;
   let pen = run.pen;
-  for (const letter of value) {
+  for (const letter of text) {
     if (pen >= area.x + area.width) break;
     const glyph = glyphFor(letter);
     if (!glyph) {
