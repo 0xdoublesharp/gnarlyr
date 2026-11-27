@@ -256,3 +256,20 @@ A Studio share link uses `#p=<token>`. The Companion handoff URI uses `gnarlyr:/
 3. To decode, reverse step 2 with division and remainder. The remaining integer must be in 0–19.
 
 Links carry colors and styling. Artwork, icons and metadata such as author and licence travel with the pack. An optional `ref` URL parameter credits the creator for the current site visit.
+
+## Studio browser tests
+
+With the Companion development dependencies available in an adjacent checkout,
+install Chromium with `pnpm exec playwright install chromium` from that
+checkout. Run the browser suite from this repository with:
+
+```sh
+THEME_STUDIO_PYTHON=/path/to/python node tools/test_studio_e2e.mjs
+```
+
+Use Python with Pillow installed. Set `STUDIO_COMPANION_DIR` if Companion is
+checked out elsewhere. The suite serves the site and the firmware bitmap
+fonts over loopback, runs Chromium headlessly, and removes its disposable
+downloads when it exits. On macOS it uses `/Volumes/Scratch/SnowskyEcho/tmp`.
+It checks the live canvas and audio controls, share links, all three export
+formats, and the draft Gallery issue without contacting GitHub.
