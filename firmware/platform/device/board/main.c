@@ -443,13 +443,13 @@ __attribute__((optimize("no-reorder-blocks"))) void board_main(void)
     if (hal_system_extension_code() == NULL) {
         board_trial_fail();
     }
+    board_wall_time_start();
     debug_loop_boot(DEBUG_BOOT_EXTENSION);
     board_wall_time_forget_file();
     board_core1_park();
     cru_stop_unused_clocks();
     board_debug_after_start();
     board_stall_pause(false);
-    board_wall_time_start();
     uint32_t card_generation = sd_generation();
     for (;;) {
         board_stall_beat();
