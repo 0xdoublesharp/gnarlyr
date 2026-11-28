@@ -50,6 +50,8 @@ class PackageTests(unittest.TestCase):
         self.dist = self.base / "dist"
         self.languages = self.base / "lang"
         self.languages.mkdir()
+        catalogue = release.ROOT / "firmware/assets/lang/en.txt"
+        (self.languages / "en.txt").write_bytes(catalogue.read_bytes())
         self.source = self.base / "source.tar.gz"
         self.source.write_bytes(b"source")
         self.tag = f"v{VERSION}-beta.1"
@@ -67,8 +69,6 @@ class PackageTests(unittest.TestCase):
         return release.verify(self.dist, tag or self.tag, COMMIT, languages_dir=self.languages)
 
     def add_translations(self):
-        catalogue = release.ROOT / "firmware/assets/lang/en.txt"
-        (self.languages / "en.txt").write_bytes(catalogue.read_bytes())
         (self.languages / "qps.txt").write_text("This test file must never be parsed.")
         for code, name in (("ko", "한국어"), ("de", "Deutsch")):
             (self.languages / f"{code}.txt").write_text(f"STR_LANGUAGE_NAME = {name}\n", encoding="utf-8")
@@ -86,7 +86,8 @@ class PackageTests(unittest.TestCase):
                          (VERSION, VERSION + "-beta.1", "beta.1", "device"))
         self.assertEqual(self.dist.joinpath(STOCK).read_bytes(), self.dist.joinpath(release.IMAGE).read_bytes())
         sums = [line.split("  ")[1] for line in self.dist.joinpath(release.SUMS).read_text().splitlines()]
-        self.assertEqual(sums, [release.IMAGE, STOCK, release.source_name(), release.MANIFEST])
+        self.assertEqual(sums, [release.IMAGE, STOCK, release.source_name(), release.ENGLISH_PACK,
+                                release.LANGUAGE_CATALOG, release.MANIFEST])
         self.assertEqual(manifest["language_packs"], [])
         self.assertEqual(self.verify()["commit"], COMMIT)
 
@@ -118,6 +119,16 @@ class PackageTests(unittest.TestCase):
         self.assertEqual(manifest["language_packs"], expected)
         self.assertEqual(list(manifest["files"])[-2:], ["de.pack", "ko.pack"])
         self.assertEqual(self.verify(), manifest)
+
+    def test_the_english_pack_matches_the_exported_catalogue(self):
+        self.package()
+        catalogue = json.loads((self.dist / release.LANGUAGE_CATALOG).read_text())
+        tools = pack_tools(release.ROOT)
+        english = tools.pack_info((self.dist / release.ENGLISH_PACK).read_bytes())
+        self.assertEqual(english["code"], "en")
+        self.assertEqual(english["catalogue_hash"], catalogue["catalogue_hash"])
+        self.assertFalse(english["needs_extra_font"])
+        self.assertTrue(catalogue["extra_glyph_ranges"])
 
     def test_a_changed_pack_fails_verification(self):
         self.add_translations()

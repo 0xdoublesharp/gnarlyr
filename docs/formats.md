@@ -58,6 +58,8 @@ A file is refused when it is shorter than 78 bytes, has another magic or version
 
 ## Language packs: `/.gnarlyr/lang/<code>.pack` and the image
 
+External packs live in `/.gnarlyr/lang/` on the player's internal drive.
+
 | Bytes | Field |
 |---|---|
 | 0–3 | magic `DSLP` |
@@ -73,6 +75,33 @@ A file is refused when it is shorter than 78 bytes, has another magic or version
 | 60… | one 16-byte row per segment: module (u16, the first is 0, the resident text), string count (u16), offset (u32), size (u32), FNV-1a of the segment (u32) |
 
 Segments follow the index in order and end at the end of the file. A segment is a table of u16 offsets, one per string, followed by its NUL-terminated UTF-8 strings. The resident segment, aligned to 4 bytes, plus the largest module segment must fit 18,432 bytes. Every placeholder `{n}` of the English text must be kept. Every character must be drawn by the image's fonts or lie in the coverage of `firmware/assets/fonts/recipe.json`, and the flag must match the text. The image stores its built-in packs behind a `DSLT` table: a u32 count, then a u32 offset and a u32 length per pack. Design notes: [language-packs.md](language-packs.md) and [architecture.md](../firmware/docs/architecture.md#languages).
+
+## Built-in language descriptor
+
+`/.gnarlyr/languages.bin` lives on the player's internal drive. Firmware writes it
+from the running image during continuity settlement when the file is missing
+or belongs to another build. The file uses little-endian integers.
+
+| Bytes | Field |
+|---|---|
+| 0–3 | Magic `DSLI` |
+| 4–5 | Format version, u16, 1 |
+| 6–7 | Language picker capacity, u16, 16 |
+| 8–11 | Maximum pack file size, u32, 65,535 bytes |
+| 12–15 | Maximum loaded pack memory, u32, 18,432 bytes |
+| 16–31 | Running build from `hal_system_version()`, ASCII, padded with zeros if shorter than 16 bytes |
+| 32–35 | Built-in pack count, u32 |
+| 36–39 | Total descriptor size, u32, in bytes |
+| 40–43 | FNV-1a checksum of bytes 0–39, continued over bytes 44 through the end of the file |
+| 44–47 | Table magic `DSLT` |
+| 48–51 | Table row count, u32, equal to the built-in pack count |
+| 52 onward | One pair of u32 values per pack, giving its file-relative byte offset and byte length |
+
+The table is followed immediately by the verbatim `DSLP` packs, packed
+contiguously in image order. Each offset is relative to byte 0 of the
+descriptor. The release assets `en.pack` and `language-catalog.json` provide
+the English reference pack, string layout, and glyph coverage for offline
+validation.
 
 ## Theme packs: `.gnarlyr/themes/*.gtheme`
 

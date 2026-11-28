@@ -2,6 +2,7 @@
 
 #include "app_screens.h"
 #include "check.h"
+#include "core/drive_path.h"
 #include "default_theme.h"
 #include "fake_hal.h"
 #include "fixture_library.h"
@@ -161,7 +162,7 @@ static void a_module_builds_its_screens_again_when_its_text_comes_from_another_p
 {
     static uint8_t english[TEST_PACK_CAPACITY];
     static uint8_t upper[TEST_PACK_CAPACITY];
-    static const char path[] = "/" FIRMWARE_DATA_DIRECTORY "/lang/up.pack";
+    static const char path[] = DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/lang/up.pack";
     reset();
     i18n_detach();
     uint32_t english_size = test_pack_build(english, (TestPackLanguage){"en", "English", NULL});

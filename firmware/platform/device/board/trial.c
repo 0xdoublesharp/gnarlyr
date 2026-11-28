@@ -240,16 +240,16 @@ CardStartScan card_files_start_scan(bool created, bool available, bool rebuilt)
 bool hal_system_settle_user_state(bool requested)
 {
     UsbShared *shared = usb_session_shared();
-    if (!requested && shared->trial.settle == 0) {
-        return true;
-    }
+    bool needed = requested || shared->trial.settle != 0;
     const TrialBootModuleEntry *entry = boot_module();
     if (entry == NULL) {
-        return false;
+        return !needed;
     }
-    board_audio_shut_down();
-    board_audio_process_forget();
-    return entry->settle(shared);
+    if (needed) {
+        board_audio_shut_down();
+        board_audio_process_forget();
+    }
+    return entry->settle(shared, requested);
 }
 
 void board_trial_report(void)

@@ -109,8 +109,19 @@ static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
     return screen_action_push(screen);
 }
 
+#ifdef ECHO_DEVICE_OVERLAYS
+static void reload(AppScreens *screens)
+{
+    settings_screens_restore_languages(&screens->modules.settings.settings);
+}
+#endif
+
 const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
+#ifdef ECHO_DEVICE_OVERLAYS
+    .module = SCREEN_MODULE_RELOADING_ENTRY(SCREEN_MODULE_SETTINGS, bind, reload),
+#else
     .module = SCREEN_MODULE_ENTRY(SCREEN_MODULE_SETTINGS, bind),
+#endif
     .menu_hold = menu_hold,
     .language_row = language_row,
     .usb_modes = usb_modes,

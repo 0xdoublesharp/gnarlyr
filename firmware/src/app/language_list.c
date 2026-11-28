@@ -42,7 +42,7 @@ int language_list_find(const LanguageList *list, const char *code)
     return -1;
 }
 
-static void list_put(LanguageList *list, const I18nPackInfo *info, bool needs_fonts)
+static void list_put(LanguageList *list, const I18nPackInfo *info, bool needs_fonts, bool from_file)
 {
     int index = language_list_find(list, info->code);
     if (index < 0 && list->count < LANGUAGE_CAPACITY) {
@@ -59,6 +59,7 @@ static void list_put(LanguageList *list, const I18nPackInfo *info, bool needs_fo
     }
     list->options[index] = list->names[index];
     list->needs_extra[index] = needs_fonts;
+    list->from_file[index] = from_file;
 }
 
 static bool extra_font_covers(const char *code)
@@ -164,7 +165,7 @@ static void list_built_in(LanguageList *list, LanguageFontCheck *fonts)
                 !i18n_pack_info(header, sizeof header, &info)) {
                 break;
             }
-            list_put(list, &info, pack_needs_fonts(fonts, &source, &info, header));
+            list_put(list, &info, pack_needs_fonts(fonts, &source, &info, header), false);
         }
     }
 }
@@ -237,7 +238,7 @@ static void list_file(LanguageList *list, const char *name, LanguageFontCheck *f
     }
     uint8_t index[I18N_INDEX_BYTES];
     if (file_sound(source.file, code, &info, index)) {
-        list_put(list, &info, pack_needs_fonts(fonts, &source, &info, index));
+        list_put(list, &info, pack_needs_fonts(fonts, &source, &info, index), true);
     }
     hal_file_close(&source.file);
 }

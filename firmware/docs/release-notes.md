@@ -2,6 +2,12 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
 
+## 1.0.0-beta.4 (public beta)
+
+- Choose from seven built-in languages in **Settings → Language**. Custom packs live in `.gnarlyr/lang` on internal storage, and the picker holds up to 16 languages.
+- Keep backlight brightness steady when switching pages.
+- Restore the clock before playback starts, and date the active listen if the clock becomes available during playback.
+
 ## 1.0.0-beta.3 (public beta)
 
 - **Headset Vol hold.** In **Settings → Buttons → Headset Vol hold**, choose **Repeat volume** to keep adjusting volume while holding Vol+ or Vol− on a supported 3.5 mm inline remote. **Skip tracks** remains the default, and taps still change volume one step. Native input and settings tests cover the change. Physical remote checks are pending.

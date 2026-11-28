@@ -23,8 +23,8 @@ class FakeRecipe:
         self.prepared = []
         self.finished = []
 
-    def Volumes(self, internal, music):
-        return SimpleNamespace(internal=internal, music=music)
+    def Volumes(self, internal, music, languages):
+        return SimpleNamespace(internal=internal, music=music, languages=languages)
 
     def Extras(self, language, packs):
         return SimpleNamespace(language=language, packs=packs)

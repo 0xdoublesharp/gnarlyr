@@ -211,6 +211,23 @@ static void a_language_file_in_the_data_folder_is_offered_and_loads(void)
     CHECK(saved_language_is("qps"));
 }
 
+static void an_incompatible_file_does_not_block_built_in_spanish(void)
+{
+    static uint8_t spanish[TEST_PACK_CAPACITY];
+    static uint8_t stale[TEST_PACK_CAPACITY];
+    start_with(1, false);
+    TestPackLanguage language = {"es", "Spanish", test_pack_upper_case};
+    fake_hal_add_language_pack(0, spanish, test_pack_build(spanish, language));
+    uint32_t size = test_pack_build(stale, language);
+    stale[4]++;
+    test_pack_seal(stale, size);
+    fake_hal_add_language_file("es.pack", stale, size);
+    choose_language(1);
+    CHECK(strcmp("es", i18n_code()) == 0);
+    CHECK(saved_language_is("es"));
+    CHECK(app_toast_text() == NULL);
+}
+
 static void a_language_that_fails_its_checks_keeps_the_loaded_one_and_says_so(void)
 {
     start_with(1, true);
@@ -311,6 +328,7 @@ int main(void)
         TEST_CASE(the_chosen_language_is_saved_and_loaded_at_the_next_start),
         TEST_CASE(choosing_the_loaded_language_again_keeps_it),
         TEST_CASE(a_language_file_in_the_data_folder_is_offered_and_loads),
+        TEST_CASE(an_incompatible_file_does_not_block_built_in_spanish),
         TEST_CASE(a_language_that_fails_its_checks_keeps_the_loaded_one_and_says_so),
         TEST_CASE(a_damaged_file_is_not_offered),
         TEST_CASE(a_saved_language_whose_file_is_gone_starts_in_the_default),

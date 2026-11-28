@@ -247,6 +247,7 @@ src/app/theme_render.c: "/theme.bin"
 # Private state file names and backup paths, never shown on screen.
 src/settings/include/settings/user_state.h: "backup/list.bin"
 src/settings/include/settings/user_state.h: "continuity.bin"
+platform/device/board/language_descriptor.c: "languages.bin"
 src/settings/user_state.c: "backup/1/"
 src/settings/user_state.c: "backup/2/"
 src/settings/user_state.c: "battery_model.bin"

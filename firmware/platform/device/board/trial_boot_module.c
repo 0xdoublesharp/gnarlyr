@@ -122,9 +122,9 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
     shared->trial.settle |= rolled_back ? USB_SETTLE_CHANGED | USB_SETTLE_ROLLED_BACK : 0;
 }
 
-static bool settle(UsbShared *shared)
+static bool settle(UsbShared *shared, bool requested)
 {
-    if (!user_state_module_settle(shared)) {
+    if (!user_state_module_settle(shared, requested)) {
         return false;
     }
     if ((shared->trial.settle & USB_SETTLE_ROLLED_BACK) == 0) {

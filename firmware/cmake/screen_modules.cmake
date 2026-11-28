@@ -65,6 +65,7 @@ set(ECHO_SCREEN_MODULE_SOURCES_trial
     platform/device/board/trial_boot_module.c
     platform/device/board/trial_record.c
     platform/device/board/user_state_module.c
+    platform/device/board/language_descriptor.c
     platform/device/board/user_state_fat.c
     platform/device/logic/fat_delete.c
     platform/device/logic/fat_label.c

@@ -35,7 +35,8 @@
         "CMAKE_C_FLAGS_RELEASE": "-O2",
         "ECHO_BUILD_SIM": "OFF",
         "ECHO_BUILD_TESTS": "OFF",
-        "ECHO_BUILD_DEVICE": "ON"
+        "ECHO_BUILD_DEVICE": "ON",
+        "ECHO_LANGUAGES": "en;de;es;fr;ja;pt;zh"
       }
     },
     {

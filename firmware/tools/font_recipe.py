@@ -3,7 +3,7 @@
 Each face prefers its base Inter font and tries Noto Sans CJK when Inter cannot draw a glyph within the limit.
 The recipe (assets/fonts/recipe.json) pins the Noto fonts, maps languages to a style and
 lists the characters every face can render. The input characters come from the language packs on
-the music volume, the library database and missing.txt; the output is one file on internal
+internal storage, the library database and missing.txt; the output is one file on internal
 storage (docs/architecture.md, Languages).
 """
 import argparse
@@ -74,6 +74,7 @@ class RecipeError(Exception):
 class Volumes:
     internal: Path
     music: Path | None = None
+    languages: Path | None = None
 
     @property
     def library_volume(self):
@@ -257,8 +258,8 @@ def optional_file(path, limit):
         return None
 
 
-def volume_packs(music, skipped):
-    folder = Path(music) / DATA_FOLDER / LANG_FOLDER
+def volume_packs(volume, skipped):
+    folder = Path(volume) / DATA_FOLDER / LANG_FOLDER
     try:
         names = sorted(os.listdir(folder))
     except (FileNotFoundError, NotADirectoryError):
@@ -287,7 +288,7 @@ def saved_language(internal):
 
 def gather(volumes, extras, skipped):
     """The language packs and other texts the player shows, read from the volumes."""
-    packs = volume_packs(volumes.library_volume, skipped)
+    packs = volume_packs(volumes.languages or volumes.internal, skipped)
     for data in extras.packs.values():
         code, texts = pack_strings(data)
         packs[code] = texts

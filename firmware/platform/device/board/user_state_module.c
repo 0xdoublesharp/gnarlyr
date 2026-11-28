@@ -16,7 +16,7 @@
 #define USER_STATE_BUFFER_BASE                                                                     \
     (OVERLAY_WINDOW_BASE + OVERLAY_WINDOW_BYTES - SLOT_COPY_BUFFER_WORDS * 4)
 
-CORE_SEAM bool user_state_module_settle(UsbShared *shared)
+CORE_SEAM bool user_state_module_settle(UsbShared *shared, bool requested)
 {
     bool changed = (shared->trial.settle & USB_SETTLE_CHANGED) != 0;
     FatVolume *internal = internal_volume_mount();
@@ -24,7 +24,14 @@ CORE_SEAM bool user_state_module_settle(UsbShared *shared)
     UserStateDisk disk = {internal, music};
     UserStateIo io = user_state_fat_io(&disk, (uint8_t *)(uintptr_t)USER_STATE_BUFFER_BASE,
                                        SLOT_COPY_BUFFER_WORDS * 4);
-    if (internal == NULL || !user_state_run(&io, hal_system_version(), changed)) {
+    const char *build = hal_system_version();
+    if (internal != NULL) {
+        language_descriptor_refresh(&io, build);
+    }
+    if (!requested && shared->trial.settle == 0) {
+        return true;
+    }
+    if (internal == NULL || !user_state_run(&io, build, changed)) {
         return false;
     }
     shared->trial.settle &= USB_SETTLE_ROLLED_BACK;

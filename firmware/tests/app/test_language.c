@@ -2,17 +2,19 @@
 #include <string.h>
 
 #include "check.h"
+#include "core/drive_path.h"
 #include "core/hash.h"
 #include "fake_hal.h"
 #include "language.h"
 #include "test_pack.h"
 
 enum {
-    PACKS = 10
+    PACKS = 17
 };
 
 static const uint8_t MODULES[STRING_SEGMENT_COUNT] = STRING_SEGMENT_MODULES;
-static const char QPS_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/lang/qps.pack";
+static const char QPS_PATH[] =
+    DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/lang/qps.pack";
 
 static uint8_t packs[PACKS][TEST_PACK_CAPACITY];
 static uint32_t sizes[PACKS];
@@ -391,23 +393,28 @@ static void a_file_with_a_damaged_or_oversized_module_segment_is_not_listed_or_c
     CHECK(language_file_sound("qps"));
 }
 
-static void the_list_holds_at_most_eight_languages(void)
+static void seven_built_in_languages_leave_room_for_nine_external_packs(void)
 {
-    static const char *const CODES[] = {"a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9"};
-    static char names[9][16];
+    static const char *const CODES[] = {"en", "de", "es", "fr", "ja", "pt", "zh", "a1", "a2",
+                                        "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10"};
     LanguageList list;
     start();
-    make(0, "en", "English", NULL);
-    built_in(0, 0);
-    for (int index = 0; index < 9; index++) {
-        make(index + 1, CODES[index], CODES[index], NULL);
-        snprintf(names[index], sizeof names[index], "%s.pack", CODES[index]);
-        fake_hal_add_language_file(names[index], packs[index + 1], sizes[index + 1]);
+    for (int index = 0; index < PACKS; index++) {
+        make(index, CODES[index], CODES[index], NULL);
+        if (index < 7) {
+            built_in(0, index);
+        } else {
+            char name[16];
+            snprintf(name, sizeof name, "%s.pack", CODES[index]);
+            fake_hal_add_language_file(name, packs[index], sizes[index]);
+        }
     }
     language_list(&list);
-    CHECK_EQUAL(LANGUAGE_CAPACITY, list.count);
+    CHECK_EQUAL(16, list.count);
     CHECK(strcmp("en", list.codes[0]) == 0);
-    CHECK(strcmp("a7", list.codes[7]) == 0);
+    CHECK(!list.from_file[6]);
+    CHECK(list.from_file[7]);
+    CHECK(strcmp("a9", list.codes[15]) == 0);
 }
 
 static void with_the_first_copy_unreadable_the_list_comes_from_the_second(void)
@@ -597,7 +604,7 @@ int main(void)
         TEST_CASE(a_file_that_overrides_a_language_of_the_image_is_listed_once_under_its_own_name),
         TEST_CASE(files_that_are_not_packs_of_this_catalogue_are_not_listed),
         TEST_CASE(a_file_with_a_damaged_or_oversized_module_segment_is_not_listed_or_chosen),
-        TEST_CASE(the_list_holds_at_most_eight_languages),
+        TEST_CASE(seven_built_in_languages_leave_room_for_nine_external_packs),
         TEST_CASE(with_the_first_copy_unreadable_the_list_comes_from_the_second),
         TEST_CASE(each_module_shows_its_own_segment_of_the_chosen_language),
         TEST_CASE(switching_modules_reloads_the_right_segment_and_staying_reads_nothing),

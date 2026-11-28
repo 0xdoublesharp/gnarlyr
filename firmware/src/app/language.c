@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/drive_path.h"
 #include "core/string_builder.h"
 #include "hal/system.h"
 #include "language_source.h"
@@ -11,7 +12,7 @@ enum {
     MODULE_ALIGN = 4
 };
 
-const char LANGUAGE_FOLDER[] = "/" FIRMWARE_DATA_DIRECTORY "/lang";
+const char LANGUAGE_FOLDER[] = DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/lang";
 static const char SUFFIX[] = ".pack";
 
 LanguageState language_state;

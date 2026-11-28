@@ -1313,11 +1313,11 @@ class LanguagePackTest(unittest.TestCase):
 
     def test_the_player_reads_the_table_where_the_builder_writes_it(self):
         board = TOOLS_DIRECTORY.parent / "platform" / "device" / "board"
-        source = (board / "language.c").read_text()
-        self.assertIn(f"LANGUAGE_TABLE_OFFSET 0x{make_image.LANGUAGE_TABLE_OFFSET:X}u", source)
+        header = (board / "board.h").read_text()
+        self.assertIn(f"BOARD_LANGUAGE_TABLE_OFFSET 0x{make_image.LANGUAGE_TABLE_OFFSET:X}u", header)
         magic = int.from_bytes(make_image.LANGUAGE_TABLE_MAGIC, "little")
-        self.assertIn(f"LANGUAGE_TABLE_MAGIC 0x{magic:08X}u", source)
-        self.assertIn(f"TABLE_ENTRIES = {make_image.LANGUAGE_LIMIT}", source)
+        self.assertIn(f"BOARD_LANGUAGE_TABLE_MAGIC 0x{magic:08X}u", header)
+        self.assertIn(f"TABLE_ENTRIES = {make_image.LANGUAGE_LIMIT}", (board / "language.c").read_text())
 
     def test_the_players_pack_memory_is_the_size_the_builder_allows(self):
         board = TOOLS_DIRECTORY.parent / "platform" / "device" / "board"

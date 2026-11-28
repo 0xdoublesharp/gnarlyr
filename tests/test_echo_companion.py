@@ -122,7 +122,7 @@ class CompanionSettings(VolumeCase):
         data = snapshot.make_pack("fr",
                                          {"STR_LANGUAGE_NAME": "Français", "STR_TEXT_SIZE": "Taille du texte",
                                           "STR_SIZE_LARGE": "Grand"})
-        folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
+        folder = self.root / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
         (folder / "fr.pack").write_bytes(data)
         self.install_fixture(language="fr")
@@ -228,7 +228,7 @@ class CompanionSettings(VolumeCase):
     def test_locale_aliases_cannot_route_an_allowlisted_command_to_analog_gain(self):
         snapshot = echo_language.Snapshot(echo_debug, self.build)
         translations = {"STR_LANGUAGE_NAME": "Français", "STR_TEXT_SIZE": "Gain"}
-        folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
+        folder = self.root / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
         (folder / "fr.pack").write_bytes(snapshot.make_pack("fr", translations))
         self.install_fixture(language="fr")
@@ -241,7 +241,7 @@ class CompanionSettings(VolumeCase):
     def test_duplicate_translated_option_labels_are_refused(self):
         snapshot = echo_language.Snapshot(echo_debug, self.build)
         translations = {"STR_LANGUAGE_NAME": "Français", "STR_SIZE_SMALL": "Même", "STR_SIZE_LARGE": "Même"}
-        folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
+        folder = self.root / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
         (folder / "fr.pack").write_bytes(snapshot.make_pack("fr", translations))
         self.install_fixture(language="fr")
@@ -382,7 +382,7 @@ class CompanionSettings(VolumeCase):
     def test_long_localized_titles_cannot_publish_an_oversized_script(self):
         snapshot = echo_language.Snapshot(echo_debug, self.build)
         translations = {"STR_LANGUAGE_NAME": "Français", "STR_TEXT_SIZE": "T" * 700}
-        folder = self.card / echo_debug.DATA_DIRECTORY / "lang"
+        folder = self.root / echo_debug.DATA_DIRECTORY / "lang"
         folder.mkdir()
         (folder / "fr.pack").write_bytes(snapshot.make_pack("fr", translations))
         self.install_fixture(language="fr")

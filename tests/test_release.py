@@ -55,7 +55,8 @@ class VersionTests(unittest.TestCase):
                 self.assertEqual(TAG, plan["version"])
                 self.assertEqual("stable" if verb == "promote" else "nightly", plan["channel"])
                 self.assertEqual(verb == "promote", plan["deploy_site"])
-                self.assertEqual(6, sum(name.endswith(".pack") for name in plan["assets"]))
+                self.assertEqual(7, sum(name.endswith(".pack") for name in plan["assets"]))
+                self.assertIn(package.LANGUAGE_CATALOG, plan["assets"])
                 self.assertEqual(3, sum(name.endswith(".gtheme") for name in plan["assets"]))
                 run.assert_not_called()
 

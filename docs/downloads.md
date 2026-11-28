@@ -1,10 +1,10 @@
 # Builds and downloads
 
-Use [Gnarlyr GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for public downloads. Firmware releases use `vVERSION` tags and include the image and six matching official language packs. Gnarlyr Companion installers use `desktop-vVERSION` tags. GitHub Actions artifacts expire and require authentication.
+Use [Gnarlyr GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for public downloads. Firmware releases use `vVERSION` tags and include the image, matching language packs, and an offline language catalogue. Gnarlyr Companion installers use `desktop-vVERSION` tags. GitHub Actions artifacts expire and require authentication.
 
 ## Firmware
 
-CI preflight packages the image with `tools/release_package.py` and uploads `GNARLYR.IMG`, `ECHOECHO.img` (the same bytes under the name FiiO's updater accepts), `gnarlyr-source.tar.gz`, `firmware.json`, and `SHA256SUMS` as an Actions artifact. Publication requires a successful run of the entire CI workflow.
+CI preflight packages the image with `tools/release_package.py` and uploads `GNARLYR.IMG`, `ECHOECHO.img` (the same bytes under the name FiiO's updater accepts), `gnarlyr-source.tar.gz`, `firmware.json`, and `SHA256SUMS` as an Actions artifact. It also includes the six translated packs, `en.pack`, and `language-catalog.json`. Publication requires a successful run of the entire CI workflow.
 
 Point first-time users directly to `ECHOECHO.img`: download, copy to internal storage, eject both drives, unplug and restart. Keep this filename so no rename is needed. After Gnarlyr starts, the companion app can prepare later updates. If FiiO briefly shows Updating and returns to stock, use [first-install troubleshooting](../firmware/docs/device-install.md#briefly-shows-updating-then-returns-to-fiio); the macOS helper handles contiguous allocation and readback as an optional fallback.
 

@@ -91,6 +91,7 @@ def check_candidate(version):
 
 def asset_names():
     return {package.IMAGE, package.STOCK_IMAGE, package.source_name(), package.MANIFEST, package.SUMS,
+            package.ENGLISH_PACK, package.LANGUAGE_CATALOG,
             *THEMES, *(f"{code}.pack" for code in package.language_codes(package.LANGUAGES))}
 
 
