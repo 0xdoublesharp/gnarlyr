@@ -41,11 +41,13 @@ Find Gnarlyr Companion and firmware on [GitHub Releases](https://github.com/0xdo
 
 ### Gnarlyr Companion
 
-Open the latest `desktop-v*` release and choose the installer for macOS (Apple Silicon), Windows (x64), or Linux (x86_64). Verify the download against `SHA256SUMS` in the same release. Use [Gnarlyr Companion](https://gnarlyr.com/companion.html) to install or update firmware, copy music, build mixtapes, preview themes, and install official language packs.
+Open [Companion 1.0.0-beta.4](https://github.com/0xdoublesharp/gnarlyr/releases/tag/desktop-v1.0.0-beta.4) and choose the installer for macOS (Apple Silicon), Windows (x64), or Linux (x86_64). Verify the download against `SHA256SUMS` in the same release. Use [Gnarlyr Companion](https://gnarlyr.com/companion.html) to install or update firmware, copy music, build mixtapes, manage themes and fonts, and install custom language packs.
 
 ### Gnarlyr firmware
 
-Open the latest `v*` firmware release. Use `ECHOECHO.img` for a first install from FiiO firmware or `GNARLYR.IMG` to update Gnarlyr. Find the six official language packs (`de`, `es`, `fr`, `ja`, `pt`, and `zh`), `.gtheme` packs, matching source, and `SHA256SUMS` in the release assets. Verify your downloads and follow the [installation guide](https://gnarlyr.com/install.html).
+Open [firmware v1.0.0-beta.4](https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.4). Download `ECHOECHO.img` for a first install or an update. The release also includes `.gtheme` packs, matching source, and `SHA256SUMS`. Verify your downloads and follow the [installation guide](https://gnarlyr.com/install.html).
+
+Choose from seven built-in languages in Settings → Language. You can add custom packs to internal storage with Companion or build your own with the [language-pack builder](https://gnarlyr.com/languages.html).
 
 Gnarlyr supports the full-size ECHO with a 480 × 222 display. See the [download reference](docs/downloads.md) for asset details, and prepare the [recovery procedure for this model](firmware/docs/device-recovery.md) before a first install.
 

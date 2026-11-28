@@ -2,7 +2,7 @@
 
 The app session owns this static website’s manual publication and DoublePaaS
 runtime. Website deployment does not build, distribute, or flash firmware.
-Firmware source is public at https://github.com/0xdoublesharp/gnarlyr. Public beta releases (`v1.0.0-beta.1` firmware and `desktop-v1.0.0-beta.1` Companion installers) are published on GitHub Releases. The visual Docs guide uses simulator and native-renderer screenshots under `site/assets/screens/`;
+Firmware source is public at https://github.com/0xdoublesharp/gnarlyr. Public beta releases (`v1.0.0-beta.4` firmware and `desktop-v1.0.0-beta.4` Companion installers) are published on GitHub Releases. The visual Docs guide uses simulator and native-renderer screenshots under `site/assets/screens/`;
 regenerate them with `tools/site_screenshots.py` before publishing interface changes.
 
 ## Production
@@ -19,8 +19,8 @@ regenerate them with `tools/site_screenshots.py` before publishing interface cha
 | Primary URL | https://gnarlyr.com; www redirects to the apex |
 | Secondary validation URL | https://gnarlyr.apps.doublesharp.com |
 | Origin address | `159.89.222.183` |
-| Current content release | `d543279c5d9c07c428c8366dfc755fce44dc22c06afce9a9780966673bcb52dd` |
-| Rollback content release | `3f76f692cc24f951c145667015e1f6a5c76ed96ea67a2f6fab8fa9209e93df96` |
+| Current content release | `107d86f49e9b8e46d9d54655e327b7b7a2374d73f2542d5ac207cb74016b178e` |
+| Rollback content release | `1e9ac5693783770da72c4f69504e286faeb100044fe41b633f6242b7ca285679` |
 
 This is a user-defined Compose Service with normal Coolify parsing, not a
 Git-backed Application. `site/deploy/compose.yaml` owns the runtime, mounts,
