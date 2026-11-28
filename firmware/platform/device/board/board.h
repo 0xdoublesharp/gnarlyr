@@ -40,6 +40,9 @@ uint8_t board_input_held(void);
 void board_glyphs_start(void);
 void board_extension_start(void);
 void board_wall_time_delete_file(void);
+#define BOARD_LANGUAGE_TABLE_OFFSET 0x2C0100u
+#define BOARD_LANGUAGE_TABLE_MAGIC 0x544C5344u
+
 bool board_slot_read(uint32_t slot, uint32_t at, void *buffer, uint32_t length);
 
 typedef struct BoardImageTable {
@@ -68,7 +71,6 @@ void board_stall_beat(void);
 void board_wall_time_set(HalWallTime time);
 void board_wall_time_keep(void);
 void board_wall_time_start(void);
-void board_wall_time_restore(void);
 void board_wall_time_forget_file(void);
 void board_stall_pause(bool paused);
 void board_panic_stall(uint32_t pc, uint32_t lr);

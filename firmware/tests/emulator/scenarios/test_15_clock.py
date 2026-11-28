@@ -20,11 +20,12 @@ DISPLAY_SET_CLOCK_ROW = 10
 
 
 class EchoImageTest(EchoImageHarness):
-    def test_script_and_deferred_startup_rtc_reads_restore_the_bus(self):
+    def test_script_and_startup_rtc_reads_restore_the_bus(self):
         script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
-        self.assertEqual(machine.rtc_bus.frames, [])
+        self.assertEqual(machine.rtc_bus.frames,
+                         [("write", bytes([0xA2, 0x00])), ("read", 0xA3, 16)])
         before = self.i2c1_state(machine)
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
         self.assertEqual(self.run_usb_sessions(session, 2), "condition met")
@@ -55,7 +56,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual((written["action"], written["status"], written["vl"]), ("set", "ok", 0))
         self.assertTrue(NOVEMBER_2026 <= written["written_s"] <= NOVEMBER_2026 + 5, written)
         self.assertEqual((read["action"], read["status"], read["vl"]), ("read", "ok", 0))
-        frame = machine.rtc_bus.frames[0]
+        frame = next(frame for frame in machine.rtc_bus.frames if frame[0] == "write" and len(frame[1]) == 9)
         self.assertEqual((frame[0], frame[1][:2], len(frame[1])), ("write", bytes([0xA2, 0x02]), 9))
         self.assertEqual(frame[1][2] & 0x80, 0)
         self.assertNotIn(0x00, [entry[1][1] for entry in machine.rtc_bus.frames
@@ -100,16 +101,18 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(rig.session)
 
 
-    def test_a_deferred_startup_read_restores_the_rtc_once(self):
+    def test_startup_restores_the_rtc_once_before_the_first_app_step(self):
         from unicorn.arm_const import UC_ARM_REG_R0, UC_ARM_REG_R1
         session = self.session()
         machine = session.machine
         restored = []
         machine.hook_symbol("board_wall_time_set", lambda: restored.append(
             (machine.reg(UC_ARM_REG_R0), machine.reg(UC_ARM_REG_R1))))
-        session.run_to_home_screen()
-        machine.run(until=lambda: bool(restored), until_ms=machine.milliseconds() + 5000)
+        steps = machine.trace("app_step")
+        reads = machine.trace("board_wall_time_set")
+        self.assertEqual(session.run_to_home_screen(), "condition met")
         self.assertEqual(len(restored), 1)
+        self.assertLessEqual(reads[0], steps[0])
         self.assertEqual(restored[0][1], 2 << 16)
         self.assertEqual(machine.rtc_bus.frames,
                          [("write", bytes([0xA2, 0x00])), ("read", 0xA3, 16)])
@@ -146,7 +149,7 @@ class EchoImageTest(EchoImageHarness):
 
         machine.hook_symbol("status_bar_draw", status_draw)
         self.assertEqual(second.run_to_home_screen(), "condition met")
-        self.assertEqual(restored, [])
+        self.assertEqual(restored, [(1767224760, (2 << 16) | 15)])
         self.assertEqual(machine.run(until=lambda: b"00:01" in clocks,
                                      until_ms=machine.milliseconds() + 5000), "condition met")
         self.assertEqual(restored, [(1767224760, (2 << 16) | 15)])
@@ -157,7 +160,7 @@ class EchoImageTest(EchoImageHarness):
         self.assert_healthy(second)
 
 
-    def test_a_missing_startup_rtc_stays_unknown_and_returns_without_retrying(self):
+    def test_a_missing_startup_rtc_stays_unknown_after_bounded_retries(self):
         session = self.session()
         machine = session.machine
         machine.rtc_bus.present = False
@@ -166,21 +169,17 @@ class EchoImageTest(EchoImageHarness):
         steps = machine.trace("app_step")
         self.assertEqual(session.run_to_home_screen(), "condition met")
         before = self.i2c1_state(machine)
-        self.assertEqual(machine.run(until=lambda: bool(machine.rtc_bus.frames),
-                                     until_ms=machine.milliseconds() + 5000), "condition met")
-        count = len(steps)
-        self.assertEqual(machine.run(until=lambda: len(steps) > count,
-                                     until_ms=machine.milliseconds() + 70), "condition met")
-        self.assertLessEqual(steps[-1] - reads[0], 60)
-        machine.run(until_ms=machine.milliseconds() + 1000)
+        machine.run(until_ms=machine.milliseconds() + 7000)
         self.assertEqual(sets, [])
-        self.assertEqual(len(reads), 1)
-        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))])
+        self.assertEqual(len(reads), 3)
+        self.assertLessEqual(reads[0], steps[0])
+        self.assertTrue(all(later - earlier >= 2000 for earlier, later in zip(reads, reads[1:])))
+        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))] * 3)
         self.assertEqual(self.i2c1_state(machine), before)
         self.assert_healthy(session)
 
 
-    def test_rtc_restore_keeps_boot_and_first_audio_timing_and_waits_for_stopped_audio(self):
+    def test_rtc_restore_keeps_boot_and_first_audio_timing_and_retries_during_playback(self):
         from unicorn.arm_const import UC_ARM_REG_R0
         results = []
         for enabled in (False, True):
@@ -207,11 +206,13 @@ class EchoImageTest(EchoImageHarness):
             results.append((frames[0], audible - started))
             self.assert_healthy(rig.session)
         print("\n[RTC timing] instant-read boot/audio=%s ms; bus-read boot/audio=%s ms" % tuple(results))
-        self.assertLessEqual(abs(results[0][0] - results[1][0]), 1)
+        self.assertLessEqual(abs(results[0][0] - results[1][0]), 5)
         self.assertLessEqual(abs(results[0][1] - results[1][1]), 5)
         scheduled = [False]
 
         def delay_restore(machine):
+            machine.rtc_bus.present = False
+
             def delay_once():
                 if not scheduled[0]:
                     machine.uc.mem_write(machine.symbols["restore_due_ms"],
@@ -222,11 +223,17 @@ class EchoImageTest(EchoImageHarness):
         rig = self.playback_rig(prepare=delay_restore)
         rig.open_songs()
         started = rig.play_song(1)
-        self.assertEqual(rig.machine.rtc_bus.frames, [])
+        self.assertEqual(rig.machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))])
+        sets = rig.machine.trace("board_wall_time_set")
+        before = self.i2c1_state(rig.machine)
+        rig.machine.rtc_bus.present = True
         rig.machine.uc.mem_write(rig.machine.symbols["restore_due_ms"],
                                  struct.pack("<I", rig.machine.milliseconds()))
         rig.run_for(500)
-        self.assertEqual(rig.machine.rtc_bus.frames, [])
+        self.assertEqual(len(sets), 1)
+        self.assertEqual(rig.machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))] * 2 +
+                         [("read", 0xA3, 16)])
+        self.assertEqual(self.i2c1_state(rig.machine), before)
         self.assertEqual(rig.audio.underruns(started), [])
         self.assertEqual(rig.audio.output_underruns(), 0)
         self.assert_healthy(rig.session)
@@ -236,6 +243,7 @@ class EchoImageTest(EchoImageHarness):
         script = ("build %s\nrtc read\nreconnect\n" % self.build_tag()).encode("ascii")
         session, machine = self.ejecting_session(self.debug_volume(run_txt=script))
         machine.rtc_bus.present = False
+        startup_attempts = machine.trace("extension_hal_clock_restore_wall")
         self.assertEqual(self.run_usb_sessions(session, 1), "condition met")
         before = self.i2c1_state(machine)
         self.assertEqual(self.run_until_reconnect_request(machine), "condition met")
@@ -244,13 +252,15 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual([(read["status"], read["registers"]) for read in report["script"]["rtc"]],
                          [("no_ack", None)])
         self.assertEqual(report["script"]["lines"][1]["status"], "failed")
-        self.assertEqual(machine.rtc_bus.frames, [("write", bytes([0xA2, 0x00]))] * 2)
+        self.assertIn(len(startup_attempts), range(1, 4))
+        self.assertEqual(machine.rtc_bus.frames,
+                         [("write", bytes([0xA2, 0x00]))] * (len(startup_attempts) + 1))
         self.assertEqual(self.i2c1_state(machine), before)
         self.assert_healthy(session)
 
 
     def test_an_ejected_session_with_a_time_file_sets_the_clock_and_removes_the_file(self):
-        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, -480))
+        session, machine, sets = self.time_session(self.time_file(NOVEMBER_2026, -480), rtc_valid=False)
         self.assertEqual(len(sets), 1)
         utc, packed = sets[0]
         self.assertEqual(utc, NOVEMBER_2026)

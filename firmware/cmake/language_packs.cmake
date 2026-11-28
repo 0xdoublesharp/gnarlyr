@@ -11,14 +11,18 @@ function(echo_add_language_pack code output_variable)
     if(EXISTS ${ECHO_LANGUAGE_SOURCES}/${code}.txt)
         list(APPEND sources ${ECHO_LANGUAGE_SOURCES}/${code}.txt)
     endif()
+    if(code IN_LIST ECHO_OFFICIAL_LANGUAGES)
+        set(font_check --require-built-in-glyphs)
+    endif()
     add_custom_command(
         OUTPUT ${pack}
         COMMAND ${Python3_EXECUTABLE} ${ECHO_LANGUAGE_TOOL}
             --languages ${ECHO_LANGUAGE_SOURCES} --layout ${ECHO_LANGUAGE_LAYOUT}
-            --pack ${code} --output ${pack}
+            --pack ${code} --output ${pack} ${font_check}
         DEPENDS ${sources} ${ECHO_LANGUAGE_TOOL} ${ECHO_LANGUAGE_LAYOUT}
             ${PROJECT_SOURCE_DIR}/assets/fonts/fonts.json
             ${PROJECT_SOURCE_DIR}/assets/fonts/glyph_pack.json
+            ${PROJECT_SOURCE_DIR}/assets/fonts/recipe.json
         VERBATIM
     )
     set(${output_variable} ${pack} PARENT_SCOPE)

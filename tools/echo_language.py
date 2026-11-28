@@ -95,6 +95,9 @@ class Snapshot:
                 json.loads(self.show("firmware/assets/fonts/fonts.json")),
                 json.loads(self.show("firmware/assets/fonts/glyph_pack.json")))
             self.coverage = self.recipe_coverage()
+            picker = self.show("firmware/src/app/language.h")
+            self.max_languages = constant(picker, "LANGUAGE_CAPACITY")
+            self.internal_languages = "DRIVE_PATH_INTERNAL_ROOT" in self.show("firmware/src/app/language.c")
             identity = api.parse_identity(self.show("firmware/identity.json"))
             if identity["data_directory"] != api.DATA_DIRECTORY or identity["name"] != api.IDENTITY["name"]:
                 raise ValueError("the installed firmware identity differs from this tool")
@@ -231,6 +234,36 @@ class Snapshot:
 
     def english(self):
         return self.validate(self.make_pack("en", {}))
+
+    def builtins(self, internal):
+        if not self.internal_languages:
+            return [self.english()]
+        try:
+            data = read_file(internal, (self.api.DATA_DIRECTORY, "languages.bin"), self.format.DESCRIPTOR_LIMIT)
+        except FileNotFoundError:
+            return self.default_builtins()
+        try:
+            descriptor = self.format.read_language_descriptor(data)
+            build = self.build
+            version = self.api.IDENTITY["version"]
+            if not build.startswith(version + "-"):
+                build = version + "-" + build
+            if descriptor["build"] != build or descriptor["max_languages"] != self.max_languages:
+                return self.default_builtins()
+            return [self.validate(data) for data in descriptor["packs"].values()]
+        except self.format.PackError:
+            return self.default_builtins()
+
+    def default_builtins(self):
+        configuration = self.show("firmware/CMakeLists.txt")
+        match = re.search(r"set\(ECHO_OFFICIAL_LANGUAGES ([a-z ]+)\)", configuration)
+        codes = match[1].split() if match else ["en"]
+        packs = [self.english()]
+        for code in codes[1:]:
+            text = self.show(f"firmware/assets/lang/{code}.txt")
+            translations = dict(self.format.entries_from_text(text, f"{code}.txt"))
+            packs.append(self.validate(self.make_pack(code, translations)))
+        return packs
 
     def metadata(self):
         return {"firmware_build": self.build, "firmware_commit": self.commit,
@@ -406,6 +439,7 @@ class Manager:
             self.error("language_player_unidentified", "the USB player has no stable serial identity")
         snapshot = Snapshot(self.api, build)
         return {"found": found, "internal": internal, "music": music, "snapshot": snapshot,
+                "language_volume": internal if snapshot.internal_languages else music,
                 "serial": found["usb"].get("serial")}
 
     def recheck(self, context):
@@ -443,10 +477,12 @@ class Manager:
 
     def packs(self, context, repair_code=None, incompatible_files=None):
         snapshot = context["snapshot"]
-        entries = [{**snapshot.english(), "source": "builtin", "path": None}]
+        entries = {info["code"]: {**info, "source": "builtin", "path": None}
+                   for info in snapshot.builtins(context["internal"])}
+        volume = context["language_volume"]
         seen = set()
         try:
-            with directory(context["music"], (self.api.DATA_DIRECTORY, "lang")) as descriptor:
+            with directory(volume, (self.api.DATA_DIRECTORY, "lang")) as descriptor:
                 names = sorted(os.listdir(descriptor))
                 if len(names) > DIRECTORY_LIMIT:
                     self.error("language_directory_large", "the language folder has too many entries")
@@ -462,7 +498,7 @@ class Manager:
                     metadata = snapshot.file_info(data, repairing=code == repair_code)
                     if metadata["code"] != code:
                         self.error("language_code_mismatch", "the pack filename differs from its language code")
-                    path = str(context["music"] / self.api.DATA_DIRECTORY / "lang" / name)
+                    path = str(volume / self.api.DATA_DIRECTORY / "lang" / name)
                     if metadata.get("version", snapshot.pack_version) != snapshot.pack_version:
                         if incompatible_files is not None:
                             incompatible_files.append({**metadata, "path": path, "reason": "format_mismatch"})
@@ -480,10 +516,11 @@ class Manager:
                         if code == repair_code:
                             continue
                         raise
-                    entries.append({**info, "source": "file", "path": path})
+                    entries[code] = {**info, "source": "file", "path": path}
         except FileNotFoundError:
             pass
-        if (len(entries) > 8 or len({item["name"].translate(ASCII_LOWER) for item in entries}) != len(entries) or
+        entries = list(entries.values())
+        if (len(entries) > snapshot.max_languages or len({item["name"].translate(ASCII_LOWER) for item in entries}) != len(entries) or
                 len({item["code"].lower() for item in entries}) != len(entries)):
             self.error("language_choices_ambiguous", "the language menu is full or has duplicate native names")
         return entries
@@ -557,7 +594,7 @@ class Manager:
         except ImportError as error:
             return {"ok": False, "error": "fonts_unavailable",
                     "message": f"{error}; install firmware/tools/requirements.txt to build fonts"}
-        volumes = tools.Volumes(context["internal"], context["music"])
+        volumes = tools.Volumes(context["internal"], context["music"], context["language_volume"])
         try:
             setup = tools.Setup(tools.check_recipe(recipe), tools.base_drawable(
                 json.loads(snapshot.show("firmware/assets/fonts/fonts.json")),
@@ -592,14 +629,14 @@ class Manager:
             self.error("language_code_mismatch", "the language code conflicts with an existing FAT filename")
         if any(item["code"] != code and item["name"].translate(ASCII_LOWER) == info["name"].translate(ASCII_LOWER) for item in existing):
             self.error("language_choices_ambiguous", "another language already uses this native name")
-        if code not in {item["code"] for item in existing} and len(existing) >= 8:
+        if code not in {item["code"] for item in existing} and len(existing) >= context["snapshot"].max_languages:
             self.error("language_choices_ambiguous", "the firmware language menu is full")
         choices = {item["code"]: item for item in existing}
         choices[code] = info
         self.selection_text(context, code if select else None, choices)
         fonts = self.prepare_fonts(context, code if select else None, {code: data})
         self.recheck(context)
-        published = publish(context["music"], self.api.DATA_DIRECTORY, code, data, context["snapshot"])
+        published = publish(context["language_volume"], self.api.DATA_DIRECTORY, code, data, context["snapshot"])
         fonts = self.install_fonts(fonts)
         refreshed = self.refresh(context, code if select else None, timeout)
         return {"ok": True, **context["snapshot"].metadata(), **published, **refreshed,

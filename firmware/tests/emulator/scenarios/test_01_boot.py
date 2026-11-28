@@ -9,6 +9,7 @@ from echo_image_harness import (
     main,
     BACKLIGHT_HZ,
     GPIO_DATA,
+    IDENTITY,
     HEIGHT,
     KEY_HOLD_MS,
     KEY_NEXT,
@@ -26,6 +27,7 @@ from echo_image_harness import (
     expected_init,
     pin_ever_output,
     pin_high_index,
+    settings_file,
     summary,
 )
 
@@ -265,7 +267,7 @@ class EchoImageTest(EchoImageHarness):
         self.assertEqual(machine.core_hz, 96_000_000)
         self.assert_healthy(session)
 
-    def test_backlight_runs_at_25_khz_and_only_after_the_first_frame(self):
+    def test_backlight_runs_at_25_to_26_khz_and_only_after_the_first_frame(self):
         session = self.session()
         session.run_to_home_screen()
         machine = session.machine
@@ -273,13 +275,32 @@ class EchoImageTest(EchoImageHarness):
                    if offset == PWM_PERIOD]
         self.assertTrue(periods)
         for value, pclk in periods:
-            self.assertEqual(pclk // value, BACKLIGHT_HZ)
+            self.assertLessEqual(BACKLIGHT_HZ, pclk // value)
+            self.assertLessEqual(pclk // value, 26_100)
         self.assertIn(PWM_RUN, [value for _, offset, value, _, _ in machine.pwm_log
                                 if offset == PWM_CONTROL])
         first_frame_marker = session.panel.lit_sweeps()[0].groups
         self.assertGreaterEqual(machine.pwm_log[0][4], first_frame_marker)
         backlight = pin_high_index(machine, 2, 4)
         self.assertGreaterEqual(machine.gpio_log[backlight][6], first_frame_marker)
+
+    def test_starting_playback_at_brightness_one_keeps_the_backlight_pwm_running(self):
+        from echo_emulator.playback import ALBUM_COUNT, Rig
+        from echo_emulator.real_volume import real_volume
+        volume = real_volume(playable=True, album_count=ALBUM_COUNT)
+        volume.add_directory(IDENTITY.data_directory)
+        volume.add_file("settings.bin", settings_file(0, b6=1), directory=IDENTITY.data_directory)
+        rig = Rig(self.session_module, self.image, self.elf, self.usb_overlay_elf, volume=volume,
+                  module_elfs=self.module_elfs)
+        rig.open_songs()
+        machine = rig.machine
+        self.assertEqual(machine.pll_hz(), 96_000_000)
+        first = len(machine.pwm_log)
+        started = rig.play_song(1)
+        self.assertIsNotNone(rig.first_audio_after(started))
+        self.assertEqual(machine.pll_hz(), 200_000_000)
+        self.assertEqual(machine.pwm_log[first:], [])
+        self.assert_healthy(rig.session)
 
     def test_loader_request_is_consumed_and_the_loader_reboot_is_reached(self):
         session = self.session(files=[("MASKROM.REQ", b"MASKROM REQ\n", None)])

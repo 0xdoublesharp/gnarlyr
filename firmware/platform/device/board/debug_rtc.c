@@ -9,6 +9,7 @@
 #include "device/audio_math.h"
 #include "device/rtc_time.h"
 #include "gpio.h"
+#include "hal/audio.h"
 #include "hal/clock.h"
 #include "hal/system.h"
 #include "registers.h"
@@ -118,6 +119,7 @@ static HalRtcStatus wait_pending(uint32_t bits)
 {
     uint32_t start = hal_clock_milliseconds();
     while ((register_read(I2C_IPD) & bits) == 0) {
+        hal_audio_service();
         if (deadline_elapsed(hal_clock_milliseconds(), start, I2C_TIMEOUT_MS)) {
             return HAL_RTC_TIMEOUT;
         }

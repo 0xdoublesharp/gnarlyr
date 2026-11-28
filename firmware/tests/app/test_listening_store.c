@@ -72,7 +72,7 @@ static void a_play_started_with_the_clock_set_carries_its_utc_time_and_offset(vo
     CHECK_EQUAL(-480, seen.first.play.offset_minutes);
 }
 
-static void setting_the_clock_dates_new_plays_without_rewriting_earlier_timestamps(void)
+static void setting_the_clock_backdates_the_active_play_and_dates_new_plays(void)
 {
     reset();
     fake_hal_set_wall(0, 0);
@@ -85,7 +85,8 @@ static void setting_the_clock_dates_new_plays_without_rewriting_earlier_timestam
     ListeningSeen seen;
     CHECK_EQUAL(0, listening_fixture_read_all(&store.log, &seen));
     CHECK_EQUAL(2, seen.count);
-    CHECK_EQUAL(0, seen.first.play.clock_s);
+    CHECK_EQUAL(1794390059u, seen.first.play.clock_s);
+    CHECK_EQUAL(-480, seen.first.play.offset_minutes);
     CHECK_EQUAL(1794390060u, seen.last.play.clock_s);
     CHECK_EQUAL(-480, seen.last.play.offset_minutes);
     fake_hal_set_wall(0, 0);
@@ -560,7 +561,7 @@ int main(void)
         TEST_CASE(an_unknown_duration_does_not_discard_elapsed_time_on_a_track_change),
         TEST_CASE(paused_time_and_seek_distance_are_never_counted_as_listening),
         TEST_CASE(a_play_started_with_the_clock_set_carries_its_utc_time_and_offset),
-        TEST_CASE(setting_the_clock_dates_new_plays_without_rewriting_earlier_timestamps),
+        TEST_CASE(setting_the_clock_backdates_the_active_play_and_dates_new_plays),
         TEST_CASE(repeating_the_same_track_starts_a_distinct_play_without_a_skip),
         TEST_CASE(the_last_song_finishing_is_not_reported_as_stopped),
         TEST_CASE(a_failed_write_is_retried_once_without_duplicate_counts),

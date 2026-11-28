@@ -10,6 +10,7 @@
 
 enum {
     CHUNK_BYTES = 128,
+    HASH_CHUNK_BYTES = 512,
     MODULE_ALIGN = 4,
     OFFSET_BYTES = 2,
     CHECKED_GLYPHS = 64
@@ -42,7 +43,7 @@ int language_list_find(const LanguageList *list, const char *code)
     return -1;
 }
 
-static void list_put(LanguageList *list, const I18nPackInfo *info, bool needs_fonts)
+static void list_put(LanguageList *list, const I18nPackInfo *info, bool needs_fonts, bool from_file)
 {
     int index = language_list_find(list, info->code);
     if (index < 0 && list->count < LANGUAGE_CAPACITY) {
@@ -59,6 +60,7 @@ static void list_put(LanguageList *list, const I18nPackInfo *info, bool needs_fo
     }
     list->options[index] = list->names[index];
     list->needs_extra[index] = needs_fonts;
+    list->from_file[index] = from_file;
 }
 
 static bool extra_font_covers(const char *code)
@@ -164,7 +166,7 @@ static void list_built_in(LanguageList *list, LanguageFontCheck *fonts)
                 !i18n_pack_info(header, sizeof header, &info)) {
                 break;
             }
-            list_put(list, &info, pack_needs_fonts(fonts, &source, &info, header));
+            list_put(list, &info, pack_needs_fonts(fonts, &source, &info, header), false);
         }
     }
 }
@@ -182,10 +184,13 @@ static bool code_of_file(const char *name, char *code)
 
 static bool segment_sound(HalFile file, const I18nSegment *row)
 {
-    uint8_t chunk[CHUNK_BYTES];
+    uint8_t chunk[HASH_CHUNK_BYTES];
     uint32_t hash = HASH_START;
-    for (uint32_t done = 0; done < row->size; done += CHUNK_BYTES) {
-        uint32_t length = row->size - done < CHUNK_BYTES ? row->size - done : CHUNK_BYTES;
+    for (uint32_t done = 0; done < row->size; done += HASH_CHUNK_BYTES) {
+        uint32_t left = row->size - done;
+        uint32_t length = left < sizeof chunk ? left : sizeof chunk;
+        hal_system_keep_alive();
+        hal_audio_service();
         if (!hal_file_read(file, row->offset + done, chunk, length)) {
             return false;
         }
@@ -204,25 +209,31 @@ static bool file_sound(HalFile file, const char *code, I18nPackInfo *info, uint8
         return false;
     }
     uint32_t start = (info->resident + MODULE_ALIGN - 1) & ~(uint32_t)(MODULE_ALIGN - 1);
-    for (uint32_t segment = 1; segment < STRING_SEGMENT_COUNT; segment++) {
+    for (uint32_t segment = 0; segment < STRING_SEGMENT_COUNT; segment++) {
         I18nSegment row;
         if (start > capacity || !i18n_pack_segment(index, segment, &row) ||
-            row.size > capacity - start || !segment_sound(file, &row)) {
+            row.offset > file.size || row.size > file.size - row.offset ||
+            (segment != 0 && row.size > capacity - start) || !segment_sound(file, &row)) {
             return false;
         }
     }
     return true;
 }
 
+bool language_source_file_sound(HalFile file, const char *code)
+{
+    I18nPackInfo info;
+    uint8_t index[I18N_INDEX_BYTES];
+    return file_sound(file, code, &info, index);
+}
+
 bool language_file_sound(const char *code)
 {
     LanguageSource source;
-    I18nPackInfo info;
     if (!language_source_open(code, &source)) {
         return true;
     }
-    uint8_t index[I18N_INDEX_BYTES];
-    bool sound = file_sound(source.file, code, &info, index);
+    bool sound = language_source_file_sound(source.file, code);
     hal_file_close(&source.file);
     return sound;
 }
@@ -237,7 +248,7 @@ static void list_file(LanguageList *list, const char *name, LanguageFontCheck *f
     }
     uint8_t index[I18N_INDEX_BYTES];
     if (file_sound(source.file, code, &info, index)) {
-        list_put(list, &info, pack_needs_fonts(fonts, &source, &info, index));
+        list_put(list, &info, pack_needs_fonts(fonts, &source, &info, index), true);
     }
     hal_file_close(&source.file);
 }

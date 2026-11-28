@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/drive_path.h"
 #include "core/seam.h"
 #include "device/slot_copy.h"
 #include "hal/storage.h"
@@ -29,4 +30,16 @@ CORE_SEAM bool user_state_module_settle(UsbShared *shared)
     }
     shared->trial.settle &= USB_SETTLE_ROLLED_BACK;
     return true;
+}
+
+void user_state_module_languages(void)
+{
+    const char *root = DRIVE_PATH_INTERNAL_ROOT;
+    FatVolume *internal = board_route_volume(&root);
+    if (internal != NULL) {
+        UserStateDisk disk = {internal, NULL};
+        UserStateIo io = user_state_fat_io(&disk, (uint8_t *)(uintptr_t)USER_STATE_BUFFER_BASE,
+                                           SLOT_COPY_BUFFER_WORDS * 4);
+        language_descriptor_refresh(&io, hal_system_version());
+    }
 }

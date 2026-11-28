@@ -26,7 +26,12 @@ SEGMENTS = PACK.segments_from_header(
 
 
 def working_tree_show(snapshot, path):
-    return (ROOT / path).read_text()
+    source = (ROOT / path).read_text()
+    if path == "firmware/src/app/language.c":
+        return source.replace("DRIVE_PATH_INTERNAL_ROOT", "")
+    if path == "firmware/src/app/language.h":
+        return source.replace("LANGUAGE_CAPACITY = 16", "LANGUAGE_CAPACITY = 8")
+    return source
 
 
 def pack(code="fr", name="Francais", **texts):
@@ -150,6 +155,21 @@ class LanguageCommands(VolumeCase):
         self.assertEqual(result["music_volume"], str(self.card))
         self.assertEqual([entry["code"] for entry in result["languages"]], ["en", "fr"])
         self.assertTrue(result["languages"][0]["selected"])
+
+    def test_the_current_firmware_reads_internal_packs_and_offers_built_in_languages(self):
+        internal_lang = self.root / echo_debug.DATA_DIRECTORY / "lang"
+        internal_lang.mkdir()
+        (internal_lang / "it.pack").write_bytes(pack("it", "Italiano"))
+        (self.lang / "nl.pack").write_bytes(pack("nl", "Nederlands"))
+
+        def show(snapshot, path):
+            return (ROOT / path).read_text()
+
+        with mock.patch.object(echo_language.Snapshot, "show", show):
+            status, result = self.run_cli("language-list", host=self.host())
+        self.assertEqual(status, 0, result)
+        self.assertEqual([entry["code"] for entry in result["languages"]],
+                         ["en", "de", "es", "fr", "ja", "pt", "zh", "it"])
 
     def test_unknown_or_dirty_installed_build_refuses_mutation(self):
         for build in (BUILD + "+", "unknown", "f" * 40):

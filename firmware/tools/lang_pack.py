@@ -18,8 +18,14 @@ KNOWN_FLAGS = NEEDS_EXTRA_FONT
 SEGMENT = struct.Struct("<HHIII")
 CHECKSUM_OFFSET = 16
 CHECKSUM_END = CHECKSUM_OFFSET + 4
+DESCRIPTOR = struct.Struct("<4sHHII16sIII")
+DESCRIPTOR_TABLE = struct.Struct("<4sI")
+DESCRIPTOR_ROW = struct.Struct("<II")
+DESCRIPTOR_MAX_LANGUAGES = 16
 PACK_LIMIT = 0x4800
 FILE_LIMIT = 0xFFFF
+DESCRIPTOR_LIMIT = DESCRIPTOR.size + DESCRIPTOR_TABLE.size + DESCRIPTOR_MAX_LANGUAGES * (
+    DESCRIPTOR_ROW.size + FILE_LIMIT)
 MEMORY_ALIGN = 4
 RESIDENT = 0
 CODE_LIMIT = 5
@@ -454,6 +460,40 @@ def pack_info(pack):
             "needs_extra_font": bool(flags & NEEDS_EXTRA_FONT)}
 
 
+def read_language_descriptor(data):
+    if len(data) < DESCRIPTOR.size + DESCRIPTOR_TABLE.size or len(data) > DESCRIPTOR_LIMIT:
+        raise PackError("the language descriptor size is out of bounds")
+    magic, version, limit, pack_max, memory_max, build, count, total, checksum = DESCRIPTOR.unpack_from(data)
+    if (magic != b"DSLI" or version != 1 or not 1 <= count <= limit <= DESCRIPTOR_MAX_LANGUAGES or
+            pack_max != FILE_LIMIT or memory_max != PACK_LIMIT or total != len(data)):
+        raise PackError("invalid language descriptor header")
+    build, _, padding = build.partition(b"\0")
+    if not build or any(padding) or any(byte < 32 or byte >= 127 for byte in build):
+        raise PackError("invalid language descriptor build")
+    if checksum != fnv(data[DESCRIPTOR.size:], fnv(data[:DESCRIPTOR.size - 4])):
+        raise PackError("invalid language descriptor checksum")
+    table, rows = DESCRIPTOR_TABLE.unpack_from(data, DESCRIPTOR.size)
+    start = DESCRIPTOR.size + DESCRIPTOR_TABLE.size
+    offset = start + rows * DESCRIPTOR_ROW.size
+    if table != b"DSLT" or rows != count or offset > total:
+        raise PackError("invalid language descriptor table")
+    packs = {}
+    for index in range(rows):
+        at, length = DESCRIPTOR_ROW.unpack_from(data, start + index * DESCRIPTOR_ROW.size)
+        if at != offset or not 0 < length <= pack_max or length > total - at:
+            raise PackError("invalid language descriptor pack bounds")
+        pack = data[at:at + length]
+        info = pack_info(pack)
+        code = info["code"].lower()
+        if code in packs or info["memory"] > memory_max:
+            raise PackError("invalid language descriptor pack")
+        packs[code] = pack
+        offset += length
+    if offset != total:
+        raise PackError("language descriptor packs do not cover the file")
+    return {"build": build.decode("ascii"), "max_languages": limit, "packs": packs}
+
+
 def pack_code(pack):
     return pack_info(pack)["code"]
 
@@ -639,9 +679,11 @@ def write_sources(arguments):
 
 def write_pack(arguments):
     pack = language_pack(arguments.pack, arguments.languages, layout=arguments.layout)
+    info = pack_info(pack)
+    if arguments.require_built_in_glyphs and info["needs_extra_font"]:
+        raise PackError(f"{arguments.pack}: bundled language needs extra.font")
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_bytes(pack)
-    info = pack_info(pack)
     extra = ", needs extra.font" if info["needs_extra_font"] else ""
     print(f"{arguments.pack}: {info['memory']:,} of {PACK_LIMIT:,} memory bytes, {len(pack):,} file bytes{extra}")
     return 0
@@ -675,6 +717,8 @@ def parse_arguments(argv):
                         help="write the browser catalogue, built-in glyphs and extra-font coverage as JavaScript")
     parser.add_argument("--pack", help=f"language code to pack; {PSEUDO} is the test language")
     parser.add_argument("--output", type=Path, help="pack file to write")
+    parser.add_argument("--require-built-in-glyphs", action="store_true",
+                        help="reject a pack that needs extra.font")
     parser.add_argument("--layout", type=Path,
                         help="generated strings.h whose string segments the pack follows")
     arguments = parser.parse_args(argv)

@@ -180,7 +180,7 @@ endfunction()
 
 find_program(ARM_GCC arm-none-eabi-gcc)
 if(ARM_GCC)
-    set(target_audit_definitions --define ECHO_FONTS_PACKED --define ECHO_DEBUG_LOOP)
+    set(target_audit_definitions --define ECHO_FONTS_PACKED --define ECHO_DEBUG_LOOP --define ECHO_DEVICE_OVERLAYS)
     foreach(definition IN LISTS FIRMWARE_DEFINITIONS)
         list(APPEND target_audit_definitions --define ${definition})
     endforeach()

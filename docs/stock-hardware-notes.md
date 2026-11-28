@@ -161,7 +161,7 @@ Gnarlyr:
 - It sends the same frames and `CY` values (`logic/bt_module.c:13`, `:565`, `:573`) and routes with the same pins (`board/bluetooth.c:148`).
 - It sends play/pause notices whatever the version (`bt_module.c:209` stores it).
 - On first routing it also writes EchoPod's GRF and CRU list (`bluetooth.c:137`), which stock's routing path doesn't.
-- It keeps a separate Bluetooth level, 0–60 like the wired one, and applies it only while audio is routed to the module (`board/audio.c`, `hal_audio_set_bluetooth_volume`). Its curve, `DAC_CURVE_BLUETOOTH`, puts level 60 at −5 dB, the top of stock's Bluetooth row, and the default 50 at −15 dB, stock's default. While routed, the balanced offset, the headphone ceiling and the channel trims don't apply. Earlier builds reused the wired level, which played 10–25 dB below stock's Bluetooth default.
+- It keeps a separate Bluetooth level, 0–60 like the wired one, and applies it only while audio is routed to the module (`board/audio.c`, `hal_audio_set_bluetooth_volume`). At level 60 the DAC attenuates by 2 dB on Low gain, 4 dB on Medium and 5 dB on High. From the documented DAC full scales, that gives about 1.120, 1.092 and 1.124 Vrms respectively. Stock's High gain and −5 dB ceiling give 1.124 Vrms. The default and safe-start level of 56 sit 4 dB below the ceiling. A live gain change updates the Bluetooth target before the DAC fades back up. While routed, the balanced offset, the headphone ceiling and the channel trims don't apply. Earlier builds reused the wired level, which played 10–25 dB below stock's Bluetooth default.
 
 ## Display
 
@@ -296,7 +296,7 @@ In priority order. Gains are estimates. Every item needs a check on the player b
 
 | # | Change | Gain | Risk | Where |
 |---|---|---|---|---|
-| 1 | Separate Bluetooth volume, defaulting near stock's −15 dB, with stock's Bluetooth curve (top −5 dB), swapped in on routing | Fixes the quiet Bluetooth output, about 10–25 dB | Low; needs a settings field and a check that the module follows the DAC's analog level | `board/audio.c:589`, settings |
+| 1 | Separate Bluetooth volume with a gain-compensated ceiling near stock's 1.124 Vrms and default level 56 | Raises the estimated default Bluetooth level by 9 dB on Low gain | Low. Check the DAC-to-module level on the player. | `board/audio.c`, settings |
 | 2 | Settle Low gain: stock writes `0x10` (reserved OUT_FS); the documented 1.41 Vrms value is `0x20`. Compare stock Low, `0x10` and `0x20` by ear or meter | Correct Low level | None in code | `dac_sequence.c:35` |
 | 3 | 24 MHz crystal when the screen is off, audio idle and USB not listening; `run_from_crystal` exists | Largest remaining idle saving: PLL off, core clock a quarter of 96 MHz | Medium: UART baud, ADC timing, wake latency | `src/app/app.c:273` |
 | 4 | Longer SysTick period (stock 10 ms) or a tickless sleep | Up to 10× fewer wake-ups in idle and standby; the base for instant-on standby | Medium: `tick_clock`, stall watch, input cadence | `board/clock.c:14` |

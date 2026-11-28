@@ -90,8 +90,8 @@ class SyncFontsTest(unittest.TestCase):
             self.assertIn("not updated: offline", self.run_sync())
 
     def test_skipped_inputs_are_listed(self):
-        (self.card / echo_sync.DATA_FOLDER / "lang").mkdir()
-        (self.card / echo_sync.DATA_FOLDER / "lang" / "xx.pack").write_bytes(b"broken")
+        (self.internal / echo_sync.DATA_FOLDER / "lang").mkdir()
+        (self.internal / echo_sync.DATA_FOLDER / "lang" / "xx.pack").write_bytes(b"broken")
         self.assertIn("  skipped xx.pack", self.run_sync())
 
 

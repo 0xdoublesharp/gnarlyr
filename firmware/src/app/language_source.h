@@ -23,3 +23,4 @@ extern LanguageState language_state;
 
 bool language_source_info(const LanguageSource *source, I18nPackInfo *info);
 bool language_source_open(const char *code, LanguageSource *source);
+bool language_source_file_sound(HalFile file, const char *code);

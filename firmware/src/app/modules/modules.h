@@ -47,6 +47,7 @@ typedef struct SettingsModuleEntry {
     const struct SettingsChooseTables *choose_tables;
     void (*dac_headphones)(HeadphoneStore *store, uint8_t chosen, Player *player,
                            SettingsStore *settings);
+    bool (*file_sound)(HalFile file, const char *code);
 } SettingsModuleEntry;
 
 extern const SettingsModuleEntry SETTINGS_MODULE_ENTRY;

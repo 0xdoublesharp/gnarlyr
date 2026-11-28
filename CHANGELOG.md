@@ -2,6 +2,13 @@
 
 Changes to Gnarlyr firmware for the full-size SNOWSKY ECHO, its website, and its tools. Release dates use GitHub’s UTC publication dates.
 
+## [1.0.0-beta.4] - Unreleased
+
+- **Seven built-in languages.** Choose English, German, Spanish, French, Japanese, Portuguese, or Simplified Chinese in **Settings → Language**. The fonts for all seven are included.
+- **Custom language packs move to internal storage.** If you used a custom `.pack` on microSD with beta.3, copy it to internal `.gnarlyr/lang/` or use **Copy to internal storage** in Companion beta.4. Update Companion before or right after updating the ECHO.
+- **Bluetooth loudness.** Low gain plays about 3 dB louder and Medium about 1 dB louder to match stock output. High stays the same. Upgrades keep your saved Bluetooth volume. The default and the Safe start ceiling for Bluetooth rise from 50 to 56 (about 6 dB).
+- **Display and clock fixes.** The backlight stays steady at brightness 1 when changing pages. The player restores its clock before playback on startup and fills in the current listen’s timestamp when the clock becomes available during playback.
+
 ## [1.0.0-beta.3] - 2026-11-27
 
 - **Headset volume holds.** In **Settings → Buttons → Headset Vol hold**, choose **Skip tracks** (the default) or **Repeat volume** for a supported 3.5 mm inline remote. Taps still change volume one step. Physical remote checks are pending. Updated all six official language packs to match the 978-string catalog. [Issue #1](https://github.com/0xdoublesharp/gnarlyr/issues/1).
@@ -68,6 +75,7 @@ Alpha for end-to-end Companion testing. See the [alpha.2 release notes].
 
 - Published the first alpha for testing Companion’s first-install and update workflows on the full-size ECHO. The release included both firmware images, matching source, and checksums.
 
+[1.0.0-beta.4]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.3...v1.0.0-beta.4
 [1.0.0-beta.3]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.2...v1.0.0-beta.3
 [1.0.0-beta.2]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.1...v1.0.0-beta.2
 [1.0.0-beta.1]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-alpha.2...v1.0.0-beta.1

@@ -26,6 +26,9 @@ target_compile_options(echo_options INTERFACE
 target_compile_definitions(echo_options INTERFACE ${FIRMWARE_DEFINITIONS})
 
 add_library(echo_board INTERFACE)
+if(ECHO_BUILD_DEVICE)
+    target_compile_definitions(echo_board INTERFACE ECHO_DEVICE_OVERLAYS)
+endif()
 if(NOT ECHO_RELEASE)
     target_compile_definitions(echo_board INTERFACE ECHO_DEBUG_LOOP)
     if(ECHO_USB_SCREEN_CAPTURES)

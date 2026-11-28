@@ -40,6 +40,56 @@ def strings_of(pack):
     return texts
 
 
+class LanguageDescriptorTest(unittest.TestCase):
+    def setUp(self):
+        self.packs = {code: lang_pack.build_pack(code, CATALOGUE, {"STR_LANGUAGE_NAME": name})
+                      for code, name in (("en", "English"), ("es", "Español"))}
+        header = struct.pack("<4sHHII16sIII", b"DSLI", 1, 16, 65535, 18432, b"fixture",
+                             2, 68 + sum(map(len, self.packs.values())), 0)
+        table = struct.pack("<4sIIIII", b"DSLT", 2, 68, len(self.packs["en"]),
+                            68 + len(self.packs["en"]), len(self.packs["es"]))
+        self.data = self.seal(bytearray(header + table + b"".join(self.packs.values())))
+
+    def seal(self, data):
+        struct.pack_into("<I", data, 40, lang_pack.fnv(data[44:], lang_pack.fnv(data[:40])))
+        return data
+
+    def test_reads_build_capacity_and_verbatim_packs_in_table_order(self):
+        decoded = lang_pack.read_language_descriptor(self.data)
+        self.assertEqual(decoded, {"build": "fixture", "max_languages": 16, "packs": self.packs})
+        self.assertEqual(list(decoded["packs"]), ["en", "es"])
+
+    def test_refuses_truncation_and_changes_to_the_checksum_or_payload(self):
+        for data in (self.data[:43], self.data[:-1], self.data + b"\0"):
+            with self.assertRaises(lang_pack.PackError):
+                lang_pack.read_language_descriptor(data)
+        for offset in (16, 40, 44, 52, 68, len(self.data) - 1):
+            with self.subTest(offset=offset):
+                data = bytearray(self.data)
+                data[offset] ^= 1
+                with self.assertRaisesRegex(lang_pack.PackError, "checksum"):
+                    lang_pack.read_language_descriptor(data)
+
+    def test_refuses_invalid_fields_even_with_a_valid_checksum(self):
+        for offset, new in ((0, b"X"), (4, b"\x02"), (6, b"\x01"), (8, b"\x00"),
+                            (12, b"\x01"), (16, b"\xff"), (25, b"X"), (32, b"\x00"),
+                            (36, b"\x00"), (44, b"X"), (48, b"\x01"), (52, b"\x01"),
+                            (56, b"\xff\xff\xff\xff"), (60, b"\x00"), (68, b"X")):
+            with self.subTest(offset=offset):
+                data = bytearray(self.data)
+                data[offset:offset + len(new)] = new
+                with self.assertRaises(lang_pack.PackError):
+                    lang_pack.read_language_descriptor(self.seal(data))
+
+    def test_refuses_two_packs_with_the_same_language_code(self):
+        pack = self.packs["en"]
+        data = self.data[:68] + pack * 2
+        struct.pack_into("<I", data, 36, len(data))
+        struct.pack_into("<I", data, 64, len(pack))
+        with self.assertRaisesRegex(lang_pack.PackError, "descriptor pack"):
+            lang_pack.read_language_descriptor(self.seal(data))
+
+
 class CatalogueTest(unittest.TestCase):
     def read(self, text):
         with tempfile.TemporaryDirectory() as directory:

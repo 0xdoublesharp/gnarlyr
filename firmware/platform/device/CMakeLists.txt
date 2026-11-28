@@ -492,6 +492,7 @@ if(CMAKE_CROSSCOMPILING)
         board/internal_volume.c
         board/jack.c
         board/language.c
+        board/language_descriptor.c
         board/loader_reboot.c
         board/main.c
         board/mmc.c

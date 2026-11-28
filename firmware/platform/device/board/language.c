@@ -7,16 +7,13 @@
 #include "hal/language.h"
 #include "hal/system.h"
 
-#define LANGUAGE_TABLE_OFFSET 0x2C0100u
-#define LANGUAGE_TABLE_MAGIC 0x544C5344u
-
 enum {
     SECTOR_BYTES = 512,
     TABLE_ENTRIES = 31
 };
 
-static const BoardImageTable LANGUAGE_TABLE = {LANGUAGE_TABLE_OFFSET, LANGUAGE_TABLE_MAGIC,
-                                               TABLE_ENTRIES};
+static const BoardImageTable LANGUAGE_TABLE = {BOARD_LANGUAGE_TABLE_OFFSET,
+                                               BOARD_LANGUAGE_TABLE_MAGIC, TABLE_ENTRIES};
 
 static uint32_t memory[I18N_PACK_CAPACITY / 4] __attribute__((section(".language_ram")));
 

@@ -1,6 +1,6 @@
 # Noto Sans CJK subsets
 
-These subsets are derived from [Noto CJK](https://github.com/notofonts/noto-cjk), licensed under the SIL Open Font License 1.1 in `OFL.txt`. The `sc` and `jp` character lists contain the non-Latin characters used by the current Simplified Chinese and Japanese draft catalogs. They are not full CJK fonts.
+These subsets are derived from [Noto CJK](https://github.com/notofonts/noto-cjk), licensed under the SIL Open Font License 1.1 in `OFL.txt`. The `sc` and `jp` character lists contain the non-Latin characters used by the official Simplified Chinese and Japanese catalogs. The lists also retain characters included in earlier subsets.
 
 The upstream revision is `f8d157532fbfaeda587e826d4cd5b21a49186f7c`. The upstream files are `Sans/OTF/SimplifiedChinese/NotoSansCJKsc-{Regular,Bold}.otf` and `Sans/OTF/Japanese/NotoSansCJKjp-{Regular,Bold}.otf`. Their SHA-256 hashes are:
 

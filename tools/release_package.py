@@ -24,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 IMAGE = IDENTITY["update_file"]
 SOURCE = "source.tar.gz"
 MANIFEST = "firmware.json"
+LANGUAGE_CATALOG = "language-catalog.json"
+ENGLISH_PACK = "en.pack"
 SUMS = "SHA256SUMS"
 STOCK_IMAGE = "ECHOECHO.img"
 MODEL = "SNOWSKY ECHO (full-size)"
@@ -83,6 +85,17 @@ def language_metadata(code, data, asset):
             "needs_extra_font": info["needs_extra_font"]}
 
 
+def validation_assets(directory):
+    tools = pack_tools(ROOT)
+    catalogue = tools.read_catalogue(directory)
+    segments = tools.read_segments(catalogue, tools.LAYOUT_HEADER)
+    info = tools.catalogue_info(catalogue, tools.drawable_characters(), segments,
+                                tools.coverage_characters())
+    english = tools.language_pack(tools.ENGLISH, directory, layout=tools.LAYOUT_HEADER)
+    return {ENGLISH_PACK: english,
+            LANGUAGE_CATALOG: (json.dumps(info, ensure_ascii=False, separators=(",", ":")) + "\n").encode()}
+
+
 def package(image, source, dist, commit, tag=None, *, languages_dir=LANGUAGES, extra_assets=()):
     extra_assets = tuple(extra_assets)
     build_label = label(tag) if tag else ""
@@ -97,7 +110,8 @@ def package(image, source, dist, commit, tag=None, *, languages_dir=LANGUAGES, e
         except tools.PackError as error:
             raise ValueError(f"{code}.txt: {error}") from error
 
-    reserved = {IMAGE, STOCK_IMAGE, source_name(), MANIFEST, SUMS, *(f"{code}.pack" for code in packs)}
+    validation = validation_assets(languages_dir)
+    reserved = {IMAGE, STOCK_IMAGE, source_name(), MANIFEST, SUMS, *validation, *(f"{code}.pack" for code in packs)}
     for path in extra_assets:
         if path.name in reserved:
             raise ValueError(f"Duplicate release asset: {path.name}")
@@ -110,6 +124,9 @@ def package(image, source, dist, commit, tag=None, *, languages_dir=LANGUAGES, e
         shutil.copyfile(path, dist / path.name)
     files = {name: {"sha256": digest(dist / name), "bytes": (dist / name).stat().st_size}
              for name in (IMAGE, STOCK_IMAGE, source_name(), *(path.name for path in extra_assets))}
+    for name, contents in validation.items():
+        (dist / name).write_bytes(contents)
+        files[name] = {"sha256": hashlib.sha256(contents).hexdigest(), "bytes": len(contents)}
     language_packs = []
     for code, pack in packs.items():
         name = f"{code}.pack"
@@ -158,7 +175,7 @@ def check_sums(dist, expected):
 def verify(dist, tag, commit, *, languages_dir=LANGUAGES, extra_assets=()):
     build_label = label(tag)
     codes = language_codes(languages_dir)
-    assets = {IMAGE, STOCK_IMAGE, source_name(), *(f"{code}.pack" for code in codes), *extra_assets}
+    assets = {IMAGE, STOCK_IMAGE, source_name(), ENGLISH_PACK, LANGUAGE_CATALOG, *(f"{code}.pack" for code in codes), *extra_assets}
     expected = assets | {MANIFEST, SUMS}
     paths = list(dist.iterdir())
     check_names(dist, {path.name for path in paths}, expected)
@@ -183,6 +200,9 @@ def verify(dist, tag, commit, *, languages_dir=LANGUAGES, extra_assets=()):
     for name, asset in actual_assets.items():
         if files[name] != asset:
             problems.append(f"{name} differs from the manifest")
+    for name, contents in validation_assets(languages_dir).items():
+        if (dist / name).read_bytes() != contents:
+            problems.append(f"{name} differs from the source language catalogue")
     packs = []
     for code in codes:
         name = f"{code}.pack"

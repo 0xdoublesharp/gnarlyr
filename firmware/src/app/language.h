@@ -6,7 +6,7 @@
 #include "ui/theme.h"
 
 enum {
-    LANGUAGE_CAPACITY = 8
+    LANGUAGE_CAPACITY = 16
 };
 
 typedef struct LanguageList {
@@ -14,6 +14,7 @@ typedef struct LanguageList {
     char names[LANGUAGE_CAPACITY][I18N_NAME_BYTES];
     const char *options[LANGUAGE_CAPACITY];
     bool needs_extra[LANGUAGE_CAPACITY];
+    bool from_file[LANGUAGE_CAPACITY];
     int count;
 } LanguageList;
 

@@ -6,6 +6,11 @@ foreach(state_test usb_audio_state dac_sequence_faults audio_engine_faults)
 endforeach()
 
 set(BOARD ${PROJECT_SOURCE_DIR}/platform/device/board)
+echo_add_unit_test(NAME test_language_descriptor
+    SOURCES test_language_descriptor.c ${BOARD}/language_descriptor.c
+    LIBRARIES echo_device_logic echo_settings echo_ui echo_playback echo_test_pack
+    PRIVATE_INCLUDES ${BOARD} ${PROJECT_SOURCE_DIR}/src/app ${PROJECT_SOURCE_DIR}/src/app/include
+)
 echo_add_unit_test(NAME test_trial_storage_faults
     SOURCES test_trial_storage_faults.c
         ${BOARD}/trial_boot_module.c

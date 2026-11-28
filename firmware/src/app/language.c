@@ -2,16 +2,21 @@
 
 #include <stddef.h>
 
+#include "core/drive_path.h"
 #include "core/string_builder.h"
 #include "hal/system.h"
 #include "language_source.h"
+
+#ifdef ECHO_DEVICE_OVERLAYS
+#include "modules/modules.h"
+#endif
 
 enum {
     PATH_CAPACITY = 48,
     MODULE_ALIGN = 4
 };
 
-const char LANGUAGE_FOLDER[] = "/" FIRMWARE_DATA_DIRECTORY "/lang";
+const char LANGUAGE_FOLDER[] = DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/lang";
 static const char SUFFIX[] = ".pack";
 
 LanguageState language_state;
@@ -74,13 +79,24 @@ bool language_source_open(const char *code, LanguageSource *source)
     return file_path(code, path) && hal_file_open(&source->file, path);
 }
 
+static bool file_sound(HalFile file, const char *code)
+{
+#ifdef ECHO_DEVICE_OVERLAYS
+    const SettingsModuleEntry *entry = hal_system_load_module(SCREEN_MODULE_SETTINGS);
+    return entry != NULL && entry->module.magic == SCREEN_MODULE_MAGIC(SCREEN_MODULE_SETTINGS) &&
+           entry->file_sound(file, code);
+#else
+    return language_source_file_sound(file, code);
+#endif
+}
+
 static bool attach_file(const char *code)
 {
     LanguageSource source;
     if (!language_source_open(code, &source)) {
         return false;
     }
-    bool attached = source_attach(&source, code);
+    bool attached = file_sound(source.file, code) && source_attach(&source, code);
     hal_file_close(&source.file);
     return attached;
 }

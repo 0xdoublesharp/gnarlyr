@@ -66,12 +66,13 @@ def check_site(version, site, published):
             or len(pins) != 1 or not pins <= published | {version}):
         raise ValueError("install.html: direct firmware links must share a known release tag")
     installed = pins.pop()
-    labels = {"install.html": f"Download Firmware {installed} directly",
-              "languages.html": f"Ready to install · {installed}"}
-    for page, text in (("install.html", install), ("languages.html", (site / "languages.html").read_text())):
-        links = re.findall(re.escape(RELEASES) + r'/tag/(v[^"?#]+)', text)
-        if set(links) != {installed} or labels[page] not in text:
-            raise ValueError(f"{page}: firmware and language pack links must name {installed}")
+    release_links = re.escape(RELEASES) + r'/tag/(v[^"?#]+)'
+    if set(re.findall(release_links, install)) != {installed} or f"Download Firmware {installed} directly" not in install:
+        raise ValueError(f"install.html: the firmware download and release links must name {installed}")
+
+    languages = (site / "languages.html").read_text()
+    if not set(re.findall(release_links, languages)) <= published | {version}:
+        raise ValueError("languages.html: language pack links must point to known release tags")
 
     catalog = json.loads((site / "themes-catalog.json").read_text())
     official = {item["id"]: item for item in catalog["themes"] if item["id"] in publish_site.STUDIO_EXAMPLES}
@@ -91,6 +92,7 @@ def check_candidate(version):
 
 def asset_names():
     return {package.IMAGE, package.STOCK_IMAGE, package.source_name(), package.MANIFEST, package.SUMS,
+            package.ENGLISH_PACK, package.LANGUAGE_CATALOG,
             *THEMES, *(f"{code}.pack" for code in package.language_codes(package.LANGUAGES))}
 
 

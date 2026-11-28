@@ -253,6 +253,7 @@ class EchoImageTest(EchoImageHarness):
     def test_modules_change_places_and_a_setting_is_saved_while_a_track_keeps_playing(self):
         from echo_emulator.modules import ModuleWatch
         rig = self.playback_rig()
+        self.wait_for_initial_music_scan(rig)
         machine, session = rig.machine, rig.session
         watch = ModuleWatch(session)
         settings_number, settings = self.module(machine, "settings")

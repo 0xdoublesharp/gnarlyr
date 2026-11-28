@@ -1109,14 +1109,15 @@ static void safe_start_volume_off_keeps_the_volume(void)
     CHECK_EQUAL(SETTINGS_VOLUME_MAX, settings_safe_start_volume(&settings, SETTINGS_VOLUME_MAX));
 }
 
-static void bluetooth_safe_start_caps_only_above_stocks_default_level(void)
+static void bluetooth_safe_start_caps_only_above_level_fifty_six(void)
 {
     Settings settings = settings_defaults();
     settings.safe_start_volume_level = 12;
-    CHECK_EQUAL(50, SETTINGS_BLUETOOTH_SAFE_START_VOLUME);
-    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, SETTINGS_VOLUME_MAX));
-    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, 51));
-    CHECK_EQUAL(50, settings_safe_start_bluetooth_volume(&settings, 50));
+    CHECK_EQUAL(56, SETTINGS_BLUETOOTH_SAFE_START_VOLUME);
+    CHECK_EQUAL(56, settings_safe_start_bluetooth_volume(&settings, SETTINGS_VOLUME_MAX));
+    CHECK_EQUAL(56, settings_safe_start_bluetooth_volume(&settings, 57));
+    CHECK_EQUAL(56, settings_safe_start_bluetooth_volume(&settings, 56));
+    CHECK_EQUAL(55, settings_safe_start_bluetooth_volume(&settings, 55));
     CHECK_EQUAL(30, settings_safe_start_bluetooth_volume(&settings, 30));
     settings.safe_start_volume = false;
     CHECK_EQUAL(SETTINGS_VOLUME_MAX,
@@ -1230,12 +1231,12 @@ static void each_invalid_second_block_value_is_rejected(void)
     }
 }
 
-static void the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db(void)
+static void the_bluetooth_level_lives_in_f2_and_defaults_to_fifty_six(void)
 {
     Settings settings = settings_defaults();
     CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, settings.bluetooth_volume);
-    CHECK_EQUAL(50, SETTINGS_DEFAULT_BLUETOOTH_VOLUME);
-    static const uint8_t LEVELS[] = {0, 33, SETTINGS_VOLUME_MAX};
+    CHECK_EQUAL(56, SETTINGS_DEFAULT_BLUETOOTH_VOLUME);
+    static const uint8_t LEVELS[] = {0, 33, 50, SETTINGS_VOLUME_MAX};
     for (uint32_t at = 0; at < sizeof LEVELS; at++) {
         settings.bluetooth_volume = LEVELS[at];
         uint8_t bytes[SETTINGS_FILE_SIZE];
@@ -1336,6 +1337,7 @@ static const uint8_t GOLDEN_BUTTONS[] = {
 static Settings golden_sample(void)
 {
     Settings settings = settings_defaults();
+    settings.bluetooth_volume = 50;
     settings.status_items = 0x0B;
     settings.power_on_flags = 0x10;
     settings.skip_silence = true;
@@ -1361,6 +1363,7 @@ static void the_stored_bytes_stay_those_of_the_current_layout(void)
     settings_encode(&decoded, bytes);
     CHECK(memcmp(GOLDEN_SETTINGS, bytes, sizeof bytes) == 0);
     CHECK_EQUAL(-300, decoded.clock_offset_minutes);
+    CHECK_EQUAL(50, decoded.bluetooth_volume);
     uint8_t buttons[SETTINGS_BUTTONS_FILE_SIZE];
     settings_buttons_encode(&sample, buttons);
     CHECK_EQUAL(sizeof GOLDEN_BUTTONS, sizeof buttons);
@@ -1449,8 +1452,8 @@ int main(void)
         TEST_CASE(the_second_block_round_trips_and_its_checksum_guards_the_file),
         TEST_CASE(the_startup_animation_defaults_on_and_is_kept_in_bit_4_of_f0),
         TEST_CASE(each_invalid_second_block_value_is_rejected),
-        TEST_CASE(the_bluetooth_level_lives_in_f2_and_defaults_to_stocks_minus_fifteen_db),
-        TEST_CASE(bluetooth_safe_start_caps_only_above_stocks_default_level),
+        TEST_CASE(the_bluetooth_level_lives_in_f2_and_defaults_to_fifty_six),
+        TEST_CASE(bluetooth_safe_start_caps_only_above_level_fifty_six),
         TEST_CASE(timeout_options_end_with_never),
         TEST_CASE(sleep_options_start_with_off),
         TEST_CASE(settings_survive_a_round_trip),

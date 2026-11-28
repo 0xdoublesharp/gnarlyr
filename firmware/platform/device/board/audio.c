@@ -749,9 +749,6 @@ CORE_COLD void hal_audio_set_speed(uint16_t speed)
 
 static DacCurve output_curve(void)
 {
-    if (board_bluetooth_routed()) {
-        return DAC_CURVE_BLUETOOTH;
-    }
     switch (output_setting) {
     case HAL_AUDIO_OUTPUT_SINGLE_ENDED:
         return DAC_CURVE_SINGLE_ENDED;
@@ -772,7 +769,8 @@ static void apply_volume(void)
     bool bluetooth = board_bluetooth_routed();
     HeadphoneAudio profile = bluetooth ? (HeadphoneAudio){0} : hal_audio_headphones();
     uint8_t level = bluetooth ? bluetooth_level : headphone_audio_limit(profile, volume_level);
-    uint32_t value = dac_volume_value(level, output_curve()) + extra_attenuation;
+    DacCurve curve = bluetooth ? DAC_CURVE_BLUETOOTH : output_curve();
+    uint32_t value = dac_volume_value(level, curve, dac_path_gain()) + extra_attenuation;
     uint8_t left = 0;
     uint8_t right = 0;
     if (!bluetooth && profile.left != profile.right) {
@@ -822,7 +820,7 @@ CORE_SEAM CORE_COLD void hal_audio_set_headphones(HeadphoneAudio profile)
 
 CORE_SEAM CORE_COLD bool hal_audio_set_gain(HalAudioGain gain)
 {
-    return dac_path_set_gain(gain);
+    return dac_path_set_gain(gain, board_bluetooth_routed() ? apply_volume : NULL);
 }
 
 CORE_SEAM CORE_COLD bool hal_audio_set_filter(HalAudioFilter filter)

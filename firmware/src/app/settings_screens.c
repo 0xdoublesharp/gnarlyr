@@ -236,7 +236,8 @@ static int current_language(const void *context)
 static void choose_language(void *context, int index)
 {
     SettingsContext *settings = context;
-    if (!language_file_sound(settings->languages->codes[index])) {
+    if (settings->languages->from_file[index] &&
+        !language_file_sound(settings->languages->codes[index])) {
         toast_show(settings->toast, i18n_text(STR_LANGUAGE_FAILED), hal_clock_milliseconds());
         return;
     }
@@ -262,11 +263,34 @@ static const char *describe_current_language(const void *context)
     return i18n_text(STR_LANGUAGE_NAME);
 }
 
+static void list_languages(SettingsScreens *screens);
+
+#ifdef ECHO_DEVICE_OVERLAYS
+static LanguageList language_choices;
+static bool language_choices_ready;
+
+void settings_screens_restore_languages(SettingsScreens *screens)
+{
+    if (!language_choices_ready) {
+        list_languages(screens);
+    }
+}
+#endif
+
+static void list_languages(SettingsScreens *screens)
+{
+    language_list_for_picker(screens->context.languages, screens->theme);
+#ifdef ECHO_DEVICE_OVERLAYS
+    language_choices_ready = true;
+#endif
+}
+
 static void extend_language(SettingsScreens *screens, ChoiceConfig *config)
 {
-    config->options = screens->languages.options;
+    list_languages(screens);
+    config->options = screens->context.languages->options;
     config->option_ids = NULL;
-    config->option_count = screens->languages.count;
+    config->option_count = screens->context.languages->count;
 }
 
 static int current_gain(const void *context)
@@ -1161,8 +1185,8 @@ static ScreenAction open_group(void *context)
 static ScreenAction open_language(void *context)
 {
     SettingsScreens *screens = context;
-    language_list_for_picker(&screens->languages, screens->theme);
-    LanguagePickerConfig config = {.languages = &screens->languages,
+    list_languages(screens);
+    LanguagePickerConfig config = {.languages = screens->context.languages,
                                    .choose = choose_language,
                                    .context = &screens->context,
                                    .theme = screens->theme};
@@ -1272,12 +1296,16 @@ static void bind_special_rows(SettingsScreens *screens)
 Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context, const Theme *theme)
 {
     screens->context = context;
+#ifdef ECHO_DEVICE_OVERLAYS
+    screens->context.languages = &language_choices;
+    language_choices_ready = false;
+#else
     screens->context.languages = &screens->languages;
+#endif
     screens->theme = theme;
     screens->choice_preview = STRING_COUNT;
     screens->preview = (SettingsPreview){.choice = STRING_COUNT};
     screens->preview_settings = settings_preview_shown;
-    language_list(&screens->languages);
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
                                     .theme = theme,
                                     .changed = buttons_changed,

@@ -6,6 +6,7 @@
 #include "hal/system.h"
 
 #include "app/rescan_module.h"
+#include "core/drive_path.h"
 #include "core/i18n.h"
 #include "device/key_ladder.h"
 #include "device/key_ladder_model.h"
@@ -308,7 +309,7 @@ static int eq_count;
 static int eq_next;
 
 enum {
-    LANGUAGE_PACK_CAPACITY = 4,
+    LANGUAGE_PACK_CAPACITY = 16,
     LANGUAGE_FILE_CAPACITY = 12,
     LANGUAGE_NAME_CAPACITY = 32,
     LANGUAGE_LISTING_HANDLE = 78
@@ -319,7 +320,8 @@ typedef struct LanguagePack {
     uint32_t size;
 } LanguagePack;
 
-static const char LANGUAGE_FOLDER_PATH[] = "/" FIRMWARE_DATA_DIRECTORY "/lang";
+static const char LANGUAGE_FOLDER_PATH[] =
+    DRIVE_PATH_INTERNAL_ROOT "/" FIRMWARE_DATA_DIRECTORY "/lang";
 static LanguagePack language_packs[HAL_LANGUAGE_COPIES][LANGUAGE_PACK_CAPACITY];
 static char language_names[LANGUAGE_FILE_CAPACITY][LANGUAGE_NAME_CAPACITY];
 static char language_paths[LANGUAGE_FILE_CAPACITY][LANGUAGE_NAME_CAPACITY + 24];

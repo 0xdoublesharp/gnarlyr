@@ -248,6 +248,15 @@ static void start_with_headphones(HeadphoneStore *store)
     headphone_store_load(store);
 }
 
+static bool prepare_storage(size_t *index, CardFilesReport *report, bool charging, bool *finished)
+{
+    bool pause = card_files_prepare_step(index, report, charging, finished);
+    if (*finished) {
+        user_state_module_languages();
+    }
+    return pause;
+}
+
 const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER),
                                                       trial_boot_module_start,
                                                       trial_boot_module_session_end,
@@ -258,5 +267,5 @@ const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_
                                                       favorites_store_read,
                                                       spoken_store_read,
                                                       bluetooth_store_load,
-                                                      card_files_prepare_step,
+                                                      prepare_storage,
                                                       card_files_start_scan};

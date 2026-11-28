@@ -2,6 +2,14 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
 
+## 1.0.0-beta.4 (public beta)
+
+- **Seven built-in languages.** Choose English, German, Spanish, French, Japanese, Portuguese, or Simplified Chinese in **Settings → Language**. The built-in fonts cover every character used by these translations, including Japanese and Simplified Chinese characters. The picker holds up to 16 languages with custom packs.
+- **Upgrading with custom language packs.** Beta.4 reads custom `.pack` files from internal `.gnarlyr/lang/`. If you kept custom packs on microSD in beta.3, copy them to that folder on the internal drive or use Companion beta.4’s **Copy to internal storage**. Update Companion to beta.4 before or right after updating your ECHO.
+- **Bluetooth loudness and Safe start.** You keep your saved Bluetooth volume when you update. At the same volume setting, Low gain plays about 3 dB louder and Medium about 1 dB louder to match stock output. High gain sounds the same. The default for new settings and the Safe start ceiling when Bluetooth headphones connect both rise from 50 to 56 (about 6 dB louder).
+- **Page changes at brightness 1.** The backlight stays steady when a page change switches the processor clock.
+- **Clock and listening history.** The player restores its saved clock from the clock chip at startup before playback. If the time becomes available during a listen, the player fills in its start time for listening history and scrobble export.
+
 ## 1.0.0-beta.3 (public beta)
 
 - **Headset Vol hold.** In **Settings → Buttons → Headset Vol hold**, choose **Repeat volume** to keep adjusting volume while holding Vol+ or Vol− on a supported 3.5 mm inline remote. **Skip tracks** remains the default, and taps still change volume one step. Native input and settings tests cover the change. Physical remote checks are pending.

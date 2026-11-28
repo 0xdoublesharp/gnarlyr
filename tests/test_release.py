@@ -35,7 +35,7 @@ class VersionTests(unittest.TestCase):
                         for name in (package.STOCK_IMAGE, package.SUMS)]
         (self.site / "install.html").write_text(
             f"<h3>Download Firmware {old_tag} directly</h3>\n" + "".join(direct_links) + tag_link)
-        (self.site / "languages.html").write_text(f"<p>Ready to install · {old_tag}</p>\n" + tag_link)
+        (self.site / "languages.html").write_text(tag_link)
         (self.site / "themes-catalog.json").write_text(json.dumps({"themes": [
             {"id": Path(name).stem, "downloadUrl": f"{release.RELEASES}/download/{TAG}/{name}",
              "sha256": "a" * 64} for name in release.THEMES]}))
@@ -55,7 +55,8 @@ class VersionTests(unittest.TestCase):
                 self.assertEqual(TAG, plan["version"])
                 self.assertEqual("stable" if verb == "promote" else "nightly", plan["channel"])
                 self.assertEqual(verb == "promote", plan["deploy_site"])
-                self.assertEqual(6, sum(name.endswith(".pack") for name in plan["assets"]))
+                self.assertEqual(7, sum(name.endswith(".pack") for name in plan["assets"]))
+                self.assertIn(package.LANGUAGE_CATALOG, plan["assets"])
                 self.assertEqual(3, sum(name.endswith(".gtheme") for name in plan["assets"]))
                 run.assert_not_called()
 
@@ -85,6 +86,22 @@ class VersionTests(unittest.TestCase):
         old_tag = f"v{package.IDENTITY['version']}-beta.1"
         self.assertEqual(dict.fromkeys(release.THEMES, "a" * 64),
                          release.check_site(TAG, self.site, {old_tag}))
+
+    def test_language_downloads_can_link_to_an_older_release_than_manual_install(self):
+        old_tag = f"v{package.IDENTITY['version']}-beta.1"
+        install = self.site / "install.html"
+        install.write_text(install.read_text().replace(old_tag, TAG))
+        (self.site / "languages.html").write_text(
+            f'<a href="{release.RELEASES}/tag/{old_tag}">Packs for {old_tag}</a>')
+        self.assertEqual(dict.fromkeys(release.THEMES, "a" * 64),
+                         release.check_site(TAG, self.site, {old_tag}))
+
+    def test_language_downloads_reject_an_unknown_release(self):
+        old_tag = f"v{package.IDENTITY['version']}-beta.1"
+        (self.site / "languages.html").write_text(
+            f'<a href="{release.RELEASES}/tag/v0.0.1">Old packs</a>')
+        with self.assertRaisesRegex(ValueError, "languages.html"):
+            release.check_site(TAG, self.site, {old_tag})
 
     def test_manual_install_rejects_the_redundant_update_image_link(self):
         old_tag = f"v{package.IDENTITY['version']}-beta.1"

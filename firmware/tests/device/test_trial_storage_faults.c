@@ -238,6 +238,18 @@ UserStateIo user_state_fat_io(UserStateDisk *disk, uint8_t *bytes, uint32_t size
     return (UserStateIo){0};
 }
 
+FatVolume *board_route_volume(const char **path)
+{
+    (void)path;
+    return &volume;
+}
+
+void language_descriptor_refresh(const UserStateIo *io, const char *build)
+{
+    (void)io;
+    (void)build;
+}
+
 const char *hal_system_version(void)
 {
     return "test";

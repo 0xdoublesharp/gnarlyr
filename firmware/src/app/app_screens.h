@@ -40,6 +40,7 @@
 #include "track_removal.h"
 #include "ui/menu_screen.h"
 #include "ui/message_screen.h"
+#include "ui/screen_stack.h"
 #include "ui/toast.h"
 
 enum {
@@ -115,6 +116,9 @@ typedef struct AppScreensContext {
     BluetoothLink *bluetooth;
     ListeningStore *listening;
     WireMotion *motion;
+#ifdef ECHO_DEVICE_OVERLAYS
+    const ScreenStack *stack;
+#endif
 } AppScreensContext;
 
 typedef struct PlayingModuleScreens {

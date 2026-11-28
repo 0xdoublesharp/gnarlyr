@@ -160,6 +160,19 @@ static void begin(ListeningStore *store, ListeningObservation observation, uint3
     store->following = true;
 }
 
+static void backfill_clock(ListeningPlay *play, uint32_t now_ms)
+{
+    if (play->clock_s != 0) {
+        return;
+    }
+    HalWallTime wall = hal_clock_wall();
+    if (wall.source != HAL_WALL_UNKNOWN && wall.utc_s != 0) {
+        uint32_t elapsed = (now_ms - play->uptime_s * SECOND_MS) / SECOND_MS;
+        play->clock_s = wall.utc_s > elapsed ? wall.utc_s - elapsed : 1;
+        play->offset_minutes = wall.offset_minutes;
+    }
+}
+
 static bool same_play(ListeningObservation first, ListeningObservation second)
 {
     return first.status.has_track && second.status.has_track &&
@@ -221,6 +234,7 @@ void listening_store_follow(ListeningStore *store, ListeningObservation observat
     save_pending(store, now_ms);
     bool same = store->observed && same_play(store->previous, observation);
     if (store->following) {
+        backfill_clock(&store->active, now_ms);
         if (same && observation.status.duration_ms != 0) {
             store->active.length_ms = observation.status.duration_ms;
         }

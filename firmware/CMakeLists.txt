@@ -36,7 +36,12 @@ option(ECHO_BUILD_DEVICE "Build the device firmware with cmake/arm-none-eabi.cma
 option(ECHO_RELEASE "Leave the developer-only Diagnostics rows out of the build" OFF)
 option(ECHO_USB_SCREEN_CAPTURES "Save each USB screen page as a usbshot file in developer builds" OFF)
 set(ECHO_APP_RAM_BUDGET_BYTES 147456 CACHE STRING "Static RAM budget for src/ on the device")
-set(ECHO_LANGUAGES en CACHE STRING "Language packs built into the image, the default first: codes of assets/lang/<code>.txt")
+set(ECHO_OFFICIAL_LANGUAGES en de es fr ja pt zh)
+set(echo_default_languages en)
+if(ECHO_BUILD_DEVICE)
+    set(echo_default_languages ${ECHO_OFFICIAL_LANGUAGES})
+endif()
+set(ECHO_LANGUAGES "${echo_default_languages}" CACHE STRING "Language packs built into the image, the default first: codes of assets/lang/<code>.txt")
 
 include(cmake/project_options.cmake)
 include(cmake/language_packs.cmake)

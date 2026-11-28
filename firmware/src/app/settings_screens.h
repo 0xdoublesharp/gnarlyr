@@ -95,7 +95,7 @@ typedef struct SettingsContext {
     Screen *parametric;
     Screen *card_format;
     EqualizerPresets *presets;
-    const LanguageList *languages;
+    LanguageList *languages;
     char message[SETTINGS_MESSAGE_CAPACITY];
 } SettingsContext;
 
@@ -147,7 +147,9 @@ struct SettingsScreens {
     };
     ButtonSettings buttons;
     HeadphoneEditor headphones;
+#ifndef ECHO_DEVICE_OVERLAYS
     LanguageList languages;
+#endif
     const char *safe_volume_options[SETTINGS_SAFE_VOLUME_OPTIONS];
     PlugChooser usb;
     bool card_needs_format;
@@ -162,6 +164,9 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                               const Theme *theme);
 #ifdef ECHO_DEBUG_LOOP
 extern const SettingsChooseTables SETTINGS_CHOOSE_TABLES;
+#endif
+#ifdef ECHO_DEVICE_OVERLAYS
+void settings_screens_restore_languages(SettingsScreens *screens);
 #endif
 Screen *settings_screens_usb_modes(SettingsScreens *screens, bool prompt);
 

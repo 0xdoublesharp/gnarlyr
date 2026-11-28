@@ -23,13 +23,15 @@ static void levels_outside_the_range_are_clamped(void)
     CHECK_EQUAL(100u, backlight_percent(200));
 }
 
-static void the_pwm_runs_at_twenty_five_kilohertz_from_pclk(void)
+static void the_two_pll_rates_share_period_and_duty_above_twenty_five_kilohertz(void)
 {
     CHECK_EQUAL(25000u, BACKLIGHT_HZ);
     BacklightPwm pwm = backlight_pwm(50000000u, 47);
     CHECK(!pwm.full);
-    CHECK_EQUAL(2000u, pwm.period);
-    CHECK_EQUAL(1060u, pwm.duty);
+    CHECK_EQUAL(1920u, pwm.period);
+    CHECK_EQUAL(1018u, pwm.duty);
+    CHECK_EQUAL(pwm.period, backlight_pwm(48000000u, 47).period);
+    CHECK_EQUAL(pwm.duty, backlight_pwm(48000000u, 47).duty);
     CHECK_EQUAL(960u, backlight_pwm(24000000u, 47).period);
 }
 
@@ -78,7 +80,7 @@ int main(void)
         TEST_CASE(levels_get_brighter_up_to_full_at_the_top),
         TEST_CASE(the_dimmest_level_keeps_the_panel_lit),
         TEST_CASE(levels_outside_the_range_are_clamped),
-        TEST_CASE(the_pwm_runs_at_twenty_five_kilohertz_from_pclk),
+        TEST_CASE(the_two_pll_rates_share_period_and_duty_above_twenty_five_kilohertz),
         TEST_CASE(the_duty_register_counts_the_time_the_backlight_is_off),
         TEST_CASE(brighter_levels_hold_the_pin_low_for_less_of_the_period),
         TEST_CASE(full_brightness_skips_the_pwm),

@@ -6,6 +6,7 @@
 
 #include "device/updater.h"
 #include "playback/store.h"
+#include "settings/user_state.h"
 #include "trial_record.h"
 
 #define TRIAL_BOOT_MODULE_NUMBER 15u
@@ -50,3 +51,5 @@ void trial_boot_module_start(struct UsbShared *shared, uint32_t *buffer);
 void trial_boot_module_session_end(struct UsbShared *shared, uint32_t *buffer,
                                    const uint32_t *running);
 bool user_state_module_settle(struct UsbShared *shared);
+void user_state_module_languages(void);
+void language_descriptor_refresh(const UserStateIo *io, const char *build);

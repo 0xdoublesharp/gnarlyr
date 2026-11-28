@@ -88,7 +88,7 @@ class Volume:
         self.card = Path(directory.name) / "card"
         for root in (self.internal, self.card):
             (root / font_recipe.DATA_FOLDER).mkdir(parents=True)
-        self.lang = self.card / font_recipe.DATA_FOLDER / "lang"
+        self.lang = self.internal / font_recipe.DATA_FOLDER / "lang"
         self.lang.mkdir()
         self.fonts = self.internal / font_recipe.DATA_FOLDER / "fonts"
         self.volumes = font_recipe.Volumes(self.internal, self.card)
