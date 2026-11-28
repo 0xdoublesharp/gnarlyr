@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include "board.h"
+#include "core/drive_path.h"
 #include "core/seam.h"
 #include "device/slot_copy.h"
 #include "hal/storage.h"
@@ -16,7 +17,7 @@
 #define USER_STATE_BUFFER_BASE                                                                     \
     (OVERLAY_WINDOW_BASE + OVERLAY_WINDOW_BYTES - SLOT_COPY_BUFFER_WORDS * 4)
 
-CORE_SEAM bool user_state_module_settle(UsbShared *shared, bool requested)
+CORE_SEAM bool user_state_module_settle(UsbShared *shared)
 {
     bool changed = (shared->trial.settle & USB_SETTLE_CHANGED) != 0;
     FatVolume *internal = internal_volume_mount();
@@ -24,16 +25,21 @@ CORE_SEAM bool user_state_module_settle(UsbShared *shared, bool requested)
     UserStateDisk disk = {internal, music};
     UserStateIo io = user_state_fat_io(&disk, (uint8_t *)(uintptr_t)USER_STATE_BUFFER_BASE,
                                        SLOT_COPY_BUFFER_WORDS * 4);
-    const char *build = hal_system_version();
-    if (internal != NULL) {
-        language_descriptor_refresh(&io, build);
-    }
-    if (!requested && shared->trial.settle == 0) {
-        return true;
-    }
-    if (internal == NULL || !user_state_run(&io, build, changed)) {
+    if (internal == NULL || !user_state_run(&io, hal_system_version(), changed)) {
         return false;
     }
     shared->trial.settle &= USB_SETTLE_ROLLED_BACK;
     return true;
+}
+
+void user_state_module_languages(void)
+{
+    const char *root = DRIVE_PATH_INTERNAL_ROOT;
+    FatVolume *internal = board_route_volume(&root);
+    if (internal != NULL) {
+        UserStateDisk disk = {internal, NULL};
+        UserStateIo io = user_state_fat_io(&disk, (uint8_t *)(uintptr_t)USER_STATE_BUFFER_BASE,
+                                           SLOT_COPY_BUFFER_WORDS * 4);
+        language_descriptor_refresh(&io, hal_system_version());
+    }
 }

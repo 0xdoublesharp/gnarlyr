@@ -79,8 +79,8 @@ Segments follow the index in order and end at the end of the file. A segment is 
 ## Built-in language descriptor
 
 `/.gnarlyr/languages.bin` lives on the player's internal drive. Firmware writes it
-from the running image during continuity settlement when the file is missing
-or belongs to another build. The file uses little-endian integers.
+from the running image at startup after preparing storage when the file is
+missing or belongs to another build. The file uses little-endian integers.
 
 | Bytes | Field |
 |---|---|

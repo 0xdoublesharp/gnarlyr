@@ -122,9 +122,9 @@ CORE_SEAM void trial_boot_module_start(UsbShared *shared, uint32_t *buffer)
     shared->trial.settle |= rolled_back ? USB_SETTLE_CHANGED | USB_SETTLE_ROLLED_BACK : 0;
 }
 
-static bool settle(UsbShared *shared, bool requested)
+static bool settle(UsbShared *shared)
 {
-    if (!user_state_module_settle(shared, requested)) {
+    if (!user_state_module_settle(shared)) {
         return false;
     }
     if ((shared->trial.settle & USB_SETTLE_ROLLED_BACK) == 0) {
@@ -248,6 +248,15 @@ static void start_with_headphones(HeadphoneStore *store)
     headphone_store_load(store);
 }
 
+static bool prepare_storage(size_t *index, CardFilesReport *report, bool charging, bool *finished)
+{
+    bool pause = card_files_prepare_step(index, report, charging, finished);
+    if (*finished) {
+        user_state_module_languages();
+    }
+    return pause;
+}
+
 const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_BOOT_MODULE_NUMBER),
                                                       trial_boot_module_start,
                                                       trial_boot_module_session_end,
@@ -258,5 +267,5 @@ const TrialBootModuleEntry TRIAL_BOOT_MODULE_ENTRY = {SCREEN_MODULE_MAGIC(TRIAL_
                                                       favorites_store_read,
                                                       spoken_store_read,
                                                       bluetooth_store_load,
-                                                      card_files_prepare_step,
+                                                      prepare_storage,
                                                       card_files_start_scan};

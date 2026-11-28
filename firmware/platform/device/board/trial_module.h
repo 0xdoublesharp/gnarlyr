@@ -25,7 +25,7 @@ typedef struct TrialBootModuleEntry {
     uint32_t magic;
     void (*start)(struct UsbShared *shared, uint32_t *buffer);
     void (*session_end)(struct UsbShared *shared, uint32_t *buffer, const uint32_t *running);
-    bool (*settle)(struct UsbShared *shared, bool requested);
+    bool (*settle)(struct UsbShared *shared);
     void (*headphones_load)(struct HeadphoneStore *store);
     void (*settings_read)(struct SettingsStore *store);
     bool (*player_restore)(struct Player *player, bool cold_start);
@@ -50,5 +50,6 @@ bool trial_module_install(const TrialInstall *install, bool both);
 void trial_boot_module_start(struct UsbShared *shared, uint32_t *buffer);
 void trial_boot_module_session_end(struct UsbShared *shared, uint32_t *buffer,
                                    const uint32_t *running);
-bool user_state_module_settle(struct UsbShared *shared, bool requested);
+bool user_state_module_settle(struct UsbShared *shared);
+void user_state_module_languages(void);
 void language_descriptor_refresh(const UserStateIo *io, const char *build);

@@ -238,6 +238,12 @@ UserStateIo user_state_fat_io(UserStateDisk *disk, uint8_t *bytes, uint32_t size
     return (UserStateIo){0};
 }
 
+FatVolume *board_route_volume(const char **path)
+{
+    (void)path;
+    return &volume;
+}
+
 void language_descriptor_refresh(const UserStateIo *io, const char *build)
 {
     (void)io;
@@ -405,7 +411,7 @@ static void failed_cleanup_keeps_a_terminal_record(void)
 {
     start((UpdateTrial){UPDATE_TRIAL_ROLLED_BACK, 0}, DELETE_RECORD);
     shared.trial.settle = USB_SETTLE_CHANGED | USB_SETTLE_ROLLED_BACK;
-    CHECK(TRIAL_BOOT_MODULE_ENTRY.settle(&shared, false));
+    CHECK(TRIAL_BOOT_MODULE_ENTRY.settle(&shared));
     CHECK(card.injected && card.present && card.settled_change);
     expect_record(UPDATE_TRIAL_NONE, 0);
     TRIAL_BOOT_MODULE_ENTRY.start(&shared, buffer);
@@ -419,10 +425,10 @@ static void failed_settle_keeps_work_pending(void)
     for (size_t index = 0; index < TEST_CASE_COUNT(FAULTS); index++) {
         start((UpdateTrial){UPDATE_TRIAL_ROLLED_BACK, 0}, FAULTS[index]);
         shared.trial.settle = USB_SETTLE_CHANGED | USB_SETTLE_ROLLED_BACK;
-        CHECK(!TRIAL_BOOT_MODULE_ENTRY.settle(&shared, false));
+        CHECK(!TRIAL_BOOT_MODULE_ENTRY.settle(&shared));
         CHECK(card.injected);
         CHECK((shared.trial.settle & USB_SETTLE_ROLLED_BACK) != 0);
-        CHECK(TRIAL_BOOT_MODULE_ENTRY.settle(&shared, false));
+        CHECK(TRIAL_BOOT_MODULE_ENTRY.settle(&shared));
         CHECK(card.settled_change);
         CHECK_EQUAL(0, shared.trial.settle);
         expect_record(UPDATE_TRIAL_NONE, 0);

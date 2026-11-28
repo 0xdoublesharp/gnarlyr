@@ -34,6 +34,13 @@ typedef struct LanguageTable {
     uint8_t header[TABLE_CAPACITY];
 } LanguageTable;
 
+typedef struct DescriptorStream {
+    const UserStateIo *io;
+    uint32_t hash;
+    uint32_t offset;
+    uint32_t used;
+} DescriptorStream;
+
 static void encode_header(uint8_t *header, const char *build)
 {
     bytes_put_le32(header, DESCRIPTOR_MAGIC);
@@ -113,21 +120,36 @@ static bool read_table(LanguageTable *table, uint32_t slot, uint32_t slot_bytes)
     return true;
 }
 
-static bool stream_pack(const UserStateIo *io, const LanguageTable *table, uint32_t index,
-                        uint32_t *hash)
+static bool flush(DescriptorStream *stream)
+{
+    const UserStateIo *io = stream->io;
+    bool written =
+        stream->used == 0 ||
+        io->write(io->context, &PLACE, (UserStateChunk){stream->offset, io->buffer, stream->used});
+    stream->offset += stream->used;
+    stream->used = 0;
+    return written;
+}
+
+static bool stream_pack(DescriptorStream *stream, const LanguageTable *table, uint32_t index)
 {
     const uint32_t *source = table->rows[index];
-    uint32_t offset = bytes_le32(table->header + ROWS_AT + index * ROW_BYTES);
+    const UserStateIo *io = stream->io;
     for (uint32_t done = 0; done < source[1];) {
+        uint32_t room = io->buffer_bytes - stream->used;
         uint32_t left = source[1] - done;
-        uint32_t length = left < io->buffer_bytes ? left : io->buffer_bytes;
+        uint32_t length = left < room ? left : room;
+        uint8_t *target = io->buffer + stream->used;
         hal_system_keep_alive();
-        if (!board_slot_read(table->slot, source[0] + done, io->buffer, length) ||
-            !io->write(io->context, &PLACE, (UserStateChunk){offset + done, io->buffer, length})) {
+        if (!board_slot_read(table->slot, source[0] + done, target, length)) {
             return false;
         }
-        *hash = hash_update(*hash, io->buffer, length);
+        stream->hash = hash_update(stream->hash, target, length);
         done += length;
+        stream->used += length;
+        if (stream->used == io->buffer_bytes && !flush(stream)) {
+            return false;
+        }
     }
     return true;
 }
@@ -137,20 +159,25 @@ static bool write_descriptor(const UserStateIo *io, LanguageTable *table)
     uint8_t *header = table->header;
     uint32_t count = bytes_le32(header + COUNT_AT);
     uint32_t header_bytes = ROWS_AT + count * ROW_BYTES;
-    uint32_t hash = hash_update(HASH_START, header, CHECKSUM_AT);
-    hash = hash_update(hash, header + TABLE_AT, header_bytes - TABLE_AT);
-    uint8_t invalid[4] = {0};
-    if (!io->create(io->context, &PLACE, bytes_le32(header + SIZE_AT)) ||
-        !io->write(io->context, &PLACE, (UserStateChunk){0, invalid, sizeof invalid})) {
+    if (!io->create(io->context, &PLACE, bytes_le32(header + SIZE_AT))) {
         return false;
     }
+    uint32_t hash = hash_update(HASH_START, header, CHECKSUM_AT);
+    DescriptorStream stream = {
+        .io = io,
+        .hash = hash_update(hash, header + TABLE_AT, header_bytes - TABLE_AT),
+        .used = header_bytes,
+    };
+    memcpy(io->buffer, header, header_bytes);
+    bytes_put_le32(io->buffer, 0);
     for (uint32_t index = 0; index < count; index++) {
-        if (!stream_pack(io, table, index, &hash)) {
+        if (!stream_pack(&stream, table, index)) {
             return false;
         }
     }
-    bytes_put_le32(header + CHECKSUM_AT, hash);
-    return io->write(io->context, &PLACE, (UserStateChunk){0, header, header_bytes});
+    bytes_put_le32(header + CHECKSUM_AT, stream.hash);
+    return flush(&stream) &&
+           io->write(io->context, &PLACE, (UserStateChunk){0, header, header_bytes});
 }
 
 void language_descriptor_refresh(const UserStateIo *io, const char *build)
@@ -158,7 +185,7 @@ void language_descriptor_refresh(const UserStateIo *io, const char *build)
     LanguageTable table = {0};
     encode_header(table.header, build);
     EmmcInfo info;
-    if (current(io, table.header) || !emmc_start(&info)) {
+    if (io->buffer_bytes < TABLE_CAPACITY || current(io, table.header) || !emmc_start(&info)) {
         return;
     }
     uint32_t bytes = info.layout.slot_sectors * SECTOR_BYTES;

@@ -107,15 +107,13 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.fat_volume import Fat32Volume
         volume = Fat32Volume()
         volume.add_directory(IDENTITY.data_directory)
-        current = self.session()
-        self.assertEqual(current.run_to_first_frame(), "condition met")
+        current, _ = self.started_session()
         path = f"/{IDENTITY.data_directory}/languages.bin"
         old = bytearray(current.fat().read(path))
         old[16:32] = b"old-build".ljust(16, b"\0")
         struct.pack_into("<I", old, 40, lang_pack.fnv(old[44:], lang_pack.fnv(old[:40])))
         volume.add_file("languages.bin", bytes(old), directory=IDENTITY.data_directory)
-        fresh = self.session(volume=volume)
-        self.assertEqual(fresh.run_to_first_frame(), "condition met")
+        fresh, _ = self.started_session(volume=volume)
         self.assertEqual(fresh.fat().read(path), current.fat().read(path))
         self.assert_only_the_user_volume_changed(fresh)
 
