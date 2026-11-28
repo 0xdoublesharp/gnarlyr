@@ -690,7 +690,9 @@ class EchoImageTest(EchoImageHarness):
 
     def wireframe_round(self, style, name):
         from echo_emulator.modules import ModuleWatch
-        session = self.styled_rig(style).session.reboot()
+        rig = self.styled_rig(style)
+        self.wait_for_initial_music_scan(rig)
+        session = rig.session.reboot()
         machine = session.machine
         watch = ModuleWatch(session)
         number, overlay = self.module(machine, name)

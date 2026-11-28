@@ -974,6 +974,17 @@ class EchoImageHarness(unittest.TestCase):
             return create()
         return self.cached_boot("playback", files, create)
 
+    def wait_for_initial_music_scan(self, rig):
+        scan_path = f"/{IDENTITY.data_directory}/scan.bin"
+
+        def scan_saved():
+            record = rig.session.fat().read(scan_path)
+            return record is not None and record.startswith(b"DSS2")
+
+        self.assertEqual(rig.machine.run(until=scan_saved,
+                                         until_ms=self.session_module.FRAME_LIMIT_MS), "condition met")
+        rig.settle()
+
     def speech_rig(self, rate=8000):
         pattern = struct.pack("<8h", 0, 2828, 4000, 2828, 0, -2828, -4000, -2828)
         pcm = pattern * (rate * 30 // 8)

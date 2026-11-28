@@ -209,6 +209,7 @@ class EchoImageTest(EchoImageHarness):
         from echo_emulator.devices import GPIO_DATA
         from echo_image_harness import DAC_MUTED
         rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, in_range=False)
+        self.wait_for_initial_music_scan(rig)
         machine = rig.machine
         machine.balanced_plugged = True
         rig.run_for(200)
