@@ -4,10 +4,11 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.m
 
 ## 1.0.0-beta.4 (public beta)
 
-- Choose from seven built-in languages in **Settings → Language**. Custom packs live in `.gnarlyr/lang` on internal storage, and the picker holds up to 16 languages.
-- Keep backlight brightness steady when switching pages.
-- Restore the clock before playback starts, and date the active listen if the clock becomes available during playback.
-- Bluetooth volume defaults to 56, and the DAC compensates for changes to Gain while streaming. With Safe start enabled, connecting Bluetooth headphones lowers levels above 56.
+- **Seven built-in languages.** Choose English, German, Spanish, French, Japanese, Portuguese, or Simplified Chinese in **Settings → Language**. The built-in fonts cover every character used by these translations, including Japanese and Simplified Chinese characters. The picker holds up to 16 languages with custom packs.
+- **Upgrading with custom language packs.** Beta.4 reads custom `.pack` files from internal `.gnarlyr/lang/`. If you kept custom packs on microSD in beta.3, copy them to that folder on the internal drive or use Companion beta.4’s **Copy to internal storage**. Update Companion to beta.4 before or right after updating your ECHO.
+- **Bluetooth loudness and Safe start.** You keep your saved Bluetooth volume when you update. At the same volume setting, Low gain plays about 3 dB louder and Medium about 1 dB louder to match stock output. High gain sounds the same. The default for new settings and the Safe start ceiling when Bluetooth headphones connect both rise from 50 to 56 (about 6 dB louder).
+- **Page changes at brightness 1.** The backlight stays steady when a page change switches the processor clock.
+- **Clock and listening history.** The player restores its saved clock from the clock chip at startup before playback. If the time becomes available during a listen, the player fills in its start time for listening history and scrobble export.
 
 ## 1.0.0-beta.3 (public beta)
 

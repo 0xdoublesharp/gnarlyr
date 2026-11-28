@@ -47,26 +47,14 @@
 </header>
 <main id="main">
   <div class="page-intro wrap">
-    <p class="eyebrow">Language packs · USB installation</p>
-    <h1 class="page-title">Language packs for Gnarlyr</h1>
-    <p>Build or check a Gnarlyr language pack. Your text and files stay in your browser.</p>
+    <h1 class="page-title" id="official-packs">Seven languages built into Gnarlyr</h1>
+    <p>On your ECHO running beta.4 or later, open Settings → Language and choose English, Deutsch, Español, Français, 日本語, Português, or 简体中文. All seven are ready to use without extra downloads or fonts.</p>
   </div>
   <noscript><p class="wrap callout">Turn on JavaScript to build and check packs here. You can also build them from the source checkout with the <a href="build.html">developer tools</a>.</p></noscript>
-  <section class="wrap callout hardware-cta language-official" id="official-packs" aria-labelledby="official-packs-title">
-    <div class="hardware-cta-copy">
-      <p class="eyebrow">Ready to install · v1.0.0-beta.3</p>
-      <h2 id="official-packs-title">Six official language packs are already built</h2>
-      <p><strong>Deutsch</strong>, <strong>Español</strong>, <strong>Français</strong>, <strong>日本語</strong>, <strong>Português</strong>, and <strong>简体中文</strong> are published in <a href="https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.3">v1.0.0-beta.3 ↗</a> and installable in one click inside <a href="companion.html#get">Gnarlyr Companion</a>. Use the builder below to create or customize a pack for another language.</p>
-    </div>
-    <div class="download-actions">
-      <a class="button" href="companion.html#get">Install with Gnarlyr Companion →</a>
-      <a class="button language-secondary" href="https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.3">Download .pack files on GitHub ↗</a>
-    </div>
-  </section>
   <div class="language-tools wrap">
     <section class="language-panel" aria-labelledby="build-title">
       <h2 id="build-title">Build a language pack</h2>
-      <p class="language-description">Download the English template, translate the text after each <code>=</code>, then import it below. Any entry you leave out or empty uses English.</p>
+      <p class="language-description">Download the English template, translate the text after each <code>=</code>, then import it below. Any entry you leave out or empty uses English. Your text and files stay in your browser.</p>
       <button class="button language-secondary" id="download-template" type="button">Download English template</button>
       <form id="language-builder" novalidate>
         <div class="language-fields">
@@ -122,21 +110,21 @@
       <aside class="language-note" aria-labelledby="characters-title">
         <h3 id="characters-title">Character support</h3>
         <p>The builder tells you when a pack needs <code>extra.font</code> and identifies any characters the player cannot display.</p>
-        <p>Use the template supplied with your firmware. If a firmware update changes the template, rebuild your pack from your saved translation text.</p>
+        <p>Use the template for your firmware version. If an update changes the template, import your saved translation text and download a new pack.</p>
       </aside>
     </div>
   </div>
   <section class="doc-section wrap language-install" id="install-pack" aria-labelledby="install-title">
-    <h2 id="install-title">Install the language pack</h2>
+    <h2 id="install-title">Install a custom language pack</h2>
     <ol class="sequence">
       <li><strong>Connect to the computer.</strong> Plug in the ECHO and choose Connect to computer (or Home → USB mode → Connect to computer).</li>
-      <li><strong>Open the player’s internal drive.</strong> Beta.3 and earlier read packs from the active music drive, which is the microSD card when one is inserted and readable.</li>
-      <li><strong>Copy the pack.</strong> Open or create <code>.gnarlyr/lang</code> on that drive and copy your downloaded file there. Keep its name: for example, <code>es.pack</code>. Keep a copy of any pack you replace and save your translation text on your computer.</li>
+      <li><strong>Choose the drive.</strong> On beta.4 or later, use <code>/.gnarlyr/lang/</code> on internal storage. On beta.3, use <code>/.gnarlyr/lang/</code> on the microSD card, or on internal storage if you have no readable card.</li>
+      <li><strong>Copy the pack.</strong> Create the folder if needed, then copy the <code>.pack</code> file into it. Keep its filename and save a copy of your translation text on your computer.</li>
       <li><strong>Safely eject the player's drives.</strong> Wait for the USB mode chooser, then select Charge &amp; play. There is no need to unplug or restart.</li>
       <li><strong>Choose your language.</strong> Open Settings → Language and select its native name. The interface changes straight away; your choice is kept for the next start.</li>
     </ol>
-    <p>Keep the built-in English fallback available. To return to English, choose <strong>English</strong> in the Language menu. If an external pack is missing or incompatible, the player uses its built-in language.</p>
-    <p>A browser pack check uses this page’s template. If the player refuses the file, use the template matching your installed firmware and rebuild it.</p>
+    <p>When upgrading from beta.3, copy your custom packs from the microSD card to internal storage or use <strong>Copy to internal storage</strong> in <a href="companion.html#languages">Companion beta.4</a>.</p>
+    <p>Still on beta.3? <a href="https://github.com/0xdoublesharp/gnarlyr/releases/tag/v1.0.0-beta.3">Download the official beta.3 language packs ↗</a></p>
   </section>
 </main>
 

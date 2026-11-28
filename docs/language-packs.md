@@ -39,7 +39,7 @@ The stdio server `python3 tools/echo_debug_mcp.py` exposes `echo_language_inspec
 
 Before publishing a pack, the helper validates its complete contents against that catalogue, writes a temporary file, flushes it and checks the readback. Replacing a pack retains a backup. Only language-pack paths and `.gnarlyr/fonts/extra.font` on internal storage are writable through these operations; firmware and debug operations keep their existing write boundaries.
 
-After a firmware catalogue change, `language-list` reports old packs under `incompatible_files`. Install the rebuilt pack under the same code to preserve the previous bytes as a backup and publish its compatible replacement. A file of another pack format version is listed there with the reason `format_mismatch`; rebuild it from its translation file.
+After a firmware catalogue change, `language-list` reports old packs under `incompatible_files`. Install the rebuilt pack under the same code to preserve the previous bytes as a backup and publish its compatible replacement. If a pack uses an unsupported format, it appears with the reason `format_mismatch`. Import your saved translation text into the builder for your firmware version and download a new `.pack` file.
 
 Safe host ejection gives storage ownership back to the player and refreshes its available languages. Built-in languages remain available if an external pack is absent or incompatible. The player reads each screen's text from the chosen pack on internal storage, so removing the microSD card leaves the language in use. Keep replacement backups: file checks do not guarantee recovery of an external translation after a power loss during filesystem publication.
 
