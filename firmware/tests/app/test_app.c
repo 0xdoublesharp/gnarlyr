@@ -1589,11 +1589,13 @@ static void choosing_high_gain_lowers_the_wired_volume_while_bluetooth_is_the_ou
     uint8_t wired = app_player_status().volume;
     fake_hal_audio_set_jack(HAL_AUDIO_JACK_NONE);
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_CONNECTED;
-    uint8_t bluetooth = app_player_status().volume;
+    CHECK_EQUAL(56, app_player_status().volume);
     open_setting(SETTINGS_GAIN_INDEX);
     move_down(2);
     tap(KEY_PLAY);
-    CHECK_EQUAL(bluetooth, app_player_status().volume);
+    CHECK_EQUAL(HAL_AUDIO_GAIN_HIGH, fake_hal_audio_gain());
+    CHECK_EQUAL(56, app_player_status().volume);
+    CHECK_EQUAL(56, fake_hal_audio_bluetooth_volume());
     fake_hal_bluetooth()->state = HAL_BLUETOOTH_OFF;
     fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
     CHECK_EQUAL(wired - GAIN_RISE_STEPS, app_player_status().volume);

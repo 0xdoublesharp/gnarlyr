@@ -359,7 +359,7 @@ Settings → Sound → Crossfeed chooses Off, Low, Medium or High for when no he
 
 ## Safe start volume
 
-When you turn the player on, plug headphones into either jack or connect Bluetooth headphones, a volume above the safe level is lowered to it, and a short "Volume lowered to 24" message says so. The safe level you pick is for wired headphones. Connecting Bluetooth headphones lowers only the Bluetooth volume, and only from above 50 down to 50, the Bluetooth level FiiO's firmware starts at. A quieter volume is never raised. Turn it up again as usual; it stays where you put it until the next time you turn the player on or plug headphones in. Settings → Playback → Safe start volume picks the level (12, 18, 24, 30 or 36, on the same scale Now Playing shows; 24 is the default) or Off. The USB DAC keeps its own volume and isn't affected.
+When you turn the player on or plug headphones into either jack, Safe start lowers the wired volume if it's above your chosen level. When Bluetooth headphones connect, Safe start lowers Bluetooth levels above 56 to 56. A short message such as "Volume lowered to 24" appears after an adjustment. You can turn the volume back up as usual. Settings → Playback → Safe start volume offers 12, 18, 24 (the default), 30, 36, or Off. The USB DAC keeps its own volume and isn't affected.
 
 ## Portrait mode
 
@@ -496,7 +496,7 @@ Settings → Connections → Bluetooth shows whether Bluetooth is on and which h
 
 Music plays through the headphones whenever nothing is plugged into either jack.
 
-Bluetooth has its own volume, separate from the wired one. While Bluetooth headphones are connected and nothing is plugged into a jack, the volume keys and the volume on screen are the Bluetooth volume; otherwise they're the wired volume. Each stays where you left it, also after a restart. The Bluetooth volume starts at 50, and its top step, 60, is as loud as FiiO's firmware goes over Bluetooth; headphone profiles don't limit or trim it. To switch to wired headphones, pause, plug them in and press play: while music is going to Bluetooth the player can't see the jack. After you unplug, the next play goes back to Bluetooth.
+Bluetooth has its own volume, separate from the wired one. While Bluetooth headphones are connected and nothing is plugged into a jack, the volume keys and the volume on screen are the Bluetooth volume; otherwise they're the wired volume. Each stays where you left it, also after a restart. The Bluetooth volume starts at 56. Step 60 targets FiiO's Bluetooth loudness ceiling across the Gain settings, and headphone profiles don't limit or trim it. To switch to wired headphones, pause, plug them in and press play: while music is going to Bluetooth the player can't see the jack. After you unplug, the next play goes back to Bluetooth.
 
 The headphones' controls work: pause, play and next/previous track, and taking them out of your ears pauses if they have in-ear detection. If they disconnect, for example when you walk out of range, playback pauses. When they come back, the player reconnects but stays paused: press ▶ to carry on.
 

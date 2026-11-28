@@ -97,8 +97,8 @@ class EchoImageTest(EchoImageHarness):
                 starts.append(struct.unpack("<II", first))
                 level = rig.machine.read_memory(rig.machine.symbols["bluetooth_level"], 1)[0]
                 target = rig.machine.read_memory(rig.machine.symbols["volume_value"], 1)[0]
-                self.assertEqual(level, 50)
-                self.assertEqual(target, 10 + 2 * (60 - level))
+                self.assertEqual(level, 56)
+                self.assertEqual(target, 12)
                 wired = rig.machine.read_memory(rig.machine.symbols["volume_level"], 1)[0]
                 self.assertNotEqual(level, wired)
             original(on)
@@ -112,6 +112,33 @@ class EchoImageTest(EchoImageHarness):
         self.run_until(rig, lambda: len(starts) == 2, WAIT_MS)
         self.assertEqual(starts, [(0, 0), (0, 0)])
         self.assertFalse(any(command[1:2] == b"S" for command in module.sent()))
+
+    def test_a_live_bluetooth_gain_increase_fades_to_the_compensated_volume(self):
+        from echo_emulator.dac_hardware import DAC_GAIN_HIGH_VALUE, DAC_GAIN_REGISTER, DAC_VOLUME_A_REGISTER
+
+        rig, module, toasts = self.bluetooth_rig(on_bluetooth=True)
+        dac_bus = rig.audio.dac_bus
+        rig.open_songs()
+        rig.play_song(1)
+        self.run_until(rig, lambda: module.streaming, WAIT_MS)
+        rig.press_many("back", 3)
+        rig.press("previous")
+        rig.press("play")
+        rig.press("play")
+        rig.press_many("next", 2)
+        rig.press("play")
+        rig.press_many("next", 2)
+        self.assertTrue(module.streaming)
+        dac_bus.writes.clear()
+        rig.press("play")
+        self.assertTrue(module.streaming)
+        for chip, registers in dac_bus.chips.items():
+            writes = [(reg, value) for _, address, reg, value in dac_bus.writes if address == chip]
+            high_gain = writes.index((DAC_GAIN_REGISTER, DAC_GAIN_HIGH_VALUE))
+            volumes = [value for reg, value in writes[high_gain:] if reg == DAC_VOLUME_A_REGISTER]
+            self.assertTrue(volumes)
+            self.assertGreaterEqual(min(volumes), 18)
+            self.assertEqual(registers[DAC_VOLUME_A_REGISTER], 18)
 
     def test_play_before_the_last_headphones_connect_waits_and_then_streams(self):
         rig, module, toasts = self.bluetooth_rig(on_bluetooth=True, in_range=False)

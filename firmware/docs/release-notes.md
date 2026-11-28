@@ -7,6 +7,7 @@ Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.m
 - Choose from seven built-in languages in **Settings → Language**. Custom packs live in `.gnarlyr/lang` on internal storage, and the picker holds up to 16 languages.
 - Keep backlight brightness steady when switching pages.
 - Restore the clock before playback starts, and date the active listen if the clock becomes available during playback.
+- Bluetooth volume defaults to 56, and the DAC compensates for changes to Gain while streaming. With Safe start enabled, connecting Bluetooth headphones lowers levels above 56.
 
 ## 1.0.0-beta.3 (public beta)
 

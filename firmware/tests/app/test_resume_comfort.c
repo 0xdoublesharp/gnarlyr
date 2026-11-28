@@ -290,7 +290,7 @@ static void the_default_bluetooth_level_is_kept_on_connect(void)
     start_playing();
     connect_buds();
     CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME, fake_hal_audio_bluetooth_volume());
-    CHECK(!toast_shown_within("Volume lowered to 50", 2 * TOAST_DURATION_MS + 100));
+    CHECK(!toast_shown_within("Volume lowered to 56", 2 * TOAST_DURATION_MS + 100));
 }
 
 static void a_quiet_bluetooth_level_is_kept_on_connect(void)
@@ -318,13 +318,13 @@ static void plugging_in_headphones_while_on_bluetooth_lowers_only_the_wired_leve
 {
     playing_with_a_loud_volume();
     connect_buds();
-    raise_volume(5);
-    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
+    raise_volume(3);
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 3, fake_hal_audio_bluetooth_volume());
     CHECK_EQUAL(BELOW_SAFE + 20, fake_hal_audio_volume());
     fake_hal_audio_set_jack(HAL_AUDIO_JACK_SINGLE_ENDED);
     step();
     CHECK_EQUAL(SETTINGS_DEFAULT_SAFE_START_VOLUME, fake_hal_audio_volume());
-    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 5, fake_hal_audio_bluetooth_volume());
+    CHECK_EQUAL(SETTINGS_DEFAULT_BLUETOOTH_VOLUME + 3, fake_hal_audio_bluetooth_volume());
 }
 
 static void bluetooth_streaming_with_the_screen_off_rests_between_passes(void)
@@ -348,7 +348,7 @@ static void the_volume_toast_follows_the_bluetooth_toast(void)
     CHECK(toast_is("Connected to Buds"));
     wait_ms(TOAST_DURATION_MS + 50);
     wait_ms(10);
-    CHECK(toast_is("Volume lowered to 50"));
+    CHECK(toast_is("Volume lowered to 56"));
 }
 
 static void the_volume_toast_is_dropped_once_the_volume_changed(void)

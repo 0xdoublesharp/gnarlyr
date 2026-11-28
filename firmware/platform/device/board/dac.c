@@ -710,36 +710,44 @@ uint8_t dac_overflow_flags(void)
     return board_dac_diagnostics.overflow;
 }
 
-CORE_COLD static bool set_analog(DacAnalog next)
+CORE_COLD static bool set_analog(DacAnalog next, void (*refresh_volume)(void))
 {
-    if (!dac_up || (chip_analog.gain == next.gain && chip_analog.filter == next.filter)) {
-        analog = next;
-        return true;
-    }
+    bool live = dac_up && (chip_analog.gain != next.gain || chip_analog.filter != next.filter);
     bool was_muted = muted;
-    dac_path_set_muted(true);
-    uint32_t started = hal_clock_microseconds();
-    bool changed = apply_analog(next);
-    board_dac_diagnostics.gain_us = hal_clock_microseconds() - started;
-    muted = was_muted;
-    if (changed) {
-        analog = next;
+    if (live) {
+        dac_path_set_muted(true);
+        uint32_t started = hal_clock_microseconds();
+        bool changed = apply_analog(next);
+        board_dac_diagnostics.gain_us = hal_clock_microseconds() - started;
+        if (!changed) {
+            muted = was_muted;
+            return false;
+        }
     }
-    if (changed && !was_muted) {
+    analog = next;
+    if (refresh_volume != NULL) {
+        refresh_volume();
+    }
+    if (live && !was_muted) {
         dac_path_set_muted(false);
     }
-    return changed;
+    return true;
 }
 
-CORE_COLD bool dac_path_set_gain(HalAudioGain gain)
+HalAudioGain dac_path_gain(void)
 {
-    return set_analog((DacAnalog){.gain = (uint8_t)gain, .filter = analog.filter});
+    return (HalAudioGain)analog.gain;
+}
+
+CORE_COLD bool dac_path_set_gain(HalAudioGain gain, void (*refresh_volume)(void))
+{
+    return set_analog((DacAnalog){.gain = (uint8_t)gain, .filter = analog.filter}, refresh_volume);
 }
 
 CORE_COLD bool dac_path_set_filter(uint8_t filter)
 {
     return filter < DAC_ANALOG_FILTERS &&
-           set_analog((DacAnalog){.gain = analog.gain, .filter = filter});
+           set_analog((DacAnalog){.gain = analog.gain, .filter = filter}, NULL);
 }
 
 bool dac_path_is_up(void)

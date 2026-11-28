@@ -73,7 +73,7 @@ void dac_output_off(const DacBus *bus, bool equalizing);
 void dac_set_muted(const DacBus *bus, bool muted, uint8_t volume);
 bool dac_set_volume(const DacBus *bus, uint8_t volume);
 bool dac_set_volume_lr(const DacBus *bus, uint8_t left, uint8_t right);
-uint8_t dac_volume_value(uint8_t level, DacCurve curve);
+uint8_t dac_volume_value(uint8_t level, DacCurve curve, HalAudioGain gain);
 uint8_t dac_ramp_next(uint8_t current, uint8_t target);
 
 typedef struct DacLevel {

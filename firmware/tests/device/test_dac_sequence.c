@@ -987,31 +987,46 @@ static void a_gain_timeout_never_writes_gain_or_releases_the_outputs(void)
 
 static void volume_levels_map_onto_the_pcm_volume_scale(void)
 {
-    CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x76, dac_volume_value(1, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x60, dac_volume_value(12, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x3C, dac_volume_value(30, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x02, dac_volume_value(59, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x00, dac_volume_value(60, DAC_CURVE_SINGLE_ENDED));
-    CHECK_EQUAL(0x00, dac_volume_value(80, DAC_CURVE_SINGLE_ENDED));
+    CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
+    CHECK_EQUAL(0x76, dac_volume_value(1, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
+    CHECK_EQUAL(0x60, dac_volume_value(12, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
+    CHECK_EQUAL(0x3C, dac_volume_value(30, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
+    CHECK_EQUAL(0x02, dac_volume_value(59, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
+    CHECK_EQUAL(0x00, dac_volume_value(60, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
+    CHECK_EQUAL(0x00, dac_volume_value(80, DAC_CURVE_SINGLE_ENDED, HAL_AUDIO_GAIN_HIGH));
 }
 
 static void the_balanced_curve_sits_ten_units_lower(void)
 {
-    CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x80, dac_volume_value(1, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x6A, dac_volume_value(12, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x0C, dac_volume_value(59, DAC_CURVE_BALANCED));
-    CHECK_EQUAL(0x0A, dac_volume_value(60, DAC_CURVE_BALANCED));
+    CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_BALANCED, HAL_AUDIO_GAIN_MEDIUM));
+    CHECK_EQUAL(0x80, dac_volume_value(1, DAC_CURVE_BALANCED, HAL_AUDIO_GAIN_MEDIUM));
+    CHECK_EQUAL(0x6A, dac_volume_value(12, DAC_CURVE_BALANCED, HAL_AUDIO_GAIN_MEDIUM));
+    CHECK_EQUAL(0x0C, dac_volume_value(59, DAC_CURVE_BALANCED, HAL_AUDIO_GAIN_MEDIUM));
+    CHECK_EQUAL(0x0A, dac_volume_value(60, DAC_CURVE_BALANCED, HAL_AUDIO_GAIN_MEDIUM));
 }
 
-static void the_bluetooth_curve_tops_out_at_stocks_minus_five_db(void)
+static void the_bluetooth_curve_compensates_for_each_dac_gain(void)
 {
-    CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_BLUETOOTH));
-    CHECK_EQUAL(0x80, dac_volume_value(1, DAC_CURVE_BLUETOOTH));
-    CHECK_EQUAL(0x1E, dac_volume_value(50, DAC_CURVE_BLUETOOTH));
-    CHECK_EQUAL(0x0A, dac_volume_value(60, DAC_CURVE_BLUETOOTH));
-    CHECK_EQUAL(0x0A, dac_volume_value(80, DAC_CURVE_BLUETOOTH));
+    static const struct {
+        HalAudioGain gain;
+        uint8_t top;
+        uint8_t safe_start;
+        uint8_t midpoint;
+        uint8_t first;
+    } CASES[] = {
+        {HAL_AUDIO_GAIN_LOW, 4, 12, 64, 122},
+        {HAL_AUDIO_GAIN_MEDIUM, 8, 16, 68, 126},
+        {HAL_AUDIO_GAIN_HIGH, 10, 18, 70, 128},
+    };
+    for (uint32_t i = 0; i < sizeof CASES / sizeof CASES[0]; i++) {
+        HalAudioGain gain = CASES[i].gain;
+        CHECK_EQUAL(0xFF, dac_volume_value(0, DAC_CURVE_BLUETOOTH, gain));
+        CHECK_EQUAL(CASES[i].first, dac_volume_value(1, DAC_CURVE_BLUETOOTH, gain));
+        CHECK_EQUAL(CASES[i].midpoint, dac_volume_value(30, DAC_CURVE_BLUETOOTH, gain));
+        CHECK_EQUAL(CASES[i].safe_start, dac_volume_value(56, DAC_CURVE_BLUETOOTH, gain));
+        CHECK_EQUAL(CASES[i].top, dac_volume_value(60, DAC_CURVE_BLUETOOTH, gain));
+        CHECK_EQUAL(CASES[i].top, dac_volume_value(80, DAC_CURVE_BLUETOOTH, gain));
+    }
 }
 
 static void a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target(void)
@@ -1151,7 +1166,7 @@ int main(void)
         TEST_CASE(the_gain_setting_writes_the_headphone_gain_register),
         TEST_CASE(volume_levels_map_onto_the_pcm_volume_scale),
         TEST_CASE(the_balanced_curve_sits_ten_units_lower),
-        TEST_CASE(the_bluetooth_curve_tops_out_at_stocks_minus_five_db),
+        TEST_CASE(the_bluetooth_curve_compensates_for_each_dac_gain),
         TEST_CASE(a_volume_ramp_moves_six_units_a_step_and_lands_on_the_target),
     };
     return test_run_all(cases, TEST_CASE_COUNT(cases));
