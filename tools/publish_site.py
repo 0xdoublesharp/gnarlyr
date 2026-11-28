@@ -9,14 +9,23 @@ import base64
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import struct
 import subprocess
+import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
+SCRATCH = Path("/Volumes/Scratch/SnowskyEcho")
+PAGEFIND_VERSION = "1.6.0"
+SEARCH_HEAD = (b'<link rel="stylesheet" href="/pagefind/pagefind-component-ui.css">\n'
+               b'<script type="module" src="/pagefind/pagefind-component-ui.js"></script>\n')
+SEARCH_TRIGGER = b'<pagefind-modal-trigger class="site-search"></pagefind-modal-trigger>\n'
+SEARCH_MODAL = (b'<pagefind-config bundle-path="/pagefind/"></pagefind-config>\n'
+                b'<pagefind-modal></pagefind-modal>\n')
 PUBLIC_FILES = (
     "index.html", "companion.html", "firmware.html", "docs.html", "hardware.html", "recovery.html", "install.html", "build.html",
     "styles.css", "site.js", "analytics.js", "favicon.svg", "robots.txt", "sitemap.xml",
@@ -64,7 +73,40 @@ def studio_base_font():
     return struct.pack("<4sI", b"GF16", len(entries)) + index + atlas
 
 
-def public_files():
+def add_search(files):
+    scratch_tmp = SCRATCH / "tmp"
+    scratch_tmp.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="site-search-", dir=scratch_tmp) as folder:
+        root = Path(folder)
+        # The guides are currently in English. Every homepage searches the same corpus.
+        for name in PUBLIC_FILES:
+            if name.endswith(".html"):
+                (root / name).write_bytes(files[name])
+        env = dict(os.environ, TMPDIR=folder)
+        env.setdefault("npm_config_cache", str(SCRATCH / "tools/pagefind-npm"))
+        try:
+            subprocess.run(["npx", "--yes", f"pagefind@{PAGEFIND_VERSION}", "--site", folder,
+                            "--root-selector", "main", "--quiet"],
+                           env=env, cwd=root, stdout=subprocess.PIPE, check=True)
+        except FileNotFoundError as error:
+            raise SystemExit("Install Node.js with npx to build the website search index") from error
+        except subprocess.CalledProcessError as error:
+            raise SystemExit(f"Pagefind failed to build the website search index (exit {error.returncode})") from error
+        bundle = {path.relative_to(root).as_posix(): path.read_bytes()
+                  for path in (root / "pagefind").rglob("*") if path.is_file()}
+    required = {"pagefind/pagefind-entry.json", "pagefind/pagefind-component-ui.css",
+                "pagefind/pagefind-component-ui.js"}
+    if not required <= bundle.keys():
+        raise SystemExit("Pagefind did not produce a complete search bundle")
+    files.update(bundle)
+    for name, page in files.items():
+        if name.endswith(".html") and name != STUDIO_REDIRECT:
+            files[name] = (page.replace(b"</head>", SEARCH_HEAD + b"</head>", 1)
+                           .replace(b"<nav aria-label=", SEARCH_TRIGGER + b"<nav aria-label=", 1)
+                           .replace(b"</body>", SEARCH_MODAL + b"</body>", 1))
+
+
+def public_files(*, search=False):
     paths = [(name, SITE / name) for name in PUBLIC_FILES]
     assets = SITE / "assets"
     if assets.is_symlink():
@@ -102,6 +144,10 @@ def public_files():
     if redirect.is_symlink() or not redirect.is_file():
         raise SystemExit(f"Expected a regular Studio redirect file: {redirect}")
     files[STUDIO_REDIRECT] = redirect.read_bytes()
+    if search:
+        if not SCRATCH.parent.is_mount():
+            raise SystemExit("Mount /Volumes/Scratch before building website search")
+        add_search(files)
     assets = {name.encode(): name.encode() + b"?v=" + hashlib.sha256(data).hexdigest()[:12].encode()
               for name, data in files.items() if not name.endswith(".html")}
     def version_link(match):
@@ -141,17 +187,28 @@ def release_id(files):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", help="Validate public files and print the release ID without connecting")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true", help="Validate public files and print the release ID without publishing")
+    mode.add_argument("--preview", type=Path, metavar="DIRECTORY", help="Write the complete site to a new Scratch directory")
     parser.add_argument("--admin", type=Path, default=Path.home() / "Workspaces/DoublePaaS/scripts/admin.py")
     args = parser.parse_args()
-    files = public_files()
+    preview = args.preview.resolve() if args.preview else None
+    if preview is not None and (not preview.is_relative_to(SCRATCH) or preview.exists()):
+        parser.error("Preview output must be a new directory under /Volumes/Scratch/SnowskyEcho")
+    files = public_files(search=True)
+    if preview is not None:
+        preview.mkdir(parents=True)
+        for name, data in files.items():
+            target = preview / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+        print(json.dumps({"output": str(preview), "release": release_id(files)}))
+        return
     destination = publication_root()
     identity = release_id(files)
     if args.check:
         print(json.dumps({"release": identity, "files": sorted(files), "bytes": sum(map(len, files.values()))}))
         return
-    if not Path("/Volumes/Scratch").is_mount():
-        parser.error("Mount /Volumes/Scratch before publishing")
     if not args.admin.is_file():
         parser.error("The DoublePaaS owner admin helper is missing")
     payload = {name: base64.b64encode(data).decode("ascii") for name, data in files.items()}

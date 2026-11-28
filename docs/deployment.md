@@ -58,15 +58,18 @@ no administrator credentials belong in site source or browser code.
 
 ## Publish content
 
-From this checkout:
+From this checkout with Scratch mounted and Node.js available:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 python3 tools/publish_site.py --check
 PYTHONDONTWRITEBYTECODE=1 python3 tools/publish_site.py
 ```
 
-The first command validates files and prints the content release ID without
-connecting. The second uses the existing
+Both commands build the client-side search index with the pinned Pagefind
+version. On first use, `npx` downloads it into the Scratch tools cache. The
+index covers the English site pages and is available from all homepages.
+The first command prints the content release ID without contacting DoublePaaS.
+The second uses the existing
 `~/Workspaces/DoublePaaS/scripts/admin.py` owner helper, which decrypts the
 operator’s sudo credential in memory and sends it over SSH stdin. Credential
 values are never stored here or printed. The connected `double-paas` MCP owns
@@ -83,6 +86,15 @@ Existing releases must match before reuse. Publication stages and reads back
 files, then atomically replaces a relative `current` symlink while holding
 `frontend/.publish.lock`. A busy lock fails without stealing custody.
 Content publication does not restart nginx. Prior releases remain for rollback.
+
+To test the same site build locally, including the Search button and keyboard
+shortcut, serve a preview from Scratch:
+
+```sh
+preview=$(mktemp -d /Volumes/Scratch/SnowskyEcho/tmp/site-preview.XXXXXX)
+python3 -B tools/publish_site.py --preview "$preview/site" && \
+  python3 -m http.server --bind 127.0.0.1 --directory "$preview/site" 8765
+```
 
 Host layout:
 
@@ -104,9 +116,9 @@ Do not restart the shared proxy for an ordinary site release.
 
 Require HTTP 200 for `/`, `/firmware.html`, `/docs.html`, `/hardware.html`, `/recovery.html`, `/install.html`, `/build.html`,
 `/styles.css`, `/site.js`, `/analytics.js`, `/favicon.svg`, `/robots.txt`, `/sitemap.xml`,
-`/languages.html`, `/companion.html`, `/comparison.html`, `/comparison.js`,
+`/languages.html`, `/companion.html`, `/comparison.html`, `/comparison.js`, `/pagefind/pagefind-entry.json`,
 `/themes.html`, `/language-catalog.js`, `/language-packs.js`, and
-`/healthz`, plus `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/`; compare every published file, including the five language homepages, byte-for-byte against the publisher’s `public_files()` output at
+`/healthz`, plus `/es/`, `/de/`, `/ja/`, `/fr/`, and `/pt/`; compare every published file, including the five language homepages, byte-for-byte against the publisher’s `public_files(search=True)` output at
 the origin, including the generated asset URLs. At the Cloudflare edge, HTML includes an injected analytics beacon;
 remove only that known script when comparing HTML. Other files must match exactly. Require 404 for
 `/README.md`, `/deploy/compose.yaml`, `/i18n/locales.json`, `/i18n/es.json`, `/es/docs.html`, `/ru/`, and an unknown path. Companion HTML, screenshots, and social artwork are included in the public release. Verify origin TLS

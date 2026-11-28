@@ -41,6 +41,8 @@ jobs:
         run: python3 -m unittest discover -s tests
       - name: Check website analytics and Theme Studio
         run: node --test tests/test_site_analytics.mjs tests/test_theme_studio_codec.mjs
+      - name: Build the public website search index
+        run: python3 tools/publish_site.py --check
       - name: Check firmware host tools before ARM scenarios
         run: python3 tools/firmware.py test --jobs 4 --regex '^tools_unit_tests$'
       - name: Check generated assets

@@ -1,5 +1,7 @@
+from contextlib import redirect_stdout
 import hashlib
 import importlib.util
+import io
 import json
 from pathlib import Path
 import sys
@@ -32,6 +34,37 @@ class PublicationTargetTests(unittest.TestCase):
                      "/srv/hosted-data/example/../frontend", "/srv/hosted-data/example/runtime"):
             with self.subTest(path=path), self.assertRaises(SystemExit):
                 self.target(f"- {path}:/site:ro\n")
+
+
+class SearchPublicationTests(unittest.TestCase):
+    def test_publication_check_includes_browser_search_bundle(self):
+        required = {"pagefind/pagefind-component-ui.css", "pagefind/pagefind-component-ui.js",
+                    "pagefind/pagefind-entry.json"}
+
+        def index(command, **kwargs):
+            root = Path(command[command.index("--site") + 1])
+            self.assertIn(f"pagefind@{publisher.PAGEFIND_VERSION}", command)
+            self.assertEqual({path.name for path in root.iterdir()},
+                             {name for name in publisher.PUBLIC_FILES if name.endswith(".html")})
+            self.assertIn(b"<main", (root / "docs.html").read_bytes())
+            for name in required:
+                target = root / name
+                target.parent.mkdir(exist_ok=True)
+                target.write_bytes(b"generated search asset")
+
+        out = io.StringIO()
+        with (mock.patch.object(sys, "argv", ["publish_site.py", "--check"]),
+              mock.patch.object(publisher.subprocess, "run", side_effect=index), redirect_stdout(out)):
+            publisher.main()
+            files = publisher.public_files(search=True)
+        self.assertEqual(required - set(json.loads(out.getvalue())["files"]), set())
+        for name, page in files.items():
+            if name.endswith(".html") and name != publisher.STUDIO_REDIRECT:
+                with self.subTest(page=name):
+                    self.assertIn(b'<pagefind-modal-trigger class="site-search">', page)
+                    self.assertIn(b'<pagefind-modal></pagefind-modal>', page)
+                    self.assertIn(b'src="/pagefind/pagefind-component-ui.js?v=', page)
+        self.assertNotIn(b"pagefind", files[publisher.STUDIO_REDIRECT])
 
 
 class StylesheetPublicationTests(unittest.TestCase):
