@@ -32,7 +32,7 @@ class VersionTests(unittest.TestCase):
             f"{heading}\n{heading}\n")
         tag_link = f'<a href="{release.RELEASES}/tag/{old_tag}">Release</a>\n'
         direct_links = [f'<a href="{release.RELEASES}/download/{old_tag}/{name}">Download</a>\n'
-                        for name in (package.IMAGE, package.STOCK_IMAGE, package.SUMS)]
+                        for name in (package.STOCK_IMAGE, package.SUMS)]
         (self.site / "install.html").write_text(
             f"<h3>Download Firmware {old_tag} directly</h3>\n" + "".join(direct_links) + tag_link)
         (self.site / "languages.html").write_text(f"<p>Ready to install · {old_tag}</p>\n" + tag_link)
@@ -80,6 +80,19 @@ class VersionTests(unittest.TestCase):
     def test_an_unknown_download_pin_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "install.html"):
             release.check_site(TAG, self.site, set())
+
+    def test_manual_install_accepts_the_stock_image_and_checksums(self):
+        old_tag = f"v{package.IDENTITY['version']}-beta.1"
+        self.assertEqual(dict.fromkeys(release.THEMES, "a" * 64),
+                         release.check_site(TAG, self.site, {old_tag}))
+
+    def test_manual_install_rejects_the_redundant_update_image_link(self):
+        old_tag = f"v{package.IDENTITY['version']}-beta.1"
+        install = self.site / "install.html"
+        install.write_text(install.read_text()
+                           + f'<a href="{release.RELEASES}/download/{old_tag}/{package.IMAGE}">Update</a>\n')
+        with self.assertRaisesRegex(ValueError, "install.html"):
+            release.check_site(TAG, self.site, {old_tag})
 
 
 class PackageTests(unittest.TestCase):

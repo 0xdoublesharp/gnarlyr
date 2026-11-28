@@ -2,11 +2,14 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
 
-## 1.0.0-beta.3 (unreleased)
+## 1.0.0-beta.3 (public beta)
 
 - **Headset Vol hold.** In **Settings → Buttons → Headset Vol hold**, choose **Repeat volume** to keep adjusting volume while holding Vol+ or Vol− on a supported 3.5 mm inline remote. **Skip tracks** remains the default, and taps still change volume one step. Native input and settings tests cover the change. Physical remote checks are pending.
+- **Official language packs.** Use the six packs attached to this release with beta.3. Each matches the 978-string catalog. English is built in.
 - **Browser language packs.** The builder can create and inspect packs that need `extra.font`, including packs with Polish or Korean characters that the player lacks in its built-in faces. Use Gnarlyr Companion or echo-sync to generate the font file. [Issue #2](https://github.com/0xdoublesharp/gnarlyr/issues/2).
 - **Documentation.** Updated the user guide and technical references for the current firmware, grouped Settings, and outstanding player checks.
+
+Use `ECHOECHO.img` for a first install from FiiO firmware or an update from Gnarlyr. Check the download against `SHA256SUMS` and follow the [ECHO installation guide](https://gnarlyr.com/install.html).
 
 ## 1.0.0-beta.2 (public beta)
 

@@ -2,6 +2,12 @@
 
 Changes to Gnarlyr firmware for the full-size SNOWSKY ECHO, its website, and its tools. Release dates use GitHub’s UTC publication dates.
 
+## [1.0.0-beta.3] - 2026-11-27
+
+- **Headset volume holds.** In **Settings → Buttons → Headset Vol hold**, choose **Skip tracks** (the default) or **Repeat volume** for a supported 3.5 mm inline remote. Taps still change volume one step. Physical remote checks are pending. Updated all six official language packs to match the 978-string catalog. [Issue #1](https://github.com/0xdoublesharp/gnarlyr/issues/1).
+- **Browser language-pack builder.** The [language page](https://gnarlyr.com/languages.html) now builds and inspects packs that need an `extra.font` file, including packs for Polish, Korean, and other languages with glyphs missing from the built-in fonts. [Issue #2](https://github.com/0xdoublesharp/gnarlyr/issues/2).
+- **Documentation.** Refreshed the firmware guides in `firmware/docs/`, upstream and licensing details in `firmware/UPSTREAM.md` and `firmware/CREDITS.md`, the file-format reference in `docs/formats.md`, and the firmware comparison in `site/comparison.html`.
+
 ## [1.0.0-beta.2] - 2026-11-27
 
 ### Added
@@ -62,6 +68,7 @@ Alpha for end-to-end Companion testing. See the [alpha.2 release notes].
 
 - Published the first alpha for testing Companion’s first-install and update workflows on the full-size ECHO. The release included both firmware images, matching source, and checksums.
 
+[1.0.0-beta.3]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.2...v1.0.0-beta.3
 [1.0.0-beta.2]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-beta.1...v1.0.0-beta.2
 [1.0.0-beta.1]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-alpha.2...v1.0.0-beta.1
 [1.0.0-alpha.2]: https://github.com/0xdoublesharp/gnarlyr/compare/v1.0.0-alpha.1...v1.0.0-alpha.2
