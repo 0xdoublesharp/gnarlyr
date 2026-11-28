@@ -33,6 +33,11 @@ void headset_remote_init(HeadsetRemote *remote)
     *remote = (HeadsetRemote){.plugged = false};
 }
 
+void headset_remote_set_hold_volume(HeadsetRemote *remote, bool repeat_volume)
+{
+    remote->hold_repeats_volume = repeat_volume;
+}
+
 static void push(HeadsetRemote *remote, HalHeadsetCommand command)
 {
     if (remote->count == HEADSET_REMOTE_QUEUE_CAPACITY) {
@@ -129,17 +134,22 @@ static void follow_button(HeadsetRemote *remote, HalHeadsetButton button, uint32
 
 static void follow_hold(HeadsetRemote *remote, uint32_t time_ms)
 {
-    if (remote->held == HAL_HEADSET_BUTTON_NONE || remote->long_sent ||
-        !deadline_elapsed(time_ms, remote->held_ms, HEADSET_REMOTE_LONG_PRESS_MS)) {
+    HalHeadsetButton held = remote->held;
+    bool repeat = remote->hold_repeats_volume && held != HAL_HEADSET_BUTTON_PLAY;
+    uint32_t interval = remote->long_sent ? HEADSET_REMOTE_REPEAT_MS : HEADSET_REMOTE_LONG_PRESS_MS;
+    if (held == HAL_HEADSET_BUTTON_NONE || (remote->long_sent && !repeat) ||
+        (repeat && remote->candidate != held) ||
+        !deadline_elapsed(time_ms, remote->held_ms, interval)) {
         return;
     }
     remote->long_sent = true;
-    if (remote->held == HAL_HEADSET_BUTTON_VOLUME_UP) {
-        push(remote, HAL_HEADSET_NEXT);
-    } else if (remote->held == HAL_HEADSET_BUTTON_VOLUME_DOWN) {
-        push(remote, HAL_HEADSET_PREVIOUS);
-    } else {
+    remote->held_ms = time_ms;
+    if (held == HAL_HEADSET_BUTTON_PLAY) {
         remote->clicks = 0;
+    } else if (held == HAL_HEADSET_BUTTON_VOLUME_UP) {
+        push(remote, repeat ? HAL_HEADSET_VOLUME_UP : HAL_HEADSET_NEXT);
+    } else {
+        push(remote, repeat ? HAL_HEADSET_VOLUME_DOWN : HAL_HEADSET_PREVIOUS);
     }
 }
 

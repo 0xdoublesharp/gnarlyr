@@ -11,7 +11,7 @@ From FiiO's firmware (2.0.0):
 3. Eject both player drives, unplug USB, and fully turn the player off and on with Power. Leave it powered while it updates.
 4. Wait for Gnarlyr to start and check Settings → About. Let the first library scan finish before reconnecting USB.
 
-After this first install, the companion app can copy music, change settings, load languages and prepare later firmware updates. Its current beta uses manual drive selection and ejection. Ordinary USB copying also remains available.
+After this first install, the companion app can copy music, change settings, load languages and prepare later firmware updates. Gnarlyr Companion offers **Find my Echo** to detect the player's drives and supports verified in-app eject on macOS. Manual drive selection and eject are also available. Ordinary USB copying also remains available.
 
 ### Briefly shows Updating, then returns to FiiO
 

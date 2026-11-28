@@ -8,7 +8,7 @@
 typedef struct ButtonSettingsConfig {
     Settings *settings;
     const Theme *theme;
-    void (*changed)(void *context);
+    void (*changed)(void *context, bool defaults_restored);
     void *context;
 } ButtonSettingsConfig;
 
@@ -19,6 +19,7 @@ enum {
     BUTTON_ROW_SEEK,
     BUTTON_ROW_EVERY_SCREEN,
     BUTTON_ROW_LONG,
+    BUTTON_ROW_HEADSET_HOLD,
     BUTTON_ROW_RESET,
     BUTTON_ROW_COUNT,
     BUTTON_VALUE_BYTES = 64

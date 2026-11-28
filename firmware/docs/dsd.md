@@ -1,15 +1,13 @@
-# DSF and DFF PCM playback
+# DSF and DFF playback
 
 The dedicated core-1 DSD program converts uncompressed DSF and DSDIFF to 88.2 kHz
-signed 24-bit PCM. DoP is not implemented. The file adapter accepts mono/stereo
+signed 24-bit PCM or packs DSD64 for wired DoP64 output. The file adapter accepts mono/stereo
 DSD64/DSD128 and mono DSD256 for playback. Stereo DSD256, other rates, more than
 two channels, DST compression and files beyond the 32-bit file interface are
 refused. Container recognition and the host/reference decoder also handle
 stereo DSD256 so its cost can be measured without admitting it for playback.
 
-These are software results. No DSD or AIFF image from this change was installed
-on a player. Listening, physical CPU margin, storage contention and power use
-remain unchecked. Instruction counts do not establish physical real-time playback.
+Most results below come from software tests. The converter cost section records the short PCM playback measurements made on the owner's player. DoP64 playback, broader listening, storage contention, and power use still need player checks.
 
 ## Containers and metadata
 
@@ -125,10 +123,26 @@ The core-1 bank begins at `0x2E0400`, immediately after Opus, with the normal
 512-byte EC1M length/CRC header and a 128 KiB payload capacity. Glyphs, languages
 and modules are allocated after that bank. Other core-1 offsets are unchanged.
 
-## Instruction limit
+## DoP64
 
-Core 1 starts at 100 MHz and requests 200 MHz for all accepted DSD except mono
-DSD64. The [clock reference](core1-clock.md) records the hardware/stock basis,
+Local mono or stereo DSD64 can use the wired outputs at a 176.4 kHz
+carrier rate when digital gain and effective ReplayGain are at unity, headphone trim
+and balance are neutral, speed is Normal, and EQ, Crossfeed, Skip silence, and Speech
+boost are off. No sleep fade can be active, and no track fade can be queued.
+The core-1 decoder requests 50 MHz for DoP64 in
+[`core1_dsd.c`](../platform/device/logic/core1_dsd.c#L114).
+Local playback uses 88.2 kHz PCM conversion when the DoP64 conditions are not met.
+
+High-Speed UAC2 accepts stereo DoP64 at 176.4 kHz in 24- or 32-bit samples
+when headphone trim and balance are neutral. USB DoP64 bypasses EQ. The ARM
+emulator checks local DMA marker preservation and local and USB transitions
+between DoP64 and PCM. Both paths still need listening and acceptance checks
+on the player.
+
+## PCM instruction limit
+
+Core 1 starts at 100 MHz. For PCM conversion it stays at 100 MHz for mono
+DSD64 and requests 200 MHz for the other accepted streams. The [clock reference](core1-clock.md) records the hardware/stock basis,
 independent calculation divider and idle clock reduction. A 20 ms interval has
 two million cycles at 100 MHz or four million at 200 MHz.
 

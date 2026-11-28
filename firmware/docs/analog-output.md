@@ -4,11 +4,11 @@
 
 - `dac_sequence_power_down` mutes PCM, waits 150 ms, clears old status, enables PDN_DONE, asserts PDN_HP on both chips, waits for both completions, then asserts PDN_ASP. Read failure or a 150 ms completion timeout returns false before shutting down the serial port.
 - `dac_sequence_power_up` applies the pop-free settings before releasing ASP and HP, waits 12 ms, then restores the temporary settings. The caller keeps the external mute asserted until ready.
-- `dac_apply_analog` changes the gain and filter. A gain change, or a filter the chips' state leaves unknown, powers down, writes the gain (Low `0x20` or High `0x31`) and the filter, powers up and releases PCM mute; a filter change alone mutes PCM for 150 ms around the filter write. Failure leaves the output muted; the board keeps the previous choice and runs the full sequence again before any later unmute. It requires clocks to remain running throughout.
+- `dac_apply_analog` changes the gain and filter. A gain change, or a filter the chips' state leaves unknown, powers down, writes the gain (Low `0x20`, Medium `0x30`, or High `0x31`) and the filter, powers up and releases PCM mute; a filter change alone mutes PCM for 150 ms around the filter write. Failure leaves the output muted; the board keeps the previous choice and runs the full sequence again before any later unmute. It requires clocks to remain running throughout.
 
 Cold start uses the power-up helper. Power-off and pause standby use the power-down helper through `dac_output_off`. Runtime gain fades out before the helper and fades back only after success. After a failure the board treats the chips' gain and filter as unknown: retrying a choice always runs the sequence, and a pause, output change or new transfer runs it for the recorded choice before unmuting, staying muted if it fails again. Output enable keeps external mute asserted through its 10 ms settling delay.
 
-The register values and ordering follow CS43198 DS1156F2 sections 5.5–5.7 and the OUT_FS field. Low uses the valid `10` OUT_FS code; High retains `11` and +1dB_EN. The repository's stock comparison does not yet establish stock gain values. Physical transient amplitude and listening behavior require the owner's player.
+The register values and ordering follow CS43198 DS1156F2 sections 5.5–5.7 and the OUT_FS field. Low uses OUT_FS `10`, Medium uses `11`, and High uses `11` with +1dB_EN. Physical transient amplitude and listening behavior require the owner's player.
 
 ## Owner listening check
 
@@ -25,7 +25,7 @@ On each jack, start at low volume and compare silence and a quiet continuous tra
 
 [CS43198 DS1156F2](https://statics.cirrus.com/pubs/proDatasheet/CS43198_DS1156F2.pdf), section 7.5.1, defines OUT_FS `00` and `01` as reserved, `10` as 1.41 Vrms and `11` as 1.73 Vrms. Thus `0x20` is the lowest documented valid OUT_FS code. `0x31` selects `11` plus +1dB_EN, which gives 2 Vrms with HV_EN set. The configured Class H value `0x1f` at `0x0b0000` sets HV_EN (bit 1). The expected High/Low voltage ratio is `2 / 1.41 = 1.418`, approximately `20 log10(2 / 1.41) = 3.04 dB`, before downstream amplification and identical digital attenuation. This is a datasheet expectation, not a measurement at either jack.
 
-The [stock record](../../docs/stock-firmware.md) establishes the register bus, start-up sequence and 12 ms settling delay, but explicitly lists gain values as not compared. It does not prove that stock uses `0x20` for Low. This patch chooses `0x20` from the fitted part's documented valid codes; a stock gain trace remains needed to claim equivalence.
+The [stock hardware notes](../../docs/stock-hardware-notes.md#audio-path) record Low `0x10` and High `0x31`. Stock Low selects reserved OUT_FS code `01`, so its output level remains unmeasured. Gnarlyr's Medium `0x30` selects the documented 1.73 Vrms setting.
 
 ## Transition checks and diagnostics
 

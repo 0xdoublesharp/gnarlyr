@@ -42,6 +42,7 @@ bool hal_input_waiting(void);
 bool hal_input_loader_keys_held(void);
 bool hal_input_next_headset_command(HalHeadsetCommand *command);
 HalHeadsetReading hal_input_headset_reading(void);
+void hal_input_set_headset_hold_volume(bool repeat_volume);
 
 uint16_t hal_input_key_adc(void);
 bool hal_input_decode_key(uint16_t reading, Key *key);

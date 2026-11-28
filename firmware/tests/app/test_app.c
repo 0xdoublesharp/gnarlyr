@@ -2115,6 +2115,23 @@ static void saved_settings_are_restored_at_start(void)
     CHECK_EQUAL(settings_defaults().brightness + 2, fake_hal_display_brightness());
 }
 
+static void headset_hold_mode_is_applied_at_start_and_after_a_settings_restore(void)
+{
+    start_app_with_library();
+    CHECK(!fake_hal_headset_hold_volume());
+    SettingsStore saved = {.settings = settings_defaults()};
+    saved.settings.headset_hold_volume = true;
+    CHECK(settings_store_save(&saved));
+    restart_app();
+    CHECK(fake_hal_headset_hold_volume());
+
+    saved.settings.headset_hold_volume = false;
+    CHECK(settings_store_save(&saved));
+    app_reload(STR_SETTINGS_RESTORED);
+    step();
+    CHECK(!fake_hal_headset_hold_volume());
+}
+
 static bool selection_is_red(void)
 {
     const ThemeMetrics *metrics = &expected_theme()->metrics;
@@ -9478,6 +9495,7 @@ int main(void)
         TEST_CASE(an_eq_file_is_listed_by_name_and_loaded_on_choosing),
         TEST_CASE(an_unreadable_eq_file_changes_nothing),
         TEST_CASE(saved_settings_are_restored_at_start),
+        TEST_CASE(headset_hold_mode_is_applied_at_start_and_after_a_settings_restore),
         TEST_CASE(the_color_setting_recolors_the_selection_and_is_saved),
         TEST_CASE(accent_color_previews_and_back_restores_the_saved_selection),
         TEST_CASE(text_size_previews_without_saving_and_back_restores_the_layout),

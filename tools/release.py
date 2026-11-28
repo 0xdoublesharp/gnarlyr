@@ -60,7 +60,7 @@ def check_site(version, site, published):
 
     install = (site / "install.html").read_text()
     direct = re.findall(re.escape(RELEASES) + r'/download/(v[^"/]+)/([^"?#]+)', install)
-    download_names = {package.IMAGE, package.STOCK_IMAGE, package.SUMS}
+    download_names = {package.STOCK_IMAGE, package.SUMS}
     pins = {tag for tag, _ in direct}
     if (len(direct) != len(download_names) or {name for _, name in direct} != download_names
             or len(pins) != 1 or not pins <= published | {version}):

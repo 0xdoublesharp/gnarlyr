@@ -2,6 +2,15 @@
 
 Gnarlyr builds on Podium 4.5.9 and EchoPod. See [upstream sources](../UPSTREAM.md) and [credits](../CREDITS.md) for provenance. Check [GitHub Releases](https://github.com/0xdoublesharp/gnarlyr/releases) for published builds and [known issues](known-issues.md) for player checks.
 
+## 1.0.0-beta.3 (public beta)
+
+- **Headset Vol hold.** In **Settings → Buttons → Headset Vol hold**, choose **Repeat volume** to keep adjusting volume while holding Vol+ or Vol− on a supported 3.5 mm inline remote. **Skip tracks** remains the default, and taps still change volume one step. Native input and settings tests cover the change. Physical remote checks are pending.
+- **Official language packs.** Use the six packs attached to this release with beta.3. Each matches the 978-string catalog. English is built in.
+- **Browser language packs.** The builder can create and inspect packs that need `extra.font`, including packs with Polish or Korean characters that the player lacks in its built-in faces. Use Gnarlyr Companion or echo-sync to generate the font file. [Issue #2](https://github.com/0xdoublesharp/gnarlyr/issues/2).
+- **Documentation.** Updated the user guide and technical references for the current firmware, grouped Settings, and outstanding player checks.
+
+Use `ECHOECHO.img` for a first install from FiiO firmware or an update from Gnarlyr. Check the download against `SHA256SUMS` and follow the [ECHO installation guide](https://gnarlyr.com/install.html).
+
 ## 1.0.0-beta.2 (public beta)
 
 - **Battery time left.** In Settings → Display & text → Status bar, set Battery readout to Time left. Settings → Power & battery → Battery time shows the estimate and lets you reset what the player has learned.
@@ -27,12 +36,12 @@ Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds 
 - **Faster USB copying.** The player connects at High Speed (480 Mbit/s). On the developer's unit, microSD transfers ran at 8.7 MB/s writing and 9.8 MB/s reading, about twice the previous speed.
 - **New USB screens.** Connect to computer draws the last 10 seconds of reads and writes as a wireframe landscape. It shows the link speed as a USB symbol (with a lightning bolt at High Speed) and a row for each drive with its free space, which updates once the computer stops writing, and activity. Press Menu for detailed stats. The USB DAC screen shows the level, the format, both volumes and the buffer, and tapping Back opens its details.
 - **Safe updates.** A new version starts on trial and the previous one is kept as a backup. If the new one fails to start properly, the player puts the backup back and says "Update rolled back".
-- **Card eject and hot-insert.** Settings → Eject card makes the microSD card safe to remove. Insert or remove a card while the player runs, and the library follows it.
-- **Fast library scans with progress.** The player shows what it is doing while it checks for changes, sorts and saves. You can browse and play as soon as the tracks are ready, and album covers fill in later. After you copy music, the rescan reuses the saved tags of unchanged files and reads only new or changed ones; Settings → Rescan library reads every file again.
-- **Recap.** See your listening time, plays, skips and top songs, albums and artists. The Recap row in Recap shows a month, a year or all time as a short run of cards.
-- **Wireframe start-up and shutdown.** Turn them off in Settings → Power → Start and stop animation.
-- **Make it yours.** Choose from five themes or add `.gtheme` packs. Settings → Orientation offers portrait mode, and Settings → Home screen chooses and orders the items on Home.
-- **Formats.** FLAC, MP3, WAV, AIFF, AAC and Apple Lossless (`.m4a`, `.m4b` audiobooks with chapters), Ogg Vorbis, Opus, APE, WMA, and DSD (DSF/DFF, played as PCM). Also CUE sheets and M3U playlists, at up to 192 kHz.
+- **Card eject and hot-insert.** Settings → Library → Eject card makes the microSD card safe to remove. Insert or remove a card while the player runs, and the library follows it.
+- **Fast library scans with progress.** The player shows what it is doing while it checks for changes, sorts and saves. You can browse and play as soon as the tracks are ready, and album covers fill in later. After you copy music, the rescan reuses the saved tags of unchanged files and reads only new or changed ones; Settings → Library → Rescan library reads every file again.
+- **Recap.** See your listening time, plays, skips and top songs, albums and artists. The Highlights row in Recap shows a month, a year or all time as a short run of cards.
+- **Wireframe start-up and shutdown.** Turn them off in Settings → Power & battery → Start and stop animation.
+- **Make it yours.** Choose from five themes or add `.gtheme` packs. Settings → Display & text → Orientation offers portrait mode, and Settings → Display & text → Home screen chooses and orders the items on Home.
+- **Formats.** FLAC, MP3, WAV, AIFF, AAC and Apple Lossless (`.m4a`, `.m4b` audiobooks with chapters), Ogg Vorbis, Opus, APE, WMA, and DSD (DSF/DFF, with PCM conversion and wired DoP64 in current firmware). Also CUE sheets and M3U playlists, at up to 192 kHz.
 - **Parametric EQ and sound controls.** Use up to ten filters, or import AutoEQ files. Sound shaping offers seven simple controls. Also crossfeed, playback speed from 0.5× to 3× at the same pitch, fades between shuffled songs, and Skip silence and Speech boost for audiobooks and podcasts.
 - **Bluetooth headphones,** with their own volume, as well as the 3.5 mm and 4.4 mm jacks.
 - **Lower clocks when there's less to do.** The player runs at 96 MHz when idle and from the 24 MHz crystal in standby, and switches the audio clocks off when playback stops. With the screen off, FLAC, WAV, Apple Lossless and MP3 up to 48 kHz play at 96 MHz instead of 200 MHz. Apple Lossless can use the player's audio accelerator, and the FLAC, Apple Lossless, Ogg Vorbis, Opus and WMA decoders do the same work in fewer instructions. Screen-off playback passed on the developer's player. The drop to 96 MHz and use of the Apple Lossless accelerator still need direct player checks. Battery savings haven't been measured.
@@ -50,13 +59,17 @@ Gnarlyr is free, open-source firmware for the full-size SNOWSKY ECHO. It builds 
 
 To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/issues>. Include the version from Settings → About → Firmware, what you did and what happened. Attach the report files from the hidden `.gnarlyr/debug` folder on the player's internal drive. The full list is in [known issues](https://github.com/0xdoublesharp/gnarlyr/blob/v1.0.0-beta.1/firmware/docs/known-issues.md#beta-testers).
 
-## Unreleased: beta fixes and speed-ups
+## Earlier development milestones (included in 1.0.0-beta.1)
+
+These notes record features developed for the first public beta and point out later updates where they affect current use.
+
+### Beta fixes and speed-ups
 
 - **Power.** The idle clock is 96 MHz and standby runs from the 24 MHz crystal, also when standby starts with the screen already dark. When audio stops, the ACODEC PLL powers down and six audio clock gates turn off. The PWM clock stays gated until the backlight first turns on. Light screen-off playback (FLAC, WAV, ALAC and MP3 at 48 kHz or below, no equalizer, playback speed or rate conversion) drops the PLL to 96 MHz without stopping playback DMA, and core 1 follows the new rate ([the clock reference](core1-clock.md)).
 - **Decoders.** FLAC and ALAC refill their bit readers a word at a time, Tremor uses its ARM assembly, Opus uses `OPUS_FAST_INT64`, and the hottest decoder files build with `-O3`. In the M4A program the ALAC adaptive predictor runs on HIFIACC for orders 3 to 30 once order-4 and order-8 self-tests pass, and falls back to software otherwise ([hardware](hardware.md), Audio).
 - **DAC.** A volume change writes only PCM Volume A, which sets both channels. A start that asks for the ACODEC PLL row already running skips reprogramming it and its 5 ms settle. Play and pause notices go only to Bluetooth modules that report version CV15.
 - **USB.** A USB connection that nothing answers, such as a wall charger, stops listening after 15 s, and USB Mode reconnects it without unplugging. Free space on the Connect to computer screen updates during the session. The landscape USB storage footer fits on one line at all three text sizes. Endpoint 0 now handles stalls and zero-length packets correctly when macOS System Information queries the player. A full-speed DAC session ends at the last buffered audio instead of replaying old frames. Bluetooth switched off for the DAC is put to sleep, so Play can wake it and reconnect afterwards.
-- **Library.** Rescans reuse saved tags for unchanged files; Settings → Rescan library reads everything again. ID3 tags near the end of a file are bounded by the file size, and an ID3-prefixed FLAC file is recognised as FLAC.
+- **Library.** Rescans reuse saved tags for unchanged files; Settings → Library → Rescan library reads everything again. ID3 tags near the end of a file are bounded by the file size, and an ID3-prefixed FLAC file is recognised as FLAC.
 - **Start-up and faults.** A start on a low battery shows its notice before switching off. A fault wakes a sleeping panel, resets the display controller and still switches off when Power is held. The SD-card eject notice no longer trips the stall watch. After a USB session the trial record is found and checked again, and a damaged glyph face is read from slot 2. If both copies of the extension (module 15) are damaged, the player preserves the saved playback position and queue for a later boot. Verified audio module bodies are not checked again on every load. System time from the SysTick only moves forward.
 - **Playback.** A–B repeat no longer restarts output on a refused B mark or a failed seek, APE playback can't release data it hasn't written, a change from a core 1 format to WAV or AIFF stops core 1, and routing to Bluetooth releases the mute guard set when wired headphones are unplugged; the DAC volume is not written while that guard holds.
 - **Screens.** Portrait Home fits Now Playing at large text without scrolling, and the developer frame-time overlay fits in portrait. Portrait Browse fits 14 rows at Small text size. CJK titles that scroll no longer reload their glyphs on every frame, and static menus and lists no longer redraw once a second during playback. The missing-fonts list leaves out raw file and folder names, and a language pack, built-in or copied to the player, stops saying it needs fonts once its menu characters can be drawn.
@@ -64,15 +77,15 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - **Builds.** The image builder uses the UTC timestamp from `SOURCE_DATE_EPOCH` when it is set, so the image timestamp can be reproduced across time zones.
 - Host tests and emulator scenarios cover these changes. No player check is recorded for any of them.
 
-## Unreleased: Sunset Drive meters
+### Sunset Drive meters
 
 - **VU meters and Spectrum are a sunset scene.** A striped sun sits on the horizon over a grid floor whose lines brighten with the bass. In VU meters the sun is the meter: its left and right halves light from the horizon up with each channel, marks beside it show 0 to −24 dB, and a peak flashes its top and lights a chrome PEAK. In Spectrum, bars in the theme's accent colour stand in front of the sun with striped reflections on the floor. The scene follows all five built-in themes; title, artist, time and progress are unchanged.
 - With VU meters or Spectrum selected, opening Cover Flow, an artist's albums or Up Next loads them separately and skips the sliding animation.
-- **Quick Settings changes the Now Playing style.** Tap Menu on Now Playing, press ▶ on the Now Playing row and choose Cover, Cassette, VU meters or Spectrum. Closing the panel shows the new style without interrupting playback; it is the same setting as Settings → Now Playing style.
+- **Quick Settings changes the Now Playing style.** Tap Menu on Now Playing, press ▶ on the Now Playing row and choose Cover, Cassette, VU meters or Spectrum. Closing the panel shows the new style without interrupting playback; it is the same setting as Settings → Display & text → Now Playing style.
 - **Quick Settings opens a list for rows with many values.** Equalizer, Headphones, Speed, Sleep timer, ReplayGain and Now Playing show › and open a list with the current value ticked; ▶ chooses and Back leaves the value unchanged. Shuffle, Repeat and Transitions still change in place, and A–B repeat still marks A, then B, then clears. The speed row is now labelled Speed, and two values read End of chapter and Parametric, so nothing is cut off in portrait.
 - Checked in the simulator, the host tests and the ARM emulator, where both styles use no more processor time than the previous meters and a 96 kHz, 24-bit FLAC stayed fed with the screen on. Not yet checked on the player.
 
-## Unreleased: safe updates and recovery
+### Safe updates and recovery
 
 - An update installs on trial into slot 1; slot 2 keeps the build that was running. The trial ends, and the new build is copied into slot 2 ("Saving this version as the backup"), after a USB session in which the computer wrote to internal storage and then ejected the drives. Copy any small file before ejecting: a session whose drives opened read-only, or that wrote nothing, leaves the trial running.
 - A trial build that starts without its language pack or its extension module restarts by itself, and the next start puts the slot 2 build back ("Update rolled back"). Three unconfirmed starts or USB sessions do the same; a start after which the player runs for 20 s doesn't count. Holding Power for 10 s restarts a stuck trial build.
@@ -81,56 +94,60 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - The USB FIFOs are sized from the USB core's FIFO RAM, 308 words on the player. Before, the player refused the USB audio (DAC) configuration.
 - On the player, trial installs ran during development and the paperclip maskrom route put a known-good build back after two broken ones. The automatic rollback of an unhealthy build, confirmation by host writes and the always-on loader keys have emulator checks only.
 
-## Unreleased: settings continuity
+### Settings continuity
 
-- The first start of a new version copies the settings and saved state the previous version left into a backup named after it; the last two are kept. Settings → Backups puts one back.
+- The first start of a new version copies the settings and saved state the previous version left into a backup named after it; the last two are kept. Settings → Library → Backups puts one back.
 - A version that finds a file written by a newer version keeps that file aside instead of resetting it, and the newer version takes it back on return. Every file format has a conversion path from version 1, so the first layout change after the beta converts files instead of resetting them.
 - These are checked by unit tests and emulator scenarios; they have not run on the player yet.
 
-## Unreleased: cards, power and controls
+### Cards, power, and controls
 
-- The microSD card can be inserted and removed while the player runs; the library follows the card. Settings → Eject card makes it safe to remove, Settings → Mount card uses an ejected card again, and Play on the USB screen ejects the card while the computer has the drives.
-- Settings → Power → Standby when switched off makes a tap of Power, and auto off, pause and power down the output and Bluetooth for an instant return; Power off after (30 min, 2 h or 8 h) then switches the player off.
-- Settings → Status bar → Status bar offers Compact: smaller icons, the percentage inside the battery and more list rows.
-- Holding Power and pressing Vol+ or Vol− skips tracks, also while the buttons are locked. Settings → Controls → Hold Menu chooses what holding Menu does.
+- The microSD card can be inserted and removed while the player runs; the library follows the card. Settings → Library → Eject card makes it safe to remove, Settings → Library → Mount card uses an ejected card again, and Play on the USB screen ejects the card while the computer has the drives.
+- Settings → Power & battery → Standby when switched off makes a tap of Power, and auto off, pause and power down the output and Bluetooth for an instant return; Power off after (30 min, 2 h or 8 h) then switches the player off.
+- Settings → Display & text → Status bar → Status bar offers Compact: smaller icons, the percentage inside the battery and more list rows.
+- Holding Power and pressing Vol+ or Vol− skips tracks, also while the buttons are locked. Settings → Buttons → Menu hold everywhere chooses what holding Menu does.
 - On Now Playing and with the screen off, hold ▶ and press Vol+ or Vol− to skip, one track per press however long the keys are held. Hold Menu and tap Vol+ or Vol− to move 10 s. Hold Menu and hold a volume button to preview: the music keeps playing while the time and progress bar, marked Preview, glide across the whole song in about 10 seconds, about 3 seconds after the first 2 seconds, at most 1 minute per second and then 10 minutes per second; letting go of the volume button jumps once to the place shown, and a paused song stays paused. Pressing ▶ as you let go, or Power, cancels. Moves stop 1 second before the end. With the screen off, taps move 10 s and holds do nothing. Holding ▶ alone no longer opens seeking. ▶ and Menu holds there act when the key is let go, so a long hold can still become one of these. Checked with host tests and emulator scenarios only; not yet checked on a player.
 - Holding Play on a song offers Hide track and Delete file.
-- The Recap row in Recap shows a month, a year or all time as a short run of cards.
+- The Highlights row in Recap shows a month, a year or all time as a short run of cards.
 - Bluetooth has its own volume, separate from the wired one, starting at 50 of 60.
 - The charge screen estimates the charging rate and time to full and says whether the power comes from a computer or a charger.
 - "Checking for changes" shows its progress with a turning disc.
 - Checked with host tests and emulator scenarios; player checks are listed in [known issues](known-issues.md).
 
-## Unreleased: formats start at version 1
+### File and pack formats
 
-- Every Gnarlyr file and pack format is version 1, using its current layout: settings, language packs, theme packs, the stores and the small files ([formats](../../docs/formats.md)). The library is version 2, so a library written before folders of untagged files were sorted by name is rebuilt at the next start. Files written by earlier development builds are refused and replaced by defaults or rebuilt; settings reset once.
+- Settings, language packs, and the saved-state stores use their documented version-1 layouts. The library is version 2, and current firmware uses `.gtheme` v2 packs. Rebuild older theme packs from source. Files from early development builds may reset to defaults or be rebuilt. [File formats](../../docs/formats.md).
 - Language packs are segmented: text used by one screen group loads with that group, so a pack needs only its shared text and its largest group in the player's 18 KiB of language memory.
 - A pack file with a damaged part is not offered in Settings → Language. If the card holding the chosen pack is removed, screens opened afterwards show English until the card is back.
 - Checked in host tests, the tool and browser tests and the emulator; not yet seen on a player.
 
-## Status bar
+### Status bar
 
-- Settings → Status bar adds live player volume, repeat mode, queue position and percentage switches, and an optional five-bar battery. Existing files keep the solid battery and clock defaults. Controls stays last in Settings.
+- Settings → Display & text → Status bar adds live player volume, repeat mode, queue position and percentage switches, and an optional five-bar battery. Existing files keep the solid battery and clock defaults.
 - Now Playing uses the header palette for its top band, keeping status icons and numbers readable in Classic.
 - Queue position is centred in portrait and appears in landscape when the title is hidden. Items fit by priority at every text size; the battery and screen title keep their places.
-- Native checks cover fitting, battery levels and thresholds, settings migration and layout; the focused ARM scenario follows volume and queue changes. Simulator captures cover Neon Noir, Graphite and Classic in both orientations and all text sizes. Player acceptance remains with the integration owner.
-## Unreleased: DSD PCM conversion
+- Native checks cover fitting, battery levels and thresholds, settings migration and layout; the focused ARM scenario follows volume and queue changes. Simulator captures cover Neon Noir, Graphite and Classic in both orientations and all text sizes. Player acceptance remains open.
+
+### DSD playback
 
 - Added a dedicated DSF/DFF decoder, 88.2 kHz PCM conversion, seeking, queued
   transitions, ID3 artwork and DFF DIIN artist/title fallback in both scanners.
-- Core 1 requests 200 MHz for stereo DSD64, DSD128 and mono DSD256, and for
-  Vorbis above 96 kHz. Idle work and other streams retain 100 MHz. Stereo
-  DSD256 is refused; DST and multichannel DSD remain unsupported. Stock/hardware clock limits and software transitions
-  are documented in [the clock reference](core1-clock.md).
+- Current firmware can also output mono or stereo DSD64 as wired DoP64 at 176.4 kHz
+  with unity digital gain and sample processing bypassed. That path requests a 50 MHz
+  core-1 clock. PCM conversion uses 200 MHz for stereo DSD64, DSD128, and mono DSD256.
+  Vorbis above 96 kHz also requests 200 MHz. The player refuses stereo DSD256,
+  DST, and multichannel DSD. See [the clock reference](core1-clock.md) for hardware
+  limits and software transitions.
 - Generated native reference tests, filter-response checks and ARM decoder
-  comparisons cover software behavior. Physical playback and real-time margin
-  have not been checked on the player.
+  comparisons cover software behavior. An earlier build played a short stereo
+  DSD64 PCM fixture on the owner's player. Physical DoP64 and wider real-time
+  playback checks remain open.
 - The converter now needs about a third fewer core-1 instructions for the same
   output (stereo DSD64: 1.91 to 1.22 million per 20 ms in the emulator). Its
-  load on the player has not been measured yet. Stereo DSD256 now fits the
+  load was measured on a short stereo DSD64 fixture. Stereo DSD256 now fits the
   instruction screen too but stays refused until it is checked on the player.
 
-## Unreleased: AIFF playback
+### AIFF playback
 
 - Added AIFF and AIFF-C `NONE`/`sowt` through the WAV PCM path, with seeking,
   library ID3 tags and embedded artwork. Mono/stereo 16/24-bit files accept the
@@ -139,7 +156,7 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
   This addition has not been checked on the player.
 
 
-## USB screens
+### USB screens
 
 - Connect to computer shows the live rate in MB/s beside fixed read and write arrows, a 10-second graph, what was read and written, and a gauge per drive with free space, read at connect and again once the computer's writes have been quiet for 3 seconds, and a light with write and read arrows that fade over 300 ms. Nothing in the rate row moves or changes size: an arrow lights while its direction is in use and stays lit 0.4 s after the last transfer, both dim with a dimmed 0.0 when nothing moves, and the rate is averaged over about a second.
 - Press Menu on the Connect to computer screen, or tap Back on the USB DAC screen, for details: per-drive data, commands, command size, peak and average rate, drive busy time, errors with the last sense code, link and session time; for the DAC, the exact format, interface, buffer range, clock correction and feedback, underruns and overruns, gain register, host volume and data rate. The chosen page is kept until restart.
@@ -147,24 +164,25 @@ To report a problem, open an issue at <https://github.com/0xdoublesharp/gnarlyr/
 - The DAC session's PCM ring uses the idle music ring in data RAM, where I2S DMA reads don't compete with the processor's instruction fetches. The DAC screen services USB between drawing bands, repaints only the meter segments and rows that changed, and a volume change redraws only the volume figures.
 - Native rendering, rate, sparkline, free-space and counter tests and ARM scenarios cover software behaviour. Player checks are listed in [known issues](known-issues.md).
 
-## USB DAC
+### USB DAC
 
 - High-speed UAC2 adds stereo 16/24/32-bit PCM at 44.1, 48, 88.2, 96, 176.4 and 192 kHz. Full-speed UAC1 retains 16/24-bit at 44.1/48 kHz.
+- Current High-Speed UAC2 also accepts stereo DoP64 at 176.4 kHz in 24- or 32-bit samples with neutral headphone trim and balance. Compatible curves can run in the hardware DACs for USB PCM. DoP64 bypasses EQ. Both changes have software coverage and still need player checks.
 - Explicit feedback follows the player’s clock without dropping or repeating samples in UAC2. The PCM ring (24,000 bytes in data RAM) targets 5 ms of device buffering; headphone trim/balance and DAC volume remain available. An empty USB stream is cleared and muted before it reprimes.
 - ▶ sends host play/pause; 400 ms Vol+ and Vol− holds send next and previous. Volume taps change the local DAC volume.
 - Native descriptor, clock-drift and PCM tests and ARM streaming scenarios cover software behavior. Physical host compatibility, clock accuracy, both outputs, remote keys and hardware CPU margin remain open in the [host acceptance checks](known-issues.md#usb-dac-host-acceptance).
 
-## Identity and files
+### Identity and files
 
 The canonical firmware name is **Gnarlyr**, made by **doublesharp**. The image identifier and USB storage vendor are `GNARLYR`; the update file is `GNARLYR.IMG`, the data directory is `/.gnarlyr`, and exported CUE playlist entries use `#GNARLYR-START:`. `identity.json` supplies the build, simulator and host tools.
 
 The binary library, settings, saved-queue, mixtape and listening formats keep their maker-specific `DS` markers. Moving an installed developer build to the canonical identifiers requires the prepared update/data transition so its existing state is preserved.
 
-## Library and navigation
+### Library and navigation
 
-- Home defaults to Music, Mixtapes, Recap, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept.
+- Home defaults to Music, Mixtapes, Recap, Clock, USB Mode and Settings. A loaded track adds Now playing at the top, including while paused; the artwork caption shows the track title when space allows. Audiobooks and Podcasts are reachable from Music when their shelves exist; they and Up Next can be shown through Settings → Display & text → Home screen. The editor has nine items; Now playing is automatic. Existing untouched Home defaults migrate on load, while customised orders and hidden masks are kept.
 - The library opens as soon as its tracks are sorted; album covers fill in afterwards while the player is idle and not playing, pause for a key press, playback or a USB cable, and resume where they stopped, also after a restart. In the emulator, before tag caching, a generated 4,003-track card is browsable after 29.6 s and has all 303 covers after 135.8 s; the same card took 160.9 s, all of it before the library opened, at the start of this work. Not yet timed on a player.
-- Rescans after a music change reuse the tags saved from the last scan for every file whose path, size, modification time and first cluster are unchanged, so only new or changed files are opened (200 tagged tracks plus one added file: 403 ms and one file opened, against 1,181 ms and 200 files for the first scan, in the emulator). Settings → Rescan library always rebuilds and reads every file. Track indexing no longer probes embedded artwork; the cover pass still finds it.
+- Rescans after a music change reuse the tags saved from the last scan for every file whose path, size, modification time and first cluster are unchanged, so only new or changed files are opened (200 tagged tracks plus one added file: 403 ms and one file opened, against 1,181 ms and 200 files for the first scan, in the emulator). Settings → Library → Rescan library always rebuilds and reads every file. Track indexing no longer probes embedded artwork; the cover pass still finds it.
 - When the music, the firmware and the last scan are unchanged, the music check skips the rebuild (1.5 s on 4,003 tracks in the emulator; it rebuilt for 34.7 s before).
 - Album art: Ogg and Opus pictures, CMYK and YCCK JPEGs and JPEG EXIF orientation are shown; ID3 tags with unsynchronisation are read correctly; embedded art that can't be decoded gives way to the folder image. echo-sync picks the same picture as the player for every case of a 55-album test corpus.
 - Cover decoding is about a fifth faster, and long file reads and writes take one card command per 16 KB.
@@ -173,7 +191,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Home avoids walking every album when the cover database is unavailable.
 - Holding Play on an artist or album artist offers Play all and Shuffle albums. Albums follow year/title order or a shuffled album sequence; each album's tracks stay in order. The persistent queue preserves CUE parts, chapters and restart position, up to 65,535 entries.
 
-- Settings → Format card adds a quick FAT32/exFAT format with capacity and erase warnings, a separate confirmation with Cancel selected, playback/USB/battery guards, progress and removal recovery. Formatting clears the card's library and saved playback state. Native sparse images pass macOS fsck and read/write checks; ARM scenarios cover copied WAV playback and removal/retry. Physical card acceptance remains open.
+- Settings → Library → Format card adds a quick FAT32/exFAT format with capacity and erase warnings, a separate confirmation with Cancel selected, playback/USB/battery guards, progress and removal recovery. Formatting clears the card's library and saved playback state. Native sparse images pass macOS fsck and read/write checks; ARM scenarios cover copied WAV playback and removal/retry. Physical card acceptance remains open.
 
 - Search metadata and paths, combine sorting and filters, inspect track information and assign personal mood/activity labels.
 - Scoped Play All and selected-result playback preserve the displayed order.
@@ -181,27 +199,27 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Navigation returns to existing checkpoints. Mixtape actions settle at List, modal Back returns to its parent, and hold Back cancels work and reaches Home.
 - Full queue editing, journaled resume, named mixtapes, listening history/export and timed sidecar lyrics.
 - C60/C90 two-sided tapes have per-side time and song limits, song-list additions, a cassette flip prompt and exact side/entry/position resume. Single-sided tapes retain their existing actions; the catalogue and session formats stay at version 1.
-- Listening → Clear history (hold ▶ for options) adds a confirmation with Export plays first, Clear and Cancel. It resets totals, rankings and history-based Smart Lists while keeping saved moments, favorites and exported files. The empty history uses a verified spare counter block so interrupted writes recover the previous or empty history. Player validation remains pending.
-- Listening → Moments saves up to 64 labelled positions by path and chapter boundaries, replays them after a restart or rescan, and supports confirmed deletion. Spare-bank writes preserve the published list through interrupted saves.
+- Home → Recap → Clear history (hold ▶ for options) adds a confirmation with Export plays first, Clear and Cancel. It resets totals, rankings and history-based Smart Lists while keeping saved moments, favorites and exported files. The empty history uses a verified spare counter block so interrupted writes recover the previous or empty history. Player validation remains pending.
+- Home → Recap → Moments saves up to 64 labelled positions by path and chapter boundaries, replays them after a restart or rescan, and supports confirmed deletion. Spare-bank writes preserve the published list through interrupted saves.
 
-## Interface and sound controls
+### Interface and sound controls
 
 - Equalizer → Sound shaping adds seven word-based controls, an eleven-step slider, live response and automatic headroom. Reset keeps any underlying correction; saved EQ slots retain the control positions. Shaping can sit on a saved parametric correction within the ten-filter limit, with an explicit refusal when a change would exceed it. Headroom follows the actual cascade and its transients, avoiding excessive attenuation from multiplying section bounds and adding another margin. Native checks cover mappings, clipping, persistence and layouts; the ARM playback scenario records zero underruns while all seven sliders change. Player listening checks remain pending.
 
-- Parametric EQ adds up to ten Peak, Low shelf or High shelf filters, an adjustable preamp, live response plots and button editing. AutoEQ/Equalizer APO parametric files import alongside GraphicEQ files, and saved slots can hold either kind. Alternating-bank storage keeps the previous parametric copy through interrupted saves. Coefficients use the actual output rate through 96 kHz; USB DAC output remains unchanged. Player listening and restart checks are pending.
+- Parametric EQ adds up to ten Peak, Low shelf or High shelf filters, an adjustable preamp, live response plots and button editing. AutoEQ/Equalizer APO parametric files import alongside GraphicEQ files, and saved slots can hold either kind. Alternating-bank storage keeps the previous parametric copy through interrupted saves. Current firmware designs local PCM coefficients for output rates through 192 kHz. Compatible wired curves with up to three filters can run on the DACs. USB PCM uses compatible hardware curves with no software fallback. DoP64 bypasses EQ. Player listening and restart checks are pending.
 
-- Settings → Now Playing style adds Cassette, VU meters and Spectrum beside Cover. The cassette uses neon wireframe artwork with turning spokes; VU has separate left/right needles and peak lights; Spectrum has sixteen theme-coloured bars and peak caps over the perspective floor. The saved choice survives a restart. Native, simulator and emulator checks cover the interface, analysis and playback load; player acceptance remains open.
-- Settings → Date & time edits the local date, hour, minute and UTC offset, writes the clock chip through the extension module and updates the running wall clock immediately after successful readback. Back cancels; a failed save keeps the running clock unchanged. Date and time set on the player now survive restart and power-off: one deferred RTC read restores trusted UTC with the saved offset, with no read during USB or active audio. Later Mac time syncs still replace the running clock and save their offset. Listening timestamps remain UTC. The simulator supports the same setting path; on-player validation remains pending.
+- Settings → Display & text → Now Playing style adds Cassette, VU meters and Spectrum beside Cover. The cassette uses neon wireframe artwork with turning spokes; VU has separate left/right needles and peak lights; Spectrum has sixteen theme-coloured bars and peak caps over the perspective floor. The saved choice survives a restart. Native, simulator and emulator checks cover the interface, analysis and playback load; player acceptance remains open.
+- Settings → Display & text → Date & time edits the local date, hour, minute and UTC offset, writes the clock chip through the extension module and updates the running wall clock immediately after successful readback. Back cancels; a failed save keeps the running clock unchanged. Date and time set on the player now survive restart and power-off: one deferred RTC read restores trusted UTC with the saved offset, with no read during USB or active audio. Later Mac time syncs still replace the running clock and save their offset. Listening timestamps remain UTC. The simulator supports the same setting path; on-player validation remains pending.
 - Menu on Now Playing opens Quick Settings: immediate Shuffle, Repeat, EQ preset or saved slot, Headphone profile, Playback speed, Sleep timer, Transitions, ReplayGain and A–B repeat changes, plus Lyrics and Up Next. Vol± moves, ▶ changes or opens, and Back closes. Hold Menu still opens Lyrics. Saved changes use the Settings setters; the sleep timer lasts for the running session.
-- Playback speed plays 0.5× to 3× without changing the pitch, from Quick Settings or Settings → Playback speed, and is saved in the settings file (extension byte E3). Now Playing shows the speed while it isn't Normal. Positions, seeks, bookmarks and resume stay in the recording's own time; recordings above 48 kHz play at normal speed. Checked with host tests and emulator scenarios only; listening quality, core load and both outputs still need checks on a player ([Playback speed](audio-tempo.md)).
+- Playback speed plays 0.5× to 3× without changing the pitch, from Quick Settings or Settings → Playback → Playback speed, and is saved in the settings file (extension byte E3). Now Playing shows the speed while it isn't Normal. Positions, seeks, bookmarks and resume stay in the recording's own time; recordings above 48 kHz play at normal speed. Checked with host tests and emulator scenarios only; listening quality, core load and both outputs still need checks on a player ([Playback speed](audio-tempo.md)).
 - Startup draws its first frame before loading optional extension artwork, reserving files or checking for music changes. Bluetooth reconnect follows that frame. The developer report keeps boot-phase timestamps for cold-start measurements.
-- Settings → Power on adds Press for leaving the charge screen with a tap; Hold remains the default. Completely powered-off startup still requires holding Power until the boot ROM hands control to firmware. These paths have software checks; player timing remains to be measured.
-- Settings → DAC filter offers the CS43198 filters FiiO's firmware offers: fast or slow roll-off, low latency or phase compensated, and non-oversampling. Settings → Gain keeps Low and High: High uses FiiO's register value, and Low the data sheet's documented `0x20` instead of FiiO's reserved code. Both now change during playback by muting and, for Gain, powering the outputs down around the change as the DAC's data sheet requires, and choosing High lowers the volume by 6 dB first. Not yet checked on the player.
-- Install data-only `.gtheme` packs from the card without reflashing. The Theme picker previews palettes/backgrounds, keeps the selected pack across restarts and falls back to a built-in when it is missing or damaged. RGB565 art streams through the existing strip canvas with a small tile cache. Original Pocket Scope and Desktop 98 source packs, a builder/checker, stable update IDs and optional signature metadata are included. The trusted-key list starts empty; unsigned packs work normally. Software checks cover native validation, streaming and persistence; player acceptance is still pending.
-- Plugging in offers the same four modes everywhere, with one name, one picture and one line each: **Connect to computer** (music drives, firmware updates and the companion app; music stops), **Charge & play**, **Run from USB power** (keep listening without charging; a low battery charges first) and **USB audio (DAC)**. Each shows its name with a one-line description under it in the prompt and the menus. The plug-in prompt ("Computer found"), USB mode from Home, Settings or the charge screen, Settings → When plugged in and the DAC menu all use them. Connect to computer is first and highlighted; doing nothing still means Charge & play, with "Charging in 15 s". Holding Play on a choice keeps it for every plug-in. Run from USB power replaces the separate Battery care setting, lasts until unplugging unless saved, and shows a plug instead of the bolt in the status bar and on the charge screen; a saved Run from USB power is announced on any cable. When plugged in can now also start USB audio (DAC) at once. Physical charger/load acceptance of Run from USB power remains open.
+- Settings → Power & battery → Power on adds Press for leaving the charge screen with a tap; Hold remains the default. Completely powered-off startup still requires holding Power until the boot ROM hands control to firmware. These paths have software checks; player timing remains to be measured.
+- Settings → Sound → DAC filter offers the CS43198 filters FiiO's firmware offers: fast or slow roll-off, low latency or phase compensated, and non-oversampling. Settings → Sound → Gain now offers Low `0x20`, Medium `0x30`, and High `0x31`. Stock uses `0x10` for Low and `0x31` for High. Both changes briefly mute playback. A gain change also powers down the outputs around the register write. An increase lowers volume by 3 dB per level from the active profile's capped volume, down to zero. Player checks are pending.
+- Install data-only `.gtheme` v2 packs from the card without reflashing. The Theme picker previews palettes/backgrounds, keeps the selected pack across restarts and falls back to a built-in when it is missing or damaged. RGB565 art streams through the existing strip canvas with a small tile cache. Original Pocket Scope and Desktop 98 source packs, a builder/checker, stable update IDs and optional signature metadata are included. The trusted-key list starts empty; unsigned packs work normally. Software checks cover native validation, streaming and persistence; player acceptance is still pending.
+- Plugging in offers the same four modes everywhere, with one name, one picture and one line each: **Connect to computer** (music drives, firmware updates and the companion app; music stops), **Charge & play**, **Run from USB power** (keep listening without charging; a low battery charges first) and **USB audio (DAC)**. Each shows its name with a one-line description under it in the prompt and the menus. The plug-in prompt ("Computer found"), USB mode from Home, Settings or the charge screen, Settings → Connections → When plugged in and the DAC menu all use them. Connect to computer is first and highlighted; doing nothing still means Charge & play, with "Charging in 15 s". Holding Play on a choice keeps it for every plug-in. Run from USB power lasts until unplugging unless saved, and shows a plug in the status bar and on the charge screen while charging is off. Current firmware also offers Battery care (80%) under When plugged in, using a 3.95 V resume threshold and a 4.05 V stop threshold. Player checks remain open. When plugged in can now also start USB audio (DAC) at once. Physical charger/load acceptance of Run from USB power remains open.
 
-- Settings → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
-- Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage apart from the settings file. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
+- Settings → Display & text → Clock format selects 12-hour time with AM/PM or 24-hour time for Clock and the status bar, including Calendar. The choice survives restarts.
+- Four named headphone profiles apply attenuation-only trim, left/right balance and a volume ceiling to music and USB DAC output. Settings → Sound → Headphones selects and edits them; verified alternating-bank saves keep profiles on internal storage apart from the settings file. Switching to less attenuation lowers the saved mode volumes first. Analog Gain is unchanged; physical output checks remain pending.
 - The USB screens are redesigned in the theme's style: a wireframe landscape of the last 10 seconds of reads and writes, the transfer rate, the amount read and written, a gauge for each drive with its free space or ejected state, the USB speed and the battery. A turning cassette shows while the player waits for writes to finish or disconnects. The DAC screen adds a level meter, the format, both volumes, the jack, buffer, clock correction, underruns and time connected.
 - Connect to computer can be ended from the player: hold Back for a second. The player waits until the computer has stopped writing for 3 seconds, tells it the drives are gone and finishes as after an eject; holding on for 3 more seconds disconnects at once with a warning.
 - The DAC menu (Menu in DAC mode) changes volume, gain, output and the headphone profile, or switches to Connect to computer or Charge & play, without leaving DAC mode.
@@ -213,7 +231,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Existing slides use eased motion. The Home perspective grid stays inside its artwork panel and clear of captions.
 - Obsolete Connect USB, USB sense and raw DAC About rows are removed. Hardware identification remains available to the developer HAL.
 
-## Bluetooth
+### Bluetooth
 
 - When Bluetooth switched itself off after 5 idle minutes, or the player has just been turned on, ▶ wakes it and reconnects the last headphones if music last played through Bluetooth: "Connecting to …", then music starts once they connect. After 10 s without them the player stays paused and says so; wired headphones in either jack play at once. Nothing plays to an empty jack while it waits.
 - A speaker or headphones that pause the stream as it starts get it started again once, so a connection while playing isn't left silent until play is pressed on the speaker.
@@ -221,14 +239,14 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - The Bluetooth screen says "Off to save battery · Play: reconnect" while Bluetooth is switched off to save battery, and ▶ there reconnects instead of the screen waking Bluetooth on opening.
 - Checked with host tests and emulator scenarios only; not yet checked on a player.
 
-## Playback fixes
+### Playback fixes
 
 - Screen-off redraw requests no longer keep the CPU at its busy polling rate. Compressed reads refill the existing ring in bursts, idle timer wakes are less frequent, and paused screen-off standby can coast at 24 MHz. The developer loop can retain minute battery samples for a discharge run or a 24-hour standby comparison. Battery-life gains and changed-cadence playback have not been measured on the player.
 - APE: dedicated core-1 decoding, 16/24-bit mono/stereo, Fast through 192 kHz, Normal through 192 kHz mono or 96 kHz stereo, and High through 96 kHz mono or 48 kHz stereo, exact seek-table starts and sample lengths. Fast stereo above 96 kHz and Normal stereo above 48 kHz run core 1 at 200 MHz. Extra High/Insane are refused.
 - WMA Standard v1/v2: fixed-point core-1 decoding with checked ASF demuxing, tags/covers, timestamp-guided seeks, priming trim and final-overlap drain. Pro, Lossless, Voice and encrypted files are refused. Encoder padding remains when it is not described by the file.
 - Both codecs have native/reference and ARM decoder/player checks. Physical playback and cycle margins remain untested.
 
-- A–B repeat marks source-sample positions from the Quick Settings A–B repeat row (Off, A set, A–B; ▶ marks A, then B, then clears) or a Settings → Controls button set to A-B repeat and repeats the selected range, including CUE tracks and chapters. Marks clear on track changes and USB handoff. Player listening checks remain pending.
+- A–B repeat marks source-sample positions from the Quick Settings A–B repeat row (Off, A set, A–B; ▶ marks A, then B, then clears) or a Settings → Buttons button set to A-B repeat and repeats the selected range, including CUE tracks and chapters. Marks clear on track changes and USB handoff. Player listening checks remain pending.
 
 - ReplayGain Auto selects album gain for album-order neighbours and track gain for song shuffle or isolated tracks. The companion supports the existing mode field’s fourth value.
 
@@ -236,7 +254,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 
 - Opus R128 track and album gain tags now feed ReplayGain normalization with the +5 dB reference conversion. Standard ReplayGain gain tags take precedence, and the decoder keeps applying header gain once.
 
-- Shuffle can fade between songs (Settings → Transitions, 0.5 to 6 s). Album-order neighbours, parts of one file and spoken word stay gapless. Not yet heard on a player.
+- Shuffle can fade between songs (Settings → Playback → Transitions, 0.5 to 6 s). Album-order neighbours, parts of one file and spoken word stay gapless. Not yet heard on a player.
 
 - Ogg Vorbis compatibility is checked against independently built Xiph and aoTuV encoders and ffmpeg-native output, across VBR qualities −1 to 10, speech rates, 192 kHz stereo and managed 500 kbit/s. Large artwork comments are skipped during decode. Chained files stop at their first link with its correct duration; multiplexed files ignore other checked serials when Vorbis is first.
 
@@ -256,7 +274,7 @@ The binary library, settings, saved-queue, mixtape and listening formats keep th
 - Independent movie/media clocks and 64-bit edit entries are converted to output samples with checked arithmetic. Codec configuration supplies packet boundaries.
 - The DAC power-up wait is 12 ms, matching the observed stock sequence. Earlier owner listening checks reported quiet playback; no analog noise specification is claimed.
 
-## Architecture and validation
+### Architecture and validation
 
 - USB status drawing now loads with the verified USB overlay. Connecting and charging without the settings artwork keep a resident text fallback. The renderer is cleared before the overlay memory is reused.
 

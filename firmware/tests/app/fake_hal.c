@@ -136,6 +136,7 @@ typedef struct FakeHal {
     HalHeadsetCommand headset_commands[TRANSITION_CAPACITY];
     int headset_count;
     int next_headset;
+    bool headset_hold_volume;
     FakeFile files[FILE_CAPACITY];
     int file_count;
     int open_files;
@@ -585,6 +586,16 @@ bool hal_input_next_headset_command(HalHeadsetCommand *command)
 HalHeadsetReading hal_input_headset_reading(void)
 {
     return (HalHeadsetReading){.known = true, .level = 812, .button = HAL_HEADSET_BUTTON_NONE};
+}
+
+void hal_input_set_headset_hold_volume(bool repeat_volume)
+{
+    fake.headset_hold_volume = repeat_volume;
+}
+
+bool fake_hal_headset_hold_volume(void)
+{
+    return fake.headset_hold_volume;
 }
 
 bool hal_input_waiting(void)

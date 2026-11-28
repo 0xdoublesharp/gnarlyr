@@ -1039,3 +1039,6 @@ STR_THEME_CREDIT = {0} · {1}
 STR_GAIN_MEDIUM = Moyen
 STR_PLUG_CARE_80 = Protection batterie (80%)
 STR_PLUG_CARE_80_LINE = Arrête la charge vers 80 % pendant l'écoute.
+STR_BUTTON_HEADSET_VOL_HOLD = Appui long vol. casque
+STR_BUTTON_SKIP_TRACKS = Changer de piste
+STR_BUTTON_REPEAT_VOLUME = Volume en continu

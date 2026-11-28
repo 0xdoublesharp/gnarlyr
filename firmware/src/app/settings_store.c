@@ -3,6 +3,7 @@
 #include "equalizer_presets.h"
 #include "hal/audio.h"
 #include "hal/display.h"
+#include "hal/input.h"
 #include "hal/power.h"
 #include "hal/storage.h"
 #include "hal/system.h"
@@ -162,6 +163,7 @@ void settings_store_apply_equalizer(const Settings *settings)
 
 void settings_store_apply_hardware(const Settings *settings)
 {
+    hal_input_set_headset_hold_volume(settings->headset_hold_volume);
     hal_power_set_battery_care(settings->battery_care);
     hal_display_set_brightness(settings->brightness);
     hal_audio_set_gain((HalAudioGain)settings->gain);

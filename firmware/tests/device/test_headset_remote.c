@@ -45,6 +45,14 @@ static int drain(Rig *rig, HalHeadsetCommand *commands, int capacity)
     return count;
 }
 
+static void expect_command(Rig *rig, HalHeadsetCommand expected)
+{
+    HalHeadsetCommand command = HAL_HEADSET_TOGGLE_PAUSE;
+    CHECK(headset_remote_next(&rig->remote, &command));
+    CHECK_EQUAL(expected, command);
+    CHECK(!headset_remote_next(&rig->remote, &command));
+}
+
 static void levels_map_to_stock_bands(void)
 {
     CHECK_EQUAL(HAL_HEADSET_BUTTON_PLAY, headset_remote_button(0));
@@ -87,6 +95,87 @@ static void holding_volume_down_goes_to_the_previous_track(void)
     HalHeadsetCommand command;
     CHECK(headset_remote_next(&rig.remote, &command));
     CHECK_EQUAL(HAL_HEADSET_PREVIOUS, command);
+}
+
+static void volume_taps_still_step_once_on_release_in_repeat_mode(void)
+{
+    Rig rig = plugged_rig();
+    headset_remote_set_hold_volume(&rig.remote, true);
+    static const uint16_t levels[] = {VOLUME_UP_LEVEL, VOLUME_DOWN_LEVEL};
+    static const HalHeadsetCommand commands[] = {HAL_HEADSET_VOLUME_UP, HAL_HEADSET_VOLUME_DOWN};
+    for (int index = 0; index < 2; index++) {
+        feed(&rig, levels[index], HEADSET_REMOTE_LONG_PRESS_MS + SAMPLE_MS);
+        HalHeadsetCommand command;
+        CHECK(!headset_remote_next(&rig.remote, &command));
+        feed(&rig, IDLE_LEVEL, SAMPLE_MS);
+        CHECK(!headset_remote_next(&rig.remote, &command));
+        feed(&rig, IDLE_LEVEL, 100);
+        expect_command(&rig, commands[index]);
+    }
+}
+
+static void a_volume_hold_repeats_at_the_key_interval_until_release(void)
+{
+    Rig rig = plugged_rig();
+    headset_remote_set_hold_volume(&rig.remote, true);
+    static const uint16_t levels[] = {VOLUME_UP_LEVEL, VOLUME_DOWN_LEVEL};
+    static const HalHeadsetCommand commands[] = {HAL_HEADSET_VOLUME_UP, HAL_HEADSET_VOLUME_DOWN};
+    for (int index = 0; index < 2; index++) {
+        HalHeadsetCommand command;
+        feed(&rig, levels[index], HEADSET_REMOTE_LONG_PRESS_MS + SAMPLE_MS);
+        CHECK(!headset_remote_next(&rig.remote, &command));
+        feed(&rig, levels[index], SAMPLE_MS);
+        expect_command(&rig, commands[index]);
+        for (int repeats = 0; repeats < 3; repeats++) {
+            feed(&rig, levels[index], HEADSET_REMOTE_REPEAT_MS - SAMPLE_MS);
+            CHECK(!headset_remote_next(&rig.remote, &command));
+            feed(&rig, levels[index], SAMPLE_MS);
+            expect_command(&rig, commands[index]);
+        }
+        feed(&rig, levels[index], HEADSET_REMOTE_REPEAT_MS - SAMPLE_MS);
+        feed(&rig, IDLE_LEVEL, HEADSET_REMOTE_REPEAT_MS * 2);
+        CHECK(!headset_remote_next(&rig.remote, &command));
+    }
+}
+
+static void the_hold_preference_survives_unplugging_and_can_return_to_skipping(void)
+{
+    Rig rig = plugged_rig();
+    headset_remote_set_hold_volume(&rig.remote, true);
+    feed(&rig, VOLUME_UP_LEVEL, HEADSET_REMOTE_LONG_PRESS_MS + 2 * SAMPLE_MS);
+    expect_command(&rig, HAL_HEADSET_VOLUME_UP);
+    headset_remote_sample(&rig.remote, IDLE_LEVEL, false, rig.now_ms);
+    feed(&rig, IDLE_LEVEL, HEADSET_REMOTE_SETTLE_MS + SAMPLE_MS);
+    feed(&rig, VOLUME_DOWN_LEVEL, HEADSET_REMOTE_LONG_PRESS_MS + 2 * SAMPLE_MS);
+    expect_command(&rig, HAL_HEADSET_VOLUME_DOWN);
+    feed(&rig, IDLE_LEVEL, 100);
+    headset_remote_set_hold_volume(&rig.remote, false);
+    feed(&rig, VOLUME_UP_LEVEL, 2000);
+    feed(&rig, IDLE_LEVEL, 100);
+    expect_command(&rig, HAL_HEADSET_NEXT);
+    feed(&rig, VOLUME_DOWN_LEVEL, 2000);
+    feed(&rig, IDLE_LEVEL, 100);
+    expect_command(&rig, HAL_HEADSET_PREVIOUS);
+}
+
+static void play_clicks_and_holds_are_unchanged_in_repeat_mode(void)
+{
+    Rig rig = plugged_rig();
+    headset_remote_set_hold_volume(&rig.remote, true);
+    static const HalHeadsetCommand commands[] = {HAL_HEADSET_TOGGLE_PAUSE, HAL_HEADSET_NEXT,
+                                                 HAL_HEADSET_PREVIOUS};
+    for (int clicks = 1; clicks <= 3; clicks++) {
+        for (int index = 0; index < clicks; index++) {
+            click(&rig, PLAY_LEVEL);
+        }
+        feed(&rig, IDLE_LEVEL, HEADSET_REMOTE_CLICK_GAP_MS);
+        expect_command(&rig, commands[clicks - 1]);
+    }
+    click(&rig, PLAY_LEVEL);
+    feed(&rig, PLAY_LEVEL, HEADSET_REMOTE_LONG_PRESS_MS + 3 * HEADSET_REMOTE_REPEAT_MS);
+    feed(&rig, IDLE_LEVEL, HEADSET_REMOTE_CLICK_GAP_MS + 100);
+    HalHeadsetCommand command;
+    CHECK(!headset_remote_next(&rig.remote, &command));
 }
 
 static void one_play_click_toggles_pause_after_the_click_gap(void)
@@ -263,6 +352,10 @@ int main(void)
         TEST_CASE(a_volume_tap_changes_the_volume_on_release),
         TEST_CASE(holding_volume_up_skips_to_the_next_track_once),
         TEST_CASE(holding_volume_down_goes_to_the_previous_track),
+        TEST_CASE(volume_taps_still_step_once_on_release_in_repeat_mode),
+        TEST_CASE(a_volume_hold_repeats_at_the_key_interval_until_release),
+        TEST_CASE(the_hold_preference_survives_unplugging_and_can_return_to_skipping),
+        TEST_CASE(play_clicks_and_holds_are_unchanged_in_repeat_mode),
         TEST_CASE(one_play_click_toggles_pause_after_the_click_gap),
         TEST_CASE(two_play_clicks_skip_to_the_next_track),
         TEST_CASE(three_play_clicks_go_to_the_previous_track),

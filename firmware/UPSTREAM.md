@@ -19,7 +19,7 @@ Git keeps the ancestry: `refs/donors/podium-4.5.9` sits on Podium's history, whi
 
 | Remote | URL | Notes |
 |---|---|---|
-| `echopod` | <https://github.com/BasilSkyWalk/echopod> | Its tags are fetched under `echopod/` (`echopod/v0.1.0` to `echopod/v0.11.1`) |
+| `echopod` | <https://github.com/BasilSkyWalk/echopod> | Fetched tags are namespaced under `echopod/`. The recorded set spans `echopod/v0.1.0` to `echopod/v0.11.1`. Upstream releases continued, including [0.13.2](https://github.com/BasilSkyWalk/echopod/releases/tag/v0.13.2). |
 | `podium` | <https://github.com/swap/podium> | Ends at 4.5.5; later versions exist only as archives |
 
 ## Ported from EchoPod since the starting point
@@ -35,9 +35,11 @@ Each was written for the Echo Mini after EchoPod 0.6.0 and brought across by che
 | `f52fe9d` | `a8b1c93` | The rescan overlay is refused when it was linked against other code |
 | `53873ba` | `788fd0b` | USB sessions and the updater run from a second on-demand overlay, with one shared loader. Ported by hand, with the loader in its EchoPod 0.11.1 shape |
 
-`53873ba` differs from EchoPod's version: the overlay window is `0x18000` bytes with two linker regions over it, a size above the window is refused before any arithmetic on it, a failed load zeroes the whole window, the start-up `MASKROM.REQ` check moved to `board/update_request.c`, there are no language packs or resident tables, and the emulator reads the USB overlay's ELF too.
+At `53873ba`, the overlay used a `0x18000`-byte window with two linker regions. The loader refused sizes above the window before doing arithmetic on them and zeroed the whole window after a failed load. The startup `MASKROM.REQ` check had moved to `board/update_request.c`, there were no language packs or resident tables yet, and the emulator also read the USB overlay's ELF.
 
-## Our own changes since the starting point
+## Early changes after the restart
+
+These commits preceded the transition to Gnarlyr's canonical identity.
 
 | Commit | What |
 |---|---|
@@ -48,7 +50,7 @@ Each was written for the Echo Mini after EchoPod 0.6.0 and brought across by che
 | `ceb0f47` | The size report covers the USB overlay and fails when a library keeps variables in both programs |
 | `cfb2037` | Emulator scenarios for the USB overlay loader |
 
-The identity change (name, identifier, version, update file, data folder, file magics) follows these. [`docs/release-notes.md`](docs/release-notes.md) describes the result for users.
+The identity transition changed the name, identifier, version, update filename, data folder, and file magics. The [changelog](../CHANGELOG.md) and [release notes](docs/release-notes.md) cover the history since then.
 
 ## Compared with the starting point
 
@@ -70,16 +72,20 @@ Later EchoPod work was also ported deliberately: linker-map size reporting, link
 
 ### What Gnarlyr adds
 
-- **Identity and interface:** Gnarlyr by doublesharp, five coordinated themes, the shared icon treatment, cassette fallback artwork, and eight independent playback tap/hold mappings (`3523654`).
-- **Queues and mixtapes:** editing the complete playback sequence, journaled queue/resume publication, named mixes with save/load/edit/rename/delete, and path-plus-CUE identities that resolve after a rescan. These extend the inherited queue and M3U features. [Stored orders](docs/stored-order.md), [session journal](docs/session-journal.md) and [mixtapes](docs/mixtapes.md) describe the formats.
-- **Listening and lyrics:** a listening log with totals/top lists/export, and timed sidecar lyrics (`3523654`; [listening log](docs/listening-log.md)).
-- **Development and capacity:** language packs, demand-loaded feature modules, the USB debug loop with reports/scripts/screenshots and automatic update/reconnect, plus frame pacing, idle sleeping and clock coasting. These extend the credited overlay foundation. [Architecture](docs/architecture.md) describes the boundaries and measurements.
+The 1.0.0 beta series adds the following to the pinned Podium 4.5.9 baseline. See [known issues](docs/known-issues.md) for the status of physical player checks.
+
+- **Formats and sound.** AIFF, Ogg Vorbis, Opus, APE, and WMA playback, plus DSF/DFF conversion to PCM and wired DoP64. Sound controls include ten-filter Parametric EQ, Sound shaping, hardware DAC EQ, ReplayGain and Opus R128 normalization, Crossfeed, and four headphone profiles. Playback adds 0.5×–3× speed, Skip silence, Speech boost, shuffle fades, and A–B repeat. [User guide](docs/user-guide.md).
+- **USB, power, and updates.** High-Speed USB, UAC2 USB DAC through 192 kHz with DoP64 support, and live USB storage and DAC screens. Adaptive Battery time left, Battery care (80%), and Run from USB power complement trial updates, rollback, and settings backups. [Installation](docs/device-install.md).
+- **Library and listening.** A combined internal and microSD library, card hot-swap, eject, and format, and incremental rescans that reuse unchanged tags. Smart Lists, Recap with Highlights, Saved Moments, and timed sidecar lyrics build on the music library. [Smart Lists](docs/smart-lists.md) and [listening log](docs/listening-log.md).
+- **Queues and mixtapes.** Full queue editing, journaled queue and resume state, and named mixtapes, including two-sided C60 and C90 cassettes. Stored path and CUE identities resolve after rescans. [Stored orders](docs/stored-order.md), [session journal](docs/session-journal.md), and [mixtapes](docs/mixtapes.md).
+- **Appearance and controls.** Five built-in themes, `.gtheme` v2 packs, [Theme Studio](https://gnarlyr.com/studio.html), and Cassette, VU meters, and Spectrum Now Playing styles. English is built in, and six official language packs are downloadable. Eight independent playback tap and hold mappings are available. Beta.3 adds configurable **Headset Vol hold**.
+- **Development.** Demand-loaded feature modules, the USB debug loop with reports, scripts, screenshots, and automatic update and reconnect, plus frame pacing, idle sleeping, and clock coasting. [Architecture](docs/architecture.md).
 
 ### Bugs corrected during this project
 
 | Origin or affected path | Correction | Evidence |
 |---|---|---|
-| Podium DAC startup | Use a 12 ms output power-up wait instead of Podium 4.5.9's 10 ms, matching the observed FiiO sequence. | `3ce0504`; [change table](#our-own-changes-since-the-starting-point), [DAC sequence](platform/device/logic/dac_sequence.c) |
+| Podium DAC startup | Use a 12 ms output power-up wait instead of Podium 4.5.9's 10 ms, matching the observed FiiO sequence. | `3ce0504`; [change table](#early-changes-after-the-restart), [DAC sequence](platform/device/logic/dac_sequence.c) |
 | Custom firmware USB handling | Make the USB supply pins follow cable power, correcting missed connections observed on the owner's Mac. | `99ec29c`; [hardware findings](docs/hardware.md) |
 | New queue/session integration | Identify database contents, not merely matching section counts/layout, before accepting stored track IDs; rebuild buffered next audio when edits replace the next song. | `3523654`; [identity tests](tests/library/test_library_content.c), [audio-engine regressions](tests/device/test_audio_engine.c) |
 | New mixtape and control paths | Defer playback-screen navigation until asynchronous mix loading releases its scratch memory; let an active seek operation retain its cursor and confirmation keys despite custom mappings. | `3523654`; [mixtape tests](tests/app/test_mixtape_ui.c), [control tests](tests/app/test_configured_controls.c) |
@@ -93,17 +99,17 @@ Later EchoPod work was also ported deliberately: linker-map size reporting, link
 EchoPod:
 
 ```sh
-git fetch echopod --tags
+git fetch echopod
 git log --oneline echopod/v0.11.1..echopod/main
 git log --oneline echopod/v0.6.0..echopod/v0.11.1 -- platform/device
 git show <commit>
 ```
 
-EchoPod's tree has the firmware at its root, so its paths lack the `firmware/` prefix used here. Its later commits rarely cherry-pick cleanly: EchoPod 0.11.1 and Podium 4.5.9 conflict in 161 files, and EchoPod targets another board.
+The remote fetches branches without importing upstream tags directly. To import tags explicitly under the existing `echopod/` namespace, run `git fetch echopod 'refs/tags/*:refs/tags/echopod/*'`. The commands above compare against the recorded 0.11.1 reference. EchoPod's tree has the firmware at its root, so its paths lack the `firmware/` prefix used here. Its later commits rarely cherry-pick cleanly: EchoPod 0.11.1 and Podium 4.5.9 conflict in 161 files, and EchoPod targets another board.
 
 Podium:
 
-1. Check <https://podium-echo.online> and its [changelog](https://podium-echo.online/changelog.html) for a version after 4.5.9.
+1. Check <https://podium-echo.online> and its [changelog](https://podium-echo.online/changelog) for a version after 4.5.9.
 2. Download the source archive into a new, empty folder on the Scratch volume and record its SHA-256.
 3. Extract the starting point next to it (`git archive refs/donors/podium-4.5.9 | tar -x -C <folder>`) and run `diff -ru` between the two folders.
 4. Port what is wanted by hand, one change per commit, and add a row to the tables above.

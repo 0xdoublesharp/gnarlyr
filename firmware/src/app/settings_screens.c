@@ -13,6 +13,7 @@
 #include "default_theme.h"
 #include "hal/audio.h"
 #include "hal/clock.h"
+#include "hal/input.h"
 #include "hal/power.h"
 #include "hal/system.h"
 
@@ -989,25 +990,18 @@ static ScreenAction change_card(void *context)
     return screen_action_none();
 }
 
-static void buttons_changed(void *context)
+static void buttons_changed(void *context, bool defaults_restored)
 {
-    settings_action_save(context);
-}
-
-static ScreenAction reset_buttons_with_feedback(void *context)
-{
-    SettingsScreens *screens = context;
-    SettingsContext *settings = &screens->context;
+    SettingsContext *settings = context;
     SettingsStore *store = settings->store;
-    for (int index = 0; index < PLAYBACK_BUTTON_COUNT; index++) {
-        store->settings.button_actions[index] =
-            (uint8_t)settings_default_button_action((PlaybackButton)index);
+    hal_input_set_headset_hold_volume(store->settings.headset_hold_volume);
+    if (!defaults_restored) {
+        settings_action_save(settings);
+        return;
     }
-    store->settings.long_press_action = 0;
     settings_capture(&store->settings, settings->player);
     StringId message = settings_store_save(store) ? STR_DONE : STR_SETTINGS_NOT_SAVED;
     toast_show(settings->toast, i18n_text(message), hal_clock_milliseconds());
-    return screen_action_none();
 }
 
 static bool headphones_shown(const void *context)
@@ -1289,8 +1283,6 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
                                     .changed = buttons_changed,
                                     .context = &screens->context};
     Screen *controls = button_settings_init(&screens->buttons, buttons);
-    screens->buttons.items[BUTTON_ROW_RESET].select = reset_buttons_with_feedback;
-    screens->buttons.items[BUTTON_ROW_RESET].context = screens;
     bind_choice_rows(screens);
     bind_special_rows(screens);
     bind_groups(screens, controls);

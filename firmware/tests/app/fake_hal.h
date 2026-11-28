@@ -108,6 +108,7 @@ void fake_hal_set_loader_keys(bool held);
 void fake_hal_queue_reading_sample(uint16_t reading, uint32_t time_ms);
 void fake_hal_drop_transitions(void);
 void fake_hal_queue_headset_command(HalHeadsetCommand command);
+bool fake_hal_headset_hold_volume(void);
 uint16_t fake_hal_pixel(int x, int y);
 const char *fake_hal_audio_playing_path(void);
 uint32_t fake_hal_audio_play_start(void);

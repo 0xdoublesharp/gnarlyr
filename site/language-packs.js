@@ -277,14 +277,14 @@
   const ready = byId("pack-ready");
   const download = byId("download-pack");
   const extraFontHelp = "This pack needs the player's extra.font file. With the player connected over USB, use Gnarlyr Companion or run python3 tools/echo_sync.py from the firmware folder.";
-  // SHA256SUMS from the v1.0.0-beta.2 release linked on the page.
+  // SHA256SUMS from the v1.0.0-beta.3 release linked on the page.
   const officialPacks = new Map([
-    ["de", "f70aab848b894cb886747b317dedcb27d79000b4515ade1b68341d6d6690e249"],
-    ["es", "10596e03145a575910d120ddd8c8c7a78ea64d23501c78f3eddd5193ed5974f3"],
-    ["fr", "be7c24e8cfa64480d12b1fca250b4447a989389accd899530dc21d20e0a813cf"],
-    ["ja", "051cce29d4b5b6d177b7ad9c7d6831b7e1d8700897ae0a51ba7ca9738c201021"],
-    ["pt", "d31e0cadf632cf907e109d3a943f698215c38cfbd89a21226659c19887ca5156"],
-    ["zh", "f56e301b90f3ec3014ed2e6d6825ade1f9181fdd4417d2ec7c3039c1783a206e"],
+    ["de", "1fee99d12cb490408540e4f0d7b06ba9d06801d8993c4fdc7e685b5f347d619f"],
+    ["es", "863a013cd3f066d7d0fe98bb8477bb71c3a5fc5a48b46731c8531b922d5c197d"],
+    ["fr", "8d081cdc0875bdd1dfe4847cca5468b023413f4583d12f464ae18e095b7a5a7f"],
+    ["ja", "8712fd1fd98ed5b4cca9578fe9595f4bf96fe7be8638f3d68f296b0e9f183d86"],
+    ["pt", "55c83138aa15ecf0120b4c20c119145d9f622b21e4620be6fc3e37c3f263d2c2"],
+    ["zh", "3e494953229060315f922c21a23355ac311c2f91c7bf7f9b317078484cde387b"],
   ]);
   let pending = null;
   let imported = null;

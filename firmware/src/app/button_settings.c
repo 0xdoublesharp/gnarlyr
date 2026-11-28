@@ -37,6 +37,13 @@ static const StringId SHOWN_LONG_ACTIONS[] = {
     STR_BUTTON_SCREEN_ACTION, STR_QUICK_SETTINGS, STR_UP_NEXT,
     STR_ADD_TO_TAPE,          STR_SHUFFLE,        STR_SLEEP_TIMER};
 
+static void notify_change(const ButtonSettings *buttons, bool defaults_restored)
+{
+    if (buttons->config.changed != NULL) {
+        buttons->config.changed(buttons->config.context, defaults_restored);
+    }
+}
+
 static int long_current(const void *context)
 {
     const ButtonSettings *buttons = context;
@@ -50,9 +57,7 @@ static void long_choose(void *context, int action)
         return;
     }
     buttons->config.settings->long_press_action = (uint8_t)action;
-    if (buttons->config.changed != NULL) {
-        buttons->config.changed(buttons->config.context);
-    }
+    notify_change(buttons, false);
 }
 
 static const char *long_value(const void *context)
@@ -101,14 +106,11 @@ static const char *value(const void *context)
 static void choose(void *context, int action)
 {
     ButtonEntry *entry = context;
-    ButtonSettingsConfig *config = &entry->owner->config;
     if (action < 0 || action >= BUTTON_ACTION_COUNT) {
         return;
     }
-    config->settings->button_actions[entry->button] = (uint8_t)action;
-    if (config->changed != NULL) {
-        config->changed(config->context);
-    }
+    entry->owner->config.settings->button_actions[entry->button] = (uint8_t)action;
+    notify_change(entry->owner, false);
 }
 
 static ScreenAction open(void *context)
@@ -125,6 +127,22 @@ static ScreenAction open(void *context)
     return screen_action_push(choice_screen_init(&buttons->choice, choice));
 }
 
+static const char *headset_hold_value(const void *context)
+{
+    const ButtonSettings *buttons = context;
+    return i18n_text(buttons->config.settings->headset_hold_volume ? STR_BUTTON_REPEAT_VOLUME
+                                                                   : STR_BUTTON_SKIP_TRACKS);
+}
+
+static ScreenAction toggle_headset_hold(void *context)
+{
+    ButtonSettings *buttons = context;
+    Settings *settings = buttons->config.settings;
+    settings->headset_hold_volume = !settings->headset_hold_volume;
+    notify_change(buttons, false);
+    return screen_action_none();
+}
+
 static ScreenAction reset(void *context)
 {
     ButtonSettings *buttons = context;
@@ -133,9 +151,8 @@ static ScreenAction reset(void *context)
             (uint8_t)settings_default_button_action((PlaybackButton)index);
     }
     buttons->config.settings->long_press_action = 0;
-    if (buttons->config.changed != NULL) {
-        buttons->config.changed(buttons->config.context);
-    }
+    buttons->config.settings->headset_hold_volume = false;
+    notify_change(buttons, true);
     return screen_action_none();
 }
 
@@ -180,6 +197,11 @@ static void bind_rows(ButtonSettings *buttons)
                                         .value = long_value,
                                         .opens = true,
                                         .icon = ICON_KEY_MENU};
+    items[BUTTON_ROW_HEADSET_HOLD] = (MenuItem){.label = i18n_text(STR_BUTTON_HEADSET_VOL_HOLD),
+                                                .select = toggle_headset_hold,
+                                                .context = buttons,
+                                                .value = headset_hold_value,
+                                                .icon = ICON_SPEAKER};
     items[BUTTON_ROW_RESET] = (MenuItem){.label = i18n_text(STR_RESET_BUTTONS),
                                          .select = reset,
                                          .context = buttons,

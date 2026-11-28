@@ -378,6 +378,9 @@ Linker script and memory map
         self.assertRegex(table, r"release\s+resident code\s+95\s+100\s+5\s+8\s+FAIL")
         self.assertRegex(table, r"device\s+module views\s+60\s+100\s+40\s+0\s+PASS")
 
+    def test_resident_code_floors_match_the_build_presets(self):
+        self.assertEqual(size_report.RESIDENT_CODE_FLOORS, {"release": 4096, "device": 512})
+
     def test_release_budgets_reserve_space_in_every_mutable_region(self):
         floors = size_report.BUDGET_FLOORS["release"]
         self.assertEqual(
