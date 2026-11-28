@@ -26,12 +26,17 @@ uint32_t backlight_duty(uint32_t period, uint32_t percent)
     return period - period * percent / FULL_PERCENT;
 }
 
+uint32_t backlight_period(uint32_t pclk_hz)
+{
+    return (pclk_hz >= 48000000u ? 48000000u : pclk_hz) / BACKLIGHT_HZ;
+}
+
 BacklightPwm backlight_pwm(uint32_t pclk_hz, uint32_t percent)
 {
     if (percent >= FULL_PERCENT) {
         return (BacklightPwm){.full = true};
     }
-    uint32_t period = pclk_hz / BACKLIGHT_HZ;
+    uint32_t period = backlight_period(pclk_hz);
     return (BacklightPwm){.full = false, .period = period, .duty = backlight_duty(period, percent)};
 }
 

@@ -88,6 +88,10 @@ CORE_COLD static void start_pwm(void)
 
 CORE_COLD static void run_pwm(BacklightPwm pwm)
 {
+    if (pwm_running && pwm_period == pwm.period) {
+        register_write(PWM_DUTY, pwm.duty);
+        return;
+    }
     if (!pwm_running) {
         start_pwm();
     }
@@ -160,8 +164,14 @@ CORE_COLD void board_backlight_off(void)
 void board_display_after_clock_change(void)
 {
     board_panel_after_clock_change();
-    if (pwm_running) {
-        apply_backlight();
+    if (!pwm_running) {
+        return;
+    }
+    uint32_t period = backlight_period(board_pclk_hz());
+    if (period != pwm_period) {
+        uint32_t duty = register_read(PWM_DUTY);
+        run_pwm((BacklightPwm){.period = period,
+                               .duty = (duty * period + pwm_period / 2) / pwm_period});
     }
 }
 
