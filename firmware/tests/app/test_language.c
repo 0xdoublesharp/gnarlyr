@@ -177,6 +177,23 @@ static void a_damaged_file_for_a_language_the_image_lacks_falls_back_to_the_defa
     CHECK(language_is("en") && shows("Settings"));
 }
 
+static void a_damaged_file_module_leaves_the_entire_built_in_language_selected(void)
+{
+    standard_image();
+    make(2, "up", "UPPER (mine)", test_pack_bracketed);
+    I18nSegment row = test_pack_segment(packs[2], 2);
+    packs[2][row.offset + row.size - 2] ^= 1;
+    fake_hal_add_language_file("up.pack", packs[2], sizes[2]);
+    LanguageList list;
+    language_list(&list);
+    CHECK_EQUAL(1, language_list_find(&list, "up"));
+    CHECK(!list.from_file[1]);
+    CHECK(language_load("up"));
+    CHECK(language_is("up") && shows("SETTINGS"));
+    CHECK(strcmp("UPPER", module_text(STR_LANGUAGE_NAME)) == 0);
+    CHECK(strcmp("LANGUAGE", i18n_text(STR_LANGUAGE)) == 0);
+}
+
 static void a_file_built_for_another_catalogue_is_ignored(void)
 {
     standard_image();
@@ -514,14 +531,11 @@ static void with_no_readable_segment_a_module_falls_back_to_built_in_text(void)
     CHECK(!language_use_module(MODULES[2]));
 }
 
-static void a_file_with_a_damaged_module_segment_shows_that_module_in_english(void)
+static void a_file_module_damaged_after_loading_shows_that_module_in_english(void)
 {
-    standard_image();
-    make(2, "qps", "[Pseudo]", test_pack_bracketed);
+    pseudo_from_a_file();
     I18nSegment row = test_pack_segment(packs[2], STRING_SEGMENT_COUNT - 1);
     packs[2][row.offset + row.size - 2] ^= 0x01;
-    fake_hal_add_language_file("qps.pack", packs[2], sizes[2]);
-    CHECK(language_load("qps"));
     CHECK(language_is("qps") && shows("[Settings]"));
     CHECK(language_use_module(MODULES[1]));
     CHECK(bracketed(i18n_text(first_of(1))));
@@ -530,7 +544,7 @@ static void a_file_with_a_damaged_module_segment_shows_that_module_in_english(vo
     CHECK(english(first_of(STRING_SEGMENT_COUNT - 1)));
 }
 
-static void a_module_segment_too_large_for_the_window_shows_that_module_in_english(void)
+static void a_file_with_a_module_segment_too_large_for_the_window_is_skipped(void)
 {
     standard_image();
     make(2, "qps", "[Pseudo]", test_pack_bracketed);
@@ -540,6 +554,7 @@ static void a_module_segment_too_large_for_the_window_shows_that_module_in_engli
     test_pack_seal(packs[2], sizes[2]);
     fake_hal_add_language_file("qps.pack", packs[2], sizes[2]);
     CHECK(language_load("qps"));
+    CHECK(language_is("en") && shows("Settings"));
     language_use_module(MODULES[1]);
     CHECK_EQUAL(1, i18n_segment_loaded());
     CHECK(english(first_of(1)));
@@ -587,6 +602,7 @@ int main(void)
         TEST_CASE(a_file_is_only_used_for_the_chosen_language),
         TEST_CASE(a_file_with_a_changed_byte_falls_back_to_the_image),
         TEST_CASE(a_damaged_file_for_a_language_the_image_lacks_falls_back_to_the_default),
+        TEST_CASE(a_damaged_file_module_leaves_the_entire_built_in_language_selected),
         TEST_CASE(a_file_built_for_another_catalogue_is_ignored),
         TEST_CASE(a_file_cut_short_is_ignored),
         TEST_CASE(a_file_larger_than_the_pack_memory_is_ignored),
@@ -611,8 +627,8 @@ int main(void)
         TEST_CASE(a_module_whose_pack_file_is_gone_shows_english_until_the_file_returns),
         TEST_CASE(a_module_segment_damaged_after_loading_falls_back_to_the_default_pack),
         TEST_CASE(with_no_readable_segment_a_module_falls_back_to_built_in_text),
-        TEST_CASE(a_file_with_a_damaged_module_segment_shows_that_module_in_english),
-        TEST_CASE(a_module_segment_too_large_for_the_window_shows_that_module_in_english),
+        TEST_CASE(a_file_module_damaged_after_loading_shows_that_module_in_english),
+        TEST_CASE(a_file_with_a_module_segment_too_large_for_the_window_is_skipped),
         TEST_CASE(a_module_number_without_a_segment_reads_nothing),
         TEST_CASE(while_an_update_waits_for_a_restart_module_text_from_the_image_falls_back),
         TEST_CASE(without_a_pack_no_module_text_is_read),

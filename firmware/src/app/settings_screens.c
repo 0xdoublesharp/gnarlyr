@@ -263,6 +263,8 @@ static const char *describe_current_language(const void *context)
     return i18n_text(STR_LANGUAGE_NAME);
 }
 
+static void list_languages(SettingsScreens *screens);
+
 #ifdef ECHO_DEVICE_OVERLAYS
 static LanguageList language_choices;
 static bool language_choices_ready;
@@ -270,14 +272,22 @@ static bool language_choices_ready;
 void settings_screens_restore_languages(SettingsScreens *screens)
 {
     if (!language_choices_ready) {
-        language_list_for_picker(&language_choices, screens->theme);
-        language_choices_ready = true;
+        list_languages(screens);
     }
 }
 #endif
 
+static void list_languages(SettingsScreens *screens)
+{
+    language_list_for_picker(screens->context.languages, screens->theme);
+#ifdef ECHO_DEVICE_OVERLAYS
+    language_choices_ready = true;
+#endif
+}
+
 static void extend_language(SettingsScreens *screens, ChoiceConfig *config)
 {
+    list_languages(screens);
     config->options = screens->context.languages->options;
     config->option_ids = NULL;
     config->option_count = screens->context.languages->count;
@@ -1175,7 +1185,7 @@ static ScreenAction open_group(void *context)
 static ScreenAction open_language(void *context)
 {
     SettingsScreens *screens = context;
-    language_list_for_picker(screens->context.languages, screens->theme);
+    list_languages(screens);
     LanguagePickerConfig config = {.languages = screens->context.languages,
                                    .choose = choose_language,
                                    .context = &screens->context,
@@ -1296,9 +1306,6 @@ Screen *settings_screens_init(SettingsScreens *screens, SettingsContext context,
     screens->choice_preview = STRING_COUNT;
     screens->preview = (SettingsPreview){.choice = STRING_COUNT};
     screens->preview_settings = settings_preview_shown;
-#ifndef ECHO_DEVICE_OVERLAYS
-    language_list(screens->context.languages);
-#endif
     ButtonSettingsConfig buttons = {.settings = &screens->context.store->settings,
                                     .theme = theme,
                                     .changed = buttons_changed,

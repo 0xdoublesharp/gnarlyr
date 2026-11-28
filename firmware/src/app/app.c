@@ -1761,6 +1761,9 @@ CORE_COLD static void build_screens(uint32_t now_ms)
         .bluetooth = &app.bluetooth,
         .listening = &app.listening,
         .motion = &app.motion,
+#ifdef ECHO_DEVICE_OVERLAYS
+        .stack = &app.stack,
+#endif
     };
     AppScreensContext context = INITIAL_CONTEXT;
     context.theme = board_theme();

@@ -7,6 +7,7 @@
 #include "core/i18n.h"
 #include "core/string_builder.h"
 #include "hal/clock.h"
+#include "language_source.h"
 
 static bool home_changed(void *context)
 {
@@ -112,7 +113,14 @@ static ScreenAction menu_hold(AppScreens *screens, uint8_t action)
 #ifdef ECHO_DEVICE_OVERLAYS
 static void reload(AppScreens *screens)
 {
-    settings_screens_restore_languages(&screens->modules.settings.settings);
+    SettingsScreens *settings = &screens->modules.settings.settings;
+    const ScreenStack *stack = screens->context.stack;
+    for (int index = 0; stack != NULL && index < stack->depth; index++) {
+        if (stack->screens[index] == &settings->language.screen) {
+            settings_screens_restore_languages(settings);
+            break;
+        }
+    }
 }
 #endif
 
@@ -129,4 +137,5 @@ const SettingsModuleEntry SETTINGS_MODULE_ENTRY = {
     .choose_tables = &SETTINGS_CHOOSE_TABLES,
 #endif
     .dac_headphones = headphone_store_choose_for_dac,
+    .file_sound = language_source_file_sound,
 };

@@ -17,7 +17,6 @@ add_executable(echo_device
     board/gpio.c
     board/jack.c
     board/language.c
-    board/language_descriptor.c
     board/loader_reboot.c
     board/high_ram.c
     board/input.c
